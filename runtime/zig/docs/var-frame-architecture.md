@@ -385,6 +385,50 @@ backward-compat shims (e.g. `tcl_array.array_set` proxying to
 `scope.var_set` for an `ARRAY` variable) get deleted, since this
 is an internal runtime and we don't ship a stable C ABI.
 
+## Open follow-ups
+
+Phases 1, 2, 3, 5, 6, 8 are behaviourally complete.  Phase 4 was
+ruled n/a after investigation.  The remaining work:
+
+* **Phase 7** — Python-side codegen analysis pass that identifies
+  compile-time-known scalar locals (no `upvar` / `info` / `trace`
+  interference, name is a literal) and assigns them slot indices
+  0..15.  ``_emitter/_variables.py`` then routes simple reads /
+  writes through ``frame_local_at`` / ``frame_local_set_at``
+  instead of the name-keyed ``var_resolve`` / ``local_set``.  The
+  runtime substrate is in place — only the codegen side is
+  needed to deliver the perf goal.
+
+* **Phase 8 (smaller follow-ups)** — parser threading line
+  numbers through to the dispatcher so ``info frame N``'s
+  ``-line`` field is non-zero, and a body-script invocation
+  pathway (``frame_set_script`` / ``frame_set_cmd_text``) for
+  the compiled-proc prologue.
+
+* **Phase 9** — variable-record refactor that adds a Link-storage
+  variant (the design doc's true Phase 1 ideal that we sidestepped
+  with scope-keyed names).  Once ``Variable`` has a Link variant,
+  ``var_resolve`` walks ``CrossInterpLink.target_interp`` to
+  resolve cross-interp aliases.  ``interp transfer`` for channels
+  remains a no-op stub — channels are single-instance file
+  descriptors in the WASM runtime, so cross-interp channel
+  transfer has no meaning here.
+
+* **Phase 10** — proper coroutine driver that holds a per-coro
+  persistent frame and uses ``frame_context_save`` /
+  ``frame_context_restore`` on yield / resume.  The blocker is
+  TclObj refcount accounting: a flat copy of the slot arrays
+  doesn't bump retain counts, so ownership of slot references
+  has to be transferred between live state and snapshot.  The
+  runtime API is in place — only the driver-level rewrite is
+  needed.
+
+* **Phase 6 (smaller follow-up)** — proc-local variable traces.
+  Today the trace registry is keyed by canonical FQ name, so
+  only global-scope variables (and namespace vars) can be
+  traced.  Proc-local trace support needs per-frame trace lists
+  cleaned up at ``frame_pop``.
+
 The remaining stragglers in set.test / parse.test / namespace.test
 that have been deferred as "deep refactor" become tractable once
 phases 1 and 4 land.  Phases 6–10 unlock features we don't yet
