@@ -2286,6 +2286,54 @@ pub fn eval_interp(words: []const i32) i32 {
     if (str_eq(sp, sub.len, "share") or str_eq(sp, sub.len, "transfer")) {
         return 0;
     }
+    // ``interp share-variable LOCAL_PATH LOCAL_NAME TARGET_PATH
+    // ?TARGET_NAME?`` — Phase 9 cross-interp variable link.  Aliases
+    // ``LOCAL_NAME`` in the LOCAL_PATH interp to ``TARGET_NAME``
+    // (defaults to ``LOCAL_NAME``) in TARGET_PATH.  Subsequent
+    // reads / writes of the local name route through the target's
+    // resolution.  This is a custom extension on top of the C Tcl
+    // surface — ``interp share`` proper only handles channels.
+    if (str_eq(sp, sub.len, "share-variable")) {
+        if (words.len < 5 or words.len > 6) {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "wrong # args: should be \"interp share-variable localPath localName targetPath ?targetName?\"";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        const local_interp = interp_impl.resolve_interp_path(words[2]);
+        if (local_interp == 0) return 0;
+        const target_interp = interp_impl.resolve_interp_path(words[4]);
+        if (target_interp == 0) return 0;
+        const target_name = if (words.len == 6) words[5] else words[3];
+        const xlinks = @import("tcl_xlinks.zig");
+        if (!xlinks.install(local_interp, words[3], target_interp, target_name)) {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "interp share-variable: out of memory";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        return obj_new_string(0, 0);
+    }
+    // ``interp unshare-variable LOCAL_PATH LOCAL_NAME`` — remove
+    // a previously-installed cross-interp variable link.  No-op
+    // when no link exists (matches reference Tcl's tolerance for
+    // the common "remove if present" pattern).
+    if (str_eq(sp, sub.len, "unshare-variable")) {
+        if (words.len != 4) {
+            const catch_mod = @import("tcl_catch.zig");
+            const err_text = "wrong # args: should be \"interp unshare-variable localPath localName\"";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        const local_interp = interp_impl.resolve_interp_path(words[2]);
+        if (local_interp == 0) return 0;
+        const xlinks = @import("tcl_xlinks.zig");
+        _ = xlinks.remove(local_interp, words[3]);
+        return obj_new_string(0, 0);
+    }
     if (!str_eq(sp, sub.len, "alias") and !str_eq(sp, sub.len, "aliases")) {
         // Unrecognised subcommand: raise tclsh's ``bad option "X"``
         // error rather than the stub-dispatch trap.  Matches

@@ -1362,6 +1362,20 @@ fn strip_global_prefix(ptr: u32, len: u32) struct { ptr: u32, len: u32 } {
 var conflict_check_active: bool = false;
 
 pub export fn global_set(name: i32, value: i32) i32 {
+    // Phase 9: cross-interp variable link probe.  Top-level
+    // compiled code routes writes via ``global_set``, so we need
+    // the same xlink foothold the read path has.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) return value;
+        const save = interp_reg.enter(lk.target_interp);
+        const v = global_set(lk.target_name, value);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj.obj_ensure_string(name);
     const k = strip_global_prefix(sn.ptr, sn.len);
     // Scalar/array name-conflict detection.  Real Tcl raises
@@ -1490,6 +1504,23 @@ pub export fn ns_scalar_exists(name_ptr: u32, name_len: u32) i32 {
 /// Get a global variable.  Returns 0 (a NULL TclObj handle) if the
 /// var has never been set.
 pub export fn global_get(name: i32) i32 {
+    // Phase 9: cross-interp variable link probe — same shape as
+    // ``var_resolve``'s probe.  The codegen at top-level bypasses
+    // ``var_resolve`` and routes directly through ``global_get`` /
+    // ``global_get_or_error``, so the xlink hook needs a foothold
+    // here too.  The re-entry guard keeps a self-cycle from
+    // looping.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) return 0;
+        const save = interp_reg.enter(lk.target_interp);
+        const v = global_get(lk.target_name);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj.obj_ensure_string(name);
     const k = strip_global_prefix(sn.ptr, sn.len);
     const v = ns_var_find(ns_root(), k.ptr, k.len);

@@ -1128,6 +1128,12 @@ pub fn eval_interp_delete(words: []const i32) i32 {
             // deleted interp.
             const parent_i: *interp_reg.Interp = @ptrFromInt(parent);
             _ = tcl_ns.ns_cmd_clear(parent_i.root_ns, t.name_ptr, t.name_len);
+            // Phase 9: drop every cross-interp variable link whose
+            // local or target endpoint is the deleted interp so a
+            // dangling link can't outlive its endpoint and route
+            // future ``var_resolve`` probes into freed storage.
+            const xlinks = @import("../interp/tcl_xlinks.zig");
+            xlinks.drop_for_interp(target);
             _ = interp_reg.child_delete(parent, t.name_ptr, t.name_len);
         }
         // Flush the LRU — a parent alias that targets a command in

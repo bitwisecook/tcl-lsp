@@ -1510,6 +1510,24 @@ pub export fn local_exists(name: i32) i32 {
 /// Resolve a variable: check current frame first, then globals.
 /// This is the standard Tcl lookup order for the interpreter.
 pub export fn var_resolve(name: i32) i32 {
+    // Phase 9: cross-interp variable link probe.  When a name in
+    // the current interp is linked to a target in another interp,
+    // route the read through the target interp's resolution.  The
+    // probe is gated by the link-registry's re-entry guard so a
+    // cycle (A → B → A) doesn't loop.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) {
+            return 0;
+        }
+        const save = interp_reg.enter(lk.target_interp);
+        const v = var_resolve(lk.target_name);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj_ensure_string(name);
     // Array-element form ``arr(key)`` — split into ``arr`` + ``key``
     // and route through the array directory.  The previous code
@@ -1618,6 +1636,26 @@ pub export fn var_resolve(name: i32) i32 {
 /// Set a variable: sets in current frame if one is active, otherwise global.
 /// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
+    // Phase 9: cross-interp variable link probe — same shape as
+    // :func:`var_resolve`'s probe.  When the current interp's
+    // variable is linked to another interp's, write through to
+    // the target.  ``transfer_result`` doesn't run here because
+    // the value lives in the shared linear memory; both interps
+    // see the same handle and the destination's hash bucket
+    // retains it on store.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) {
+            return value;
+        }
+        const save = interp_reg.enter(lk.target_interp);
+        const v = var_set(lk.target_name, value);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj_ensure_string(name);
     // Array-element form ``arr(key)`` — split off the key and route
     // through ``array_set``.  Mirrors the read path in

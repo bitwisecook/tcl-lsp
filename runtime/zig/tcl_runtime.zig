@@ -42,6 +42,7 @@ const tcl_rename = @import("cmds/tcl_rename.zig");
 const tcl_alias = @import("cmds/tcl_alias.zig");
 const tcl_hide = @import("cmds/tcl_hide.zig");
 const tcl_interp_registry = @import("interp/tcl_interp_registry.zig");
+const tcl_xlinks = @import("interp/tcl_xlinks.zig");
 const interp = @import("interp/tcl_interp.zig");
 const tcl_sched = @import("sched/tcl_sched.zig");
 const tcl_coro = @import("sched/tcl_coro.zig");
@@ -529,6 +530,12 @@ comptime {
     _ = &tcl_interp_registry.child_create;
     _ = &tcl_interp_registry.child_lookup;
     _ = &tcl_interp_registry.child_delete;
+    // Phase 9: cross-interp variable link registry exports.
+    _ = &tcl_xlinks.install;
+    _ = &tcl_xlinks.remove;
+    _ = &tcl_xlinks.lookup;
+    _ = &tcl_xlinks.lookup_done;
+    _ = &tcl_xlinks.drop_for_interp;
     _ = &tcl_interp_registry.resolve_path;
     _ = &tcl_interp_registry.enter;
     _ = &tcl_interp_registry.leave;
