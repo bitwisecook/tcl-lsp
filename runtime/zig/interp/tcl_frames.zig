@@ -626,21 +626,21 @@ pub fn frame_get_info(abs_depth: u32) ?*const FrameInfo {
     return &frame_info[abs_depth - 1];
 }
 
-// --- Phase 10 (INCOMPLETE — wired up in next PR): frame contexts -------
+// --- Frame contexts (used by the coroutine driver) ---------------------
 //
-// **THIS API HAS NO CONSUMER YET.**  The shape lands here so the
-// next PR can wire :file:`sched/tcl_coro.zig` to it without
-// re-designing the surface.  See ``docs/var-frame-architecture.md``
-// for the driver-level design + the TclObj-ownership decision the
-// driver author needs to make (flat-copy save doesn't bump retain
-// counts, so live-drain semantics have to be enforced between
-// save and restore to avoid use-after-free on the next
-// ``frame_pop``).
+// :file:`sched/tcl_coro.zig` save-transfers each coro's frame stack
+// into ``Coro.ctx`` on yield and restores it on the next resume.
+// The transfer-ownership variants (:func:`frame_context_save_transfer`
+// / :func:`frame_context_restore_transfer`) move the live retains
+// into the snapshot and zero the live slots, so a paired
+// save/restore stays refcount-balanced without any explicit
+// retain/release: at most one of "snapshot" or "live" owns a given
+// TclObj at any moment.
 //
-// Until the driver lands, the v1 segment-based coroutine driver
-// evaluates each segment inline in the caller's frame stack and
-// doesn't need isolation; the asyncify path handles its own
-// wasm-side state via ``wasm-opt --asyncify``.
+// via ``wasm-opt --asyncify`` and doesn't use ``FrameContext`` —
+// asyncify's stack-save covers WASM locals; the runtime side-state
+// stays shared with the caller.  Coroutines under that driver
+// observe the caller's frame stack rather than an isolated one.
 //
 // Shape: a ``FrameContext`` is an opaque snapshot of the
 // per-frame slot arrays — ``frame_stack`` / ``frame_capacity`` /
@@ -768,28 +768,28 @@ pub fn frame_context_reset() void {
     // reset path on push.
 }
 
-// --- Phase 7 (INCOMPLETE — wired up in next PR): indexed locals --------
+// --- Indexed locals (compile-time slot resolution) ---------------------
 //
-// **THIS API HAS NO CONSUMER YET.**  The next PR is a Python-side
-// codegen pass that identifies compile-time-known scalar locals
-// and emits ``frame_local_at(idx)`` / ``frame_local_set_at(idx,
-// value)`` instead of the name-keyed ``tcl_local_set`` /
-// ``tcl_local_get`` for them.  Spec lives in
-// ``docs/var-frame-architecture.md``.
-//
-// Until the codegen pass lands the indexed slots stay unused;
-// nothing is regressed because the hash-keyed local store keeps
-// working as the primary path.  ``frame_pop`` already drains
-// the indexed slots so their refcount accounting can't drift
-// even if a stray future caller writes through the indexed
-// accessor without the codegen-side consumer.
+// The Python-side ``var_escape/_slot_resolution.py`` pass walks each
+// proc body, decides which scalar literal locals can safely live in
+// the indexed array (no upvar / global / variable / vwait / regexp
+// capture-binding / info introspection / trace / nested eval / etc.
+// — see the pass for the full eligibility list), and stamps the
+// resulting ``{name: slot}`` map on :class:`ProcEscapeSummary.
+// local_slot_indices`.  The WASM emitter consults that map in
+// :func:`_emit_var_write_obj_impl` / :func:`_emit_var_read_obj_lenient`
+// to swap ``tcl_local_set`` / ``tcl_local_get_or_error`` for
+// ``frame_local_set_at(idx)`` / ``frame_local_at(idx)``.
 //
 // Shape: a per-frame ``locals_array`` of fixed capacity.  We
 // pre-allocate ``LOCALS_ARRAY_CAP`` slots per frame; codegen-
 // resolved locals use indices ``0..LOCALS_ARRAY_CAP-1``.  Procs
 // with more locals than that capacity continue to use the
 // hash-keyed store transparently — ``frame_local_at`` only
-// handles indexed slots, never the dynamic ones.
+// handles indexed slots, never the dynamic ones.  ``frame_pop``
+// drains the indexed slots so their refcount accounting can't
+// drift even if a stray future caller writes through the indexed
+// accessor in an unexpected way.
 const LOCALS_ARRAY_CAP: u32 = 16;
 var frame_locals_array: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32 = undefined;
 

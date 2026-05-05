@@ -838,15 +838,29 @@ class TestCommandDispatch:
             # module has procs since any callee can ``return -code
             # break`` / ``-code continue``.
             "flow_check_signal_loop",
-            # Phase 8 of the var/frame/ns/exception architecture
-            # refactor — the compiled-proc prologue stamps the
-            # ``FrameInfo`` for ``info frame N`` so the new frame
-            # surfaces ``type proc proc <fq-name>`` rather than
-            # the generic ``type eval`` fallback.  Always pulled in
-            # for any module with procs.  See
-            # ``runtime/zig/docs/var-frame-architecture.md``.
+            # The compiled-proc prologue stamps the ``FrameInfo``
+            # for ``info frame N`` so the new frame surfaces
+            # ``type proc proc <fq-name>`` rather than the generic
+            # ``type eval`` fallback.  Always pulled in for any
+            # module with procs.  ``frame_set_line`` /
+            # ``frame_set_script`` / ``frame_claim_line_codegen``
+            # complete the introspection surface for compiled procs.
             "frame_set_type_i32",
             "frame_set_proc_name",
+            "frame_set_line",
+            "frame_set_script",
+            "frame_claim_line_codegen",
+            # Phase 7 indexed-local accessors.  Pulled in for every
+            # compiled proc so a slot-resolved name can route to the
+            # indexed array regardless of which body references it.
+            "frame_local_at",
+            "frame_local_set_at",
+            # Phase 6 follow-up silent variants of local_set /
+            # local_get used by ``_emit_frame_sync`` /
+            # ``_emit_frame_readback`` so frame syncs at interpreter
+            # boundaries don't fire variable traces.
+            "local_set_silent",
+            "local_get_silent",
         }
 
 

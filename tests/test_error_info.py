@@ -3,13 +3,12 @@
 Before this wave the runtime only propagated the error *message*
 (available via ``catch { … } msg``); scripts that inspected
 ``$::errorInfo`` or ``$::errorCode`` after a caught error got an
-empty string.  Now the runtime stamps both globals when
+empty string.  The runtime now stamps both globals when
 ``tcl_cmd_error`` fires, with a real Tcl-compatible traceback
-appended (``while executing`` / ``invoked from within`` frames)
-once Phase 5 of the var/frame/ns/exception architecture refactor
-landed (``Tcl_LogCommandInfo``-equivalent walk over the active
-frame stack).  See ``runtime/zig/docs/var-frame-architecture.md``
-for the design.
+appended (``while executing`` / ``invoked from within`` frames) via
+``Tcl_LogCommandInfo``-equivalent walks over the active frame
+stack — see :file:`runtime/zig/interp/tcl_catch.zig` and
+:func:`tcl_interp.log_command_info` for the implementation.
 
     catch { error boom } msg
     puts $::errorInfo
