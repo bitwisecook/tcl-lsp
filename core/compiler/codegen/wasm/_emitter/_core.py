@@ -53,6 +53,7 @@ class _WasmEmitterBase:
         def _run_optimisations(self, *a: Any, **kw: Any) -> Any: ...
         def _body_references_info_level(self, *a: Any, **kw: Any) -> Any: ...
         def _is_frame_only_var(self, *a: Any, **kw: Any) -> Any: ...
+        def _local_slot_index(self, *a: Any, **kw: Any) -> Any: ...
 
     def __init__(
         self,
@@ -1071,8 +1072,21 @@ class _WasmEmitterBase:
 
         if wants_frame:
             local_set_idx = self._shared_imports["tcl_local_set"]
+            # Phase 7: route slot-resolved params through the indexed
+            # accessor instead of the name-keyed setter.  Falls back
+            # to the legacy ``tcl_local_set`` when the param has no
+            # slot (proc isn't slot-eligible, or the param spilled
+            # past LOCALS_ARRAY_CAP).
+            slot_set_idx = self._shared_imports.get("tcl_frame_local_set_at")
             for i, pname in enumerate(self._params):
                 if not pname:
+                    continue
+                slot_idx = self._local_slot_index(pname) if slot_set_idx is not None else None
+                if slot_idx is not None:
+                    self._emit_i32_const(slot_idx)
+                    self._emit_local_get(i)
+                    self._emit_call(slot_set_idx)
+                    self._emit(WasmOp.DROP)
                     continue
                 self._emit_obj_literal(pname)
                 self._emit_local_get(i)

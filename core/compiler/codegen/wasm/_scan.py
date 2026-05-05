@@ -1274,6 +1274,12 @@ def _scan_needed_imports(
         # nested ``eval_script`` calls don't overwrite the per-stmt
         # stamps emitted from compiled bodies.
         needed.add("tcl_frame_claim_line_codegen")
+        # Phase 7: indexed local-variable accessors.  Always pulled
+        # in for compiled procs so any slot-resolved name can route
+        # to the indexed array regardless of which proc body
+        # references it.
+        needed.add("tcl_frame_local_at")
+        needed.add("tcl_frame_local_set_at")
         # The proc-name TclObj is built via obj_new_string from the
         # FQ-name literal in the data segment; pull in the helper
         # unconditionally for procs so the prologue can construct it.

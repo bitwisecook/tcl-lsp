@@ -195,6 +195,26 @@ class _WasmEmitterVarMixin(_Base):
         # vars of the same name — and raises ``no such variable`` if
         # the frame slot is unset).
         if self._is_frame_only_var(name):
+            # Phase 7: indexed slot fast path — replaces the
+            # name-keyed ``tcl_local_get_or_error`` with
+            # ``tcl_frame_local_at(idx)`` when the slot-resolution
+            # pass assigned a slot for this name.  Falls back to
+            # the legacy reader when no slot was assigned.
+            slot_idx = self._local_slot_index(name)
+            if slot_idx is not None:
+                fla_idx = self._shared_imports.get("tcl_frame_local_at")
+                if fla_idx is not None:
+                    self._emit_i32_const(slot_idx)
+                    self._emit_call(fla_idx)
+                    if not self._emit_unset_check_with_alias(name):
+                        # Indexed slot was 0 — raise the same error
+                        # the name-keyed strict reader would have.
+                        lget_idx_strict = self._shared_imports.get("tcl_local_get_or_error")
+                        if lget_idx_strict is not None:
+                            self._emit(WasmOp.DROP)
+                            self._emit_obj_literal(name)
+                            self._emit_call(lget_idx_strict)
+                    return
             lget_idx = self._shared_imports.get("tcl_local_get_or_error")
             if lget_idx is not None:
                 self._emit_obj_literal(name)
@@ -398,6 +418,25 @@ class _WasmEmitterVarMixin(_Base):
         # mirror today because ``_emit_var_read_obj`` already goes
         # through the frame for FRAME-tagged names.
         if self._is_frame_only_var(name):
+            # Phase 7: indexed slot fast path for FRAME writes.
+            # ``tcl_frame_local_set_at(idx, value)`` skips the
+            # name-keyed bucket scan entirely; the value-store
+            # contract (retain new, release old) is identical.
+            slot_idx = self._local_slot_index(name)
+            if slot_idx is not None:
+                flsa_idx = self._shared_imports.get("tcl_frame_local_set_at")
+                if flsa_idx is not None:
+                    tmp = self._add_extra_local(prefix="_frame_slot_tmp", val_type=ValType.I32)
+                    self._emit_local_set(tmp)
+                    self._emit_i32_const(slot_idx)
+                    self._emit_local_get(tmp)
+                    self._emit_call(flsa_idx)
+                    if keep_on_stack:
+                        self._emit(WasmOp.DROP)
+                        self._emit_local_get(tmp)
+                    else:
+                        self._emit(WasmOp.DROP)
+                    return
             lset_idx = self._shared_imports.get("tcl_local_set")
             if lset_idx is not None:
                 # Stack holds [value].  Need [name_obj, value] for
@@ -689,6 +728,22 @@ class _WasmEmitterVarMixin(_Base):
             self._emit_call(ns_restore_idx)
         self._emit_frame_readback()
         return True
+
+    def _local_slot_index(self, name: str) -> int | None:
+        """Phase 7: return the compile-time slot index for ``name``
+        if the slot-resolution pass assigned one, otherwise None.
+
+        Consumed by the variable read/write paths to swap the
+        name-keyed ``tcl_local_set`` / ``tcl_local_get_or_error``
+        runtime calls for indexed accessors
+        (``tcl_frame_local_set_at`` / ``tcl_frame_local_at``).
+        """
+        if not self._is_proc:
+            return None
+        summary = self._escape_summary
+        if summary is None:
+            return None
+        return summary.local_slot_indices.get(name)
 
     def _is_frame_only_var(self, name: str) -> bool:
         """True when the escape analysis says ``name`` must live in the runtime frame.
