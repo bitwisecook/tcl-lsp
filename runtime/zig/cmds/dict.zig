@@ -7,6 +7,7 @@ const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const interp = @import("../interp/tcl_interp.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 
@@ -339,15 +340,12 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
         _ = frames.var_set(kvar, key_obj);
         _ = frames.var_set(vvar, val_obj);
         const body_result = interp.eval_script(body.ptr, body.len);
-        if (rt.error_flag.* != 0) return 0;
-        if (rt.return_flag.* != 0) return 0;
-        if (rt.break_flag.* != 0) {
-            rt.break_flag.* = 0;
-            break;
-        }
-        if (rt.continue_flag.* != 0) {
-            rt.continue_flag.* = 0;
-            continue;
+        const ir = result_mod.snapshot(body_result);
+        switch (ir.code) {
+            .OK => {},
+            .ERROR, .RETURN => return 0,
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
         }
         if (collect) {
             collected = rt.dict_set(collected, key_obj, body_result);
@@ -387,7 +385,7 @@ fn eval_dict_with(words: []const i32) i32 {
     }
 
     _ = interp.eval_script(body.ptr, body.len);
-    if (rt.error_flag.* != 0) return 0;
+    if (result_mod.snapshot(0).code == .ERROR) return 0;
 
     // Write back each key from the (potentially modified) locals.
     var sub = cur;
@@ -526,10 +524,11 @@ fn eval_dict_update(words: []const i32) i32 {
     // Capture (and clear) break/continue so the writeback completes
     // even when the script broke out of an enclosing loop.  Errors
     // and ``return`` propagate up.
-    const had_break = rt.break_flag.* != 0;
-    const had_continue = rt.continue_flag.* != 0;
-    rt.break_flag.* = 0;
-    rt.continue_flag.* = 0;
+    const ir = result_mod.snapshot(0);
+    const had_break = ir.code == .BREAK;
+    const had_continue = ir.code == .CONTINUE;
+    if (had_break) result_mod.consume(.BREAK);
+    if (had_continue) result_mod.consume(.CONTINUE);
 
     // 3. Post-script: reflect each VAR back into the dict (or
     //    remove the key if VAR was unset).

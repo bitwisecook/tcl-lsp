@@ -50,6 +50,7 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const tcl_async = @import("tcl_asyncify.zig");
 
 // The yield signal flag lives on ``tcl_catch.yield_flag`` so
@@ -404,7 +405,8 @@ fn resume_segments(c: *Coro) i32 {
             c.state = .SUSPENDED;
             return yv;
         }
-        if (tcl_catch.error_flag != 0 or tcl_catch.return_flag != 0) {
+        const ir = result_mod.snapshot(result);
+        if (ir.code == .ERROR or ir.code == .RETURN) {
             c.state = .DEAD;
             return result;
         }

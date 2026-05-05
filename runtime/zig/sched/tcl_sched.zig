@@ -42,6 +42,7 @@ const fevent_mod = @import("tcl_fileevent.zig");
 const vwait_mod = @import("tcl_vwait.zig");
 const tcl_clock = @import("../io/tcl_clock.zig");
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 
 // Global scheduler state.  Single-instance because the WASM runtime
 // is single-interp today; when ``interp::create`` lands, this struct
@@ -335,7 +336,7 @@ fn run_script_obj(script_obj: i32) void {
     tcl_catch.yield_flag = 0;
     tcl_catch.yield_value = 0;
     _ = interp.eval_script(s.ptr, s.len);
-    if (tcl_catch.error_flag != 0) {
+    if (result_mod.snapshot(0).code == .ERROR) {
         // Write a minimal background-error marker to stderr so the
         // failure isn't silent.  Stage 4 promotes this to a real
         // ``bgerror`` invocation.

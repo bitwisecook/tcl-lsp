@@ -15,6 +15,7 @@ const info = @import("../cmds/tcl_cmd_info.zig");
 
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const arena = @import("../valtypes/tcl_arena.zig");
+const result_mod = @import("tcl_result.zig");
 
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
@@ -31,11 +32,10 @@ const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
 
-// Convenience: check if any signal flag is set (error, return, break, continue)
+// Convenience: check if any signal flag is set (error, return, break, continue, yield)
 fn has_signal() bool {
     const tcl_catch = @import("tcl_catch.zig");
-    return rt.error_flag.* != 0 or rt.return_flag.* != 0 or
-        rt.break_flag.* != 0 or rt.continue_flag.* != 0 or
+    return result_mod.has_signal(result_mod.snapshot(0)) or
         tcl_catch.yield_flag != 0;
 }
 
@@ -880,9 +880,13 @@ pub fn eval_while(words: []const i32) i32 {
         // ceiling).
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        const ir = result_mod.snapshot(result);
+        switch (ir.code) {
+            .OK => {},
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .ERROR, .RETURN => return result,
+        }
     }
     return result;
 }
@@ -907,9 +911,15 @@ pub fn eval_for(words: []const i32) i32 {
         if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        const ir = result_mod.snapshot(result);
+        switch (ir.code) {
+            .OK => {},
+            // ``for`` runs the next-clause even after ``continue``;
+            // ``while`` doesn't have one, hence the divergence above.
+            .CONTINUE => result_mod.consume(.CONTINUE),
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .ERROR, .RETURN => return result,
+        }
         const next_res = eval_script(next_s.ptr, next_s.len);
         if (next_res != 0) obj_mod.tcl_obj_release(next_res);
     }
@@ -1229,9 +1239,13 @@ pub fn eval_foreach(words: []const i32) i32 {
         // Release the prior body result before overwriting (issue #303).
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        const ir = result_mod.snapshot(result);
+        switch (ir.code) {
+            .OK => {},
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .ERROR, .RETURN => return result,
+        }
     }
     // foreach returns "" on normal completion — discard last body result.
     if (result != 0) obj_mod.tcl_obj_release(result);
@@ -1743,7 +1757,7 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
                     if (es.len > 0) {
                         const r = eval_script(es.ptr, es.len);
                         if (r != 0) obj_mod.tcl_obj_release(r);
-                        if (rt.error_flag.* == 0) return fq_key;
+                        if (result_mod.snapshot(0).code != .ERROR) return fq_key;
                     }
                 }
                 obj_mod.tcl_obj_release(fq_key);
@@ -1757,7 +1771,7 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
         if (es.len > 0) {
             const r = eval_script(es.ptr, es.len);
             if (r != 0) obj_mod.tcl_obj_release(r);
-            if (rt.error_flag.* == 0) {
+            if (result_mod.snapshot(0).code != .ERROR) {
                 obj_mod.tcl_obj_retain(cmd_obj);
                 return cmd_obj;
             }
@@ -1899,21 +1913,21 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // ``catch_leave`` grew TCL_RETURN handling.  Real Tcl's proc
         // dispatch unconditionally converts body-level ``return`` to
         // a normal return value at the dispatch boundary.
-        if (rt.return_flag.* != 0) {
+        const ir_compiled = result_mod.snapshot(result);
+        if (ir_compiled.code == .RETURN) {
             const tcl_catch = @import("tcl_catch.zig");
-            const rv = rt.return_val.*;
+            const rv = ir_compiled.value;
             // ``return -code return`` / ``-level N`` propagates past
             // the immediate proc — keep the flag set and decrement
             // the extra-level counter so the next proc up also exits.
-            if (tcl_catch.return_level > 0) {
+            if (ir_compiled.return_level > 0) {
                 tcl_catch.return_level -= 1;
                 // Leave return_flag/return_val set; produce ``rv`` as
                 // the result so the parent dispatcher sees the value
                 // when it absorbs.
                 if (result == 0 and rv != 0) result = rv;
             } else {
-                rt.return_flag.* = 0;
-                rt.return_val.* = 0;
+                result_mod.consume(.RETURN);
                 // The dispatch-bridge result the WASM-side flow_take_return
                 // already absorbed will be non-zero; only fall back to the
                 // recorded ``return_val`` when the bridge handed us 0.
@@ -2125,23 +2139,23 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     frames.frame_pop();
 
     // Absorb return signal (like picol: PICOL_RETURN → PICOL_OK)
-    if (rt.return_flag.* != 0) {
+    const ir_proc = result_mod.snapshot(result);
+    if (ir_proc.code == .RETURN) {
         const tcl_catch = @import("tcl_catch.zig");
-        const rv = rt.return_val.*;
+        const rv = ir_proc.value;
         // ``return -code return`` / ``-level N`` propagates past the
         // immediate proc — keep the flag set, decrement the extra-
         // level counter, and let the next proc up absorb.
-        if (tcl_catch.return_level > 0) {
+        if (ir_proc.return_level > 0) {
             tcl_catch.return_level -= 1;
             return rv;
         }
-        rt.return_flag.* = 0;
         // MM-B.5: ``return_val`` was retained by ``eval_return``.
         // Hand its reference to the caller (no transfer-side
         // retain needed) and clear the slot so a recursive
         // ``return`` doesn't see a stale pointer in its release
         // path.  Caller's standard "holds 1" contract is met.
-        rt.return_val.* = 0;
+        result_mod.consume(.RETURN);
         return rv;
     }
     // Body-raised break/continue without an enclosing loop is a Tcl
@@ -2149,8 +2163,8 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // loop``).  Convert it here.  The opposite case — caller leaked
     // its own pending break/continue into us — restores the caller's
     // signal so an outer compiled loop still observes it.
-    const body_break = rt.break_flag.* != 0;
-    const body_continue = rt.continue_flag.* != 0;
+    const body_break = ir_proc.code == .BREAK;
+    const body_continue = ir_proc.code == .CONTINUE;
     const tcl_catch_b = @import("tcl_catch.zig");
     const sig_break = tcl_catch_b.signal_break_flag != 0;
     const sig_continue = tcl_catch_b.signal_continue_flag != 0;
@@ -2642,21 +2656,20 @@ pub fn eval_apply(words: []const i32) i32 {
 
     frames.frame_pop();
 
-    if (rt.return_flag.* != 0) {
+    const ir_apply = result_mod.snapshot(result);
+    if (ir_apply.code == .RETURN) {
         const tcl_catch = @import("tcl_catch.zig");
-        const rv = rt.return_val.*;
-        if (tcl_catch.return_level > 0) {
+        const rv = ir_apply.value;
+        if (ir_apply.return_level > 0) {
             tcl_catch.return_level -= 1;
             return rv;
         }
-        rt.return_flag.* = 0;
         // MM-B.5: same as eval_proc_call_bucket.
-        rt.return_val.* = 0;
+        result_mod.consume(.RETURN);
         return rv;
     }
-    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
-        rt.break_flag.* = 0;
-        rt.continue_flag.* = 0;
+    if (ir_apply.code == .BREAK or ir_apply.code == .CONTINUE) {
+        result_mod.consume(ir_apply.code);
         rt.tcl_cmd_error(words[1]);
     }
     return result;
@@ -2733,6 +2746,7 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // wasm32 4 GiB linear-memory ceiling.
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
+        const ir = result_mod.snapshot(result);
         // ``Tcl_LogCommandInfo`` (parse-9.2 / parse-9.1): when an
         // error fires inside the executed command, append THIS
         // frame's command source to ``::errorInfo``.  Each frame
@@ -2741,10 +2755,19 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // ``log_command_info`` (last_log_script/pos), and the
         // unwind stops when ``catch_leave`` clears
         // ``error_flag`` + ``last_log_*``.
-        if (rt.error_flag.* != 0) {
+        if (ir.code == .ERROR) {
             log_command_info(script_ptr, cmd.command_start, cmd.command_len);
         }
-        if (has_signal()) return result;
+        // Yield is its own escape hatch — handled separately from the
+        // main control-flow signal so a coroutine body that raises
+        // ``error`` mid-iteration still propagates the error normally.
+        if (result_mod.has_signal(ir)) return result;
+        // Yield is its own escape hatch — not part of the
+        // OK/ERROR/RETURN/BREAK/CONTINUE result code set, so
+        // ``has_signal`` doesn't cover it.  Coroutine bodies that
+        // yield mid-iteration unwind here.
+        const tcl_catch_y = @import("tcl_catch.zig");
+        if (tcl_catch_y.yield_flag != 0) return result;
     }
     return result;
 }

@@ -10,6 +10,7 @@ const obj_mod = @import("../valtypes/tcl_obj.zig");
 const arena = @import("../valtypes/tcl_arena.zig");
 const tcl_array = @import("../valtypes/tcl_array.zig");
 const catch_mod = @import("../interp/tcl_catch.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 
 const alloc            = rt.alloc;
 const memcpy           = rt.memcpy;
@@ -255,35 +256,38 @@ pub fn subst_flagged_full(
                     // / 10.6 / 11.6).
                     const key_obj = subst_flagged_full(wptr + ks, ke - ks, do_vars, do_cmds, do_bs, false);
                     if (from_subst_cmd) {
-                        if (rt.break_flag.* != 0) {
-                            rt.break_flag.* = 0;
-                            obj_mod.tcl_obj_release(name_obj);
-                            if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
-                            lit_start = i;
-                            break;
-                        }
-                        if (rt.continue_flag.* != 0) {
-                            rt.continue_flag.* = 0;
-                            obj_mod.tcl_obj_release(name_obj);
-                            if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
-                            lit_start = i;
-                            continue;
-                        }
-                        if (rt.return_flag.* != 0) {
-                            const rv = rt.return_val.*;
-                            rt.return_flag.* = 0;
-                            rt.return_val.* = 0;
-                            obj_mod.tcl_obj_release(name_obj);
-                            if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
-                            if (rv != 0) {
-                                const sv = obj_ensure_string(rv);
-                                push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
-                                obj_mod.tcl_obj_retain(rv);
-                                write_i32(retained_objs + n_retained * 4, rv);
-                                n_retained += 1;
-                            }
-                            lit_start = i;
-                            continue;
+                        const key_ir = result_mod.snapshot(key_obj);
+                        switch (key_ir.code) {
+                            .BREAK => {
+                                result_mod.consume(.BREAK);
+                                obj_mod.tcl_obj_release(name_obj);
+                                if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                                lit_start = i;
+                                break;
+                            },
+                            .CONTINUE => {
+                                result_mod.consume(.CONTINUE);
+                                obj_mod.tcl_obj_release(name_obj);
+                                if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                                lit_start = i;
+                                continue;
+                            },
+                            .RETURN => {
+                                const rv = key_ir.value;
+                                result_mod.consume(.RETURN);
+                                obj_mod.tcl_obj_release(name_obj);
+                                if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                                if (rv != 0) {
+                                    const sv = obj_ensure_string(rv);
+                                    push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                                    obj_mod.tcl_obj_retain(rv);
+                                    write_i32(retained_objs + n_retained * 4, rv);
+                                    n_retained += 1;
+                                }
+                                lit_start = i;
+                                continue;
+                            },
+                            .OK, .ERROR => {},
                         }
                     }
                     // Route the read through ``var_resolve`` so it
@@ -443,53 +447,56 @@ pub fn subst_flagged_full(
             const interp = @import("../interp/tcl_interp.zig");
             const result = interp.eval_script(wptr + cs, eval_len);
             if (from_subst_cmd) {
-                if (rt.break_flag.* != 0) {
-                    // Break cleanly aborts the entire subst — even a
-                    // pending deferred parse error is dropped (Tcl 9
-                    // semantics, parse-18.18 vs parse-18.19).
-                    rt.break_flag.* = 0;
-                    lit_start = i;
-                    break;
-                }
-                if (rt.continue_flag.* != 0) {
-                    rt.continue_flag.* = 0;
-                    if (deferred_err) {
-                        var rj: u32 = 0;
-                        while (rj < n_retained) : (rj += 1) {
-                            const r = read_i32(retained_objs + rj * 4);
-                            if (r != 0) obj_mod.tcl_obj_release(r);
+                const ir = result_mod.snapshot(result);
+                switch (ir.code) {
+                    .BREAK => {
+                        // Break cleanly aborts the entire subst — even a
+                        // pending deferred parse error is dropped (Tcl 9
+                        // semantics, parse-18.18 vs parse-18.19).
+                        result_mod.consume(.BREAK);
+                        lit_start = i;
+                        break;
+                    },
+                    .CONTINUE => {
+                        result_mod.consume(.CONTINUE);
+                        if (deferred_err) {
+                            var rj: u32 = 0;
+                            while (rj < n_retained) : (rj += 1) {
+                                const r = read_i32(retained_objs + rj * 4);
+                                if (r != 0) obj_mod.tcl_obj_release(r);
+                            }
+                            arena.arena_free(retained_alloc);
+                            arena.arena_free(pieces_alloc);
+                            return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
                         }
-                        arena.arena_free(retained_alloc);
-                        arena.arena_free(pieces_alloc);
-                        return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
-                    }
-                    lit_start = i;
-                    continue;
-                }
-                if (rt.return_flag.* != 0) {
-                    const rv = rt.return_val.*;
-                    rt.return_flag.* = 0;
-                    rt.return_val.* = 0;
-                    if (deferred_err) {
-                        if (rv != 0) obj_mod.tcl_obj_release(rv);
-                        var rj: u32 = 0;
-                        while (rj < n_retained) : (rj += 1) {
-                            const r = read_i32(retained_objs + rj * 4);
-                            if (r != 0) obj_mod.tcl_obj_release(r);
+                        lit_start = i;
+                        continue;
+                    },
+                    .RETURN => {
+                        const rv = ir.value;
+                        result_mod.consume(.RETURN);
+                        if (deferred_err) {
+                            if (rv != 0) obj_mod.tcl_obj_release(rv);
+                            var rj: u32 = 0;
+                            while (rj < n_retained) : (rj += 1) {
+                                const r = read_i32(retained_objs + rj * 4);
+                                if (r != 0) obj_mod.tcl_obj_release(r);
+                            }
+                            arena.arena_free(retained_alloc);
+                            arena.arena_free(pieces_alloc);
+                            return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
                         }
-                        arena.arena_free(retained_alloc);
-                        arena.arena_free(pieces_alloc);
-                        return raise_subst_error(if (deferred_err_quote) "extra characters after close-quote" else "extra characters after close-brace");
-                    }
-                    if (rv != 0) {
-                        const sv = obj_ensure_string(rv);
-                        push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
-                        obj_mod.tcl_obj_retain(rv);
-                        write_i32(retained_objs + n_retained * 4, rv);
-                        n_retained += 1;
-                    }
-                    lit_start = i;
-                    continue;
+                        if (rv != 0) {
+                            const sv = obj_ensure_string(rv);
+                            push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
+                            obj_mod.tcl_obj_retain(rv);
+                            write_i32(retained_objs + n_retained * 4, rv);
+                            n_retained += 1;
+                        }
+                        lit_start = i;
+                        continue;
+                    },
+                    .OK, .ERROR => {},
                 }
             }
             // Non-subst-cmd path: any break/continue/return flags

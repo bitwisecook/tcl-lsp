@@ -7,6 +7,7 @@ const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
 const stubs             = @import("../stubs/tcl_stubs.zig");
 const catch_mod         = @import("../interp/tcl_catch.zig");
+const result_mod        = @import("../interp/tcl_result.zig");
 const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
 const obj_ensure_string = rt.obj_ensure_string;
 const obj_new_int       = rt.obj_new_int;
@@ -355,7 +356,8 @@ fn eval_try(words: []const i32) i32 {
             return fb_result;
         }
         // If finally set a return/break/continue signal, propagate it.
-        if (rt.return_flag.* != 0 or rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
+        const fb_ir = result_mod.snapshot(fb_result);
+        if (fb_ir.code == .RETURN or fb_ir.code == .BREAK or fb_ir.code == .CONTINUE) {
             return fb_result;
         }
         // Finally completed normally: restore signals from after handlers ran.
@@ -383,7 +385,8 @@ fn eval_tailcall(words: []const i32) i32 {
     }
     const interp = @import("../interp/tcl_interp.zig");
     const result = interp.eval_call(words[1..]);
-    if (rt.error_flag.* == 0 and rt.return_flag.* == 0) {
+    const ir = result_mod.snapshot(result);
+    if (ir.code != .ERROR and ir.code != .RETURN) {
         rt.return_flag.* = 1;
         rt.return_val.*  = result;
     }
@@ -404,7 +407,8 @@ fn eval_time(words: []const i32) i32 {
     var last: i32 = obj_new_string(0, 0);
     while (i < count) : (i += 1) {
         last = interp.eval_script(body_s.ptr, body_s.len);
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return last;
+        const ir = result_mod.snapshot(last);
+        if (ir.code == .ERROR or ir.code == .RETURN) return last;
     }
     const end_us   = rt.obj_get_int(clock.clock_clicks());
     const per_iter = if (count > 0) @divTrunc(end_us - start_us, count) else 0;

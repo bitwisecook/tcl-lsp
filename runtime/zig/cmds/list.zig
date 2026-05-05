@@ -8,6 +8,7 @@ const obj_mod   = @import("../valtypes/tcl_obj.zig");
 const reg       = @import("../dispatch/tcl_cmd_registry.zig");
 const list_mod  = @import("../valtypes/tcl_list.zig");
 const interp    = @import("../interp/tcl_interp.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const tcl_str   = @import("../valtypes/tcl_string.zig");
 const tcl_chars = @import("../valtypes/tcl_chars.zig");
 const list_parse = @import("../valtypes/tcl_list_parse.zig");
@@ -576,10 +577,13 @@ fn eval_lmap(words: []const i32) i32 {
             obj_mod.tcl_obj_release(elem_val);
         }
         const item = interp.eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return item;
-        result = rt.tcl_list(result, item);
+        const ir = result_mod.snapshot(item);
+        switch (ir.code) {
+            .OK => result = rt.tcl_list(result, item),
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .ERROR, .RETURN => return item,
+        }
     }
     return result;
 }
