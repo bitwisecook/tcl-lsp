@@ -116,12 +116,72 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 return result_mod.from_globals(0);
             }
             if (sp6[0] == 'i' and sp6[1] == 'm' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
+                const catch_mod = @import("../interp/tcl_catch.zig");
                 var ii: u32 = 2;
                 while (ii < words.len) : (ii += 1) {
                     const is = obj_ensure_string(words[ii]);
                     if (is.len == 6 and is.ptr != 0) {
                         const isp: [*]const u8 = @ptrFromInt(is.ptr);
                         if (isp[0] == '-' and isp[1] == 'f' and isp[2] == 'o' and isp[3] == 'r' and isp[4] == 'c' and isp[5] == 'e') continue;
+                    }
+                    // Validate the import pattern.  Reference Tcl 9
+                    // raises specific diagnostics for two
+                    // user-visible misuses (namespace-9.1 / 9.2):
+                    //   * empty pattern → ``empty import pattern``
+                    //   * pattern names a namespace that doesn't
+                    //     exist → ``unknown namespace in import
+                    //     pattern "<pat>"``.
+                    if (is.len == 0) {
+                        const msg_text: []const u8 = "empty import pattern";
+                        const buf2 = alloc(@intCast(msg_text.len));
+                        const dst: [*]u8 = @ptrFromInt(buf2);
+                        for (msg_text, 0..) |b, k| dst[k] = b;
+                        const msg = obj_mod.obj_new_string_take(buf2, @intCast(msg_text.len), @intCast(msg_text.len));
+                        catch_mod.tcl_cmd_error(msg);
+                        return result_mod.from_globals(0);
+                    }
+                    // Locate the source namespace half of the
+                    // pattern and verify it exists.  Bare names
+                    // (no ``::``) are treated as patterns within
+                    // the current namespace, which always exists,
+                    // so the unknown-ns check only fires when the
+                    // pattern is qualified.
+                    const isp2: [*]const u8 = @ptrFromInt(is.ptr);
+                    var last_sep: i32 = -1;
+                    var k: u32 = 0;
+                    while (k + 1 < is.len) : (k += 1) {
+                        if (isp2[k] == ':' and isp2[k + 1] == ':') {
+                            last_sep = @intCast(k);
+                            k += 1; // skip second colon; loop adds the third increment
+                        }
+                    }
+                    if (last_sep >= 0) {
+                        const sep_at: u32 = @intCast(last_sep);
+                        // Source ns is the bytes up to (and not
+                        // including) the trailing ``::`` separator.
+                        // ``::pat`` (last_sep == 0) means the
+                        // pattern is anchored at root, which always
+                        // exists.
+                        if (sep_at > 0) {
+                            const src_ns_ptr = is.ptr;
+                            const src_ns_len = sep_at;
+                            const target = resolve_ns(src_ns_ptr, src_ns_len);
+                            if (target == 0) {
+                                const prefix: []const u8 = "unknown namespace in import pattern \"";
+                                const suffix: []const u8 = "\"";
+                                const total: u32 = @as(u32, @intCast(prefix.len)) + is.len + @as(u32, @intCast(suffix.len));
+                                const buf2 = alloc(total);
+                                const dst: [*]u8 = @ptrFromInt(buf2);
+                                var off2: u32 = 0;
+                                for (prefix) |b| { dst[off2] = b; off2 += 1; }
+                                const ip: [*]const u8 = @ptrFromInt(is.ptr);
+                                for (0..is.len) |kk| { dst[off2] = ip[kk]; off2 += 1; }
+                                for (suffix) |b| { dst[off2] = b; off2 += 1; }
+                                const msg = obj_mod.obj_new_string_take(buf2, total, total);
+                                catch_mod.tcl_cmd_error(msg);
+                                return result_mod.from_globals(0);
+                            }
+                        }
                     }
                     const created = tcl_ns.ns_import(tcl_ns.ns_current(), is.ptr, is.len);
                     var bk: u32 = 0;
