@@ -462,30 +462,27 @@ pub fn leave(save: EnterSave) void {
     tcl_ns.current_ns = save.prev_current_ns;
 }
 
-// --- Phase 9: cross-thread / cross-interp variable channels -----------
+// --- Phase 9 (INCOMPLETE — wired up in next PR): cross-interp links ---
+//
+// **NEITHER ``CrossInterpLink`` NOR ``transfer_result`` HAS A
+// CONSUMER YET.**  The shapes land here so the next PR can either
+// (a) build the per-name ``Variable``-record refactor the design
+// doc's Phase 1 ideal calls for and route ``var_resolve`` through
+// the link, or (b) add a separate cross-interp-link registry
+// keyed by ``(local_interp, local_name)``.  Spec lives in
+// ``docs/var-frame-architecture.md``.
 //
 // The ``Interp`` struct is already a typed handle (``extern struct``)
 // reachable by ``u32`` address — the design doc's Phase 9
 // "each interp gets a typed handle" is satisfied by what
 // :func:`interp_root` / :func:`child_create` already build.
 //
-// Phase 9 adds the transfer primitives the design doc calls out:
-// ``interp transfer`` for handing a TclObj result between interps,
-// and ``CrossInterpLink`` as the typed shape for a variable in
-// interp A that aliases a variable in interp B.  The
-// ``CrossInterpLink`` record is currently a forward-declared shape
-// — wiring it into ``var_resolve`` requires the per-name
-// ``Variable`` record refactor the design doc describes for Phase 1
-// (we used the simpler "scope-keyed name" approach instead).  Once
-// the Variable refactor lands, ``var_resolve`` will walk
-// ``Variable.link`` chains across interp boundaries via the
-// ``target_interp`` field below.
-//
-// The ``transfer_result`` helper here works today and is what the
-// observable ``interp transfer`` command would route through —
-// it preserves the TclObj's bytes across the interp boundary while
-// dropping the source-side reference (the reference moves rather
-// than gets copied).
+// ``transfer_result`` is the refcount-bookkeeping primitive the
+// observable ``interp transfer-variable`` (Tcl 9 spelling) command
+// would route through.  Today the existing ``interp transfer``
+// channel-handoff command stays a no-op stub — channels are
+// single-instance file descriptors in the WASM runtime, so
+// cross-interp channel transfer has no meaning here.
 
 /// Cross-interp variable link target.  When a variable in one
 /// interp resolves through a ``Variable`` whose storage union

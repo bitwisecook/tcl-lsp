@@ -3,10 +3,14 @@
 The phased refactor described in earlier revisions of this doc is
 behaviourally complete except for the items below.  Phases 1, 2, 3,
 5, 6, 8 landed; phase 4 was ruled n/a (existing `dispatch_alias`
-already implements the correct TCL_EVAL_INVOKE semantic).  Phases 7,
-9, 10 have runtime substrate in place but no consumer wires it up
-yet — each entry below states the missing piece and the file that
-needs the change.
+already implements the correct TCL_EVAL_INVOKE semantic).
+
+Phases 7, 9, 10 have **runtime substrate in place but no consumer
+wires it up yet — these are the work items that go into the very
+next PR**.  Each entry below states the missing piece and the file
+that needs the change.  The runtime substrate is intentionally
+preserved (rather than stripped pre-merge) so the next PR can build
+on the established API surface without re-designing it.
 
 ## Phase 6 follow-up — proc-local variable traces
 

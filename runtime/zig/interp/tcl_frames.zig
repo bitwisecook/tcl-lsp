@@ -570,40 +570,32 @@ pub fn frame_get_info(abs_depth: u32) ?*const FrameInfo {
     return &frame_info[abs_depth - 1];
 }
 
-// --- Phase 10: coroutine-aware frame contexts --------------------------
+// --- Phase 10 (INCOMPLETE — wired up in next PR): frame contexts -------
 //
-// A ``FrameContext`` is an opaque snapshot of the per-frame slot
-// arrays — ``frame_stack`` / ``frame_capacity`` / ``frame_ns`` /
-// ``frame_argv`` / ``frame_info`` / ``frame_depth`` — captured at
-// some point in time.  ``frame_context_save`` reads the current
-// state; ``frame_context_restore`` writes it back.
+// **THIS API HAS NO CONSUMER YET.**  The shape lands here so the
+// next PR can wire :file:`sched/tcl_coro.zig` to it without
+// re-designing the surface.  See ``docs/var-frame-architecture.md``
+// for the driver-level design + the TclObj-ownership decision the
+// driver author needs to make (flat-copy save doesn't bump retain
+// counts, so live-drain semantics have to be enforced between
+// save and restore to avoid use-after-free on the next
+// ``frame_pop``).
 //
-// The intended use is coroutine yield / resume: when a coroutine
-// yields, the driver captures the current state into the coro's
-// FrameContext slot and restores the parent's saved context;
-// when the coroutine resumes, the saved context is restored and
-// the parent's gets re-saved.  This gives each coroutine its
-// own isolated frame stack instead of running inline in the
-// caller's stack.
+// Until the driver lands, the v1 segment-based coroutine driver
+// evaluates each segment inline in the caller's frame stack and
+// doesn't need isolation; the asyncify path handles its own
+// wasm-side state via ``wasm-opt --asyncify``.
 //
-// Storage cost: a FrameContext holds copies of the entire
-// MAX_DEPTH slot arrays plus the depth counter.  Roughly 14 KB
-// per snapshot at MAX_DEPTH=64 — modest given coroutines are
-// short-lived and few in number.  An alternative
-// "rebase-pointer" design (each context owns a SLICE of a
-// shared backing buffer) would shrink the per-context cost but
-// add complexity around the dirty bitmap / capacity tracking
-// that today's flat-array design avoids; the flat copy is the
-// right trade-off until benchmarks say otherwise.
-//
-// **Status (Phase 10 minimal):** the save/restore API is in
-// place but no driver currently uses it.  The v1 segment-based
-// coroutine driver in :file:`sched/tcl_coro.zig` evaluates each
-// segment inline in the caller's frame stack so it doesn't
-// need isolation.  The asyncify path handles its own wasm-side
-// state via wasm-opt's ``--asyncify`` pass.  This API is
-// foundation for proc-level coroutines that need real frame
-// isolation, plus the ``interp transfer`` work in phase 9.
+// Shape: a ``FrameContext`` is an opaque snapshot of the
+// per-frame slot arrays — ``frame_stack`` / ``frame_capacity`` /
+// ``frame_ns`` / ``frame_argv`` / ``frame_info`` /
+// ``frame_depth``.  Storage cost: ~14 KB at MAX_DEPTH=64 — modest
+// given coroutines are short-lived and few in number.  An
+// alternative "rebase-pointer" design (each context owns a
+// SLICE of a shared backing buffer) would shrink the per-context
+// cost but add complexity around the dirty bitmap / capacity
+// tracking; the flat copy is the right trade-off until benchmarks
+// say otherwise.
 pub const FrameContext = struct {
     depth: u32,
     stack: [MAX_DEPTH]u32,
@@ -658,33 +650,28 @@ pub fn frame_context_reset() void {
     // reset path on push.
 }
 
-// --- Phase 7: compile-time slot resolution -----------------------------
+// --- Phase 7 (INCOMPLETE — wired up in next PR): indexed locals --------
 //
-// The hash-table-keyed local store is fast (FNV-1a + open
-// addressing) but a compiled proc still pays the hash for every
-// ``$x`` read inside a tight loop body.  Phase 7 lets the
-// codegen sidestep the hash entirely: when a proc body references
-// a locally-declared variable whose slot index is fixed at compile
-// time, the codegen emits ``frame_local_at(idx)`` /
-// ``frame_local_set_at(idx, value)`` instead of a name-keyed
-// ``var_resolve`` / ``local_set``.
+// **THIS API HAS NO CONSUMER YET.**  The next PR is a Python-side
+// codegen pass that identifies compile-time-known scalar locals
+// and emits ``frame_local_at(idx)`` / ``frame_local_set_at(idx,
+// value)`` instead of the name-keyed ``tcl_local_set`` /
+// ``tcl_local_get`` for them.  Spec lives in
+// ``docs/var-frame-architecture.md``.
 //
-// Storage: a per-frame ``locals_array`` of fixed capacity.  We
+// Until the codegen pass lands the indexed slots stay unused;
+// nothing is regressed because the hash-keyed local store keeps
+// working as the primary path.  ``frame_pop`` already drains
+// the indexed slots so their refcount accounting can't drift
+// even if a stray future caller writes through the indexed
+// accessor without the codegen-side consumer.
+//
+// Shape: a per-frame ``locals_array`` of fixed capacity.  We
 // pre-allocate ``LOCALS_ARRAY_CAP`` slots per frame; codegen-
-// resolved locals use indices 0..LOCALS_ARRAY_CAP-1.  Procs with
-// more locals than that capacity continue to use the hash-keyed
-// store transparently — ``frame_local_at`` only handles indexed
-// slots, never the dynamic ones.
-//
-// **Status:** the runtime API is in place (``frame_local_at`` /
-// ``frame_local_set_at``).  Wiring the codegen to emit these
-// calls is the follow-up — Python-side ``ProcLocal`` records
-// would carry the resolved slot for each compile-time-known
-// local, and the bytecode emitter would route the simple
-// scalar reads through the indexed accessors.  Until that
-// codegen lands the indexed slots stay unused; nothing is
-// regressed because the hash-keyed path keeps working as the
-// primary store.
+// resolved locals use indices ``0..LOCALS_ARRAY_CAP-1``.  Procs
+// with more locals than that capacity continue to use the
+// hash-keyed store transparently — ``frame_local_at`` only
+// handles indexed slots, never the dynamic ones.
 const LOCALS_ARRAY_CAP: u32 = 16;
 var frame_locals_array: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32 = undefined;
 
