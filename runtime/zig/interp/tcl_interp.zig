@@ -1957,6 +1957,18 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Phase 8: stamp call-site metadata for ``info frame``.
+    frames.frame_set_type(.PROC);
+    frames.frame_set_script(body_obj);
+    {
+        const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
+        const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
+        if (name_len > 0) {
+            const fq = obj_mod.obj_new_string_copy(name_ptr, name_len);
+            frames.frame_set_proc_name(fq);
+            obj_mod.tcl_obj_release(fq);
+        }
+    }
     // Tcl semantics: ``break`` / ``continue`` inside a proc body
     // are local to that body's enclosing loop, NOT the caller's
     // loop.  Save and clear any pending caller-scope flow signal
@@ -2576,6 +2588,18 @@ pub fn eval_apply(words: []const i32) i32 {
     }
 
     _ = frames.frame_push();
+    // Phase 8: ``apply`` is a proc-style invocation but with an
+    // anonymous lambda — record the body as the script and stamp
+    // ``apply`` as the proc name so ``info frame`` surfaces a
+    // useful diagnostic.
+    frames.frame_set_type(.PROC);
+    frames.frame_set_script(body_obj);
+    {
+        const apply_lit: []const u8 = "apply";
+        const fq = obj_new_string_copy(@intFromPtr(apply_lit.ptr), apply_lit.len);
+        frames.frame_set_proc_name(fq);
+        obj_mod.tcl_obj_release(fq);
+    }
 
     // Bind parameters — same pattern as eval_proc_call_bucket but user
     // args start at words[2] (words[0]=apply, words[1]=lambda).

@@ -612,6 +612,114 @@ fn raise_bad_level(arg_s: anytype) i32 {
 /// always returns the empty string.  Matches Tcl 9's behaviour
 /// when not sourcing a file (``Tcl_SetObjResult(interp,
 /// Tcl_NewObj())``).  Consumers that use ``info script`` to
+/// Phase 8: ``info frame ?N?`` — call-site metadata for the frame
+/// stack.  Without an argument returns the current frame depth as
+/// an integer (same as ``info level``'s no-arg form, but counting
+/// every frame including the top-level).  With an argument returns
+/// a Tcl dict-list ``{type X cmd Y proc Z line N script S}``
+/// describing the requested frame.
+///
+/// Real Tcl uses 1-based depth where frame 1 is the outermost
+/// (top-level eval) and frame N is the innermost (current proc).
+/// We mirror that.
+///
+/// Note: this is the minimum-viable implementation.  Reference
+/// Tcl populates additional fields like ``-source`` (file path),
+/// ``-lambda`` (apply's body), and ``-procs`` from the actual
+/// invocation site.  The frame metadata captured at ``frame_push``
+/// time is what we expose; richer source-position tracking
+/// (per-command line numbers) is a follow-up that needs the
+/// parser to thread line info through to the dispatcher.
+pub fn info_frame(arg: i32) i32 {
+    // No arg: return the depth (integer).  Real Tcl includes the
+    // synthetic frame 0 for top-level; we count from 1 (matching
+    // ``info level``'s convention).
+    if (arg == 0) {
+        const d: i64 = @intCast(frames.frame_get_depth());
+        return obj_new_int(d + 1);
+    }
+    // With arg: parse as integer depth.  Tcl uses 1-based depth
+    // where frame 1 is the synthetic top-level script frame and
+    // frame N is the innermost pushed frame.  Our internal
+    // ``frame_depth`` counts only PUSHED frames (top-level = 0
+    // pushed), so the conversion is ``internal_abs = N - 1``.
+    // Negative offsets count from the current frame
+    // (``info frame -1`` = caller's frame).
+    const want = obj.obj_get_int(arg);
+    const cur_depth: i64 = @intCast(frames.frame_get_depth());
+    const tcl_max: i64 = cur_depth + 1; // top-level + every push
+    const tcl_abs: i64 = if (want > 0) want else tcl_max + want;
+    if (tcl_abs < 1 or tcl_abs > tcl_max) {
+        return obj.obj_new_string_copy(@intFromPtr("type eval".ptr), 9);
+    }
+    // Frame 1 is the synthetic top-level (no FrameInfo).
+    if (tcl_abs == 1) {
+        return obj.obj_new_string_copy(@intFromPtr("type eval".ptr), 9);
+    }
+    const fi = frames.frame_get_info(@intCast(tcl_abs - 1)) orelse {
+        return obj.obj_new_string_copy(@intFromPtr("type eval".ptr), 9);
+    };
+    // Build the dict-list incrementally.  We use string concat
+    // rather than dict_set because ``info frame``'s output is
+    // observed as a list-of-pairs by most callers; reference Tcl
+    // emits it the same way.
+    const list_mod = @import("../valtypes/tcl_list.zig");
+    var result = obj_new_string(0, 0);
+    // -type
+    const type_str: []const u8 = switch (fi.type) {
+        .PROC => "proc",
+        .SOURCE => "source",
+        .EVAL => "eval",
+        .UPLEVEL => "uplevel",
+        .ALIAS => "alias",
+        .UNKNOWN => "eval",
+    };
+    {
+        const k = obj.obj_new_string_copy(@intFromPtr("type".ptr), 4);
+        const v = obj.obj_new_string_copy(@intFromPtr(type_str.ptr), @intCast(type_str.len));
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, v);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        obj.tcl_obj_release(v);
+        result = r2;
+    }
+    // -line N
+    if (fi.line != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("line".ptr), 4);
+        const v = obj_new_int(@intCast(fi.line));
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, v);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        obj.tcl_obj_release(v);
+        result = r2;
+    }
+    // -proc NAME (PROC frames only)
+    if (fi.type == .PROC and fi.proc_name != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("proc".ptr), 4);
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, fi.proc_name);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        result = r2;
+    }
+    // -cmd TEXT
+    if (fi.cmd_text != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("cmd".ptr), 3);
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, fi.cmd_text);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        result = r2;
+    }
+    return result;
+}
+
 /// resolve path-relative includes (``source [file join [info
 /// script] ...]``) must treat the empty result as "no location
 /// available" — tcllib's ``testutilities.tcl`` already does
@@ -1141,6 +1249,7 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "level")) return info_level(arg);
     if (str_eq(sp, sub.len, "script")) return info_script();
     if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub.len, "frame")) return info_frame(arg);
     if (str_eq(sp, sub.len, "cmdcount")) {
         // Mirrors C Tcl ``Interp.cmdCount`` — incremented per
         // ``eval_command`` dispatch in ``tcl_interp.zig``.  Compiled

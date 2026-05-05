@@ -183,6 +183,54 @@ pub inline fn mark_dirty(idx: u32, bucket_offset: u32) void {
 // against 0 and fall back to an empty list.
 var frame_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
 
+// Phase 8: per-frame call-site metadata for ``info frame``.
+//
+// Real Tcl's ``info frame`` returns a dict of (type, line, cmd,
+// proc, source, level) describing the frame's invocation site.
+// Phase 3 reserved a ``cmd_source`` slot for this; phase 8 wires
+// the rest of the fields.
+//
+// ``type`` is one of ``proc`` / ``source`` / ``eval`` / ``uplevel``
+// / ``alias`` / ``unknown``; encoded as a u8 with the table below.
+// Most frames are ``proc`` (a Tcl proc body); ``source`` marks a
+// top-level script eval (``source FILE``); ``eval`` marks generic
+// nested eval contexts; ``uplevel`` / ``alias`` mark inter-frame
+// trampolines.
+//
+// Memory: each FrameInfo is 24 bytes (1 type byte + 3 padding +
+// 4×i32 + 1×u32) × MAX_DEPTH = 6 KB; cheap.  Slots are zeroed on
+// ``frame_pop`` so a stale stamp from a previous tenant doesn't
+// leak into a frame that didn't populate the slot.
+pub const FrameType = enum(u8) {
+    UNKNOWN = 0,
+    PROC = 1,
+    SOURCE = 2,
+    EVAL = 3,
+    UPLEVEL = 4,
+    ALIAS = 5,
+};
+
+pub const FrameInfo = struct {
+    /// Type of invocation that pushed this frame.
+    type: FrameType = .UNKNOWN,
+    /// TclObj handle of the script being evaluated (the body for
+    /// type=proc; the file/script for type=source/eval).  Retained
+    /// for the frame's lifetime; released on ``frame_pop``.
+    script_obj: i32 = 0,
+    /// 1-based line number within ``script_obj`` where the
+    /// invocation appears.  0 = unknown.
+    line: u32 = 0,
+    /// TclObj handle for the source slice of the call site.
+    /// Retained; released on ``frame_pop``.
+    cmd_text: i32 = 0,
+    /// TclObj handle of the proc's fully-qualified name (only
+    /// meaningful for type=proc).  Retained; released on
+    /// ``frame_pop``.
+    proc_name: i32 = 0,
+};
+
+var frame_info: [MAX_DEPTH]FrameInfo = [_]FrameInfo{.{}} ** MAX_DEPTH;
+
 // Pending ``argv0`` for the next compiled-proc entry.  Set by a
 // compiled caller via ``frame_set_pending_argv0`` immediately
 // before it transfers control to a compiled callee, and consumed
@@ -378,6 +426,14 @@ pub export fn frame_pop() void {
         const old = frame_argv[frame_depth];
         frame_argv[frame_depth] = 0;
         if (old != 0) obj.tcl_obj_release(old);
+        // Phase 8: release the FrameInfo's retained TclObj handles
+        // so the frame's call-site metadata doesn't leak.  Reset
+        // the slot to default so the next tenant starts clean.
+        const fi = &frame_info[frame_depth];
+        if (fi.script_obj != 0) obj.tcl_obj_release(fi.script_obj);
+        if (fi.cmd_text != 0) obj.tcl_obj_release(fi.cmd_text);
+        if (fi.proc_name != 0) obj.tcl_obj_release(fi.proc_name);
+        fi.* = .{};
         // Reset the per-frame namespace slot so the next
         // ``frame_push`` for this index sees a fresh (zero) value
         // and ``frame_set_ns_if_unset`` from ``ns_set`` records
@@ -420,6 +476,77 @@ pub export fn frame_set_argv(argv: i32) void {
     if (argv != 0) obj.tcl_obj_retain(argv);
     frame_argv[frame_depth - 1] = argv;
     if (old != 0 and old != argv) obj.tcl_obj_release(old);
+}
+
+// --- Phase 8: FrameInfo setters / getter -------------------------------
+//
+// Callers set fields immediately after ``frame_push``, like
+// ``frame_set_argv``.  Each setter retains the new TclObj and
+// releases the previous slot (which may have a stale value if the
+// same dispatch site populates the field twice; in practice the
+// dispatcher only sets each field once per push).
+
+/// Stamp the FrameType for the current (topmost) frame.  Callers:
+///   * ``eval_proc_call_bucket`` / ``eval_apply`` → ``.PROC``
+///   * ``eval_uplevel`` → ``.UPLEVEL``
+///   * ``dispatch_alias`` → ``.ALIAS``
+///   * ``source FILE`` → ``.SOURCE``
+///   * generic eval / namespace eval → ``.EVAL``
+pub fn frame_set_type(t: FrameType) void {
+    if (frame_depth == 0) return;
+    frame_info[frame_depth - 1].type = t;
+}
+
+/// Record the script TclObj being evaluated by the current frame
+/// (for ``info frame N`` to surface as the ``-script`` field).
+pub fn frame_set_script(script_obj: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.script_obj;
+    if (script_obj != 0) obj.tcl_obj_retain(script_obj);
+    fi.script_obj = script_obj;
+    if (old != 0 and old != script_obj) obj.tcl_obj_release(old);
+}
+
+/// Record the 1-based line within ``script_obj`` where the
+/// invocation appears.  0 = unknown.
+pub fn frame_set_line(line: u32) void {
+    if (frame_depth == 0) return;
+    frame_info[frame_depth - 1].line = line;
+}
+
+/// Record the source-slice TclObj for the call site (the literal
+/// command text, e.g. ``my-proc arg1 arg2``).  ``info frame N``
+/// surfaces this as the ``-cmd`` field.
+pub fn frame_set_cmd_text(cmd_text: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.cmd_text;
+    if (cmd_text != 0) obj.tcl_obj_retain(cmd_text);
+    fi.cmd_text = cmd_text;
+    if (old != 0 and old != cmd_text) obj.tcl_obj_release(old);
+}
+
+/// Record the proc's fully-qualified name TclObj for type=PROC
+/// frames.  ``info frame N`` surfaces this as the ``-proc`` field.
+pub fn frame_set_proc_name(proc_name: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.proc_name;
+    if (proc_name != 0) obj.tcl_obj_retain(proc_name);
+    fi.proc_name = proc_name;
+    if (old != 0 and old != proc_name) obj.tcl_obj_release(old);
+}
+
+/// Read the FrameInfo for an absolute frame depth.  Returns null
+/// when the depth is out of range (0 or > current frame_depth).
+/// ``info frame N`` from Tcl uses 1-based depth, so the caller
+/// translates: ``info frame 1`` = the outermost frame's info, which
+/// is ``frame_get_info(1)``; ``info frame N`` = innermost is
+/// ``frame_get_info(frame_depth)``.
+pub fn frame_get_info(abs_depth: u32) ?*const FrameInfo {
+    if (abs_depth == 0 or abs_depth > frame_depth) return null;
+    return &frame_info[abs_depth - 1];
 }
 
 /// Record the namespace context for the *current* frame.  Called
