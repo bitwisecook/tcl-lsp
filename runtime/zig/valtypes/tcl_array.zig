@@ -672,10 +672,14 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
 fn fire_var_trace_write(arr: i32, key_ptr: u32, key_len: u32) void {
     const an = normalize_ns_name(arr);
     const sn = obj_ensure_string(an);
+    if (sn.ptr == 0 or sn.len == 0) return;
     if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_WRITE)) {
-        // Probe the element-specific form once before bailing.
+        // Probe the element-specific form once before bailing.  Skip
+        // when key_ptr/key_len are 0 — ``@ptrFromInt(0)`` panics.
+        if (key_ptr == 0 or key_len == 0) return;
         const total: u32 = sn.len + 2 + key_len;
         const buf = alloc(total);
+        if (buf == 0) return;
         const dst: [*]u8 = @ptrFromInt(buf);
         const ap: [*]const u8 = @ptrFromInt(sn.ptr);
         const kp: [*]const u8 = @ptrFromInt(key_ptr);
@@ -693,9 +697,12 @@ fn fire_var_trace_write(arr: i32, key_ptr: u32, key_len: u32) void {
 fn fire_var_trace_read(arr: i32, key_ptr: u32, key_len: u32) void {
     const an = normalize_ns_name(arr);
     const sn = obj_ensure_string(an);
+    if (sn.ptr == 0 or sn.len == 0) return;
     if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_READ)) {
+        if (key_ptr == 0 or key_len == 0) return;
         const total: u32 = sn.len + 2 + key_len;
         const buf = alloc(total);
+        if (buf == 0) return;
         const dst: [*]u8 = @ptrFromInt(buf);
         const ap: [*]const u8 = @ptrFromInt(sn.ptr);
         const kp: [*]const u8 = @ptrFromInt(key_ptr);
@@ -713,9 +720,12 @@ fn fire_var_trace_read(arr: i32, key_ptr: u32, key_len: u32) void {
 fn fire_var_trace_unset(arr: i32, key_ptr: u32, key_len: u32) void {
     const an = normalize_ns_name(arr);
     const sn = obj_ensure_string(an);
+    if (sn.ptr == 0 or sn.len == 0) return;
     if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_UNSET)) {
+        if (key_ptr == 0 or key_len == 0) return;
         const total: u32 = sn.len + 2 + key_len;
         const buf = alloc(total);
+        if (buf == 0) return;
         const dst: [*]u8 = @ptrFromInt(buf);
         const ap: [*]const u8 = @ptrFromInt(sn.ptr);
         const kp: [*]const u8 = @ptrFromInt(key_ptr);

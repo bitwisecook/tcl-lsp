@@ -198,6 +198,7 @@ fn trace_eq(rec: u32, ops: u32, cmd_prefix: i32) bool {
 pub fn add(name: i32, ops: u32, cmd_prefix: i32) void {
     if (ops == 0 or cmd_prefix == 0) return;
     const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len == 0) return;
     const bucket = dir_get_or_create(sn.ptr, sn.len);
     const head: u32 = @bitCast(read_i32(bucket + 12));
     const rec = trace_new(ops, cmd_prefix);
@@ -209,6 +210,7 @@ pub fn add(name: i32, ops: u32, cmd_prefix: i32) void {
 /// true on hit, false if no matching trace was found.
 pub fn remove(name: i32, ops: u32, cmd_prefix: i32) bool {
     const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len == 0) return false;
     const hash = fnv1a(sn.ptr, sn.len);
     const bucket = dir_find(sn.ptr, sn.len, hash) orelse return false;
     var prev: u32 = 0;
@@ -237,6 +239,7 @@ pub fn remove(name: i32, ops: u32, cmd_prefix: i32) bool {
 pub fn info(name: i32) i32 {
     const list_mod = @import("../valtypes/tcl_list.zig");
     const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len == 0) return obj_new_string(0, 0);
     const hash = fnv1a(sn.ptr, sn.len);
     const bucket = dir_find(sn.ptr, sn.len, hash) orelse return obj_new_string(0, 0);
     var result = obj_new_string(0, 0);
@@ -302,8 +305,10 @@ fn head_for(name_ptr: u32, name_len: u32) u32 {
 
 /// Test for any trace matching ``op`` on the given canonical name.
 /// O(n) over the trace list; the common case (no traces) is O(1)
-/// because ``head == 0``.
+/// because ``head == 0``.  Defensive: an empty / null name has no
+/// traces by definition.
 pub fn has_trace(name_ptr: u32, name_len: u32, op: u32) bool {
+    if (name_ptr == 0 or name_len == 0) return false;
     var cur = head_for(name_ptr, name_len);
     while (cur != 0) : (cur = @bitCast(read_i32(cur + OFF_NEXT))) {
         const r_ops: u32 = @bitCast(read_i32(cur + OFF_OPS));
@@ -331,14 +336,20 @@ pub fn fire(
     op: u32,
     op_char: u8,
 ) void {
+    // Defensive: a null/empty array name has no traces.  Required
+    // because ``@ptrFromInt(0)`` panics in ReleaseSafe even without
+    // a deref, and tcltest's setup paths sometimes ``array set`` an
+    // empty TclObj while initialising default state.
+    if (name1_ptr == 0 or name1_len == 0) return;
     // Use the array name (name1) as the lookup key — whole-array
     // traces store under the array's name.  Element-specific traces
     // store under ``arr(key)``; we probe both.
     fire_at_key(name1_ptr, name1_len, name1_ptr, name1_len, name2_ptr, name2_len, op, op_char);
-    if (name2_len > 0) {
+    if (name2_len > 0 and name2_ptr != 0) {
         // Build ``arr(key)`` and probe element-level traces.
         const total: u32 = name1_len + 2 + name2_len;
         const buf = alloc(total);
+        if (buf == 0) return;
         const dst: [*]u8 = @ptrFromInt(buf);
         const ap: [*]const u8 = @ptrFromInt(name1_ptr);
         const kp: [*]const u8 = @ptrFromInt(name2_ptr);
@@ -361,6 +372,7 @@ fn fire_at_key(
     op: u32,
     op_char: u8,
 ) void {
+    if (key_ptr == 0 or key_len == 0) return;
     var cur = head_for(key_ptr, key_len);
     while (cur != 0) : (cur = @bitCast(read_i32(cur + OFF_NEXT))) {
         const r_ops: u32 = @bitCast(read_i32(cur + OFF_OPS));
