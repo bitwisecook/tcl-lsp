@@ -139,22 +139,32 @@ test "subst_flagged — ${name} braced variable" {
 }
 
 const VarMissingCtx = struct {
-    var observed: []const u8 = &.{};
     fn body_missing() void {
-        // No ``frame.set`` for ``unset_var`` — ``var_resolve``
-        // returns 0 and subst_flagged drops the slot (matching
-        // the reference Tcl behaviour of leaving the unmatched
-        // text empty rather than raising mid-substitution).
-        observed = substAll("value=$unset_var!");
+        // ``$unset_var`` without a corresponding ``frame.set`` —
+        // reference Tcl raises ``can't read "unset_var": no such
+        // variable`` for word substitution of an undefined name.
+        const s = "value=$unset_var!";
+        _ = subst.subst_flagged(
+            @intCast(@intFromPtr(s.ptr)),
+            @intCast(s.len),
+            true,
+            true,
+            true,
+        );
     }
 };
 
-test "subst_flagged — unresolved $var contributes empty bytes" {
-    VarMissingCtx.observed = &.{};
-    fixture.with_interp(&VarMissingCtx.body_missing);
-    // The literal ``value=`` and trailing ``!`` pass through; the
-    // unresolved ``$unset_var`` slot drops out without raising.
-    try testing.expectEqualStrings("value=!", VarMissingCtx.observed);
+test "subst_flagged — unresolved $var raises can't read error" {
+    fixture.with_interp(&struct {
+        fn run() void {
+            const msg = fixture.with_catch(&VarMissingCtx.body_missing);
+            testing.expect(msg != null) catch unreachable;
+            testing.expectEqualStrings(
+                "can't read \"unset_var\": no such variable",
+                msg.?,
+            ) catch unreachable;
+        }
+    }.run);
 }
 
 const NoVarsCtx = struct {

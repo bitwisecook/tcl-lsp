@@ -1401,7 +1401,29 @@ class _WasmEmitterStmtMixin(_Base):
                         return False
                     return not tokens.single_token_word[tok_idx]
 
-                parts = [command]
+                # ``command`` arrives in canonical-var form when the
+                # user wrote a dollar substitution at the command
+                # position (``$Verify($option)`` → IRCall.command =
+                # ``${Verify($option)}``).  Reference Tcl's ``${name}``
+                # syntax does *not* support array element references
+                # — ``${arr(key)}`` looks up a SCALAR variable named
+                # literally ``arr(key)``.  When ``command`` looks
+                # like ``${X(Y)}`` we know the user intended the
+                # array form ``$X(Y)``; emit that so the interpreter
+                # parses it as an array element substitution and
+                # recursively substitutes the index span.  Without
+                # this the runtime raises ``can't read "X(Y)": no
+                # such variable`` against the literal scalar.
+                cmd_emit = command
+                if (
+                    command.startswith("${")
+                    and command.endswith("}")
+                    and "(" in command
+                ):
+                    inner = command[2:-1]
+                    if inner.endswith(")") and "(" in inner:
+                        cmd_emit = "$" + inner
+                parts = [cmd_emit]
                 for i, a in enumerate(args):
                     if _arg_was_braced(i):
                         # Braced token — IR holds the literal content
