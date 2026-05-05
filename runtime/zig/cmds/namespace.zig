@@ -19,6 +19,33 @@ const obj_ensure_string   = rt.obj_ensure_string;
 const obj_new_int         = rt.obj_new_int;
 const obj_get_int         = rt.obj_get_int;
 
+/// Walk *name* (a relative ``::``-separated namespace path) starting
+/// from *parent* and create each missing component.  Used by
+/// ``namespace eval`` for unqualified targets so ``namespace eval
+/// foo {…}`` inside a ``::a::`` body creates ``::a::foo`` rather
+/// than ``::foo`` under the root.
+fn ns_create_relative(parent: u32, name_ptr: u32, name_len: u32) u32 {
+    if (name_len == 0) return parent;
+    // Defensive: when the current ns hasn't been initialised yet
+    // (early bootstrap, or top-level eval without a frame),
+    // fall back to the root so we don't dereference a null
+    // ns pointer in ``ns_create``.
+    var ns: u32 = if (parent == 0) tcl_ns.ns_root() else parent;
+    const src: [*]const u8 = @ptrFromInt(name_ptr);
+    var i: u32 = 0;
+    while (i < name_len) {
+        var j: u32 = i;
+        while (j < name_len and src[j] != ':') : (j += 1) {}
+        const comp_len: u32 = j - i;
+        if (comp_len > 0) {
+            ns = tcl_ns.ns_create(ns, name_ptr + i, comp_len);
+        }
+        i = j;
+        while (i < name_len and src[i] == ':') : (i += 1) {}
+    }
+    return ns;
+}
+
 fn eval_namespace(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
@@ -28,7 +55,21 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             if (sp[0] == 'e' and sp[1] == 'v' and sp[2] == 'a' and sp[3] == 'l') {
                 if (words.len < 4) return result_mod.from_globals(0);
                 const ns_obj_s = obj_ensure_string(words[2]);
-                const target_ns = tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len);
+                // Resolve the namespace name relative to the
+                // *current* namespace when it isn't FQ-anchored.
+                // Tcl 9 semantics: ``namespace eval foo`` inside a
+                // ``::a::`` body creates ``::a::foo`` (a child of the
+                // current ns).  ``namespace eval ::foo`` is absolute
+                // and creates a child of the root.  The previous
+                // wiring always anchored at root, so nested
+                // ``namespace eval`` chains lost the parent ns when
+                // dispatched through a multi-level uplevel chain.
+                const target_ns = if (ns_obj_s.len >= 2
+                    and @as([*]const u8, @ptrFromInt(ns_obj_s.ptr))[0] == ':'
+                    and @as([*]const u8, @ptrFromInt(ns_obj_s.ptr))[1] == ':')
+                    tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len)
+                else
+                    ns_create_relative(tcl_ns.current_ns, ns_obj_s.ptr, ns_obj_s.len);
                 const saved_ns = tcl_ns.current_ns;
                 tcl_ns.current_ns = target_ns;
                 defer tcl_ns.current_ns = saved_ns;
@@ -313,6 +354,39 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
     const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_handle);
     if (ns.child_table.buf == 0) return obj_new_string(0, 0);
 
+    // Tcl 9 ``namespace children`` matches the pattern against
+    // each child's FULLY-QUALIFIED name.  When the supplied
+    // pattern doesn't already start with ``::`` it is prefixed
+    // with the queried namespace path: ``namespace children
+    // ::a::b foo*`` matches against ``::a::b::foo*``.  Without
+    // this, bare patterns like ``b*`` from inside a nested
+    // namespace would always miss because the children's FQNs
+    // start with ``::``.
+    var eff_pat_ptr: u32 = pat_ptr;
+    var eff_pat_len: u32 = pat_len;
+    if (pat_len > 0) {
+        const psp: [*]const u8 = @ptrFromInt(pat_ptr);
+        const pat_starts_qual = pat_len >= 2 and psp[0] == ':' and psp[1] == ':';
+        if (!pat_starts_qual) {
+            const ns_full = tcl_ns.ns_full_name(ns_handle);
+            const ns_root_only = ns_full.len == 2;
+            const sep_len: u32 = if (ns_root_only) 0 else 2;
+            const prefixed_total: u32 = ns_full.len + sep_len + pat_len;
+            const prefixed_buf_addr = alloc(prefixed_total);
+            const pbuf: [*]u8 = @ptrFromInt(prefixed_buf_addr);
+            const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+            var off2: u32 = 0;
+            for (0..ns_full.len) |k| { pbuf[off2] = ns_p[k]; off2 += 1; }
+            if (!ns_root_only) {
+                pbuf[off2] = ':'; off2 += 1;
+                pbuf[off2] = ':'; off2 += 1;
+            }
+            for (0..pat_len) |k| { pbuf[off2] = psp[k]; off2 += 1; }
+            eff_pat_ptr = prefixed_buf_addr;
+            eff_pat_len = prefixed_total;
+        }
+    }
+
     const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
     // Two-pass: size then fill.
     var total_bytes: u32 = 0;
@@ -325,7 +399,7 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
         const child_handle: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
         if (child_handle == 0) continue;
         const fqn = tcl_ns.ns_full_name(child_handle);
-        if (pat_len > 0 and !tcl_string.glob_match(pat_ptr, pat_len, fqn.ptr, fqn.len)) continue;
+        if (eff_pat_len > 0 and !tcl_string.glob_match(eff_pat_ptr, eff_pat_len, fqn.ptr, fqn.len)) continue;
         if (total_bytes > 0) total_bytes += 1; // space
         total_bytes += fqn.len;
         count += 1;
@@ -342,7 +416,7 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
         const child_handle: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
         if (child_handle == 0) continue;
         const fqn = tcl_ns.ns_full_name(child_handle);
-        if (pat_len > 0 and !tcl_string.glob_match(pat_ptr, pat_len, fqn.ptr, fqn.len)) continue;
+        if (eff_pat_len > 0 and !tcl_string.glob_match(eff_pat_ptr, eff_pat_len, fqn.ptr, fqn.len)) continue;
         if (!first) {
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';
