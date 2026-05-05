@@ -42,6 +42,7 @@ const tcl_rename = @import("cmds/tcl_rename.zig");
 const tcl_alias = @import("cmds/tcl_alias.zig");
 const tcl_hide = @import("cmds/tcl_hide.zig");
 const tcl_interp_registry = @import("interp/tcl_interp_registry.zig");
+const tcl_xlinks = @import("interp/tcl_xlinks.zig");
 const interp = @import("interp/tcl_interp.zig");
 const tcl_sched = @import("sched/tcl_sched.zig");
 const tcl_coro = @import("sched/tcl_coro.zig");
@@ -153,6 +154,7 @@ pub const frame_set_script = tcl_frames.frame_set_script;
 pub const frame_set_line = tcl_frames.frame_set_line;
 pub const frame_set_cmd_text = tcl_frames.frame_set_cmd_text;
 pub const frame_set_proc_name = tcl_frames.frame_set_proc_name;
+pub const frame_claim_line_codegen = tcl_frames.frame_claim_line_codegen;
 // Phase 7: codegen-callable indexed local accessors.
 pub const frame_local_at = tcl_frames.frame_local_at;
 pub const frame_local_set_at = tcl_frames.frame_local_set_at;
@@ -165,6 +167,8 @@ pub const var_exists = tcl_frames.var_exists;
 pub const local_set = tcl_frames.local_set;
 pub const local_get = tcl_frames.local_get;
 pub const local_get_or_error = tcl_frames.local_get_or_error;
+pub const local_set_silent = tcl_frames.local_set_silent;
+pub const local_get_silent = tcl_frames.local_get_silent;
 
 // Procs
 pub const proc_register = tcl_procs.proc_register;
@@ -405,6 +409,8 @@ comptime {
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
     _ = &tcl_frames.local_get_or_error;
+    _ = &tcl_frames.local_set_silent;
+    _ = &tcl_frames.local_get_silent;
     _ = &tcl_frames.local_exists;
     _ = &tcl_frames.var_resolve;
     _ = &tcl_frames.var_set;
@@ -414,6 +420,8 @@ comptime {
     _ = &tcl_frames.frame_set_line;
     _ = &tcl_frames.frame_set_cmd_text;
     _ = &tcl_frames.frame_set_proc_name;
+    _ = &tcl_frames.frame_claim_line_codegen;
+    _ = &tcl_frames.frame_get_line;
     _ = &tcl_frames.frame_local_at;
     _ = &tcl_frames.frame_local_set_at;
     // tcl_procs exports
@@ -522,6 +530,12 @@ comptime {
     _ = &tcl_interp_registry.child_create;
     _ = &tcl_interp_registry.child_lookup;
     _ = &tcl_interp_registry.child_delete;
+    // Phase 9: cross-interp variable link registry exports.
+    _ = &tcl_xlinks.install;
+    _ = &tcl_xlinks.remove;
+    _ = &tcl_xlinks.lookup;
+    _ = &tcl_xlinks.lookup_done;
+    _ = &tcl_xlinks.drop_for_interp;
     _ = &tcl_interp_registry.resolve_path;
     _ = &tcl_interp_registry.enter;
     _ = &tcl_interp_registry.leave;

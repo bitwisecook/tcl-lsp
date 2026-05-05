@@ -45,6 +45,7 @@ class _WasmEmitterOptMixin(_Base):
         def _emit_expr(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterStmtMixin
         def _emit_stmt(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_frame_set_line(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_call_stmt_tail(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_eval_fallback(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterCmdMixin
@@ -62,34 +63,46 @@ class _WasmEmitterOptMixin(_Base):
         def _emit_unbox_int(self, *a: Any, **kw: Any) -> Any: ...
 
     def _body_references_info_level(self) -> bool:
-        """Walk the CFG's IR for any ``info level`` call so the
-        prologue knows to push a frame even when the escape
-        analysis says one isn't needed for local storage.
+        """Walk the CFG's IR for any ``info level`` / ``info frame``
+        call so the prologue knows to push a frame even when the
+        escape analysis says one isn't needed for local storage.
 
-        Two shapes count:
-          * bare ``info level`` (returns depth),
-          * ``info level <arg>`` (returns the argv list for the
-            referenced frame).
+        Three shapes count:
+          * bare ``info level`` / ``info frame`` (depth),
+          * ``info level N`` / ``info frame N`` (returns the argv
+            list / frame metadata for the referenced frame),
+          * any bracketed ``[info level …]`` / ``[info frame …]``
+            embedded in a value or expression string.
 
-        Both need a real ``frame_depth`` / ``frame_argv`` slot —
-        without ``frame_push`` the callee observes its caller's
-        values, which is silently wrong.  Run once per proc at
-        prologue time; linear in the number of statements.
+        All three need a real ``frame_depth`` / ``frame_argv`` /
+        ``frame_info`` slot — without ``frame_push`` the callee
+        observes its caller's values, which is silently wrong.
+        Phase 8 follow-up: ``info frame`` joins ``info level`` here so
+        compiled procs reach the prologue's ``frame_set_type`` /
+        ``frame_set_proc_name`` / ``frame_set_script`` stamps, which
+        produce the proc's metadata for the new query path.  Run
+        once per proc at prologue time; linear in the number of
+        statements.
         """
         from ....cfg import CFGFunction
         from ....ir import IRCall
 
+        _INTROSPECT_SUBS = ("level", "frame")
+
         def _walk(stmt) -> bool:
             if isinstance(stmt, IRCall):
-                if stmt.canonical_command == "::info" and stmt.args and stmt.args[0] == "level":
+                if (
+                    stmt.canonical_command == "::info"
+                    and stmt.args
+                    and stmt.args[0] in _INTROSPECT_SUBS
+                ):
                     return True
-                # ``info level`` can also appear as a bracketed
-                # command substitution inside another call's
+                # Bracketed ``[info level …]`` / ``[info frame …]``
+                # can appear as command-subst inside another call's
                 # arguments (``puts [llength [info level 0]]``).
-                # Those are stored verbatim in the IR arg strings;
-                # a substring scan finds them without re-parsing.
+                # Substring scan finds them without re-parsing.
                 for a in stmt.args:
-                    if "[info level" in a:
+                    if "[info level" in a or "[info frame" in a:
                         return True
             # ``return [info level ...]`` is an IRReturn whose
             # ``value`` carries the bracketed substitution as a
@@ -98,10 +111,10 @@ class _WasmEmitterOptMixin(_Base):
             # returns its own invocation argv (e.g. trace wrappers,
             # tcltest helpers).
             value = getattr(stmt, "value", None)
-            if isinstance(value, str) and "[info level" in value:
+            if isinstance(value, str) and ("[info level" in value or "[info frame" in value):
                 return True
             expr = getattr(stmt, "expr", None)
-            if isinstance(expr, str) and "[info level" in expr:
+            if isinstance(expr, str) and ("[info level" in expr or "[info frame" in expr):
                 return True
             # Recurse into bodies of compound statements.
             for attr in ("body", "init", "next", "else_body", "finally_body"):
@@ -798,6 +811,11 @@ class _WasmEmitterOptMixin(_Base):
             # the tail would stamp a site with whichever range the
             # previous statement happened to leave behind.
             self._record_stmt_context(last)
+            # Phase 8 follow-up: stamp ``frame_set_line`` for the
+            # implicit-return tail so a callee's ``info frame -line``
+            # reports the tail statement's line — without this the
+            # tail's source position is silently dropped.
+            self._emit_frame_set_line(last)
             if isinstance(last, IRExprEval):
                 # Emit the final expression (i64), box to i32 for return
                 self._emit_expr(last.expr)

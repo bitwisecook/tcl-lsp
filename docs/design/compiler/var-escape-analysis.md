@@ -29,7 +29,17 @@ Source:
 [`_cfg_propagation.py`](../../../core/compiler/var_escape/_cfg_propagation.py),
 [`_info_subcommands.py`](../../../core/compiler/var_escape/_info_subcommands.py),
 [`_interprocedural.py`](../../../core/compiler/var_escape/_interprocedural.py),
+[`_slot_resolution.py`](../../../core/compiler/var_escape/_slot_resolution.py),
 [`_api.py`](../../../core/compiler/var_escape/_api.py).
+
+The slot-resolution pass (`_slot_resolution.py`) is a separate
+follow-up: for procs whose body passes the by-name-eligibility check
+it stamps a `{local_name: slot_index}` map on the summary, and the
+WASM emitter routes those names through the runtime's
+`tcl_frame_local_at(idx)` / `tcl_frame_local_set_at(idx)` indexed
+accessors instead of the name-keyed `tcl_local_set` / `tcl_local_get`
+calls.  See `runtime/zig/interp/tcl_frames.zig`'s
+`frame_locals_array` for the runtime side.
 
 Consumers:
 [`core/compiler/codegen/wasm/`](../../../core/compiler/codegen/wasm/)

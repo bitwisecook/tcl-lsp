@@ -227,9 +227,27 @@ pub const FrameInfo = struct {
     /// meaningful for type=proc).  Retained; released on
     /// ``frame_pop``.
     proc_name: i32 = 0,
+    /// Phase 8 follow-up: 1 = the codegen owns the ``line`` field
+    /// for this frame (i.e. the compiled-proc prologue is going to
+    /// stamp ``frame_set_line`` per-statement).  ``eval_script``
+    /// suppresses its own line stamping when this flag is set so
+    /// nested command-substitution / ``[…]`` evaluations don't
+    /// clobber the outer compiled stamp.  0 = the interpreter's
+    /// :func:`eval_script` is the line authority for the frame.
+    line_owned_by_codegen: u8 = 0,
 };
 
 var frame_info: [MAX_DEPTH]FrameInfo = [_]FrameInfo{.{}} ** MAX_DEPTH;
+
+// Phase 6 follow-up: per-frame variable-trace lists.  Each slot holds
+// the head pointer of a singly-linked chain of frame-local trace
+// records (records are allocated in :file:`tcl_var_trace.zig`).  A
+// frame with no traces installed has ``frame_trace_heads[idx] == 0``
+// — the read / write hooks short-circuit on that case so untraced
+// procs pay nothing per-access.  ``frame_pop`` calls ``drain_list``
+// to fire UNSET callbacks for every record, release the chain, and
+// reset the slot to 0 before the frame is reused.
+pub var frame_trace_heads: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 
 // Pending ``argv0`` for the next compiled-proc entry.  Set by a
 // compiled caller via ``frame_set_pending_argv0`` immediately
@@ -413,6 +431,13 @@ fn frame_grow_at_base(base: u32) u32 {
 /// Pop the current call frame. Caller should not access frame locals after this.
 pub export fn frame_pop() void {
     if (frame_depth > 0) {
+        // Phase 6 follow-up: fire UNSET callbacks for every
+        // frame-local trace, release the chain, and clear the head
+        // slot.  Drains BEFORE the array directory cleanup so a
+        // trace body's read-back of ``$arr(key)`` still sees the
+        // pre-pop state.
+        const tcl_var_trace = @import("tcl_var_trace.zig");
+        tcl_var_trace.drain_list(&frame_trace_heads[frame_depth - 1]);
         // Phase 1: drop every ``::__local::<depth>::*`` array that
         // belonged to this frame from the global directory.  Without
         // this the next call at the same depth would inherit the
@@ -531,6 +556,37 @@ pub export fn frame_set_script(script_obj: i32) void {
 
 /// Record the 1-based line within ``script_obj`` where the
 /// invocation appears.  0 = unknown.
+/// Read the line number recorded for the frame *offset* steps below
+/// the top (0 = current).  Returns 0 when the offset is out of range
+/// or no line was stamped.  Phase 8 follow-up — used by
+/// ``eval_script`` to save/restore the caller's line across an inner
+/// command-subst body's execution.
+pub export fn frame_get_line(offset: i32) u32 {
+    if (offset < 0) return 0;
+    const u: u32 = @intCast(offset);
+    if (u >= frame_depth) return 0;
+    return frame_info[frame_depth - 1 - u].line;
+}
+
+/// Phase 8 follow-up: claim line-stamping ownership for the current
+/// frame on behalf of compiled-proc codegen.  After this call,
+/// :func:`eval_script` suppresses its own per-command line updates
+/// for any nested invocation under this frame — the prologue's
+/// ``frame_set_line`` emissions are the single source of truth for
+/// ``info frame -line`` inside compiled procs.  Idempotent.
+pub export fn frame_claim_line_codegen() void {
+    if (frame_depth == 0) return;
+    frame_info[frame_depth - 1].line_owned_by_codegen = 1;
+}
+
+/// True when the current frame's line is owned by the compiled-proc
+/// prologue.  Read by :func:`eval_script` to decide whether to
+/// stamp.  Returns false for top-level / interpreted-proc frames.
+pub fn frame_line_owned_by_codegen() bool {
+    if (frame_depth == 0) return false;
+    return frame_info[frame_depth - 1].line_owned_by_codegen != 0;
+}
+
 pub export fn frame_set_line(line: u32) void {
     if (frame_depth == 0) return;
     frame_info[frame_depth - 1].line = line;
@@ -570,21 +626,21 @@ pub fn frame_get_info(abs_depth: u32) ?*const FrameInfo {
     return &frame_info[abs_depth - 1];
 }
 
-// --- Phase 10 (INCOMPLETE — wired up in next PR): frame contexts -------
+// --- Frame contexts (used by the coroutine driver) ---------------------
 //
-// **THIS API HAS NO CONSUMER YET.**  The shape lands here so the
-// next PR can wire :file:`sched/tcl_coro.zig` to it without
-// re-designing the surface.  See ``docs/var-frame-architecture.md``
-// for the driver-level design + the TclObj-ownership decision the
-// driver author needs to make (flat-copy save doesn't bump retain
-// counts, so live-drain semantics have to be enforced between
-// save and restore to avoid use-after-free on the next
-// ``frame_pop``).
+// :file:`sched/tcl_coro.zig` save-transfers each coro's frame stack
+// into ``Coro.ctx`` on yield and restores it on the next resume.
+// The transfer-ownership variants (:func:`frame_context_save_transfer`
+// / :func:`frame_context_restore_transfer`) move the live retains
+// into the snapshot and zero the live slots, so a paired
+// save/restore stays refcount-balanced without any explicit
+// retain/release: at most one of "snapshot" or "live" owns a given
+// TclObj at any moment.
 //
-// Until the driver lands, the v1 segment-based coroutine driver
-// evaluates each segment inline in the caller's frame stack and
-// doesn't need isolation; the asyncify path handles its own
-// wasm-side state via ``wasm-opt --asyncify``.
+// via ``wasm-opt --asyncify`` and doesn't use ``FrameContext`` —
+// asyncify's stack-save covers WASM locals; the runtime side-state
+// stays shared with the caller.  Coroutines under that driver
+// observe the caller's frame stack rather than an isolated one.
 //
 // Shape: a ``FrameContext`` is an opaque snapshot of the
 // per-frame slot arrays — ``frame_stack`` / ``frame_capacity`` /
@@ -603,6 +659,21 @@ pub const FrameContext = struct {
     ns: [MAX_DEPTH]u32,
     argv: [MAX_DEPTH]i32,
     info: [MAX_DEPTH]FrameInfo,
+    /// Phase 7 indexed-local slots.  Each slot is a TclObj handle
+    /// (or 0 = unset), and the live array's slots own a +1 retain.
+    /// Including the slots in the snapshot is essential for Phase 10
+    /// coroutine save/restore: yielding the coro must transfer those
+    /// retains into ``ctx`` so the live array can be zeroed without
+    /// leaking and the resumed coro picks up its prior values.
+    locals: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32,
+    /// Phase 6 follow-up frame-local trace chains.  Each head is a
+    /// heap-allocated linked list of ``(name, ops, cmd_prefix)``
+    /// records that own retains on the cmd-prefix TclObj.  Save-
+    /// transfer ownership semantics apply: the snapshot inherits
+    /// the chain pointers and the live slots are nulled, so a
+    /// later ``frame_pop`` / ``drain_list`` on the live state
+    /// can't double-release the shared chain.
+    trace_heads: [MAX_DEPTH]u32,
 };
 
 /// Snapshot the current frame state into a fresh ``FrameContext``.
@@ -615,7 +686,100 @@ pub fn frame_context_save() FrameContext {
         .ns = frame_ns,
         .argv = frame_argv,
         .info = frame_info,
+        .locals = frame_locals_array,
+        .trace_heads = frame_trace_heads,
     };
+}
+
+/// Phase 10: transfer-ownership variant of :func:`frame_context_save`.
+/// The snapshot inherits every refcount-bearing slot the live state
+/// was holding:
+///
+///   * ``frame_argv`` — invocation argv list (one TclObj per frame).
+///   * ``frame_info`` — ``script_obj`` / ``cmd_text`` / ``proc_name``
+///     TclObj handles per frame.
+///   * ``frame_locals_array`` — Phase 7 indexed-slot TclObj handles.
+///   * ``frame_trace_heads`` — Phase 6 follow-up per-frame variable-
+///     trace chains (each carries retained ``cmd_prefix`` TclObj
+///     handles).
+///
+/// All five live arrays are then zeroed so a subsequent ``frame_pop``
+/// / ``drain_list`` / restore-into-different-state can't double-
+/// release.  Used by the coroutine driver: a yielding coro snapshots
+/// its frame stack with this primitive, then restores the caller's
+/// previously-snapshotted context.  Both sides stay refcount-
+/// balanced because the snapshots are the only place a given retain
+/// lives at a time.
+pub fn frame_context_save_transfer() FrameContext {
+    const ctx: FrameContext = .{
+        .depth = frame_depth,
+        .stack = frame_stack,
+        .capacity = frame_capacity,
+        .ns = frame_ns,
+        .argv = frame_argv,
+        .info = frame_info,
+        .locals = frame_locals_array,
+        .trace_heads = frame_trace_heads,
+    };
+    // Live slots: the snapshot owns the retains now.  Zero every
+    // refcount-bearing slot plus the auxiliary state (dirty mask,
+    // bucket pointers) so the next ``frame_push`` for these slots
+    // starts clean.
+    var i: u32 = 0;
+    while (i < MAX_DEPTH) : (i += 1) {
+        frame_argv[i] = 0;
+        frame_info[i] = .{};
+        frame_ns[i] = 0;
+        frame_stack[i] = 0;
+        frame_capacity[i] = 0;
+        frame_dirty[i] = 0;
+        frame_trace_heads[i] = 0;
+        var j: u32 = 0;
+        while (j < LOCALS_ARRAY_CAP) : (j += 1) {
+            frame_locals_array[i][j] = 0;
+        }
+    }
+    frame_depth = 0;
+    return ctx;
+}
+
+/// Phase 10: drain every live frame, releasing the retains they
+/// hold on argv / FrameInfo / indexed locals / variable-trace
+/// records.  Used by the coroutine driver on terminal completion
+/// (RETURN / ERROR / body-end): the coro's live frames are about
+/// to be discarded by the caller-context restore, so their retains
+/// must be released here to avoid leaking when the snapshot in
+/// ``Coro.ctx`` becomes unreachable.  Equivalent to calling
+/// :func:`frame_pop` until ``frame_depth == 0``.
+pub fn frame_drain_all_live() void {
+    while (frame_depth > 0) {
+        frame_pop();
+    }
+}
+
+/// Phase 10: transfer-ownership variant of
+/// :func:`frame_context_restore`.  Symmetric to
+/// :func:`frame_context_save_transfer` — caller is responsible for
+/// having drained the live state (typically via a paired
+/// ``save_transfer`` call) before invoking this.  No retain/release
+/// happens here; the snapshot's holds become the live state's holds.
+pub fn frame_context_restore_transfer(ctx: FrameContext) void {
+    frame_depth = ctx.depth;
+    frame_stack = ctx.stack;
+    frame_capacity = ctx.capacity;
+    frame_ns = ctx.ns;
+    frame_argv = ctx.argv;
+    frame_info = ctx.info;
+    frame_locals_array = ctx.locals;
+    frame_trace_heads = ctx.trace_heads;
+    // ``frame_dirty`` is a cache of populated buckets; reset it so
+    // the next ``frame_push`` for this slot re-arms via the bitmap
+    // (a stale chunk-dirty bit from the previous tenant would skip
+    // a clear that's actually needed).
+    var i: u32 = 0;
+    while (i < MAX_DEPTH) : (i += 1) {
+        frame_dirty[i] = 0;
+    }
 }
 
 /// Restore the live frame state from a previously-captured
@@ -650,28 +814,28 @@ pub fn frame_context_reset() void {
     // reset path on push.
 }
 
-// --- Phase 7 (INCOMPLETE — wired up in next PR): indexed locals --------
+// --- Indexed locals (compile-time slot resolution) ---------------------
 //
-// **THIS API HAS NO CONSUMER YET.**  The next PR is a Python-side
-// codegen pass that identifies compile-time-known scalar locals
-// and emits ``frame_local_at(idx)`` / ``frame_local_set_at(idx,
-// value)`` instead of the name-keyed ``tcl_local_set`` /
-// ``tcl_local_get`` for them.  Spec lives in
-// ``docs/var-frame-architecture.md``.
-//
-// Until the codegen pass lands the indexed slots stay unused;
-// nothing is regressed because the hash-keyed local store keeps
-// working as the primary path.  ``frame_pop`` already drains
-// the indexed slots so their refcount accounting can't drift
-// even if a stray future caller writes through the indexed
-// accessor without the codegen-side consumer.
+// The Python-side ``var_escape/_slot_resolution.py`` pass walks each
+// proc body, decides which scalar literal locals can safely live in
+// the indexed array (no upvar / global / variable / vwait / regexp
+// capture-binding / info introspection / trace / nested eval / etc.
+// — see the pass for the full eligibility list), and stamps the
+// resulting ``{name: slot}`` map on :class:`ProcEscapeSummary.
+// local_slot_indices`.  The WASM emitter consults that map in
+// :func:`_emit_var_write_obj_impl` / :func:`_emit_var_read_obj_lenient`
+// to swap ``tcl_local_set`` / ``tcl_local_get_or_error`` for
+// ``frame_local_set_at(idx)`` / ``frame_local_at(idx)``.
 //
 // Shape: a per-frame ``locals_array`` of fixed capacity.  We
 // pre-allocate ``LOCALS_ARRAY_CAP`` slots per frame; codegen-
 // resolved locals use indices ``0..LOCALS_ARRAY_CAP-1``.  Procs
 // with more locals than that capacity continue to use the
 // hash-keyed store transparently — ``frame_local_at`` only
-// handles indexed slots, never the dynamic ones.
+// handles indexed slots, never the dynamic ones.  ``frame_pop``
+// drains the indexed slots so their refcount accounting can't
+// drift even if a stray future caller writes through the indexed
+// accessor in an unexpected way.
 const LOCALS_ARRAY_CAP: u32 = 16;
 var frame_locals_array: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32 = undefined;
 
@@ -1306,11 +1470,13 @@ pub export fn local_set(name: i32, value: i32) i32 {
             if (value != 0) obj.tcl_obj_retain(value);
             write_i32(bucket + OFF_VALUE, value);
             if (v != 0 and v != value) obj.tcl_obj_release(v);
+            fire_local_trace(sn.ptr, sn.len, value);
             return value;
         }
         // Fresh insert — retain the new value (no old to release).
         if (value != 0) obj.tcl_obj_retain(value);
         frame_insert(base, sn.ptr, sn.len, hash, value);
+        fire_local_trace(sn.ptr, sn.len, value);
         return value;
     }
     // No frame active — set global (var_set_scalar handles
@@ -1318,10 +1484,84 @@ pub export fn local_set(name: i32, value: i32) i32 {
     return globals.global_set(name, value);
 }
 
+/// Phase 6 follow-up: fire any matching frame-local WRITE / UNSET
+/// trace.  ``value == 0`` is the in-runtime "unset" signal (matches
+/// the ``var_set(name, 0)`` route taken by ``unset NAME`` in
+/// :file:`cmds/var.zig`); for non-zero values we fire WRITE.  No-op
+/// when the frame's trace head is empty — the hot path for untraced
+/// procs.
+fn fire_local_trace(name_ptr: u32, name_len: u32, value: i32) void {
+    if (frame_depth == 0) return;
+    const head = frame_trace_heads[frame_depth - 1];
+    if (head == 0) return;
+    const tcl_var_trace = @import("tcl_var_trace.zig");
+    if (value == 0) {
+        tcl_var_trace.fire_in_list(head, name_ptr, name_len, tcl_var_trace.OP_UNSET, 'u');
+    } else {
+        tcl_var_trace.fire_in_list(head, name_ptr, name_len, tcl_var_trace.OP_WRITE, 'w');
+    }
+}
+
+/// Frame-sync write — store ``value`` in the local slot for ``name``
+/// without firing variable traces.  Used by the codegen's
+/// ``_emit_frame_sync`` path on its way into a ``tcl_eval`` /
+/// runtime-import boundary: the call is a state transfer (mirror
+/// the WASM local into the frame so the interpreter sees the
+/// up-to-date value), not a user-visible assignment, so a write
+/// trace must not observe it.  Same refcount discipline as
+/// :func:`local_set`.
+pub export fn local_set_silent(name: i32, value: i32) i32 {
+    const sn = obj_ensure_string(name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + OFF_VALUE);
+            if (v == ALIAS_GLOBAL) return globals.global_set(name, value);
+            if (is_alias_ext(v)) return resolve_ext_set(alias_desc_ptr(v), name, value);
+            if (value != 0) obj.tcl_obj_retain(value);
+            write_i32(bucket + OFF_VALUE, value);
+            if (v != 0 and v != value) obj.tcl_obj_release(v);
+            return value;
+        }
+        if (value != 0) obj.tcl_obj_retain(value);
+        frame_insert(base, sn.ptr, sn.len, hash, value);
+        return value;
+    }
+    return globals.global_set(name, value);
+}
+
 /// Get a local variable from the current frame.
 /// Returns 0 if not found in current frame (does NOT fall through to globals).
 /// Follows ALIAS_GLOBAL and ALIAS_EXT on read.
 pub export fn local_get(name: i32) i32 {
+    const sn = obj_ensure_string(name);
+    if (current_frame()) |base| {
+        const hash = fnv1a(sn.ptr, sn.len);
+        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const v = read_i32(bucket + OFF_VALUE);
+            if (v == ALIAS_GLOBAL) return globals.global_get(name);
+            if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
+            // Phase 6 follow-up: fire READ trace before handing the
+            // value back.  Trace bodies can mutate the slot (write
+            // trace + assign), so re-read after firing.
+            if (frame_depth != 0 and frame_trace_heads[frame_depth - 1] != 0) {
+                const tcl_var_trace = @import("tcl_var_trace.zig");
+                if (tcl_var_trace.has_trace_in_list(frame_trace_heads[frame_depth - 1], sn.ptr, sn.len, tcl_var_trace.OP_READ)) {
+                    tcl_var_trace.fire_in_list(frame_trace_heads[frame_depth - 1], sn.ptr, sn.len, tcl_var_trace.OP_READ, 'r');
+                    return read_i32(bucket + OFF_VALUE);
+                }
+            }
+            return v;
+        }
+    }
+    return 0;
+}
+
+/// Frame-readback read — counterpart of :func:`local_set_silent`.
+/// Reads the local slot without firing READ traces; used by the
+/// codegen ``_emit_frame_readback`` path that pulls interpreter-side
+/// updates back into WASM locals after a ``tcl_eval`` boundary.
+pub export fn local_get_silent(name: i32) i32 {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
@@ -1378,6 +1618,24 @@ pub export fn local_exists(name: i32) i32 {
 /// Resolve a variable: check current frame first, then globals.
 /// This is the standard Tcl lookup order for the interpreter.
 pub export fn var_resolve(name: i32) i32 {
+    // Phase 9: cross-interp variable link probe.  When a name in
+    // the current interp is linked to a target in another interp,
+    // route the read through the target interp's resolution.  The
+    // probe is gated by the link-registry's re-entry guard so a
+    // cycle (A → B → A) doesn't loop.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) {
+            return 0;
+        }
+        const save = interp_reg.enter(lk.target_interp);
+        const v = var_resolve(lk.target_name);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj_ensure_string(name);
     // Array-element form ``arr(key)`` — split into ``arr`` + ``key``
     // and route through the array directory.  The previous code
@@ -1486,6 +1744,26 @@ pub export fn var_resolve(name: i32) i32 {
 /// Set a variable: sets in current frame if one is active, otherwise global.
 /// If the local is an alias to a global, the write propagates to globals.
 pub export fn var_set(name: i32, value: i32) i32 {
+    // Phase 9: cross-interp variable link probe — same shape as
+    // :func:`var_resolve`'s probe.  When the current interp's
+    // variable is linked to another interp's, write through to
+    // the target.  ``transfer_result`` doesn't run here because
+    // the value lives in the shared linear memory; both interps
+    // see the same handle and the destination's hash bucket
+    // retains it on store.
+    const xlinks = @import("tcl_xlinks.zig");
+    const interp_reg = @import("tcl_interp_registry.zig");
+    const lk = xlinks.lookup(interp_reg.interp_current(), name);
+    if (lk.found) {
+        defer xlinks.lookup_done();
+        if (lk.target_interp == 0 or lk.target_name == 0) {
+            return value;
+        }
+        const save = interp_reg.enter(lk.target_interp);
+        const v = var_set(lk.target_name, value);
+        interp_reg.leave(save);
+        return v;
+    }
     const sn = obj_ensure_string(name);
     // Array-element form ``arr(key)`` — split off the key and route
     // through ``array_set``.  Mirrors the read path in

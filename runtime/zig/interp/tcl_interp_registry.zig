@@ -462,32 +462,36 @@ pub fn leave(save: EnterSave) void {
     tcl_ns.current_ns = save.prev_current_ns;
 }
 
-// --- Phase 9 (INCOMPLETE — wired up in next PR): cross-interp links ---
+// --- Cross-interp variable link primitives ---
 //
-// **NEITHER ``CrossInterpLink`` NOR ``transfer_result`` HAS A
-// CONSUMER YET.**  The shapes land here so the next PR can either
-// (a) build the per-name ``Variable``-record refactor the design
-// doc's Phase 1 ideal calls for and route ``var_resolve`` through
-// the link, or (b) add a separate cross-interp-link registry
-// keyed by ``(local_interp, local_name)``.  Spec lives in
-// ``docs/var-frame-architecture.md``.
+// ``CrossInterpLink`` is the descriptor shape the side-registry in
+// :file:`tcl_xlinks.zig` materialises for every link installed via
+// ``interp share-variable``.  ``transfer_result`` ferries a TclObj
+// across an interp boundary by adding a destination-side retain;
+// ``var_resolve`` / ``var_set`` / ``global_get`` / ``global_set``
+// all consult the xlink registry before falling through to local
+// resolution, so a linked variable's reads and writes route to
+// the target interp transparently.
 //
-// The ``Interp`` struct is already a typed handle (``extern struct``)
-// reachable by ``u32`` address — the design doc's Phase 9
-// "each interp gets a typed handle" is satisfied by what
-// :func:`interp_root` / :func:`child_create` already build.
+// The ``Interp`` struct is a typed handle (``extern struct``)
+// reachable by ``u32`` address; child interps are tracked through
+// :func:`child_create` / :func:`child_lookup` / :func:`child_delete`.
+// ``interp delete`` calls :func:`tcl_xlinks.drop_for_interp` so a
+// dangling link can't outlive its endpoint.
 //
-// ``transfer_result`` is the refcount-bookkeeping primitive the
-// observable ``interp transfer-variable`` (Tcl 9 spelling) command
-// would route through.  Today the existing ``interp transfer``
-// channel-handoff command stays a no-op stub — channels are
-// single-instance file descriptors in the WASM runtime, so
-// cross-interp channel transfer has no meaning here.
+// ``transfer_result`` is the refcount-bookkeeping primitive that
+// the dispatcher uses to keep TclObj retains balanced when handing
+// a value across interp boundaries.  The companion ``interp share``
+// / ``interp transfer`` Tcl commands (channel handoff in reference
+// Tcl) stay no-op stubs — channels are single-instance file
+// descriptors in the WASM runtime so cross-interp channel transfer
+// has no meaning here.
 
-/// Cross-interp variable link target.  When a variable in one
-/// interp resolves through a ``Variable`` whose storage union
-/// holds a ``CrossInterpLink``, lookups walk into ``target_interp``
-/// and resolve ``target_name`` there.
+/// Cross-interp variable link target.  Stored as the value side of
+/// every entry in :file:`tcl_xlinks.zig`'s registry; the registry
+/// indirects to a heap-allocated record so each link can carry its
+/// own retained ``target_name`` TclObj without inflating the
+/// directory bucket.
 pub const CrossInterpLink = extern struct {
     /// ``Interp*`` address of the owning interp.  Must be live;
     /// :func:`interp_delete` invalidates by setting ``INTERP_DELETED``
@@ -499,11 +503,11 @@ pub const CrossInterpLink = extern struct {
 };
 
 /// Hand a TclObj result from one interp to another by adding a
-/// fresh retain for the destination interp's hold.  Used by the
-/// ``interp transfer`` command (when wired up — Phase 9 follow-up;
-/// see ``docs/var-frame-architecture.md``) so the value survives
-/// the boundary crossing while the dest interp stamps it into its
-/// pending result.
+/// fresh retain for the destination interp's hold.  Routes through
+/// the ``interp share-variable`` machinery: when ``var_resolve`` /
+/// ``var_set`` follows an xlink to the target interp, the source-
+/// side handle is borrowed for the call duration and the
+/// destination retains via this primitive on store.
 ///
 /// The caller is responsible for dropping the source-side hold —
 /// this primitive doesn't do it because the source interp's

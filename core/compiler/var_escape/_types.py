@@ -92,6 +92,17 @@ class ProcEscapeSummary:
     # ``core.compiler.ssa.SSAValueKey``.  The per-name ``tags``
     # field is the join over this dict and is what codegen consumes.
     ssa_tags: dict[tuple[str, int], EscapeTag] = field(default_factory=dict)
+    # Phase 7: compile-time slot indices for proc-locals that pass
+    # the slot-resolution eligibility check.  Populated by the
+    # ``assign_local_slots`` pass after escape analysis runs;
+    # consumed by the WASM codegen's variable read/write paths
+    # (``_emit_var_write_obj_impl`` / ``_emit_var_read_obj_lenient``)
+    # to emit ``frame_local_set_at(idx)`` / ``frame_local_at(idx)``
+    # instead of the name-keyed ``tcl_local_set`` / ``tcl_local_get``.
+    # Empty for procs that aren't eligible (dynamic_barrier, upvar /
+    # global / variable / info exists / trace add variable on a
+    # local, dynamic name access, nested eval / uplevel / apply).
+    local_slot_indices: dict[str, int] = field(default_factory=dict)
 
     def tag(self, name: str) -> EscapeTag:
         """Return the tag for ``name`` (defaults to ``LOCAL``)."""
@@ -236,4 +247,24 @@ class ProcEscapeSummary:
             has_call_fallback=self.has_call_fallback,
             ssa_tags=dict(self.ssa_tags),
             pure_leaf=new_pure_leaf,
+            local_slot_indices=dict(self.local_slot_indices),
+        )
+
+    def with_local_slots(self, slot_indices: dict[str, int]) -> "ProcEscapeSummary":
+        """Return a new summary carrying *slot_indices* as the
+        compile-time slot mapping (Phase 7).  Frozen dataclass — must
+        rebuild the structure rather than assign in place.
+        """
+        return ProcEscapeSummary(
+            tags=dict(self.tags),
+            dynamic_barrier=self.dynamic_barrier,
+            frame_needed=self.frame_needed,
+            upvar_source_names=self.upvar_source_names,
+            unbounded_upvar_source=self.unbounded_upvar_source,
+            direct_callees=self.direct_callees,
+            has_fallback=self.has_fallback,
+            has_call_fallback=self.has_call_fallback,
+            ssa_tags=dict(self.ssa_tags),
+            pure_leaf=self.pure_leaf,
+            local_slot_indices=dict(slot_indices),
         )

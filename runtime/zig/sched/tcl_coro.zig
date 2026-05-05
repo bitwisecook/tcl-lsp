@@ -43,6 +43,7 @@
 // :func:`current_in_coroutine`) so the dispatch site in
 // :func:`eval_proc_call_bucket` doesn't care which model is active.
 
+const std = @import("std");
 const obj = @import("../valtypes/tcl_obj.zig");
 const tcl_obj_retain = obj.tcl_obj_retain;
 const tcl_obj_release = obj.tcl_obj_release;
@@ -50,6 +51,7 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const tcl_frames = @import("../interp/tcl_frames.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const tcl_async = @import("tcl_asyncify.zig");
 
@@ -102,6 +104,15 @@ pub const Coro = struct {
     async_buf: u32,
     async_buf_size: u32,
     state: CoroState,
+    /// Phase 10: per-coro saved frame context.  Save-transfer
+    /// ownership: the coro's frame retains live in this snapshot
+    /// while the coro is suspended; on resume we restore them and
+    /// drain the caller's live state into ``ctx_caller_save`` for
+    /// the duration of the coro's run.  Empty when the coro has
+    /// never resumed (first resume starts with a fresh frame
+    /// stack).
+    ctx: tcl_frames.FrameContext,
+    has_ctx: u8,
 };
 
 var g_coros: [MAX_COROS]Coro = undefined;
@@ -223,6 +234,11 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     c.async_buf = 0;
     c.async_buf_size = 0;
     c.state = .PENDING;
+    // Phase 10: ``ctx`` starts unpopulated.  ``resume_segments``
+    // detects the first-resume case via ``has_ctx == 0`` and
+    // restores a fresh frame stack instead of an old snapshot.
+    c.ctx = std.mem.zeroes(tcl_frames.FrameContext);
+    c.has_ctx = 0;
     if (!tcl_async.ENABLED) split_segments(c);
     return c;
 }
@@ -378,6 +394,16 @@ fn resume_async(c: *Coro) i32 {
 }
 
 /// v1 segment-based resume — used when asyncify is disabled.
+///
+/// Phase 10: each coro now carries its own frame stack via
+/// :type:`tcl_frames.FrameContext`.  On entry we save-transfer the
+/// caller's live frames into a local ``caller_ctx`` and restore the
+/// coro's previously-saved snapshot (or a fresh stack on first
+/// resume).  On yield we save-transfer the coro's frames back into
+/// its slot and restore the caller's.  On terminal completion the
+/// caller's frames come back; the coro's snapshot is dropped (the
+/// retains it owned die with it, which is correct since the coro
+/// is terminating).
 fn resume_segments(c: *Coro) i32 {
     if (c.state == .DEAD) return 0;
     if (c.next_segment >= c.n_segments) {
@@ -387,6 +413,19 @@ fn resume_segments(c: *Coro) i32 {
     const interp = @import("../interp/tcl_interp.zig");
     if (!push_call(c)) return 0;
     defer pop_call();
+
+    // Save-transfer the caller's frame state.  ``frame_context_save_transfer``
+    // moves the live retains into the snapshot and zeroes the
+    // live slots so the coro starts with a clean stack.
+    const caller_ctx = tcl_frames.frame_context_save_transfer();
+
+    if (c.has_ctx != 0) {
+        // Restore the coro's previously-saved frames.  Symmetric
+        // transfer — no retains/releases happen, just bytes copy in.
+        tcl_frames.frame_context_restore_transfer(c.ctx);
+    }
+    // First resume: live state is already empty after the save above,
+    // so the coro starts with a fresh frame_depth=0.
 
     c.state = .RUNNING;
     tcl_catch.state.yield_flag = 0;
@@ -403,6 +442,13 @@ fn resume_segments(c: *Coro) i32 {
             const yv = tcl_catch.state.yield_value;
             tcl_catch.state.yield_value = 0;
             c.state = .SUSPENDED;
+            // Save-transfer the coro's frames into its slot, then
+            // restore the caller's previously-saved context.  The
+            // coro's retains now live in ``c.ctx``; the caller's
+            // live state goes back to whatever it had before resume.
+            c.ctx = tcl_frames.frame_context_save_transfer();
+            c.has_ctx = 1;
+            tcl_frames.frame_context_restore_transfer(caller_ctx);
             return yv;
         }
         const ir = result_mod.snapshot(result);
@@ -431,10 +477,27 @@ fn resume_segments(c: *Coro) i32 {
             // surfaces ``invalid command name``, but the body's
             // original error should still propagate this round.
             c.state = .DEAD;
+            // Drain the coro's live frames before installing the
+            // caller's context — the coro's frame slots own retains
+            // (argv / FrameInfo handles / Phase 7 indexed locals /
+            // Phase 6 trace-record chains) that would leak when the
+            // restore overwrites the live array.  ``frame_pop``'s
+            // teardown matches the per-pop release contract so a
+            // sequence of pops releases everything cleanly.  After
+            // the drain the caller's context restores into a fully
+            // empty live state.
+            tcl_frames.frame_drain_all_live();
+            tcl_frames.frame_context_restore_transfer(caller_ctx);
+            c.has_ctx = 0;
             return result;
         }
     }
     c.state = .DEAD;
+    // Body ran to completion without yield — same teardown as the
+    // ERROR/RETURN path: drain coro frames, restore caller.
+    tcl_frames.frame_drain_all_live();
+    tcl_frames.frame_context_restore_transfer(caller_ctx);
+    c.has_ctx = 0;
     return result;
 }
 

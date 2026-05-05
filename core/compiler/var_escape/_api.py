@@ -10,6 +10,7 @@ from ..ssa import SSAValueKey
 from ._cfg_propagation import CfgEscapeResult, analyse_cfg_function
 from ._interprocedural import solve_interprocedural_escape
 from ._propagation import analyse_script
+from ._slot_resolution import populate_local_slots
 from ._types import EscapeTag, ProcEscapeSummary
 
 log = logging.getLogger(__name__)
@@ -96,6 +97,16 @@ def analyse_var_escape(
 
     if interprocedural:
         result = solve_interprocedural_escape(result)
+
+    # Phase 7: fold compile-time slot indices into each summary.  The
+    # IR module is the source of truth for proc bodies and params; if
+    # we only have a CompilationUnit, pull the IR module from it.
+    ir_for_slots: IRModule | None = ir_module
+    if ir_for_slots is None and cu is not None:
+        ir_for_slots = cu.ir_module
+    if ir_for_slots is not None:
+        result = populate_local_slots(result, ir_for_slots)
+
     return result
 
 
