@@ -549,6 +549,94 @@ pub fn frame_get_info(abs_depth: u32) ?*const FrameInfo {
     return &frame_info[abs_depth - 1];
 }
 
+// --- Phase 10: coroutine-aware frame contexts --------------------------
+//
+// A ``FrameContext`` is an opaque snapshot of the per-frame slot
+// arrays — ``frame_stack`` / ``frame_capacity`` / ``frame_ns`` /
+// ``frame_argv`` / ``frame_info`` / ``frame_depth`` — captured at
+// some point in time.  ``frame_context_save`` reads the current
+// state; ``frame_context_restore`` writes it back.
+//
+// The intended use is coroutine yield / resume: when a coroutine
+// yields, the driver captures the current state into the coro's
+// FrameContext slot and restores the parent's saved context;
+// when the coroutine resumes, the saved context is restored and
+// the parent's gets re-saved.  This gives each coroutine its
+// own isolated frame stack instead of running inline in the
+// caller's stack.
+//
+// Storage cost: a FrameContext holds copies of the entire
+// MAX_DEPTH slot arrays plus the depth counter.  Roughly 14 KB
+// per snapshot at MAX_DEPTH=64 — modest given coroutines are
+// short-lived and few in number.  An alternative
+// "rebase-pointer" design (each context owns a SLICE of a
+// shared backing buffer) would shrink the per-context cost but
+// add complexity around the dirty bitmap / capacity tracking
+// that today's flat-array design avoids; the flat copy is the
+// right trade-off until benchmarks say otherwise.
+//
+// **Status (Phase 10 minimal):** the save/restore API is in
+// place but no driver currently uses it.  The v1 segment-based
+// coroutine driver in :file:`sched/tcl_coro.zig` evaluates each
+// segment inline in the caller's frame stack so it doesn't
+// need isolation.  The asyncify path handles its own wasm-side
+// state via wasm-opt's ``--asyncify`` pass.  This API is
+// foundation for proc-level coroutines that need real frame
+// isolation, plus the ``interp transfer`` work in phase 9.
+pub const FrameContext = struct {
+    depth: u32,
+    stack: [MAX_DEPTH]u32,
+    capacity: [MAX_DEPTH]u32,
+    ns: [MAX_DEPTH]u32,
+    argv: [MAX_DEPTH]i32,
+    info: [MAX_DEPTH]FrameInfo,
+};
+
+/// Snapshot the current frame state into a fresh ``FrameContext``.
+/// Caller owns the snapshot; the live state is unchanged.
+pub fn frame_context_save() FrameContext {
+    return .{
+        .depth = frame_depth,
+        .stack = frame_stack,
+        .capacity = frame_capacity,
+        .ns = frame_ns,
+        .argv = frame_argv,
+        .info = frame_info,
+    };
+}
+
+/// Restore the live frame state from a previously-captured
+/// ``FrameContext``.  Mirror of :func:`frame_context_save`.
+///
+/// IMPORTANT: this does NOT release any TclObj handles in the
+/// argv / info slots that the live state currently holds.  The
+/// caller is responsible for ownership accounting — typically
+/// the save/restore is paired (save on yield, restore on
+/// resume) so the same handles round-trip without a release.
+/// For non-paired transfers the caller must explicitly drain
+/// the live state before calling restore.
+pub fn frame_context_restore(ctx: FrameContext) void {
+    frame_depth = ctx.depth;
+    frame_stack = ctx.stack;
+    frame_capacity = ctx.capacity;
+    frame_ns = ctx.ns;
+    frame_argv = ctx.argv;
+    frame_info = ctx.info;
+}
+
+/// Reset the live frame state to "no frames pushed".  Used at the
+/// entry to an isolated eval (e.g. a fresh coroutine resume) where
+/// the wrapper wants to start with a clean stack independent of
+/// the caller's depth.  After the inner eval, the caller restores
+/// its previously-saved ``FrameContext`` to undo this reset.
+pub fn frame_context_reset() void {
+    frame_depth = 0;
+    // The slot arrays don't need zeroing — ``frame_push`` reuses
+    // them via the dirty-bitmap mechanism (per-bucket reset on
+    // first reuse) and the argv / info slots have their own
+    // reset path on push.
+}
+
 /// Record the namespace context for the *current* frame.  Called
 /// by the proc-call dispatcher right after it switches
 /// ``current_ns`` to the proc's namespace, so a later ``uplevel``
