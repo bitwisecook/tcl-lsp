@@ -158,6 +158,11 @@ pub fn drop_local_arrays_for_depth(frame_depth: u32) void {
 const ht = @import("hash_table.zig");
 const fnv1a = ht.fnv1a;
 
+/// Phase 6: variable-trace dispatcher.  Imported lazily to avoid a
+/// hard dep cycle (var_trace → interp → array).  ``fire_*`` are no-
+/// ops when no trace is installed for the given name.
+const var_trace = @import("../interp/tcl_var_trace.zig");
+
 /// Forward-declared probe into the namespace var subsystem so we can
 /// detect scalar/array name conflicts without creating a circular
 /// import (tcl_ns already imports this module).  Defined in
@@ -652,10 +657,77 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
         bucket_set_value(bucket, value);
-        return value;
+    } else {
+        _ = ar_insert(t, sk.ptr, sk.len, hash, value);
     }
-    _ = ar_insert(t, sk.ptr, sk.len, hash, value);
+    // Phase 6: fire WRITE trace AFTER the update so the trace
+    // observes the new value if it reads back.
+    fire_var_trace_write(arr, sk.ptr, sk.len);
     return value;
+}
+
+/// Compute the canonical FQ name for ``arr`` (after ns normalisation)
+/// and call var_trace.fire(WRITE).  Hot-path optimised: skip the
+/// expensive name-build when no trace is installed.
+fn fire_var_trace_write(arr: i32, key_ptr: u32, key_len: u32) void {
+    const an = normalize_ns_name(arr);
+    const sn = obj_ensure_string(an);
+    if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_WRITE)) {
+        // Probe the element-specific form once before bailing.
+        const total: u32 = sn.len + 2 + key_len;
+        const buf = alloc(total);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        const ap: [*]const u8 = @ptrFromInt(sn.ptr);
+        const kp: [*]const u8 = @ptrFromInt(key_ptr);
+        for (0..sn.len) |i| dst[i] = ap[i];
+        dst[sn.len] = '(';
+        for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
+        dst[total - 1] = ')';
+        const has_elem = var_trace.has_trace(buf, total, var_trace.OP_WRITE);
+        obj.free_sized(buf, total);
+        if (!has_elem) return;
+    }
+    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, var_trace.OP_WRITE, 'w');
+}
+
+fn fire_var_trace_read(arr: i32, key_ptr: u32, key_len: u32) void {
+    const an = normalize_ns_name(arr);
+    const sn = obj_ensure_string(an);
+    if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_READ)) {
+        const total: u32 = sn.len + 2 + key_len;
+        const buf = alloc(total);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        const ap: [*]const u8 = @ptrFromInt(sn.ptr);
+        const kp: [*]const u8 = @ptrFromInt(key_ptr);
+        for (0..sn.len) |i| dst[i] = ap[i];
+        dst[sn.len] = '(';
+        for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
+        dst[total - 1] = ')';
+        const has_elem = var_trace.has_trace(buf, total, var_trace.OP_READ);
+        obj.free_sized(buf, total);
+        if (!has_elem) return;
+    }
+    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, var_trace.OP_READ, 'r');
+}
+
+fn fire_var_trace_unset(arr: i32, key_ptr: u32, key_len: u32) void {
+    const an = normalize_ns_name(arr);
+    const sn = obj_ensure_string(an);
+    if (!var_trace.has_trace(sn.ptr, sn.len, var_trace.OP_UNSET)) {
+        const total: u32 = sn.len + 2 + key_len;
+        const buf = alloc(total);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        const ap: [*]const u8 = @ptrFromInt(sn.ptr);
+        const kp: [*]const u8 = @ptrFromInt(key_ptr);
+        for (0..sn.len) |i| dst[i] = ap[i];
+        dst[sn.len] = '(';
+        for (0..key_len) |i| dst[sn.len + 1 + i] = kp[i];
+        dst[total - 1] = ')';
+        const has_elem = var_trace.has_trace(buf, total, var_trace.OP_UNSET);
+        obj.free_sized(buf, total);
+        if (!has_elem) return;
+    }
+    var_trace.fire(sn.ptr, sn.len, key_ptr, key_len, var_trace.OP_UNSET, 'u');
 }
 
 /// ``array set arrName {k v k v …}`` — the *list-of-pairs* form.
@@ -726,9 +798,14 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
 /// distinguish missing-vs-present should use ``array_element_exists``
 /// first or ``info exists``.
 pub export fn array_get(arr: i32, key: i32) i32 {
+    const sk = obj_ensure_string(key);
+    // Phase 6: fire READ trace BEFORE the lookup.  The callback may
+    // ``set`` the variable to provide a lazy value (e.g. tcltest
+    // testConstraints), and we want the just-set value to surface to
+    // the caller.  Re-find after firing.
+    fire_var_trace_read(arr, sk.ptr, sk.len);
     const t = find_table(arr);
     if (t == 0) return 0;
-    const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
         return read_i32(bucket + 12);
@@ -848,6 +925,9 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
         ar_set_count(t, ar_count(t) - 1);
         if (old != 0) obj.tcl_obj_release(old);
     }
+    // Phase 6: fire UNSET trace AFTER the unset so the callback sees
+    // the variable in its final (gone) state.
+    fire_var_trace_unset(arr, sk.ptr, sk.len);
     return obj_new_int(0);
 }
 
