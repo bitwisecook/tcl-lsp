@@ -11,6 +11,7 @@
 #   make test-fuzz     Run differential fuzz tests (pytest, FUZZ_ITERATIONS=N)
 #   make fuzz          Run standalone fuzz campaign (N=iterations, SEED=base_seed)
 #   make test-ext      Run VS Code extension integration tests
+#   make test-emacs    Run headless eglot regression suite (Emacs 29+)
 #   make lint-py       Lint Python code with Ruff
 #   make format-py     Format and auto-fix Python code with Ruff
 #   make format-ts     Format TypeScript extension code with Prettier
@@ -125,7 +126,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-zig lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -350,8 +351,22 @@ _prep-pr-smoke: smoke-zipapps smoke-vsix
 prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
 
-test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX) + Zig WASM runtime tests
-	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke test-zig
+test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX) + Zig WASM runtime tests + Emacs eglot
+	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke test-zig test-emacs
+
+test-emacs: ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
+	@set -eu; \
+	if [ -n "$${SKIP_TEST_EMACS:-}" ]; then \
+		echo "==> SKIP_TEST_EMACS set — skipping Emacs eglot tests"; \
+		exit 0; \
+	fi; \
+	echo "==> Running Emacs eglot regression suite"; \
+	if ! command -v emacs >/dev/null 2>&1; then \
+		echo "ERROR: 'emacs' not found on PATH (need Emacs 29+; install with 'sudo apt-get install -y emacs-nox' on Debian/Ubuntu)."; \
+		echo "       Set SKIP_TEST_EMACS=1 to skip this target."; \
+		exit 1; \
+	fi; \
+	bash $(ROOT)scripts/eglot_test/run.sh
 
 test-zig: ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/) — set SKIP_TEST_ZIG=1 to skip
 	@set -eu; \

@@ -77,6 +77,94 @@ Pass settings via eglot workspace configuration:
 (add-to-list 'auto-mode-alist '("\\.apl\\'" . tcl-mode))
 ```
 
+## Known issues
+
+### Eglot semantic-tokens highlighting goes stale until file reload
+
+**Symptoms:** after making edits, syntax highlighting becomes wrong —
+identifiers show colors that don't match their actual token type, or
+highlighting visibly degrades the more you edit. Saving (`C-x C-s`)
+does not fix it. Reverting the buffer (`M-x revert-buffer`) or closing
+and reopening the file does fix it.
+
+**Cause:** Tracked at
+[bitwisecook/tcl-lsp#333](https://github.com/bitwisecook/tcl-lsp/issues/333);
+
+This may be an eglot bug.
+
+**Workarounds (pick one):**
+
+1. **Apply this advice in your `init.el`** (strips stale
+   `eglot-semantic-*` faces before each repaint, preserving everything
+   else):
+
+   ```elisp
+   (with-eval-after-load 'eglot
+     (defun tcl-lsp--eglot-semantic-face-p (x)
+       (and (symbolp x)
+            (string-prefix-p "eglot-semantic-" (symbol-name x))))
+
+     (defun tcl-lsp--eglot-strip-semantic-faces (face)
+       (cond
+        ((null face) nil)
+        ((tcl-lsp--eglot-semantic-face-p face) nil)
+        ((symbolp face) face)
+        ((and (consp face) (keywordp (car face))) face)
+        ((consp face)
+         (let ((new (delq nil (mapcar #'tcl-lsp--eglot-strip-semantic-faces face))))
+           (cond ((null new) nil)
+                 ((null (cdr new)) (car new))
+                 (t new))))
+        (t face)))
+
+     (defun tcl-lsp--eglot-clear-semantic-face-properties (beg end)
+       (with-silent-modifications
+         (let ((pos beg))
+           (while (< pos end)
+             (let* ((next (or (next-single-property-change pos 'face nil end) end))
+                    (face (get-text-property pos 'face))
+                    (new-face (tcl-lsp--eglot-strip-semantic-faces face)))
+               (if new-face
+                   (put-text-property pos next 'face new-face)
+                 (remove-text-properties pos next '(face nil)))
+               (setq pos next))))
+         (remove-list-of-text-properties
+          beg end '(eglot--semtok-token eglot--semtok-faces eglot--semtok-names))))
+
+     (advice-add 'eglot--semtok-font-lock-1 :before
+                 (lambda (beg end &rest _)
+                   (tcl-lsp--eglot-clear-semantic-face-properties beg end)))
+     (advice-add 'eglot--semtok-font-lock-2 :before
+                 (lambda (beg end &rest _)
+                   (tcl-lsp--eglot-clear-semantic-face-properties beg end))))
+
+   (defun tcl-lsp-repair-eglot-highlighting ()
+     "Manually clean up accumulated eglot-semantic-* faces in the
+   current buffer.  Useful if the advice above isn't installed and
+   you want a one-off fix without reverting the buffer."
+     (interactive)
+     (tcl-lsp--eglot-clear-semantic-face-properties (point-min) (point-max))
+     (when (boundp 'eglot--semtok-state) (setq eglot--semtok-state nil))
+     (font-lock-flush)
+     (font-lock-ensure))
+   ```
+
+   Originally posted by @georgtree on
+   [issue #333](https://github.com/bitwisecook/tcl-lsp/issues/333#issuecomment-4380920940).
+
+2. **Disable eglot semantic tokens for `tcl-mode`**, falling back to
+   Emacs's built-in `tcl-mode` font-lock keywords (loses LSP-derived
+   highlighting like distinguishing user procs from builtins):
+
+   ```elisp
+   (with-eval-after-load 'eglot
+     (add-to-list 'eglot-stay-out-of 'eglot-semantic-tokens-mode))
+   ```
+
+3. **Revert the buffer** (`M-x revert-buffer`) whenever highlighting
+   visibly degrades. Discards unsaved changes — only viable if you've
+   just saved.
+
 ## Bracket matching and auto-pairs
 
 Emacs's `tcl-mode` provides bracket matching out of the box via
