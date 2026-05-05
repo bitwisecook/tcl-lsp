@@ -502,9 +502,25 @@ pub fn frame_set_type(t: FrameType) void {
     frame_info[frame_depth - 1].type = t;
 }
 
+/// WASM-ABI shim for compiled-proc prologues — the codegen passes
+/// the type as an i32 (1=PROC, 2=SOURCE, 3=EVAL, 4=UPLEVEL,
+/// 5=ALIAS, anything else=UNKNOWN).  Internal Zig callers use the
+/// typed :func:`frame_set_type` directly.
+pub export fn frame_set_type_i32(t_int: i32) void {
+    const t: FrameType = switch (t_int) {
+        1 => .PROC,
+        2 => .SOURCE,
+        3 => .EVAL,
+        4 => .UPLEVEL,
+        5 => .ALIAS,
+        else => .UNKNOWN,
+    };
+    frame_set_type(t);
+}
+
 /// Record the script TclObj being evaluated by the current frame
 /// (for ``info frame N`` to surface as the ``-script`` field).
-pub fn frame_set_script(script_obj: i32) void {
+pub export fn frame_set_script(script_obj: i32) void {
     if (frame_depth == 0) return;
     const fi = &frame_info[frame_depth - 1];
     const old = fi.script_obj;
@@ -515,7 +531,7 @@ pub fn frame_set_script(script_obj: i32) void {
 
 /// Record the 1-based line within ``script_obj`` where the
 /// invocation appears.  0 = unknown.
-pub fn frame_set_line(line: u32) void {
+pub export fn frame_set_line(line: u32) void {
     if (frame_depth == 0) return;
     frame_info[frame_depth - 1].line = line;
 }
@@ -523,7 +539,7 @@ pub fn frame_set_line(line: u32) void {
 /// Record the source-slice TclObj for the call site (the literal
 /// command text, e.g. ``my-proc arg1 arg2``).  ``info frame N``
 /// surfaces this as the ``-cmd`` field.
-pub fn frame_set_cmd_text(cmd_text: i32) void {
+pub export fn frame_set_cmd_text(cmd_text: i32) void {
     if (frame_depth == 0) return;
     const fi = &frame_info[frame_depth - 1];
     const old = fi.cmd_text;
@@ -534,7 +550,7 @@ pub fn frame_set_cmd_text(cmd_text: i32) void {
 
 /// Record the proc's fully-qualified name TclObj for type=PROC
 /// frames.  ``info frame N`` surfaces this as the ``-proc`` field.
-pub fn frame_set_proc_name(proc_name: i32) void {
+pub export fn frame_set_proc_name(proc_name: i32) void {
     if (frame_depth == 0) return;
     const fi = &frame_info[frame_depth - 1];
     const old = fi.proc_name;

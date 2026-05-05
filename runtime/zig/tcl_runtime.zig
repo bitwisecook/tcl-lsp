@@ -147,6 +147,15 @@ pub const frame_set_argv = tcl_frames.frame_set_argv;
 pub const frame_get_argv = tcl_frames.frame_get_argv;
 pub const frame_set_pending_argv0 = tcl_frames.frame_set_pending_argv0;
 pub const frame_take_pending_argv0 = tcl_frames.frame_take_pending_argv0;
+// Phase 8: codegen-callable FrameInfo setters.
+pub const frame_set_type_i32 = tcl_frames.frame_set_type_i32;
+pub const frame_set_script = tcl_frames.frame_set_script;
+pub const frame_set_line = tcl_frames.frame_set_line;
+pub const frame_set_cmd_text = tcl_frames.frame_set_cmd_text;
+pub const frame_set_proc_name = tcl_frames.frame_set_proc_name;
+// Phase 7: codegen-callable indexed local accessors.
+pub const frame_local_at = tcl_frames.frame_local_at;
+pub const frame_local_set_at = tcl_frames.frame_local_set_at;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const frame_depth_stash = tcl_frames.frame_depth_stash;
 pub const frame_depth_restore = tcl_frames.frame_depth_restore;
@@ -400,6 +409,13 @@ comptime {
     _ = &tcl_frames.var_resolve;
     _ = &tcl_frames.var_set;
     _ = &tcl_frames.var_exists;
+    _ = &tcl_frames.frame_set_type_i32;
+    _ = &tcl_frames.frame_set_script;
+    _ = &tcl_frames.frame_set_line;
+    _ = &tcl_frames.frame_set_cmd_text;
+    _ = &tcl_frames.frame_set_proc_name;
+    _ = &tcl_frames.frame_local_at;
+    _ = &tcl_frames.frame_local_set_at;
     // tcl_procs exports
     _ = &tcl_procs.proc_register;
     _ = &tcl_procs.proc_register_compiled;
