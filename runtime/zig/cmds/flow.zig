@@ -26,6 +26,8 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
     const ReturnCode = enum { ok, err, ret, brk, cont };
     var code_kind: ReturnCode = .ok;
     var extra_levels: u32 = 0;
+    var level_explicit: bool = false;
+    var level_value: u32 = 1;
     var result_obj: i32 = 0;
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
@@ -79,6 +81,12 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                 if (str_eq(wp, w.len, "-level") and wi + 1 < words.len) {
                     // ``-level N`` adds (N-1) extra unwind levels on
                     // top of the implicit "exit this proc".
+                    // ``-level 0`` is special — it suppresses the implicit
+                    // unwind so ``return -level 0 X`` produces TCL_OK
+                    // with value X *without* exiting the surrounding
+                    // proc (used by ``lmap``/``foreach`` body sentinels
+                    // and by anything that wants the formal return-value
+                    // machinery without actually returning).
                     const lev = obj_ensure_string(words[wi + 1]);
                     if (lev.len >= 1) {
                         const lp: [*]const u8 = @ptrFromInt(lev.ptr);
@@ -88,8 +96,14 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                             if (lp[k] < '0' or lp[k] > '9') { ok = false; break; }
                             nv = nv * 10 + @as(u32, @intCast(lp[k] - '0'));
                         }
-                        if (ok and nv > 0) {
-                            extra_levels = nv - 1;
+                        if (ok) {
+                            level_explicit = true;
+                            level_value = nv;
+                            if (nv > 0) {
+                                extra_levels = nv - 1;
+                            } else {
+                                extra_levels = 0;
+                            }
                         }
                     }
                     wi += 1;
@@ -135,6 +149,26 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         // Suppress "unused .brk/.cont arm" while we leave the full
         // wire-up for the follow-up that adds the codegen-side
         // per-statement probes.
+    }
+    // ``return -level 0 …`` is the no-unwind form: the command
+    // produces the value with the requested status code but the
+    // current frame keeps running.  ``return -level 0 X`` is exactly
+    // ``set _ X`` for OK status (lmap-1.2a, opt-10.x).  Other status
+    // codes route directly to the matching break/continue/return
+    // flag.
+    if (level_explicit and level_value == 0) {
+        switch (code_kind) {
+            .ok => return result_mod.from_globals(result_obj),
+            .brk => {
+                result_mod.set_break();
+                return result_mod.from_globals(0);
+            },
+            .cont => {
+                result_mod.set_continue();
+                return result_mod.from_globals(0);
+            },
+            .ret, .err => {},
+        }
     }
     // MM-B.5: ``return_val`` slot holds the value until
     // ``eval_proc_call_bucket`` reads it back.  Retain so ``MM-B.4``'s
