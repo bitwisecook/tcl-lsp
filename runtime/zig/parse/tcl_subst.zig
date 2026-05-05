@@ -392,10 +392,84 @@ pub fn subst_flagged_full(
                 if (c == '[') depth += 1 else if (c == ']') depth -= 1;
                 if (depth > 0) i += 1 else i += 1;
             }
-            // Unclosed ``[``: real Tcl raises ``missing close-bracket``
-            // (parse-18.13, subst-12.1 / 12.2).  Release retained
-            // source refs and free scratch before bailing.
+            // Unclosed ``[``: matches reference Tcl's ``TclSubstParse``
+            // (tclParse.c) — the bracket body's complete commands must
+            // run *before* the ``missing close-bracket`` error fires.
+            // Walk the body command-by-command; the ``lastTerm`` cursor
+            // tracks the end of the last successfully-parsed command,
+            // and an incomplete trailing command (one whose parse runs
+            // straight to end-of-input without a ``;`` / ``\n`` /
+            // command-terminator) is excluded — its half-parsed shape
+            // is what triggered the missing close-bracket.  Only the
+            // ``subst`` command path applies this fix-up; word-level
+            // substitution during normal script eval still surfaces the
+            // bare error (the surrounding ``eval_script`` will report
+            // it via the regular missing-close-bracket route).
             if (depth != 0) {
+                if (from_subst_cmd and i > cs) {
+                    const parse_mod = @import("tcl_parse.zig");
+                    var pre_tok: [2 * parse_mod.MAX_WORDS]parse_mod.Token = undefined;
+                    const body_ptr: [*]const u8 = @ptrFromInt(wptr + cs);
+                    const body_len: u32 = i - cs;
+                    var pre_pos: u32 = 0;
+                    var last_term: u32 = 0;
+                    while (pre_pos < body_len) {
+                        const pcmd = parse_mod.ParseCommand(body_ptr, pre_pos, body_len, &pre_tok, pre_tok.len);
+                        if (pcmd.next <= pre_pos) break;
+                        // ``pcmd.next == body_len`` means the parse ran
+                        // to end-of-input.  When the byte just before
+                        // is a command terminator the previous command
+                        // ended cleanly; otherwise this command itself
+                        // is the incomplete one and we exclude it.
+                        if (pcmd.next >= body_len) {
+                            const last_byte = body_ptr[body_len - 1];
+                            const term = (last_byte == ';' or last_byte == '\n' or last_byte == '\r');
+                            if (term) last_term = body_len;
+                            break;
+                        }
+                        last_term = pcmd.next;
+                        pre_pos = pcmd.next;
+                    }
+                    if (last_term > 0) {
+                        const interp = @import("../interp/tcl_interp.zig");
+                        const result = interp.eval_script(wptr + cs, last_term);
+                        const ir = result_mod.snapshot(result);
+                        switch (ir.code) {
+                            .BREAK => {
+                                // ``break`` inside the bracket body
+                                // suppresses the missing-close-bracket
+                                // error and aborts the whole subst —
+                                // matches subst-12.6 semantics.
+                                result_mod.consume(.BREAK);
+                                if (result != 0) obj_mod.tcl_obj_release(result);
+                                lit_start = i;
+                                var rj: u32 = 0;
+                                while (rj < n_retained) : (rj += 1) {
+                                    const r = read_i32(retained_objs + rj * 4);
+                                    if (r != 0) obj_mod.tcl_obj_release(r);
+                                }
+                                arena.arena_free(retained_alloc);
+                                arena.arena_free(pieces_alloc);
+                                // Build the substituted prefix and
+                                // return it cleanly.  Caller doesn't
+                                // see an error at all on break.
+                                return obj_new_string(@bitCast(wptr), @bitCast(lit_start));
+                            },
+                            .CONTINUE, .OK, .ERROR, .RETURN => {
+                                // All other outcomes drop the body
+                                // result and proceed to the deferred
+                                // error below.  An ERROR from the
+                                // body propagates regardless; consume
+                                // CONTINUE/RETURN so the deferred
+                                // ``missing close-bracket`` is what
+                                // surfaces (per Bug 1036649 fix).
+                                if (ir.code == .CONTINUE) result_mod.consume(.CONTINUE);
+                                if (ir.code == .RETURN) result_mod.consume(.RETURN);
+                                if (result != 0) obj_mod.tcl_obj_release(result);
+                            },
+                        }
+                    }
+                }
                 var rj: u32 = 0;
                 while (rj < n_retained) : (rj += 1) {
                     const r = read_i32(retained_objs + rj * 4);
