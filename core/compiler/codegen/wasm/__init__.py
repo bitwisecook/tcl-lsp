@@ -699,6 +699,13 @@ def wasm_codegen_module(
     # Phase 5: Compile callables (procedures and methods)
     for qname, cfg_func, params in callables:
         proc_escape = escape_summaries.get(qname) if escape_summaries is not None else None
+        # Phase 8 follow-up: pull the proc's source body so the
+        # compiled-proc prologue can stamp ``frame_set_script`` for
+        # ``info frame -script``.  Synthetic procs (``when`` handlers)
+        # have ``body_source = None``; the prologue skips the stamp
+        # in that case.
+        ir_proc_for_body = ir_module.procedures.get(qname)
+        proc_body_source = ir_proc_for_body.body_source if ir_proc_for_body is not None else None
         callable_emitter = _WasmEmitter(
             cfg_func,
             params=params,
@@ -712,6 +719,7 @@ def wasm_codegen_module(
             shared_string_index=shared_string_index,
             shared_string_offset=shared_string_offset,
             proc_qname=qname,
+            proc_body_source=proc_body_source,
             diag_map=diag_map,
             escape_summary=proc_escape,
             proc_imports=proc_imports,

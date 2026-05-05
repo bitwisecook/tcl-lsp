@@ -20,8 +20,11 @@
 // Scope: this module supports traces on global scalars, global arrays
 // (whole-array traces), array elements (``arr(key)``), and namespace
 // variables (their canonical FQ form).  Proc-local variable traces
-// would need per-frame trace lists that are cleaned up at
-// ``frame_pop`` — that's tracked as a follow-up.
+// use a parallel per-frame storage rooted in ``tcl_frames.zig``'s
+// ``frame_trace_heads`` array.  Records there carry the local name
+// inline so the same fire / drain helpers work without a separate
+// directory; ``frame_pop`` walks the head and fires UNSET callbacks
+// before releasing the chain.
 
 const obj = @import("../valtypes/tcl_obj.zig");
 const ht = @import("../valtypes/hash_table.zig");
@@ -475,4 +478,222 @@ fn invoke_cb(
     const r = interp.eval_script(buf, off);
     obj.free_sized(buf, total);
     if (r != 0) tcl_obj_release(r);
+}
+
+// --- Phase 6 follow-up: per-frame trace lists --------------------------
+//
+// Frame-local traces live on a per-frame singly-linked list whose head
+// pointer is stored in :var:`tcl_frames.frame_trace_heads`.  Records
+// here carry the local variable's name inline (so the same list can
+// hold traces on several different locals) and are otherwise the same
+// shape as the directory-keyed Traces above.
+//
+// Layout per record:
+//   [0..4]   next: u32           (wasm address of the next record)
+//   [4..8]   ops: u32            (bitmask of OP_*)
+//   [8..12]  cmd_prefix: i32     (TclObj handle, retained)
+//   [12..16] active: u32         (re-entrancy guard)
+//   [16..20] name_ptr: u32       (heap-allocated name copy, 0 if empty)
+//   [20..24] name_len: u32       (byte length of the name copy)
+//
+// The name buffer is a per-record allocation owned by the trace; the
+// chain releases it in :func:`drain_list` along with the cmd prefix.
+
+const FRAME_TRACE_REC_SIZE: u32 = 24;
+const F_OFF_NEXT: u32 = 0;
+const F_OFF_OPS: u32 = 4;
+const F_OFF_CMD: u32 = 8;
+const F_OFF_ACTIVE: u32 = 12;
+const F_OFF_NAME_PTR: u32 = 16;
+const F_OFF_NAME_LEN: u32 = 20;
+
+inline fn name_bytes_match(rec: u32, name_ptr: u32, name_len: u32) bool {
+    const rl: u32 = @bitCast(read_i32(rec + F_OFF_NAME_LEN));
+    if (rl != name_len) return false;
+    const rp: u32 = @bitCast(read_i32(rec + F_OFF_NAME_PTR));
+    if (rp == 0 and name_ptr == 0) return true;
+    if (rp == 0 or name_ptr == 0) return false;
+    const a: [*]const u8 = @ptrFromInt(rp);
+    const b: [*]const u8 = @ptrFromInt(name_ptr);
+    for (0..name_len) |k| if (a[k] != b[k]) return false;
+    return true;
+}
+
+fn frame_trace_new(name_ptr: u32, name_len: u32, ops: u32, cmd_prefix: i32) u32 {
+    const rec = alloc(FRAME_TRACE_REC_SIZE);
+    if (rec == 0) return 0;
+    var nbuf: u32 = 0;
+    if (name_len > 0 and name_ptr != 0) {
+        nbuf = alloc(name_len);
+        if (nbuf == 0) {
+            obj.free_sized(rec, FRAME_TRACE_REC_SIZE);
+            return 0;
+        }
+        memcpy(nbuf, name_ptr, name_len);
+    }
+    write_i32(rec + F_OFF_NEXT, 0);
+    write_i32(rec + F_OFF_OPS, @bitCast(ops));
+    write_i32(rec + F_OFF_CMD, cmd_prefix);
+    write_i32(rec + F_OFF_ACTIVE, 0);
+    write_i32(rec + F_OFF_NAME_PTR, @bitCast(nbuf));
+    write_i32(rec + F_OFF_NAME_LEN, @bitCast(name_len));
+    if (cmd_prefix != 0) tcl_obj_retain(cmd_prefix);
+    return rec;
+}
+
+fn frame_trace_free(rec: u32) void {
+    const cmd = read_i32(rec + F_OFF_CMD);
+    if (cmd != 0) tcl_obj_release(cmd);
+    const nbuf: u32 = @bitCast(read_i32(rec + F_OFF_NAME_PTR));
+    const nlen: u32 = @bitCast(read_i32(rec + F_OFF_NAME_LEN));
+    if (nbuf != 0 and nlen != 0) obj.free_sized(nbuf, nlen);
+    obj.free_sized(rec, FRAME_TRACE_REC_SIZE);
+}
+
+/// Install a frame-local trace on ``name`` rooted at ``head_addr``
+/// (a pointer to a u32 head slot — typically
+/// ``&frame_trace_heads[idx]``).  The list is unsorted; the new
+/// record is prepended.  ``cmd_prefix`` is retained.
+pub fn add_to_list(head_addr: *u32, name: i32, ops: u32, cmd_prefix: i32) void {
+    if (ops == 0 or cmd_prefix == 0) return;
+    const sn = obj_ensure_string(name);
+    if (sn.len == 0 or sn.ptr == 0) return;
+    const rec = frame_trace_new(sn.ptr, sn.len, ops, cmd_prefix);
+    if (rec == 0) return;
+    write_i32(rec + F_OFF_NEXT, @bitCast(head_addr.*));
+    head_addr.* = rec;
+}
+
+/// Remove the first matching ``(ops, cmd_prefix)`` trace for ``name``
+/// from the list rooted at ``head_addr``.  Returns true on hit.
+pub fn remove_from_list(head_addr: *u32, name: i32, ops: u32, cmd_prefix: i32) bool {
+    const sn = obj_ensure_string(name);
+    if (sn.len == 0 or sn.ptr == 0) return false;
+    var prev_addr: *u32 = head_addr;
+    var cur: u32 = head_addr.*;
+    while (cur != 0) {
+        const r_ops: u32 = @bitCast(read_i32(cur + F_OFF_OPS));
+        if (r_ops == ops and name_bytes_match(cur, sn.ptr, sn.len)) {
+            const r_cmd = read_i32(cur + F_OFF_CMD);
+            const cmd_eq = blk: {
+                if (r_cmd == cmd_prefix) break :blk true;
+                if (r_cmd == 0 or cmd_prefix == 0) break :blk false;
+                const a = obj_ensure_string(r_cmd);
+                const b = obj_ensure_string(cmd_prefix);
+                if (a.len != b.len) break :blk false;
+                const ap: [*]const u8 = @ptrFromInt(a.ptr);
+                const bp: [*]const u8 = @ptrFromInt(b.ptr);
+                for (0..a.len) |i| if (ap[i] != bp[i]) break :blk false;
+                break :blk true;
+            };
+            if (cmd_eq) {
+                const next: u32 = @bitCast(read_i32(cur + F_OFF_NEXT));
+                prev_addr.* = next;
+                frame_trace_free(cur);
+                return true;
+            }
+        }
+        prev_addr = @ptrFromInt(cur + F_OFF_NEXT);
+        cur = @bitCast(read_i32(cur + F_OFF_NEXT));
+    }
+    return false;
+}
+
+/// Return a Tcl list of ``{ops cmd}`` pairs for every trace on
+/// ``name`` in the list rooted at ``head``.  Empty list if no match.
+pub fn info_for_list(head: u32, name: i32) i32 {
+    const list_mod = @import("../valtypes/tcl_list.zig");
+    const sn = obj_ensure_string(name);
+    var result = obj_new_string(0, 0);
+    if (sn.len == 0 or sn.ptr == 0) return result;
+    var cur = head;
+    while (cur != 0) : (cur = @bitCast(read_i32(cur + F_OFF_NEXT))) {
+        if (!name_bytes_match(cur, sn.ptr, sn.len)) continue;
+        const r_ops: u32 = @bitCast(read_i32(cur + F_OFF_OPS));
+        const r_cmd = read_i32(cur + F_OFF_CMD);
+        const ops_str = ops_to_string(r_ops);
+        var pair = list_mod.tcl_list(0, ops_str);
+        const pair2 = list_mod.tcl_list(pair, r_cmd);
+        tcl_obj_release(pair);
+        pair = pair2;
+        tcl_obj_release(ops_str);
+        const new_result = list_mod.tcl_list(result, pair);
+        tcl_obj_release(result);
+        tcl_obj_release(pair);
+        result = new_result;
+    }
+    return result;
+}
+
+/// Probe for any frame-local trace on ``(name_ptr, name_len)`` whose
+/// ops mask intersects ``op``.  O(n) walk over the per-frame chain;
+/// the caller's hot path bails out via the ``head == 0`` short-circuit
+/// when no traces are installed.
+pub fn has_trace_in_list(head: u32, name_ptr: u32, name_len: u32, op: u32) bool {
+    if (head == 0 or name_ptr == 0 or name_len == 0) return false;
+    var cur = head;
+    while (cur != 0) : (cur = @bitCast(read_i32(cur + F_OFF_NEXT))) {
+        const r_ops: u32 = @bitCast(read_i32(cur + F_OFF_OPS));
+        if ((r_ops & op) == 0) continue;
+        if (name_bytes_match(cur, name_ptr, name_len)) return true;
+    }
+    return false;
+}
+
+/// Fire every frame-local callback whose ops mask intersects ``op``
+/// for ``(name_ptr, name_len)``.  ``op_char`` is "r"/"w"/"u"/"a".
+/// Re-entrancy: each record's ``active`` flag is set across the
+/// callback to skip recursive fires from the body itself.
+pub fn fire_in_list(
+    head: u32,
+    name_ptr: u32,
+    name_len: u32,
+    op: u32,
+    op_char: u8,
+) void {
+    if (head == 0 or name_ptr == 0 or name_len == 0) return;
+    var cur = head;
+    while (cur != 0) : (cur = @bitCast(read_i32(cur + F_OFF_NEXT))) {
+        const r_ops: u32 = @bitCast(read_i32(cur + F_OFF_OPS));
+        if ((r_ops & op) == 0) continue;
+        if (!name_bytes_match(cur, name_ptr, name_len)) continue;
+        const active: u32 = @bitCast(read_i32(cur + F_OFF_ACTIVE));
+        if (active != 0) continue;
+        write_i32(cur + F_OFF_ACTIVE, 1);
+        const cmd = read_i32(cur + F_OFF_CMD);
+        // Frame-local traces are scalars only — name1 = the local
+        // name, name2 = empty (matching Tcl's ``$VAR_NAME`` pattern
+        // for scalar-trace callbacks).
+        invoke_cb(cmd, name_ptr, name_len, 0, 0, op_char);
+        write_i32(cur + F_OFF_ACTIVE, 0);
+    }
+}
+
+/// Fire UNSET callbacks for every record in the list rooted at
+/// ``head_addr``, then release the chain.  Used by ``frame_pop`` so
+/// the caller can drop the frame's trace state in one call.  After
+/// return, ``head_addr.*`` is zero.
+pub fn drain_list(head_addr: *u32) void {
+    var cur = head_addr.*;
+    head_addr.* = 0;
+    while (cur != 0) {
+        const next: u32 = @bitCast(read_i32(cur + F_OFF_NEXT));
+        const r_ops: u32 = @bitCast(read_i32(cur + F_OFF_OPS));
+        const nptr: u32 = @bitCast(read_i32(cur + F_OFF_NAME_PTR));
+        const nlen: u32 = @bitCast(read_i32(cur + F_OFF_NAME_LEN));
+        if ((r_ops & OP_UNSET) != 0 and nptr != 0 and nlen != 0) {
+            // Re-entrancy guard avoids a recursive fire if the
+            // callback re-enters drain_list (e.g. by triggering a
+            // nested frame_pop).
+            const active: u32 = @bitCast(read_i32(cur + F_OFF_ACTIVE));
+            if (active == 0) {
+                write_i32(cur + F_OFF_ACTIVE, 1);
+                const cmd = read_i32(cur + F_OFF_CMD);
+                invoke_cb(cmd, nptr, nlen, 0, 0, 'u');
+                write_i32(cur + F_OFF_ACTIVE, 0);
+            }
+        }
+        frame_trace_free(cur);
+        cur = next;
+    }
 }

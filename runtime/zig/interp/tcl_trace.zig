@@ -4,8 +4,9 @@
 // / ``trace info variable``, plus the legacy ``trace variable`` /
 // ``trace vdelete`` / ``trace vinfo`` forms) are now implemented in
 // ``interp/tcl_var_trace.zig`` and dispatched directly from
-// ``cmds/inspect.zig::eval_trace`` (Phase 6 of the var/frame
-// architecture refactor — see ``docs/var-frame-architecture.md``).
+// ``cmds/inspect.zig::eval_trace``.  Both global / namespace var
+// traces (directory-keyed) and proc-local traces (per-frame
+// ``frame_trace_heads`` chain) live there.
 //
 // This module remains the catch-all for the *other* ``trace``
 // sub-commands the variable-trace registry doesn't handle:

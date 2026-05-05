@@ -188,12 +188,41 @@ class _WasmEmitterStmtMixin(_Base):
         def _emit_error_flag_check_and_return(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_compiled_call_with_bridge(self, *a: Any, **kw: Any) -> Any: ...
 
+    def _emit_frame_set_line(self, stmt: IRStatement) -> None:
+        """Phase 8 follow-up: stamp ``frame_set_line`` for *stmt* so
+        ``info frame -line`` inside a callee body reports the line of
+        the current statement.  Centralised so every emit entry point
+        (``_emit_stmt``, the implicit-return tail in ``_emit_block``)
+        stamps consistently.
+        """
+        if not self._is_proc:
+            return
+        set_line_idx = self._shared_imports.get("tcl_frame_set_line")
+        if set_line_idx is None:
+            return
+        rng = getattr(stmt, "range", None)
+        if rng is None:
+            return
+        line_one_based = rng.start.line + 1
+        if line_one_based <= 0:
+            return
+        self._emit_i32_const(line_one_based)
+        self._emit_call(set_line_idx)
+
     def _emit_stmt(self, stmt: IRStatement) -> None:
         """Emit WASM for a single IR statement."""
         # Record this statement's source location so any nested trap
         # emission (eval fallback, unsupported-command trap) can stamp
         # a sidecar diag site with a meaningful file:line:col.
         self._record_stmt_context(stmt)
+        # Phase 8 follow-up: stamp ``frame_set_line`` per-statement
+        # so ``info frame -line`` returns the source line of the
+        # currently-executing command — covers IRAssignValue /
+        # IRAssignExpr / IRCall alike.  Compile-time constant; the
+        # runtime hit is one i32 immediate plus one call per
+        # statement.  Skipped at top level (no proc frame to stamp)
+        # and when the setter isn't imported.
+        self._emit_frame_set_line(stmt)
         match stmt:
             case IRAssignConst(name=name, value=value):
                 self._emit_obj_literal(value)
@@ -998,6 +1027,8 @@ class _WasmEmitterStmtMixin(_Base):
         # emits no code.
         if command == "<cond>":
             return
+        # ``frame_set_line`` stamping happens once per IRStatement at
+        # ``_emit_stmt``'s top — no per-call duplicate needed.
 
         # Scope declarations are NOPs in the WASM model — EXCEPT when
         # the proc / namespace command has a dynamic name that must be
