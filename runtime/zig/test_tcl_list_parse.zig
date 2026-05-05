@@ -6,11 +6,19 @@
 // unterminated braces.  Reference oracle is ``Tcl_ListObjLength`` /
 // ``Tcl_ListObjIndex`` from upstream Tcl 9.0 (``generic/tclListObj.c``,
 // which delegates to ``TclFindElement``).
+//
+// File location: runtime/zig/ rather than valtypes/.  The module under
+// test reaches into ``../stubs/tcl_stubs.zig`` and
+// ``../interp/tcl_catch.zig`` for the error-raise paths, and Zig 0.16's
+// module system rejects ``@import`` of files above the test module's
+// root_source_file directory.  Rooting the test at runtime/zig/ keeps
+// every transitive import inside the module path — same constraint
+// that put ``runtime_test_fixture.zig`` here.
 
 const std = @import("std");
 const testing = std.testing;
 
-const lp = @import("tcl_list_parse.zig");
+const lp = @import("valtypes/tcl_list_parse.zig");
 
 // ---- helpers --------------------------------------------------------
 

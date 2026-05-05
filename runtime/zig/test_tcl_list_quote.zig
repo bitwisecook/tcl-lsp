@@ -7,13 +7,20 @@
 // payload matches the original.  The reference oracle is ``Tcl_Merge``
 // in upstream Tcl 9.0; the expected outputs below were captured from
 // running ``puts [list $payload]`` under tclsh 9.0.
+//
+// File location: runtime/zig/ rather than valtypes/.  ``parse``
+// reaches into ``../stubs/tcl_stubs.zig`` and
+// ``../interp/tcl_catch.zig`` for the error-raise paths, and Zig
+// 0.16's module system rejects ``@import`` of files above the test
+// module's root_source_file directory.  See the same explanation in
+// ``runtime_test_fixture.zig``.
 
 const std = @import("std");
 const testing = std.testing;
 
-const quote = @import("tcl_list_quote.zig");
-const parse = @import("tcl_list_parse.zig");
-const bs = @import("tcl_bs.zig");
+const quote = @import("valtypes/tcl_list_quote.zig");
+const parse = @import("valtypes/tcl_list_parse.zig");
+const bs = @import("valtypes/tcl_bs.zig");
 
 // ---- helpers --------------------------------------------------------
 

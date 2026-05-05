@@ -178,16 +178,16 @@ test "flow_consume_continue returns 0 when no continue is pending" {
     try testing.expectEqual(@as(i32, 0), catch_mod.flow_consume_continue());
 }
 
-// -- error_unknown_command formatting ------------------------------
+// -- error_invalid_command_name formatting ----------------------------
 
 fn body_unknown_command() void {
-    catch_mod.error_unknown_command(name_obj("frobozz"));
+    catch_mod.error_invalid_command_name(name_obj("frobozz"));
 }
 
-test "error_unknown_command formats 'unknown command: <name>'" {
+test "error_invalid_command_name formats 'invalid command name \"<name>\"'" {
     const msg = fixture.with_catch(&body_unknown_command);
     try testing.expect(msg != null);
-    try testing.expectEqualStrings("unknown command: frobozz", msg.?);
+    try testing.expectEqualStrings("invalid command name \"frobozz\"", msg.?);
 }
 
 // -- var_unset_error formatting ------------------------------------
