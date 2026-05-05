@@ -1944,9 +1944,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // The break_flag / continue_flag they paired with stay
         // set, so an enclosing compiled while loop's
         // ``flow_consume_*`` probe catches the unwind.
-        const tcl_catch_c = @import("tcl_catch.zig");
-        if (tcl_catch_c.signal_break_flag != 0) tcl_catch_c.signal_break_flag = 0;
-        if (tcl_catch_c.signal_continue_flag != 0) tcl_catch_c.signal_continue_flag = 0;
+        _ = result_mod.take_signal_break_continue();
         return result;
     }
     const body_obj = procs.proc_get_body(bucket);
@@ -1968,10 +1966,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // ``tcl trap: site=N <inner-proc-name>`` traps deep inside
     // tcltest's ``[preserveCore]`` / ``[temporaryDirectory]``
     // checks and aborts entire test files.
-    const saved_break_flag = rt.break_flag.*;
-    const saved_continue_flag = rt.continue_flag.*;
-    rt.break_flag.* = 0;
-    rt.continue_flag.* = 0;
+    const bc_snap = result_mod.break_continue_save_and_clear();
     // Stash the invocation argv (proc name + all call args) so
     // ``info level 0`` inside the body returns the real list
     // rather than the placeholder emitted by legacy callers.
@@ -2165,23 +2160,18 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // signal so an outer compiled loop still observes it.
     const body_break = ir_proc.code == .BREAK;
     const body_continue = ir_proc.code == .CONTINUE;
-    const tcl_catch_b = @import("tcl_catch.zig");
-    const sig_break = tcl_catch_b.signal_break_flag != 0;
-    const sig_continue = tcl_catch_b.signal_continue_flag != 0;
-    tcl_catch_b.signal_break_flag = 0;
-    tcl_catch_b.signal_continue_flag = 0;
-    rt.break_flag.* = saved_break_flag;
-    rt.continue_flag.* = saved_continue_flag;
+    const sig = result_mod.take_signal_break_continue();
+    result_mod.break_continue_restore(bc_snap);
     // ``return -code break`` / ``return -code continue`` route the
     // signal to the caller's enclosing loop instead of triggering
     // the "outside of a loop" error.  Re-stamp the caller's flag so
     // an enclosing while/foreach catches the loop-control exit.
-    if (sig_break) {
-        rt.break_flag.* = 1;
+    if (sig.was_break) {
+        result_mod.set_break();
         return result;
     }
-    if (sig_continue) {
-        rt.continue_flag.* = 1;
+    if (sig.was_continue) {
+        result_mod.set_continue();
         return result;
     }
     if (body_break) {

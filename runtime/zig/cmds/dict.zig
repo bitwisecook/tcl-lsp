@@ -548,7 +548,7 @@ fn eval_dict_update(words: []const i32) i32 {
 
     // Re-raise the captured flow-control signal so the enclosing
     // loop / proc sees it.
-    if (had_break) rt.break_flag.* = 1;
-    if (had_continue) rt.continue_flag.* = 1;
+    if (had_break) result_mod.set_break();
+    if (had_continue) result_mod.set_continue();
     return 0;
 }

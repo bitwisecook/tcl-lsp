@@ -319,22 +319,7 @@ fn run_script_obj(script_obj: i32) void {
     // when restoring the flag without releasing).  Stage 4 will route
     // errors through ``bgerror``; for v1 we just swallow them after
     // writing to stderr.  Codex / Copilot review on PR #284.
-    const saved_err = tcl_catch.error_flag;
-    const saved_err_msg = tcl_catch.error_msg;
-    const saved_ret = tcl_catch.return_flag;
-    const saved_ret_val = tcl_catch.return_val;
-    const saved_brk = tcl_catch.break_flag;
-    const saved_cnt = tcl_catch.continue_flag;
-    const saved_yflag = tcl_catch.yield_flag;
-    const saved_yval = tcl_catch.yield_value;
-    tcl_catch.error_flag = 0;
-    tcl_catch.error_msg = 0;
-    tcl_catch.return_flag = 0;
-    tcl_catch.return_val = 0;
-    tcl_catch.break_flag = 0;
-    tcl_catch.continue_flag = 0;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    const snap = result_mod.signal_save_and_clear();
     _ = interp.eval_script(s.ptr, s.len);
     if (result_mod.snapshot(0).code == .ERROR) {
         // Write a minimal background-error marker to stderr so the
@@ -350,18 +335,14 @@ fn run_script_obj(script_obj: i32) void {
         _ = std.os.wasi.fd_write(2, &iov, 1, &written);
     }
     // Release any payload TclObjs the scheduled script left behind so
-    // they don't leak when we discard the signal.
+    // they don't leak when we discard the signal.  Snapshot here
+    // captures the post-eval payloads (without clearing them), so we
+    // can release through the live slots before the restore stamps
+    // back the caller's saved state.
     if (tcl_catch.error_msg != 0) tcl_obj_release(tcl_catch.error_msg);
     if (tcl_catch.return_val != 0) tcl_obj_release(tcl_catch.return_val);
     if (tcl_catch.yield_value != 0) tcl_obj_release(tcl_catch.yield_value);
-    tcl_catch.error_flag = saved_err;
-    tcl_catch.error_msg = saved_err_msg;
-    tcl_catch.return_flag = saved_ret;
-    tcl_catch.return_val = saved_ret_val;
-    tcl_catch.break_flag = saved_brk;
-    tcl_catch.continue_flag = saved_cnt;
-    tcl_catch.yield_flag = saved_yflag;
-    tcl_catch.yield_value = saved_yval;
+    result_mod.signal_restore(snap);
 }
 
 /// Drain one timer that's due (deadline ≤ now), if any.  Returns

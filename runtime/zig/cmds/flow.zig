@@ -136,20 +136,17 @@ fn eval_return(words: []const i32) i32 {
         // wire-up for the follow-up that adds the codegen-side
         // per-statement probes.
     }
-    rt.return_flag.* = 1;
-    catch_mod.return_level = extra_levels;
-    // MM-B.5: ``return_val`` is a global slot that holds the value
-    // until ``eval_proc_call_bucket`` reads it back.  Retain so
-    // ``MM-B.4``'s parser-side release of ``words[1]`` doesn't free
-    // the value before the caller reads it.  Release the prior
-    // occupant (typically 0 from a clean state, but a nested
-    // ``return`` inside an outer ``return`` could leave a stale
-    // pointer).
+    // MM-B.5: ``return_val`` slot holds the value until
+    // ``eval_proc_call_bucket`` reads it back.  Retain so ``MM-B.4``'s
+    // parser-side release of ``words[1]`` doesn't free the value
+    // before the caller reads it.  Release any prior occupant — a
+    // nested ``return`` inside an outer ``return`` could otherwise
+    // leak the previous slot.
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     const old = rt.return_val.*;
     if (result_obj != 0) obj_mod.tcl_obj_retain(result_obj);
-    rt.return_val.* = result_obj;
     if (old != 0 and old != result_obj) obj_mod.tcl_obj_release(old);
+    result_mod.set_return(result_obj, extra_levels);
     return result_obj;
 }
 
@@ -158,7 +155,7 @@ fn eval_break(words: []const i32) i32 {
         stubs.raise("wrong # args: should be \"break\"");
         return 0;
     }
-    rt.break_flag.* = 1;
+    result_mod.set_break();
     return 0;
 }
 
@@ -167,7 +164,7 @@ fn eval_continue(words: []const i32) i32 {
         stubs.raise("wrong # args: should be \"continue\"");
         return 0;
     }
-    rt.continue_flag.* = 1;
+    result_mod.set_continue();
     return 0;
 }
 
@@ -330,19 +327,12 @@ fn eval_try(words: []const i32) i32 {
         wi += 1;
     }
 
-    // Snapshot after handlers so that a handler-issued return/break/continue
-    // is preserved across the finally block (not overwritten by the old state).
-    const snap_return   = rt.return_flag.*;
-    const snap_ret_val  = rt.return_val.*;
-    const snap_break    = rt.break_flag.*;
-    const snap_continue = rt.continue_flag.*;
-
     // Finally: run in an isolated catch frame.  An error/return/break/continue
     // from the finally body overrides the handler outcome per Tcl semantics.
+    // The save+clear preserves a handler-issued return/break/continue across
+    // the finally body so a clean finally completion restores them.
     if (finally_body != 0) {
-        const c = @import("../interp/tcl_catch.zig");
-        c.error_flag = 0; c.error_msg = 0;
-        rt.return_flag.* = 0; rt.break_flag.* = 0; rt.continue_flag.* = 0;
+        const snap = result_mod.flow_save_and_clear();
         rt.catch_enter();
         const fb_s = obj_ensure_string(finally_body);
         const fb_result = interp.eval_script(fb_s.ptr, fb_s.len);
@@ -361,10 +351,7 @@ fn eval_try(words: []const i32) i32 {
             return fb_result;
         }
         // Finally completed normally: restore signals from after handlers ran.
-        rt.return_flag.*   = snap_return;
-        rt.return_val.*    = snap_ret_val;
-        rt.break_flag.*    = snap_break;
-        rt.continue_flag.* = snap_continue;
+        result_mod.flow_restore(snap);
     }
 
     if (error_raised and !handled) catch_mod.tcl_cmd_error(catch_val);
@@ -387,8 +374,7 @@ fn eval_tailcall(words: []const i32) i32 {
     const result = interp.eval_call(words[1..]);
     const ir = result_mod.snapshot(result);
     if (ir.code != .ERROR and ir.code != .RETURN) {
-        rt.return_flag.* = 1;
-        rt.return_val.*  = result;
+        result_mod.set_return(result, 0);
     }
     return result;
 }
