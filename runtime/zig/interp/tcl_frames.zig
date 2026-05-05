@@ -420,6 +420,11 @@ pub export fn frame_pop() void {
         // / ``array names arr`` would lie.
         const tcl_array = @import("../valtypes/tcl_array.zig");
         tcl_array.drop_local_arrays_for_depth(frame_depth);
+        // Phase 7: release every compile-time-indexed local slot
+        // for this frame.  The hash-keyed store has its own
+        // reset-on-reuse via ``mark_dirty``; the indexed array
+        // is a parallel store with its own ownership tracking.
+        frame_locals_array_drop_current();
         frame_depth -= 1;
         // MM-B.5: release the argv reference we retained in
         // frame_set_argv before clearing the slot.
@@ -635,6 +640,78 @@ pub fn frame_context_reset() void {
     // them via the dirty-bitmap mechanism (per-bucket reset on
     // first reuse) and the argv / info slots have their own
     // reset path on push.
+}
+
+// --- Phase 7: compile-time slot resolution -----------------------------
+//
+// The hash-table-keyed local store is fast (FNV-1a + open
+// addressing) but a compiled proc still pays the hash for every
+// ``$x`` read inside a tight loop body.  Phase 7 lets the
+// codegen sidestep the hash entirely: when a proc body references
+// a locally-declared variable whose slot index is fixed at compile
+// time, the codegen emits ``frame_local_at(idx)`` /
+// ``frame_local_set_at(idx, value)`` instead of a name-keyed
+// ``var_resolve`` / ``local_set``.
+//
+// Storage: a per-frame ``locals_array`` of fixed capacity.  We
+// pre-allocate ``LOCALS_ARRAY_CAP`` slots per frame; codegen-
+// resolved locals use indices 0..LOCALS_ARRAY_CAP-1.  Procs with
+// more locals than that capacity continue to use the hash-keyed
+// store transparently — ``frame_local_at`` only handles indexed
+// slots, never the dynamic ones.
+//
+// **Status:** the runtime API is in place (``frame_local_at`` /
+// ``frame_local_set_at``).  Wiring the codegen to emit these
+// calls is the follow-up — Python-side ``ProcLocal`` records
+// would carry the resolved slot for each compile-time-known
+// local, and the bytecode emitter would route the simple
+// scalar reads through the indexed accessors.  Until that
+// codegen lands the indexed slots stay unused; nothing is
+// regressed because the hash-keyed path keeps working as the
+// primary store.
+const LOCALS_ARRAY_CAP: u32 = 16;
+var frame_locals_array: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32 = undefined;
+
+/// Read a compiled-proc local by its compile-time-resolved slot
+/// index.  Returns 0 (the "unset" sentinel) when the slot has
+/// never been written or when the index is out of range.
+/// Compiled callers MUST stay within ``[0, LOCALS_ARRAY_CAP)``;
+/// the runtime trusts the codegen to emit valid indices.
+pub export fn frame_local_at(idx: u32) i32 {
+    if (frame_depth == 0) return 0;
+    if (idx >= LOCALS_ARRAY_CAP) return 0;
+    return frame_locals_array[frame_depth - 1][idx];
+}
+
+/// Write a compiled-proc local by slot index.  Caller-side
+/// retention contract matches ``local_set``: the slot's prior
+/// occupant (if any) is released; the new value is retained for
+/// the slot's lifetime.  Returns the stored value for chaining.
+pub export fn frame_local_set_at(idx: u32, value: i32) i32 {
+    if (frame_depth == 0) return value;
+    if (idx >= LOCALS_ARRAY_CAP) return value;
+    const slot = &frame_locals_array[frame_depth - 1][idx];
+    const old = slot.*;
+    if (value != 0) obj.tcl_obj_retain(value);
+    slot.* = value;
+    if (old != 0 and old != value) obj.tcl_obj_release(old);
+    return value;
+}
+
+/// Clear every compile-time slot for the current frame.  Called
+/// from ``frame_pop`` to release the slot references before the
+/// frame is reused.  Codegen doesn't need to call this directly.
+fn frame_locals_array_drop_current() void {
+    if (frame_depth == 0) return;
+    var i: u32 = 0;
+    const slots = &frame_locals_array[frame_depth - 1];
+    while (i < LOCALS_ARRAY_CAP) : (i += 1) {
+        const v = slots[i];
+        if (v != 0) {
+            slots[i] = 0;
+            obj.tcl_obj_release(v);
+        }
+    }
 }
 
 /// Record the namespace context for the *current* frame.  Called
