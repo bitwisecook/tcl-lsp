@@ -4844,7 +4844,7 @@
     "@types/mocha": "^10.0.0",
     "@types/glob": "^8.0.0",
     "@vscode/test-electron": "^2.4.0",
-    "@vscode/vsce": "^3.0.0",
+    "@vscode/vsce": "^3.9.1",
     "c8": "^9.1.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
@@ -4864,6 +4864,9 @@
     "mocha": {
       "diff": "^8.0.3",
       "serialize-javascript": "^7.0.5"
+    },
+    "@vscode/vsce": {
+      "@azure/msal-node": "^5.1.5"
     },
     "lodash": "^4.18.1"
   }
