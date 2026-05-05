@@ -130,11 +130,11 @@ pub const catch_has_error = tcl_catch.catch_has_error;
 pub const catch_set_ok_result = tcl_catch.catch_set_ok_result;
 pub const tcl_cmd_error = tcl_catch.tcl_cmd_error;
 pub const var_unset_error = tcl_catch.var_unset_error;
-pub const error_flag = &tcl_catch.error_flag;
-pub const return_flag = &tcl_catch.return_flag;
-pub const return_val = &tcl_catch.return_val;
-pub const break_flag = &tcl_catch.break_flag;
-pub const continue_flag = &tcl_catch.continue_flag;
+pub const error_flag = &tcl_catch.state.error_flag;
+pub const return_flag = &tcl_catch.state.return_flag;
+pub const return_val = &tcl_catch.state.return_val;
+pub const break_flag = &tcl_catch.state.break_flag;
+pub const continue_flag = &tcl_catch.state.continue_flag;
 pub const flow_consume_break = tcl_catch.flow_consume_break;
 pub const flow_consume_continue = tcl_catch.flow_consume_continue;
 pub const flow_check_return = tcl_catch.flow_check_return;
@@ -147,6 +147,15 @@ pub const frame_set_argv = tcl_frames.frame_set_argv;
 pub const frame_get_argv = tcl_frames.frame_get_argv;
 pub const frame_set_pending_argv0 = tcl_frames.frame_set_pending_argv0;
 pub const frame_take_pending_argv0 = tcl_frames.frame_take_pending_argv0;
+// Phase 8: codegen-callable FrameInfo setters.
+pub const frame_set_type_i32 = tcl_frames.frame_set_type_i32;
+pub const frame_set_script = tcl_frames.frame_set_script;
+pub const frame_set_line = tcl_frames.frame_set_line;
+pub const frame_set_cmd_text = tcl_frames.frame_set_cmd_text;
+pub const frame_set_proc_name = tcl_frames.frame_set_proc_name;
+// Phase 7: codegen-callable indexed local accessors.
+pub const frame_local_at = tcl_frames.frame_local_at;
+pub const frame_local_set_at = tcl_frames.frame_local_set_at;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const frame_depth_stash = tcl_frames.frame_depth_stash;
 pub const frame_depth_restore = tcl_frames.frame_depth_restore;
@@ -400,6 +409,13 @@ comptime {
     _ = &tcl_frames.var_resolve;
     _ = &tcl_frames.var_set;
     _ = &tcl_frames.var_exists;
+    _ = &tcl_frames.frame_set_type_i32;
+    _ = &tcl_frames.frame_set_script;
+    _ = &tcl_frames.frame_set_line;
+    _ = &tcl_frames.frame_set_cmd_text;
+    _ = &tcl_frames.frame_set_proc_name;
+    _ = &tcl_frames.frame_local_at;
+    _ = &tcl_frames.frame_local_set_at;
     // tcl_procs exports
     _ = &tcl_procs.proc_register;
     _ = &tcl_procs.proc_register_compiled;

@@ -1252,6 +1252,17 @@ def _scan_needed_imports(
         needed.add("tcl_frame_pop")
         needed.add("tcl_frame_set_argv")
         needed.add("tcl_frame_get_argv")
+        # Phase 8: stamp ``info frame`` metadata on the new frame
+        # so callers inside the body get useful diagnostics.  The
+        # prologue emits ``frame_set_type`` (always PROC) plus
+        # ``frame_set_proc_name`` (the FQ name of the proc).  The
+        # body script + per-command line tracking are follow-ups.
+        needed.add("tcl_frame_set_type")
+        needed.add("tcl_frame_set_proc_name")
+        # The proc-name TclObj is built via obj_new_string from the
+        # FQ-name literal in the data segment; pull in the helper
+        # unconditionally for procs so the prologue can construct it.
+        needed.add("tcl_obj_new_string")
         # Compiled procs need to detect & propagate signal flags
         # (``error_flag`` / ``return_flag``) raised by callees and
         # eval-fallback bodies.  Pulled in for any module with procs

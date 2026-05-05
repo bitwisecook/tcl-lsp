@@ -50,9 +50,10 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const tcl_async = @import("tcl_asyncify.zig");
 
-// The yield signal flag lives on ``tcl_catch.yield_flag`` so
+// The yield signal flag lives on ``tcl_catch.state.yield_flag`` so
 // ``has_signal()`` in the interpreter sees it without a module-
 // circular import.  Reads/writes go through tcl_catch directly.
 
@@ -114,8 +115,8 @@ var g_call_depth: u32 = 0;
 pub fn reset() void {
     g_n_coros = 0;
     g_call_depth = 0;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 }
 
 fn name_eq(c: *const Coro, ptr: u32, len: u32) bool {
@@ -329,8 +330,8 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     // returns instead.
 
     c.state = .RUNNING;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 
     if (is_resume) {
         // Last instrumented call is push_call above; from here to
@@ -351,9 +352,9 @@ pub export fn tcl_coro_drive(coro_addr: i32) i32 {
     const state = tcl_async.asyncify_get_state();
     if (state == tcl_async.STATE_UNWINDING) {
         tcl_async.asyncify_stop_unwind();
-        const yv = tcl_catch.yield_value;
-        tcl_catch.yield_flag = 0;
-        tcl_catch.yield_value = 0;
+        const yv = tcl_catch.state.yield_value;
+        tcl_catch.state.yield_flag = 0;
+        tcl_catch.state.yield_value = 0;
         c.state = .SUSPENDED;
         // pop_call() runs while state is NORMAL — safe (no rewind
         // active).  But to keep the semantics of the v1 driver
@@ -388,8 +389,8 @@ fn resume_segments(c: *Coro) i32 {
     defer pop_call();
 
     c.state = .RUNNING;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
+    tcl_catch.state.yield_flag = 0;
+    tcl_catch.state.yield_value = 0;
 
     var result: i32 = 0;
     while (c.next_segment < c.n_segments) {
@@ -397,14 +398,38 @@ fn resume_segments(c: *Coro) i32 {
         c.next_segment += 1;
         if (seg.src_len == 0) continue;
         result = interp.eval_script(seg.src_ptr, seg.src_len);
-        if (tcl_catch.yield_flag != 0) {
-            tcl_catch.yield_flag = 0;
-            const yv = tcl_catch.yield_value;
-            tcl_catch.yield_value = 0;
+        if (tcl_catch.state.yield_flag != 0) {
+            tcl_catch.state.yield_flag = 0;
+            const yv = tcl_catch.state.yield_value;
+            tcl_catch.state.yield_value = 0;
             c.state = .SUSPENDED;
             return yv;
         }
-        if (tcl_catch.error_flag != 0 or tcl_catch.return_flag != 0) {
+        const ir = result_mod.snapshot(result);
+        if (ir.code == .ERROR or ir.code == .RETURN) {
+            // Consume the signal — the coroutine is terminating with
+            // this segment's result as its ``[c]`` return value.
+            // Without consuming, the RETURN flag leaks past the
+            // coroutine boundary and any subsequent ``catch`` /
+            // ``has_signal`` probe at script level mistakes the
+            // coroutine's terminal state for an in-flight return,
+            // tagging the next command's catch result with rc=2 and
+            // the coroutine's return value (regression caught by
+            // ``test_coroutine_command_removed_after_terminal_return``).
+            // ERROR similarly: if the coroutine body errored, the
+            // error should be the coroutine's terminal observable
+            // result; the surrounding caller decides whether to
+            // forward it (compiled-proc dispatch) or swallow it
+            // (background scheduler).  Today the only consumer is
+            // ``puts [c]`` which propagates the i32 result by
+            // value, so consuming here keeps the global state
+            // clean for the next top-level command.
+            if (ir.code == .RETURN) result_mod.consume(.RETURN);
+            // ERROR is left set so the caller still observes it —
+            // the coroutine's command-table tombstone clears on
+            // ``cleanup_terminated`` so a follow-up ``[c]`` correctly
+            // surfaces ``invalid command name``, but the body's
+            // original error should still propagate this round.
             c.state = .DEAD;
             return result;
         }
@@ -445,8 +470,8 @@ pub fn resume_one(c: *Coro) i32 {
 pub fn signal_yield(value: i32) bool {
     if (g_call_depth == 0) return false;
     if (value != 0) tcl_obj_retain(value);
-    tcl_catch.yield_flag = 1;
-    tcl_catch.yield_value = value;
+    tcl_catch.state.yield_flag = 1;
+    tcl_catch.state.yield_value = value;
     if (tcl_async.ENABLED) {
         if (current_coro()) |c| {
             tcl_async.coro_yield_unwind(c.async_buf);

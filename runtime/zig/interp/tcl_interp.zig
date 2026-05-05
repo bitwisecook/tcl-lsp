@@ -15,6 +15,7 @@ const info = @import("../cmds/tcl_cmd_info.zig");
 
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const arena = @import("../valtypes/tcl_arena.zig");
+const result_mod = @import("tcl_result.zig");
 
 // Re-export runtime functions used throughout this file
 const alloc = rt.alloc;
@@ -31,12 +32,11 @@ const obj_ensure_string = rt.obj_ensure_string;
 const list_count_elements = rt.list_count_elements;
 const list_element_at = rt.list_element_at;
 
-// Convenience: check if any signal flag is set (error, return, break, continue)
+// Convenience: check if any signal flag is set (error, return, break, continue, yield)
 fn has_signal() bool {
     const tcl_catch = @import("tcl_catch.zig");
-    return rt.error_flag.* != 0 or rt.return_flag.* != 0 or
-        rt.break_flag.* != 0 or rt.continue_flag.* != 0 or
-        tcl_catch.yield_flag != 0;
+    return result_mod.has_signal(result_mod.snapshot(0)) or
+        tcl_catch.state.yield_flag != 0;
 }
 
 // -- Tokeniser --
@@ -534,8 +534,12 @@ fn eval_command(words: []const i32) i32 {
     }
 
     // Registered builtin dispatch — all builtin commands are in per-module
-    // files under cmds/ and assembled in tcl_cmd_table.zig.
-    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words);
+    // files under cmds/ and assembled in tcl_cmd_table.zig.  Handlers now
+    // return :type:`InterpResult`; the legacy globals are still set as
+    // a side effect of ``tcl_cmd_error`` etc., so we extract ``.value``
+    // for the i32-returning ``eval_command`` contract and let the
+    // surrounding ``snapshot``-based inspection observe the signal.
+    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words).value;
 
     // ``::concat``, ``::expr``, etc. — fully-qualified names for
     // root-namespace builtins.  Strip the leading ``::`` and retry
@@ -546,7 +550,7 @@ fn eval_command(words: []const i32) i32 {
         const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
         if (cmd_p[0] == ':' and cmd_p[1] == ':') {
             if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
-                return handler(words);
+                return handler(words).value;
             }
             // Ensemble FQ rewrites — the CFG canonicalises
             // ``dict for`` to ``::tcl::dict::for`` (and friends).
@@ -610,7 +614,7 @@ fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
     while (k < words.len) : (k += 1) {
         slot[k + 1] = words[k];
     }
-    return handler(slot[0..total]);
+    return handler(slot[0..total]).value;
 }
 
 const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
@@ -880,9 +884,13 @@ pub fn eval_while(words: []const i32) i32 {
         // ceiling).
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        const ir = result_mod.snapshot(result);
+        switch (ir.code) {
+            .OK => {},
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .ERROR, .RETURN => return result,
+        }
     }
     return result;
 }
@@ -907,9 +915,15 @@ pub fn eval_for(words: []const i32) i32 {
         if (eval_expr_str(cond_s.ptr, cond_s.len) == 0) break;
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        const ir = result_mod.snapshot(result);
+        switch (ir.code) {
+            .OK => {},
+            // ``for`` runs the next-clause even after ``continue``;
+            // ``while`` doesn't have one, hence the divergence above.
+            .CONTINUE => result_mod.consume(.CONTINUE),
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .ERROR, .RETURN => return result,
+        }
         const next_res = eval_script(next_s.ptr, next_s.len);
         if (next_res != 0) obj_mod.tcl_obj_release(next_res);
     }
@@ -1229,9 +1243,13 @@ pub fn eval_foreach(words: []const i32) i32 {
         // Release the prior body result before overwriting (issue #303).
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = eval_script(body_s.ptr, body_s.len);
-        if (rt.break_flag.* != 0) { rt.break_flag.* = 0; break; }
-        if (rt.continue_flag.* != 0) { rt.continue_flag.* = 0; continue; }
-        if (rt.error_flag.* != 0 or rt.return_flag.* != 0) return result;
+        const ir = result_mod.snapshot(result);
+        switch (ir.code) {
+            .OK => {},
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .ERROR, .RETURN => return result,
+        }
     }
     // foreach returns "" on normal completion — discard last body result.
     if (result != 0) obj_mod.tcl_obj_release(result);
@@ -1606,7 +1624,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     const target_s = obj_ensure_string(new_words[0]);
     if (target_s.len > 0) {
         if (cmd_table.lookup(target_s.ptr, target_s.len)) |handler| {
-            const result = handler(new_words[0..total]);
+            const result = handler(new_words[0..total]).value;
             interp_reg.leave(save);
             return result;
         }
@@ -1616,11 +1634,29 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
             const tp: [*]const u8 = @ptrFromInt(target_s.ptr);
             if (tp[0] == ':' and tp[1] == ':') {
                 if (cmd_table.lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
-                    const result = handler(new_words[0..total]);
+                    const result = handler(new_words[0..total]).value;
                     interp_reg.leave(save);
                     return result;
                 }
             }
+        }
+    }
+    // Auto-index fallback before declaring the alias target unknown
+    // (parse-8.12).  We're still in the entered-parent-interp scope
+    // and ns_root, so the lookup picks up ``::auto_index`` exactly as
+    // the test expects.
+    const ai_loaded = try_auto_index_load(new_words[0]);
+    if (ai_loaded != 0) {
+        defer obj_mod.tcl_obj_release(ai_loaded);
+        const ai_bucket = procs.proc_lookup(ai_loaded);
+        if (ai_bucket != 0) {
+            // Swap in the loaded FQ name as the dispatched command
+            // name so ``info level 0`` etc see the canonical form.
+            new_words[0] = ai_loaded;
+            obj_mod.tcl_obj_retain(ai_loaded);
+            const result = eval_proc_call_bucket(new_words[0..total], ai_bucket);
+            interp_reg.leave(save);
+            return result;
         }
     }
     interp_reg.leave(save);
@@ -1632,6 +1668,46 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
 fn eval_proc_call(words: []const i32) i32 {
     const bucket = procs.proc_lookup(words[0]);
     if (bucket == 0) {
+        // Before declaring the command unknown, try the ``auto_index``
+        // auto-load mechanism (parse-8.12).  Tcl's stdlib ``unknown``
+        // proc consults ``::auto_index($cmd)`` when a command isn't
+        // found and evaluates the value (typically a ``proc`` definition)
+        // to load it.  We replicate that lookup at the C level so the
+        // test passes without shipping init.tcl.
+        //
+        // If the autoload script itself errors, the error is the
+        // user's actual diagnostic (e.g. a syntax error in the
+        // loader script body); surface it by short-circuiting the
+        // unknown-command fallback.  Codex review: previously this
+        // path ignored the loader's error and overwrote it with
+        // ``invalid command name`` in ``error_unknown_command``
+        // below, hiding the real failure.
+        const loaded_name = try_auto_index_load(words[0]);
+        if (result_mod.snapshot(0).code == .ERROR) {
+            // Loader script raised; ``error_msg`` already holds the
+            // user-facing message.  Drop any retained ``loaded_name``
+            // (the loader-attempt path returned a name token only
+            // when the script ran cleanly) and propagate.
+            if (loaded_name != 0) obj_mod.tcl_obj_release(loaded_name);
+            return 0;
+        }
+        if (loaded_name != 0) {
+            defer obj_mod.tcl_obj_release(loaded_name);
+            const bucket2 = procs.proc_lookup(loaded_name);
+            if (bucket2 != 0) {
+                // Replace words[0] with the loaded FQ name so the
+                // dispatched call sees the canonical command name.
+                var new_words: [parse.MAX_WORDS]i32 = undefined;
+                new_words[0] = loaded_name;
+                obj_mod.tcl_obj_retain(loaded_name);
+                var k: u32 = 1;
+                while (k < words.len) : (k += 1) new_words[k] = words[k];
+                const result = eval_proc_call_bucket(new_words[0..words.len], bucket2);
+                obj_mod.tcl_obj_release(loaded_name);
+                return result;
+            }
+            // Loaded but no proc registered — fall through.
+        }
         // Before declaring the command unknown, consult the stub
         // dispatch table — Tcl 8.4–9.0 core commands we haven't
         // implemented (encoding, fconfigure, regexp, trace, …) are
@@ -1653,6 +1729,75 @@ fn eval_proc_call(words: []const i32) i32 {
         return 0;
     }
     return eval_proc_call_bucket(words, bucket);
+}
+
+/// Implement the C-level half of Tcl's ``unknown`` / ``auto_load``
+/// machinery: look up ``::auto_index(<calling-ns>::$cmd)`` first
+/// (mirroring ``auto_load $cmd $namespace``'s namespace probe), then
+/// fall back to ``::auto_index($cmd)``.  Evaluates the matching
+/// entry (conventionally a ``proc`` definition).
+///
+/// Returns the FQ name TclObj that was registered (so the caller can
+/// dispatch via that name) or 0 if no auto_index entry matched or
+/// evaluation failed.  ``current_ns`` at call time supplies the
+/// namespace for the namespaced probe — for ``interp alias``
+/// dispatches that's the global root (TCL_EVAL_INVOKE), so only the
+/// bare entry can match (parse-8.12).
+fn try_auto_index_load(cmd_obj: i32) i32 {
+    if (cmd_obj == 0) return 0;
+    const cmd_s = obj_ensure_string(cmd_obj);
+    if (cmd_s.ptr == 0 or cmd_s.len == 0) return 0;
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const arr_name = obj_mod.obj_new_string_copy(@intFromPtr("::auto_index".ptr), 12);
+    defer obj_mod.tcl_obj_release(arr_name);
+    const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+    const cmd_is_fq = cmd_s.len >= 2 and cmd_p[0] == ':' and cmd_p[1] == ':';
+
+    // 1. Namespaced probe — ``auto_index(<current_ns_full>::<cmd>)``.
+    //    Skipped when caller is at the global root (so the alias-
+    //    dispatch path falls through to the bare-name probe).
+    if (!cmd_is_fq) {
+        const ns_full_ptr = tcl_ns.current_ns_full_ptr();
+        const ns_full_len = tcl_ns.current_ns_full_len();
+        if (ns_full_len > 2) { // ">2" excludes the bare "::" root
+            const total: u32 = ns_full_len + 2 + cmd_s.len;
+            const buf = obj_mod.alloc(total);
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                const nsp: [*]const u8 = @ptrFromInt(ns_full_ptr);
+                var off: u32 = 0;
+                for (0..ns_full_len) |k| { dst[off] = nsp[k]; off += 1; }
+                dst[off] = ':'; off += 1;
+                dst[off] = ':'; off += 1;
+                for (0..cmd_s.len) |k| { dst[off] = cmd_p[k]; off += 1; }
+                const fq_key = obj_mod.obj_new_string_take(buf, total, total);
+                const entry = tcl_array.array_get(arr_name, fq_key);
+                if (entry != 0) {
+                    const es = obj_ensure_string(entry);
+                    if (es.len > 0) {
+                        const r = eval_script(es.ptr, es.len);
+                        if (r != 0) obj_mod.tcl_obj_release(r);
+                        if (result_mod.snapshot(0).code != .ERROR) return fq_key;
+                    }
+                }
+                obj_mod.tcl_obj_release(fq_key);
+            }
+        }
+    }
+    // 2. Bare-name probe.
+    const entry2 = tcl_array.array_get(arr_name, cmd_obj);
+    if (entry2 != 0) {
+        const es = obj_ensure_string(entry2);
+        if (es.len > 0) {
+            const r = eval_script(es.ptr, es.len);
+            if (r != 0) obj_mod.tcl_obj_release(r);
+            if (result_mod.snapshot(0).code != .ERROR) {
+                obj_mod.tcl_obj_retain(cmd_obj);
+                return cmd_obj;
+            }
+        }
+    }
+    return 0;
 }
 
 /// Build a Tcl list TclObj from every word in ``words`` (the proc
@@ -1742,7 +1887,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         const handler_addr: u32 = @bitCast(read_i32(@as(u32, @bitCast(bucket)) + procs.OFF_PARAMS_OBJ));
         const reg = @import("../dispatch/tcl_cmd_registry.zig");
         const handler: reg.HandlerFn = @ptrFromInt(handler_addr);
-        return handler(words);
+        return handler(words).value;
     }
     // ``CMD_BUILTIN_MASKED`` Commands are tombstones — set by
     // ``rename BUILTIN ""`` so a subsequent ``[BUILTIN ...]`` call
@@ -1788,21 +1933,21 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // ``catch_leave`` grew TCL_RETURN handling.  Real Tcl's proc
         // dispatch unconditionally converts body-level ``return`` to
         // a normal return value at the dispatch boundary.
-        if (rt.return_flag.* != 0) {
+        const ir_compiled = result_mod.snapshot(result);
+        if (ir_compiled.code == .RETURN) {
             const tcl_catch = @import("tcl_catch.zig");
-            const rv = rt.return_val.*;
+            const rv = ir_compiled.value;
             // ``return -code return`` / ``-level N`` propagates past
             // the immediate proc — keep the flag set and decrement
             // the extra-level counter so the next proc up also exits.
-            if (tcl_catch.return_level > 0) {
-                tcl_catch.return_level -= 1;
+            if (ir_compiled.return_level > 0) {
+                tcl_catch.state.return_level -= 1;
                 // Leave return_flag/return_val set; produce ``rv`` as
                 // the result so the parent dispatcher sees the value
                 // when it absorbs.
                 if (result == 0 and rv != 0) result = rv;
             } else {
-                rt.return_flag.* = 0;
-                rt.return_val.* = 0;
+                result_mod.consume(.RETURN);
                 // The dispatch-bridge result the WASM-side flow_take_return
                 // already absorbed will be non-zero; only fall back to the
                 // recorded ``return_val`` when the bridge handed us 0.
@@ -1819,9 +1964,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         // The break_flag / continue_flag they paired with stay
         // set, so an enclosing compiled while loop's
         // ``flow_consume_*`` probe catches the unwind.
-        const tcl_catch_c = @import("tcl_catch.zig");
-        if (tcl_catch_c.signal_break_flag != 0) tcl_catch_c.signal_break_flag = 0;
-        if (tcl_catch_c.signal_continue_flag != 0) tcl_catch_c.signal_continue_flag = 0;
+        _ = result_mod.take_signal_break_continue();
         return result;
     }
     const body_obj = procs.proc_get_body(bucket);
@@ -1830,6 +1973,18 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
 
     // Push frame
     _ = frames.frame_push();
+    // Phase 8: stamp call-site metadata for ``info frame``.
+    frames.frame_set_type(.PROC);
+    frames.frame_set_script(body_obj);
+    {
+        const name_ptr: u32 = @bitCast(procs.proc_get_name_ptr(bucket));
+        const name_len: u32 = @bitCast(procs.proc_get_name_len(bucket));
+        if (name_len > 0) {
+            const fq = obj_mod.obj_new_string_copy(name_ptr, name_len);
+            frames.frame_set_proc_name(fq);
+            obj_mod.tcl_obj_release(fq);
+        }
+    }
     // Tcl semantics: ``break`` / ``continue`` inside a proc body
     // are local to that body's enclosing loop, NOT the caller's
     // loop.  Save and clear any pending caller-scope flow signal
@@ -1843,10 +1998,7 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // ``tcl trap: site=N <inner-proc-name>`` traps deep inside
     // tcltest's ``[preserveCore]`` / ``[temporaryDirectory]``
     // checks and aborts entire test files.
-    const saved_break_flag = rt.break_flag.*;
-    const saved_continue_flag = rt.continue_flag.*;
-    rt.break_flag.* = 0;
-    rt.continue_flag.* = 0;
+    const bc_snap = result_mod.break_continue_save_and_clear();
     // Stash the invocation argv (proc name + all call args) so
     // ``info level 0`` inside the body returns the real list
     // rather than the placeholder emitted by legacy callers.
@@ -2014,23 +2166,23 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     frames.frame_pop();
 
     // Absorb return signal (like picol: PICOL_RETURN → PICOL_OK)
-    if (rt.return_flag.* != 0) {
+    const ir_proc = result_mod.snapshot(result);
+    if (ir_proc.code == .RETURN) {
         const tcl_catch = @import("tcl_catch.zig");
-        const rv = rt.return_val.*;
+        const rv = ir_proc.value;
         // ``return -code return`` / ``-level N`` propagates past the
         // immediate proc — keep the flag set, decrement the extra-
         // level counter, and let the next proc up absorb.
-        if (tcl_catch.return_level > 0) {
-            tcl_catch.return_level -= 1;
+        if (ir_proc.return_level > 0) {
+            tcl_catch.state.return_level -= 1;
             return rv;
         }
-        rt.return_flag.* = 0;
         // MM-B.5: ``return_val`` was retained by ``eval_return``.
         // Hand its reference to the caller (no transfer-side
         // retain needed) and clear the slot so a recursive
         // ``return`` doesn't see a stale pointer in its release
         // path.  Caller's standard "holds 1" contract is met.
-        rt.return_val.* = 0;
+        result_mod.consume(.RETURN);
         return rv;
     }
     // Body-raised break/continue without an enclosing loop is a Tcl
@@ -2038,25 +2190,20 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     // loop``).  Convert it here.  The opposite case — caller leaked
     // its own pending break/continue into us — restores the caller's
     // signal so an outer compiled loop still observes it.
-    const body_break = rt.break_flag.* != 0;
-    const body_continue = rt.continue_flag.* != 0;
-    const tcl_catch_b = @import("tcl_catch.zig");
-    const sig_break = tcl_catch_b.signal_break_flag != 0;
-    const sig_continue = tcl_catch_b.signal_continue_flag != 0;
-    tcl_catch_b.signal_break_flag = 0;
-    tcl_catch_b.signal_continue_flag = 0;
-    rt.break_flag.* = saved_break_flag;
-    rt.continue_flag.* = saved_continue_flag;
+    const body_break = ir_proc.code == .BREAK;
+    const body_continue = ir_proc.code == .CONTINUE;
+    const sig = result_mod.take_signal_break_continue();
+    result_mod.break_continue_restore(bc_snap);
     // ``return -code break`` / ``return -code continue`` route the
     // signal to the caller's enclosing loop instead of triggering
     // the "outside of a loop" error.  Re-stamp the caller's flag so
     // an enclosing while/foreach catches the loop-control exit.
-    if (sig_break) {
-        rt.break_flag.* = 1;
+    if (sig.was_break) {
+        result_mod.set_break();
         return result;
     }
-    if (sig_continue) {
-        rt.continue_flag.* = 1;
+    if (sig.was_continue) {
+        result_mod.set_continue();
         return result;
     }
     if (body_break) {
@@ -2457,6 +2604,18 @@ pub fn eval_apply(words: []const i32) i32 {
     }
 
     _ = frames.frame_push();
+    // Phase 8: ``apply`` is a proc-style invocation but with an
+    // anonymous lambda — record the body as the script and stamp
+    // ``apply`` as the proc name so ``info frame`` surfaces a
+    // useful diagnostic.
+    frames.frame_set_type(.PROC);
+    frames.frame_set_script(body_obj);
+    {
+        const apply_lit: []const u8 = "apply";
+        const fq = obj_new_string_copy(@intFromPtr(apply_lit.ptr), apply_lit.len);
+        frames.frame_set_proc_name(fq);
+        obj_mod.tcl_obj_release(fq);
+    }
 
     // Bind parameters — same pattern as eval_proc_call_bucket but user
     // args start at words[2] (words[0]=apply, words[1]=lambda).
@@ -2531,21 +2690,20 @@ pub fn eval_apply(words: []const i32) i32 {
 
     frames.frame_pop();
 
-    if (rt.return_flag.* != 0) {
+    const ir_apply = result_mod.snapshot(result);
+    if (ir_apply.code == .RETURN) {
         const tcl_catch = @import("tcl_catch.zig");
-        const rv = rt.return_val.*;
-        if (tcl_catch.return_level > 0) {
-            tcl_catch.return_level -= 1;
+        const rv = ir_apply.value;
+        if (ir_apply.return_level > 0) {
+            tcl_catch.state.return_level -= 1;
             return rv;
         }
-        rt.return_flag.* = 0;
         // MM-B.5: same as eval_proc_call_bucket.
-        rt.return_val.* = 0;
+        result_mod.consume(.RETURN);
         return rv;
     }
-    if (rt.break_flag.* != 0 or rt.continue_flag.* != 0) {
-        rt.break_flag.* = 0;
-        rt.continue_flag.* = 0;
+    if (ir_apply.code == .BREAK or ir_apply.code == .CONTINUE) {
+        result_mod.consume(ir_apply.code);
         rt.tcl_cmd_error(words[1]);
     }
     return result;
@@ -2556,18 +2714,13 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 
     // Save any outer eval context so nested eval_script invocations
     // (e.g. a command-substitution inside a word) can restore it
-    // when they return.  Without this the outermost frame's trap
-    // context would be replaced by the innermost — and the reader
-    // would lose the "which fallback fired this?" line.
+    // when they return.  Routes through ``diag.push_eval_ctx`` /
+    // ``pop_eval_ctx`` so the saved chain is also visible to
+    // ``Tcl_LogCommandInfo``-style multi-frame traceback construction
+    // (parse-9.1).
     const diag = @import("../dispatch/tcl_diag.zig");
-    const saved_ptr = diag.current_eval_ptr;
-    const saved_len = diag.current_eval_len;
-    const saved_pos = diag.current_eval_pos;
-    defer {
-        diag.current_eval_ptr = saved_ptr;
-        diag.current_eval_len = saved_len;
-        diag.current_eval_pos = saved_pos;
-    }
+    const saved_ctx_depth = diag.push_eval_ctx();
+    defer diag.pop_eval_ctx(saved_ctx_depth);
 
     // P9.2: fast path — if this body was pre-parsed by
     // ``parse_cache.build_for_body`` (called from ``proc_register``
@@ -2598,6 +2751,25 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 
         const cmd = parse.ParseCommand(src, pos, script_len, &tok_buf, tok_buf.len);
         pos = cmd.next;
+        if (cmd.extra_chars_after_close) {
+            // Reference Tcl raises this at parse time; route through
+            // ``tcl_cmd_error`` so a surrounding ``catch`` observes it
+            // and ``::errorInfo`` is stamped (parse-18.19/20/21,
+            // set-1.3, set-3.3).
+            const msg_text: []const u8 = if (cmd.extra_chars_after_quote)
+                "extra characters after close-quote"
+            else
+                "extra characters after close-brace";
+            const buf = obj_mod.alloc(@intCast(msg_text.len));
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                for (msg_text, 0..) |b, k| dst[k] = b;
+                const tcl_catch = @import("tcl_catch.zig");
+                const msg = obj_mod.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+                tcl_catch.tcl_cmd_error(msg);
+            }
+            return result;
+        }
         if (cmd.n_words == 0) continue;
 
         // Release the previous command's result obj before
@@ -2608,9 +2780,91 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
         // wasm32 4 GiB linear-memory ceiling.
         if (result != 0) obj_mod.tcl_obj_release(result);
         result = execute_parsed_command(cmd.src_ptr, cmd.tokens_ptr, cmd.tokens_len);
-        if (has_signal()) return result;
+        const ir = result_mod.snapshot(result);
+        // ``Tcl_LogCommandInfo`` (parse-9.2 / parse-9.1): when an
+        // error fires inside the executed command, append THIS
+        // frame's command source to ``::errorInfo``.  Each frame
+        // in the unwind contributes one ``while executing`` /
+        // ``invoked from within`` line; the dedup happens inside
+        // ``log_command_info`` (last_log_script/pos), and the
+        // unwind stops when ``catch_leave`` clears
+        // ``error_flag`` + ``last_log_*``.
+        if (ir.code == .ERROR) {
+            log_command_info(script_ptr, cmd.command_start, cmd.command_len);
+        }
+        // Yield is its own escape hatch — handled separately from the
+        // main control-flow signal so a coroutine body that raises
+        // ``error`` mid-iteration still propagates the error normally.
+        if (result_mod.has_signal(ir)) return result;
+        // Yield is its own escape hatch — not part of the
+        // OK/ERROR/RETURN/BREAK/CONTINUE result code set, so
+        // ``has_signal`` doesn't cover it.  Coroutine bodies that
+        // yield mid-iteration unwind here.
+        const tcl_catch_y = @import("tcl_catch.zig");
+        if (tcl_catch_y.state.yield_flag != 0) return result;
     }
     return result;
+}
+
+/// Append a single ``while executing "<cmd>"`` (or, on subsequent
+/// calls, ``invoked from within "<cmd>"``) frame to ``::errorInfo``.
+/// Mirrors reference Tcl's ``Tcl_LogCommandInfo`` (tclBasic.c) — the
+/// first call after a fresh error event uses ``while executing``;
+/// every later call as the error unwinds through enclosing
+/// ``eval_script`` frames uses ``invoked from within``.  ``catch``
+/// stops the unwind by clearing ``error_flag``, so the trace
+/// terminates at the catch boundary.
+///
+/// Per-call deduplication: if the same (script_ptr, cmd_start) was
+/// already logged for this error event we skip — guards against an
+/// inner eval_script that re-enters log_command_info before its
+/// caller has unwound (e.g. recursive substitution paths).
+fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
+    if (cmd_len == 0) return;
+    const tcl_catch = @import("tcl_catch.zig");
+    const cur = tcl_catch.state.error_msg;
+    if (cur == 0) return;
+    if (script_ptr == tcl_catch.state.last_log_script and cmd_start == tcl_catch.state.last_log_pos) return;
+    const max_len: u32 = 150;
+    const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
+    const need_ellipsis: bool = cmd_len > max_len;
+    const cur_s = obj_mod.obj_ensure_string(cur);
+    // First frame after a fresh error → ``while executing``;
+    // subsequent unwinding frames → ``invoked from within``.  The
+    // ``last_log_script == 0`` sentinel is reset by ``tcl_cmd_error``
+    // / ``catch_leave`` on each new error event.
+    const prefix: []const u8 = if (tcl_catch.state.last_log_script == 0)
+        "\n    while executing\n\""
+    else
+        "\n    invoked from within\n\"";
+    const ellipsis = "...";
+    const suffix = "\"";
+    var total: u32 = cur_s.len + @as(u32, @intCast(prefix.len)) + trunc_len;
+    if (need_ellipsis) total += @as(u32, @intCast(ellipsis.len));
+    total += @as(u32, @intCast(suffix.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    if (cur_s.len > 0) {
+        const csp: [*]const u8 = @ptrFromInt(cur_s.ptr);
+        for (0..cur_s.len) |k| { dst[off] = csp[k]; off += 1; }
+    }
+    for (prefix) |b| { dst[off] = b; off += 1; }
+    const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
+    for (0..trunc_len) |k| { dst[off] = cmdp[k]; off += 1; }
+    if (need_ellipsis) for (ellipsis) |b| { dst[off] = b; off += 1; };
+    for (suffix) |b| { dst[off] = b; off += 1; }
+    // Only update ``::errorInfo`` — ``error_msg`` (which becomes the
+    // ``catch BODY msg`` variable) MUST stay just the original error
+    // string per Tcl semantics.  The ``while executing`` frame
+    // belongs in errorInfo only.
+    const new_msg = obj_mod.obj_new_string_take(buf, total, total);
+    const info_name = obj_mod.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+    _ = tcl_ns.global_set(info_name, new_msg);
+    obj_mod.tcl_obj_release(info_name);
+    tcl_catch.state.last_log_script = script_ptr;
+    tcl_catch.state.last_log_pos = cmd_start;
 }
 
 /// Replay pre-parsed command records from a parse-cache slab.
@@ -2685,6 +2939,18 @@ fn execute_parsed_command(body_ptr: u32, tokens_ptr: u32, tokens_len: u32) i32 {
                 word_objs[wi] = subst_word(wptr_abs, tok.len);
             }
             wi += 1;
+            // If a substitution raised break / continue / return /
+            // error, abort word evaluation now and let the enclosing
+            // eval_script loop observe the flag — a ``[continue]``
+            // inside ``w[continue]`` must propagate as TCL_CONTINUE
+            // (parse-17.1), not result in a phantom dispatch of ``w``.
+            if (has_signal()) {
+                var rj: u32 = 0;
+                while (rj < wi) : (rj += 1) {
+                    if (word_objs[rj] != 0) obj_mod.tcl_obj_release(word_objs[rj]);
+                }
+                return 0;
+            }
         }
         // MM-B.4: release the per-word TclObjs after dispatch.
         // The dispatch result's refcount semantics are "+1 for the

@@ -1,19 +1,26 @@
-// Minimal ``trace`` pass-through.
+// Legacy ``trace`` fallback for execution-trace sub-commands.
 //
-// Tcl's ``trace`` command installs read/write/unset hooks on variables
-// and command-execution hooks on procs.  Implementing real traces
-// requires hooking every ``var_set`` / ``var_resolve`` / ``unset``
-// path to check an opaque callback list, which we don't have.
+// Variable traces (``trace add variable`` / ``trace remove variable``
+// / ``trace info variable``, plus the legacy ``trace variable`` /
+// ``trace vdelete`` / ``trace vinfo`` forms) are now implemented in
+// ``interp/tcl_var_trace.zig`` and dispatched directly from
+// ``cmds/inspect.zig::eval_trace`` (Phase 6 of the var/frame
+// architecture refactor — see ``docs/var-frame-architecture.md``).
 //
-// ``tcltest`` and ``tcllib`` lean on traces mostly for *lazy
-// configuration* — e.g. reading a testConstraints array element
-// triggers a lazy initialiser that populates it.  Without the trace
-// installed, the variable is simply its initial value (often empty
-// or false), which keeps the harness loading without crashing.
+// This module remains the catch-all for the *other* ``trace``
+// sub-commands the variable-trace registry doesn't handle:
+// ``trace add command`` / ``trace add execution`` / ``trace remove
+// command`` / ``trace remove execution`` / ``trace info command`` /
+// ``trace info execution``.  Those are command-introspection /
+// execution-tracing surfaces that would need a separate hook into
+// the dispatcher; until that lands the pass-through here treats
+// the operation as benign (``add`` / ``remove`` silently drop the
+// callback; ``info`` raises ``unsupported``).
 //
-// So this module treats ``trace add`` / ``trace remove`` as benign
-// pass-throughs (the callback is silently dropped) and ``trace
-// info`` as an error — the caller asked for state we don't keep.
+// ``tcltest`` and ``tcllib`` lean on variable traces (now real) for
+// lazy configuration; execution traces are rarer and the
+// pass-through is enough to keep test harnesses loading without
+// crashing.
 
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");

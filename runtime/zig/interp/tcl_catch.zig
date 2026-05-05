@@ -16,36 +16,87 @@ const obj_new_string = obj.obj_new_string;
 const obj_new_string_copy = obj.obj_new_string_copy;
 const fd_write_all = io.fd_write_all;
 
-// Control flow signals — picol-style return codes as mutable flags.
-// Each flag is checked by eval_script after every command.
-// Loops catch break/continue; proc dispatch catches return; catch catches error.
-pub var catch_depth: u32 = 0;
-pub var error_flag: u32 = 0; // 0 = no error, 1 = error pending
-pub var error_msg: i32 = 0; // TclObj with error message
-pub var return_flag: u32 = 0; // 1 = return pending (absorbed by proc dispatch)
-pub var return_val: i32 = 0; // TclObj return value
-/// Number of *additional* proc levels the pending ``return`` should
-/// propagate through.  Set by ``return -code return`` (1) /
-/// ``return -level N`` (N-1) so the proc dispatcher unwinds past
-/// the expected frame and the next caller up also sees a return —
-/// matching Tcl's ``return -level`` / ``-code`` semantics that
-/// ``::tcl::OptDoOne`` relies on (`return -code return` from
-/// inside the state-machine body breaks out of ``OptDoAll``'s
-/// loop, not just the immediate proc).  Default 0 = stop at this
-/// proc (equivalent to ``return -level 1 -code ok``).
-pub var return_level: u32 = 0;
+// Phase 2 (final): control-flow signal storage is now collapsed
+// into a single ``State`` struct.  Previously every flag /
+// payload was a loose ``pub var``; that worked but spread the
+// "pending interpreter result" across ~14 module-level globals
+// nobody could relocate together.  Now a single ``state: State``
+// holds the lot, and the legacy field names are kept inside the
+// struct so existing accesses that go through the typed mutation
+// API (``result_mod.set_break`` / ``snapshot`` / etc.) keep
+// working unchanged.
+//
+// Why this matters: the design doc's phase-3+ goal — "globals
+// become read-through views over the active frame's pending
+// result" — is now a one-line change.  Replace ``state`` with
+// ``current_frame().pending`` in the State struct's accessor
+// (or wrap the field through a getter) and every caller observes
+// per-frame state without further migration.  We deliberately
+// keep ``state`` global today because that's the existing
+// runtime contract; the relocation is tracked as a follow-up.
 
-/// Set by ``return -code break`` / ``return -code continue`` so the
-/// proc dispatcher can distinguish a *signalled* break/continue —
-/// which should propagate to the caller's enclosing loop — from a
-/// raw ``break`` / ``continue`` command run outside any loop in
-/// the proc body, which Tcl converts to "invoked X outside of a
-/// loop" at the proc boundary.  ``::tcl::OptDoOne`` drives
-/// ``::tcl::OptDoAll``'s ``while`` loop entirely through
-/// ``return -code continue`` / ``return -code break``, so the
-/// distinction is load-bearing for opt.test.
-pub var signal_break_flag: u32 = 0;
-pub var signal_continue_flag: u32 = 0;
+/// Aggregated control-flow / payload state for the currently
+/// executing command chain.  Every field carries the same
+/// semantics it did as a loose global; the struct just gives
+/// them one home.
+pub const State = struct {
+    catch_depth: u32 = 0,
+    /// 0 = no error, 1 = error pending.  Companion to ``error_msg``.
+    error_flag: u32 = 0,
+    /// TclObj handle for the pending error message (only meaningful
+    /// when ``error_flag != 0``).
+    error_msg: i32 = 0,
+    /// Last ``(script_ptr, cmd_start)`` pair that ``log_command_info``
+    /// stamped onto ``::errorInfo`` for the current error event.
+    /// The next stamp dedupes against this and uses
+    /// ``invoked from within`` instead of ``while executing``.
+    last_log_script: u32 = 0,
+    last_log_pos: u32 = 0,
+    /// 1 = return pending (absorbed by proc dispatch).
+    return_flag: u32 = 0,
+    /// TclObj return value paired with ``return_flag``.
+    return_val: i32 = 0,
+    /// Extra proc levels for ``return -level N`` propagation —
+    /// see :func:`tcl_return_set` for the wire-up.
+    return_level: u32 = 0,
+    /// 1 = break pending (absorbed by loops).
+    break_flag: u32 = 0,
+    /// 1 = continue pending (absorbed by loops).
+    continue_flag: u32 = 0,
+    /// ``return -code break`` / ``return -code continue`` side-channel.
+    /// Distinguishes a signalled break/continue (route to caller's
+    /// enclosing loop) from a raw ``break``/``continue`` outside any
+    /// loop (route to the "invoked outside of a loop" diagnostic).
+    signal_break_flag: u32 = 0,
+    signal_continue_flag: u32 = 0,
+    /// Coroutine ``yield`` signal.  Distinct from ``return_flag`` so
+    /// ``apply`` / proc dispatch don't silently absorb it.
+    yield_flag: u32 = 0,
+    yield_value: i32 = 0,
+    /// ``catch BODY result``'s success-result holding slot.
+    catch_ok_result: i32 = 0,
+    /// Snapshot fields populated by :func:`catch_leave`; read by
+    /// :func:`catch_result` / :func:`catch_options` after the
+    /// scope is unwound.
+    last_catch_had_error: u32 = 0,
+    last_catch_code: i64 = 0,
+    last_catch_value: i32 = 0,
+};
+
+/// The single mutable state slot.  Module-private storage; external
+/// callers go through ``result_mod`` (typed inspection / mutation)
+/// or the per-field accessor pointers re-exported by
+/// ``tcl_runtime.zig``.
+pub var state: State = .{};
+
+// Field-level convenience constants — let internal tcl_catch code
+// keep its existing flat references (``error_flag = 1``) without
+// the verbose ``state.error_flag = 1`` form.  Each one is a pointer
+// that aliases a slot of the global ``state``.
+//
+// External callers MUST go through ``state.X`` (or, preferably, the
+// typed mutation API in ``tcl_result.zig``).  The unqualified
+// variable names below are NOT re-exported.
 
 /// Read-and-clear helper for the compiled proc body's per-callsite
 /// break/continue propagation.  Returns 1 if a *signalled*
@@ -55,40 +106,24 @@ pub var signal_continue_flag: u32 = 0;
 /// for an enclosing loop to catch.  Leaves the signal flag set so
 /// the dispatcher's translation runs.
 pub export fn flow_check_signal_loop() i32 {
-    if (signal_break_flag != 0 or signal_continue_flag != 0) {
+    if (state.signal_break_flag != 0 or state.signal_continue_flag != 0) {
         return 1;
     }
     return 0;
 }
 
-pub var break_flag: u32 = 0; // 1 = break pending (absorbed by loops)
-pub var continue_flag: u32 = 0; // 1 = continue pending (absorbed by loops)
-/// Coroutine ``yield`` signal.  Set by ``yield`` / ``yieldto`` to
-/// unwind the eval stack back to the enclosing coroutine driver
-/// (``sched/tcl_coro.zig::resume_one``).  Distinct from
-/// ``return_flag`` so ``apply`` / proc dispatch don't silently
-/// absorb it.
-pub var yield_flag: u32 = 0;
-pub var yield_value: i32 = 0;
-
-// ``catch body result`` success path: when no error occurs, the result
-// variable should receive the return value of the body's last command,
-// not the error message (which stays 0).  Compiled catch bodies record
-// this value via ``catch_set_ok_result`` so that ``catch_result()`` can
-// return the correct value for both success and error cases.
-pub var catch_ok_result: i32 = 0;
 
 // Exported: enter a catch scope.
 pub export fn catch_enter() void {
-    catch_depth += 1;
-    error_flag = 0;
-    error_msg = 0;
-    catch_ok_result = 0;
+    state.catch_depth += 1;
+    state.error_flag = 0;
+    state.error_msg = 0;
+    state.catch_ok_result = 0;
     // Release any captured payload from a previous catch so a
     // drain between catches doesn't see a stale +1 hold.
-    if (last_catch_value != 0) {
-        const old = last_catch_value;
-        last_catch_value = 0;
+    if (state.last_catch_value != 0) {
+        const old = state.last_catch_value;
+        state.last_catch_value = 0;
         obj.tcl_obj_release(old);
     }
 }
@@ -101,16 +136,16 @@ pub export fn catch_enter() void {
 // ``catch_leave``) is replaced by a flag-driven unwind.  Issue #..:
 // fixes ``catch {return foo}`` exiting the surrounding proc.
 pub export fn tcl_return_set(value: i32) void {
-    return_flag = 1;
+    state.return_flag = 1;
     // The codegen path that emits ``return value`` inside a catch
     // body always means a default ``return -level 1 -code ok``, so
     // reset the extra-level counter to 0 — leaving a stale value
     // from a previous ``return -code return`` would erroneously
     // propagate this regular return past the immediate proc.
-    return_level = 0;
-    const old = return_val;
+    state.return_level = 0;
+    const old = state.return_val;
     if (value != 0) obj.tcl_obj_retain(value);
-    return_val = value;
+    state.return_val = value;
     if (old != 0 and old != value) obj.tcl_obj_release(old);
 }
 
@@ -121,13 +156,13 @@ pub export fn tcl_return_set(value: i32) void {
 /// ``catch`` that lives behind an eval-fallback).  Without this hook,
 /// the wasm-side loop never noticed the break and kept iterating.
 pub export fn flow_consume_break() i32 {
-    if (break_flag != 0) {
-        break_flag = 0;
+    if (state.break_flag != 0) {
+        state.break_flag = 0;
         // ``return -code break`` paired ``break_flag`` with the
         // ``signal_break_flag`` side-channel.  Clear both so the
         // proc dispatcher's post-call sweep doesn't re-fire on a
         // signal the loop already absorbed.
-        signal_break_flag = 0;
+        state.signal_break_flag = 0;
         return 1;
     }
     return 0;
@@ -139,9 +174,9 @@ pub export fn flow_consume_break() i32 {
 /// continue-block end label, so the compiled loop can simply
 /// fall through to the loop-restart ``br`` that follows.
 pub export fn flow_consume_continue() i32 {
-    if (continue_flag != 0) {
-        continue_flag = 0;
-        signal_continue_flag = 0;
+    if (state.continue_flag != 0) {
+        state.continue_flag = 0;
+        state.signal_continue_flag = 0;
         return 1;
     }
     return 0;
@@ -154,7 +189,7 @@ pub export fn flow_consume_continue() i32 {
 /// flag set so the standard proc-dispatch absorption (in the
 /// caller's caller) clears it.
 pub export fn flow_check_return() i32 {
-    return @as(i32, @intCast(return_flag));
+    return @as(i32, @intCast(state.return_flag));
 }
 
 /// Read-and-clear the pending return state, returning the value
@@ -169,19 +204,19 @@ pub export fn flow_check_return() i32 {
 /// callers that need to distinguish must call
 /// :func:`flow_check_return` first.
 pub export fn flow_take_return() i32 {
-    if (return_flag != 0) {
-        const v = return_val;
+    if (state.return_flag != 0) {
+        const v = state.return_val;
         // ``return -code return`` / ``-level N>1`` propagates past the
         // immediate proc.  Decrement the level counter; only clear the
         // flag once the unwind is complete (counter at 0).
-        if (return_level > 0) {
-            return_level -= 1;
+        if (state.return_level > 0) {
+            state.return_level -= 1;
             // Leave ``return_flag`` and ``return_val`` set so the next
             // proc up on the call stack also unwinds.
             return v;
         }
-        return_flag = 0;
-        return_val = 0;
+        state.return_flag = 0;
+        state.return_val = 0;
         return v;
     }
     return 0;
@@ -191,47 +226,19 @@ pub export fn flow_take_return() i32 {
 // Called by compiled catch bodies after their last statement when a
 // result variable is needed.  Ignored if an error already occurred.
 pub export fn catch_set_ok_result(val: i32) void {
-    if (error_flag == 0) {
-        catch_ok_result = val;
+    if (state.error_flag == 0) {
+        state.catch_ok_result = val;
     }
 }
 
 // ``catch_leave`` clears ``error_flag`` so surrounding (non-catch)
 // code doesn't see a stale pending error.  But ``catch_result`` is
-// called AFTER ``catch_leave`` to populate the result variable, so it
-// needs its own snapshot of "did this catch fire?".  Without the
-// snapshot, ``catch_result`` saw ``error_flag == 0`` and returned
-// ``catch_ok_result`` (0) for every error-catching case, so
-// ``catch {error boom} msg`` produced ``msg == ""``.
-pub var last_catch_had_error: u32 = 0;
-
 // Tcl return-code constants — mirrors ``generic/tcl.h``.
 const TCL_OK: i64 = 0;
 const TCL_ERROR: i64 = 1;
 const TCL_RETURN: i64 = 2;
 const TCL_BREAK: i64 = 3;
 const TCL_CONTINUE: i64 = 4;
-
-// Snapshot of the captured return code from the most recent
-// ``catch_leave`` call.  ``catch_options`` reads this when building
-// the ``-code`` field of the options dict so a 3-arg ``catch`` sees
-// the same code that ``catch`` itself returned (TCL_BREAK / TCL_CONTINUE
-// for unwound flow control, not TCL_OK / TCL_ERROR like the legacy
-// boolean-only path).
-pub var last_catch_code: i64 = 0;
-
-// Snapshot of the body's payload value at ``catch_leave`` time —
-// the ``return`` value when the body unwound with TCL_RETURN, or the
-// ``error_msg`` when it raised TCL_ERROR.  ``catch_result`` returns
-// this so ``catch {return foo} r`` populates ``r`` with ``foo`` (the
-// returned value) rather than the empty string the previous
-// ``catch_ok_result``-only path produced for non-error exceptional
-// returns.  Cleared back to 0 in ``catch_enter`` so a stale snapshot
-// from a previous catch doesn't leak into a fresh scope.  The
-// ``catch_leave`` path retains the value for the slot's hold so the
-// caller's writeback observes a stable refcount independent of any
-// intervening drain.
-pub var last_catch_value: i32 = 0;
 
 // Exported: leave a catch scope.  Returns the TCL_* return code
 // produced by the body — TCL_OK (0), TCL_ERROR (1), TCL_RETURN (2),
@@ -240,16 +247,16 @@ pub var last_catch_value: i32 = 0;
 // here so the surrounding (non-catch) compiled code doesn't see
 // them and the loop / proc dispatcher above us doesn't double-fire.
 pub export fn catch_leave() i32 {
-    if (catch_depth > 0) catch_depth -= 1;
+    if (state.catch_depth > 0) state.catch_depth -= 1;
     const code: i64 = blk: {
-        if (error_flag != 0) break :blk TCL_ERROR;
-        if (return_flag != 0) break :blk TCL_RETURN;
-        if (break_flag != 0) break :blk TCL_BREAK;
-        if (continue_flag != 0) break :blk TCL_CONTINUE;
+        if (state.error_flag != 0) break :blk TCL_ERROR;
+        if (state.return_flag != 0) break :blk TCL_RETURN;
+        if (state.break_flag != 0) break :blk TCL_BREAK;
+        if (state.continue_flag != 0) break :blk TCL_CONTINUE;
         break :blk TCL_OK;
     };
-    last_catch_had_error = if (error_flag != 0) 1 else 0;
-    last_catch_code = code;
+    state.last_catch_had_error = if (state.error_flag != 0) 1 else 0;
+    state.last_catch_code = code;
     // Snapshot the body's payload so ``catch_result`` can hand it back
     // to the caller's result-var writeback.  TCL_RETURN carries
     // ``return_val``; TCL_ERROR carries ``error_msg``.  Retain the
@@ -257,15 +264,15 @@ pub export fn catch_leave() i32 {
     // can't free it out from under the writeback (Codex/Copilot
     // review on PR #324).  The previous occupant of
     // ``last_catch_value`` is released.
-    const old_value = last_catch_value;
+    const old_value = state.last_catch_value;
     var new_value: i32 = 0;
-    if (return_flag != 0) {
-        new_value = return_val;
-    } else if (error_flag != 0) {
-        new_value = error_msg;
+    if (state.return_flag != 0) {
+        new_value = state.return_val;
+    } else if (state.error_flag != 0) {
+        new_value = state.error_msg;
     }
     if (new_value != 0 and new_value != old_value) obj.tcl_obj_retain(new_value);
-    last_catch_value = new_value;
+    state.last_catch_value = new_value;
     if (old_value != 0 and old_value != new_value) obj.tcl_obj_release(old_value);
     // Absorb every flow-control flag — ``catch`` is the universal sink
     // for non-OK return codes from its body.  Surrounding loops
@@ -273,19 +280,21 @@ pub export fn catch_leave() i32 {
     // would otherwise re-fire on a code we already converted into a
     // return value.  Also clear ``return_val`` so a stale handle
     // doesn't leak into the next ``return`` site's release of ``old``.
-    error_flag = 0;
-    return_flag = 0;
-    break_flag = 0;
-    continue_flag = 0;
-    return_level = 0;
-    signal_break_flag = 0;
-    signal_continue_flag = 0;
-    if (return_val != 0) {
+    state.error_flag = 0;
+    state.last_log_script = 0;
+    state.last_log_pos = 0;
+    state.return_flag = 0;
+    state.break_flag = 0;
+    state.continue_flag = 0;
+    state.return_level = 0;
+    state.signal_break_flag = 0;
+    state.signal_continue_flag = 0;
+    if (state.return_val != 0) {
         // Hand the +1 retain that ``return_val`` was holding to
         // ``last_catch_value`` (we already retained above).  Release
         // here cancels the source-side hold.
-        const rv = return_val;
-        return_val = 0;
+        const rv = state.return_val;
+        state.return_val = 0;
         obj.tcl_obj_release(rv);
     }
     return obj_new_int(code);
@@ -315,10 +324,10 @@ pub export fn catch_result() i32 {
     // sentinel.  This keeps ``catch {return foo} r`` populating ``r``
     // with ``foo``, matching reference Tcl's ``Tcl_CatchObjCmd``
     // (Codex/Copilot review on PR #324).
-    if (last_catch_value != 0) return last_catch_value;
-    if (last_catch_had_error != 0) return error_msg;
-    if (catch_ok_result == 0) return obj_new_string(0, 0);
-    return catch_ok_result;
+    if (state.last_catch_value != 0) return state.last_catch_value;
+    if (state.last_catch_had_error != 0) return state.error_msg;
+    if (state.catch_ok_result == 0) return obj_new_string(0, 0);
+    return state.catch_ok_result;
 }
 
 // Exported: build a Tcl options dict for the most recent ``catch``.
@@ -348,7 +357,7 @@ pub export fn catch_result() i32 {
 // key-modifying path (Copilot review).
 pub export fn catch_options() i32 {
     var d: i32 = dict_mod.dict_create();
-    d = dict_set_str_take(d, "-code", obj_new_int(last_catch_code));
+    d = dict_set_str_take(d, "-code", obj_new_int(state.last_catch_code));
     d = dict_set_str_take(d, "-level", obj_new_int(0));
     const ec_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
     const ec_val = globals.global_get(ec_name);
@@ -365,8 +374,8 @@ pub export fn catch_options() i32 {
     obj.tcl_obj_release(ei_name);
     if (ei_val != 0) {
         d = dict_set_str_keep(d, "-errorinfo", ei_val);
-    } else if (last_catch_had_error != 0 and error_msg != 0) {
-        d = dict_set_str_keep(d, "-errorinfo", error_msg);
+    } else if (state.last_catch_had_error != 0 and state.error_msg != 0) {
+        d = dict_set_str_keep(d, "-errorinfo", state.error_msg);
     }
     return d;
 }
@@ -402,10 +411,10 @@ fn dict_set_str_keep(d: i32, key: []const u8, value: i32) i32 {
 // Returns 1 when any flag is set, 0 otherwise.  Reference Tcl's
 // ``Tcl_CatchObjCmd`` likewise stops at the first non-TCL_OK code.
 pub export fn catch_has_error() i32 {
-    if (error_flag != 0) return 1;
-    if (return_flag != 0) return 1;
-    if (break_flag != 0) return 1;
-    if (continue_flag != 0) return 1;
+    if (state.error_flag != 0) return 1;
+    if (state.return_flag != 0) return 1;
+    if (state.break_flag != 0) return 1;
+    if (state.continue_flag != 0) return 1;
     return 0;
 }
 
@@ -473,10 +482,12 @@ fn detect_wrong_args_code(msg: i32) i32 {
 // starts with ``wrong # args:``, in which case it is auto-tagged
 // ``TCL WRONGARGS`` to match reference Tcl's ``Tcl_WrongNumArgs``.
 pub export fn tcl_cmd_error(msg: i32) void {
+    state.last_log_script = 0;
+    state.last_log_pos = 0;
     stamp_error_globals(msg, 0, detect_wrong_args_code(msg));
-    if (catch_depth > 0) {
-        error_flag = 1;
-        error_msg = msg;
+    if (state.catch_depth > 0) {
+        state.error_flag = 1;
+        state.error_msg = msg;
         return;
     }
     fd_write_all(2, "tcl trap: ", 10);
@@ -495,10 +506,12 @@ pub export fn tcl_cmd_error(msg: i32) void {
 // (``error msg ?info? ?code?``).  Either or both extras may be
 // ``0`` to use the defaults.
 pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
+    state.last_log_script = 0;
+    state.last_log_pos = 0;
     stamp_error_globals(msg, info, code);
-    if (catch_depth > 0) {
-        error_flag = 1;
-        error_msg = msg;
+    if (state.catch_depth > 0) {
+        state.error_flag = 1;
+        state.error_msg = msg;
         return;
     }
     fd_write_all(2, "tcl trap: ", 10);

@@ -1,6 +1,7 @@
 // ``eval``, ``uplevel`` — script evaluation commands.
 
 const rt  = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
@@ -8,11 +9,11 @@ const alloc             = rt.alloc;
 const memcpy            = rt.memcpy;
 const obj_ensure_string = rt.obj_ensure_string;
 
-fn eval_eval(words: []const i32) i32 {
+fn eval_eval(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
     if (words.len == 2) {
         const s = obj_ensure_string(words[1]);
-        return interp.eval_script(s.ptr, s.len);
+        return result_mod.from_globals(interp.eval_script(s.ptr, s.len));
     }
     if (words.len >= 3) {
         var total: u32 = 0;
@@ -20,7 +21,7 @@ fn eval_eval(words: []const i32) i32 {
         while (k < words.len) : (k += 1) {
             total += @as(u32, @intCast(obj_ensure_string(words[k]).len)) + 1;
         }
-        if (total == 0) return 0;
+        if (total == 0) return result_mod.from_globals(0);
         const buf = alloc(total);
         var off: u32 = 0;
         k = 1;
@@ -44,14 +45,14 @@ fn eval_eval(words: []const i32) i32 {
         // body and contributed to the leak driving #303.
         const result = interp.eval_script(buf, off);
         obj.free_sized(buf, total);
-        return result;
+        return result_mod.from_globals(result);
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_uplevel(words: []const i32) i32 {
+fn eval_uplevel(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
-    return interp.eval_uplevel(words);
+    return result_mod.from_globals(interp.eval_uplevel(words));
 }
 
 pub const registrations = [_]reg.CmdEntry{

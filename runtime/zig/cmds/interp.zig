@@ -1,15 +1,16 @@
 // ``rename``, ``interp`` — interpreter management commands.
 
 const interp_impl = @import("./tcl_cmd_interp.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const reg         = @import("../dispatch/tcl_cmd_registry.zig");
 
-fn eval_rename(words: []const i32) i32 {
-    return interp_impl.eval_rename(words);
+fn eval_rename(words: []const i32) result_mod.InterpResult {
+    return result_mod.from_globals(interp_impl.eval_rename(words));
 }
 
-fn eval_interp(words: []const i32) i32 {
+fn eval_interp(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
-    return interp.eval_interp(words);
+    return result_mod.from_globals(interp.eval_interp(words));
 }
 
 pub const registrations = [_]reg.CmdEntry{

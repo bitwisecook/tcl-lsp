@@ -4,16 +4,19 @@ Before this wave the runtime only propagated the error *message*
 (available via ``catch { … } msg``); scripts that inspected
 ``$::errorInfo`` or ``$::errorCode`` after a caught error got an
 empty string.  Now the runtime stamps both globals when
-``tcl_cmd_error`` fires, covering the common shape:
+``tcl_cmd_error`` fires, with a real Tcl-compatible traceback
+appended (``while executing`` / ``invoked from within`` frames)
+once Phase 5 of the var/frame/ns/exception architecture refactor
+landed (``Tcl_LogCommandInfo``-equivalent walk over the active
+frame stack).  See ``runtime/zig/docs/var-frame-architecture.md``
+for the design.
 
     catch { error boom } msg
-    puts $::errorInfo       ;# boom
+    puts $::errorInfo
+        boom
+            while executing
+        "error boom"
     puts $::errorCode       ;# NONE
-
-A full Tcl-compatible traceback (``"\n    invoked from within
-\"…\"\n    (\"…\" body line N)"``) is a follow-up; for now
-``::errorInfo`` holds the error message verbatim, which matches
-the observable behaviour for tests that don't introspect frames.
 """
 
 from __future__ import annotations
@@ -34,8 +37,11 @@ def _run(src: str) -> str:
 
 class TestErrorInfoBasic:
     def test_caught_error_sets_error_info(self) -> None:
+        # ``::errorInfo`` carries the error message + a
+        # ``Tcl_LogCommandInfo``-style ``while executing\n"<cmd>"``
+        # traceback frame.  Matches reference Tcl 9 verbatim.
         out = _run("catch { error boom } msg\nputs $::errorInfo\n")
-        assert out == "boom\n"
+        assert out == 'boom\n    while executing\n"error boom"\n'
 
     def test_caught_error_sets_error_code_to_none(self) -> None:
         out = _run("catch { error boom } msg\nputs $::errorCode\n")
@@ -50,9 +56,12 @@ class TestErrorInfoBasic:
 
 class TestErrorInfoMultipleErrors:
     def test_later_error_overwrites_error_info(self) -> None:
-        # Each error stamps fresh; only the most recent sticks.
+        # Each error stamps fresh; only the most recent sticks.  The
+        # traceback frame for the second error replaces the first
+        # entirely (``last_log_script`` is reset on each fresh error
+        # event in ``tcl_cmd_error``).
         out = _run("catch { error first } msg\ncatch { error second } msg\nputs $::errorInfo\n")
-        assert out == "second\n"
+        assert out == 'second\n    while executing\n"error second"\n'
 
 
 class TestErrorInfoGlobalReadback:
@@ -61,4 +70,4 @@ class TestErrorInfoGlobalReadback:
         # like any other global — regression against a specialised
         # handler that only tracks errorInfo internally.
         out = _run("catch { error widget } msg\nputs [set ::errorInfo]\n")
-        assert out == "widget\n"
+        assert out == 'widget\n    while executing\n"error widget"\n'

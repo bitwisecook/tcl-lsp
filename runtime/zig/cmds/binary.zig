@@ -28,6 +28,7 @@
 // (scan).  ``*`` means "all remaining".
 
 const rt     = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 
@@ -545,10 +546,10 @@ fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
 
 // ─── top-level dispatcher ────────────────────────────────────────────────────
 
-fn eval_binary(words: []const i32) i32 {
-    if (words.len < 2) return obj_new_string(0, 0);
+fn eval_binary(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const sub = obj_ensure_string(words[1]);
-    if (sub.len == 0) return obj_new_string(0, 0);
+    if (sub.len == 0) return result_mod.from_globals(obj_new_string(0, 0));
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
 
     // ``binary format``
@@ -557,16 +558,16 @@ fn eval_binary(words: []const i32) i32 {
         sp[3]=='m' and sp[4]=='a' and sp[5]=='t')
     {
         // Shift words: ["binary", "format", fmtStr, val...] → ["format", fmtStr, val...]
-        return eval_binary_format(words[1..]);
+        return result_mod.from_globals(eval_binary_format(words[1..]));
     }
     // ``binary scan``
     if (sub.len == 4 and
         sp[0]=='s' and sp[1]=='c' and sp[2]=='a' and sp[3]=='n')
     {
-        return eval_binary_scan(words[1..]);
+        return result_mod.from_globals(eval_binary_scan(words[1..]));
     }
     // ``binary encode`` / ``binary decode`` — not implemented
-    return obj_new_string(0, 0);
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
 pub const registrations = [_]reg.CmdEntry{

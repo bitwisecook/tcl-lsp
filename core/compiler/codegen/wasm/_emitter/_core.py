@@ -1081,6 +1081,38 @@ class _WasmEmitterBase:
             self._emit_local_get(argv_local)
             self._emit_call(set_argv_idx)
 
+        # Phase 8: stamp the FrameInfo so ``info frame N`` for this
+        # frame surfaces ``type proc proc <fq-name>`` rather than
+        # the generic ``type eval`` fallback.  Only fires when the
+        # proc actually pushed a frame (``wants_frame``); elided
+        # procs share the caller's frame, so stamping here would
+        # overwrite the caller's metadata.
+        if (
+            wants_frame
+            and self._is_proc
+            and self._proc_qname is not None
+            and "tcl_frame_set_type" in self._shared_imports
+            and "tcl_frame_set_proc_name" in self._shared_imports
+            and "tcl_obj_new_string" in self._shared_imports
+        ):
+            type_idx = self._shared_imports["tcl_frame_set_type"]
+            proc_name_idx = self._shared_imports["tcl_frame_set_proc_name"]
+            obj_str_idx = self._shared_imports["tcl_obj_new_string"]
+            # type=PROC (the i32 encoding from frame_set_type_i32)
+            self._emit_i32_const(1)
+            self._emit_call(type_idx)
+            # proc_name = the proc's fully-qualified name.  Wrap
+            # in a fresh TclObj from the interned literal so the
+            # FrameInfo slot's retain/release cycle works without
+            # pinning a literal handle.
+            qname = self._proc_qname
+            qname_offset = self._intern_string(qname)
+            qname_bytes = qname.encode("utf-8", errors="surrogatepass")
+            self._emit_i32_const(qname_offset + 4)
+            self._emit_i32_const(len(qname_bytes))
+            self._emit_call(obj_str_idx)
+            self._emit_call(proc_name_idx)
+
         # Record where the body begins — we need to walk only the
         # body instructions in the frame_pop post-process, not the
         # prologue we just emitted.

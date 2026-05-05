@@ -129,6 +129,37 @@ pub export fn string_compare(a: i32, b: i32) i32 {
 // ``"99" > "1180591620717411303424"`` answer.  Match the i128-or-bignum
 // promotion discipline the arithmetic helpers use.
 pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
+    // Numeric type-tag fast path: when both operands are already
+    // numeric TclObjs, compare via the typed values directly without
+    // forcing a string rendering.  Without this, ``expr {(2**100000)
+    // < 0}`` would call ``obj_ensure_string`` on a 30000-digit bignum
+    // each time — ``alloc_format`` is O(n²) in digit count, which
+    // hangs expr.test.
+    const ta = obj.obj_type(a);
+    const tb = obj.obj_type(b);
+    if ((ta == obj.TYPE_INT or ta == obj.TYPE_BIGNUM) and
+        (tb == obj.TYPE_INT or tb == obj.TYPE_BIGNUM))
+    {
+        if (ta == obj.TYPE_INT and tb == obj.TYPE_INT) {
+            const av = obj.obj_get_int(a);
+            const bv = obj.obj_get_int(b);
+            if (av < bv) return obj_new_int(-1);
+            if (av > bv) return obj_new_int(1);
+            return obj_new_int(0);
+        }
+        // At least one bignum — promote both and compare numerically.
+        const ap = obj.obj_promote_to_bignum(a);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        const bp = obj.obj_promote_to_bignum(b);
+        defer if (bp.owned) bignum.destroy(bp.m);
+        if (ap.m != null and bp.m != null) {
+            return switch (ap.m.?.order(bp.m.?.*)) {
+                .lt => obj_new_int(-1),
+                .eq => obj_new_int(0),
+                .gt => obj_new_int(1),
+            };
+        }
+    }
     // Fast path: both operands fit i64 — preserves the zero-allocation
     // numeric compare for the common case.
     const sa = obj_ensure_string(a);

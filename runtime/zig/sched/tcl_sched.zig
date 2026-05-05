@@ -42,6 +42,7 @@ const fevent_mod = @import("tcl_fileevent.zig");
 const vwait_mod = @import("tcl_vwait.zig");
 const tcl_clock = @import("../io/tcl_clock.zig");
 const tcl_catch = @import("../interp/tcl_catch.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 
 // Global scheduler state.  Single-instance because the WASM runtime
 // is single-interp today; when ``interp::create`` lands, this struct
@@ -318,24 +319,16 @@ fn run_script_obj(script_obj: i32) void {
     // when restoring the flag without releasing).  Stage 4 will route
     // errors through ``bgerror``; for v1 we just swallow them after
     // writing to stderr.  Codex / Copilot review on PR #284.
-    const saved_err = tcl_catch.error_flag;
-    const saved_err_msg = tcl_catch.error_msg;
-    const saved_ret = tcl_catch.return_flag;
-    const saved_ret_val = tcl_catch.return_val;
-    const saved_brk = tcl_catch.break_flag;
-    const saved_cnt = tcl_catch.continue_flag;
-    const saved_yflag = tcl_catch.yield_flag;
-    const saved_yval = tcl_catch.yield_value;
-    tcl_catch.error_flag = 0;
-    tcl_catch.error_msg = 0;
-    tcl_catch.return_flag = 0;
-    tcl_catch.return_val = 0;
-    tcl_catch.break_flag = 0;
-    tcl_catch.continue_flag = 0;
-    tcl_catch.yield_flag = 0;
-    tcl_catch.yield_value = 0;
-    _ = interp.eval_script(s.ptr, s.len);
-    if (tcl_catch.error_flag != 0) {
+    const snap = result_mod.signal_save_and_clear();
+    // ``eval_script`` returns the body's last-command result with a
+    // +1 retain owed to the caller.  We don't surface the value to
+    // anyone (background scripts don't have a result destination —
+    // Stage 4's bgerror will route them through a callback), so
+    // release the +1 here to avoid leaking one TclObj per scheduled
+    // script run.
+    const sched_result = interp.eval_script(s.ptr, s.len);
+    if (sched_result != 0) tcl_obj_release(sched_result);
+    if (result_mod.snapshot(0).code == .ERROR) {
         // Write a minimal background-error marker to stderr so the
         // failure isn't silent.  Stage 4 promotes this to a real
         // ``bgerror`` invocation.
@@ -349,18 +342,14 @@ fn run_script_obj(script_obj: i32) void {
         _ = std.os.wasi.fd_write(2, &iov, 1, &written);
     }
     // Release any payload TclObjs the scheduled script left behind so
-    // they don't leak when we discard the signal.
-    if (tcl_catch.error_msg != 0) tcl_obj_release(tcl_catch.error_msg);
-    if (tcl_catch.return_val != 0) tcl_obj_release(tcl_catch.return_val);
-    if (tcl_catch.yield_value != 0) tcl_obj_release(tcl_catch.yield_value);
-    tcl_catch.error_flag = saved_err;
-    tcl_catch.error_msg = saved_err_msg;
-    tcl_catch.return_flag = saved_ret;
-    tcl_catch.return_val = saved_ret_val;
-    tcl_catch.break_flag = saved_brk;
-    tcl_catch.continue_flag = saved_cnt;
-    tcl_catch.yield_flag = saved_yflag;
-    tcl_catch.yield_value = saved_yval;
+    // they don't leak when we discard the signal.  Snapshot here
+    // captures the post-eval payloads (without clearing them), so we
+    // can release through the live slots before the restore stamps
+    // back the caller's saved state.
+    if (tcl_catch.state.error_msg != 0) tcl_obj_release(tcl_catch.state.error_msg);
+    if (tcl_catch.state.return_val != 0) tcl_obj_release(tcl_catch.state.return_val);
+    if (tcl_catch.state.yield_value != 0) tcl_obj_release(tcl_catch.state.yield_value);
+    result_mod.signal_restore(snap);
 }
 
 /// Drain one timer that's due (deadline ≤ now), if any.  Returns

@@ -461,3 +461,69 @@ pub fn leave(save: EnterSave) void {
     tcl_ns.root_addr = save.prev_root_addr;
     tcl_ns.current_ns = save.prev_current_ns;
 }
+
+// --- Phase 9 (INCOMPLETE — wired up in next PR): cross-interp links ---
+//
+// **NEITHER ``CrossInterpLink`` NOR ``transfer_result`` HAS A
+// CONSUMER YET.**  The shapes land here so the next PR can either
+// (a) build the per-name ``Variable``-record refactor the design
+// doc's Phase 1 ideal calls for and route ``var_resolve`` through
+// the link, or (b) add a separate cross-interp-link registry
+// keyed by ``(local_interp, local_name)``.  Spec lives in
+// ``docs/var-frame-architecture.md``.
+//
+// The ``Interp`` struct is already a typed handle (``extern struct``)
+// reachable by ``u32`` address — the design doc's Phase 9
+// "each interp gets a typed handle" is satisfied by what
+// :func:`interp_root` / :func:`child_create` already build.
+//
+// ``transfer_result`` is the refcount-bookkeeping primitive the
+// observable ``interp transfer-variable`` (Tcl 9 spelling) command
+// would route through.  Today the existing ``interp transfer``
+// channel-handoff command stays a no-op stub — channels are
+// single-instance file descriptors in the WASM runtime, so
+// cross-interp channel transfer has no meaning here.
+
+/// Cross-interp variable link target.  When a variable in one
+/// interp resolves through a ``Variable`` whose storage union
+/// holds a ``CrossInterpLink``, lookups walk into ``target_interp``
+/// and resolve ``target_name`` there.
+pub const CrossInterpLink = extern struct {
+    /// ``Interp*`` address of the owning interp.  Must be live;
+    /// :func:`interp_delete` invalidates by setting ``INTERP_DELETED``
+    /// so dispatchers can surface a clean diagnostic.
+    target_interp: u32,
+    /// ``::``-qualified name of the target variable.  Owned TclObj —
+    /// the link record retains it for its lifetime.
+    target_name: i32,
+};
+
+/// Hand a TclObj result from one interp to another by adding a
+/// fresh retain for the destination interp's hold.  Used by the
+/// ``interp transfer`` command (when wired up — Phase 9 follow-up;
+/// see ``docs/var-frame-architecture.md``) so the value survives
+/// the boundary crossing while the dest interp stamps it into its
+/// pending result.
+///
+/// The caller is responsible for dropping the source-side hold —
+/// this primitive doesn't do it because the source interp's
+/// ``pending_result`` slot is the caller's contract, not ours.
+/// Calling sequence is typically:
+///
+///     const dest_value = transfer_result(from, to, src_value);
+///     // … stamp dest_value into dest's pending …
+///     // … then on the source side, ``consume(.OK)`` or whatever
+///     // releases the original hold.
+///
+/// When ``value == 0`` (the "no-result" handle) this is a no-op.
+pub fn transfer_result(from_interp: u32, to_interp: u32, value: i32) i32 {
+    _ = from_interp;
+    _ = to_interp;
+    if (value == 0) return 0;
+    // The result handle's bytes live in the shared linear memory
+    // — both interps see the same address space, so the "transfer"
+    // is purely refcount bookkeeping.  Add the destination's hold;
+    // caller releases the source's hold separately.
+    obj.tcl_obj_retain(value);
+    return value;
+}

@@ -7,6 +7,7 @@ const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const interp = @import("../interp/tcl_interp.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
 
@@ -53,11 +54,11 @@ pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "with", .arity_min = 2, .arity_max = null, .handler = &eval },
 };
 
-pub fn eval(words: []const i32) i32 {
-    if (words.len < 3) return 0;
+pub fn eval(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) return result_mod.from_globals(0);
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
-    if (str_eq(sp, sub.len, "get") and words.len >= 4) return rt.dict_get(words[2], words[3]);
+    if (str_eq(sp, sub.len, "get") and words.len >= 4) return result_mod.from_globals(rt.dict_get(words[2], words[3]));
     // ``dict getd DICT KEY ?KEY ...? DEFAULT`` — Tcl 9's
     // default-value lookup form.  Returns the existing value when
     // the key chain resolves; otherwise returns the trailing
@@ -74,41 +75,41 @@ pub fn eval(words: []const i32) i32 {
         var ki: u32 = 3;
         while (ki + 1 < words.len) : (ki += 1) {
             if (rt.obj_get_int(rt.dict_exists(cur, words[ki])) == 0) {
-                return default_obj;
+                return result_mod.from_globals(default_obj);
             }
             cur = rt.dict_get(cur, words[ki]);
         }
-        return cur;
+        return result_mod.from_globals(cur);
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 5) {
         const cur = frames.var_resolve(words[2]);
         const result = rt.dict_set(cur, words[3], words[4]);
         _ = frames.var_set(words[2], result);
-        return result;
+        return result_mod.from_globals(result);
     }
     if (str_eq(sp, sub.len, "unset") and words.len >= 4) {
         const cur = frames.var_resolve(words[2]);
         const result = rt.dict_unset(cur, words[3]);
         _ = frames.var_set(words[2], result);
-        return result;
+        return result_mod.from_globals(result);
     }
-    if (str_eq(sp, sub.len, "update") and words.len >= 6) return eval_dict_update(words);
-    if (str_eq(sp, sub.len, "exists") and words.len >= 4) return rt.dict_exists(words[2], words[3]);
-    if (str_eq(sp, sub.len, "keys")) return rt.dict_keys(words[2]);
-    if (str_eq(sp, sub.len, "values")) return rt.dict_values(words[2]);
-    if (str_eq(sp, sub.len, "size")) return rt.dict_size(words[2]);
-    if (str_eq(sp, sub.len, "create")) return eval_dict_create(words);
-    if (str_eq(sp, sub.len, "append") and words.len >= 4) return eval_dict_append(words);
-    if (str_eq(sp, sub.len, "lappend") and words.len >= 4) return eval_dict_lappend(words);
-    if (str_eq(sp, sub.len, "incr") and words.len >= 4) return eval_dict_incr(words);
-    if (str_eq(sp, sub.len, "merge")) return eval_dict_merge(words);
-    if (str_eq(sp, sub.len, "remove") and words.len >= 3) return eval_dict_remove(words);
-    if (str_eq(sp, sub.len, "replace") and words.len >= 3) return eval_dict_replace(words);
-    if (str_eq(sp, sub.len, "info") and words.len >= 3) return eval_dict_info(words);
-    if (str_eq(sp, sub.len, "for") and words.len >= 5) return eval_dict_for(words);
-    if (str_eq(sp, sub.len, "map") and words.len >= 5) return eval_dict_map(words);
-    if (str_eq(sp, sub.len, "with") and words.len >= 4) return eval_dict_with(words);
-    if (str_eq(sp, sub.len, "filter") and words.len >= 4) return eval_dict_filter(words);
+    if (str_eq(sp, sub.len, "update") and words.len >= 6) return result_mod.from_globals(eval_dict_update(words));
+    if (str_eq(sp, sub.len, "exists") and words.len >= 4) return result_mod.from_globals(rt.dict_exists(words[2], words[3]));
+    if (str_eq(sp, sub.len, "keys")) return result_mod.from_globals(rt.dict_keys(words[2]));
+    if (str_eq(sp, sub.len, "values")) return result_mod.from_globals(rt.dict_values(words[2]));
+    if (str_eq(sp, sub.len, "size")) return result_mod.from_globals(rt.dict_size(words[2]));
+    if (str_eq(sp, sub.len, "create")) return result_mod.from_globals(eval_dict_create(words));
+    if (str_eq(sp, sub.len, "append") and words.len >= 4) return result_mod.from_globals(eval_dict_append(words));
+    if (str_eq(sp, sub.len, "lappend") and words.len >= 4) return result_mod.from_globals(eval_dict_lappend(words));
+    if (str_eq(sp, sub.len, "incr") and words.len >= 4) return result_mod.from_globals(eval_dict_incr(words));
+    if (str_eq(sp, sub.len, "merge")) return result_mod.from_globals(eval_dict_merge(words));
+    if (str_eq(sp, sub.len, "remove") and words.len >= 3) return result_mod.from_globals(eval_dict_remove(words));
+    if (str_eq(sp, sub.len, "replace") and words.len >= 3) return result_mod.from_globals(eval_dict_replace(words));
+    if (str_eq(sp, sub.len, "info") and words.len >= 3) return result_mod.from_globals(eval_dict_info(words));
+    if (str_eq(sp, sub.len, "for") and words.len >= 5) return result_mod.from_globals(eval_dict_for(words));
+    if (str_eq(sp, sub.len, "map") and words.len >= 5) return result_mod.from_globals(eval_dict_map(words));
+    if (str_eq(sp, sub.len, "with") and words.len >= 4) return result_mod.from_globals(eval_dict_with(words));
+    if (str_eq(sp, sub.len, "filter") and words.len >= 4) return result_mod.from_globals(eval_dict_filter(words));
     // Unrecognised subcommand — surface Tcl's standard ``unknown or
     // ambiguous subcommand`` diagnostic so a compiled ``dict foo
     // ...`` callsite that fell through to this dispatcher (because
@@ -147,7 +148,7 @@ pub fn eval(words: []const i32) i32 {
     const msg = obj_mod.obj_new_string_take(buf, total, total);
     const catch_mod = @import("../interp/tcl_catch.zig");
     catch_mod.tcl_cmd_error(msg);
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 /// ``dict create ?key value ...?`` — build a new dict from alternating
@@ -339,15 +340,12 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
         _ = frames.var_set(kvar, key_obj);
         _ = frames.var_set(vvar, val_obj);
         const body_result = interp.eval_script(body.ptr, body.len);
-        if (rt.error_flag.* != 0) return 0;
-        if (rt.return_flag.* != 0) return 0;
-        if (rt.break_flag.* != 0) {
-            rt.break_flag.* = 0;
-            break;
-        }
-        if (rt.continue_flag.* != 0) {
-            rt.continue_flag.* = 0;
-            continue;
+        const ir = result_mod.snapshot(body_result);
+        switch (ir.code) {
+            .OK => {},
+            .ERROR, .RETURN => return 0,
+            .BREAK => { result_mod.consume(.BREAK); break; },
+            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
         }
         if (collect) {
             collected = rt.dict_set(collected, key_obj, body_result);
@@ -387,7 +385,7 @@ fn eval_dict_with(words: []const i32) i32 {
     }
 
     _ = interp.eval_script(body.ptr, body.len);
-    if (rt.error_flag.* != 0) return 0;
+    if (result_mod.snapshot(0).code == .ERROR) return 0;
 
     // Write back each key from the (potentially modified) locals.
     var sub = cur;
@@ -526,10 +524,11 @@ fn eval_dict_update(words: []const i32) i32 {
     // Capture (and clear) break/continue so the writeback completes
     // even when the script broke out of an enclosing loop.  Errors
     // and ``return`` propagate up.
-    const had_break = rt.break_flag.* != 0;
-    const had_continue = rt.continue_flag.* != 0;
-    rt.break_flag.* = 0;
-    rt.continue_flag.* = 0;
+    const ir = result_mod.snapshot(0);
+    const had_break = ir.code == .BREAK;
+    const had_continue = ir.code == .CONTINUE;
+    if (had_break) result_mod.consume(.BREAK);
+    if (had_continue) result_mod.consume(.CONTINUE);
 
     // 3. Post-script: reflect each VAR back into the dict (or
     //    remove the key if VAR was unset).
@@ -549,7 +548,7 @@ fn eval_dict_update(words: []const i32) i32 {
 
     // Re-raise the captured flow-control signal so the enclosing
     // loop / proc sees it.
-    if (had_break) rt.break_flag.* = 1;
-    if (had_continue) rt.continue_flag.* = 1;
+    if (had_break) result_mod.set_break();
+    if (had_continue) result_mod.set_continue();
     return 0;
 }

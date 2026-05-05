@@ -8,6 +8,7 @@
 //   ``after info ?id?``          — list pending ids, or describe one.
 
 const std = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const sched = @import("../sched/tcl_sched.zig");
@@ -28,10 +29,10 @@ fn concat_scripts(words: []const i32) i32 {
     return interp.concat_words(words);
 }
 
-fn eval_after(words: []const i32) i32 {
+fn eval_after(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         stubs.raise("wrong # args: should be \"after option ?arg ...?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     const sub = obj.obj_ensure_string(words[1]);
     const sp: []const u8 = if (sub.ptr == 0) "" else
@@ -41,7 +42,7 @@ fn eval_after(words: []const i32) i32 {
     if (std.mem.eql(u8, sp, "cancel")) {
         if (words.len < 3) {
             stubs.raise("wrong # args: should be \"after cancel id|script\"");
-            return 0;
+            return result_mod.from_globals(0);
         }
         // Concatenate remaining words; either a single id or a
         // multi-word script.  ``concat_scripts`` returns ``words[2]``
@@ -53,30 +54,30 @@ fn eval_after(words: []const i32) i32 {
         const ar = obj.obj_ensure_string(arg);
         _ = sched.cancel_by_token(ar.ptr, ar.len);
         if (multi_word) obj.tcl_obj_release(arg);
-        return obj.obj_new_string(0, 0);
+        return result_mod.from_globals(obj.obj_new_string(0, 0));
     }
 
     // ``after info ?id?``
     if (std.mem.eql(u8, sp, "info")) {
-        if (words.len == 2) return sched.info_all();
+        if (words.len == 2) return result_mod.from_globals(sched.info_all());
         if (words.len == 3) {
             const ar = obj.obj_ensure_string(words[2]);
             const r = sched.info_one(ar.ptr, ar.len);
             if (r == 0) {
                 stubs.raise("event not found");
-                return 0;
+                return result_mod.from_globals(0);
             }
-            return r;
+            return result_mod.from_globals(r);
         }
         stubs.raise("wrong # args: should be \"after info ?id?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
 
     // ``after idle script ?script ...?``
     if (std.mem.eql(u8, sp, "idle")) {
         if (words.len < 3) {
             stubs.raise("wrong # args: should be \"after idle script ?script ...?\"");
-            return 0;
+            return result_mod.from_globals(0);
         }
         // Multi-word form allocates a fresh concat TclObj.
         // ``schedule_idle`` retains it; we release our +1 so the
@@ -87,17 +88,17 @@ fn eval_after(words: []const i32) i32 {
         const body = if (multi_word) concat_scripts(words[2..]) else words[2];
         const id = sched.schedule_idle(body);
         if (multi_word) obj.tcl_obj_release(body);
-        return id;
+        return result_mod.from_globals(id);
     }
 
     // First arg is ms.  Either ``after MS`` (sleep) or ``after MS script...``.
     const ms = parse_int_word(words[1]) orelse {
         stubs.raise("bad argument: must be cancel, idle, info, or an integer");
-        return 0;
+        return result_mod.from_globals(0);
     };
     if (ms < 0) {
         stubs.raise("argument must be non-negative");
-        return 0;
+        return result_mod.from_globals(0);
     }
     if (words.len == 2) {
         // Sleep form — drain any due events while we wait so a
@@ -105,7 +106,7 @@ fn eval_after(words: []const i32) i32 {
         // doesn't starve.  Implementation: yield to the scheduler's
         // tick loop with a deadline.
         sched.sleep_ms(ms);
-        return obj.obj_new_string(0, 0);
+        return result_mod.from_globals(obj.obj_new_string(0, 0));
     }
     // Same temp-TclObj ownership pattern as the idle / cancel
     // branches above — release our +1 from concat_scripts so
@@ -114,7 +115,7 @@ fn eval_after(words: []const i32) i32 {
     const body = if (multi_word) concat_scripts(words[2..]) else words[2];
     const id = sched.schedule_after(ms, body);
     if (multi_word) obj.tcl_obj_release(body);
-    return id;
+    return result_mod.from_globals(id);
 }
 
 pub const registrations = [_]reg.CmdEntry{

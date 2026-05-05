@@ -59,23 +59,24 @@
 // IMPLEMENTED) without further configuration.
 
 const std   = @import("std");
+const result_mod = @import("../interp/tcl_result.zig");
 const rt    = @import("../tcl_runtime.zig");
 const reg   = @import("../dispatch/tcl_cmd_registry.zig");
 const clock = @import("../io/tcl_clock.zig");
 
-fn eval_auto_load(words: []const i32) i32 {
+fn eval_auto_load(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return rt.obj_new_int(0);
+    return result_mod.from_globals(rt.obj_new_int(0));
 }
 
-fn eval_auto_noop(words: []const i32) i32 {
+fn eval_auto_noop(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return rt.obj_new_string(0, 0);
+    return result_mod.from_globals(rt.obj_new_string(0, 0));
 }
 
-fn eval_package(words: []const i32) i32 {
+fn eval_package(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 // Interpreter-side ``clock`` dispatcher.
@@ -95,20 +96,20 @@ fn eval_package(words: []const i32) i32 {
 // ``format`` / ``scan`` / ``add`` stubbing mirrors ``tcl_time_stubs.zig``
 // (the WASM-export path used by compiled procs).  See that file's
 // header for the deliberate divergence from real Tcl semantics.
-fn eval_clock(words: []const i32) i32 {
-    if (words.len < 2) return clock.clock_seconds();
+fn eval_clock(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2) return result_mod.from_globals(clock.clock_seconds());
     const sub = rt.obj_ensure_string(words[1]);
     const sp: []const u8 = if (sub.ptr == 0) "" else @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
-    if (std.mem.eql(u8, sp, "seconds")) return clock.clock_seconds();
-    if (std.mem.eql(u8, sp, "clicks")) return clock.clock_clicks();
-    if (std.mem.eql(u8, sp, "milliseconds")) return clock.clock_milliseconds();
+    if (std.mem.eql(u8, sp, "seconds")) return result_mod.from_globals(clock.clock_seconds());
+    if (std.mem.eql(u8, sp, "clicks")) return result_mod.from_globals(clock.clock_clicks());
+    if (std.mem.eql(u8, sp, "milliseconds")) return result_mod.from_globals(clock.clock_milliseconds());
     if (std.mem.eql(u8, sp, "microseconds")) {
         // micro = clicks (already microseconds from the fast clock)
-        return clock.clock_clicks();
+        return result_mod.from_globals(clock.clock_clicks());
     }
     if (std.mem.eql(u8, sp, "scan")) {
         // Form: clock scan TEXT ?-base T? ?-format F? ?-gmt 0|1? ?-timezone Z? ?-locale L?
-        if (words.len < 3) return rt.obj_new_int(0);
+        if (words.len < 3) return result_mod.from_globals(rt.obj_new_int(0));
         var zone_obj: i32 = 0;
         var base_obj: i32 = 0;
         var fmt_obj: i32 = 0;
@@ -144,14 +145,14 @@ fn eval_clock(words: []const i32) i32 {
             // an unrecognised locale falls back to plain numeric.
             const f = rt.obj_ensure_string(fmt_obj);
             if (f.ptr != 0 and f.len > 0) {
-                return clock.clock_scan_format(words[2], fmt_obj, gmt, zone_obj, base_obj, locale_obj);
+                return result_mod.from_globals(clock.clock_scan_format(words[2], fmt_obj, gmt, zone_obj, base_obj, locale_obj));
             }
         }
-        return clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj);
+        return result_mod.from_globals(clock.clock_scan_obj(words[2], zone_obj, gmt, base_obj));
     }
     if (std.mem.eql(u8, sp, "format")) {
         // Parse: clock format SECONDS ?-format FMT? ?-gmt 0|1? ?-timezone Z? ?-locale L?
-        if (words.len < 3) return rt.obj_new_string(0, 0);
+        if (words.len < 3) return result_mod.from_globals(rt.obj_new_string(0, 0));
         var fmt_obj: i32 = 0;
         var zone_obj: i32 = 0;
         var locale_obj: i32 = 0;
@@ -192,9 +193,9 @@ fn eval_clock(words: []const i32) i32 {
                 @intCast(@intFromPtr(":GMT".ptr)),
                 4,
             );
-            return clock.clock_format_tz_locale(words[2], fmt_obj, gmt_name, locale_obj);
+            return result_mod.from_globals(clock.clock_format_tz_locale(words[2], fmt_obj, gmt_name, locale_obj));
         }
-        return clock.clock_format_tz_locale(words[2], fmt_obj, zone_obj, locale_obj);
+        return result_mod.from_globals(clock.clock_format_tz_locale(words[2], fmt_obj, zone_obj, locale_obj));
     }
     if (std.mem.eql(u8, sp, "add")) {
         // Form: clock add BASE ?COUNT UNIT?* ?-gmt 0|1? ?-timezone Z?
@@ -203,7 +204,7 @@ fn eval_clock(words: []const i32) i32 {
         // skipped — they affect calendar-month math semantics but the
         // current implementation does month arithmetic in UTC, which
         // matches Tcl's behaviour for non-DST-crossing month adds.
-        if (words.len < 3) return rt.obj_new_int(0);
+        if (words.len < 3) return result_mod.from_globals(rt.obj_new_int(0));
         var acc: i32 = words[2];
         var ai: usize = 3;
         while (ai < words.len) {
@@ -225,9 +226,9 @@ fn eval_clock(words: []const i32) i32 {
             acc = clock.clock_add_pair(acc, words[ai], words[ai + 1]);
             ai += 2;
         }
-        return acc;
+        return result_mod.from_globals(acc);
     }
-    return rt.obj_new_string(0, 0);
+    return result_mod.from_globals(rt.obj_new_string(0, 0));
 }
 
 pub const registrations = [_]reg.CmdEntry{
