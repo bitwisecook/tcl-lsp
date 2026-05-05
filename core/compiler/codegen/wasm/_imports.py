@@ -514,6 +514,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32],
     ),
     "tcl_array_get": ("tcl", "array_get", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_array_get_all": (
+        "tcl",
+        "array_get_all",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_array_exists": ("tcl", "array_exists", [ValType.I32], [ValType.I32]),
     "tcl_array_element_exists": (
         "tcl",

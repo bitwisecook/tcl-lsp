@@ -541,6 +541,10 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         # degrading to a raw literal (which would
                         # disable the glob filter).
                         needed.add("tcl_append")
+                    elif sub == "get":
+                        # ``array get arr ?pat?`` — see ``names``.
+                        needed.add("tcl_array_get_all")
+                        needed.add("tcl_append")
                     elif sub == "set":
                         needed.add("tcl_array_set")
                     elif sub == "get":
