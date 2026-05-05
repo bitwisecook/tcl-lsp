@@ -1082,7 +1082,7 @@ class _WasmEmitterBase:
                 if not pname:
                     continue
                 slot_idx = self._local_slot_index(pname) if slot_set_idx is not None else None
-                if slot_idx is not None:
+                if slot_idx is not None and slot_set_idx is not None:
                     self._emit_i32_const(slot_idx)
                     self._emit_local_get(i)
                     self._emit_call(slot_set_idx)

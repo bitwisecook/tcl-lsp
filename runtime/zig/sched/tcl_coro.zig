@@ -477,10 +477,16 @@ fn resume_segments(c: *Coro) i32 {
             // surfaces ``invalid command name``, but the body's
             // original error should still propagate this round.
             c.state = .DEAD;
-            // Drop the coro's frames (they're terminating) and
-            // restore the caller's.  ``cleanup_terminated`` will
-            // run next; the snapshot in ``c.ctx`` becomes
-            // unreachable along with the slot.
+            // Drain the coro's live frames before installing the
+            // caller's context — the coro's frame slots own retains
+            // (argv / FrameInfo handles / Phase 7 indexed locals /
+            // Phase 6 trace-record chains) that would leak when the
+            // restore overwrites the live array.  ``frame_pop``'s
+            // teardown matches the per-pop release contract so a
+            // sequence of pops releases everything cleanly.  After
+            // the drain the caller's context restores into a fully
+            // empty live state.
+            tcl_frames.frame_drain_all_live();
             tcl_frames.frame_context_restore_transfer(caller_ctx);
             c.has_ctx = 0;
             return result;
@@ -488,7 +494,8 @@ fn resume_segments(c: *Coro) i32 {
     }
     c.state = .DEAD;
     // Body ran to completion without yield — same teardown as the
-    // ERROR/RETURN path: drop coro frames, restore caller.
+    // ERROR/RETURN path: drain coro frames, restore caller.
+    tcl_frames.frame_drain_all_live();
     tcl_frames.frame_context_restore_transfer(caller_ctx);
     c.has_ctx = 0;
     return result;

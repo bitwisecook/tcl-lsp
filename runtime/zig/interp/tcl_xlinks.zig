@@ -72,22 +72,25 @@ var dir_count: u32 = 0;
 // (A → B → A) at install time but a runtime probe must not infinite-
 // loop.  Walks of length up to MAX_REENTRY are silently broken at
 // the next probe, falling through to local resolution.
+//
+// The guard keys on the bucket address — every live entry in the
+// directory has a unique address, so two different names that hash
+// to the same FNV bucket index can never alias each other for the
+// purposes of cycle detection.  (An earlier version keyed on
+// ``(interp, fnv_hash)`` and would refuse a non-cyclic probe whenever
+// two names happened to share a 32-bit hash; bucket-address keying
+// eliminates that latent collision.)
 const MAX_REENTRY: u32 = 8;
-var reentry_stack: [MAX_REENTRY]u64 = [_]u64{0} ** MAX_REENTRY;
+var reentry_stack: [MAX_REENTRY]u32 = [_]u32{0} ** MAX_REENTRY;
 var reentry_top: u32 = 0;
 
-fn pack_key(local_interp: u32, name_hash: u32) u64 {
-    return (@as(u64, local_interp) << 32) | @as(u64, name_hash);
-}
-
-fn reentry_push(local_interp: u32, name_hash: u32) bool {
-    const k = pack_key(local_interp, name_hash);
+fn reentry_push(bucket_addr: u32) bool {
     var i: u32 = 0;
     while (i < reentry_top) : (i += 1) {
-        if (reentry_stack[i] == k) return false; // cycle — refuse the probe
+        if (reentry_stack[i] == bucket_addr) return false; // cycle — refuse
     }
     if (reentry_top >= MAX_REENTRY) return false;
-    reentry_stack[reentry_top] = k;
+    reentry_stack[reentry_top] = bucket_addr;
     reentry_top += 1;
     return true;
 }
@@ -116,26 +119,41 @@ fn dir_find(local_interp: u32, name_ptr: u32, name_len: u32, hash: u32) ?u32 {
     while (probes < dir_cap) : (probes += 1) {
         const bucket = dir_buf + idx * BUCKET_SIZE;
         const np: u32 = @bitCast(read_i32(bucket + OFF_NAME_PTR));
+        // Tombstone slot — keep probing past it instead of bailing.
+        // ``dir_remove`` writes ``OFF_NAME_LEN = 0`` with
+        // ``OFF_NAME_PTR = TOMBSTONE`` to preserve the open-addressing
+        // chain after a removal.
         if (np == 0) return null;
-        const nl: u32 = @bitCast(read_i32(bucket + OFF_NAME_LEN));
-        const li: u32 = @bitCast(read_i32(bucket + OFF_LOCAL_INTERP));
-        if (li == local_interp and nl == name_len) {
-            const sp: [*]const u8 = @ptrFromInt(np);
-            const np2: [*]const u8 = @ptrFromInt(name_ptr);
-            var match = true;
-            for (0..nl) |k| {
-                if (sp[k] != np2[k]) {
-                    match = false;
-                    break;
+        if (np != TOMBSTONE) {
+            const nl: u32 = @bitCast(read_i32(bucket + OFF_NAME_LEN));
+            const li: u32 = @bitCast(read_i32(bucket + OFF_LOCAL_INTERP));
+            if (li == local_interp and nl == name_len) {
+                const sp: [*]const u8 = @ptrFromInt(np);
+                const np2: [*]const u8 = @ptrFromInt(name_ptr);
+                var match = true;
+                for (0..nl) |k| {
+                    if (sp[k] != np2[k]) {
+                        match = false;
+                        break;
+                    }
                 }
+                if (match) return bucket;
             }
-            if (match) return bucket;
         }
         idx = (idx + 1) & mask;
-        probes += 1;
     }
     return null;
 }
+
+/// Marker value stored in ``OFF_NAME_PTR`` to indicate a deleted
+/// bucket.  Open-addressing requires that ``dir_find`` keeps probing
+/// past a removed entry — clearing the slot to 0 outright would
+/// prematurely terminate the chain and hide later entries whose
+/// ideal slot lay before this bucket.  ``TOMBSTONE`` is a non-zero
+/// value that never occurs as a real heap pointer (linear-memory
+/// addresses are 32-bit positive offsets; -1 == 0xFFFFFFFF is the
+/// canonical sentinel).
+const TOMBSTONE: u32 = 0xFFFFFFFF;
 
 fn dir_grow() void {
     const old_buf = dir_buf;
@@ -154,7 +172,9 @@ fn dir_grow() void {
     while (j < old_cap) : (j += 1) {
         const bucket = old_buf + j * BUCKET_SIZE;
         const np: u32 = @bitCast(read_i32(bucket + OFF_NAME_PTR));
-        if (np == 0) continue;
+        // Skip both empty and tombstone slots — only live entries
+        // re-hash into the new table.
+        if (np == 0 or np == TOMBSTONE) continue;
         const nl: u32 = @bitCast(read_i32(bucket + OFF_NAME_LEN));
         const li: u32 = @bitCast(read_i32(bucket + OFF_LOCAL_INTERP));
         const th: u32 = @bitCast(read_i32(bucket + OFF_TARGET_HANDLE));
@@ -172,7 +192,10 @@ fn dir_insert_known(local_interp: u32, name_ptr: u32, name_len: u32, hash: u32, 
     while (true) {
         const bucket = dir_buf + idx * BUCKET_SIZE;
         const np: u32 = @bitCast(read_i32(bucket + OFF_NAME_PTR));
-        if (np == 0) {
+        // Both empty and tombstone slots are insertion-eligible —
+        // reusing tombstones bounds chain growth across remove /
+        // re-insert cycles.
+        if (np == 0 or np == TOMBSTONE) {
             write_i32(bucket + OFF_NAME_PTR, @bitCast(name_ptr));
             write_i32(bucket + OFF_NAME_LEN, @bitCast(name_len));
             write_i32(bucket + OFF_LOCAL_INTERP, @bitCast(local_interp));
@@ -239,8 +262,11 @@ pub fn remove(local_interp: u32, local_name: i32) bool {
     const tn = read_i32(th + T_OFF_NAME);
     if (tn != 0) tcl_obj_release(tn);
     obj.free_sized(th, TARGET_REC_SIZE);
-    if (np != 0 and nl != 0) obj.free_sized(np, nl);
-    write_i32(bucket + OFF_NAME_PTR, 0);
+    if (np != 0 and np != TOMBSTONE and nl != 0) obj.free_sized(np, nl);
+    // Tombstone the slot so ``dir_find`` keeps probing past it —
+    // clearing to 0 outright would terminate the chain and make
+    // any later insertion in the same probe sequence unreachable.
+    write_i32(bucket + OFF_NAME_PTR, @bitCast(TOMBSTONE));
     write_i32(bucket + OFF_NAME_LEN, 0);
     write_i32(bucket + OFF_LOCAL_INTERP, 0);
     write_i32(bucket + OFF_TARGET_HANDLE, 0);
@@ -268,7 +294,7 @@ pub fn lookup(local_interp: u32, local_name: i32) Lookup {
     const bucket = dir_find(local_interp, sn.ptr, sn.len, hash) orelse {
         return .{ .found = false, .target_interp = 0, .target_name = 0 };
     };
-    if (!reentry_push(local_interp, hash)) {
+    if (!reentry_push(bucket)) {
         return .{ .found = false, .target_interp = 0, .target_name = 0 };
     }
     const th: u32 = @bitCast(read_i32(bucket + OFF_TARGET_HANDLE));
@@ -296,7 +322,7 @@ pub fn drop_for_interp(deleted_interp: u32) void {
     while (idx < dir_cap) : (idx += 1) {
         const bucket = dir_buf + idx * BUCKET_SIZE;
         const np: u32 = @bitCast(read_i32(bucket + OFF_NAME_PTR));
-        if (np == 0) continue;
+        if (np == 0 or np == TOMBSTONE) continue;
         const li: u32 = @bitCast(read_i32(bucket + OFF_LOCAL_INTERP));
         const th: u32 = @bitCast(read_i32(bucket + OFF_TARGET_HANDLE));
         const ti: u32 = @bitCast(read_i32(th + T_OFF_INTERP));
@@ -306,7 +332,8 @@ pub fn drop_for_interp(deleted_interp: u32) void {
             if (tn != 0) tcl_obj_release(tn);
             obj.free_sized(th, TARGET_REC_SIZE);
             if (np != 0 and nl != 0) obj.free_sized(np, nl);
-            write_i32(bucket + OFF_NAME_PTR, 0);
+            // Tombstone — see :func:`remove` for the rationale.
+            write_i32(bucket + OFF_NAME_PTR, @bitCast(TOMBSTONE));
             write_i32(bucket + OFF_NAME_LEN, 0);
             write_i32(bucket + OFF_LOCAL_INTERP, 0);
             write_i32(bucket + OFF_TARGET_HANDLE, 0);

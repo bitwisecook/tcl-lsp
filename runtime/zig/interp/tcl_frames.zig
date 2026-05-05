@@ -659,6 +659,21 @@ pub const FrameContext = struct {
     ns: [MAX_DEPTH]u32,
     argv: [MAX_DEPTH]i32,
     info: [MAX_DEPTH]FrameInfo,
+    /// Phase 7 indexed-local slots.  Each slot is a TclObj handle
+    /// (or 0 = unset), and the live array's slots own a +1 retain.
+    /// Including the slots in the snapshot is essential for Phase 10
+    /// coroutine save/restore: yielding the coro must transfer those
+    /// retains into ``ctx`` so the live array can be zeroed without
+    /// leaking and the resumed coro picks up its prior values.
+    locals: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32,
+    /// Phase 6 follow-up frame-local trace chains.  Each head is a
+    /// heap-allocated linked list of ``(name, ops, cmd_prefix)``
+    /// records that own retains on the cmd-prefix TclObj.  Save-
+    /// transfer ownership semantics apply: the snapshot inherits
+    /// the chain pointers and the live slots are nulled, so a
+    /// later ``frame_pop`` / ``drain_list`` on the live state
+    /// can't double-release the shared chain.
+    trace_heads: [MAX_DEPTH]u32,
 };
 
 /// Snapshot the current frame state into a fresh ``FrameContext``.
@@ -671,19 +686,30 @@ pub fn frame_context_save() FrameContext {
         .ns = frame_ns,
         .argv = frame_argv,
         .info = frame_info,
+        .locals = frame_locals_array,
+        .trace_heads = frame_trace_heads,
     };
 }
 
 /// Phase 10: transfer-ownership variant of :func:`frame_context_save`.
-/// The snapshot inherits the per-frame TclObj retains the live slots
-/// were holding (``frame_argv`` plus ``frame_info``'s ``script_obj`` /
-/// ``cmd_text`` / ``proc_name``); the live slots are zeroed so a
-/// subsequent ``frame_pop`` or restore-into-different-state can't
-/// double-release.  Used by the coroutine driver: a yielding coro
-/// snapshots its frame stack with this primitive, then restores the
-/// caller's previously-snapshotted context — both sides stay
-/// refcount-balanced because the snapshots are the only place a
-/// given retain lives at a time.
+/// The snapshot inherits every refcount-bearing slot the live state
+/// was holding:
+///
+///   * ``frame_argv`` — invocation argv list (one TclObj per frame).
+///   * ``frame_info`` — ``script_obj`` / ``cmd_text`` / ``proc_name``
+///     TclObj handles per frame.
+///   * ``frame_locals_array`` — Phase 7 indexed-slot TclObj handles.
+///   * ``frame_trace_heads`` — Phase 6 follow-up per-frame variable-
+///     trace chains (each carries retained ``cmd_prefix`` TclObj
+///     handles).
+///
+/// All five live arrays are then zeroed so a subsequent ``frame_pop``
+/// / ``drain_list`` / restore-into-different-state can't double-
+/// release.  Used by the coroutine driver: a yielding coro snapshots
+/// its frame stack with this primitive, then restores the caller's
+/// previously-snapshotted context.  Both sides stay refcount-
+/// balanced because the snapshots are the only place a given retain
+/// lives at a time.
 pub fn frame_context_save_transfer() FrameContext {
     const ctx: FrameContext = .{
         .depth = frame_depth,
@@ -692,11 +718,13 @@ pub fn frame_context_save_transfer() FrameContext {
         .ns = frame_ns,
         .argv = frame_argv,
         .info = frame_info,
+        .locals = frame_locals_array,
+        .trace_heads = frame_trace_heads,
     };
-    // Live slots: the snapshot owns the retains now.  Zero so the
-    // next ``frame_push`` for these slots starts clean and the
-    // dirty bitmap (already zeroed in the snapshot) gets re-armed
-    // when needed.
+    // Live slots: the snapshot owns the retains now.  Zero every
+    // refcount-bearing slot plus the auxiliary state (dirty mask,
+    // bucket pointers) so the next ``frame_push`` for these slots
+    // starts clean.
     var i: u32 = 0;
     while (i < MAX_DEPTH) : (i += 1) {
         frame_argv[i] = 0;
@@ -706,9 +734,27 @@ pub fn frame_context_save_transfer() FrameContext {
         frame_capacity[i] = 0;
         frame_dirty[i] = 0;
         frame_trace_heads[i] = 0;
+        var j: u32 = 0;
+        while (j < LOCALS_ARRAY_CAP) : (j += 1) {
+            frame_locals_array[i][j] = 0;
+        }
     }
     frame_depth = 0;
     return ctx;
+}
+
+/// Phase 10: drain every live frame, releasing the retains they
+/// hold on argv / FrameInfo / indexed locals / variable-trace
+/// records.  Used by the coroutine driver on terminal completion
+/// (RETURN / ERROR / body-end): the coro's live frames are about
+/// to be discarded by the caller-context restore, so their retains
+/// must be released here to avoid leaking when the snapshot in
+/// ``Coro.ctx`` becomes unreachable.  Equivalent to calling
+/// :func:`frame_pop` until ``frame_depth == 0``.
+pub fn frame_drain_all_live() void {
+    while (frame_depth > 0) {
+        frame_pop();
+    }
 }
 
 /// Phase 10: transfer-ownership variant of
@@ -724,15 +770,15 @@ pub fn frame_context_restore_transfer(ctx: FrameContext) void {
     frame_ns = ctx.ns;
     frame_argv = ctx.argv;
     frame_info = ctx.info;
-    // ``frame_dirty`` and ``frame_trace_heads`` are not part of
-    // ``FrameContext`` (they're cheap to rebuild — the dirty mask
-    // is a cache, the trace heads are zero in any newly-pushed
-    // frame).  Reset them so a stale entry from the previous
-    // tenant doesn't leak.
+    frame_locals_array = ctx.locals;
+    frame_trace_heads = ctx.trace_heads;
+    // ``frame_dirty`` is a cache of populated buckets; reset it so
+    // the next ``frame_push`` for this slot re-arms via the bitmap
+    // (a stale chunk-dirty bit from the previous tenant would skip
+    // a clear that's actually needed).
     var i: u32 = 0;
     while (i < MAX_DEPTH) : (i += 1) {
         frame_dirty[i] = 0;
-        frame_trace_heads[i] = 0;
     }
 }
 

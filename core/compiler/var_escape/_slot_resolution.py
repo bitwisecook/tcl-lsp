@@ -55,6 +55,7 @@ from ..ir import (
     IRCall,
     IRExprEval,
     IRIncr,
+    IRModule,
     IRReturn,
     IRScript,
     IRStatement,
@@ -322,7 +323,7 @@ def assign_local_slots(
 
 def populate_local_slots(
     summaries: dict[str, ProcEscapeSummary],
-    ir_module: "IRModule | None",  # noqa: F821 — forward import below
+    ir_module: IRModule | None,
 ) -> dict[str, ProcEscapeSummary]:
     """Walk every proc in *ir_module*, run :func:`assign_local_slots`,
     and return a new ``summaries`` dict with the slot mapping folded
