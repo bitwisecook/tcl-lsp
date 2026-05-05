@@ -303,55 +303,84 @@ where
     None
 }
 
-/// Flush the in-flight command on `Eol` / `Eof`, or — when no
-/// command is in flight — clear the accumulated
-/// preceding-comment state when the EOL spans a blank line.
-/// Mirrors the Python ``command_segmenter`` blank-line and
-/// EOL-flush behaviour and the corresponding doc-comment
-/// detachment heuristic for class definitions.
-#[allow(clippy::too_many_arguments)]
-fn handle_eol_or_eof(
-    tok: Token,
-    sm: &SourceMap<'_>,
-    commands: &mut Vec<SegmentedCommand>,
-    argv: &mut Vec<Token>,
-    texts: &mut Vec<String>,
-    single: &mut Vec<bool>,
-    expand: &mut Vec<bool>,
-    all_tokens: &mut Vec<Token>,
-    has_expand: &mut bool,
-    last_comment: &mut Option<String>,
-) {
-    if !argv.is_empty() {
-        commands.push(SegmentedCommand {
-            span: span_from_tokens(all_tokens),
-            argv: std::mem::take(argv),
-            texts: std::mem::take(texts),
-            single_token_word: std::mem::take(single),
-            all_tokens: std::mem::take(all_tokens),
-            is_partial: false,
-            expand_word: if *has_expand {
-                Some(std::mem::take(expand))
-            } else {
-                expand.clear();
-                None
-            },
-            preceding_comment: last_comment.take(),
-        });
-    } else if matches!(tok.kind, TokenType::Eol) {
-        // Blank-line EOL: clear any accumulated preceding-comment
-        // state so a comment block separated from its following
-        // declaration by a blank line doesn't get attached to
-        // that declaration.  Mirrors Python's
-        // ``command_segmenter.py`` lines 257-261 — an EOL token
-        // whose text contains more than one ``\n`` is the lexer's
-        // encoding of a run-of-empty-lines.
-        let eol_text = sm.token_text(tok);
-        if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
-            *last_comment = None;
+/// Mutable accumulator state for the per-token segmenter loop.
+///
+/// Bundles the in-flight word/argv/expand/comment state plus the
+/// output `commands` vector so [`SegmenterState::flush_eol_or_eof`]
+/// can read and mutate them through a single `&mut self`.
+struct SegmenterState {
+    /// Output: completed commands so far.
+    commands: Vec<SegmentedCommand>,
+    /// In-flight argv tokens for the current command.
+    argv: Vec<Token>,
+    /// Per-argv-token rendered text (one entry per argv).
+    texts: Vec<String>,
+    /// Per-argv-token "single physical token" flag.
+    single: Vec<bool>,
+    /// Per-argv-token `{*}`-expansion flag.
+    expand: Vec<bool>,
+    /// All physical tokens that compose the in-flight command, in
+    /// source order — kept verbatim so downstream consumers can
+    /// see e.g. the `{*}` token even though it isn't an argv slot.
+    all_tokens: Vec<Token>,
+    /// Whether any `{*}` expansion appeared in the in-flight command.
+    has_expand: bool,
+    /// Buffered `#` comment block preceding the next command.
+    last_comment: Option<String>,
+}
+
+impl SegmenterState {
+    fn new() -> Self {
+        Self {
+            commands: Vec::new(),
+            argv: Vec::new(),
+            texts: Vec::new(),
+            single: Vec::new(),
+            expand: Vec::new(),
+            all_tokens: Vec::new(),
+            has_expand: false,
+            last_comment: None,
         }
     }
-    *has_expand = false;
+
+    /// Flush the in-flight command on `Eol` / `Eof`, or — when no
+    /// command is in flight — clear the accumulated
+    /// preceding-comment state when the EOL spans a blank line.
+    /// Mirrors the Python ``command_segmenter`` blank-line and
+    /// EOL-flush behaviour and the corresponding doc-comment
+    /// detachment heuristic for class definitions.
+    fn flush_eol_or_eof(&mut self, tok: Token, sm: &SourceMap<'_>) {
+        if !self.argv.is_empty() {
+            self.commands.push(SegmentedCommand {
+                span: span_from_tokens(&self.all_tokens),
+                argv: std::mem::take(&mut self.argv),
+                texts: std::mem::take(&mut self.texts),
+                single_token_word: std::mem::take(&mut self.single),
+                all_tokens: std::mem::take(&mut self.all_tokens),
+                is_partial: false,
+                expand_word: if self.has_expand {
+                    Some(std::mem::take(&mut self.expand))
+                } else {
+                    self.expand.clear();
+                    None
+                },
+                preceding_comment: self.last_comment.take(),
+            });
+        } else if matches!(tok.kind, TokenType::Eol) {
+            // Blank-line EOL: clear any accumulated preceding-comment
+            // state so a comment block separated from its following
+            // declaration by a blank line doesn't get attached to
+            // that declaration.  Mirrors Python's
+            // ``command_segmenter.py`` lines 257-261 — an EOL token
+            // whose text contains more than one ``\n`` is the lexer's
+            // encoding of a run-of-empty-lines.
+            let eol_text = sm.token_text(tok);
+            if eol_text.bytes().filter(|&b| b == b'\n').count() > 1 {
+                self.last_comment = None;
+            }
+        }
+        self.has_expand = false;
+    }
 }
 
 fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
@@ -364,31 +393,16 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
         return Vec::new();
     };
 
-    let mut commands = Vec::new();
-    let mut argv: Vec<Token> = Vec::new();
-    let mut texts: Vec<String> = Vec::new();
-    let mut single: Vec<bool> = Vec::new();
-    let mut expand: Vec<bool> = Vec::new();
-    let mut all_tokens: Vec<Token> = Vec::new();
+    let mut state = SegmenterState::new();
     let mut prev_type = TokenType::Eol;
     let mut next_expand = false;
-    let mut has_expand = false;
-    // Accumulator for ``# ...`` lines preceding the next command.
-    // Mirrors `last_comment` in
-    // ``core/parsing/command_segmenter.py``: each new comment line
-    // is appended (joined by ``\n``); the leading ``#`` and a
-    // single space are stripped per Python's
-    // ``line.lstrip('#').strip()`` shape.  Reset to ``None`` once a
-    // command consumes it, or whenever a non-comment / non-EOL
-    // token interrupts the run.
-    let mut last_comment: Option<String> = None;
 
     for &tok in &tokens {
         match tok.kind {
             TokenType::Comment => {
                 let raw = sm.token_text(tok);
                 let line = raw.trim_start_matches('#').trim().to_string();
-                last_comment = Some(match last_comment.take() {
+                state.last_comment = Some(match state.last_comment.take() {
                     Some(prev) => format!("{prev}\n{line}"),
                     None => line,
                 });
@@ -407,26 +421,15 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             }
 
             TokenType::Expand => {
-                all_tokens.push(tok);
+                state.all_tokens.push(tok);
                 next_expand = true;
-                has_expand = true;
+                state.has_expand = true;
                 prev_type = TokenType::Sep;
                 continue;
             }
 
             TokenType::Eol | TokenType::Eof => {
-                handle_eol_or_eof(
-                    tok,
-                    &sm,
-                    &mut commands,
-                    &mut argv,
-                    &mut texts,
-                    &mut single,
-                    &mut expand,
-                    &mut all_tokens,
-                    &mut has_expand,
-                    &mut last_comment,
-                );
+                state.flush_eol_or_eof(tok, &sm);
                 next_expand = false;
                 prev_type = tok.kind;
                 continue;
@@ -435,32 +438,32 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             _ => {}
         }
 
-        all_tokens.push(tok);
+        state.all_tokens.push(tok);
         let piece = word_piece(&sm, tok);
 
         if prev_type == TokenType::Sep || prev_type == TokenType::Eol {
-            argv.push(tok);
-            texts.push(piece);
-            single.push(true);
-            expand.push(next_expand);
+            state.argv.push(tok);
+            state.texts.push(piece);
+            state.single.push(true);
+            state.expand.push(next_expand);
             next_expand = false;
-        } else if let Some(last_text) = texts.last_mut() {
+        } else if let Some(last_text) = state.texts.last_mut() {
             last_text.push_str(&piece);
-            if let Some(s) = single.last_mut() {
+            if let Some(s) = state.single.last_mut() {
                 *s = false;
             }
             // Widen argv[-1] to cover the full Tcl word, matching
             // Python's command_segmenter so multi-token words like
             // ``$var/literal.tcl`` carry one argv token whose span
             // ends at the last sub-token.
-            if let Some(prev) = argv.last_mut() {
+            if let Some(prev) = state.argv.last_mut() {
                 prev.span = Span::new(prev.span.start(), tok.span.end());
             }
         } else {
-            argv.push(tok);
-            texts.push(piece);
-            single.push(true);
-            expand.push(next_expand);
+            state.argv.push(tok);
+            state.texts.push(piece);
+            state.single.push(true);
+            state.expand.push(next_expand);
             next_expand = false;
         }
 
@@ -468,7 +471,19 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
     }
 
     // Trailing command without final EOL.
-    if !argv.is_empty() {
+    if state.argv.is_empty() {
+        state.commands
+    } else {
+        let SegmenterState {
+            mut commands,
+            argv,
+            texts,
+            single,
+            expand,
+            all_tokens,
+            has_expand,
+            mut last_comment,
+        } = state;
         commands.push(SegmentedCommand {
             span: span_from_tokens(&all_tokens),
             argv,
@@ -479,9 +494,8 @@ fn segment_commands_local(source: &str) -> Vec<SegmentedCommand> {
             expand_word: if has_expand { Some(expand) } else { None },
             preceding_comment: last_comment.take(),
         });
+        commands
     }
-
-    commands
 }
 
 #[cfg(test)]
