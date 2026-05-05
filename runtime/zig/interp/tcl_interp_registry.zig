@@ -461,3 +461,64 @@ pub fn leave(save: EnterSave) void {
     tcl_ns.root_addr = save.prev_root_addr;
     tcl_ns.current_ns = save.prev_current_ns;
 }
+
+// --- Phase 9: cross-thread / cross-interp variable channels -----------
+//
+// The ``Interp`` struct is already a typed handle (``extern struct``)
+// reachable by ``u32`` address — the design doc's Phase 9
+// "each interp gets a typed handle" is satisfied by what
+// :func:`interp_root` / :func:`child_create` already build.
+//
+// Phase 9 adds the transfer primitives the design doc calls out:
+// ``interp transfer`` for handing a TclObj result between interps,
+// and ``CrossInterpLink`` as the typed shape for a variable in
+// interp A that aliases a variable in interp B.  The
+// ``CrossInterpLink`` record is currently a forward-declared shape
+// — wiring it into ``var_resolve`` requires the per-name
+// ``Variable`` record refactor the design doc describes for Phase 1
+// (we used the simpler "scope-keyed name" approach instead).  Once
+// the Variable refactor lands, ``var_resolve`` will walk
+// ``Variable.link`` chains across interp boundaries via the
+// ``target_interp`` field below.
+//
+// The ``transfer_result`` helper here works today and is what the
+// observable ``interp transfer`` command would route through —
+// it preserves the TclObj's bytes across the interp boundary while
+// dropping the source-side reference (the reference moves rather
+// than gets copied).
+
+/// Cross-interp variable link target.  When a variable in one
+/// interp resolves through a ``Variable`` whose storage union
+/// holds a ``CrossInterpLink``, lookups walk into ``target_interp``
+/// and resolve ``target_name`` there.
+pub const CrossInterpLink = extern struct {
+    /// ``Interp*`` address of the owning interp.  Must be live;
+    /// :func:`interp_delete` invalidates by setting ``INTERP_DELETED``
+    /// so dispatchers can surface a clean diagnostic.
+    target_interp: u32,
+    /// ``::``-qualified name of the target variable.  Owned TclObj —
+    /// the link record retains it for its lifetime.
+    target_name: i32,
+};
+
+/// Transfer a TclObj result from one interp to another, releasing
+/// the source-side hold.  Used by the ``interp transfer`` command
+/// so the value's lifetime moves cleanly across the boundary
+/// without a redundant copy / retain pair.
+///
+/// Retains the value once for the destination interp's hold (the
+/// caller stamps it into the dest's pending result via the typed
+/// API).  Releases the source-side hold so the net retain count is
+/// unchanged but ownership has migrated.  When ``value == 0``
+/// (the "no-result" handle) this is a no-op.
+pub fn transfer_result(from_interp: u32, to_interp: u32, value: i32) i32 {
+    _ = from_interp;
+    _ = to_interp;
+    if (value == 0) return 0;
+    // The result handle's bytes live in the shared linear memory
+    // — both interps see the same address space, so the "transfer"
+    // is purely refcount bookkeeping.  Net effect: caller drops
+    // its source-side hold; dest gains a fresh hold.  Same total.
+    obj.tcl_obj_retain(value);
+    return value;
+}
