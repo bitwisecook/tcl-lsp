@@ -48,6 +48,12 @@ and at every `tcl-lsp-bug-record-mark', WILL be written to the output."
   "Maximum bytes from any one JSON-RPC payload to include in the recording."
   :type 'integer)
 
+(defcustom tcl-lsp-bug-record-auto-snapshot-on-tokens t
+  "If non-nil, auto-snapshot face state every time eglot receives tokens.
+Gives a timeline of how highlighting evolves without the user
+having to call `tcl-lsp-bug-record-mark' for every event."
+  :type 'boolean)
+
 (defvar tcl-lsp-bug-record--buffer nil
   "The buffer being recorded (only one at a time).")
 (defvar tcl-lsp-bug-record--events nil
@@ -65,8 +71,10 @@ and at every `tcl-lsp-bug-record-mark', WILL be written to the output."
     0.0))
 
 (defun tcl-lsp-bug-record--push (event)
-  "Prepend EVENT to the event log."
-  (push (cons (tcl-lsp-bug-record--ts) event) tcl-lsp-bug-record--events))
+  "Prepend EVENT to the event log, sanitizing unreadable objects."
+  (push (cons (tcl-lsp-bug-record--ts)
+              (tcl-lsp-bug-record--sanitize event))
+        tcl-lsp-bug-record--events))
 
 (defun tcl-lsp-bug-record--truncate (s)
   "Truncate a string to `tcl-lsp-bug-record-max-payload-bytes'."
@@ -75,6 +83,13 @@ and at every `tcl-lsp-bug-record-mark', WILL be written to the output."
       (if (<= (length s) max) s
         (concat (substring s 0 max)
                 (format "...[+%d bytes]" (- (length s) max)))))))
+
+(defun tcl-lsp-bug-record--prin1-readable (obj)
+  "Like `prin1-to-string', but stripped of unreadable `#<...>' forms."
+  (let ((s (prin1-to-string obj)))
+    ;; Replace any #<...> form with a placeholder; this is a coarse fix
+    ;; for cases where sanitize missed something nested in user data.
+    (replace-regexp-in-string "#<[^>]*>" "\"<unreadable>\"" s)))
 
 (defun tcl-lsp-bug-record--face-snapshot ()
   "Return a compact run-length encoding of `face' properties.
@@ -116,6 +131,77 @@ Each element is (POS . FACE-VALUE)."
         (string-trim
          (buffer-substring-no-properties
           (line-beginning-position) (line-end-position)))))))
+
+(defun tcl-lsp-bug-record--face-spec (face)
+  "Return a plist of the visible attributes of FACE in the current frame."
+  (when (facep face)
+    (list :foreground (face-attribute face :foreground nil 'default)
+          :background (face-attribute face :background nil 'default)
+          :weight     (face-attribute face :weight nil 'default)
+          :slant      (face-attribute face :slant nil 'default)
+          :underline  (face-attribute face :underline nil 'default)
+          :strike     (face-attribute face :strike-through nil 'default)
+          :inherit    (face-attribute face :inherit nil 'default))))
+
+(defun tcl-lsp-bug-record--all-relevant-faces ()
+  "Return plist FACE → ATTRIBUTE-PLIST for every face that semtok/tcl-mode use."
+  (let* ((all (face-list))
+         (relevant
+          (cl-remove-if-not
+           (lambda (f)
+             (let ((n (symbol-name f)))
+               (or (string-prefix-p "eglot-" n)
+                   (string-prefix-p "eglot-semantic-" n)
+                   (string-prefix-p "font-lock-" n)
+                   (memq f '(default region highlight cursor)))))
+           all)))
+    (cl-loop for f in relevant
+             collect (cons f (tcl-lsp-bug-record--face-spec f)))))
+
+(defun tcl-lsp-bug-record--buffer-locals ()
+  "Snapshot buffer-local variables likely to affect highlighting."
+  (let ((wanted '(font-lock-mode jit-lock-mode font-lock-defaults
+                  font-lock-keywords font-lock-keywords-only
+                  font-lock-extra-managed-props font-lock-multiline
+                  font-lock-fontify-region-function
+                  font-lock-fontify-buffer-function
+                  font-lock-unfontify-region-function
+                  font-lock-syntactic-face-function
+                  syntax-propertize-function
+                  parse-sexp-lookup-properties
+                  comment-start comment-end tab-width
+                  eglot--managed-mode eglot--docver
+                  eglot--versioned-identifier eglot--track-changes
+                  eglot--recent-changes eglot--cached-server
+                  eglot-inlay-hints-mode eglot-semantic-tokens-mode
+                  major-mode buffer-file-coding-system
+                  buffer-modified-tick))
+        out)
+    (dolist (sym wanted)
+      (when (and (boundp sym)
+                 (local-variable-if-set-p sym))
+        (push (cons sym
+                    (tcl-lsp-bug-record--sanitize
+                     (buffer-local-value sym (current-buffer))))
+              out)))
+    (nreverse out)))
+
+(defun tcl-lsp-bug-record--enabled-minor-modes ()
+  "Return list of minor modes currently active in this buffer."
+  (cl-loop for m in minor-mode-list
+           when (and (boundp m) (buffer-local-value m (current-buffer)))
+           collect m))
+
+(defun tcl-lsp-bug-record--frame-info ()
+  (list :background-mode (frame-parameter nil 'background-mode)
+        :font (frame-parameter nil 'font)
+        :width (frame-parameter nil 'width)
+        :height (frame-parameter nil 'height)
+        :tty-type (frame-parameter nil 'tty-type)
+        :display-graphic (display-graphic-p)
+        :display-color-cells (and (fboundp 'display-color-cells)
+                                  (display-color-cells))
+        :tty-color-mode (and (fboundp 'tty-color-mode) (tty-color-mode))))
 
 (defun tcl-lsp-bug-record--collect-versions ()
   "Gather version numbers and OS info that may matter for reproduction."
@@ -174,11 +260,28 @@ Each element is (POS . FACE-VALUE)."
 (defun tcl-lsp-bug-record--sanitize (val)
   "Recursively replace non-readable objects in VAL with strings.
 Markers become their integer position; processes/buffers/hash-tables
-become a textual placeholder."
+and structs become textual placeholders so the result round-trips
+through `read'."
   (cond
    ((markerp val) (marker-position val))
    ((processp val) (format "<process %s>" (process-name val)))
    ((bufferp val) (format "<buffer %s>" (buffer-name val)))
+   ;; Function VALUES (not symbols).  A bare symbol like `tcl-mode' is
+   ;; both `functionp' and `symbolp'; we want to keep the symbol form.
+   ((and (not (symbolp val))
+         (or (subrp val)
+             (and (fboundp 'byte-code-function-p) (byte-code-function-p val))
+             (and (fboundp 'closurep) (closurep val))
+             (and (fboundp 'compiled-function-p) (compiled-function-p val))
+             (functionp val)))
+    "<function>")
+   ;; Records (cl-defstruct, eieio objects) — read as #s(...) but print
+   ;; with their slots, which may include unreadable data.  Render as a
+   ;; tagged list whose head is the struct type.
+   ((and (fboundp 'recordp) (recordp val))
+    (cons (tcl-lsp-bug-record--sanitize (aref val 0))
+          (cl-loop for i from 1 below (length val)
+                   collect (tcl-lsp-bug-record--sanitize (aref val i)))))
    ((hash-table-p val)
     (let (entries)
       (maphash (lambda (k v)
@@ -193,8 +296,6 @@ become a textual placeholder."
    ((consp val)
     (cons (tcl-lsp-bug-record--sanitize (car val))
           (tcl-lsp-bug-record--sanitize (cdr val))))
-   ((or (functionp val) (subrp val) (byte-code-function-p val))
-    "<function>")
    (t val)))
 
 (defun tcl-lsp-bug-record--semtok-state ()
@@ -222,7 +323,40 @@ become a textual placeholder."
            :inserted (when tcl-lsp-bug-record-include-source
                        (buffer-substring-no-properties beg end))
            :buffer-modified-tick (buffer-modified-tick)
-           :eglot-docver (and (boundp 'eglot--docver) eglot--docver)))))
+           :eglot-docver (and (boundp 'eglot--docver) eglot--docver)
+           :last-command last-command
+           :this-command this-command))))
+
+(defun tcl-lsp-bug-record--around-semtok-request (orig &rest args)
+  "Wrap eglot--semtok-request to auto-snapshot when responses arrive."
+  (if (or (null tcl-lsp-bug-record--buffer)
+          (not tcl-lsp-bug-record-auto-snapshot-on-tokens)
+          (not (eq (current-buffer) tcl-lsp-bug-record--buffer)))
+      (apply orig args)
+    (tcl-lsp-bug-record--push
+     (list :semtok-request-issued
+           :docver (and (boundp 'eglot--docver) eglot--docver)
+           :prev-state-docver (cl-getf eglot--semtok-state :docver)
+           :had-data (and (cl-getf eglot--semtok-state :data) t)))
+    (let ((before (cl-getf eglot--semtok-state :data)))
+      (prog1 (apply orig args)
+        ;; Schedule a one-shot post-response hook via timer:
+        ;; eglot's :success-fn updates :data.
+        (run-with-idle-timer
+         0 nil
+         (lambda (buf prev)
+           (when (buffer-live-p buf)
+             (with-current-buffer buf
+               (let ((now (cl-getf eglot--semtok-state :data)))
+                 (unless (eq prev now)
+                   (tcl-lsp-bug-record--push
+                    (list :semtok-response-applied
+                          :docver (and (boundp 'eglot--docver) eglot--docver)
+                          :state-docver (cl-getf eglot--semtok-state :docver)
+                          :data-len (and (vectorp now) (length now))
+                          :face-snapshot
+                          (tcl-lsp-bug-record--face-snapshot))))))))
+         tcl-lsp-bug-record--buffer before)))))
 
 (defun tcl-lsp-bug-record--around-rpc-request (orig conn method params &rest rest)
   "Tap outgoing JSON-RPC requests."
@@ -231,7 +365,7 @@ become a textual placeholder."
     (tcl-lsp-bug-record--push
      (list :rpc-request :method method
            :params (tcl-lsp-bug-record--truncate
-                    (prin1-to-string params)))))
+                    (tcl-lsp-bug-record--prin1-readable params)))))
   (apply orig conn method params rest))
 
 (defun tcl-lsp-bug-record--around-rpc-notification (orig conn method params &rest rest)
@@ -241,7 +375,7 @@ become a textual placeholder."
     (tcl-lsp-bug-record--push
      (list :rpc-notify :method method
            :params (tcl-lsp-bug-record--truncate
-                    (prin1-to-string params)))))
+                    (tcl-lsp-bug-record--prin1-readable params)))))
   (apply orig conn method params rest))
 
 (defun tcl-lsp-bug-record--around-handle-message (orig connection message)
@@ -254,7 +388,7 @@ become a textual placeholder."
            :method (plist-get message :method)
            :id (plist-get message :id)
            :payload (tcl-lsp-bug-record--truncate
-                     (prin1-to-string message)))))
+                     (tcl-lsp-bug-record--prin1-readable message)))))
   (funcall orig connection message))
 
 
@@ -290,7 +424,15 @@ Stop with `tcl-lsp-bug-record-stop' and save with
          :semtok-state (tcl-lsp-bug-record--semtok-state)
          :server-capabilities
          (when tcl-lsp-bug-record--server
-           (eglot--capabilities tcl-lsp-bug-record--server))))
+           (tcl-lsp-bug-record--sanitize
+            (eglot--capabilities tcl-lsp-bug-record--server)))
+         :enabled-minor-modes (tcl-lsp-bug-record--enabled-minor-modes)
+         :buffer-locals (tcl-lsp-bug-record--buffer-locals)
+         :face-attributes (tcl-lsp-bug-record--all-relevant-faces)
+         :frame-info (tcl-lsp-bug-record--frame-info)
+         :enabled-themes (when (boundp 'custom-enabled-themes)
+                           custom-enabled-themes)
+         :loaded-features-count (length features)))
   ;; Hook in.
   (add-hook 'after-change-functions #'tcl-lsp-bug-record--on-change nil t)
   (when (fboundp 'jsonrpc-async-request)
@@ -302,6 +444,9 @@ Stop with `tcl-lsp-bug-record-stop' and save with
   (when (fboundp 'jsonrpc-connection-receive)
     (advice-add 'jsonrpc-connection-receive :around
                 #'tcl-lsp-bug-record--around-handle-message))
+  (when (fboundp 'eglot--semtok-request)
+    (advice-add 'eglot--semtok-request :around
+                #'tcl-lsp-bug-record--around-semtok-request))
   (message "tcl-lsp-bug-record: started.  Reproduce the issue, then M-x tcl-lsp-bug-record-mark when wrong, then M-x tcl-lsp-bug-record-stop."))
 
 ;;;###autoload
@@ -319,7 +464,13 @@ Stop with `tcl-lsp-bug-record-stop' and save with
            :buffer-size (- (point-max) (point-min))
            :face-snapshot (tcl-lsp-bug-record--face-snapshot)
            :semtok-state (tcl-lsp-bug-record--semtok-state)
-           :eglot-docver (and (boundp 'eglot--docver) eglot--docver))))
+           :eglot-docver (and (boundp 'eglot--docver) eglot--docver)
+           :point (point)
+           :window-start (when (get-buffer-window) (window-start))
+           :window-end (when (get-buffer-window)
+                         (window-end nil t))
+           :buffer-modified-p (buffer-modified-p)
+           :last-command last-command)))
   (message "Marked snapshot: %s" label))
 
 ;;;###autoload
@@ -339,6 +490,9 @@ Stop with `tcl-lsp-bug-record-stop' and save with
   (when (fboundp 'jsonrpc-connection-receive)
     (advice-remove 'jsonrpc-connection-receive
                    #'tcl-lsp-bug-record--around-handle-message))
+  (when (fboundp 'eglot--semtok-request)
+    (advice-remove 'eglot--semtok-request
+                   #'tcl-lsp-bug-record--around-semtok-request))
   (tcl-lsp-bug-record--push (list :stop))
   (let ((n (length tcl-lsp-bug-record--events))
         (buf tcl-lsp-bug-record--buffer))
@@ -360,6 +514,37 @@ Stop with `tcl-lsp-bug-record-stop' and save with
     (user-error "Recording is still active — stop it first with M-x tcl-lsp-bug-record-stop"))
   (unless tcl-lsp-bug-record--events
     (user-error "No events to save"))
+  ;; Capture trailing context into a final synthetic event.
+  (let* ((events-buf (cl-find-if
+                      (lambda (b)
+                        (string-match-p "\\*EGLOT.*\\(events\\|EVENTS\\)\\*"
+                                        (buffer-name b)))
+                      (buffer-list)))
+         (stderr-buf (cl-find-if
+                      (lambda (b) (string-match-p " stderr\\*$"
+                                                  (buffer-name b)))
+                      (buffer-list)))
+         (msgs-buf (get-buffer "*Messages*"))
+         (warns-buf (get-buffer "*Warnings*"))
+         (tail-bytes (* 64 1024))
+         (buf-tail (lambda (b)
+                     (when b
+                       (with-current-buffer b
+                         (let ((s (buffer-substring-no-properties
+                                   (point-min) (point-max))))
+                           (if (> (length s) tail-bytes)
+                               (concat
+                                (format "...[+%d bytes elided]\n"
+                                        (- (length s) tail-bytes))
+                                (substring s (- (length s) tail-bytes)))
+                             s)))))))
+    (push (cons (tcl-lsp-bug-record--ts)
+                (list :final-context
+                      :eglot-events-buffer (funcall buf-tail events-buf)
+                      :lsp-server-stderr (funcall buf-tail stderr-buf)
+                      :messages-tail (funcall buf-tail msgs-buf)
+                      :warnings-tail (funcall buf-tail warns-buf)))
+          tcl-lsp-bug-record--events))
   (let ((events (mapcar #'tcl-lsp-bug-record--sanitize
                         (nreverse tcl-lsp-bug-record--events))))
     (with-temp-file path

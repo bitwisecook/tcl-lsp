@@ -85,11 +85,25 @@
       (princ (format "  total events: %d\n" (length events)))
       (dolist (k (cl-remove-duplicates kinds :test #'eq))
         (princ (format "    %-16s  ×%d\n" k (cl-count k kinds))))
-      (princ "\n  :start versions block:\n")
-      (let* ((start (cl-find-if (lambda (e)
-                                  (eq (cadr e) :start))
-                                events))
-             (vers (plist-get (cdr start) :versions)))
+      (princ "\n  :start fields:\n")
+      (let* ((start (cl-find-if (lambda (e) (eq (cadr e) :start)) events))
+             (start-plist (cddr start)))
+        (cl-loop for (k v) on start-plist by #'cddr
+                 do (princ (format "    %-26s %s\n" k
+                                   (let ((s (format "%S" v)))
+                                     (if (> (length s) 90)
+                                         (concat (substring s 0 90) " …")
+                                       s))))))
+      (princ "\n  versions detail:\n")
+      (let* ((start (cl-find-if (lambda (e) (eq (cadr e) :start)) events))
+             (vers (plist-get (cddr start) :versions)))
         (cl-loop for (k v) on vers by #'cddr
-                 do (princ (format "    %-22s %S\n" k v))))))
+                 do (princ (format "    %-22s %S\n" k v))))
+      (princ "\n  :final-context lengths:\n")
+      (let* ((fc (cl-find-if (lambda (e) (eq (cadr e) :final-context))
+                             events))
+             (plist (cddr fc)))
+        (cl-loop for (k v) on plist by #'cddr
+                 do (princ (format "    %-26s %d bytes\n" k
+                                   (length (or v ""))))))))
   (kill-emacs 0))
