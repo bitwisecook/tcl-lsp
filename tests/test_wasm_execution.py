@@ -838,6 +838,15 @@ class TestCommandDispatch:
             # module has procs since any callee can ``return -code
             # break`` / ``-code continue``.
             "flow_check_signal_loop",
+            # Phase 8 of the var/frame/ns/exception architecture
+            # refactor — the compiled-proc prologue stamps the
+            # ``FrameInfo`` for ``info frame N`` so the new frame
+            # surfaces ``type proc proc <fq-name>`` rather than
+            # the generic ``type eval`` fallback.  Always pulled in
+            # for any module with procs.  See
+            # ``runtime/zig/docs/var-frame-architecture.md``.
+            "frame_set_type_i32",
+            "frame_set_proc_name",
         }
 
 

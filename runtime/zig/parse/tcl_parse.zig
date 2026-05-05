@@ -137,22 +137,82 @@ pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
 /// ``]``.  Shared helper for :func:`parse_bare` and the substitution
 /// path (``tcl_interp.subst_flagged``) so both use the same nesting
 /// / backslash-escape semantics.
+///
+/// Tracks ``{...}`` braces and ``"..."`` quotes inside the bracket
+/// content so a ``]`` inside a brace-quoted word or quoted string is
+/// treated literally — matching reference Tcl's parser.  Without
+/// this, ``[catch {subst {[set a 1}} msg]`` would scan the inner ``[``
+/// as a depth bump and the outer ``]`` as depth-1 (not 0), causing the
+/// caller to consume the rest of the source into one giant "word".
+///
+/// Brace and quote skipping ONLY fires at word-start positions
+/// (after whitespace, ``;``, ``\n``, or the bracket open) — a ``{``
+/// mid-word (e.g. inside ``${foo}``) is not a brace-quoted word and
+/// must not consume the trailing ``]`` looking for a missing ``}``.
 pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos + 1;
     var depth: u32 = 1;
+    var at_word_start: bool = true;
     while (p < len and depth > 0) {
-        if (src[p] == '\\' and p + 1 < len) {
+        const c = src[p];
+        if (c == '\\' and p + 1 < len) {
             p += 2;
             continue;
         }
-        if (src[p] == '[') depth += 1;
-        if (src[p] == ']') depth -= 1;
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+            at_word_start = true;
+            p += 1;
+            continue;
+        }
+        if (at_word_start and c == '{') {
+            p += 1;
+            var bdepth: u32 = 1;
+            while (p < len and bdepth > 0) {
+                if (src[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                    continue;
+                }
+                if (src[p] == '{') bdepth += 1
+                else if (src[p] == '}') bdepth -= 1;
+                p += 1;
+            }
+            at_word_start = false;
+            continue;
+        }
+        if (at_word_start and c == '"') {
+            p += 1;
+            while (p < len and src[p] != '"') {
+                if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+            }
+            if (p < len) p += 1;
+            at_word_start = false;
+            continue;
+        }
+        at_word_start = false;
+        if (c == '[') depth += 1
+        else if (c == ']') depth -= 1;
         p += 1;
     }
     return p;
 }
 
-pub const CommandResult = struct { count: u32, next: u32 };
+pub const CommandResult = struct {
+    count: u32,
+    next: u32,
+    /// Set when ``parse_command`` saw a brace-quoted or quoted-string
+    /// word followed immediately by a non-separator byte
+    /// (``set {} {}{}`` or ``foo "bar"baz``).  Reference Tcl raises
+    /// ``extra characters after close-brace`` for braces and
+    /// ``extra characters after close-quote`` for quoted strings;
+    /// we can't raise from this pure-parser module so eval_script
+    /// picks up the flag and routes it through ``tcl_cmd_error``.
+    extra_chars_after_close: bool = false,
+    /// True when the error was after a ``"`` quoted word (vs a
+    /// braced word).  Distinguishes the two error messages
+    /// (set-1.3 expects "close-quote", parse-18.19 expects
+    /// "close-brace").
+    extra_chars_after_quote: bool = false,
+};
 
 pub fn parse_command(
     src: [*]const u8,
@@ -224,6 +284,8 @@ pub fn parse_command(
             }
         }
 
+        var word_kind_brace_or_quote = false;
+        var word_kind_quoted = false;
         if (src[p] == '{') {
             const r = parse_braced(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -232,6 +294,7 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+            word_kind_brace_or_quote = true;
         } else if (src[p] == '"') {
             const r = parse_quoted(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -240,6 +303,8 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+            word_kind_brace_or_quote = true;
+            word_kind_quoted = true;
         } else {
             const r = parse_bare(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -248,6 +313,24 @@ pub fn parse_command(
             word_expand[count] = expand;
             count += 1;
             p = r.end;
+        }
+        // After a brace-quoted or ``"..."``-quoted word, the next
+        // byte must be a word separator (whitespace, ``;``, ``\n``,
+        // ``\r``) or end-of-source.  Anything else is a syntax error
+        // — reference Tcl raises ``extra characters after
+        // close-brace`` (parse-18.19 / 18.20 / 18.21).  Surface it
+        // via the ``extra_chars_after_close`` flag so the caller
+        // (eval_script) can route the error through tcl_cmd_error.
+        if (word_kind_brace_or_quote and p < len) {
+            const c = src[p];
+            if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+                return .{
+                    .count = count,
+                    .next = p,
+                    .extra_chars_after_close = true,
+                    .extra_chars_after_quote = word_kind_quoted,
+                };
+            }
         }
     }
     return .{ .count = count, .next = p };
@@ -343,6 +426,10 @@ pub const Parse = struct {
     /// Count of top-level words (``.WORD`` / ``.SIMPLE_WORD``
     /// entries) — convenience for consumers.
     n_words: u32,
+    /// Surfaces the "extra characters after close-brace" parse error.
+    /// See :data:`CommandResult.extra_chars_after_close`.
+    extra_chars_after_close: bool = false,
+    extra_chars_after_quote: bool = false,
 };
 
 /// Token-tree form of :func:`parse_command`.  Writes at most
@@ -411,5 +498,7 @@ pub fn ParseCommand(
         .command_len = r.next - pos,
         .next = r.next,
         .n_words = r.count,
+        .extra_chars_after_close = r.extra_chars_after_close,
+        .extra_chars_after_quote = r.extra_chars_after_quote,
     };
 }

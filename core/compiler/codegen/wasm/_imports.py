@@ -421,6 +421,26 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [],
         [ValType.I32],
     ),
+    # Phase 8: per-frame call-site metadata for ``info frame``.
+    # Stamped by the compiled-proc prologue so ``info frame N`` can
+    # surface the proc name + body script for every active frame.
+    # ``frame_set_type_i32`` takes 1=PROC, 2=SOURCE, 3=EVAL,
+    # 4=UPLEVEL, 5=ALIAS, anything-else=UNKNOWN.
+    "tcl_frame_set_type": ("tcl", "frame_set_type_i32", [ValType.I32], []),
+    "tcl_frame_set_script": ("tcl", "frame_set_script", [ValType.I32], []),
+    "tcl_frame_set_proc_name": ("tcl", "frame_set_proc_name", [ValType.I32], []),
+    "tcl_frame_set_cmd_text": ("tcl", "frame_set_cmd_text", [ValType.I32], []),
+    "tcl_frame_set_line": ("tcl", "frame_set_line", [ValType.I32], []),
+    # Phase 7: indexed local-variable accessors for codegen-resolved
+    # compile-time-known scalar locals.  Bypasses the hash-keyed
+    # store; per-frame slot capacity is ``LOCALS_ARRAY_CAP = 16``.
+    "tcl_frame_local_at": ("tcl", "frame_local_at", [ValType.I32], [ValType.I32]),
+    "tcl_frame_local_set_at": (
+        "tcl",
+        "frame_local_set_at",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Variable resolution (aliases, upvars, namespace vars).
     "tcl_var_resolve": ("tcl", "var_resolve", [ValType.I32], [ValType.I32]),
     "tcl_var_set": ("tcl", "var_set", [ValType.I32, ValType.I32], [ValType.I32]),

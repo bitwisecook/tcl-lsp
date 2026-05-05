@@ -195,57 +195,239 @@ pub export fn info_args(name: i32) i32 {
     return params;
 }
 
-/// info complete script — returns 1 if the script has matched
-/// braces / brackets / quotes so ``eval`` would accept it, 0
-/// otherwise.  This is a structural sanity check used by tcltest
-/// and other harnesses to validate user-supplied scripts before
-/// evaluating them.
+/// ``info complete script`` — returns 1 iff the script can be
+/// safely passed to ``eval`` without the parser running out of
+/// source mid-construct (mid-brace, mid-quote, mid-bracket,
+/// mid-``${name}``, mid-``$arr(idx)``, mid-comment-line-continuation,
+/// or trailing ``\<NL>`` line continuation).
 ///
-/// Brackets inside braced text (``{a [b} c]``) do NOT count —
-/// brace-quoted words treat ``[`` as a literal character, not a
-/// command-substitution marker.  So a script like ``"{[}"`` is
-/// structurally complete: the outer ``[`` / ``]`` are consumed by
-/// the braced word, which is itself balanced.  Only brackets
-/// outside brace depth 0 affect completeness.  Similarly quotes
-/// are literal inside braces.
+/// Mirrors reference Tcl's ``Tcl_CommandComplete`` — which drives
+/// ``Tcl_ParseCommand`` over the full source and reports ``1`` whenever
+/// ``parse.incomplete`` is **not** set, even if a parse error like
+/// "extra characters after close-brace" was raised.  The implementation
+/// here walks the script with a state machine that tracks word
+/// boundaries (``{`` / ``"`` / ``[`` / ``$`` only act as openers at
+/// word start), backslash escapes (``\X`` consumes two bytes; ``\<NL>``
+/// at the very end is a continuation that signals incomplete), and
+/// comment processing (``#`` at command start runs to the next
+/// unescaped newline; ``\<NL>`` inside a comment extends the line).
 pub fn info_complete(script: i32) i32 {
     const s = obj_ensure_string(script);
     if (s.len == 0) return obj_new_int(1);
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    var brace: i32 = 0;
-    var bracket: i32 = 0;
-    var in_quote: bool = false;
-    var i: u32 = 0;
-    while (i < s.len) : (i += 1) {
-        const c = sp[i];
-        if (c == '\\' and i + 1 < s.len) {
-            i += 1;
-            continue;
+    return obj_new_int(if (check_complete(sp, s.len)) 1 else 0);
+}
+
+fn check_complete(sp: [*]const u8, len: u32) bool {
+    var p: u32 = 0;
+    while (p < len) {
+        // Inter-command whitespace + line continuations.
+        while (p < len) {
+            const c = sp[p];
+            if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') {
+                p += 1;
+            } else if (c == '\\' and p + 1 < len and sp[p + 1] == '\n') {
+                p += 2;
+            } else {
+                break;
+            }
         }
-        if (brace > 0) {
-            switch (c) {
-                '{' => brace += 1,
-                '}' => brace -= 1,
-                else => {},
+        if (p >= len) break;
+        // Comment at command start: consume to next unescaped ``\n``;
+        // ``\<X>`` inside a comment skips two bytes (so a literal
+        // ``\<NL>`` extends the comment line).
+        if (sp[p] == '#') {
+            while (p < len) {
+                if (sp[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                } else if (sp[p] == '\n') {
+                    p += 1;
+                    break;
+                } else {
+                    p += 1;
+                }
             }
             continue;
         }
-        if (in_quote) {
-            if (c == '"') in_quote = false;
+        // Parse one word.
+        if (sp[p] == '{') {
+            const next = skip_braced_complete(sp, p, len) orelse return false;
+            p = next;
+            // "Extra characters after close-brace" is a syntax error
+            // but not an incomplete one — Tcl's CommandComplete returns
+            // 1.  Stop scanning so we don't miscount the trailing junk.
+            if (p < len) {
+                const c = sp[p];
+                if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+                    return true;
+                }
+            }
+        } else if (sp[p] == '"') {
+            const next = skip_quoted_complete(sp, p, len) orelse return false;
+            p = next;
+            if (p < len) {
+                const c = sp[p];
+                if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+                    return true;
+                }
+            }
+        } else {
+            // Bare word: scan until whitespace / separator / line
+            // continuation.  Inside, brackets must close, ``${name}``
+            // must close, ``$arr(idx)`` must close, ``\X`` consumes 2.
+            while (p < len) {
+                const c = sp[p];
+                if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == ';') break;
+                if (c == '\\' and p + 1 < len) {
+                    if (sp[p + 1] == '\n') break; // line continuation = word terminator
+                    p += 2;
+                } else if (c == '[') {
+                    const next = skip_bracket_complete(sp, p, len) orelse return false;
+                    p = next;
+                } else if (c == '$' and p + 1 < len) {
+                    p += 1;
+                    if (sp[p] == '{') {
+                        p += 1;
+                        while (p < len and sp[p] != '}') {
+                            if (sp[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+                        }
+                        if (p >= len) return false;
+                        p += 1;
+                    } else {
+                        while (p < len) {
+                            const cc = sp[p];
+                            if ((cc >= 'a' and cc <= 'z') or
+                                (cc >= 'A' and cc <= 'Z') or
+                                (cc >= '0' and cc <= '9') or cc == '_')
+                            {
+                                p += 1;
+                            } else if (cc == ':' and p + 1 < len and sp[p + 1] == ':') {
+                                p += 2;
+                            } else {
+                                break;
+                            }
+                        }
+                        if (p < len and sp[p] == '(') {
+                            p += 1;
+                            while (p < len and sp[p] != ')') {
+                                if (sp[p] == '\\' and p + 1 < len) p += 2 else p += 1;
+                            }
+                            if (p >= len) return false;
+                            p += 1;
+                        }
+                    }
+                } else {
+                    p += 1;
+                }
+            }
+        }
+    }
+    // Trailing line continuation: source ends with an UN-escaped
+    // ``\<NL>`` (odd number of preceding backslashes).  parse-15.39 /
+    // 15.45 / 15.50 — the ``\<NL>`` signals the command continues to
+    // a line that isn't there, so the script is incomplete.
+    if (len >= 2 and sp[len - 1] == '\n') {
+        var bs_count: u32 = 0;
+        var j: u32 = len - 1;
+        while (j > 0) {
+            j -= 1;
+            if (sp[j] == '\\') bs_count += 1 else break;
+        }
+        if (bs_count % 2 == 1) return false;
+    }
+    return true;
+}
+
+fn skip_braced_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
+    var p = start + 1;
+    var depth: u32 = 1;
+    while (p < len and depth > 0) {
+        if (sp[p] == '\\' and p + 1 < len) {
+            p += 2;
             continue;
         }
-        switch (c) {
-            '{' => brace += 1,
-            '}' => brace -= 1,
-            '[' => bracket += 1,
-            ']' => bracket -= 1,
-            '"' => in_quote = true,
-            else => {},
-        }
-        if (brace < 0 or bracket < 0) return obj_new_int(0);
+        if (sp[p] == '{') depth += 1
+        else if (sp[p] == '}') depth -= 1;
+        p += 1;
     }
-    if (brace == 0 and bracket == 0 and !in_quote) return obj_new_int(1);
-    return obj_new_int(0);
+    if (depth != 0) return null;
+    return p;
+}
+
+fn skip_quoted_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
+    var p = start + 1;
+    while (p < len and sp[p] != '"') {
+        if (sp[p] == '\\' and p + 1 < len) {
+            p += 2;
+        } else if (sp[p] == '[') {
+            const next = skip_bracket_complete(sp, p, len) orelse return null;
+            p = next;
+        } else {
+            p += 1;
+        }
+    }
+    if (p >= len) return null;
+    return p + 1;
+}
+
+fn skip_bracket_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
+    var p = start + 1;
+    var depth: u32 = 1;
+    // Whether the next non-whitespace byte starts a fresh command —
+    // i.e., we're at the start of the bracket or just past ``\n`` /
+    // ``;``.  Comments (``#``) only act at command-start positions; a
+    // ``#`` mid-word is a literal byte.  parse-6.10 puts ``]`` inside a
+    // ``# this is a comment ]`` line which must NOT close the bracket.
+    var at_cmd_start: bool = true;
+    while (p < len and depth > 0) {
+        if (sp[p] == '\\' and p + 1 < len) {
+            p += 2;
+            continue;
+        }
+        const c = sp[p];
+        if (c == '\n' or c == ';') {
+            at_cmd_start = true;
+            p += 1;
+            continue;
+        }
+        if (c == ' ' or c == '\t' or c == '\r') {
+            p += 1;
+            continue;
+        }
+        if (at_cmd_start and c == '#') {
+            // Comment line — consume to next un-escaped ``\n``.
+            while (p < len) {
+                if (sp[p] == '\\' and p + 1 < len) {
+                    p += 2;
+                } else if (sp[p] == '\n') {
+                    p += 1;
+                    break;
+                } else {
+                    p += 1;
+                }
+            }
+            at_cmd_start = true;
+            continue;
+        }
+        at_cmd_start = false;
+        if (c == '[') {
+            depth += 1;
+            p += 1;
+        } else if (c == ']') {
+            depth -= 1;
+            p += 1;
+        } else if (c == '{') {
+            const next = skip_braced_complete(sp, p, len) orelse return null;
+            p = next;
+        } else if (c == '"') {
+            const next = skip_quoted_complete(sp, p, len) orelse return null;
+            p = next;
+        } else {
+            p += 1;
+        }
+    }
+    if (depth != 0) return null;
+    return p;
 }
 
 pub fn info_nameofexecutable() i32 {
@@ -430,6 +612,135 @@ fn raise_bad_level(arg_s: anytype) i32 {
 /// always returns the empty string.  Matches Tcl 9's behaviour
 /// when not sourcing a file (``Tcl_SetObjResult(interp,
 /// Tcl_NewObj())``).  Consumers that use ``info script`` to
+/// Phase 8: ``info frame ?N?`` — call-site metadata for the frame
+/// stack.  Without an argument returns the current frame depth as
+/// an integer (same as ``info level``'s no-arg form, but counting
+/// every frame including the top-level).  With an argument returns
+/// a Tcl dict-list ``{type X cmd Y proc Z line N script S}``
+/// describing the requested frame.
+///
+/// Real Tcl uses 1-based depth where frame 1 is the outermost
+/// (top-level eval) and frame N is the innermost (current proc).
+/// We mirror that.
+///
+/// Note: this is the minimum-viable implementation.  Reference
+/// Tcl populates additional fields like ``-source`` (file path),
+/// ``-lambda`` (apply's body), and ``-procs`` from the actual
+/// invocation site.  The frame metadata captured at ``frame_push``
+/// time is what we expose; richer source-position tracking
+/// (per-command line numbers) is a follow-up that needs the
+/// parser to thread line info through to the dispatcher.
+pub fn info_frame(arg: i32) i32 {
+    // No arg: return the depth (integer).  Real Tcl includes the
+    // synthetic frame 0 for top-level; we count from 1 (matching
+    // ``info level``'s convention).
+    if (arg == 0) {
+        const d: i64 = @intCast(frames.frame_get_depth());
+        return obj_new_int(d + 1);
+    }
+    // With arg: parse as integer depth.  Tcl uses 1-based depth
+    // where frame 1 is the synthetic top-level script frame and
+    // frame N is the innermost pushed frame.  Our internal
+    // ``frame_depth`` counts only PUSHED frames (top-level = 0
+    // pushed), so the conversion is ``internal_abs = N - 1``.
+    // Negative offsets count from the current frame
+    // (``info frame -1`` = caller's frame).
+    const want = obj.obj_get_int(arg);
+    const cur_depth: i64 = @intCast(frames.frame_get_depth());
+    const tcl_max: i64 = cur_depth + 1; // top-level + every push
+    const tcl_abs: i64 = if (want > 0) want else tcl_max + want;
+    if (tcl_abs < 1 or tcl_abs > tcl_max) {
+        // Reference Tcl 9 raises ``bad level "<N>"`` here — see
+        // ``InfoFrameCmd`` in ``tclCmdIL.c``.  Routing through the
+        // standard error path lets ``catch {info frame ...}`` see
+        // a real ``catch`` outcome (rc=1) instead of a fabricated
+        // ``type eval`` dict.  Codex review.
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const prefix: []const u8 = "bad level \"";
+        const arg_s = obj.obj_ensure_string(arg);
+        const total: u32 = @intCast(prefix.len + arg_s.len + 1);
+        const buf = obj.alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        var off: u32 = 0;
+        for (prefix) |c| { dst[off] = c; off += 1; }
+        if (arg_s.len > 0) {
+            const ap: [*]const u8 = @ptrFromInt(arg_s.ptr);
+            for (0..arg_s.len) |i| { dst[off] = ap[i]; off += 1; }
+        }
+        dst[off] = '"';
+        const msg = obj.obj_new_string_take(buf, total, total);
+        catch_mod.tcl_cmd_error(msg);
+        return obj_new_string(0, 0);
+    }
+    // Frame 1 is the synthetic top-level (no FrameInfo).
+    if (tcl_abs == 1) {
+        return obj.obj_new_string_copy(@intFromPtr("type eval".ptr), 9);
+    }
+    const fi = frames.frame_get_info(@intCast(tcl_abs - 1)) orelse {
+        return obj.obj_new_string_copy(@intFromPtr("type eval".ptr), 9);
+    };
+    // Build the dict-list incrementally.  We use string concat
+    // rather than dict_set because ``info frame``'s output is
+    // observed as a list-of-pairs by most callers; reference Tcl
+    // emits it the same way.
+    const list_mod = @import("../valtypes/tcl_list.zig");
+    var result = obj_new_string(0, 0);
+    // -type
+    const type_str: []const u8 = switch (fi.type) {
+        .PROC => "proc",
+        .SOURCE => "source",
+        .EVAL => "eval",
+        .UPLEVEL => "uplevel",
+        .ALIAS => "alias",
+        .UNKNOWN => "eval",
+    };
+    {
+        const k = obj.obj_new_string_copy(@intFromPtr("type".ptr), 4);
+        const v = obj.obj_new_string_copy(@intFromPtr(type_str.ptr), @intCast(type_str.len));
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, v);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        obj.tcl_obj_release(v);
+        result = r2;
+    }
+    // -line N
+    if (fi.line != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("line".ptr), 4);
+        const v = obj_new_int(@intCast(fi.line));
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, v);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        obj.tcl_obj_release(v);
+        result = r2;
+    }
+    // -proc NAME (PROC frames only)
+    if (fi.type == .PROC and fi.proc_name != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("proc".ptr), 4);
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, fi.proc_name);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        result = r2;
+    }
+    // -cmd TEXT
+    if (fi.cmd_text != 0) {
+        const k = obj.obj_new_string_copy(@intFromPtr("cmd".ptr), 3);
+        const r1 = list_mod.tcl_list(result, k);
+        obj.tcl_obj_release(result);
+        const r2 = list_mod.tcl_list(r1, fi.cmd_text);
+        obj.tcl_obj_release(r1);
+        obj.tcl_obj_release(k);
+        result = r2;
+    }
+    return result;
+}
+
 /// resolve path-relative includes (``source [file join [info
 /// script] ...]``) must treat the empty result as "no location
 /// available" — tcllib's ``testutilities.tcl`` already does
@@ -959,6 +1270,7 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "level")) return info_level(arg);
     if (str_eq(sp, sub.len, "script")) return info_script();
     if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub.len, "frame")) return info_frame(arg);
     if (str_eq(sp, sub.len, "cmdcount")) {
         // Mirrors C Tcl ``Interp.cmdCount`` — incremented per
         // ``eval_command`` dispatch in ``tcl_interp.zig``.  Compiled

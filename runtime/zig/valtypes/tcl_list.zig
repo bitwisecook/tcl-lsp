@@ -404,7 +404,9 @@ pub export fn tcl_cmd_list_search(list: i32, value: i32) i32 {
 // Separate from ``tcl_cmd_list_search`` because ``in`` and ``ni`` use
 // exact string match, not glob matching.
 pub export fn tcl_cmd_list_contains(list: i32, value: i32) i32 {
+    if (list == 0) return obj_new_int(0);
     const s = obj_ensure_string(list);
+    if (s.ptr == 0 or s.len == 0) return obj_new_int(0);
     const sv = obj_ensure_string(value);
     const n = list_count_elements(s.ptr, s.len);
     var idx: i64 = 0;

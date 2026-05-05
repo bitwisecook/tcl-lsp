@@ -4,6 +4,7 @@
 // limitations.  This file is the command-registration thin wrapper.
 
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const coro_mod = @import("../sched/tcl_coro.zig");
@@ -66,10 +67,10 @@ fn build_coro_command(coro_ptr: u32, fqn_ptr: u32, fqn_len: u32) u32 {
     return cmd;
 }
 
-fn eval_coroutine(words: []const i32) i32 {
+fn eval_coroutine(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) {
         stubs.raise("wrong # args: should be \"coroutine name command ?arg ...?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     // Build the body as a single list-quoted script so the
     // dispatcher invokes ``prefix args...`` exactly once.  Under
@@ -118,7 +119,7 @@ fn eval_coroutine(words: []const i32) i32 {
     if (r.target_ns == 0 or r.simple_len == 0) {
         stubs.raise("invalid coroutine name");
         if (body != 0) obj.tcl_obj_release(body);
-        return 0;
+        return result_mod.from_globals(0);
     }
     const fqn = tcl_ns.ns_build_fqn(r.target_ns, r.simple_ptr, r.simple_len);
     const c = coro_mod.create(fqn.ptr, fqn.len, body) orelse {
@@ -127,7 +128,7 @@ fn eval_coroutine(words: []const i32) i32 {
         // from build_invocation_script / obj_new_string_copy is the
         // caller's, so release it here.
         if (body != 0) obj.tcl_obj_release(body);
-        return 0;
+        return result_mod.from_globals(0);
     };
     // ``create`` retains body — drop our +1 from the build step
     // above so the coroutine slot is the sole owner.  Without this
@@ -145,17 +146,17 @@ fn eval_coroutine(words: []const i32) i32 {
     // user — for simplicity v1 returns the FQN now and lets the
     // user invoke ``[name]`` to start the body.  This is a v1
     // semantic deviation; documented as such.
-    return obj.obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
+    return result_mod.from_globals(obj.obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len)));
 }
 
-fn eval_yield(words: []const i32) i32 {
+fn eval_yield(words: []const i32) result_mod.InterpResult {
     if (words.len > 2) {
         stubs.raise("wrong # args: should be \"yield ?value?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     if (!coro_mod.current_in_coroutine()) {
         stubs.raise("yield can only be called in a coroutine");
-        return 0;
+        return result_mod.from_globals(0);
     }
     // Pass ``words[1]`` (a parser-owned TclObj — no extra retain)
     // when present, else the sentinel ``0`` so ``signal_yield``
@@ -167,17 +168,17 @@ fn eval_yield(words: []const i32) i32 {
     // caller.  Codex / Copilot review on PR #284.
     const value: i32 = if (words.len == 2) words[1] else 0;
     _ = coro_mod.signal_yield(value);
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_yieldto(words: []const i32) i32 {
+fn eval_yieldto(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         stubs.raise("wrong # args: should be \"yieldto command ?arg ...?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     if (!coro_mod.current_in_coroutine()) {
         stubs.raise("yieldto can only be called in a coroutine");
-        return 0;
+        return result_mod.from_globals(0);
     }
     // Invoke the target command as ``[command args...]`` and yield
     // its result.  ``concat_words`` returns ``ws[0]`` borrowed when
@@ -190,7 +191,7 @@ fn eval_yieldto(words: []const i32) i32 {
     const result = interp.eval_script(cs.ptr, cs.len);
     if (multi_word) obj.tcl_obj_release(concat);
     _ = coro_mod.signal_yield(result);
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 pub const registrations = [_]reg.CmdEntry{

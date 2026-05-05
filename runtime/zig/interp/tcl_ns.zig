@@ -1511,7 +1511,7 @@ pub export fn tcl_incr(o: i32, amount: i32) i32 {
     // errored — don't clobber that diagnostic with an
     // ``expected integer`` follow-on.  Match reference Tcl's
     // "first error wins" semantics for a single command.
-    if (@import("tcl_catch.zig").error_flag != 0) return obj_new_int_pub(0);
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return obj_new_int_pub(0);
     if (!incr_is_strict_int(o)) {
         raise_expected_integer(o);
         return obj_new_int_pub(0);
@@ -1592,7 +1592,7 @@ fn raise_expected_integer(o: i32) void {
     // the rationale.  Without this, a missing-variable read on the
     // increment expression that already set ``error_flag`` would be
     // overwritten by the follow-on ``expected integer`` diagnostic.
-    if (@import("tcl_catch.zig").error_flag != 0) return;
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
     const prefix: []const u8 = "expected integer but got \"";
     const suffix: []const u8 = "\"";

@@ -2,6 +2,7 @@
 // which, current, path, qualifiers, tail, parent, exists, children subcommands).
 
 const rt          = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const tcl_ns      = @import("../interp/tcl_ns.zig");
 const procs       = @import("../interp/tcl_procs.zig");
 const interp_impl = @import("./tcl_cmd_interp.zig");
@@ -18,14 +19,14 @@ const obj_ensure_string   = rt.obj_ensure_string;
 const obj_new_int         = rt.obj_new_int;
 const obj_get_int         = rt.obj_get_int;
 
-fn eval_namespace(words: []const i32) i32 {
+fn eval_namespace(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
         const sub = obj_ensure_string(words[1]);
         if (sub.len == 4 and sub.ptr != 0) {
             const sp: [*]const u8 = @ptrFromInt(sub.ptr);
             if (sp[0] == 'e' and sp[1] == 'v' and sp[2] == 'a' and sp[3] == 'l') {
-                if (words.len < 4) return 0;
+                if (words.len < 4) return result_mod.from_globals(0);
                 const ns_obj_s = obj_ensure_string(words[2]);
                 const target_ns = tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len);
                 const saved_ns = tcl_ns.current_ns;
@@ -33,8 +34,8 @@ fn eval_namespace(words: []const i32) i32 {
                 defer tcl_ns.current_ns = saved_ns;
                 if (words.len == 4) {
                     const bs = obj_ensure_string(words[3]);
-                    if (bs.len > 0) return interp.eval_script(bs.ptr, bs.len);
-                    return 0;
+                    if (bs.len > 0) return result_mod.from_globals(interp.eval_script(bs.ptr, bs.len));
+                    return result_mod.from_globals(0);
                 }
                 var total: u32 = 0;
                 var wi: u32 = 3;
@@ -56,7 +57,7 @@ fn eval_namespace(words: []const i32) i32 {
                         off += 1;
                     }
                 }
-                return interp.eval_script(buf, total);
+                return result_mod.from_globals(interp.eval_script(buf, total));
             }
         }
         if (sub.len == 6 and sub.ptr != 0) {
@@ -71,7 +72,7 @@ fn eval_namespace(words: []const i32) i32 {
                     }
                     tcl_ns.ns_export(tcl_ns.ns_current(), ps.ptr, ps.len);
                 }
-                return 0;
+                return result_mod.from_globals(0);
             }
             if (sp6[0] == 'i' and sp6[1] == 'm' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
                 var ii: u32 = 2;
@@ -85,7 +86,7 @@ fn eval_namespace(words: []const i32) i32 {
                     var bk: u32 = 0;
                     while (bk < created) : (bk += 1) procs.proc_count_bump();
                 }
-                return 0;
+                return result_mod.from_globals(0);
             }
             if (sp6[0] == 'f' and sp6[1] == 'o' and sp6[2] == 'r' and sp6[3] == 'g' and sp6[4] == 'e' and sp6[5] == 't') {
                 var fi: u32 = 2;
@@ -95,25 +96,25 @@ fn eval_namespace(words: []const i32) i32 {
                     any_forgotten += tcl_ns.ns_forget(tcl_ns.ns_current(), fs.ptr, fs.len);
                 }
                 if (any_forgotten > 0) procs.lru_invalidate_all();
-                return 0;
+                return result_mod.from_globals(0);
             }
         }
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "which")) {
-            return interp_impl.eval_namespace_which(words);
+            return result_mod.from_globals(interp_impl.eval_namespace_which(words));
         }
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "current")) {
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
-            return obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len));
+            return result_mod.from_globals(obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len)));
         }
         if (sub.len == 4 and sub.ptr != 0) {
             const sp4: [*]const u8 = @ptrFromInt(sub.ptr);
             if (sp4[0] == 'p' and sp4[1] == 'a' and sp4[2] == 't' and sp4[3] == 'h') {
-                if (words.len < 3) return 0;
+                if (words.len < 3) return result_mod.from_globals(0);
                 const ls = obj_ensure_string(words[2]);
                 const count = obj_mod.list_count_elements(ls.ptr, ls.len);
                 if (count == 0) {
                     tcl_ns.ns_set_path(tcl_ns.ns_current(), 0, 0);
-                    return 0;
+                    return result_mod.from_globals(0);
                 }
                 const targets_buf = alloc(@intCast(count * 4));
                 var li: i64 = 0;
@@ -129,36 +130,36 @@ fn eval_namespace(words: []const i32) i32 {
                 }
                 tcl_ns.ns_set_path(tcl_ns.ns_current(), targets_buf, @intCast(count));
                 procs.lru_invalidate_all();
-                return 0;
+                return result_mod.from_globals(0);
             }
             // ``namespace tail name`` — return the last simple component.
             if (sp4[0] == 't' and sp4[1] == 'a' and sp4[2] == 'i' and sp4[3] == 'l') {
-                if (words.len < 3) return obj_new_string(0, 0);
+                if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
                 const ns_s = obj_ensure_string(words[2]);
-                return ns_tail(ns_s.ptr, ns_s.len);
+                return result_mod.from_globals(ns_tail(ns_s.ptr, ns_s.len));
             }
         }
         // ``namespace qualifiers name``
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "qualifiers")) {
-            if (words.len < 3) return obj_new_string(0, 0);
+            if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
             const ns_s = obj_ensure_string(words[2]);
-            return ns_qualifiers(ns_s.ptr, ns_s.len);
+            return result_mod.from_globals(ns_qualifiers(ns_s.ptr, ns_s.len));
         }
         // ``namespace parent ?name?``
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "parent")) {
             if (words.len >= 3) {
                 const ns_s = obj_ensure_string(words[2]);
-                return ns_parent(ns_s.ptr, ns_s.len);
+                return result_mod.from_globals(ns_parent(ns_s.ptr, ns_s.len));
             } else {
                 const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
-                return ns_parent(nf.ptr, nf.len);
+                return result_mod.from_globals(ns_parent(nf.ptr, nf.len));
             }
         }
         // ``namespace exists name``
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "exists")) {
-            if (words.len < 3) return obj_new_int(0);
+            if (words.len < 3) return result_mod.from_globals(obj_new_int(0));
             const ns_s = obj_ensure_string(words[2]);
-            return ns_exists(ns_s.ptr, ns_s.len);
+            return result_mod.from_globals(ns_exists(ns_s.ptr, ns_s.len));
         }
         // ``namespace children ?ns? ?pattern?``
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "children")) {
@@ -173,7 +174,7 @@ fn eval_namespace(words: []const i32) i32 {
                 pat_ptr = pat_s.ptr;
                 pat_len = pat_s.len;
             }
-            return ns_children(ctx_ns, pat_ptr, pat_len);
+            return result_mod.from_globals(ns_children(ctx_ns, pat_ptr, pat_len));
         }
         // ``namespace delete ns ...`` — mark dead by zeroing child entries in
         // the parent table.  Our bump allocator cannot truly free, but clearing
@@ -184,12 +185,12 @@ fn eval_namespace(words: []const i32) i32 {
                 const ds = obj_ensure_string(words[di]);
                 ns_delete(ds.ptr, ds.len);
             }
-            return 0;
+            return result_mod.from_globals(0);
         }
         // ``namespace inscope ns body ?arg...?`` — like ``namespace eval`` but
         // evaluates with additional arguments appended.
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "inscope")) {
-            if (words.len < 4) return 0;
+            if (words.len < 4) return result_mod.from_globals(0);
             const ns_obj_s = obj_ensure_string(words[2]);
             const target_ns = tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len);
             const saved_ns = tcl_ns.current_ns;
@@ -197,8 +198,8 @@ fn eval_namespace(words: []const i32) i32 {
             defer tcl_ns.current_ns = saved_ns;
             const bs = obj_ensure_string(words[3]);
             if (words.len == 4) {
-                if (bs.len > 0) return interp.eval_script(bs.ptr, bs.len);
-                return 0;
+                if (bs.len > 0) return result_mod.from_globals(interp.eval_script(bs.ptr, bs.len));
+                return result_mod.from_globals(0);
             }
             // Build a properly-quoted args list via tcl_list, then append to body.
             // This ensures args containing spaces/braces are re-tokenized correctly.
@@ -216,16 +217,16 @@ fn eval_namespace(words: []const i32) i32 {
                 d[0] = ' ';
                 memcpy(buf + bs.len + 1, as.ptr, as.len);
             }
-            return interp.eval_script(buf, total);
+            return result_mod.from_globals(interp.eval_script(buf, total));
         }
         // ``namespace code script`` — wrap with [namespace inscope current script]
         // For our purposes, return the script unchanged (no-op approximation).
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "code")) {
-            if (words.len < 3) return obj_new_string(0, 0);
-            return words[2];
+            if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
+            return result_mod.from_globals(words[2]);
         }
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 /// Return the "tail" component of a namespace name: the part after the last

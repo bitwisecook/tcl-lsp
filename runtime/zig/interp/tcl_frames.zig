@@ -183,6 +183,54 @@ pub inline fn mark_dirty(idx: u32, bucket_offset: u32) void {
 // against 0 and fall back to an empty list.
 var frame_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
 
+// Phase 8: per-frame call-site metadata for ``info frame``.
+//
+// Real Tcl's ``info frame`` returns a dict of (type, line, cmd,
+// proc, source, level) describing the frame's invocation site.
+// Phase 3 reserved a ``cmd_source`` slot for this; phase 8 wires
+// the rest of the fields.
+//
+// ``type`` is one of ``proc`` / ``source`` / ``eval`` / ``uplevel``
+// / ``alias`` / ``unknown``; encoded as a u8 with the table below.
+// Most frames are ``proc`` (a Tcl proc body); ``source`` marks a
+// top-level script eval (``source FILE``); ``eval`` marks generic
+// nested eval contexts; ``uplevel`` / ``alias`` mark inter-frame
+// trampolines.
+//
+// Memory: each FrameInfo is 24 bytes (1 type byte + 3 padding +
+// 4×i32 + 1×u32) × MAX_DEPTH = 6 KB; cheap.  Slots are zeroed on
+// ``frame_pop`` so a stale stamp from a previous tenant doesn't
+// leak into a frame that didn't populate the slot.
+pub const FrameType = enum(u8) {
+    UNKNOWN = 0,
+    PROC = 1,
+    SOURCE = 2,
+    EVAL = 3,
+    UPLEVEL = 4,
+    ALIAS = 5,
+};
+
+pub const FrameInfo = struct {
+    /// Type of invocation that pushed this frame.
+    type: FrameType = .UNKNOWN,
+    /// TclObj handle of the script being evaluated (the body for
+    /// type=proc; the file/script for type=source/eval).  Retained
+    /// for the frame's lifetime; released on ``frame_pop``.
+    script_obj: i32 = 0,
+    /// 1-based line number within ``script_obj`` where the
+    /// invocation appears.  0 = unknown.
+    line: u32 = 0,
+    /// TclObj handle for the source slice of the call site.
+    /// Retained; released on ``frame_pop``.
+    cmd_text: i32 = 0,
+    /// TclObj handle of the proc's fully-qualified name (only
+    /// meaningful for type=proc).  Retained; released on
+    /// ``frame_pop``.
+    proc_name: i32 = 0,
+};
+
+var frame_info: [MAX_DEPTH]FrameInfo = [_]FrameInfo{.{}} ** MAX_DEPTH;
+
 // Pending ``argv0`` for the next compiled-proc entry.  Set by a
 // compiled caller via ``frame_set_pending_argv0`` immediately
 // before it transfers control to a compiled callee, and consumed
@@ -365,12 +413,32 @@ fn frame_grow_at_base(base: u32) u32 {
 /// Pop the current call frame. Caller should not access frame locals after this.
 pub export fn frame_pop() void {
     if (frame_depth > 0) {
+        // Phase 1: drop every ``::__local::<depth>::*`` array that
+        // belonged to this frame from the global directory.  Without
+        // this the next call at the same depth would inherit the
+        // returning frame's array elements and ``info exists arr``
+        // / ``array names arr`` would lie.
+        const tcl_array = @import("../valtypes/tcl_array.zig");
+        tcl_array.drop_local_arrays_for_depth(frame_depth);
+        // Phase 7: release every compile-time-indexed local slot
+        // for this frame.  The hash-keyed store has its own
+        // reset-on-reuse via ``mark_dirty``; the indexed array
+        // is a parallel store with its own ownership tracking.
+        frame_locals_array_drop_current();
         frame_depth -= 1;
         // MM-B.5: release the argv reference we retained in
         // frame_set_argv before clearing the slot.
         const old = frame_argv[frame_depth];
         frame_argv[frame_depth] = 0;
         if (old != 0) obj.tcl_obj_release(old);
+        // Phase 8: release the FrameInfo's retained TclObj handles
+        // so the frame's call-site metadata doesn't leak.  Reset
+        // the slot to default so the next tenant starts clean.
+        const fi = &frame_info[frame_depth];
+        if (fi.script_obj != 0) obj.tcl_obj_release(fi.script_obj);
+        if (fi.cmd_text != 0) obj.tcl_obj_release(fi.cmd_text);
+        if (fi.proc_name != 0) obj.tcl_obj_release(fi.proc_name);
+        fi.* = .{};
         // Reset the per-frame namespace slot so the next
         // ``frame_push`` for this index sees a fresh (zero) value
         // and ``frame_set_ns_if_unset`` from ``ns_set`` records
@@ -413,6 +481,240 @@ pub export fn frame_set_argv(argv: i32) void {
     if (argv != 0) obj.tcl_obj_retain(argv);
     frame_argv[frame_depth - 1] = argv;
     if (old != 0 and old != argv) obj.tcl_obj_release(old);
+}
+
+// --- Phase 8: FrameInfo setters / getter -------------------------------
+//
+// Callers set fields immediately after ``frame_push``, like
+// ``frame_set_argv``.  Each setter retains the new TclObj and
+// releases the previous slot (which may have a stale value if the
+// same dispatch site populates the field twice; in practice the
+// dispatcher only sets each field once per push).
+
+/// Stamp the FrameType for the current (topmost) frame.  Callers:
+///   * ``eval_proc_call_bucket`` / ``eval_apply`` → ``.PROC``
+///   * ``eval_uplevel`` → ``.UPLEVEL``
+///   * ``dispatch_alias`` → ``.ALIAS``
+///   * ``source FILE`` → ``.SOURCE``
+///   * generic eval / namespace eval → ``.EVAL``
+pub fn frame_set_type(t: FrameType) void {
+    if (frame_depth == 0) return;
+    frame_info[frame_depth - 1].type = t;
+}
+
+/// WASM-ABI shim for compiled-proc prologues — the codegen passes
+/// the type as an i32 (1=PROC, 2=SOURCE, 3=EVAL, 4=UPLEVEL,
+/// 5=ALIAS, anything else=UNKNOWN).  Internal Zig callers use the
+/// typed :func:`frame_set_type` directly.
+pub export fn frame_set_type_i32(t_int: i32) void {
+    const t: FrameType = switch (t_int) {
+        1 => .PROC,
+        2 => .SOURCE,
+        3 => .EVAL,
+        4 => .UPLEVEL,
+        5 => .ALIAS,
+        else => .UNKNOWN,
+    };
+    frame_set_type(t);
+}
+
+/// Record the script TclObj being evaluated by the current frame
+/// (for ``info frame N`` to surface as the ``-script`` field).
+pub export fn frame_set_script(script_obj: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.script_obj;
+    if (script_obj != 0) obj.tcl_obj_retain(script_obj);
+    fi.script_obj = script_obj;
+    if (old != 0 and old != script_obj) obj.tcl_obj_release(old);
+}
+
+/// Record the 1-based line within ``script_obj`` where the
+/// invocation appears.  0 = unknown.
+pub export fn frame_set_line(line: u32) void {
+    if (frame_depth == 0) return;
+    frame_info[frame_depth - 1].line = line;
+}
+
+/// Record the source-slice TclObj for the call site (the literal
+/// command text, e.g. ``my-proc arg1 arg2``).  ``info frame N``
+/// surfaces this as the ``-cmd`` field.
+pub export fn frame_set_cmd_text(cmd_text: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.cmd_text;
+    if (cmd_text != 0) obj.tcl_obj_retain(cmd_text);
+    fi.cmd_text = cmd_text;
+    if (old != 0 and old != cmd_text) obj.tcl_obj_release(old);
+}
+
+/// Record the proc's fully-qualified name TclObj for type=PROC
+/// frames.  ``info frame N`` surfaces this as the ``-proc`` field.
+pub export fn frame_set_proc_name(proc_name: i32) void {
+    if (frame_depth == 0) return;
+    const fi = &frame_info[frame_depth - 1];
+    const old = fi.proc_name;
+    if (proc_name != 0) obj.tcl_obj_retain(proc_name);
+    fi.proc_name = proc_name;
+    if (old != 0 and old != proc_name) obj.tcl_obj_release(old);
+}
+
+/// Read the FrameInfo for an absolute frame depth.  Returns null
+/// when the depth is out of range (0 or > current frame_depth).
+/// ``info frame N`` from Tcl uses 1-based depth, so the caller
+/// translates: ``info frame 1`` = the outermost frame's info, which
+/// is ``frame_get_info(1)``; ``info frame N`` = innermost is
+/// ``frame_get_info(frame_depth)``.
+pub fn frame_get_info(abs_depth: u32) ?*const FrameInfo {
+    if (abs_depth == 0 or abs_depth > frame_depth) return null;
+    return &frame_info[abs_depth - 1];
+}
+
+// --- Phase 10 (INCOMPLETE — wired up in next PR): frame contexts -------
+//
+// **THIS API HAS NO CONSUMER YET.**  The shape lands here so the
+// next PR can wire :file:`sched/tcl_coro.zig` to it without
+// re-designing the surface.  See ``docs/var-frame-architecture.md``
+// for the driver-level design + the TclObj-ownership decision the
+// driver author needs to make (flat-copy save doesn't bump retain
+// counts, so live-drain semantics have to be enforced between
+// save and restore to avoid use-after-free on the next
+// ``frame_pop``).
+//
+// Until the driver lands, the v1 segment-based coroutine driver
+// evaluates each segment inline in the caller's frame stack and
+// doesn't need isolation; the asyncify path handles its own
+// wasm-side state via ``wasm-opt --asyncify``.
+//
+// Shape: a ``FrameContext`` is an opaque snapshot of the
+// per-frame slot arrays — ``frame_stack`` / ``frame_capacity`` /
+// ``frame_ns`` / ``frame_argv`` / ``frame_info`` /
+// ``frame_depth``.  Storage cost: ~14 KB at MAX_DEPTH=64 — modest
+// given coroutines are short-lived and few in number.  An
+// alternative "rebase-pointer" design (each context owns a
+// SLICE of a shared backing buffer) would shrink the per-context
+// cost but add complexity around the dirty bitmap / capacity
+// tracking; the flat copy is the right trade-off until benchmarks
+// say otherwise.
+pub const FrameContext = struct {
+    depth: u32,
+    stack: [MAX_DEPTH]u32,
+    capacity: [MAX_DEPTH]u32,
+    ns: [MAX_DEPTH]u32,
+    argv: [MAX_DEPTH]i32,
+    info: [MAX_DEPTH]FrameInfo,
+};
+
+/// Snapshot the current frame state into a fresh ``FrameContext``.
+/// Caller owns the snapshot; the live state is unchanged.
+pub fn frame_context_save() FrameContext {
+    return .{
+        .depth = frame_depth,
+        .stack = frame_stack,
+        .capacity = frame_capacity,
+        .ns = frame_ns,
+        .argv = frame_argv,
+        .info = frame_info,
+    };
+}
+
+/// Restore the live frame state from a previously-captured
+/// ``FrameContext``.  Mirror of :func:`frame_context_save`.
+///
+/// IMPORTANT: this does NOT release any TclObj handles in the
+/// argv / info slots that the live state currently holds.  The
+/// caller is responsible for ownership accounting — typically
+/// the save/restore is paired (save on yield, restore on
+/// resume) so the same handles round-trip without a release.
+/// For non-paired transfers the caller must explicitly drain
+/// the live state before calling restore.
+pub fn frame_context_restore(ctx: FrameContext) void {
+    frame_depth = ctx.depth;
+    frame_stack = ctx.stack;
+    frame_capacity = ctx.capacity;
+    frame_ns = ctx.ns;
+    frame_argv = ctx.argv;
+    frame_info = ctx.info;
+}
+
+/// Reset the live frame state to "no frames pushed".  Used at the
+/// entry to an isolated eval (e.g. a fresh coroutine resume) where
+/// the wrapper wants to start with a clean stack independent of
+/// the caller's depth.  After the inner eval, the caller restores
+/// its previously-saved ``FrameContext`` to undo this reset.
+pub fn frame_context_reset() void {
+    frame_depth = 0;
+    // The slot arrays don't need zeroing — ``frame_push`` reuses
+    // them via the dirty-bitmap mechanism (per-bucket reset on
+    // first reuse) and the argv / info slots have their own
+    // reset path on push.
+}
+
+// --- Phase 7 (INCOMPLETE — wired up in next PR): indexed locals --------
+//
+// **THIS API HAS NO CONSUMER YET.**  The next PR is a Python-side
+// codegen pass that identifies compile-time-known scalar locals
+// and emits ``frame_local_at(idx)`` / ``frame_local_set_at(idx,
+// value)`` instead of the name-keyed ``tcl_local_set`` /
+// ``tcl_local_get`` for them.  Spec lives in
+// ``docs/var-frame-architecture.md``.
+//
+// Until the codegen pass lands the indexed slots stay unused;
+// nothing is regressed because the hash-keyed local store keeps
+// working as the primary path.  ``frame_pop`` already drains
+// the indexed slots so their refcount accounting can't drift
+// even if a stray future caller writes through the indexed
+// accessor without the codegen-side consumer.
+//
+// Shape: a per-frame ``locals_array`` of fixed capacity.  We
+// pre-allocate ``LOCALS_ARRAY_CAP`` slots per frame; codegen-
+// resolved locals use indices ``0..LOCALS_ARRAY_CAP-1``.  Procs
+// with more locals than that capacity continue to use the
+// hash-keyed store transparently — ``frame_local_at`` only
+// handles indexed slots, never the dynamic ones.
+const LOCALS_ARRAY_CAP: u32 = 16;
+var frame_locals_array: [MAX_DEPTH][LOCALS_ARRAY_CAP]i32 = undefined;
+
+/// Read a compiled-proc local by its compile-time-resolved slot
+/// index.  Returns 0 (the "unset" sentinel) when the slot has
+/// never been written or when the index is out of range.
+/// Compiled callers MUST stay within ``[0, LOCALS_ARRAY_CAP)``;
+/// the runtime trusts the codegen to emit valid indices.
+pub export fn frame_local_at(idx: u32) i32 {
+    if (frame_depth == 0) return 0;
+    if (idx >= LOCALS_ARRAY_CAP) return 0;
+    return frame_locals_array[frame_depth - 1][idx];
+}
+
+/// Write a compiled-proc local by slot index.  Caller-side
+/// retention contract matches ``local_set``: the slot's prior
+/// occupant (if any) is released; the new value is retained for
+/// the slot's lifetime.  Returns the stored value for chaining.
+pub export fn frame_local_set_at(idx: u32, value: i32) i32 {
+    if (frame_depth == 0) return value;
+    if (idx >= LOCALS_ARRAY_CAP) return value;
+    const slot = &frame_locals_array[frame_depth - 1][idx];
+    const old = slot.*;
+    if (value != 0) obj.tcl_obj_retain(value);
+    slot.* = value;
+    if (old != 0 and old != value) obj.tcl_obj_release(old);
+    return value;
+}
+
+/// Clear every compile-time slot for the current frame.  Called
+/// from ``frame_pop`` to release the slot references before the
+/// frame is reused.  Codegen doesn't need to call this directly.
+fn frame_locals_array_drop_current() void {
+    if (frame_depth == 0) return;
+    var i: u32 = 0;
+    const slots = &frame_locals_array[frame_depth - 1];
+    while (i < LOCALS_ARRAY_CAP) : (i += 1) {
+        const v = slots[i];
+        if (v != 0) {
+            slots[i] = 0;
+            obj.tcl_obj_release(v);
+        }
+    }
 }
 
 /// Record the namespace context for the *current* frame.  Called
@@ -1102,24 +1404,16 @@ pub export fn var_resolve(name: i32) i32 {
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
-            // Inside a proc frame, check for a local "arr(key)" slot
-            // stored by the matching var_set path before falling through
-            // to the global array directory.
-            if (current_frame()) |base| {
-                const full_hash = fnv1a(sn.ptr, sn.len);
-                if (frame_find(base, sn.ptr, sn.len, full_hash)) |bucket| {
-                    const v = read_i32(bucket + OFF_VALUE);
-                    if (v != ALIAS_GLOBAL and !is_alias_ext(v)) return v;
-                }
-            }
+            // Phase 1: a single lookup path.  The Variable lives in
+            // the array directory; ``frame_resolve_array_name`` picks
+            // global / namespace / proc-local based on context.
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
-            // Resolve upvar alias so ``set a($k)`` inside a proc where
-            // ``a`` is aliased to global array ``x`` finds ``x``, not ``a``.
             const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
             const v = tcl_array.array_get(resolved_arr, key);
             obj.tcl_obj_release(arr_name);
+            if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
             obj.tcl_obj_release(key);
             return v;
         }
@@ -1214,40 +1508,20 @@ pub export fn var_set(name: i32, value: i32) i32 {
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
-            // Inside a proc frame, array-element writes are LOCAL unless
-            // the array name is aliased to global (via ``global arr`` or
-            // ``upvar``).  Without this check, ``foreach {a(3)} ...``
-            // inside a proc would write to the global array directory,
-            // corrupting subsequent top-level code that reads ``$a``.
-            if (current_frame()) |base| {
-                const arr_hash = fnv1a(sn.ptr, paren);
-                const is_aliased: bool = blk: {
-                    if (frame_find(base, sn.ptr, paren, arr_hash)) |bucket| {
-                        const v = read_i32(bucket + OFF_VALUE);
-                        // ALIAS_GLOBAL and ALIAS_EXT (upvar) both mean the
-                        // array lives in the global directory; route writes
-                        // there.  An unaliased local array variable stores
-                        // elements as frame-local "arr(key)" scalars.
-                        break :blk v == ALIAS_GLOBAL or is_alias_ext(v);
-                    }
-                    break :blk false;
-                };
-                if (!is_aliased) {
-                    // Store the element as a frame-local scalar keyed by
-                    // the full "arr(key)" string.  This keeps proc-local
-                    // array writes invisible to the global array directory.
-                    return local_set(name, value);
-                }
-            }
+            // Phase 1 unification: every array — global, namespace,
+            // proc-local — lives in the same ``tcl_array`` directory.
+            // ``frame_resolve_array_name`` picks the right key:
+            //   * already-FQ ``::ns::arr``  → unchanged.
+            //   * upvar / global alias       → follow alias to target.
+            //   * unaliased proc-local       → ``::__local::<depth>::arr``.
+            //   * top-level                  → unchanged (global).
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
-            // Resolve upvar alias so writes via ``set a($k) v`` inside a proc
-            // where ``a`` is aliased (via upvar) to global array ``x`` land in
-            // ``x``, not a local shadow.
             const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
             _ = tcl_array.array_set(resolved_arr, key, value);
             obj.tcl_obj_release(arr_name);
+            if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
             obj.tcl_obj_release(key);
             return value;
         }
@@ -1293,18 +1567,15 @@ pub export fn var_exists(name: i32) i32 {
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");
             const arr_name = obj.obj_new_string(@bitCast(sn.ptr), @bitCast(paren));
+            // Phase 1: route through ``frame_resolve_array_name`` so a
+            // proc-local ``info exists arr(key)`` finds the
+            // ``::__local::<depth>::arr`` directory entry.
+            const resolved_arr = frame_resolve_array_name(arr_name);
             const key_len = sn.len - paren - 2;
             const key = obj.obj_new_string(@bitCast(sn.ptr + paren + 1), @bitCast(key_len));
-            const exists = tcl_array.array_element_exists(arr_name, key);
-            // Issue #317: ``arr_name`` and ``key`` are scratch
-            // borrowing-form TclObjs (cap = 0, bytes belong to
-            // ``sn``).  ``array_element_exists`` only reads their
-            // bytes for the lookup; without these releases every
-            // ``info exists arr(idx)`` probe leaked two TclObj
-            // headers, and tcltest's constraint sweep
-            // (``info exists testConstraints($c)``) hits this path
-            // many times per test.
+            const exists = tcl_array.array_element_exists(resolved_arr, key);
             obj.tcl_obj_release(arr_name);
+            if (resolved_arr != arr_name) obj.tcl_obj_release(resolved_arr);
             obj.tcl_obj_release(key);
             return exists;
         }
@@ -1332,6 +1603,12 @@ pub export fn var_exists(name: i32) i32 {
 /// When there is no alias, return *local_name* unchanged.
 pub export fn frame_resolve_array_name(local_name: i32) i32 {
     const sn = obj_ensure_string(local_name);
+    // Already-FQ names (``::nsa::name``) bypass scope resolution —
+    // they point at a specific global / namespace array directly.
+    if (sn.len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        if (sp[0] == ':' and sp[1] == ':') return local_name;
+    }
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
@@ -1344,7 +1621,16 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                     return tgt;
                 }
             }
+            if (v == ALIAS_GLOBAL) return local_name; // global alias keeps the same name
         }
+        // Phase 1 unification: an unqualified, unaliased array inside
+        // a proc frame lives in the global directory under a synthetic
+        // ``::__local::<depth>::<name>`` key so :func:`array_names`,
+        // ``array exists``, etc. all reach the same storage as
+        // ``set arr(key)`` / ``$arr(key)``.  ``frame_pop`` evicts these
+        // entries via ``drop_local_arrays_for_depth``.
+        const tcl_array = @import("../valtypes/tcl_array.zig");
+        return tcl_array.make_local_array_obj(local_name, frame_depth);
     }
     return local_name;
 }

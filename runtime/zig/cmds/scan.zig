@@ -24,6 +24,7 @@
 // For %s a width field limits the number of characters taken.
 
 const rt     = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const stubs  = @import("../stubs/tcl_stubs.zig");
 const chars  = @import("../valtypes/tcl_chars.zig");
@@ -190,8 +191,8 @@ fn scan_bignum(
 
 // ── main handler ─────────────────────────────────────────────────────────────
 
-fn eval_scan(words: []const i32) i32 {
-    if (words.len < 3) return obj_new_int(0);
+fn eval_scan(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) return result_mod.from_globals(obj_new_int(0));
 
     const ss = obj_ensure_string(words[1]);
     const fs = obj_ensure_string(words[2]);
@@ -394,9 +395,9 @@ fn eval_scan(words: []const i32) i32 {
 
     if (!has_vars) {
         // No-variable form: return the list of parsed values.
-        return list_result;
+        return result_mod.from_globals(list_result);
     }
-    return obj_new_int(@intCast(assigned));
+    return result_mod.from_globals(obj_new_int(@intCast(assigned)));
 }
 
 pub const registrations = [_]reg.CmdEntry{

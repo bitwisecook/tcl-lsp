@@ -1,6 +1,7 @@
 // ``global``, ``variable``, ``upvar`` — scope/namespace linkage commands.
 
 const rt     = @import("../tcl_runtime.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const tcl_ns = @import("../interp/tcl_ns.zig");
 const reg    = @import("../dispatch/tcl_cmd_registry.zig");
@@ -8,15 +9,15 @@ const reg    = @import("../dispatch/tcl_cmd_registry.zig");
 const obj_new_string    = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
 
-fn eval_global(words: []const i32) i32 {
+fn eval_global(words: []const i32) result_mod.InterpResult {
     var gi: u32 = 1;
     while (gi < words.len) : (gi += 1) {
         frames.frame_alias_global(words[gi]);
     }
-    return 0;
+    return result_mod.from_globals(0);
 }
 
-fn eval_variable(words: []const i32) i32 {
+fn eval_variable(words: []const i32) result_mod.InterpResult {
     var i: u32 = 1;
     while (i < words.len) : (i += 1) {
         const name_obj = words[i];
@@ -35,12 +36,12 @@ fn eval_variable(words: []const i32) i32 {
             i += 1;
         }
     }
-    return obj_new_string(0, 0);
+    return result_mod.from_globals(obj_new_string(0, 0));
 }
 
-fn eval_upvar(words: []const i32) i32 {
+fn eval_upvar(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
-    return interp.eval_upvar(words);
+    return result_mod.from_globals(interp.eval_upvar(words));
 }
 
 pub const registrations = [_]reg.CmdEntry{

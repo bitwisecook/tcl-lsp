@@ -1,24 +1,25 @@
 // ``file``, ``pwd``, ``cd``, ``glob`` — filesystem commands.
 
 const fs_mod      = @import("../io/tcl_fs.zig");
+const result_mod = @import("../interp/tcl_result.zig");
 const obj         = @import("../valtypes/tcl_obj.zig");
 const stubs       = @import("../stubs/tcl_stubs.zig");
 const reg         = @import("../dispatch/tcl_cmd_registry.zig");
 
-fn eval_file(words: []const i32) i32 {
+fn eval_file(words: []const i32) result_mod.InterpResult {
     const sub = if (words.len >= 2) words[1] else 0;
     const a1  = if (words.len >= 3) words[2] else 0;
     const a2  = if (words.len >= 4) words[3] else 0;
-    return fs_mod.tcl_cmd_file(sub, a1, a2);
+    return result_mod.from_globals(fs_mod.tcl_cmd_file(sub, a1, a2));
 }
 
-fn eval_pwd(words: []const i32) i32 {
+fn eval_pwd(words: []const i32) result_mod.InterpResult {
     _ = words;
-    return fs_mod.tcl_cmd_pwd();
+    return result_mod.from_globals(fs_mod.tcl_cmd_pwd());
 }
 
-fn eval_cd(words: []const i32) i32 {
-    return fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0);
+fn eval_cd(words: []const i32) result_mod.InterpResult {
+    return result_mod.from_globals(fs_mod.tcl_cmd_cd(if (words.len >= 2) words[1] else 0));
 }
 
 /// Tcl 9 spelling: ``source ?-encoding name? fileName``.
@@ -31,17 +32,17 @@ fn eval_cd(words: []const i32) i32 {
 /// unknown leading option) raises so scripts don't silently lose
 /// the trailing word — diverging from tclsh on those shapes would
 /// hide a real bug at the call site.
-fn eval_source(words: []const i32) i32 {
+fn eval_source(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         stubs.raise("source: missing fileName");
-        return 0;
+        return result_mod.from_globals(0);
     }
-    if (words.len == 2) return fs_mod.tcl_cmd_source(words[1]);
+    if (words.len == 2) return result_mod.from_globals(fs_mod.tcl_cmd_source(words[1]));
     if (words.len == 4 and is_dash_encoding(words[1])) {
-        return fs_mod.tcl_cmd_source(words[3]);
+        return result_mod.from_globals(fs_mod.tcl_cmd_source(words[3]));
     }
     stubs.raise("source: expected ?-encoding name? fileName");
-    return 0;
+    return result_mod.from_globals(0);
 }
 
 fn is_dash_encoding(o: i32) bool {
@@ -68,7 +69,7 @@ fn is_dash_encoding(o: i32) bool {
 /// / ``-path`` / ``-join``) raise ``unsupported`` so scripts get
 /// a clear diagnostic — adding them is purely a parsing job; the
 /// underlying readdir machinery already supports the work.
-fn eval_glob(words: []const i32) i32 {
+fn eval_glob(words: []const i32) result_mod.InterpResult {
     var idx: usize = 1;
     var nocomplain = false;
     while (idx < words.len) : (idx += 1) {
@@ -92,7 +93,7 @@ fn eval_glob(words: []const i32) i32 {
             eq_lit(sp, s.len, "-join"))
         {
             stubs.unsupported_sub("glob", sp[0..s.len]);
-            return 0;
+            return result_mod.from_globals(0);
         }
         // Unknown switch — match stock Tcl's behaviour and raise
         // ``bad option "<switch>"`` instead of silently demoting to
@@ -118,18 +119,18 @@ fn eval_glob(words: []const i32) i32 {
         }
         const msg_slice = (@as([*]const u8, @ptrFromInt(buf_addr)))[0..total];
         stubs.raise(msg_slice);
-        return 0;
+        return result_mod.from_globals(0);
     }
     if (idx >= words.len) {
-        if (nocomplain) return obj.obj_new_string(0, 0);
+        if (nocomplain) return result_mod.from_globals(obj.obj_new_string(0, 0));
         stubs.raise("wrong # args: should be \"glob ?switches? pattern ?pattern ...?\"");
-        return 0;
+        return result_mod.from_globals(0);
     }
     var acc: i32 = obj.obj_new_string(0, 0);
     var any_matched = false;
     while (idx < words.len) : (idx += 1) {
         const result = fs_mod.tcl_cmd_glob(words[idx]);
-        if (result == 0) return 0; // capability-denied or fatal — error already raised
+        if (result == 0) return result_mod.from_globals(0); // capability-denied or fatal — error already raised
         const r = obj.obj_ensure_string(result);
         if (r.len == 0) continue;
         any_matched = true;
@@ -143,9 +144,9 @@ fn eval_glob(words: []const i32) i32 {
     }
     if (!any_matched and !nocomplain) {
         stubs.raise("no files matched glob pattern");
-        return 0;
+        return result_mod.from_globals(0);
     }
-    return acc;
+    return result_mod.from_globals(acc);
 }
 
 fn eq_lit(p: [*]const u8, len: u32, lit: []const u8) bool {

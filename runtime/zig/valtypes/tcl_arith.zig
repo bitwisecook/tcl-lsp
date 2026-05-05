@@ -616,7 +616,7 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
     // pending diagnostic with a follow-on ``cannot use floating-
     // point value`` error — match reference Tcl's "first error
     // wins" semantics for a single command.
-    if (@import("../interp/tcl_catch.zig").error_flag != 0) return;
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
     const prefix: []const u8 = "cannot use floating-point value \"";
     const middle: []const u8 = "\" as ";
@@ -672,7 +672,7 @@ fn raise_float_in_bitwise(o: i32, op_sym: []const u8, position: []const u8) void
 fn raise_float_in_unary_bitwise(o: i32, op_sym: []const u8) void {
     // Preserve the first error in a chain — see the binary form for
     // the rationale.
-    if (@import("../interp/tcl_catch.zig").error_flag != 0) return;
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
     const prefix: []const u8 = "cannot use floating-point value \"";
     const middle: []const u8 = "\" as operand of \"";
