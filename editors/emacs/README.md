@@ -87,15 +87,10 @@ highlighting visibly degrades the more you edit. Saving (`C-x C-s`)
 does not fix it. Reverting the buffer (`M-x revert-buffer`) or closing
 and reopening the file does fix it.
 
-**Cause:** an upstream bug in `eglot-semantic-tokens-mode`'s painter
-(`eglot--semtok-font-lock-1`). The painter applies new token faces
-with `add-face-text-property` but never strips its prior
-`eglot-semantic-*` faces from the buffer's `face' text-property
-before re-applying. Each repaint accumulates a copy, and Emacs renders
-based on the *first* face in the list — which is the oldest one, not
-the freshest. Tracked at
+**Cause:** Tracked at
 [bitwisecook/tcl-lsp#333](https://github.com/bitwisecook/tcl-lsp/issues/333);
-present in eglot 1.21–1.23 inclusive.
+
+This may be an eglot bug.
 
 **Workarounds (pick one):**
 
@@ -169,9 +164,6 @@ present in eglot 1.21–1.23 inclusive.
 3. **Revert the buffer** (`M-x revert-buffer`) whenever highlighting
    visibly degrades. Discards unsaved changes — only viable if you've
    just saved.
-
-The proper fix is in eglot upstream. If you're affected, please
-upvote / report at the appropriate emacs-devel channel.
 
 ## Bracket matching and auto-pairs
 
