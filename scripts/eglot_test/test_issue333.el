@@ -78,9 +78,11 @@ form may not get re-invoked automatically after an async response."
      (cl-getf eglot--semtok-state :data))))
 
 (defun t333-snapshot ()
-  "Return list of (POS CHAR FACE TOK-FACES TOK-NAMES) for every char."
+  "Return list of (POS CHAR FACE TOK-FACES TOK-NAMES) for every char.
+Pumps until tokens arrive, but does NOT force-paint — letting natural
+font-lock paint reflects what the user actually sees, and avoids
+masking the upstream painter-accumulation bug from issue #333."
   (t333-pump-until-semtok 8)
-  (t333-paint-from-cache)
   (cl-loop for pos from (point-min) below (point-max)
            collect (list pos
                          (char-after pos)
@@ -118,6 +120,33 @@ form may not get re-invoked automatically after an async response."
              for ca = (nth i a) for cb = (nth i b)
              unless (equal (caddr ca) (caddr cb))
              collect (list i (cadr ca) (caddr ca) (caddr cb)))))
+
+(defun t333-face-list (face-prop)
+  "Return FACE-PROP normalized as a list of face symbols."
+  (cond ((null face-prop) nil)
+        ((symbolp face-prop) (list face-prop))
+        ((and (consp face-prop) (keywordp (car face-prop))) nil) ; plist
+        ((listp face-prop) face-prop)
+        (t nil)))
+
+(defun t333-find-accumulated-faces (snap)
+  "Return positions in SNAP whose `face' contains a duplicated eglot face.
+This catches the upstream eglot bug where `eglot--semtok-font-lock-1'
+fails to strip its previous `eglot-semantic-*' faces from the `face'
+property before re-applying, causing each repaint to append another
+copy.  See https://github.com/bitwisecook/tcl-lsp/issues/333."
+  (cl-loop for cell in snap
+           for face = (caddr cell)
+           for faces = (t333-face-list face)
+           for eglot-faces = (cl-remove-if-not
+                              (lambda (f)
+                                (and (symbolp f)
+                                     (string-prefix-p "eglot-semantic-"
+                                                      (symbol-name f))))
+                              faces)
+           when (> (length eglot-faces) (length (cl-remove-duplicates
+                                                  eglot-faces :test #'eq)))
+           collect (list (car cell) (cadr cell) eglot-faces)))
 
 (defun t333-connect-and-open (path)
   "Open PATH in a fresh tcl-mode buffer with eglot synchronously connected."
@@ -317,32 +346,128 @@ form may not get re-invoked automatically after an async response."
                        (string= edited-text reload-text)
                        (length snap-edited) (length snap-reload)))
 
-        (let ((diff (t333-diff snap-edited snap-reload)))
+        (let ((diff (t333-diff snap-edited snap-reload))
+              (accum-edited (t333-find-accumulated-faces snap-edited))
+              (accum-reload (t333-find-accumulated-faces snap-reload)))
+          ;; Bug-mode A: diff between post-edit and fresh reload.
+          (when diff
+            (princ (format "  FAIL [diff]: %d positions differ\n" (length diff)))
+            (cl-loop for d in diff for k from 0 below 12
+                     do (princ (format "    pos=%4d char=%c edit=%S  reload=%S\n"
+                                       (nth 0 d) (nth 1 d) (nth 2 d) (nth 3 d)))))
+          ;; Bug-mode B (issue #333): same eglot-semantic-* face appears
+          ;; multiple times on a single character within one snapshot.
+          ;; This catches the upstream eglot painter accumulation bug.
+          (when accum-edited
+            (princ (format "  FAIL [accum-edited]: %d positions have duplicated eglot-semantic-* faces\n"
+                           (length accum-edited)))
+            (cl-loop for a in accum-edited for k from 0 below 6
+                     do (princ (format "    pos=%4d char=%c faces=%S\n"
+                                       (nth 0 a) (nth 1 a) (nth 2 a)))))
+          (when accum-reload
+            (princ (format "  FAIL [accum-reload]: %d positions have duplicated eglot-semantic-* faces (in fresh-open buffer!)\n"
+                           (length accum-reload))))
           (cond
-           ((null diff)
-            (princ "  PASS\n")
-            t)
+           ((and (null diff) (null accum-edited) (null accum-reload))
+            (princ "  PASS\n") t)
            (t
-            (princ (format "  FAIL: %d positions differ\n" (length diff)))
-            (cl-loop for d in diff
-                     for k from 0 below 12
-                     do (princ (format "    pos=%4d char=%c\n         edit=%S\n         reload=%S\n"
-                                       (nth 0 d) (nth 1 d) (nth 2 d) (nth 3 d))))
             (princ "  --- edited buffer summary:\n")
             (princ (t333-snapshot-summary snap-edited)) (princ "\n")
-            (princ "  --- reload buffer summary:\n")
-            (princ (t333-snapshot-summary snap-reload)) (princ "\n")
+            nil)))))))
+
+(cl-defun t333-painter-accumulation-test ()
+  "Direct regression test for issue #333.
+
+Calls `eglot--semtok-font-lock-1' twice in a row without an
+intervening unfontify and asserts that no `eglot-semantic-*' face
+appears more than once on any character.
+
+Why this matters: `eglot--semtok-font-lock-1' uses
+`add-face-text-property' to apply each token's face, but only
+removes the auxiliary `eglot--semtok-token' / `eglot--semtok-faces'
+properties before doing so — never the prior `eglot-semantic-*'
+faces from the `face' property itself.  In interactive use, repeated
+re-paints (after edits, scrolls, theme changes) accumulate faces
+on the same character.  See
+https://github.com/bitwisecook/tcl-lsp/issues/333#issuecomment-4380862687
+for an end-user-facing example."
+  (princ "\n========== scenario: painter-accumulation (issue #333) ==========\n")
+  (let* ((tmpdir (expand-file-name "tmp/eglot_test" t333-repo))
+         (path (expand-file-name "painter-accum.tcl" tmpdir))
+         (initial (concat
+                   "namespace eval ::myns {}\n"
+                   "set iniFile config.ini\n"
+                   "proc compute {a b} {\n"
+                   "    set total [expr {$a + $b}]\n"
+                   "    return $total\n"
+                   "}\n")))
+    (make-directory tmpdir t)
+    (with-temp-file path (insert initial))
+    (t333-connect-and-open path)
+    (t333-pump-until-semtok 8)
+    (let ((data (cl-getf eglot--semtok-state :data)))
+      (unless (and data (vectorp data) (> (length data) 0))
+        (princ "  ERROR: no semantic-tokens data after open\n")
+        (t333-disconnect)
+        (cl-return-from t333-painter-accumulation-test nil))
+      ;; Capture face state immediately after the natural fontify.
+      ;; `font-lock-flush' would re-unfontify, so we don't call it
+      ;; here — we want to see what happens when the painter is
+      ;; invoked twice consecutively, which is the real-world flow.
+      (let ((before-second-paint
+             (cl-loop for pos from (point-min) below (point-max)
+                      collect (cons pos (get-text-property pos 'face)))))
+        ;; Second paint, no unfontify in between.
+        (eglot--semtok-font-lock-1 (point-min) (point-max) data)
+        (let* ((snap (cl-loop for pos from (point-min) below (point-max)
+                              collect (list pos
+                                            (char-after pos)
+                                            (get-text-property pos 'face))))
+               (accum (t333-find-accumulated-faces snap))
+               ;; Did the buffer's face state change between paints?
+               ;; If the painter were idempotent, it wouldn't.
+               (after-second
+                (cl-loop for pos from (point-min) below (point-max)
+                         collect (cons pos (get-text-property pos 'face))))
+               (changed (cl-count-if-not
+                         (lambda (i) (equal (cdr (nth i before-second-paint))
+                                            (cdr (nth i after-second))))
+                         (number-sequence 0 (1- (length before-second-paint))))))
+          (t333-disconnect)
+          (princ (format "  %d / %d positions changed face after second paint\n"
+                         changed (length before-second-paint)))
+          (cond
+           ((null accum)
+            (princ "  PASS — painter is idempotent (eglot bug fixed?)\n") t)
+           (t
+            (princ (format "  FAIL — %d positions accumulated duplicate eglot-semantic-* faces\n"
+                           (length accum)))
+            (princ "  This is the upstream eglot bug from issue #333.\n")
+            (cl-loop for a in accum for k from 0 below 8
+                     do (princ (format "    pos=%4d char=%c faces=%S\n"
+                                       (nth 0 a) (nth 1 a) (nth 2 a))))
             nil)))))))
 
 (defun t333-main ()
-  (let ((results (mapcar (lambda (sc) (cons (plist-get sc :name)
-                                             (t333-run-scenario sc)))
-                         t333-scenarios)))
+  (let* ((scenario-results
+          (mapcar (lambda (sc) (cons (plist-get sc :name)
+                                      (t333-run-scenario sc)))
+                  t333-scenarios))
+         ;; Painter-accumulation is informational: it deterministically
+         ;; reproduces an upstream eglot bug we cannot fix from the
+         ;; server side.  We expect it to FAIL on every eglot version up
+         ;; to and including the current GNU ELPA release; if it ever
+         ;; PASSes we'd want to know (and probably remove this XFAIL).
+         (accum-pass (t333-painter-accumulation-test))
+         (any-fail (cl-some (lambda (r) (not (cdr r))) scenario-results)))
     (princ "\n========== summary ==========\n")
-    (dolist (r results)
-      (princ (format "  %-22s %s\n" (car r)
+    (dolist (r scenario-results)
+      (princ (format "  %-25s %s\n" (car r)
                      (if (cdr r) "PASS" "FAIL"))))
-    (kill-emacs (if (cl-every #'cdr results) 0 1))))
+    (princ (format "  %-25s %s\n" "painter-accumulation"
+                   (cond (accum-pass "PASS (eglot bug appears fixed!)")
+                         (t "XFAIL (known upstream eglot bug, see issue #333)"))))
+    (kill-emacs (if any-fail 1 0))))
 
 (condition-case err
     (t333-main)
