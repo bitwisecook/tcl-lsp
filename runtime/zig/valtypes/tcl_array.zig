@@ -495,40 +495,75 @@ fn ar_grow(old_table: u32) u32 {
     return t;
 }
 
-/// Normalise a variable name that contains ``::`` but does not start
-/// with ``::`` (e.g. ``ns::var``) by prepending ``::`` to produce a
-/// fully-qualified name (``::ns::var``).  Names that are already
-/// qualified or that contain no ``::`` (local arrays) are returned
-/// unchanged.  Keeps the array directory consistent with Tcl's view
-/// that unqualified namespace paths in global scope are equivalent
-/// to their ``::``-prefixed forms, so ``info vars ::ns::T-*`` can
-/// find arrays created via ``upvar #0 ns::T-$tag local``.
+/// Canonicalise an array name to the directory key used by
+/// :data:`dir_buf`:
+///
+/// * ``::foo`` (root global, no further ``::``)  → ``foo``  (strip)
+/// * ``::ns::foo`` / ``::__local::N::foo``       → unchanged
+/// * ``ns::foo`` (internal ``::``, no leading)   → ``::ns::foo``
+/// * ``foo`` (bare, no ``::`` anywhere)           → unchanged
+///
+/// The strip direction matches the rest of the runtime's convention
+/// for root-global keys: :func:`tcl_ns.strip_global_prefix` and
+/// :func:`array_exists_raw` both treat the bare form as canonical.
+/// Without it, ``set foo(a) 1`` and ``set ::foo(a) 1`` would key
+/// distinct directory buckets — and ``set ::foo bar``'s scalar/array
+/// conflict probe (which strips ``::`` before calling
+/// :func:`array_exists_raw`) would miss the array stored at the
+/// ``::foo`` spelling.
+///
+/// Returned ``i32`` is *either* the input ``name`` (no change) or a
+/// fresh TclObj that the caller must :func:`tcl_obj_release` once it
+/// is done with the lookup.  All in-tree callers follow the
+/// ``defer if (n != name) tcl_obj_release(n)`` pattern.
 fn normalize_ns_name(name: i32) i32 {
     const sn = obj_ensure_string(name);
-    if (sn.len < 2) return name;
+    if (sn.len == 0) return name;
     const sp: [*]const u8 = @ptrFromInt(sn.ptr);
-    if (sp[0] == ':' and sp[1] == ':') return name; // already qualified
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') {
+        // ``::``-prefixed.  Probe for another ``::`` after the
+        // leading pair: if present (``::ns::foo``,
+        // ``::__local::N::foo``), the name is namespace-qualified or
+        // an internal proc-local key — keep as-is.
+        var i: u32 = 2;
+        while (i + 1 < sn.len) : (i += 1) {
+            if (sp[i] == ':' and sp[i + 1] == ':') return name;
+        }
+        // Bare root global ``::foo`` — strip the prefix.  Empty body
+        // (``::``) falls back to no-op so we never produce a
+        // zero-length directory key.
+        const stripped_len = sn.len - 2;
+        if (stripped_len == 0) return name;
+        const buf = alloc(stripped_len);
+        // OOM — fall back to the qualified form rather than a
+        // null-pointer trap.  The directory probe will miss and the
+        // caller's higher-level error machinery handles the rest.
+        if (buf == 0) return name;
+        memcpy(buf, sn.ptr + 2, stripped_len);
+        return obj.obj_new_string_take(buf, stripped_len, stripped_len);
+    }
+    // Internal ``::`` (``ns::foo``) → ``::ns::foo``.  Keeps
+    // namespace arrays addressable by both spellings.
     var i: u32 = 0;
     while (i + 1 < sn.len) : (i += 1) {
         if (sp[i] == ':' and sp[i + 1] == ':') {
-            const buf = alloc(2 + sn.len);
-            // OOM — fall back to the unqualified form rather than a
-            // null-pointer trap.  Caller's directory probe will miss
-            // and either signal "no such array" cleanly or trip a
-            // Tcl-level error from a higher allocator.
+            const total: u32 = 2 + sn.len;
+            const buf = alloc(total);
             if (buf == 0) return name;
             const d: [*]u8 = @ptrFromInt(buf);
             d[0] = ':';
             d[1] = ':';
             memcpy(buf + 2, sn.ptr, sn.len);
-            return obj_new_string(@bitCast(buf), @bitCast(2 + sn.len));
+            return obj.obj_new_string_take(buf, total, total);
         }
     }
-    return name; // no '::' in name — local array, no normalization
+    // Bare unqualified name — already canonical.
+    return name;
 }
 
 fn find_or_create(name: i32) u32 {
     const n = normalize_ns_name(name);
+    defer if (n != name) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
     const hash = fnv1a(sn.ptr, sn.len);
     if (dir_find(sn.ptr, sn.len, hash)) |bucket| {
@@ -620,6 +655,7 @@ fn find_or_create(name: i32) u32 {
 
 fn find_table(name: i32) u32 {
     const n = normalize_ns_name(name);
+    defer if (n != name) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
     // Null-TclObj guard: obj_ensure_string(0) returns (ptr=0, len=0).
     // @ptrFromInt(0) panics in WASM safety mode before any dereference,
@@ -719,6 +755,7 @@ fn fire_var_trace_unset(arr: i32, key_ptr: u32, key_len: u32) void {
 /// trap the runtime.
 fn fire_var_trace(arr: i32, key_ptr: u32, key_len: u32, op: u32, op_char: u8) void {
     const an = normalize_ns_name(arr);
+    defer if (an != arr) obj.tcl_obj_release(an);
     const sn = obj_ensure_string(an);
     if (sn.ptr == 0 or sn.len == 0) return;
     if (!var_trace.has_trace(sn.ptr, sn.len, op)) {
@@ -995,6 +1032,7 @@ pub export fn array_size(arr: i32) i32 {
 /// array_unset arrName — remove the entire array (all elements).
 pub export fn array_unset(arr: i32) i32 {
     const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
     if (dir_buf == 0) return obj_new_int(0);
     const hash = fnv1a(sn.ptr, sn.len);
