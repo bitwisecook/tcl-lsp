@@ -172,8 +172,7 @@ pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
                     p += 2;
                     continue;
                 }
-                if (src[p] == '{') bdepth += 1
-                else if (src[p] == '}') bdepth -= 1;
+                if (src[p] == '{') bdepth += 1 else if (src[p] == '}') bdepth -= 1;
                 p += 1;
             }
             at_word_start = false;
@@ -189,8 +188,7 @@ pub fn skip_command_subst(src: [*]const u8, pos: u32, len: u32) u32 {
             continue;
         }
         at_word_start = false;
-        if (c == '[') depth += 1
-        else if (c == ']') depth -= 1;
+        if (c == '[') depth += 1 else if (c == ']') depth -= 1;
         p += 1;
     }
     return p;

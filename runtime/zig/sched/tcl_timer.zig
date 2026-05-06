@@ -168,7 +168,10 @@ pub const Heap = struct {
             var match = true;
             var k: u32 = 0;
             while (k < script_len) : (k += 1) {
-                if (a[k] != b[k]) { match = false; break; }
+                if (a[k] != b[k]) {
+                    match = false;
+                    break;
+                }
             }
             if (match) {
                 const id = e.id;

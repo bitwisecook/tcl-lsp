@@ -4,7 +4,7 @@
 // expander (subst_word) and the ``subst`` command handler can share
 // one canonical implementation without importing the entire interpreter.
 
-const rt     = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const arena = @import("../valtypes/tcl_arena.zig");
@@ -12,11 +12,11 @@ const tcl_array = @import("../valtypes/tcl_array.zig");
 const catch_mod = @import("../interp/tcl_catch.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 
-const alloc            = rt.alloc;
-const memcpy           = rt.memcpy;
-const read_i32         = obj_mod.read_i32;
-const write_i32        = obj_mod.write_i32;
-const obj_new_string   = rt.obj_new_string;
+const alloc = rt.alloc;
+const memcpy = rt.memcpy;
+const read_i32 = obj_mod.read_i32;
+const write_i32 = obj_mod.write_i32;
+const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
 
 /// Build an error TclObj from a literal byte slice and route it
@@ -450,8 +450,7 @@ pub fn subst_flagged_full(
                             i += 2;
                             continue;
                         }
-                        if (src[i] == '{') bdepth += 1
-                        else if (src[i] == '}') bdepth -= 1;
+                        if (src[i] == '{') bdepth += 1 else if (src[i] == '}') bdepth -= 1;
                         i += 1;
                     }
                     bk_at_word_start = false;
@@ -690,7 +689,10 @@ pub fn subst_flagged_full(
             // fixes the leak and avoids the libc round-trip.
             const esc_alloc = arena.arena_alloc_or_libc(4);
             const esc_ptr = esc_alloc.addr;
-            if (esc_ptr == 0) { lit_run += wlen - i; break; }
+            if (esc_ptr == 0) {
+                lit_run += wlen - i;
+                break;
+            }
             const r = obj_mod.consume_bs_escape(src, i + 1, wlen, @ptrFromInt(esc_ptr));
             i = r.next_si;
             push_piece(pieces_buf, &n_pieces, &total_out, esc_ptr, r.written);

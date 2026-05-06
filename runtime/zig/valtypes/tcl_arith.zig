@@ -803,16 +803,37 @@ fn raise_non_numeric(o: i32, op_sym: []const u8, position: []const u8) void {
     }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
-    for (prefix) |c| { buf[off] = c; off += 1; }
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
     if (s.len > 0) {
         const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| { buf[off] = sp[i]; off += 1; }
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
     }
-    for (middle) |c| { buf[off] = c; off += 1; }
-    for (position) |c| { buf[off] = c; off += 1; }
-    for (between) |c| { buf[off] = c; off += 1; }
-    for (op_sym) |c| { buf[off] = c; off += 1; }
-    for (suffix) |c| { buf[off] = c; off += 1; }
+    for (middle) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (position) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (between) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (op_sym) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
     const msg = obj.obj_new_string_take(buf_addr, total, total);
     @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
 }

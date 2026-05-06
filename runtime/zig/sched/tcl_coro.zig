@@ -168,11 +168,30 @@ fn split_segments(c: *Coro) void {
             in_word = true;
             continue;
         }
-        if (ch == '{') { brace += 1; in_word = true; continue; }
-        if (ch == '}') { if (brace > 0) brace -= 1; in_word = true; continue; }
-        if (ch == '[') { bracket += 1; in_word = true; continue; }
-        if (ch == ']') { if (bracket > 0) bracket -= 1; in_word = true; continue; }
-        if (brace > 0 or bracket > 0) { in_word = true; continue; }
+        if (ch == '{') {
+            brace += 1;
+            in_word = true;
+            continue;
+        }
+        if (ch == '}') {
+            if (brace > 0) brace -= 1;
+            in_word = true;
+            continue;
+        }
+        if (ch == '[') {
+            bracket += 1;
+            in_word = true;
+            continue;
+        }
+        if (ch == ']') {
+            if (bracket > 0) bracket -= 1;
+            in_word = true;
+            continue;
+        }
+        if (brace > 0 or bracket > 0) {
+            in_word = true;
+            continue;
+        }
         if (ch == ';' or ch == '\n') {
             if (in_word and c.n_segments < MAX_SEGMENTS) {
                 c.segments[c.n_segments] = .{

@@ -131,9 +131,7 @@ pub fn lookup(body_ptr: u32, body_len: u32) u32 {
 fn slab_size(slab_addr: u32) u32 {
     const n_commands: u32 = @bitCast(read_i32(slab_addr + OFF_SLAB_N_COMMANDS));
     const total_tokens: u32 = @bitCast(read_i32(slab_addr + OFF_SLAB_TOTAL_TOKENS));
-    return SLAB_HEADER_SIZE
-        + n_commands * COMMAND_RECORD_SIZE
-        + total_tokens * TOKEN_SIZE;
+    return SLAB_HEADER_SIZE + n_commands * COMMAND_RECORD_SIZE + total_tokens * TOKEN_SIZE;
 }
 
 /// Free the slab pointed at by *bucket* and zero the slot.  No-op
@@ -246,9 +244,7 @@ pub fn invalidate_all() void {
 /// the packed ``parse.Token`` array.
 pub fn alloc_slab(n_commands: u32, total_tokens: u32) u32 {
     const size =
-        SLAB_HEADER_SIZE
-        + n_commands * COMMAND_RECORD_SIZE
-        + total_tokens * TOKEN_SIZE;
+        SLAB_HEADER_SIZE + n_commands * COMMAND_RECORD_SIZE + total_tokens * TOKEN_SIZE;
     const addr = alloc(size);
     write_i32(addr + OFF_SLAB_N_COMMANDS, @bitCast(n_commands));
     write_i32(addr + OFF_SLAB_TOTAL_TOKENS, @bitCast(total_tokens));

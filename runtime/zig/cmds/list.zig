@@ -2,20 +2,20 @@
 // linsert, lreplace, lsort, lsearch, lrange, concat, join, split,
 // lreverse, lrepeat, lassign, lmap, lseq.
 
-const rt        = @import("../tcl_runtime.zig");
-const frames    = @import("../interp/tcl_frames.zig");
-const obj_mod   = @import("../valtypes/tcl_obj.zig");
-const reg       = @import("../dispatch/tcl_cmd_registry.zig");
-const list_mod  = @import("../valtypes/tcl_list.zig");
-const interp    = @import("../interp/tcl_interp.zig");
+const rt = @import("../tcl_runtime.zig");
+const frames = @import("../interp/tcl_frames.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const list_mod = @import("../valtypes/tcl_list.zig");
+const interp = @import("../interp/tcl_interp.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const tcl_str   = @import("../valtypes/tcl_string.zig");
+const tcl_str = @import("../valtypes/tcl_string.zig");
 const tcl_chars = @import("../valtypes/tcl_chars.zig");
 const list_parse = @import("../valtypes/tcl_list_parse.zig");
 
-const alloc             = rt.alloc;
-const obj_new_string    = rt.obj_new_string;
-const obj_new_int       = rt.obj_new_int;
+const alloc = rt.alloc;
+const obj_new_string = rt.obj_new_string;
+const obj_new_int = rt.obj_new_int;
 const obj_ensure_string = rt.obj_ensure_string;
 
 fn eval_list(words: []const i32) result_mod.InterpResult {
@@ -128,9 +128,9 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
 
 fn eval_lreplace(words: []const i32) result_mod.InterpResult {
     if (words.len >= 4) {
-        const list_arg  = words[1];
+        const list_arg = words[1];
         const first_arg = words[2];
-        const last_arg  = words[3];
+        const last_arg = words[3];
         if (words.len == 4) {
             return result_mod.from_globals(rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0));
         }
@@ -222,7 +222,9 @@ fn ls_subindex_pair(outer: i64, inner: i64) i32 {
 // sub-element via `index_arg` (a TclObj whose string is the sub-index integer).
 // Returns (ep, elen, sub_idx) — sub_idx is only meaningful when index_arg != 0.
 fn ls_get_match_target(
-    ls_ptr: u32, ls_len: u32, idx: i64,
+    ls_ptr: u32,
+    ls_len: u32,
+    idx: i64,
     index_arg: i32,
 ) struct { ep: u32, elen: u32, sub_idx: i64 } {
     const outer_elem = rt.list_element_at(ls_ptr, ls_len, idx);
@@ -267,21 +269,32 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
         if (sv.len == 0 or sv.ptr == 0) break;
         const sp: [*]const u8 = @ptrFromInt(sv.ptr);
         if (sp[0] != '-') break;
-        if (ls_opt_eq(sv.ptr, sv.len, "--")) { wi += 1; break; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-exact"))  { mode = 'e'; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-glob"))   { mode = 'g'; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-regexp"))  { mode = 'r'; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-all"))    { find_all = true; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-not"))    { negate = true; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-nocase")) { nocase = true; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-inline")) { do_inline = true; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-subindices")) { do_subindices = true; }
-        else if (ls_opt_eq(sv.ptr, sv.len, "-sorted") or
-                 ls_opt_eq(sv.ptr, sv.len, "-decreasing") or
-                 ls_opt_eq(sv.ptr, sv.len, "-bisect") or
-                 ls_opt_eq(sv.ptr, sv.len, "-integer") or
-                 ls_opt_eq(sv.ptr, sv.len, "-real") or
-                 ls_opt_eq(sv.ptr, sv.len, "-dictionary")) {
+        if (ls_opt_eq(sv.ptr, sv.len, "--")) {
+            wi += 1;
+            break;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-exact")) {
+            mode = 'e';
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-glob")) {
+            mode = 'g';
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-regexp")) {
+            mode = 'r';
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-all")) {
+            find_all = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-not")) {
+            negate = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-nocase")) {
+            nocase = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-inline")) {
+            do_inline = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-subindices")) {
+            do_subindices = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-sorted") or
+            ls_opt_eq(sv.ptr, sv.len, "-decreasing") or
+            ls_opt_eq(sv.ptr, sv.len, "-bisect") or
+            ls_opt_eq(sv.ptr, sv.len, "-integer") or
+            ls_opt_eq(sv.ptr, sv.len, "-real") or
+            ls_opt_eq(sv.ptr, sv.len, "-dictionary"))
+        {
             // Recognised; fall back to linear search (correct result, slower).
         } else if (ls_opt_eq(sv.ptr, sv.len, "-start")) {
             wi += 1;
@@ -309,12 +322,21 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
             if (buf != 0) {
                 const bp: [*]u8 = @ptrFromInt(buf);
                 var off: u32 = 0;
-                for (prefix) |c| { bp[off] = c; off += 1; }
+                for (prefix) |c| {
+                    bp[off] = c;
+                    off += 1;
+                }
                 if (sv.ptr != 0) {
                     const sp2: [*]const u8 = @ptrFromInt(sv.ptr);
-                    for (0..name_len) |k| { bp[off] = sp2[k]; off += 1; }
+                    for (0..name_len) |k| {
+                        bp[off] = sp2[k];
+                        off += 1;
+                    }
                 }
-                for (suffix) |c| { bp[off] = c; off += 1; }
+                for (suffix) |c| {
+                    bp[off] = c;
+                    off += 1;
+                }
                 const msg = obj_mod.obj_new_string_take(buf, total, total);
                 const catch_mod = @import("../interp/tcl_catch.zig");
                 catch_mod.tcl_cmd_error(msg);
@@ -327,13 +349,13 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
 
     if (wi + 1 >= words.len) return result_mod.from_globals(obj_new_int(-1));
     const list_obj = words[wi];
-    const pat_obj  = words[wi + 1];
+    const pat_obj = words[wi + 1];
 
     _ = stubs; // suppress unused warning when not used below
 
     const ls = obj_ensure_string(list_obj);
     const pv = obj_ensure_string(pat_obj);
-    const n  = rt.list_count_elements(ls.ptr, ls.len);
+    const n = rt.list_count_elements(ls.ptr, ls.len);
 
     // Align idx to the first stride group that covers [start, n).
     var idx: i64 = if (stride > 1) @divFloor(start, stride) * stride else start;
@@ -355,7 +377,8 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
                 const buf = alloc(elen + 4);
                 if (buf != 0) {
                     const decoded = rt.copy_unbraced_elem(buf, ep, elen);
-                    ep = buf; elen = decoded;
+                    ep = buf;
+                    elen = decoded;
                 }
             }
             const raw: bool = switch (mode) {
@@ -571,8 +594,7 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
                     const out_len = rt.copy_unbraced_elem(buf, ls.ptr + elem.start, elem.len);
                     break :inner obj_new_string(@bitCast(buf), @bitCast(out_len));
                 };
-            } else
-                obj_new_string(0, 0);
+            } else obj_new_string(0, 0);
             _ = frames.var_set(var_name, elem_val);
             obj_mod.tcl_obj_release(elem_val);
         }
@@ -580,8 +602,14 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
         const ir = result_mod.snapshot(item);
         switch (ir.code) {
             .OK => result = rt.tcl_list(result, item),
-            .BREAK => { result_mod.consume(.BREAK); break; },
-            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE => {
+                result_mod.consume(.CONTINUE);
+                continue;
+            },
             .ERROR, .RETURN => return result_mod.from_globals(item),
         }
     }

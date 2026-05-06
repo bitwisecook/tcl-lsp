@@ -1,12 +1,12 @@
 // ``eval``, ``uplevel`` — script evaluation commands.
 
-const rt  = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-const alloc             = rt.alloc;
-const memcpy            = rt.memcpy;
+const alloc = rt.alloc;
+const memcpy = rt.memcpy;
 const obj_ensure_string = rt.obj_ensure_string;
 
 fn eval_eval(words: []const i32) result_mod.InterpResult {

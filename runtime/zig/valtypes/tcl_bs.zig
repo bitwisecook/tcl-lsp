@@ -57,13 +57,34 @@ pub fn consume_bs_escape(
     var si = si_in;
     const ch = src[si];
     switch (ch) {
-        'n' => { out[0] = '\n'; return .{ .next_si = si + 1, .written = 1 }; },
-        't' => { out[0] = '\t'; return .{ .next_si = si + 1, .written = 1 }; },
-        'r' => { out[0] = '\r'; return .{ .next_si = si + 1, .written = 1 }; },
-        'a' => { out[0] = 0x07; return .{ .next_si = si + 1, .written = 1 }; },
-        'b' => { out[0] = 0x08; return .{ .next_si = si + 1, .written = 1 }; },
-        'f' => { out[0] = 0x0C; return .{ .next_si = si + 1, .written = 1 }; },
-        'v' => { out[0] = 0x0B; return .{ .next_si = si + 1, .written = 1 }; },
+        'n' => {
+            out[0] = '\n';
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+        't' => {
+            out[0] = '\t';
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+        'r' => {
+            out[0] = '\r';
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+        'a' => {
+            out[0] = 0x07;
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+        'b' => {
+            out[0] = 0x08;
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+        'f' => {
+            out[0] = 0x0C;
+            return .{ .next_si = si + 1, .written = 1 };
+        },
+        'v' => {
+            out[0] = 0x0B;
+            return .{ .next_si = si + 1, .written = 1 };
+        },
         'x' => {
             // ``\xNN`` — 1 or 2 hex digits → Unicode codepoint U+00NN
             // emitted as UTF-8 (Tcl 9 semantics).  When no hex digit
@@ -74,10 +95,19 @@ pub fn consume_bs_escape(
             var ndig: u32 = 0;
             while (ndig < 2 and si < len) {
                 const c = src[si];
-                if (c >= '0' and c <= '9') { val = val * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
-                else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
-                else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
-                else break;
+                if (c >= '0' and c <= '9') {
+                    val = val * 16 + @as(u32, c - '0');
+                    si += 1;
+                    ndig += 1;
+                } else if (c >= 'a' and c <= 'f') {
+                    val = val * 16 + @as(u32, c - 'a' + 10);
+                    si += 1;
+                    ndig += 1;
+                } else if (c >= 'A' and c <= 'F') {
+                    val = val * 16 + @as(u32, c - 'A' + 10);
+                    si += 1;
+                    ndig += 1;
+                } else break;
             }
             if (ndig == 0) {
                 // No hex digits — emit the literal ``x`` byte.
@@ -93,10 +123,19 @@ pub fn consume_bs_escape(
             var ndig: u32 = 0;
             while (ndig < 4 and si < len) {
                 const c = src[si];
-                if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
-                else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
-                else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
-                else break;
+                if (c >= '0' and c <= '9') {
+                    cp = cp * 16 + @as(u32, c - '0');
+                    si += 1;
+                    ndig += 1;
+                } else if (c >= 'a' and c <= 'f') {
+                    cp = cp * 16 + @as(u32, c - 'a' + 10);
+                    si += 1;
+                    ndig += 1;
+                } else if (c >= 'A' and c <= 'F') {
+                    cp = cp * 16 + @as(u32, c - 'A' + 10);
+                    si += 1;
+                    ndig += 1;
+                } else break;
             }
             return .{ .next_si = si, .written = encode_utf8(out, cp) };
         },
@@ -107,10 +146,19 @@ pub fn consume_bs_escape(
             var ndig: u32 = 0;
             while (ndig < 8 and si < len) {
                 const c = src[si];
-                if (c >= '0' and c <= '9') { cp = cp * 16 + @as(u32, c - '0'); si += 1; ndig += 1; }
-                else if (c >= 'a' and c <= 'f') { cp = cp * 16 + @as(u32, c - 'a' + 10); si += 1; ndig += 1; }
-                else if (c >= 'A' and c <= 'F') { cp = cp * 16 + @as(u32, c - 'A' + 10); si += 1; ndig += 1; }
-                else break;
+                if (c >= '0' and c <= '9') {
+                    cp = cp * 16 + @as(u32, c - '0');
+                    si += 1;
+                    ndig += 1;
+                } else if (c >= 'a' and c <= 'f') {
+                    cp = cp * 16 + @as(u32, c - 'a' + 10);
+                    si += 1;
+                    ndig += 1;
+                } else if (c >= 'A' and c <= 'F') {
+                    cp = cp * 16 + @as(u32, c - 'A' + 10);
+                    si += 1;
+                    ndig += 1;
+                } else break;
             }
             return .{ .next_si = si, .written = encode_utf8(out, cp) };
         },
@@ -125,7 +173,8 @@ pub fn consume_bs_escape(
             var ndig: u32 = 0;
             while (ndig < 3 and si < len and src[si] >= '0' and src[si] <= '7') {
                 val = val * 8 + @as(u32, src[si] - '0');
-                si += 1; ndig += 1;
+                si += 1;
+                ndig += 1;
             }
             return .{ .next_si = si, .written = encode_utf8(out, val) };
         },

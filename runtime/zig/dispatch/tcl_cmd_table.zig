@@ -16,39 +16,38 @@
 
 const reg = @import("tcl_cmd_registry.zig");
 
-const string_cmd    = @import("../cmds/string.zig");
-const array_cmd     = @import("../cmds/array.zig");
-const dict_cmd      = @import("../cmds/dict.zig");
-const var_cmd       = @import("../cmds/var.zig");
-const scope_cmd     = @import("../cmds/scope.zig");
-const flow_cmd      = @import("../cmds/flow.zig");
-const loop_cmd      = @import("../cmds/loop.zig");
-const eval_cmd      = @import("../cmds/eval.zig");
-const proc_cmd      = @import("../cmds/proc.zig");
-const list_cmd      = @import("../cmds/list.zig");
-const io_cmd        = @import("../cmds/io.zig");
-const chan_cmd      = @import("../cmds/chan.zig");
-const fs_cmd        = @import("../cmds/fs.zig");
-const subst_cmd     = @import("../cmds/subst.zig");
-const regexp_cmd    = @import("../cmds/regexp.zig");
-const regsub_cmd    = @import("../cmds/regsub.zig");
-const inspect_cmd   = @import("../cmds/inspect.zig");
+const string_cmd = @import("../cmds/string.zig");
+const array_cmd = @import("../cmds/array.zig");
+const dict_cmd = @import("../cmds/dict.zig");
+const var_cmd = @import("../cmds/var.zig");
+const scope_cmd = @import("../cmds/scope.zig");
+const flow_cmd = @import("../cmds/flow.zig");
+const loop_cmd = @import("../cmds/loop.zig");
+const eval_cmd = @import("../cmds/eval.zig");
+const proc_cmd = @import("../cmds/proc.zig");
+const list_cmd = @import("../cmds/list.zig");
+const io_cmd = @import("../cmds/io.zig");
+const chan_cmd = @import("../cmds/chan.zig");
+const fs_cmd = @import("../cmds/fs.zig");
+const subst_cmd = @import("../cmds/subst.zig");
+const regexp_cmd = @import("../cmds/regexp.zig");
+const regsub_cmd = @import("../cmds/regsub.zig");
+const inspect_cmd = @import("../cmds/inspect.zig");
 const namespace_cmd = @import("../cmds/namespace.zig");
-const interp_cmd    = @import("../cmds/interp.zig");
-const stubs_cmd     = @import("../cmds/stubs.zig");
-const scan_cmd      = @import("../cmds/scan.zig");
-const binary_cmd    = @import("../cmds/binary.zig");
-const oo_cmd        = @import("../cmds/oo.zig");
-const after_cmd     = @import("../cmds/after.zig");
-const event_cmd     = @import("../cmds/event.zig");
+const interp_cmd = @import("../cmds/interp.zig");
+const stubs_cmd = @import("../cmds/stubs.zig");
+const scan_cmd = @import("../cmds/scan.zig");
+const binary_cmd = @import("../cmds/binary.zig");
+const oo_cmd = @import("../cmds/oo.zig");
+const after_cmd = @import("../cmds/after.zig");
+const event_cmd = @import("../cmds/event.zig");
 const coroutine_cmd = @import("../cmds/coroutine.zig");
 const fileevent_cmd = @import("../cmds/fileevent.zig");
-const exec_cmd      = @import("../cmds/exec.zig");
-const exit_cmd      = @import("../cmds/exit.zig");
-const mathop_cmd    = @import("../cmds/tcl_mathop.zig");
+const exec_cmd = @import("../cmds/exec.zig");
+const exit_cmd = @import("../cmds/exit.zig");
+const mathop_cmd = @import("../cmds/tcl_mathop.zig");
 
-const BUILTINS: []const reg.CmdEntry = &(
-    [_]reg.CmdEntry{string_cmd.registration} ++
+const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration} ++
     [_]reg.CmdEntry{array_cmd.registration} ++
     [_]reg.CmdEntry{dict_cmd.registration} ++
     var_cmd.registrations ++
@@ -77,8 +76,7 @@ const BUILTINS: []const reg.CmdEntry = &(
     fileevent_cmd.registrations ++
     exec_cmd.registrations ++
     exit_cmd.registrations ++
-    mathop_cmd.registrations
-);
+    mathop_cmd.registrations);
 
 /// Look up a command by name.  Returns the handler function pointer on
 /// hit, null on miss.  Called from ``tcl_interp.zig:eval_command``

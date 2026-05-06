@@ -85,12 +85,20 @@ const env_imports = if (build_options.asyncify) struct {
     /// ``build.zig`` so the pass treats it as unwinding.
     pub extern "env" fn coro_yield_unwind(buf: u32) void;
 } else struct {
-    pub fn asyncify_start_unwind(buf: u32) void { _ = buf; }
+    pub fn asyncify_start_unwind(buf: u32) void {
+        _ = buf;
+    }
     pub fn asyncify_stop_unwind() void {}
-    pub fn asyncify_start_rewind(buf: u32) void { _ = buf; }
+    pub fn asyncify_start_rewind(buf: u32) void {
+        _ = buf;
+    }
     pub fn asyncify_stop_rewind() void {}
-    pub fn asyncify_get_state() i32 { return STATE_NORMAL; }
-    pub fn coro_yield_unwind(buf: u32) void { _ = buf; }
+    pub fn asyncify_get_state() i32 {
+        return STATE_NORMAL;
+    }
+    pub fn coro_yield_unwind(buf: u32) void {
+        _ = buf;
+    }
 };
 
 pub const asyncify_start_unwind = env_imports.asyncify_start_unwind;

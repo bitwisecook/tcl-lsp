@@ -845,14 +845,17 @@ pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
     var has_digit = false;
     while (i < len) {
         const c = src[i];
-        if (c >= '0' and c <= '9') { has_digit = true; i += 1; }
-        else if (c == '.' and !has_dot and !has_exp) { has_dot = true; i += 1; }
-        else if ((c == 'e' or c == 'E') and !has_exp and has_digit) {
+        if (c >= '0' and c <= '9') {
+            has_digit = true;
+            i += 1;
+        } else if (c == '.' and !has_dot and !has_exp) {
+            has_dot = true;
+            i += 1;
+        } else if ((c == 'e' or c == 'E') and !has_exp and has_digit) {
             has_exp = true;
             i += 1;
             if (i < len and (src[i] == '+' or src[i] == '-')) i += 1;
-        }
-        else break;
+        } else break;
     }
     while (i < len and is_space(src[i])) i += 1;
     if (i != len) return null;
@@ -1281,7 +1284,10 @@ fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
     // a '.', 'e', or 'E' so that "5.0" is not confused with integer "5".
     var has_dot = false;
     for (result) |c| {
-        if (c == '.' or c == 'e' or c == 'E') { has_dot = true; break; }
+        if (c == '.' or c == 'e' or c == 'E') {
+            has_dot = true;
+            break;
+        }
     }
     if (!has_dot and len + 2 <= ftoa_buf.len) {
         ftoa_buf[len] = '.';

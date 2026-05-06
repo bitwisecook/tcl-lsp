@@ -112,7 +112,6 @@ pub export fn flow_check_signal_loop() i32 {
     return 0;
 }
 
-
 // Exported: enter a catch scope.
 pub export fn catch_enter() void {
     state.catch_depth += 1;
@@ -366,7 +365,8 @@ pub export fn catch_options() i32 {
         d = dict_set_str_keep(d, "-errorcode", ec_val);
     } else {
         d = dict_set_str_take(d, "-errorcode", obj_new_string_copy(
-            @intFromPtr("NONE".ptr), 4,
+            @intFromPtr("NONE".ptr),
+            4,
         ));
     }
     const ei_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);

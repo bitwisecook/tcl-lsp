@@ -35,7 +35,6 @@ const interp_reg = @import("../interp/tcl_interp_registry.zig");
 // pairs via the qualified-name walker, and formats the user-visible
 // error messages.
 
-
 /// Build an error message like ``can't rename "foo": command doesn't
 /// exist`` and route it through the standard error trap.  The
 /// per-case templates come from ``tclsh 9.0`` verbatim so tcltest's
@@ -529,7 +528,6 @@ pub fn alias_fill_visit(ctx: *AliasListCtx, _: u32, name_ptr: u32, name_len: u32
 }
 
 // -- ``interp hide`` / ``interp expose`` / ``interp hidden`` ---------------
-
 
 pub fn interp_hide_error(prefix: []const u8, name_ptr: u32, name_len: u32, suffix: []const u8) void {
     const catch_mod = @import("../interp/tcl_catch.zig");

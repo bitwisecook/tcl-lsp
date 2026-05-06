@@ -1,15 +1,15 @@
 // ``file``, ``pwd``, ``cd``, ``glob`` — filesystem commands.
 
-const fs_mod      = @import("../io/tcl_fs.zig");
+const fs_mod = @import("../io/tcl_fs.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const obj         = @import("../valtypes/tcl_obj.zig");
-const stubs       = @import("../stubs/tcl_stubs.zig");
-const reg         = @import("../dispatch/tcl_cmd_registry.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
+const stubs = @import("../stubs/tcl_stubs.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_file(words: []const i32) result_mod.InterpResult {
     const sub = if (words.len >= 2) words[1] else 0;
-    const a1  = if (words.len >= 3) words[2] else 0;
-    const a2  = if (words.len >= 4) words[3] else 0;
+    const a1 = if (words.len >= 3) words[2] else 0;
+    const a2 = if (words.len >= 4) words[3] else 0;
     return result_mod.from_globals(fs_mod.tcl_cmd_file(sub, a1, a2));
 }
 

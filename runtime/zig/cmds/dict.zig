@@ -17,7 +17,9 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "dict",
-    .arity_min = 1, .arity_max = null, .handler = &eval,
+    .arity_min = 1,
+    .arity_max = null,
+    .handler = &eval,
 };
 
 // Sub-command arities — mirrors ``core/commands/registry/tcl/dict.py``.
@@ -344,8 +346,14 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
         switch (ir.code) {
             .OK => {},
             .ERROR, .RETURN => return 0,
-            .BREAK => { result_mod.consume(.BREAK); break; },
-            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE => {
+                result_mod.consume(.CONTINUE);
+                continue;
+            },
         }
         if (collect) {
             collected = rt.dict_set(collected, key_obj, body_result);
@@ -408,7 +416,7 @@ fn eval_dict_with(words: []const i32) i32 {
         if (top == 0) top = rt.dict_create();
         // Walk back up: rebuild each ancestor with the new sub-dict
         // at the corresponding key.  Build nested writes innermost-first.
-        var depth: u32 = words.len - 1;  // index of the deepest key + 1
+        var depth: u32 = words.len - 1; // index of the deepest key + 1
         // depth is currently the body index; the deepest key is depth - 1.
         depth -= 1;
         // Rewrite from deepest to shallowest.

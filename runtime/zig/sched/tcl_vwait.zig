@@ -89,7 +89,10 @@ pub const Stack = struct {
             var k: u32 = 0;
             var match = true;
             while (k < fn_name.len) : (k += 1) {
-                if (a[k] != b[k]) { match = false; break; }
+                if (a[k] != b[k]) {
+                    match = false;
+                    break;
+                }
             }
             if (match) f.done = true;
         }

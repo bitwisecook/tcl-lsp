@@ -1,14 +1,14 @@
 // ``set``, ``incr``, ``unset`` — variable read/write commands.
 
-const rt          = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const frames      = @import("../interp/tcl_frames.zig");
-const reg         = @import("../dispatch/tcl_cmd_registry.zig");
-const tcl_array   = @import("../valtypes/tcl_array.zig");
-const tcl_ns      = @import("../interp/tcl_ns.zig");
+const frames = @import("../interp/tcl_frames.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const tcl_array = @import("../valtypes/tcl_array.zig");
+const tcl_ns = @import("../interp/tcl_ns.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
-const obj_new_string    = rt.obj_new_string;
+const obj_new_string = rt.obj_new_string;
 
 fn eval_set(words: []const i32) result_mod.InterpResult {
     // Reference Tcl: ``set varName ?newValue?`` takes 1 or 2 args.
@@ -27,7 +27,10 @@ fn eval_set(words: []const i32) result_mod.InterpResult {
         catch_mod.tcl_cmd_error(msg);
         return result_mod.from_globals(0);
     }
-    if (words.len == 3) { _ = frames.var_set(words[1], words[2]); return result_mod.from_globals(words[2]); }
+    if (words.len == 3) {
+        _ = frames.var_set(words[1], words[2]);
+        return result_mod.from_globals(words[2]);
+    }
     // Read form: ``set varName``.  When the variable doesn't exist,
     // raise ``can't read "<name>": no such variable`` per Tcl 9
     // semantics (set-1.13).  ``var_resolve`` returns 0 silently for
@@ -72,7 +75,10 @@ fn eval_unset(words: []const i32) result_mod.InterpResult {
         var is_global: bool = (w.len >= 2 and wp[0] == ':' and wp[1] == ':');
         if (!is_global) {
             for (0..w.len - 1) |k| {
-                if (wp[k] == ':' and wp[k + 1] == ':') { is_global = true; break; }
+                if (wp[k] == ':' and wp[k + 1] == ':') {
+                    is_global = true;
+                    break;
+                }
             }
         }
         if (is_global) {

@@ -86,8 +86,7 @@ fn eval_coroutine(words: []const i32) result_mod.InterpResult {
     // skip this — the full lambda runs as one script.
     if (!tcl_async.ENABLED and words.len == 4) {
         const w2 = obj.obj_ensure_string(words[2]);
-        const w2s: []const u8 = if (w2.ptr == 0) "" else
-            @as([*]const u8, @ptrFromInt(w2.ptr))[0..w2.len];
+        const w2s: []const u8 = if (w2.ptr == 0) "" else @as([*]const u8, @ptrFromInt(w2.ptr))[0..w2.len];
         if (w2s.len == 5 and w2s[0] == 'a' and w2s[1] == 'p' and
             w2s[2] == 'p' and w2s[3] == 'l' and w2s[4] == 'y')
         {
@@ -114,7 +113,9 @@ fn eval_coroutine(words: []const i32) result_mod.InterpResult {
     // second registration would overwrite the first and leak the
     // displaced coroutine + its body (Copilot review on PR #284).
     const r = tcl_ns.ns_resolve_qualified_creating(
-        tcl_ns.ns_current(), name.ptr, name.len,
+        tcl_ns.ns_current(),
+        name.ptr,
+        name.len,
     );
     if (r.target_ns == 0 or r.simple_len == 0) {
         stubs.raise("invalid coroutine name");

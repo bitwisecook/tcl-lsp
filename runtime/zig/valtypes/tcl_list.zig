@@ -237,7 +237,7 @@ pub fn resolve_list_index(idx: i32, n: i64) i64 {
     if (sv.len >= 3) {
         const sp: [*]const u8 = @ptrFromInt(sv.ptr);
         if (sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
-            if (sv.len == 3) return n - 1;  // "end"
+            if (sv.len == 3) return n - 1; // "end"
             if (sv.len >= 5 and sp[3] == '-') {
                 // "end-N"
                 var offset: i64 = 0;

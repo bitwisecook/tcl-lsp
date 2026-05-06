@@ -12,12 +12,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Lint: fast feedback on code quality
-  lint:
+  # Fast PR gate (target wall-clock < 20s).  Runs on every PR and every push.
+  # Covers: lint + typecheck + structural invariants + a tightly scoped pytest
+  # subset that exercises the LSP server end-to-end.  Everything else is the
+  # responsibility of `make test-slow` locally (enforced by the pre-push
+  # hook installed via `make install-hooks`).  See AGENTS.md for the rule
+  # that agents must run test-slow before opening a PR.
+  pr-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          # `make build-info` (a dep of ci-fast) shells out to `git describe
+          # --tags`, which needs the full history.
           fetch-depth: 0
 
       - name: Log commit info
@@ -29,12 +36,15 @@ jobs:
           echo "github.head_ref   = ${{ github.head_ref }}"
           echo "github.run_id     = ${{ github.run_id }}"
           echo "checked-out HEAD  = $(git rev-parse HEAD)"
-          echo
-          git log -1 --pretty=fuller HEAD || true
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
+        with:
+          # v6's cache keys on uv.lock by default and works correctly
+          # (the v4 lockfile-glob bug is fixed).  Trims a few seconds off
+          # the gate on warm runs.
+          enable-cache: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,25 +54,20 @@ jobs:
       - name: Sync Python environment
         run: uv sync --extra dev
 
-      - name: KCS docs checks
-        run: python scripts/check_kcs_index_links.py
+      # Note: no wasmtime CLI setup here — the Python tests in ci-fast
+      # use the `wasmtime` Python package (already a uv dep) for any
+      # wasm execution, and `make test-zig` (which needs the CLI) is a
+      # test-slow target that runs locally, not in CI.  If a CI job for
+      # `test-zig` is ever added, the optimal action is
+      # `bytecodealliance/actions/wasmtime/setup@v1`.
+      - name: Run fast CI gate (make ci-fast)
+        run: make ci-fast
 
-      - name: WASM command parity check
-        run: python scripts/check_wasm_command_parity.py --check
-
-      - name: Ruff check
-        run: uv run --extra dev ruff check .
-
-      - name: Ruff format check
-        run: uv run --extra dev ruff format --check .
-
-      - name: Generate build info (needed by ty)
-        run: make build-info
-
-      - name: Type-check with ty
-        run: uv run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tests scripts/tcl_test_client.py
-  # Test: Python test suite
+  # Backstop: full Python test suite — runs only on push to main and on tags.
+  # PRs are gated by pr-gate; this job catches anything pr-gate missed once
+  # the change has merged, so a regression is loud but doesn't block PRs.
   test-py:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -85,7 +90,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -112,8 +117,10 @@ jobs:
           --ignore=tests/test_bigip_parser.py
           --ignore=tests/test_bigip_validator.py
           -k 'not TestUnusedIruleProcs and not TestMockStubsIntegration and not test_generated_command_hover_marks_refinement_status and not test_generated_irules_hover_marks_refinement_status and not test_cookbook_tcp_collect_has_no_warnings'
-  # Test: VS Code extension
+  # Backstop: VS Code extension tests — runs only on push to main and on tags.
+  # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
   test-ext:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -132,7 +139,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -167,7 +174,7 @@ jobs:
   # build blocks the others.
   create-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test-py]
+    needs: [pr-gate, test-py]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -204,7 +211,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -252,7 +259,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -295,7 +302,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -351,7 +358,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -404,7 +411,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -447,7 +454,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -493,7 +500,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -536,7 +543,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -579,7 +586,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -631,7 +638,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -686,7 +693,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -697,9 +704,14 @@ jobs:
         run: uv sync --extra dev
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
+        # so we get cargo registry / target caching for free — meaningful
+        # speedup vs the bare dtolnay/rust-toolchain action.
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          targets: wasm32-wasip2
+          toolchain: stable
+          target: wasm32-wasip2
+          components: clippy, rustfmt
 
       - name: Build Zed extension
         run: make zed

@@ -1,12 +1,12 @@
 // ``global``, ``variable``, ``upvar`` — scope/namespace linkage commands.
 
-const rt     = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const tcl_ns = @import("../interp/tcl_ns.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-const obj_new_string    = rt.obj_new_string;
+const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
 
 fn eval_global(words: []const i32) result_mod.InterpResult {

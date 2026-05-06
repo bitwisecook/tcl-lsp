@@ -1,13 +1,13 @@
 // ``subst``, ``expr`` — substitution and expression evaluation commands.
 
-const rt        = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const tcl_subst = @import("../parse/tcl_subst.zig");
-const reg       = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
-const obj_new_string    = rt.obj_new_string;
-const obj_new_int       = rt.obj_new_int;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
+const obj_new_string = rt.obj_new_string;
+const obj_new_int = rt.obj_new_int;
 const obj_ensure_string = rt.obj_ensure_string;
 
 /// Return ``true`` iff ``arg`` is a non-empty prefix of ``opt``.
@@ -25,10 +25,10 @@ fn is_prefix(arg: [*]const u8, arg_len: u32, opt: []const u8) bool {
 fn eval_subst(words: []const i32) result_mod.InterpResult {
     var do_vars = true;
     var do_cmds = true;
-    var do_bs   = true;
+    var do_bs = true;
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
-        const a  = obj_ensure_string(words[wi]);
+        const a = obj_ensure_string(words[wi]);
         if (a.ptr == 0 or a.len == 0) break;
         const ap: [*]const u8 = @ptrFromInt(a.ptr);
         if (a.len < 2 or ap[0] != '-') break;
@@ -39,8 +39,8 @@ fn eval_subst(words: []const i32) result_mod.InterpResult {
         // ambiguous prefix — surface that error so user mistakes
         // aren't silently treated as "not an option" (subst-7.x).
         const m_bs = is_prefix(ap, a.len, "-nobackslashes");
-        const m_c  = is_prefix(ap, a.len, "-nocommands");
-        const m_v  = is_prefix(ap, a.len, "-novariables");
+        const m_c = is_prefix(ap, a.len, "-nocommands");
+        const m_v = is_prefix(ap, a.len, "-novariables");
         const matches = @as(u32, @intFromBool(m_bs)) +
             @as(u32, @intFromBool(m_c)) +
             @as(u32, @intFromBool(m_v));
@@ -63,16 +63,23 @@ fn eval_subst(words: []const i32) result_mod.InterpResult {
             if (buf == 0) return result_mod.from_globals(0);
             const dst: [*]u8 = @ptrFromInt(buf);
             var off: u32 = 0;
-            for (prefix) |c| { dst[off] = c; off += 1; }
-            for (0..a.len) |i| { dst[off] = ap[i]; off += 1; }
-            for (middle) |c| { dst[off] = c; off += 1; }
+            for (prefix) |c| {
+                dst[off] = c;
+                off += 1;
+            }
+            for (0..a.len) |i| {
+                dst[off] = ap[i];
+                off += 1;
+            }
+            for (middle) |c| {
+                dst[off] = c;
+                off += 1;
+            }
             const msg = obj_mod.obj_new_string_take(buf, total, total);
             catch_mod.tcl_cmd_error(msg);
             return result_mod.from_globals(0);
         }
-        if (m_bs) do_bs = false
-        else if (m_c) do_cmds = false
-        else do_vars = false;
+        if (m_bs) do_bs = false else if (m_c) do_cmds = false else do_vars = false;
     }
     if (wi >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
     const s = obj_ensure_string(words[wi]);
