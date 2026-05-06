@@ -2126,8 +2126,18 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                 const default_elem = list_element_at(param_name_ptr, param_name_len, 1);
                 const default_ptr = param_name_ptr + default_elem.start;
                 const default_len = default_elem.len;
+                // ``obj_new_string_copy`` already returns rc=1 — the
+                // earlier extra ``tcl_obj_retain`` here pumped rc=2
+                // and the matching ``defer release`` only dropped it
+                // to 1, leaking one ref per defaulted parameter per
+                // call (Codex review on PR #343).  ``local_set``
+                // below retains independently when it stores the
+                // value in a frame slot, so the creator-side defer
+                // release alone is enough to free ``param_default``
+                // when the slot release fires at frame teardown
+                // (or immediately when the caller-supplied value
+                // overrides our default and we never store it).
                 param_default = obj_new_string_copy(default_ptr, default_len);
-                obj_mod.tcl_obj_retain(param_default);
                 has_default = true;
                 // Narrow the name span before allocating ``param_name``.
                 const new_name_ptr = param_name_ptr + name_elem.start;

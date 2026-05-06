@@ -32,7 +32,9 @@ fn is_local_trace_target(name: i32) bool {
 }
 
 const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
-const obj_new_string    = rt.obj_new_string;
+const obj_new_string      = rt.obj_new_string;
+const obj_new_string_take = rt.obj_new_string_take;
+const tcl_obj_release     = @import("../valtypes/tcl_obj.zig").tcl_obj_release;
 const obj_ensure_string = rt.obj_ensure_string;
 
 fn eval_info(words: []const i32) result_mod.InterpResult {
@@ -156,7 +158,12 @@ fn canonical_var_name(name: i32) i32 {
             dst[0] = ':';
             dst[1] = ':';
             for (0..sn.len) |k| dst[2 + k] = sp[k];
-            return obj_new_string(@bitCast(buf), @bitCast(total));
+            // ``obj_new_string_take`` so the freshly-allocated buffer
+            // is owned by the returned TclObj — releasing the obj
+            // reclaims the bytes.  The earlier ``obj_new_string``
+            // form left ``OBJ_STR_CAP=0`` and leaked the buffer
+            // (Copilot review on PR #343).
+            return obj_new_string_take(buf, total, total);
         }
     }
     // Bare unqualified name — only top-level (frame_depth == 0)
@@ -180,19 +187,29 @@ fn canonical_var_name(name: i32) i32 {
     dst[ns_len] = ':';
     dst[ns_len + 1] = ':';
     for (0..sn.len) |k| dst[ns_len + 2 + k] = sp[k];
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    return obj_new_string_take(buf, total, total);
 }
 
 /// Phase 6 follow-up: route a trace install to the per-frame chain
 /// when the target is a proc-local, otherwise to the canonical-name
 /// directory.  Centralised so all ``trace add variable`` /
 /// ``trace variable`` entry points stay in sync.
+///
+/// :func:`canonical_var_name` may return either the original
+/// *name* TclObj (no qualification needed) or a freshly-allocated
+/// owning TclObj.  Release the canonical handle when it's a fresh
+/// alloc (i.e., differs from the input handle) so the
+/// canonicalisation buffer doesn't leak — ``var_trace.add`` /
+/// ``remove`` / ``info`` only read the bytes through the handle
+/// and don't retain it (Copilot review on PR #343).
 fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
     if (is_local_trace_target(name)) {
         var_trace.add_to_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
         return;
     }
-    var_trace.add(canonical_var_name(name), ops, cmd_prefix);
+    const canon = canonical_var_name(name);
+    var_trace.add(canon, ops, cmd_prefix);
+    if (canon != name and canon != 0) tcl_obj_release(canon);
 }
 
 /// Mirror of :func:`install_var_trace` for the remove path.
@@ -200,7 +217,10 @@ fn uninstall_var_trace(name: i32, ops: u32, cmd_prefix: i32) bool {
     if (is_local_trace_target(name)) {
         return var_trace.remove_from_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
     }
-    return var_trace.remove(canonical_var_name(name), ops, cmd_prefix);
+    const canon = canonical_var_name(name);
+    const result = var_trace.remove(canon, ops, cmd_prefix);
+    if (canon != name and canon != 0) tcl_obj_release(canon);
+    return result;
 }
 
 /// Mirror of :func:`install_var_trace` for the ``trace info`` query.
@@ -208,7 +228,10 @@ fn query_var_trace(name: i32) i32 {
     if (is_local_trace_target(name)) {
         return var_trace.info_for_list(frames.frame_trace_heads[frames.frame_depth - 1], name);
     }
-    return var_trace.info(canonical_var_name(name));
+    const canon = canonical_var_name(name);
+    const result = var_trace.info(canon);
+    if (canon != name and canon != 0) tcl_obj_release(canon);
+    return result;
 }
 
 /// Parse the ops list ``{read write unset array}`` (any subset, in

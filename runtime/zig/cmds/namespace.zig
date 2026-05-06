@@ -372,12 +372,31 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             // Build ``::namespace inscope <ns> <script>`` via
             // ``tcl_list`` so each element is properly list-quoted
             // (handles braces, spaces, backslashes in ``<script>``).
-            var acc: i32 = obj_new_string_copy(0, 0);
-            acc = rt.tcl_list(acc, obj_new_string_copy(@bitCast(@intFromPtr("::namespace".ptr)), 11));
-            acc = rt.tcl_list(acc, obj_new_string_copy(@bitCast(@intFromPtr("inscope".ptr)), 7));
-            acc = rt.tcl_list(acc, obj_new_string_copy(@bitCast(nf.ptr), @bitCast(nf.len)));
-            acc = rt.tcl_list(acc, words[2]);
-            return result_mod.from_globals(acc);
+            // ``tcl_list(a, b)`` allocates a fresh accumulator each
+            // call without consuming either input — release the
+            // previous accumulator and the per-element TclObjs after
+            // each append so the only live owner is the current
+            // ``acc`` (Copilot review on PR #343).  ``words[2]`` is
+            // owned by the caller; do NOT release it here.
+            var acc: i32 = obj_mod.obj_new_string_copy(0, 0);
+            const e1 = obj_mod.obj_new_string_copy(@bitCast(@intFromPtr("::namespace".ptr)), 11);
+            const a1 = rt.tcl_list(acc, e1);
+            obj_mod.tcl_obj_release(acc);
+            obj_mod.tcl_obj_release(e1);
+            acc = a1;
+            const e2 = obj_mod.obj_new_string_copy(@bitCast(@intFromPtr("inscope".ptr)), 7);
+            const a2 = rt.tcl_list(acc, e2);
+            obj_mod.tcl_obj_release(acc);
+            obj_mod.tcl_obj_release(e2);
+            acc = a2;
+            const e3 = obj_mod.obj_new_string_copy(@bitCast(nf.ptr), @bitCast(nf.len));
+            const a3 = rt.tcl_list(acc, e3);
+            obj_mod.tcl_obj_release(acc);
+            obj_mod.tcl_obj_release(e3);
+            acc = a3;
+            const a4 = rt.tcl_list(acc, words[2]);
+            obj_mod.tcl_obj_release(acc);
+            return result_mod.from_globals(a4);
         }
     }
     return result_mod.from_globals(0);

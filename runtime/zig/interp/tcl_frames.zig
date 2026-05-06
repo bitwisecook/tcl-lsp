@@ -1244,7 +1244,30 @@ fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
         // initialiser branch — the bare ``variable $n`` had already
         // fabricated a Var entry and the previous "tgt non-zero ⇒
         // exists" rule reported it as initialised.
+        //
+        // Two shapes to distinguish:
+        //   * scalar var — ``var_get_scalar`` returns the stored
+        //     TclObj handle (or 0 for unset).
+        //   * array-shaped var (``VAR_ARRAY`` flag set) — the
+        //     storage lives in the array directory keyed by the
+        //     FQ name synthesised from the ``target_ns`` /
+        //     ``(simple_ptr, simple_len)`` triple we stashed at
+        //     ``desc+12 .. desc+24`` when ``frame_alias_ns_var``
+        //     ran.  ``var_get_scalar`` deliberately returns 0 for
+        //     arrays, so without the array-directory probe
+        //     ``info exists arr`` after ``array set arr {...}``
+        //     would falsely report 0 (Codex review on PR #343).
         if (tgt == 0) return obj_new_int(0);
+        const v: *const tcl_ns.Var = @ptrFromInt(@as(u32, @bitCast(tgt)));
+        if ((v.flags & tcl_ns.VAR_ARRAY) != 0) {
+            const tcl_array = @import("../valtypes/tcl_array.zig");
+            // Reuse ``frame_resolve_array_name`` to synthesise the
+            // FQ-name TclObj — same logic, shared cleanup pattern.
+            const arr_name = frame_resolve_array_name(local_name);
+            const present = tcl_array.array_exists(arr_name);
+            if (arr_name != local_name) obj.tcl_obj_release(arr_name);
+            return present;
+        }
         const val = tcl_ns.var_get_scalar(@bitCast(tgt));
         return if (val != 0) obj_new_int(1) else obj_new_int(0);
     }
@@ -1381,32 +1404,41 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
 /// value is the negated descriptor address.  Reads / writes go
 /// through ``var_get_scalar`` / ``var_set_scalar`` which transparently
 /// chase ``VAR_LINK`` chains on the target side.
-pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, full_name: i32) void {
+pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_ptr: u32, simple_len: u32) void {
     const cur = current_frame() orelse return;
-    // Descriptor layout (16 bytes — extended from the 12-byte form
+    // Descriptor layout (24 bytes — extended from the 12-byte form
     // for KIND_GLOBAL_NAMED / KIND_FRAME_VAR):
-    //   desc[0..4]  = kind
-    //   desc[4..8]  = unused (mirrors the GLOBAL_NAMED/FRAME_VAR
-    //                 ``param`` slot)
-    //   desc[8..12] = ``*Var`` for the namespace var (scalar fast path)
-    //   desc[12..16] = TclObj of the FQ name, used by
-    //                 :func:`frame_resolve_array_name` so a proc-local
-    //                 ``variable arr`` correctly routes ``set arr(k)``
-    //                 to the namespace's array directory entry rather
-    //                 than the synthetic ``::__local::<depth>::arr``
-    //                 form.  Without it, traces installed against the
-    //                 namespace array (e.g. tcltest's ``SafeFetch``
-    //                 read trace on ``::tcltest::testConstraints``)
-    //                 never fire from inside an interpreted proc body
-    //                 because the resolver landed on a different
-    //                 array — string.test's ``[testConstraint
-    //                 valgrind]`` returned ``""`` and PR #341's strict
-    //                 boolean ``!`` then trapped.
-    const desc = alloc(16);
+    //   desc[0..4]   = kind
+    //   desc[4..8]   = unused (mirrors GLOBAL_NAMED/FRAME_VAR ``param``)
+    //   desc[8..12]  = ``*Var`` for the namespace var (scalar fast path)
+    //   desc[12..16] = target ``*Namespace`` address — used to look
+    //                  up the cached FQ name on demand via
+    //                  :func:`tcl_ns.ns_full_name`.
+    //   desc[16..20] = simple-name byte pointer (interned in the
+    //                  namespace's own ``Var`` table key — stable for
+    //                  the namespace's lifetime).
+    //   desc[20..24] = simple-name byte length.
+    //
+    // Storing ``target_ns`` + ``(simple_ptr, simple_len)`` separately
+    // (rather than a TclObj handle to the FQ name) lets
+    // :func:`frame_resolve_array_name` synthesise a fresh, owned
+    // ``::ns::name`` TclObj on each call — the caller already
+    // releases the result when it differs from the input, so there's
+    // no descriptor-side TclObj that frame teardown would need to
+    // walk and release.  Without it, traces installed against the
+    // namespace array (e.g. tcltest's ``SafeFetch`` on
+    // ``::tcltest::testConstraints``) never fire from inside an
+    // interpreted proc body because the resolver landed on a
+    // different array — string.test's ``[testConstraint valgrind]``
+    // returned ``""`` and PR #341's strict-boolean ``!`` then
+    // trapped.  (Codex review on PR #343.)
+    const desc = alloc(24);
     write_i32(desc, KIND_NS_VAR_PTR);
     write_i32(desc + 4, 0);
     write_i32(desc + 8, @bitCast(var_ptr));
-    write_i32(desc + 12, full_name);
+    write_i32(desc + 12, @bitCast(target_ns));
+    write_i32(desc + 16, @bitCast(simple_ptr));
+    write_i32(desc + 20, @bitCast(simple_len));
     const encoded: i32 = -@as(i32, @intCast(desc));
     const sn = obj_ensure_string(local_name);
     const hash = fnv1a(sn.ptr, sn.len);
@@ -1949,16 +1981,43 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                     return tgt;
                 }
                 if (kind == KIND_NS_VAR_PTR) {
-                    // Descriptor layout is 16 bytes for this kind;
-                    // desc+12 holds the FQ-name TclObj stashed by
-                    // ``frame_alias_ns_var`` when ``variable`` ran.
-                    // Use it so array writes / reads land in the
-                    // namespace's array directory instead of the
-                    // proc-local synthetic key.  Falls back to
-                    // *local_name* when missing (e.g. ``frame_alias_ns_var``
-                    // was called with a 0 full_name during bootstrap).
-                    const full_name = read_i32(desc + 12);
-                    if (full_name != 0) return full_name;
+                    // Descriptor layout is 24 bytes for this kind:
+                    // desc+12 holds the target ``*Namespace`` and
+                    // desc+16/20 hold the simple-name byte span.
+                    // Synthesise a fresh ``<ns_full>::<simple>`` TclObj
+                    // here (caller already releases the result when it
+                    // differs from the input) so array writes / reads
+                    // land in the namespace's array directory instead
+                    // of the proc-local synthetic key.
+                    const target_ns: u32 = @bitCast(read_i32(desc + 12));
+                    const simple_ptr: u32 = @bitCast(read_i32(desc + 16));
+                    const simple_len: u32 = @bitCast(read_i32(desc + 20));
+                    if (target_ns != 0 and simple_ptr != 0 and simple_len != 0) {
+                        const ns_full = tcl_ns.ns_full_name(target_ns);
+                        // Root namespace ``::`` collapses to ``::name``
+                        // (no double colon).
+                        const ns_emit_len: u32 = if (ns_full.len == 2) 0 else ns_full.len;
+                        const total: u32 = 2 + ns_emit_len + simple_len;
+                        const buf = obj.alloc(total);
+                        if (buf != 0) {
+                            const dst: [*]u8 = @ptrFromInt(buf);
+                            var off: u32 = 0;
+                            if (ns_emit_len == 0) {
+                                dst[0] = ':';
+                                dst[1] = ':';
+                                off = 2;
+                            } else {
+                                const np: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                                for (0..ns_full.len) |k| dst[k] = np[k];
+                                dst[ns_full.len] = ':';
+                                dst[ns_full.len + 1] = ':';
+                                off = ns_full.len + 2;
+                            }
+                            const sp: [*]const u8 = @ptrFromInt(simple_ptr);
+                            for (0..simple_len) |k| dst[off + k] = sp[k];
+                            return obj.obj_new_string_take(buf, total, total);
+                        }
+                    }
                 }
             }
             if (v == ALIAS_GLOBAL) return local_name; // global alias keeps the same name

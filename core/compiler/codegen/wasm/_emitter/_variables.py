@@ -1183,9 +1183,24 @@ class _WasmEmitterVarMixin(_Base):
                 # landed).
                 if append_idx is not None and (alias_named_idx is not None or gset_idx is not None):
                     ns_prefix = f"{ns}::" if ns != "::" else "::"
+                    # Substitute the dynamic name *once* and stash both
+                    # the resolved local-name TclObj (used for the
+                    # alias install) and the qualified ``<ns>::<name>``
+                    # TclObj (used for the optional value write).  The
+                    # earlier shape called ``self._emit_value(name)``
+                    # twice — for ``[incr i]``-style names (Tcl
+                    # argument substitution is single-pass per word)
+                    # that incremented the counter twice and bound the
+                    # alias to a different name than the write target.
+                    # Single-evaluate via the resolved-name local
+                    # ``_var_dyn_resolved`` and reference it from both
+                    # paths (Codex review on PR #343).
+                    resolved_idx = self._add_extra_local(prefix="_var_dyn_resolved", val_type=ValType.I32)
+                    self._emit_value(name)
+                    self._emit_local_set(resolved_idx)
                     qname_idx = self._add_extra_local(prefix="_var_dyn_qname", val_type=ValType.I32)
                     self._emit_obj_literal(ns_prefix)
-                    self._emit_value(name)
+                    self._emit_local_get(resolved_idx)
                     self._emit_call(append_idx)
                     self._emit_local_set(qname_idx)
                     # Install local alias ``<name-value>`` ->
@@ -1197,7 +1212,7 @@ class _WasmEmitterVarMixin(_Base):
                     # KIND_GLOBAL_NAMED branch — no descriptor
                     # extension needed.
                     if alias_named_idx is not None:
-                        self._emit_value(name)
+                        self._emit_local_get(resolved_idx)
                         self._emit_local_get(qname_idx)
                         self._emit_call(alias_named_idx)
                     if has_value and gset_idx is not None:
