@@ -1195,7 +1195,9 @@ class _WasmEmitterVarMixin(_Base):
                     # Single-evaluate via the resolved-name local
                     # ``_var_dyn_resolved`` and reference it from both
                     # paths (Codex review on PR #343).
-                    resolved_idx = self._add_extra_local(prefix="_var_dyn_resolved", val_type=ValType.I32)
+                    resolved_idx = self._add_extra_local(
+                        prefix="_var_dyn_resolved", val_type=ValType.I32
+                    )
                     self._emit_value(name)
                     self._emit_local_set(resolved_idx)
                     qname_idx = self._add_extra_local(prefix="_var_dyn_qname", val_type=ValType.I32)
