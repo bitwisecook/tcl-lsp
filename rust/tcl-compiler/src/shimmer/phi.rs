@@ -11,8 +11,6 @@
 //! Each warning includes the definition spans of the incoming versions as
 //! "related" notes so the user can see both assignment sites.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::cfg::Function as CfgFunction;
@@ -30,7 +28,7 @@ use super::{type_name, ShimmerWarning};
 /// `TypeLattice` is `Shimmered`, the variable will require an intrep
 /// conversion on the first use after the merge point.
 #[must_use]
-pub fn find_phi_shimmers(
+pub(crate) fn find_phi_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,

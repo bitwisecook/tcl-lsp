@@ -4,8 +4,6 @@
 //! - [`blocks_reaching`] — reverse-reachability query.
 //! - [`build_successors`] — successor map from CFG terminators.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
@@ -56,7 +54,10 @@ pub fn loop_body_blocks(cfg: &CfgFunction) -> HashSet<String> {
 
 /// Return the set of blocks that can reach `target` via `succs`.
 #[must_use]
-pub fn blocks_reaching(succs: &HashMap<String, Vec<String>>, target: &str) -> HashSet<String> {
+pub(crate) fn blocks_reaching(
+    succs: &HashMap<String, Vec<String>>,
+    target: &str,
+) -> HashSet<String> {
     // Build reverse edges and BFS back from target.
     let mut preds: HashMap<String, Vec<String>> = HashMap::new();
     for (src, sx) in succs {

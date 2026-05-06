@@ -15,8 +15,6 @@
 //! - [`Statement::Call`] arguments tagged `shimmers=true` in the registry.
 //! - [`Statement::Incr`] — always reads its variable as `Int`.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
@@ -42,7 +40,7 @@ use super::{type_name, ShimmerWarning};
 /// [`ShimmerWarning`] for each type mismatch where the variable's known
 /// type differs from what the command requires.
 #[must_use]
-pub fn find_use_site_shimmers(
+pub(crate) fn find_use_site_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,

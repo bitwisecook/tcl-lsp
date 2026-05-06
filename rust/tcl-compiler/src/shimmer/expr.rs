@@ -14,8 +14,6 @@
 //! [`Statement::ExprEval`] in every SCCP-executable block and recurses
 //! into the expression AST looking for such mismatches.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
@@ -41,7 +39,7 @@ use super::{type_name, ShimmerWarning};
 ///    the block's `exit_versions` map (the versions live at the end of
 ///    the block, which is when the condition is evaluated).
 #[must_use]
-pub fn find_expr_shimmers(
+pub(crate) fn find_expr_shimmers(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,

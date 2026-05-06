@@ -9,8 +9,6 @@
 //! - [`phi_span`] — recover the best available span for a synthetic
 //!   phi node that has no direct source location.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::HashMap;
 
 use tcl_lexer::Span;
@@ -46,7 +44,7 @@ pub fn def_range_map(ssa: &SsaFunction) -> HashMap<ValueKey, Span> {
 /// 2. The first statement of any block in the SSA function.
 /// 3. A zero span `{ start: 0, end: 0 }`.
 #[must_use]
-pub fn phi_span(phi: &Phi, ssa: &SsaFunction, def_map: &HashMap<ValueKey, Span>) -> Span {
+pub(crate) fn phi_span(phi: &Phi, ssa: &SsaFunction, def_map: &HashMap<ValueKey, Span>) -> Span {
     // Try each incoming version.
     for &ver in phi.incoming.values() {
         if let Some(&sp) = def_map.get(&(phi.name.clone(), ver)) {
