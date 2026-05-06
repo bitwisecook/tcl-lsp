@@ -505,9 +505,10 @@ fn ar_grow(old_table: u32) u32 {
 /// find arrays created via ``upvar #0 ns::T-$tag local``.
 fn normalize_ns_name(name: i32) i32 {
     const sn = obj_ensure_string(name);
-    if (sn.len < 2) return name;
+    if (sn.len == 0) return name;
     const sp: [*]const u8 = @ptrFromInt(sn.ptr);
-    if (sp[0] == ':' and sp[1] == ':') return name; // already qualified
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') return name; // already qualified
+    // Internal ``::`` (``ns::foo``) → ``::ns::foo``.
     var i: u32 = 0;
     while (i + 1 < sn.len) : (i += 1) {
         if (sp[i] == ':' and sp[i + 1] == ':') {
@@ -524,7 +525,29 @@ fn normalize_ns_name(name: i32) i32 {
             return obj_new_string(@bitCast(buf), @bitCast(2 + sn.len));
         }
     }
-    return name; // no '::' in name — local array, no normalization
+    // Bare unqualified name (``foo``).  Real Tcl treats ``foo`` and
+    // ``::foo`` at global scope as the same variable, so the array
+    // directory must store them under one bucket — but only when there
+    // is no proc frame active.  Inside a compiled proc body, an
+    // unqualified ``set foo(a) 1`` lands here directly (the codegen
+    // emits ``tcl_array_set("foo", …)`` without going through
+    // ``frame_resolve_array_name``); canonicalising to ``::foo`` would
+    // pollute the global directory and never get cleaned up by
+    // ``drop_local_arrays_for_depth``.  Leave the bare name alone in
+    // that case — the existing in-proc storage stays where it was.
+    if (frame_depth_get() != 0) return name;
+    // Non-root namespace at top level: leave bare names alone too.
+    // ``find_or_create`` / ``find_table`` will probe ``<ns_full>::foo``
+    // via the qualified-fallback branch.
+    const ns_len = current_ns_full_len();
+    if (ns_len > 2) return name;
+    const buf = alloc(2 + sn.len);
+    if (buf == 0) return name;
+    const d: [*]u8 = @ptrFromInt(buf);
+    d[0] = ':';
+    d[1] = ':';
+    memcpy(buf + 2, sn.ptr, sn.len);
+    return obj_new_string(@bitCast(buf), @bitCast(2 + sn.len));
 }
 
 fn find_or_create(name: i32) u32 {
@@ -666,6 +689,7 @@ fn find_table(name: i32) u32 {
 
 extern fn current_ns_full_ptr() u32;
 extern fn current_ns_full_len() u32;
+extern fn frame_depth_get() u32;
 
 // --- Public exports ----------------------------------------------------
 
