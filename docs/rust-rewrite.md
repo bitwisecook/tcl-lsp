@@ -769,6 +769,162 @@ Makefile                                 rust-build/test/lint/format
 tests/test_rust_bindings_smoke.py        end-to-end bridge smoke test
 ```
 
+## Tracking `main`
+
+The rust workstream lives on a long-running `rust` branch that is
+*ahead* of `main` on rust-rewrite work and *behind* `main` on every
+other workstream landing in parallel (Python core, runtime/Zig,
+WASM AOT, vscode/config, release plumbing).  Because the two
+histories overlap on a small but load-bearing set of files —
+mostly the analyser, the registry, the IR/CFG/SSA passes, and the
+expression evaluator — we have to keep the rust branch's view of
+those files current with `main`, or the rust analyser silently
+drifts away from the canonical Python behaviour it is meant to
+mirror.
+
+This section is the living record of that drift.  Treat it as a
+work surface: every chunk should start by reviewing the
+**Outstanding** table below, porting whatever is required for the
+chunk's scope, and either resolving or re-scoping the row before
+moving on.  Empty is the goal.
+
+### Branch model
+
+Three file classes:
+
+- **rust-only** — files that exist only on the rust branch and
+  have no `main` counterpart.  The `rust/` Cargo workspace,
+  `Cargo.{toml,lock}`, `rust-toolchain.toml`, the three rust
+  docs (`docs/rust-rewrite*.md`, `docs/design/rust/`,
+  `docs/rust-optimiser-parity.md`), `core/compiler/rust_spans.py`,
+  `tests/test_rust_*.py`, `tests/test_tokens.py`,
+  `scripts/check_command_spec_coverage.py`.  These never need to
+  track `main` — they *are* the rust workstream.
+- **rust-modified** — files that exist on both branches but carry
+  rust-specific edits on the rust side.  The Python-side dispatch
+  shims (`TCL_LSP_RUST_OPTIMISER` / `_GVN` / `_INTERPROC` env
+  gates in `core/compiler/{optimiser/_manager,gvn,interprocedural}.py`),
+  the rust primary path in the four `core/parsing/` lexer-adjacent
+  files, the `rust-build` / `rust-test` / `rust-lint` /
+  `rust-format` targets in `Makefile`, the rust job in
+  `.github/workflows/ci.yml`.  Audits of these files have to
+  preserve the rust shim while merging in `main`'s parallel
+  changes.
+- **main-tracked** — everything else.  The rust branch carries
+  *no* edits here; it should always equal `main`'s content.  Any
+  divergence is either (a) unmerged main commits we still need to
+  pick up, or (b) a stale rust-side delta that should have been
+  pushed up to `main` instead.  Both are bugs the audit catches.
+
+### When to audit
+
+Run the audit at three trigger points:
+
+1. **Starting a new chunk on the rust branch.**  Before cutting
+   the chunk's `claude/<slug>` branch, run `git fetch origin && git
+   log --oneline origin/rust..origin/main -- core/ rust/ tests/` and
+   refresh the **Outstanding** table below if anything new has
+   landed on `main`.  If the chunk's scope overlaps an outstanding
+   row, port that row in the same PR (or split it out and land it
+   first); otherwise note "no overlap" and proceed.
+2. **Before any chunk that itself rewrites rust history**
+   (rebase-audit chunks, cleanup chunks that touch the workspace
+   root, etc.).  These chunks risk amplifying any drift, so the
+   table must be empty or every outstanding row must be either
+   landed or explicitly deferred-to-after-this-chunk in the chunk
+   description.
+3. **Whenever a `SYNC*` family is opened** (see below).  A
+   `SYNC*` family is the heavy-handed form of this audit — a
+   single audit point that batches dozens of `main` commits into
+   a tracked sub-chunk list.  The May 2026 family
+   (`SYNC-MAY26`) is the worked example.
+
+### Audit workflow
+
+```
+git fetch origin
+git log --oneline origin/rust..origin/main                                     # main commits not on rust
+git diff --name-only --diff-filter=M origin/main..origin/rust                  # rust-side diverged files
+git diff --stat origin/rust...origin/main -- core/ tests/test_rust_*.py        # in-scope file impact
+```
+
+For each `main` commit in the first list, classify by primary
+touchpoint:
+
+- **Out of scope** — runtime/Zig, WASM AOT, vscode, release,
+  pure-doc.  No Rust mirror exists; record and skip.
+- **In scope, low-touch** — registry table edits, single-file
+  bugfixes in a passa already ported to Rust.  Add a row to
+  **Outstanding** with the source commit + the Rust file(s) to
+  update.
+- **In scope, structural** — new pass, new IR variant, new
+  vocabulary enum, new analysis surface.  Add a row plus a
+  pointer to the Rust crate(s) that need extension; if the
+  extension is non-trivial, promote it to a numbered chunk in
+  the chunk log.
+
+Two catch-up modes, picked per chunk:
+
+- **Port-individually.**  Each outstanding row lands as its own
+  PR against `rust`, narrowly scoped, no force-push.  Default
+  mode.  Preserves chunk granularity and keeps open
+  `claude/*` PRs unaffected.
+- **Full rebase.**  Hard-reset the `rust` branch pointer to
+  `origin/main`, re-apply every rust-only file, re-apply the
+  rust shims into the new copies of rust-modified files, fix
+  any path renames `main` introduced (e.g. the
+  `core/analysis/analyser.py` → `_analyser/` split absorbed by
+  `SYNC-MAY26`), and force-push.  Used when (a) the
+  outstanding list has grown past ~15 in-scope rows, (b)
+  `main` has had a path-renaming refactor, or (c) the rust
+  branch is materially behind on infrastructure (Makefile
+  targets, CI matrix, toolchain).  Open `claude/*` chunk
+  branches all need to rebase afterwards (`git rebase
+  origin/rust && git push --force-with-lease`).
+
+### Outstanding
+
+Refreshed: 2026-05-06 against `origin/main`@`31d5d473`,
+`origin/rust`@`9205b90b`.
+
+`main` carries 94 commits past the last rust-side rebase point
+(`SYNC-MAY26`).  Triage:
+
+- **Out of scope (≈ 80 commits)** — Tcl 9 runtime semantics,
+  WASM AOT staircase + emitter follow-ups, expr-bignum (i128 /
+  bigint), runtime memory leaks, vscode per-folder config /
+  pygls 2.x migration, v1.8.0 release plumbing, ruff/style
+  drive-bys, runtime test categorisation.  None has a Rust
+  mirror; absorbed silently when the corresponding Rust crate
+  ships.
+- **In scope (10 commits / 7 distinct work items)** —
+  enumerated below.  All affect a Rust-mirrored area
+  (analyser suppression, var\_escape, CFG lowering, IR /
+  lowering hooks, expression evaluator, registry).
+
+| Status | Source on `main` | Scope summary | Rust mirror to update | Suggested chunk handle |
+|---|---|---|---|---|
+| open | `b66f8f9d` (#306) + `ceb190fc` | noqa next-line suppression covers orphaned comments and the noqa-before-comment shape; suppression dispatched from `analyse_chunked` and `analyse_commands` | analyser suppression dispatch in `rust/tcl-compiler/src/analyser/` (mirror the noqa walker that consumes the parser's comment stream) | `SYNC-JUN-W306-noqa` |
+| open | `957dc1f6` (#334), parts touching `core/compiler/var_escape/_slot_resolution.py` (new 345 LOC) + `_api.py` + `_types.py` | New `var_escape` slot-resolution pass: pins proc-local slot identity across upvar / `info frame` / `interp share-variable` / coroutine boundaries.  Feeds the runtime work but the *analysis* is registry-driven and applies to the Rust analyser too. | new `slot_resolution` module under `rust/tcl-compiler/src/var_escape/`, plus the `_types.rs` / `_api.rs` companions | `SYNC-JUN-VAR334-slot-resolution` |
+| open | `957dc1f6` (#334), part touching `core/commands/registry/tcl/trace.py` | `trace` command spec gets the proc-local-trace fact (new arg roles + side-effect annotations needed by the slot-resolution pass) | `rust/tcl-registry/src/commands/tcl/trace.rs` | folded into `SYNC-JUN-VAR334-slot-resolution` |
+| open | `31f5357f` (#341) | Tcl 9 expression semantics: bignum-aware integer promotion, scan widening, `string is wideinteger` parity.  Touches `cfg.py`, `lowering.py`, `lowering_hooks/_var.py`, `ir.py` on the Python side. | `rust/tcl-compiler/src/{cfg_builder,lowering,ir,lowering_hooks}` plus `tcl_expr_eval.rs` for the new promotion rules | `SYNC-JUN-EXPR341-tcl9-semantics` |
+| open | `342d4c7a` (#331) | Full `lsearch` option surface (`-glob` / `-regexp` / `-exact` / `-sorted` / `-index` / `-inline` / `-not` / `-all` / `-stride`) and `foreach` multi-iterator binding.  Touches `cfg.py`, `lowering.py`, `ir.py`, `passes/dce.py`, `tcl_expr_eval.py`. | matching modules in `rust/tcl-compiler/src/`; new IR variant or arg-role coverage for the multi-iterator foreach binding | `SYNC-JUN-LSEARCH331-foreach-multi-iter` |
+| open | `6c7a7c42` | `var_escape`: any non-literal `upvar LEVEL` (i.e. anything that isn't a decimal digit literal or `#N`) is treated as dynamic, blocking slot lifting. Touches `_propagation.py` + `_cfg_propagation.py`. | `rust/tcl-compiler/src/var_escape/{propagation,cfg_propagation}.rs` | `SYNC-JUN-VARESC-dynamic-upvar` |
+| open | `d5ac467c` | CFG: detect literal-target `uplevel 1 set x ...` writes so they materialise as defs in the caller's frame instead of opaque barriers. | `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs::lower_uplevel` (currently models all uplevel as barrier) | `SYNC-JUN-CFG-uplevel-literal-set` |
+
+All seven rows are independently shippable; suggested order is
+the table order (suppression → var\_escape → expr → CFG), which
+mirrors the analyser-pipeline dependency graph.  Each row should
+land as a `SYNC-JUN-*` chunk PR base = `rust`, and the row should
+be deleted from this table (not just marked landed) once the
+matching PR merges — this section's purpose is the *open*
+backlog, not a history.
+
+When `main` next force-pushes a rebase point or when this list
+crosses the ~15-row threshold, open a fresh `SYNC*` family
+section in the chunk log (mirror `SYNC-MAY26`'s shape) and link
+it from the **Outstanding** rows it absorbs.
+
 ## Next-up priority queue
 
 When a contributor sits down to pick up the next chunk, work
