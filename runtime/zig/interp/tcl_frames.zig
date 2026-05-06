@@ -108,8 +108,28 @@ inline fn is_alias_ext(v: i32) bool {
 }
 
 /// Recover the descriptor heap address from an ALIAS_EXT bucket value.
+///
+/// The encoding is ``value = -(heap_addr)`` (see module comment).  We
+/// can't compute ``-v`` directly for ``v == i32_MIN`` because the
+/// negation overflows the i32 range — instead, reinterpret the i32 as
+/// a u32 and take the two's-complement negation in the unsigned
+/// domain, which yields the original heap address even for the
+/// boundary case.  Without this, any TclObj whose handle happens to
+/// land at WASM address ``0x80000000`` (i.e. exactly at the 2 GiB
+/// mark) would panic the runtime here under ReleaseSafe — Stream 1's
+/// trace.test cumulative test run grew the heap past that mark.
 inline fn alias_desc_ptr(v: i32) u32 {
-    return @bitCast(-v);
+    const u: u32 = @bitCast(v);
+    return ~u +% 1;
+}
+
+/// Pack a descriptor heap address into the ALIAS_EXT bucket value
+/// (``value = -(heap_addr)``).  Same boundary-safe construction as
+/// :func:`alias_desc_ptr`: compute the negation in the u32 domain so
+/// a heap address at exactly ``0x80000000`` doesn't panic the
+/// ``i32 = -@intCast(u32)`` conversion under ReleaseSafe.
+inline fn encode_alias_ext(desc: u32) i32 {
+    return @bitCast(~desc +% 1);
 }
 
 // -- Frame-alias descriptor kinds --
@@ -1562,14 +1582,14 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
             write_i32(desc, KIND_GLOBAL_NAMED);
             write_i32(desc + 4, 0);
             write_i32(desc + 8, target_name);
-            write_i32(bucket + OFF_VALUE, -@as(i32, @intCast(desc)));
+            write_i32(bucket + OFF_VALUE, encode_alias_ext(desc));
             return;
         }
         const desc = alloc(12);
         write_i32(desc, KIND_GLOBAL_NAMED);
         write_i32(desc + 4, 0);
         write_i32(desc + 8, target_name);
-        frame_insert(base, sn.ptr, sn.len, hash, -@as(i32, @intCast(desc)));
+        frame_insert(base, sn.ptr, sn.len, hash, encode_alias_ext(desc));
     }
 }
 
@@ -1597,14 +1617,14 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
             write_i32(desc, KIND_FRAME_VAR);
             write_i32(desc + 4, abs_depth);
             write_i32(desc + 8, target_name);
-            write_i32(bucket + OFF_VALUE, -@as(i32, @intCast(desc)));
+            write_i32(bucket + OFF_VALUE, encode_alias_ext(desc));
             return;
         }
         const desc = alloc(12);
         write_i32(desc, KIND_FRAME_VAR);
         write_i32(desc + 4, abs_depth);
         write_i32(desc + 8, target_name);
-        frame_insert(base, sn.ptr, sn.len, hash, -@as(i32, @intCast(desc)));
+        frame_insert(base, sn.ptr, sn.len, hash, encode_alias_ext(desc));
     }
 }
 
@@ -1678,7 +1698,7 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_
         write_i32(desc + 12, @bitCast(target_ns));
         write_i32(desc + 16, @bitCast(simple_ptr));
         write_i32(desc + 20, @bitCast(simple_len));
-        write_i32(bucket + OFF_VALUE, -@as(i32, @intCast(desc)));
+        write_i32(bucket + OFF_VALUE, encode_alias_ext(desc));
         return;
     }
     const desc = alloc(24);
@@ -1688,7 +1708,7 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_
     write_i32(desc + 12, @bitCast(target_ns));
     write_i32(desc + 16, @bitCast(simple_ptr));
     write_i32(desc + 20, @bitCast(simple_len));
-    frame_insert(cur, sn.ptr, sn.len, hash, -@as(i32, @intCast(desc)));
+    frame_insert(cur, sn.ptr, sn.len, hash, encode_alias_ext(desc));
 }
 
 /// Resolve a Tcl ``upvar`` *level* token to an absolute frame depth.
