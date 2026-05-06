@@ -23,8 +23,6 @@
 //! `[file normalize $var]` — this is the only suppression path that
 //! currently fires end-to-end.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
@@ -152,7 +150,7 @@ pub fn build_file_join_fix(path_expr: &str) -> Option<String> {
 /// Blocks are traversed in `cfg_order` for deterministic output and
 /// skipped when not in `executable_blocks`.
 #[must_use]
-pub fn find_path_concat_warnings(
+pub(crate) fn find_path_concat_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     rendered_props: &HashMap<ValueKey, RenderedValueProps>,

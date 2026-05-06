@@ -1,6 +1,5 @@
 // These algorithms always use the default RandomState hasher; making
 // them generic over BuildHasher adds complexity for no real benefit.
-#![allow(clippy::implicit_hasher)]
 //! Static Single-Assignment (SSA) construction over CFG blocks.
 //!
 //! SSA is a variable-naming discipline where every variable is assigned
@@ -203,7 +202,7 @@ pub fn compute_dominators(func: &cfg::Function) -> HashMap<String, HashSet<Strin
 /// The immediate dominator of a block is the closest strict dominator
 /// (the one with the largest dominator set).
 #[must_use]
-pub fn compute_idom(
+pub(crate) fn compute_idom(
     func: &cfg::Function,
     dom: &HashMap<String, HashSet<String>>,
 ) -> HashMap<String, Option<String>> {
@@ -234,7 +233,7 @@ pub fn compute_idom(
 /// A block `b` is in the dominance frontier of block `a` if `a`
 /// dominates a predecessor of `b` but does not strictly dominate `b`.
 #[must_use]
-pub fn compute_dominance_frontier(
+pub(crate) fn compute_dominance_frontier(
     func: &cfg::Function,
     idom: &HashMap<String, Option<String>>,
 ) -> HashMap<String, HashSet<String>> {
@@ -278,7 +277,9 @@ pub fn compute_dominance_frontier(
 ///
 /// Returns a map from each block to its children in the dominator tree.
 #[must_use]
-pub fn build_dom_tree(idom: &HashMap<String, Option<String>>) -> HashMap<String, Vec<String>> {
+pub(crate) fn build_dom_tree(
+    idom: &HashMap<String, Option<String>>,
+) -> HashMap<String, Vec<String>> {
     let mut tree: HashMap<String, Vec<String>> = HashMap::new();
     for name in idom.keys() {
         tree.entry(name.clone()).or_default();
@@ -300,7 +301,7 @@ pub fn build_dom_tree(idom: &HashMap<String, Option<String>>) -> HashMap<String,
 /// starting from blocks where it is defined, propagate phi nodes to
 /// the dominance frontier until convergence.
 #[must_use]
-pub fn compute_phi_vars(
+pub(crate) fn compute_phi_vars(
     func: &cfg::Function,
     df: &HashMap<String, HashSet<String>>,
 ) -> HashMap<String, HashSet<String>> {
