@@ -884,8 +884,14 @@ pub fn concat_words(ws: []const i32) i32 {
 pub fn eval_upvar(words: []const i32) i32 {
     if (words.len < 3) return 0;
 
-    // Determine whether words[1] is a level specifier.
-    // A leading '#' or a digit sequence marks it as a level.
+    // Determine whether words[1] is a level specifier.  Mirrors
+    // ``Tcl_UpvarObjCmd`` (tclVar.c): the first argument is taken as
+    // a level only when it both LOOKS like a level (leading ``#`` or
+    // digit) AND the remaining word count has the right parity for
+    // ``otherVar localVar`` pairs.  Without the parity check,
+    // ``upvar 0 x`` (where ``0`` is the local variable's name and
+    // ``x`` is the alias target) is mis-parsed as level=0 with no
+    // pair, leaving the alias unmade — see upvar-8.2.1.
     const w1 = obj_ensure_string(words[1]);
 
     var pairs_start: u32 = 1;
@@ -896,22 +902,28 @@ pub fn eval_upvar(words: []const i32) i32 {
 
     if (w1.len > 0) {
         const w1p: [*]const u8 = @ptrFromInt(w1.ptr);
-        if (w1p[0] == '#') {
-            // Absolute level: #0 = global, #N = abs frame N
+        const looks_like_level =
+            (w1p[0] == '#') or (w1p[0] >= '0' and w1p[0] <= '9');
+        // After a level word there must be an even number of
+        // remaining words for the otherVar/localVar pairs.  If not,
+        // ``words[1]`` is a name, not a level.
+        const remaining_after_level = words.len - 2;
+        const treat_as_level = looks_like_level and (remaining_after_level % 2 == 0);
+        if (treat_as_level) {
             pairs_start = 2;
-            const level = parse_uint_bytes(w1p + 1, w1.len - 1);
-            if (level == 0) {
-                is_global = true;
+            if (w1p[0] == '#') {
+                const level = parse_uint_bytes(w1p + 1, w1.len - 1);
+                if (level == 0) {
+                    is_global = true;
+                } else {
+                    abs_target = @intCast(level);
+                }
             } else {
-                abs_target = @intCast(level);
+                const rel = parse_uint_bytes(w1p, w1.len);
+                abs_target = @as(i32, @intCast(frames.frame_depth)) - @as(i32, @intCast(rel));
             }
-        } else if (w1p[0] >= '0' and w1p[0] <= '9') {
-            // Relative level
-            pairs_start = 2;
-            const rel = parse_uint_bytes(w1p, w1.len);
-            abs_target = @as(i32, @intCast(frames.frame_depth)) - @as(i32, @intCast(rel));
         }
-        // else: not a level spec; default level 1 applies (pairs_start = 1)
+        // else: not a level spec; default level 1 applies
     }
 
     var i = pairs_start;

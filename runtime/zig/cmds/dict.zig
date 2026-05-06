@@ -7,6 +7,7 @@ const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const interp = @import("../interp/tcl_interp.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
+const list_parse = @import("../valtypes/tcl_list_parse.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
@@ -326,6 +327,9 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
 
     const dict = words[3];
     const sd = obj_ensure_string(dict);
+    // Empty / odd-length dict is a no-op (or empty result).  The
+    // ``count_elements`` check is cheap (single linear scan) and lets
+    // us bail before the cursor walk on obviously malformed input.
     const n = rt.list_count_elements(sd.ptr, sd.len);
     if (n <= 0 or (n & 1) != 0) {
         return if (collect) rt.dict_create() else 0;
@@ -333,10 +337,19 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
 
     const body = obj_ensure_string(words[4]);
     var collected: i32 = if (collect) rt.dict_create() else 0;
-    var idx: i64 = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+    // Walk the dict's string-shape list with a single forward cursor.
+    // The previous implementation called ``list_element_at(idx)`` per
+    // element, which restarts the parse from offset 0 each time —
+    // O(n²) in the dict size and the source of dict-24.24/24.25's
+    // multi-minute hang on a 100k-element ``dict map``.  We already
+    // validated that ``n`` is even and positive; iterate that many
+    // pairs explicitly so an empty braced element ``{}`` (which yields
+    // ``len == 0`` from the cursor) doesn't terminate the loop early.
+    var cur: list_parse.Cursor = .{ .pos = 0 };
+    var pairs_left: i64 = @divTrunc(n, 2);
+    while (pairs_left > 0) : (pairs_left -= 1) {
+        const k = list_parse.cursor_next(sd.ptr, sd.len, &cur);
+        const v = list_parse.cursor_next(sd.ptr, sd.len, &cur);
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         _ = frames.var_set(kvar, key_obj);
@@ -380,16 +393,22 @@ fn eval_dict_with(words: []const i32) i32 {
         cur = rt.dict_get(cur, words[ki]);
     }
 
-    // Snapshot keys and bind each as a same-named local.
+    // Snapshot keys and bind each as a same-named local.  Use a
+    // single forward cursor walk (O(n)) instead of indexed
+    // ``list_element_at`` lookups (O(n²) — restarts the parse from
+    // offset 0 on every call).
     const sd = obj_ensure_string(cur);
     const n = rt.list_count_elements(sd.ptr, sd.len);
-    var idx: i64 = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
-        const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
-        const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
-        _ = frames.var_set(key_obj, val_obj);
+    {
+        var lc: list_parse.Cursor = .{ .pos = 0 };
+        var pairs: i64 = @divTrunc(n, 2);
+        while (pairs > 0) : (pairs -= 1) {
+            const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            const v = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
+            const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
+            _ = frames.var_set(key_obj, val_obj);
+        }
     }
 
     _ = interp.eval_script(body.ptr, body.len);
@@ -397,13 +416,19 @@ fn eval_dict_with(words: []const i32) i32 {
 
     // Write back each key from the (potentially modified) locals.
     var sub = cur;
-    idx = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
-        const new_val = frames.var_resolve(key_obj);
-        if (new_val != 0) {
-            sub = rt.dict_set(sub, key_obj, new_val);
+    {
+        var lc: list_parse.Cursor = .{ .pos = 0 };
+        var pairs: i64 = @divTrunc(n, 2);
+        while (pairs > 0) : (pairs -= 1) {
+            const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            // Skip the value element — only the key feeds the
+            // ``var_resolve`` lookup.
+            _ = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
+            const new_val = frames.var_resolve(key_obj);
+            if (new_val != 0) {
+                sub = rt.dict_set(sub, key_obj, new_val);
+            }
         }
     }
 
@@ -466,10 +491,11 @@ fn eval_dict_filter(words: []const i32) i32 {
     const sd = obj_ensure_string(words[2]);
     const n = rt.list_count_elements(sd.ptr, sd.len);
     var result: i32 = rt.dict_create();
-    var idx: i64 = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+    var lc: list_parse.Cursor = .{ .pos = 0 };
+    var pairs: i64 = @divTrunc(n, 2);
+    while (pairs > 0) : (pairs -= 1) {
+        const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+        const v = list_parse.cursor_next(sd.ptr, sd.len, &lc);
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         const candidate: i32 = if (filter_keys) key_obj else val_obj;
