@@ -49,7 +49,8 @@ const STUB_TRAP: []const []const u8 = &.{
     // ``exec`` are capability-gated through interp/tcl_caps.zig and
     // raise ``permission denied: <cmd> requires CAP_<NAME>`` on
     // sandboxed builds; ``load`` / ``unload`` remain trap-only.
-    "load", "unload",
+    "load",
+    "unload",
     // Format / pattern matching — scan/binary are in BUILTINS.
     "regexp",
     // Time / event loop.  ``after``, ``vwait``, ``update``, ``clock``,
@@ -60,14 +61,16 @@ const STUB_TRAP: []const []const u8 = &.{
     // Environment / metadata — ``package`` is in BUILTINS
     // (cmds/stubs.zig); ``trace`` / ``namespace`` / ``subst`` /
     // ``auto_*`` are in BUILTINS with real implementations.
-    "interp", "rename",
+    "interp",
+    "rename",
     // TclOO commands moved to a no-op scaffold in cmds/oo.zig
     // (Step 3 of the trap-cluster sweep) so oo.test reaches a
     // tcltest summary line instead of trapping at init.  When a
     // real implementation lands, the registrations there
     // override; nothing here.
     // Misc that tcltest specifically references.
-    "zlib", "registry",
+    "zlib",
+    "registry",
     // ``switch`` moved to BUILTINS in cmds/loop.zig with a real
     // runtime evaluator (see ``tcl_interp.eval_switch``).  The
     // codegen still inlines ``IRSwitch`` for static shapes; the
@@ -77,17 +80,24 @@ const STUB_TRAP: []const []const u8 = &.{
     // wins.  Without ``CAP_EXIT`` granted the BUILTIN raises
     // ``permission denied`` instead of trapping.
     // Debug-only / host-machine commands.
-    "memory", "bgerror",
+    "memory",
+    "bgerror",
     // Tcl 9.0 additions missing in the WASM runtime.
     "lremove",
     // Standard-library procs Tcl ships in ``library/*.tcl``.
     // Without the library source bundled we trap rather than silently
     // return empty — callers relying on these can install shims.
-    "auto_mkindex_old", "parray", "pkg_mkindex", "pkg::create",
+    "auto_mkindex_old",
+    "parray",
+    "pkg_mkindex",
+    "pkg::create",
     "tcl_findLibrary",
     // Regexp-quoting helpers — several aliases cover historical
     // spellings.
-    "re_quote", "regex_quote", "regex::quote", "regexp::quote",
+    "re_quote",
+    "regex_quote",
+    "regex::quote",
+    "regexp::quote",
     // Package namespaces — ``http`` is an extension package.  Call
     // sites like ``http::geturl`` would already dispatch by the full
     // qualified name; the bare ``http`` trap catches misuse.

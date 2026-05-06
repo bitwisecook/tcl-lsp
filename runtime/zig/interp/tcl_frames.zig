@@ -288,7 +288,6 @@ pub export fn frame_take_pending_argv0() i32 {
     return v;
 }
 
-
 // -- Frame operations --
 
 /// Push a new call frame. Returns the frame index.
@@ -951,11 +950,11 @@ var ns_save_top: u32 = 0;
 // stack itself does.  The per-stash count lives in
 // ``parked_count_stack`` so each ``frame_depth_restore`` knows
 // exactly how many frames its corresponding stash parked.
-var parked_stack:    [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var parked_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
-var parked_dirty:    [MAX_DEPTH]u64 = [_]u64{0} ** MAX_DEPTH;
-var parked_ns:       [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
-var parked_argv:     [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
+var parked_dirty: [MAX_DEPTH]u64 = [_]u64{0} ** MAX_DEPTH;
+var parked_ns: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+var parked_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
 var parked_top: u32 = 0;
 // Per-stash count of parked frames.  Indexed by ``ns_save_top``
 // at stash time so restore can recover the matching count.
@@ -1042,19 +1041,19 @@ pub export fn frame_depth_stash(relative_up: i32) i32 {
         var i: u32 = 0;
         while (i < u) : (i += 1) {
             const slot = frame_depth - 1 - i;
-            parked_stack[parked_top]    = frame_stack[slot];
+            parked_stack[parked_top] = frame_stack[slot];
             parked_capacity[parked_top] = frame_capacity[slot];
-            parked_dirty[parked_top]    = frame_dirty[slot];
-            parked_ns[parked_top]       = frame_ns[slot];
-            parked_argv[parked_top]     = frame_argv[slot];
+            parked_dirty[parked_top] = frame_dirty[slot];
+            parked_ns[parked_top] = frame_ns[slot];
+            parked_argv[parked_top] = frame_argv[slot];
             // Clear the slot.  ``frame_argv`` is NOT released
             // here — the parked entry retains the caller's
             // refcount; restore puts the same handle back.
-            frame_stack[slot]    = 0;
+            frame_stack[slot] = 0;
             frame_capacity[slot] = 0;
-            frame_dirty[slot]    = 0;
-            frame_ns[slot]       = 0;
-            frame_argv[slot]     = 0;
+            frame_dirty[slot] = 0;
+            frame_ns[slot] = 0;
+            frame_argv[slot] = 0;
             parked_top += 1;
             parked_here += 1;
         }
@@ -1106,10 +1105,7 @@ pub export fn frame_depth_restore(saved: i32) void {
             // the bump allocator's free-list reclaims the slab.
             const orphan_base = frame_stack[slot];
             const orphan_cap = frame_capacity[slot];
-            if (orphan_base != 0
-                and orphan_base != parked_stack[parked_top]
-                and orphan_cap > 0)
-            {
+            if (orphan_base != 0 and orphan_base != parked_stack[parked_top] and orphan_cap > 0) {
                 obj.free_sized(orphan_base, orphan_cap * FRAME_BUCKET_SIZE);
             }
             frame_stack[slot] = parked_stack[parked_top];
@@ -1297,14 +1293,23 @@ fn frame_get_at_depth(abs_depth: u32, name: i32, fallback_name: i32) i32 {
 
 /// Write *value* to variable *name* in the frame at *abs_depth* (1-indexed).
 fn frame_set_at_depth(abs_depth: u32, name: i32, fallback_name: i32, value: i32) void {
-    if (abs_depth == 0) { _ = globals.global_set(name, value); return; }
+    if (abs_depth == 0) {
+        _ = globals.global_set(name, value);
+        return;
+    }
     if (frame_at_depth(abs_depth)) |base| {
         const sn = obj_ensure_string(name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
             const v = read_i32(bucket + OFF_VALUE);
-            if (v == ALIAS_GLOBAL) { _ = globals.global_set(name, value); return; }
-            if (is_alias_ext(v)) { _ = resolve_ext_set(alias_desc_ptr(v), fallback_name, value); return; }
+            if (v == ALIAS_GLOBAL) {
+                _ = globals.global_set(name, value);
+                return;
+            }
+            if (is_alias_ext(v)) {
+                _ = resolve_ext_set(alias_desc_ptr(v), fallback_name, value);
+                return;
+            }
             write_i32(bucket + OFF_VALUE, value);
             return;
         }
@@ -1922,7 +1927,11 @@ pub export fn var_exists(name: i32) i32 {
         var found = false;
         var k: u32 = 0;
         while (k < sn.len) : (k += 1) {
-            if (sp[k] == '(') { paren = k; found = true; break; }
+            if (sp[k] == '(') {
+                paren = k;
+                found = true;
+                break;
+            }
         }
         if (found and paren > 0 and sp[sn.len - 1] == ')') {
             const tcl_array = @import("../valtypes/tcl_array.zig");

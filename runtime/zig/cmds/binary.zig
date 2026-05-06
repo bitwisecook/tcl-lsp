@@ -27,17 +27,17 @@
 // specifies how many values to consume (format) or bytes to process
 // (scan).  ``*`` means "all remaining".
 
-const rt     = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-const obj_new_int       = rt.obj_new_int;
-const obj_new_string    = rt.obj_new_string;
+const obj_new_int = rt.obj_new_int;
+const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
-const obj_get_int       = rt.obj_get_int;
-const alloc             = rt.alloc;
-const memcpy            = rt.memcpy;
+const obj_get_int = rt.obj_get_int;
+const alloc = rt.alloc;
+const memcpy = rt.memcpy;
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
 
@@ -152,8 +152,7 @@ fn is_be(spec: u8) bool {
 /// First pass: calculate the byte length that ``binary format fmtStr args...``
 /// will produce.  Advances ``*wi`` and ``*fi`` together — call with wi=0, fi=0
 /// to get the total length.  Returns 0 on any sizing error.
-fn format_size(fmt: [*]const u8, fmt_len: u32,
-               words: []const i32, words_offset: u32) u32 {
+fn format_size(fmt: [*]const u8, fmt_len: u32, words: []const i32, words_offset: u32) u32 {
     var fi: u32 = 0;
     var wi: u32 = words_offset;
     var total: u32 = 0;
@@ -165,8 +164,7 @@ fn format_size(fmt: [*]const u8, fmt_len: u32,
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N',
-            'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
                 const nbytes = spec_byte_width(spec);
                 const cnt: u32 = count_or_null orelse blk: {
                     if (wi >= words.len) break :blk 0;
@@ -217,9 +215,7 @@ fn format_size(fmt: [*]const u8, fmt_len: u32,
 }
 
 /// Second pass: fill the already-allocated ``buf`` of ``buf_len`` bytes.
-fn format_fill(buf: u32, buf_len: u32,
-               fmt: [*]const u8, fmt_len: u32,
-               words: []const i32, words_offset: u32) void {
+fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []const i32, words_offset: u32) void {
     var fi: u32 = 0;
     var wi: u32 = words_offset;
     var off: u32 = 0;
@@ -231,8 +227,7 @@ fn format_fill(buf: u32, buf_len: u32,
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N',
-            'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
                 const nbytes = spec_byte_width(spec);
                 const cnt: u32 = count_or_null orelse blk: {
                     if (wi >= words.len) break :blk 0;
@@ -242,8 +237,7 @@ fn format_fill(buf: u32, buf_len: u32,
                 for (0..cnt) |_| {
                     if (wi >= words.len or off + nbytes > buf_len) break;
                     const v: i64 = obj_get_int(words[wi]);
-                    if (big_end) write_be(buf, off, v, nbytes)
-                    else         write_le(buf, off, v, nbytes);
+                    if (big_end) write_be(buf, off, v, nbytes) else write_le(buf, off, v, nbytes);
                     off += nbytes;
                     wi += 1;
                 }
@@ -282,18 +276,13 @@ fn format_fill(buf: u32, buf_len: u32,
                 k = 0;
                 while (k < cnt and off + k / 2 < buf_len) : (k += 1) {
                     const c = if (k < vs.len) src_chars[k] else '0';
-                    const nibble: u8 = if (c >= '0' and c <= '9') c - '0'
-                        else if (c >= 'a' and c <= 'f') c - 'a' + 10
-                        else if (c >= 'A' and c <= 'F') c - 'A' + 10
-                        else 0;
+                    const nibble: u8 = if (c >= '0' and c <= '9') c - '0' else if (c >= 'a' and c <= 'f') c - 'a' + 10 else if (c >= 'A' and c <= 'F') c - 'A' + 10 else 0;
                     if (spec == 'h') {
                         // low nibble first: even k → low nibble, odd k → high
-                        if (k % 2 == 0) dst[off + k / 2] |= nibble
-                        else            dst[off + k / 2] |= nibble << 4;
+                        if (k % 2 == 0) dst[off + k / 2] |= nibble else dst[off + k / 2] |= nibble << 4;
                     } else {
                         // high nibble first
-                        if (k % 2 == 0) dst[off + k / 2] |= nibble << 4
-                        else            dst[off + k / 2] |= nibble;
+                        if (k % 2 == 0) dst[off + k / 2] |= nibble << 4 else dst[off + k / 2] |= nibble;
                     }
                 }
                 off += out_bytes;
@@ -364,16 +353,16 @@ fn eval_binary_scan(words: []const i32) i32 {
     // words: ["scan", data, fmtStr, var0, var1, ...]
     if (words.len < 3) return obj_new_int(0);
     const data_s = obj_ensure_string(words[1]);
-    const fs     = obj_ensure_string(words[2]);
+    const fs = obj_ensure_string(words[2]);
     if (fs.len == 0) return obj_new_int(0);
 
     const src_base = data_s.ptr;
-    const src_len  = data_s.len;
+    const src_len = data_s.len;
     const fmt: [*]const u8 = @ptrFromInt(fs.ptr);
-    const fmt_len  = fs.len;
+    const fmt_len = fs.len;
 
-    var off: u32 = 0;   // byte position in data
-    var vi:  u32 = 0;   // next variable index (words[3 + vi])
+    var off: u32 = 0; // byte position in data
+    var vi: u32 = 0; // next variable index (words[3 + vi])
     var assigned: u32 = 0;
     var fi: u32 = 0;
 
@@ -384,8 +373,7 @@ fn eval_binary_scan(words: []const i32) i32 {
         const count_or_null = parse_count(fmt, fmt_len, &fi);
 
         switch (spec) {
-            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N',
-            'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+            'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
                 const nbytes = spec_byte_width(spec);
                 // ``*`` = read all remaining bytes / nbytes items.
                 const cnt: u32 = count_or_null orelse
@@ -400,11 +388,9 @@ fn eval_binary_scan(words: []const i32) i32 {
                     // Scalar: assign single value to variable.
                     if (off + nbytes > src_len) break;
                     const v: i64 = if (big_end)
-                        (if (signed) read_be_signed(src_base, off, nbytes)
-                                    else read_be_unsigned(src_base, off, nbytes))
+                        (if (signed) read_be_signed(src_base, off, nbytes) else read_be_unsigned(src_base, off, nbytes))
                     else
-                        (if (signed) read_le_signed(src_base, off, nbytes)
-                                    else read_le_unsigned(src_base, off, nbytes));
+                        (if (signed) read_le_signed(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
                     off += nbytes;
                     if (words.len > 3 + vi) {
                         _ = frames.var_set(words[3 + vi], obj_new_int(v));
@@ -420,19 +406,19 @@ fn eval_binary_scan(words: []const i32) i32 {
                     var k: u32 = 0;
                     while (k < cnt and off + nbytes <= src_len) : (k += 1) {
                         const v: i64 = if (big_end)
-                            (if (signed) read_be_signed(src_base, off, nbytes)
-                                        else read_be_unsigned(src_base, off, nbytes))
+                            (if (signed) read_be_signed(src_base, off, nbytes) else read_be_unsigned(src_base, off, nbytes))
                         else
-                            (if (signed) read_le_signed(src_base, off, nbytes)
-                                        else read_le_unsigned(src_base, off, nbytes));
+                            (if (signed) read_le_signed(src_base, off, nbytes) else read_le_unsigned(src_base, off, nbytes));
                         off += nbytes;
-                        if (k > 0) { list_dst[list_off] = ' '; list_off += 1; }
+                        if (k > 0) {
+                            list_dst[list_off] = ' ';
+                            list_off += 1;
+                        }
                         // Format the integer as decimal.
                         list_off += fmt_i64(list_dst, list_off, v);
                     }
                     if (words.len > 3 + vi) {
-                        _ = frames.var_set(words[3 + vi],
-                            obj_new_string(@bitCast(list_buf), @bitCast(list_off)));
+                        _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(list_buf), @bitCast(list_off)));
                         vi += 1;
                         assigned += 1;
                     }
@@ -444,14 +430,11 @@ fn eval_binary_scan(words: []const i32) i32 {
                 var end = off + take;
                 if (spec == 'A') {
                     // Strip trailing spaces/nulls from result.
-                    while (end > off and (
-                        @as(*const u8, @ptrFromInt(src_base + end - 1)).* == ' ' or
-                        @as(*const u8, @ptrFromInt(src_base + end - 1)).* == 0
-                    )) end -= 1;
+                    while (end > off and (@as(*const u8, @ptrFromInt(src_base + end - 1)).* == ' ' or
+                        @as(*const u8, @ptrFromInt(src_base + end - 1)).* == 0)) end -= 1;
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi],
-                        obj_new_string(@bitCast(src_base + off), @bitCast(end - off)));
+                    _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(src_base + off), @bitCast(end - off)));
                     vi += 1;
                     assigned += 1;
                 }
@@ -475,8 +458,7 @@ fn eval_binary_scan(words: []const i32) i32 {
                     hex_dst[k] = hex_chars[nibble];
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi],
-                        obj_new_string(@bitCast(hex_buf), @bitCast(cnt)));
+                    _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(hex_buf), @bitCast(cnt)));
                     vi += 1;
                     assigned += 1;
                 }
@@ -499,8 +481,7 @@ fn eval_binary_scan(words: []const i32) i32 {
                     bit_dst[k] = '0' + bit;
                 }
                 if (words.len > 3 + vi) {
-                    _ = frames.var_set(words[3 + vi],
-                        obj_new_string(@bitCast(bit_buf), @bitCast(cnt)));
+                    _ = frames.var_set(words[3 + vi], obj_new_string(@bitCast(bit_buf), @bitCast(cnt)));
                     vi += 1;
                     assigned += 1;
                 }
@@ -527,7 +508,10 @@ fn eval_binary_scan(words: []const i32) i32 {
 /// Format a signed 64-bit integer as decimal into ``dst[off..]``.
 /// Returns the number of bytes written.
 fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
-    if (val == 0) { dst[off] = '0'; return 1; }
+    if (val == 0) {
+        dst[off] = '0';
+        return 1;
+    }
     var buf: [20]u8 = undefined;
     var pos: u32 = 20;
     // Use wrapping subtraction on the u64 bit pattern to handle INT64_MIN
@@ -538,7 +522,10 @@ fn fmt_i64(dst: [*]u8, off: u32, val: i64) u32 {
         buf[pos] = @intCast('0' + (v % 10));
     }
     var len: u32 = 0;
-    if (val < 0) { dst[off] = '-'; len = 1; }
+    if (val < 0) {
+        dst[off] = '-';
+        len = 1;
+    }
     const digits = 20 - pos;
     for (0..digits) |k| dst[off + len + k] = buf[pos + k];
     return len + digits;
@@ -554,15 +541,15 @@ fn eval_binary(words: []const i32) result_mod.InterpResult {
 
     // ``binary format``
     if (sub.len == 6 and
-        sp[0]=='f' and sp[1]=='o' and sp[2]=='r' and
-        sp[3]=='m' and sp[4]=='a' and sp[5]=='t')
+        sp[0] == 'f' and sp[1] == 'o' and sp[2] == 'r' and
+        sp[3] == 'm' and sp[4] == 'a' and sp[5] == 't')
     {
         // Shift words: ["binary", "format", fmtStr, val...] → ["format", fmtStr, val...]
         return result_mod.from_globals(eval_binary_format(words[1..]));
     }
     // ``binary scan``
     if (sub.len == 4 and
-        sp[0]=='s' and sp[1]=='c' and sp[2]=='a' and sp[3]=='n')
+        sp[0] == 's' and sp[1] == 'c' and sp[2] == 'a' and sp[3] == 'n')
     {
         return result_mod.from_globals(eval_binary_scan(words[1..]));
     }

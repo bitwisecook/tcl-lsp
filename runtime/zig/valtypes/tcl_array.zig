@@ -57,12 +57,18 @@ pub fn make_local_array_obj(arr: i32, frame_depth: u32) i32 {
     if (buf == 0) return 0;
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
-    for (LOCAL_PREFIX) |b| { dst[off] = b; off += 1; }
+    for (LOCAL_PREFIX) |b| {
+        dst[off] = b;
+        off += 1;
+    }
     // Render frame_depth as decimal.
     var d_tmp: [10]u8 = undefined;
     var d_len: u32 = 0;
     var d_val: u32 = frame_depth;
-    if (d_val == 0) { d_tmp[0] = '0'; d_len = 1; } else {
+    if (d_val == 0) {
+        d_tmp[0] = '0';
+        d_len = 1;
+    } else {
         while (d_val > 0) {
             d_tmp[d_len] = @intCast('0' + (d_val % 10));
             d_val /= 10;
@@ -75,11 +81,16 @@ pub fn make_local_array_obj(arr: i32, frame_depth: u32) i32 {
         dst[off] = d_tmp[di];
         off += 1;
     }
-    dst[off] = ':'; off += 1;
-    dst[off] = ':'; off += 1;
+    dst[off] = ':';
+    off += 1;
+    dst[off] = ':';
+    off += 1;
     if (arr_s.len > 0) {
         const ap: [*]const u8 = @ptrFromInt(arr_s.ptr);
-        for (0..arr_s.len) |k| { dst[off] = ap[k]; off += 1; }
+        for (0..arr_s.len) |k| {
+            dst[off] = ap[k];
+            off += 1;
+        }
     }
     return obj.obj_new_string_take(buf, off, total);
 }
@@ -105,11 +116,17 @@ pub fn drop_local_arrays_for_depth(frame_depth: u32) void {
     // Build the depth-specific prefix once.
     var prefix_buf: [LOCAL_PREFIX.len + 12]u8 = undefined;
     var pi: u32 = 0;
-    for (LOCAL_PREFIX) |b| { prefix_buf[pi] = b; pi += 1; }
+    for (LOCAL_PREFIX) |b| {
+        prefix_buf[pi] = b;
+        pi += 1;
+    }
     var d_tmp: [10]u8 = undefined;
     var d_len: u32 = 0;
     var d_val: u32 = frame_depth;
-    if (d_val == 0) { d_tmp[0] = '0'; d_len = 1; } else {
+    if (d_val == 0) {
+        d_tmp[0] = '0';
+        d_len = 1;
+    } else {
         while (d_val > 0) {
             d_tmp[d_len] = @intCast('0' + (d_val % 10));
             d_val /= 10;
@@ -122,8 +139,10 @@ pub fn drop_local_arrays_for_depth(frame_depth: u32) void {
         prefix_buf[pi] = d_tmp[di];
         pi += 1;
     }
-    prefix_buf[pi] = ':'; pi += 1;
-    prefix_buf[pi] = ':'; pi += 1;
+    prefix_buf[pi] = ':';
+    pi += 1;
+    prefix_buf[pi] = ':';
+    pi += 1;
 
     var i: u32 = 0;
     while (i < dir_cap) : (i += 1) {
@@ -135,7 +154,12 @@ pub fn drop_local_arrays_for_depth(frame_depth: u32) void {
         if (el < pi) continue;
         const sp: [*]const u8 = @ptrFromInt(ep);
         var match = true;
-        for (0..pi) |k| { if (sp[k] != prefix_buf[k]) { match = false; break; } }
+        for (0..pi) |k| {
+            if (sp[k] != prefix_buf[k]) {
+                match = false;
+                break;
+            }
+        }
         if (!match) continue;
         // Release the array's element table values, then tombstone.
         const t: u32 = @bitCast(read_i32(bucket + 12));

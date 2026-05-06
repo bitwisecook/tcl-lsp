@@ -2,7 +2,7 @@
 
 const procs = @import("../interp/tcl_procs.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const reg   = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_proc(words: []const i32) result_mod.InterpResult {
     if (words.len >= 4) {

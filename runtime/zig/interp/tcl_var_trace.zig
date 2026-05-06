@@ -235,7 +235,7 @@ pub fn add(name: i32, ops: u32, cmd_prefix: i32) void {
     const bucket = dir_get_or_create(sn.ptr, sn.len);
     if (bucket == 0) return; // OOM in dir_init / dir_grow / name copy
     const rec = trace_new(ops, cmd_prefix);
-    if (rec == 0) return;    // OOM allocating the Trace record
+    if (rec == 0) return; // OOM allocating the Trace record
     const head: u32 = @bitCast(read_i32(bucket + 12));
     write_i32(rec + OFF_NEXT, @bitCast(head));
     write_i32(bucket + 12, @bitCast(rec));
@@ -307,22 +307,43 @@ fn ops_to_string(ops: u32) i32 {
     var off: u32 = 0;
     if ((ops & OP_ARRAY) != 0) {
         const s = "array";
-        for (s) |c| { dst[off] = c; off += 1; }
+        for (s) |c| {
+            dst[off] = c;
+            off += 1;
+        }
     }
     if ((ops & OP_READ) != 0) {
-        if (off > 0) { dst[off] = ' '; off += 1; }
+        if (off > 0) {
+            dst[off] = ' ';
+            off += 1;
+        }
         const s = "read";
-        for (s) |c| { dst[off] = c; off += 1; }
+        for (s) |c| {
+            dst[off] = c;
+            off += 1;
+        }
     }
     if ((ops & OP_WRITE) != 0) {
-        if (off > 0) { dst[off] = ' '; off += 1; }
+        if (off > 0) {
+            dst[off] = ' ';
+            off += 1;
+        }
         const s = "write";
-        for (s) |c| { dst[off] = c; off += 1; }
+        for (s) |c| {
+            dst[off] = c;
+            off += 1;
+        }
     }
     if ((ops & OP_UNSET) != 0) {
-        if (off > 0) { dst[off] = ' '; off += 1; }
+        if (off > 0) {
+            dst[off] = ' ';
+            off += 1;
+        }
         const s = "unset";
-        for (s) |c| { dst[off] = c; off += 1; }
+        for (s) |c| {
+            dst[off] = c;
+            off += 1;
+        }
     }
     const result = obj.obj_new_string_take(buf, off, max_len);
     return result;
@@ -465,16 +486,23 @@ fn invoke_cb(
     // The command prefix is already a syntactically-valid script
     // fragment (caller passes ``trace add variable NAME OPS CMD``'s
     // ``CMD`` argument verbatim) — copy it as-is.
-    for (0..cs.len) |i| { dst[off] = cp[i]; off += 1; }
-    dst[off] = ' '; off += 1;
+    for (0..cs.len) |i| {
+        dst[off] = cp[i];
+        off += 1;
+    }
+    dst[off] = ' ';
+    off += 1;
     // name1 — quote-as-list-element so binary-safe names round-trip.
     off = obj.list_elem_quote_nth(buf, off, name1_ptr, name1_len);
-    dst[off] = ' '; off += 1;
+    dst[off] = ' ';
+    off += 1;
     // name2 — same.  When ``name2_len == 0`` (whole-array trace
     // fire) ``list_elem_quote_nth`` emits ``{}`` correctly.
     off = obj.list_elem_quote_nth(buf, off, name2_ptr, name2_len);
-    dst[off] = ' '; off += 1;
-    dst[off] = op_char; off += 1;
+    dst[off] = ' ';
+    off += 1;
+    dst[off] = op_char;
+    off += 1;
     const r = interp.eval_script(buf, off);
     obj.free_sized(buf, total);
     if (r != 0) tcl_obj_release(r);

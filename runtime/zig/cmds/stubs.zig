@@ -58,10 +58,10 @@
 // the parity classifier will notice the promotion (SILENT_STUB →
 // IMPLEMENTED) without further configuration.
 
-const std   = @import("std");
+const std = @import("std");
 const result_mod = @import("../interp/tcl_result.zig");
-const rt    = @import("../tcl_runtime.zig");
-const reg   = @import("../dispatch/tcl_cmd_registry.zig");
+const rt = @import("../tcl_runtime.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const clock = @import("../io/tcl_clock.zig");
 
 fn eval_auto_load(words: []const i32) result_mod.InterpResult {
@@ -118,8 +118,7 @@ fn eval_clock(words: []const i32) result_mod.InterpResult {
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
             const optn = rt.obj_ensure_string(words[ai]);
-            const op: []const u8 = if (optn.ptr == 0) "" else
-                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            const op: []const u8 = if (optn.ptr == 0) "" else @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
             if (std.mem.eql(u8, op, "-timezone")) {
                 zone_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-base")) {
@@ -160,8 +159,7 @@ fn eval_clock(words: []const i32) result_mod.InterpResult {
         var ai: usize = 3;
         while (ai + 1 < words.len) : (ai += 2) {
             const optn = rt.obj_ensure_string(words[ai]);
-            const op: []const u8 = if (optn.ptr == 0) "" else
-                @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
+            const op: []const u8 = if (optn.ptr == 0) "" else @as([*]const u8, @ptrFromInt(optn.ptr))[0..optn.len];
             if (std.mem.eql(u8, op, "-format")) {
                 fmt_obj = words[ai + 1];
             } else if (std.mem.eql(u8, op, "-timezone")) {
@@ -209,8 +207,7 @@ fn eval_clock(words: []const i32) result_mod.InterpResult {
         var ai: usize = 3;
         while (ai < words.len) {
             const w = rt.obj_ensure_string(words[ai]);
-            const ws: []const u8 = if (w.ptr == 0) "" else
-                @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
+            const ws: []const u8 = if (w.ptr == 0) "" else @as([*]const u8, @ptrFromInt(w.ptr))[0..w.len];
             // Distinguish a real option flag (``-gmt`` / ``-timezone``)
             // from a negative count (``-1 days``).  An option starts
             // with ``-`` followed by an alphabetic character; anything

@@ -1404,12 +1404,21 @@ pub export fn global_set(name: i32, value: i32) i32 {
         if (buf_addr != 0) {
             const buf: [*]u8 = @ptrFromInt(buf_addr);
             var off: usize = 0;
-            for (prefix) |c| { buf[off] = c; off += 1; }
+            for (prefix) |c| {
+                buf[off] = c;
+                off += 1;
+            }
             if (k.len > 0) {
                 const kp: [*]const u8 = @ptrFromInt(k.ptr);
-                for (0..k.len) |i| { buf[off] = kp[i]; off += 1; }
+                for (0..k.len) |i| {
+                    buf[off] = kp[i];
+                    off += 1;
+                }
             }
-            for (suffix) |c| { buf[off] = c; off += 1; }
+            for (suffix) |c| {
+                buf[off] = c;
+                off += 1;
+            }
             const msg = obj.obj_new_string_take(buf_addr, total, total);
             catch_mod.tcl_cmd_error(msg);
         }

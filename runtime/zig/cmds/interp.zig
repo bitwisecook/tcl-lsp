@@ -2,7 +2,7 @@
 
 const interp_impl = @import("./tcl_cmd_interp.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const reg         = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 fn eval_rename(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(interp_impl.eval_rename(words));

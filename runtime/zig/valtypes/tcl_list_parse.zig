@@ -165,8 +165,7 @@ pub fn check_list_syntax(ptr: u32, len: u32) i32 {
                     i += 2;
                     continue;
                 }
-                if (src[i] == '{') depth += 1
-                else if (src[i] == '}') depth -= 1;
+                if (src[i] == '{') depth += 1 else if (src[i] == '}') depth -= 1;
                 i += 1;
             }
             if (depth > 0) {
@@ -192,9 +191,18 @@ pub fn check_list_syntax(ptr: u32, len: u32) i32 {
                 }
                 const buf: [*]u8 = @ptrFromInt(buf_addr);
                 var off: u32 = 0;
-                for (prefix) |c| { buf[off] = c; off += 1; }
-                for (0..tok_len) |k| { buf[off] = src[tok_start + k]; off += 1; }
-                for (suffix) |c| { buf[off] = c; off += 1; }
+                for (prefix) |c| {
+                    buf[off] = c;
+                    off += 1;
+                }
+                for (0..tok_len) |k| {
+                    buf[off] = src[tok_start + k];
+                    off += 1;
+                }
+                for (suffix) |c| {
+                    buf[off] = c;
+                    off += 1;
+                }
                 // Route through catch_mod directly (same as stubs.raise but
                 // with a pre-built buffer we already own).
                 const catch_mod = @import("../interp/tcl_catch.zig");
@@ -205,14 +213,21 @@ pub fn check_list_syntax(ptr: u32, len: u32) i32 {
         } else if (src[i] == '"') {
             i += 1;
             while (i < len) {
-                if (src[i] == '\\' and i + 1 < len) { i += 2; continue; }
-                if (src[i] == '"') { i += 1; break; }
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (src[i] == '"') {
+                    i += 1;
+                    break;
+                }
                 i += 1;
             }
         } else {
             while (i < len and !is_space(src[i])) {
-                if (src[i] == '\\' and i + 1 < len) { i += 2; }
-                else i += 1;
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                } else i += 1;
             }
         }
     }
@@ -330,9 +345,11 @@ pub fn cursor_next(ptr: u32, len: u32, cursor: *Cursor) Element {
         const inner_start = i;
         var depth: u32 = 1;
         while (i < len and depth > 0) {
-            if (src[i] == '\\' and i + 1 < len) { i += 2; continue; }
-            if (src[i] == '{') depth += 1
-            else if (src[i] == '}') depth -= 1;
+            if (src[i] == '\\' and i + 1 < len) {
+                i += 2;
+                continue;
+            }
+            if (src[i] == '{') depth += 1 else if (src[i] == '}') depth -= 1;
             i += 1;
         }
         cursor.pos = i;
@@ -343,8 +360,14 @@ pub fn cursor_next(ptr: u32, len: u32, cursor: *Cursor) Element {
         const inner_start = i;
         var closed = false;
         while (i < len) {
-            if (src[i] == '\\' and i + 1 < len) { i += 2; continue; }
-            if (src[i] == '"') { closed = true; break; }
+            if (src[i] == '\\' and i + 1 < len) {
+                i += 2;
+                continue;
+            }
+            if (src[i] == '"') {
+                closed = true;
+                break;
+            }
             i += 1;
         }
         const elem_len = i - inner_start;
@@ -354,8 +377,7 @@ pub fn cursor_next(ptr: u32, len: u32, cursor: *Cursor) Element {
     } else {
         const elem_start = i;
         while (i < len and !is_space(src[i])) {
-            if (src[i] == '\\' and i + 1 < len) i += 2
-            else i += 1;
+            if (src[i] == '\\' and i + 1 < len) i += 2 else i += 1;
         }
         cursor.pos = i;
         return .{ .start = elem_start, .len = i - elem_start, .braced = false };

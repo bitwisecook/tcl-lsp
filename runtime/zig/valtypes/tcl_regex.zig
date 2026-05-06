@@ -345,11 +345,7 @@ fn codepoint_to_byte(src_ptr: u32, src_len: u32, cp_offset: u32) u32 {
     var cp_count: u32 = 0;
     while (byte_pos < src_len and cp_count < cp_offset) {
         const b0 = src[byte_pos];
-        const nbytes: u32 = if (b0 < 0x80) 1
-            else if ((b0 & 0xE0) == 0xC0) 2
-            else if ((b0 & 0xF0) == 0xE0) 3
-            else if ((b0 & 0xF8) == 0xF0) 4
-            else 1;
+        const nbytes: u32 = if (b0 < 0x80) 1 else if ((b0 & 0xE0) == 0xC0) 2 else if ((b0 & 0xF0) == 0xE0) 3 else if ((b0 & 0xF8) == 0xF0) 4 else 1;
         byte_pos += nbytes;
         cp_count += 1;
     }
@@ -421,8 +417,8 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
     const res_bytes: [*]u8 = @ptrFromInt(result_buf);
 
     var pos_byte: u32 = 0; // byte position in str_s
-    var pos_cp:   u32 = 0; // codepoint position in str_u
-    var n_subs:   i32 = 0; // substitution count
+    var pos_cp: u32 = 0; // codepoint position in str_u
+    var n_subs: i32 = 0; // substitution count
 
     while (true) {
         const remaining_cp: usize = str_u.len - pos_cp;
@@ -437,10 +433,10 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
         const rm_so: u32 = @intCast(pm[0]); // codepoint offset from pos_cp
         const rm_eo: u32 = @intCast(pm[1]);
 
-        const match_start_cp   = pos_cp + rm_so;
-        const match_end_cp     = pos_cp + rm_eo;
+        const match_start_cp = pos_cp + rm_so;
+        const match_end_cp = pos_cp + rm_eo;
         const match_start_byte = codepoint_to_byte(str_s.ptr, str_s.len, match_start_cp);
-        const match_end_byte   = codepoint_to_byte(str_s.ptr, str_s.len, match_end_cp);
+        const match_end_byte = codepoint_to_byte(str_s.ptr, str_s.len, match_end_cp);
 
         // Append pre-match portion.
         const pre_len = match_start_byte - pos_byte;
@@ -487,24 +483,20 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
         }
 
         pos_byte = match_end_byte;
-        pos_cp   = match_end_cp;
+        pos_cp = match_end_cp;
 
         // Avoid infinite loop on zero-length match: advance one codepoint.
         if (rm_eo == rm_so) {
             if (pos_byte >= str_s.len) break;
             const b0 = str_bytes[pos_byte];
-            const step: u32 = if (b0 < 0x80) 1
-                else if ((b0 & 0xE0) == 0xC0) 2
-                else if ((b0 & 0xF0) == 0xE0) 3
-                else if ((b0 & 0xF8) == 0xF0) 4
-                else 1;
+            const step: u32 = if (b0 < 0x80) 1 else if ((b0 & 0xE0) == 0xC0) 2 else if ((b0 & 0xF0) == 0xE0) 3 else if ((b0 & 0xF8) == 0xF0) 4 else 1;
             var ki: u32 = 0;
             while (ki < step) : (ki += 1) {
                 res_bytes[result_off + ki] = str_bytes[pos_byte + ki];
             }
             result_off += step;
-            pos_byte   += step;
-            pos_cp     += 1;
+            pos_byte += step;
+            pos_cp += 1;
         }
 
         if (!all or pos_byte >= str_s.len) break;
@@ -559,14 +551,37 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
             i += 1;
             break;
         }
-        if (str_eq(w, "-nocase")) { flags |= REG_ICASE; continue; }
-        if (str_eq(w, "-line")) { flags |= REG_NLSTOP | REG_NLANCH; continue; }
-        if (str_eq(w, "-linestop")) { flags |= REG_NLSTOP; continue; }
-        if (str_eq(w, "-lineanchor")) { flags |= REG_NLANCH; continue; }
-        if (str_eq(w, "-expanded")) { continue; }
-        if (str_eq(w, "-indices")) { indices_mode = true; continue; }
-        if (str_eq(w, "-all")) { all_mode = true; continue; }
-        if (str_eq(w, "-inline")) { inline_mode = true; continue; }
+        if (str_eq(w, "-nocase")) {
+            flags |= REG_ICASE;
+            continue;
+        }
+        if (str_eq(w, "-line")) {
+            flags |= REG_NLSTOP | REG_NLANCH;
+            continue;
+        }
+        if (str_eq(w, "-linestop")) {
+            flags |= REG_NLSTOP;
+            continue;
+        }
+        if (str_eq(w, "-lineanchor")) {
+            flags |= REG_NLANCH;
+            continue;
+        }
+        if (str_eq(w, "-expanded")) {
+            continue;
+        }
+        if (str_eq(w, "-indices")) {
+            indices_mode = true;
+            continue;
+        }
+        if (str_eq(w, "-all")) {
+            all_mode = true;
+            continue;
+        }
+        if (str_eq(w, "-inline")) {
+            inline_mode = true;
+            continue;
+        }
         if (str_eq(w, "-about")) {
             // Not implemented — return empty list-as-info.
             i += 1;
@@ -673,9 +688,15 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
                 const eo = pm[g * 2 + 1];
                 if (so < 0 or eo < 0) break;
                 inline_off = append_inline_capture(
-                    &inline_buf, &inline_cap, inline_off,
-                    indices_mode, sub_s, sub_u,
-                    pos_cp, @intCast(so), @intCast(eo),
+                    &inline_buf,
+                    &inline_cap,
+                    inline_off,
+                    indices_mode,
+                    sub_s,
+                    sub_u,
+                    pos_cp,
+                    @intCast(so),
+                    @intCast(eo),
                 );
             }
         } else if (var_words.len > 0) {
@@ -686,9 +707,12 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
                 const so = pm[v * 2];
                 const eo = pm[v * 2 + 1];
                 const value = build_capture_value(
-                    indices_mode, sub_s, sub_u,
+                    indices_mode,
+                    sub_s,
+                    sub_u,
                     pos_cp,
-                    so, eo,
+                    so,
+                    eo,
                 );
                 obj.tcl_obj_retain(value);
                 _ = frames.var_set(var_words[v], value);
@@ -849,16 +873,16 @@ fn encode_cp(dst: [*]u8, off: usize, cp: u32) usize {
         dst[off] = @intCast(cp);
         return 1;
     } else if (cp < 0x800) {
-        dst[off]     = @intCast(0xC0 | (cp >> 6));
+        dst[off] = @intCast(0xC0 | (cp >> 6));
         dst[off + 1] = @intCast(0x80 | (cp & 0x3F));
         return 2;
     } else if (cp < 0x10000) {
-        dst[off]     = @intCast(0xE0 | (cp >> 12));
+        dst[off] = @intCast(0xE0 | (cp >> 12));
         dst[off + 1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
         dst[off + 2] = @intCast(0x80 | (cp & 0x3F));
         return 3;
     } else {
-        dst[off]     = @intCast(0xF0 | (cp >> 18));
+        dst[off] = @intCast(0xF0 | (cp >> 18));
         dst[off + 1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
         dst[off + 2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
         dst[off + 3] = @intCast(0x80 | (cp & 0x3F));
@@ -938,11 +962,14 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         if (w.len == 0) break;
         const p: [*]const u8 = @ptrFromInt(w.ptr);
         if (p[0] != '-') break;
-        if (w.len == 2 and p[1] == '-') { i += 1; break; }
+        if (w.len == 2 and p[1] == '-') {
+            i += 1;
+            break;
+        }
         if (w.len == 4 and p[1] == 'a' and p[2] == 'l' and p[3] == 'l') {
             do_all = true;
         } else if (w.len == 7 and p[1] == 'n' and p[2] == 'o' and p[3] == 'c' and
-                   p[4] == 'a' and p[5] == 's' and p[6] == 'e')
+            p[4] == 'a' and p[5] == 's' and p[6] == 'e')
         {
             flags |= REG_ICASE;
         } else {
@@ -957,11 +984,11 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         return obj_new_int(0);
     }
 
-    const pattern  = words[i];
-    const subject  = words[i + 1];
+    const pattern = words[i];
+    const subject = words[i + 1];
     const repl_obj = words[i + 2];
-    const has_var  = (i + 3 < words.len);
-    const varname  = if (has_var) words[i + 3] else 0;
+    const has_var = (i + 3 < words.len);
+    const varname = if (has_var) words[i + 3] else 0;
 
     // S6.3 v1: arena bracket reclaims decoded buffers and the
     // ``regex_t`` struct on every exit path, including the eight
@@ -971,8 +998,8 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     const arena_saved = arena.arena_save();
     defer arena.arena_restore(arena_saved);
 
-    const pat_s  = obj_ensure_string(pattern);
-    const sub_s  = obj_ensure_string(subject);
+    const pat_s = obj_ensure_string(pattern);
+    const sub_s = obj_ensure_string(subject);
     const repl_s = obj_ensure_string(repl_obj);
 
     const pat_u = decode_utf8(pat_s.ptr, pat_s.len);
@@ -1089,7 +1116,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     var out_len: usize = 0;
 
     const ustr: [*]const i32 = @ptrFromInt(sub_u.ptr);
-    var pos: usize = 0;          // current codepoint position in subject
+    var pos: usize = 0; // current codepoint position in subject
     var match_count: i64 = 0;
 
     // One regmatch_t = two size_t (u32 on 32-bit) = 8 bytes.

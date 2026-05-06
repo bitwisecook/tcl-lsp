@@ -260,9 +260,18 @@ fn write_id(dst: [*]u8, off_in: u32, id: u32) u32 {
     var digits: [10]u8 = undefined;
     var n: u32 = 0;
     var v = id;
-    if (v == 0) { digits[0] = '0'; n = 1; }
-    else while (v > 0) : (n += 1) { digits[n] = @intCast('0' + v % 10); v /= 10; }
-    while (n > 0) { n -= 1; dst[off] = digits[n]; off += 1; }
+    if (v == 0) {
+        digits[0] = '0';
+        n = 1;
+    } else while (v > 0) : (n += 1) {
+        digits[n] = @intCast('0' + v % 10);
+        v /= 10;
+    }
+    while (n > 0) {
+        n -= 1;
+        dst[off] = digits[n];
+        off += 1;
+    }
     return off;
 }
 
@@ -299,8 +308,12 @@ fn build_info_pair(script_obj: i32, kind: []const u8) i32 {
     var off: u32 = 0;
     off = obj.list_elem_quote(buf, off, s.ptr, s.len);
     const dst: [*]u8 = @ptrFromInt(buf);
-    dst[off] = ' '; off += 1;
-    for (kind) |c| { dst[off] = c; off += 1; }
+    dst[off] = ' ';
+    off += 1;
+    for (kind) |c| {
+        dst[off] = c;
+        off += 1;
+    }
     return obj_new_string(@bitCast(buf), @bitCast(off));
 }
 

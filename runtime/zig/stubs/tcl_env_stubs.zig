@@ -25,7 +25,7 @@
 
 const stubs = @import("tcl_stubs.zig");
 
-pub export fn @"namespace"(sub: i32, arg: i32) i32 {
+pub export fn namespace(sub: i32, arg: i32) i32 {
     _ = sub;
     _ = arg;
     stubs.unsupported("namespace");
@@ -93,7 +93,7 @@ pub export fn tcl_cmd_interp_cmd(sub: i32, arg: i32) i32 {
 }
 
 pub export fn tcl_cmd_apply(lambda: i32, args: i32) i32 {
-    const rt     = @import("../tcl_runtime.zig");
+    const rt = @import("../tcl_runtime.zig");
     const interp = @import("../interp/tcl_interp.zig");
 
     // Unpack the args list into individual TclObj handles.

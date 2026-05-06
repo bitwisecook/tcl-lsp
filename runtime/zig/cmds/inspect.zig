@@ -1,12 +1,12 @@
 // ``info``, ``trace`` — introspection commands.
 
-const rt        = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const info      = @import("./tcl_cmd_info.zig");
+const info = @import("./tcl_cmd_info.zig");
 const trace_mod = @import("../interp/tcl_trace.zig");
 const var_trace = @import("../interp/tcl_var_trace.zig");
-const frames    = @import("../interp/tcl_frames.zig");
-const reg       = @import("../dispatch/tcl_cmd_registry.zig");
+const frames = @import("../interp/tcl_frames.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 /// Phase 6 follow-up: classify ``NAME`` for ``trace add/remove/info
 /// variable``.  Proc-local traces go on the per-frame chain (so two
@@ -31,10 +31,10 @@ fn is_local_trace_target(name: i32) bool {
     return true;
 }
 
-const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
-const obj_new_string      = rt.obj_new_string;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
+const obj_new_string = rt.obj_new_string;
 const obj_new_string_take = rt.obj_new_string_take;
-const tcl_obj_release     = @import("../valtypes/tcl_obj.zig").tcl_obj_release;
+const tcl_obj_release = @import("../valtypes/tcl_obj.zig").tcl_obj_release;
 const obj_ensure_string = rt.obj_ensure_string;
 
 fn eval_info(words: []const i32) result_mod.InterpResult {
@@ -112,7 +112,7 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
     }
     // Anything else: defer to the legacy NOP module so we don't trap
     // tests that rely on pass-through behaviour.
-    const sub     = if (words.len >= 2) words[1] else 0;
+    const sub = if (words.len >= 2) words[1] else 0;
     const arg_obj = if (words.len >= 3) words[2] else 0;
     return result_mod.from_globals(trace_mod.tcl_cmd_trace_cmd(sub, arg_obj));
 }

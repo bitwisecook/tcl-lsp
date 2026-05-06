@@ -36,8 +36,7 @@ fn eval_update(words: []const i32) result_mod.InterpResult {
     }
     if (words.len == 2) {
         const sub = obj.obj_ensure_string(words[1]);
-        const sp: []const u8 = if (sub.ptr == 0) "" else
-            @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
+        const sp: []const u8 = if (sub.ptr == 0) "" else @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
         if (std.mem.eql(u8, sp, "idletasks")) {
             _ = sched.drain_idle();
             return result_mod.from_globals(obj.obj_new_string(0, 0));
