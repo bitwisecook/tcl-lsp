@@ -463,24 +463,17 @@ fn eval_dict_with(words: []const i32) i32 {
 }
 
 /// ``dict filter DICT FILTERTYPE ARG ?ARG ...?`` — filter the dict
-/// by FILTERTYPE.  Supports ``key PATTERN ?PATTERN ...?`` and
+/// by FILTERTYPE.  Supports ``key PATTERN ?PATTERN ...?``,
 /// ``value PATTERN ?PATTERN ...?`` (glob match against any
-/// supplied pattern).  The ``script`` form is not yet implemented;
-/// raise an explicit error rather than silently returning the input
-/// so a script that depends on the script-form filter doesn't
-/// silently produce wrong results (Copilot/Codex review).  Mirrors
-/// ``tclDictObj.c::DictFilterCmd`` for the pattern forms.
+/// supplied pattern), and ``script {keyVar valueVar} body``.
+/// Mirrors ``tclDictObj.c::DictFilterCmd``.
 fn eval_dict_filter(words: []const i32) i32 {
     const ft = obj_ensure_string(words[3]);
     const fp: [*]const u8 = @ptrFromInt(ft.ptr);
     const filter_keys = str_eq(fp, ft.len, "key");
     const filter_values = str_eq(fp, ft.len, "value");
     const filter_script = str_eq(fp, ft.len, "script");
-    if (filter_script) {
-        const stubs = @import("../stubs/tcl_stubs.zig");
-        stubs.unsupported_sub("dict filter", "script");
-        return 0;
-    }
+    if (filter_script) return eval_dict_filter_script(words);
     if (!filter_keys and !filter_values) {
         const stubs = @import("../stubs/tcl_stubs.zig");
         stubs.raise("bad filterType: must be key, script, or value");
@@ -509,6 +502,67 @@ fn eval_dict_filter(words: []const i32) i32 {
         }
         if (match) {
             result = rt.dict_set(result, key_obj, val_obj);
+        }
+    }
+    return result;
+}
+
+/// ``dict filter DICT script {keyVar valueVar} body`` — filter the
+/// dict by evaluating ``body`` for each (key, value) pair with the
+/// pair bound to ``keyVar`` / ``valueVar`` in the caller's frame.
+/// Pairs whose body returns a true boolean are included in the
+/// result.  Mirrors ``tclDictObj.c::DictFilterCmd`` (FILTER_SCRIPT
+/// branch).  Flow control: TCL_BREAK terminates the loop, TCL_CONTINUE
+/// skips the current pair, TCL_ERROR / TCL_RETURN propagate.
+fn eval_dict_filter_script(words: []const i32) i32 {
+    if (words.len != 6) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"dict filter dictionary script {keyVarName valueVarName} filterScript\"");
+        return 0;
+    }
+    const varlist = obj_ensure_string(words[4]);
+    const n_vars = rt.list_count_elements(varlist.ptr, varlist.len);
+    if (n_vars != 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("must have exactly two variable names");
+        return 0;
+    }
+    const kelem = rt.list_element_at(varlist.ptr, varlist.len, 0);
+    const velem = rt.list_element_at(varlist.ptr, varlist.len, 1);
+    const kvar = obj.obj_new_string_copy(varlist.ptr + kelem.start, kelem.len);
+    const vvar = obj.obj_new_string_copy(varlist.ptr + velem.start, velem.len);
+
+    const sd = obj_ensure_string(words[2]);
+    const n = rt.list_count_elements(sd.ptr, sd.len);
+    if (n <= 0 or (n & 1) != 0) return rt.dict_create();
+
+    const body = obj_ensure_string(words[5]);
+    var result: i32 = rt.dict_create();
+    var idx: i64 = 0;
+    while (idx + 1 < n) : (idx += 2) {
+        const k = rt.list_element_at(sd.ptr, sd.len, idx);
+        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+        const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
+        const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
+        _ = frames.var_set(kvar, key_obj);
+        _ = frames.var_set(vvar, val_obj);
+        const body_result = interp.eval_script(body.ptr, body.len);
+        const ir = result_mod.snapshot(body_result);
+        switch (ir.code) {
+            .OK => {
+                if (rt.obj_get_int(body_result) != 0) {
+                    result = rt.dict_set(result, key_obj, val_obj);
+                }
+            },
+            .ERROR, .RETURN => return 0,
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE => {
+                result_mod.consume(.CONTINUE);
+                continue;
+            },
         }
     }
     return result;

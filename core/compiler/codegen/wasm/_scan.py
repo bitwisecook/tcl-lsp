@@ -953,6 +953,20 @@ def _scan_needed_imports(
                         # pick the right shape without a second scan.
                         needed.add("tcl_puts_nonewline")
                         needed.add("tcl_puts_chan")
+                    elif command == "::apply" and len(args) >= 2:
+                        # ``apply LAMBDA arg1 arg2 ...`` packs the
+                        # call-site tail into a Tcl list via
+                        # ``_emit_args_list``.  When any tail arg is
+                        # non-literal (``$var`` / ``[cmd]``) the list
+                        # build needs ``tcl_lappend`` at runtime; without
+                        # this import the args_list fallback joins the
+                        # args at compile time and a ``[cmd]`` reaches
+                        # the lambda as a literal byte string.
+                        if any(
+                            a.startswith("$") or a.startswith("[") or "[" in a or "$" in a
+                            for a in args[1:]
+                        ):
+                            needed.add("tcl_lappend")
                     elif command == "::lreplace" and len(args) > 4:
                         # Multi-value ``lreplace list first last v1 v2 …``
                         # chains successive ``tcl_list_insert`` calls at
