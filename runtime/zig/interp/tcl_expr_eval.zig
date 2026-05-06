@@ -941,7 +941,7 @@ fn finalize_num(s: *State, start: u32) i32 {
     // their decimal int form; otherwise fall back to the
     // ``try_parse_int`` / ``try_parse_float`` decimal path.
     const src: [*]const u8 = @ptrFromInt(sptr);
-    if (slen >= 2 and src[0] == '0' and slen <= 18) {
+    if (slen >= 2 and src[0] == '0') {
         const c = src[1];
         if (c == 'x' or c == 'X') {
             var v: u64 = 0;
@@ -1128,7 +1128,11 @@ fn truthy(o: i32) bool {
 /// ``try_parse_bool`` so ``"0"`` / ``"1.5"`` / ``"true"`` all
 /// answer correctly.
 fn truthy_strict(o: i32) ?bool {
-    if (o == 0) return false;
+    // Empty / null operand: Tcl 9 ``expr {"" && 1}`` raises
+    // ``expected boolean value but got ""`` rather than treating
+    // ``""`` as ``false``.  Return ``null`` so callers route
+    // through ``raise_expected_boolean`` / ``raise_non_numeric_unary``.
+    if (o == 0) return null;
     // Tagged-immediate small ints and TYPE_INT / TYPE_FLOAT /
     // TYPE_BIGNUM all answer ``boolean`` directly via
     // ``obj_get_int``'s numeric-domain.  String / inline-string
@@ -1145,7 +1149,7 @@ fn truthy_strict(o: i32) ?bool {
         return obj.obj_get_int(o) != 0;
     }
     const s = obj.obj_ensure_string(o);
-    if (s.len == 0) return false;
+    if (s.len == 0) return null;
     if (obj.try_parse_int(s.ptr, s.len)) |iv| return iv != 0;
     if (obj.try_parse_float(s.ptr, s.len)) |fv| return fv != 0.0;
     if (obj.try_parse_bool(s.ptr, s.len)) |bv| return bv != 0;

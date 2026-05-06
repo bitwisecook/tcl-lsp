@@ -549,8 +549,6 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_append")
                     elif sub == "set":
                         needed.add("tcl_array_set")
-                    elif sub == "get":
-                        needed.add("tcl_array_get")
                 elif cmd == "namespace" and len(parts) > 1 and parts[1] == "eval":
                     # ``[namespace eval ns arg1 arg2 ...]`` with dynamic
                     # script args: needs tcl_eval to run the assembled

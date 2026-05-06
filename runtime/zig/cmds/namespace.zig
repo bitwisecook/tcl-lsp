@@ -134,6 +134,10 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     if (is.len == 0) {
                         const msg_text: []const u8 = "empty import pattern";
                         const buf2 = alloc(@intCast(msg_text.len));
+                        if (buf2 == 0) {
+                            catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+                            return result_mod.from_globals(0);
+                        }
                         const dst: [*]u8 = @ptrFromInt(buf2);
                         for (msg_text, 0..) |b, k| dst[k] = b;
                         const msg = obj_mod.obj_new_string_take(buf2, @intCast(msg_text.len), @intCast(msg_text.len));
@@ -171,6 +175,10 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                                 const suffix: []const u8 = "\"";
                                 const total: u32 = @as(u32, @intCast(prefix.len)) + is.len + @as(u32, @intCast(suffix.len));
                                 const buf2 = alloc(total);
+                                if (buf2 == 0) {
+                                    catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+                                    return result_mod.from_globals(0);
+                                }
                                 const dst: [*]u8 = @ptrFromInt(buf2);
                                 var off2: u32 = 0;
                                 for (prefix) |b| { dst[off2] = b; off2 += 1; }
@@ -433,19 +441,27 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
             const sep_len: u32 = if (ns_root_only) 0 else 2;
             const prefixed_total: u32 = ns_full.len + sep_len + pat_len;
             const prefixed_buf_addr = alloc(prefixed_total);
-            const pbuf: [*]u8 = @ptrFromInt(prefixed_buf_addr);
-            const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
-            var off2: u32 = 0;
-            for (0..ns_full.len) |k| { pbuf[off2] = ns_p[k]; off2 += 1; }
-            if (!ns_root_only) {
-                pbuf[off2] = ':'; off2 += 1;
-                pbuf[off2] = ':'; off2 += 1;
+            if (prefixed_buf_addr != 0) {
+                const pbuf: [*]u8 = @ptrFromInt(prefixed_buf_addr);
+                const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                var off2: u32 = 0;
+                for (0..ns_full.len) |k| { pbuf[off2] = ns_p[k]; off2 += 1; }
+                if (!ns_root_only) {
+                    pbuf[off2] = ':'; off2 += 1;
+                    pbuf[off2] = ':'; off2 += 1;
+                }
+                for (0..pat_len) |k| { pbuf[off2] = psp[k]; off2 += 1; }
+                eff_pat_ptr = prefixed_buf_addr;
+                eff_pat_len = prefixed_total;
             }
-            for (0..pat_len) |k| { pbuf[off2] = psp[k]; off2 += 1; }
-            eff_pat_ptr = prefixed_buf_addr;
-            eff_pat_len = prefixed_total;
         }
     }
+    // Free the prefixed pattern buffer (if we allocated one) once
+    // both passes finish.  ``defer`` keeps the cleanup paired with
+    // the alloc so accidental early returns don't leak.
+    defer if (eff_pat_ptr != pat_ptr and eff_pat_ptr != 0) {
+        obj_mod.free_sized(eff_pat_ptr, eff_pat_len);
+    };
 
     const bucket_size: u32 = tcl_ns.NS_BUCKET_SIZE;
     // Two-pass: size then fill.

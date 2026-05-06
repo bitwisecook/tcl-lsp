@@ -815,8 +815,13 @@ pub export fn array_get(arr: i32, key: i32) i32 {
 pub export fn array_get_all(arr: i32, pattern: i32) i32 {
     const str_mod = @import("tcl_string.zig");
     const lq = @import("tcl_list_quote.zig");
-    const use_filter = pattern != 0 and blk: {
+    var pat_ptr: u32 = 0;
+    var pat_len: u32 = 0;
+    const use_filter = blk: {
+        if (pattern == 0) break :blk false;
         const ps = obj_ensure_string(pattern);
+        pat_ptr = ps.ptr;
+        pat_len = ps.len;
         break :blk ps.len > 0;
     };
     const t = find_table(arr);
@@ -836,8 +841,11 @@ pub export fn array_get_all(arr: i32, pattern: i32) i32 {
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
         if (use_filter) {
-            const k = obj_new_string(@bitCast(ep), @bitCast(el));
-            if (obj_get_int(str_mod.string_match(pattern, k)) == 0) continue;
+            // Match the raw key bytes via ``glob_match`` directly
+            // rather than allocating a TclObj per probe — the
+            // earlier ``string_match`` path leaked one key obj per
+            // entry across both passes.
+            if (!str_mod.glob_match(pat_ptr, pat_len, ep, el)) continue;
         }
         const v = read_i32(bucket + 12);
         const vs = obj_ensure_string(v);
@@ -860,8 +868,11 @@ pub export fn array_get_all(arr: i32, pattern: i32) i32 {
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
         if (use_filter) {
-            const k = obj_new_string(@bitCast(ep), @bitCast(el));
-            if (obj_get_int(str_mod.string_match(pattern, k)) == 0) continue;
+            // Match the raw key bytes via ``glob_match`` directly
+            // rather than allocating a TclObj per probe — the
+            // earlier ``string_match`` path leaked one key obj per
+            // entry across both passes.
+            if (!str_mod.glob_match(pat_ptr, pat_len, ep, el)) continue;
         }
         const v = read_i32(bucket + 12);
         const vs = obj_ensure_string(v);
@@ -877,7 +888,10 @@ pub export fn array_get_all(arr: i32, pattern: i32) i32 {
         off = lq.list_elem_quote_nth(buf, off, vs.ptr, vs.len);
         written += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    // ``obj_new_string_take`` so the returned TclObj owns the
+    // join buffer.  We over-allocated ``total`` bytes against the
+    // worst-case quote bound; ``off`` is the actual emitted size.
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 /// array_exists arrName — 1 if the array *variable* has ever been
@@ -1010,8 +1024,13 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
 /// returns every key.
 pub export fn array_names(arr: i32, pattern: i32) i32 {
     const str_mod = @import("tcl_string.zig");
-    const use_filter = pattern != 0 and blk: {
+    var pat_ptr: u32 = 0;
+    var pat_len: u32 = 0;
+    const use_filter = blk: {
+        if (pattern == 0) break :blk false;
         const ps = obj_ensure_string(pattern);
+        pat_ptr = ps.ptr;
+        pat_len = ps.len;
         break :blk ps.len > 0;
     };
     const t = find_table(arr);
@@ -1034,8 +1053,11 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
         if (use_filter) {
-            const k = obj_new_string(@bitCast(ep), @bitCast(el));
-            if (obj_get_int(str_mod.string_match(pattern, k)) == 0) continue;
+            // Match the raw key bytes via ``glob_match`` directly
+            // rather than allocating a TclObj per probe — the
+            // earlier ``string_match`` path leaked one key obj per
+            // entry across both passes.
+            if (!str_mod.glob_match(pat_ptr, pat_len, ep, el)) continue;
         }
         total += el;
         if (nonempty > 0) total += 1;
@@ -1053,8 +1075,11 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
         if (use_filter) {
-            const k = obj_new_string(@bitCast(ep), @bitCast(el));
-            if (obj_get_int(str_mod.string_match(pattern, k)) == 0) continue;
+            // Match the raw key bytes via ``glob_match`` directly
+            // rather than allocating a TclObj per probe — the
+            // earlier ``string_match`` path leaked one key obj per
+            // entry across both passes.
+            if (!str_mod.glob_match(pat_ptr, pat_len, ep, el)) continue;
         }
         if (written > 0) {
             const d: [*]u8 = @ptrFromInt(buf + off);

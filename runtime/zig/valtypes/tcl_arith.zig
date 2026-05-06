@@ -797,6 +797,10 @@ fn raise_non_numeric(o: i32, op_sym: []const u8, position: []const u8) void {
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + s.len + middle.len + position.len + between.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        stubs.raise("non-numeric operand");
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
     for (prefix) |c| { buf[off] = c; off += 1; }

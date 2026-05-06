@@ -342,7 +342,15 @@ pub fn subst_flagged_full(
                             for (0..key_s.len) |k| fd[arr_s.len + 1 + k] = kp[k];
                         }
                         fd[arr_s.len + 1 + key_s.len] = ')';
-                        const full_obj = obj_new_string(@bitCast(fbuf), @bitCast(full_len));
+                        // ``obj_new_string_take`` so the qualifier
+                        // TclObj owns the buffer.  ``obj_new_string``
+                        // would borrow ``fbuf`` and leak it on the
+                        // ``tcl_obj_release`` below — outside of an
+                        // outer ``catch`` the leak doesn't accumulate
+                        // (proc returns reset the arena), but read-
+                        // heavy paths through subst exercise this
+                        // hundreds of times per command.
+                        const full_obj = obj_mod.obj_new_string_take(fbuf, full_len, full_len);
                         elem = frames.var_resolve(full_obj);
                         obj_mod.tcl_obj_release(full_obj);
                     }

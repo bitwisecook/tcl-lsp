@@ -104,6 +104,13 @@ fn eval_expr(words: []const i32) result_mod.InterpResult {
     if (total == 0) return result_mod.from_globals(expr_eval.eval(0, 0));
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        // Out-of-memory while building the join buffer.  Surface as
+        // a generic error and bail rather than dereferencing a null
+        // address inside ``rt.memcpy`` below.
+        @import("../interp/tcl_catch.zig").tcl_cmd_error(obj_new_string(0, 0));
+        return result_mod.from_globals(0);
+    }
     var off: u32 = 0;
     wi = 1;
     while (wi < words.len) : (wi += 1) {
@@ -116,7 +123,9 @@ fn eval_expr(words: []const i32) result_mod.InterpResult {
             off += 1;
         }
     }
-    return result_mod.from_globals(expr_eval.eval(buf, total));
+    const r = expr_eval.eval(buf, total);
+    obj_mod.free_sized(buf, total);
+    return result_mod.from_globals(r);
 }
 
 pub const registrations = [_]reg.CmdEntry{
