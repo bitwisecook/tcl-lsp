@@ -1,0 +1,46 @@
+# Tcl 9 ``coroutine.test`` per-case categorisation.
+#
+# Default for unlisted tests: ``must_pass`` — failure here = real bug.
+# See ``tests/baselines/tcl9-tcltest/categories/README.md`` for the
+# bucket semantics and triage workflow.
+#
+# Snapshot: 74 / 77 passing (3 ``good_to_have`` failing,
+# 0 ``just_to_match_ctcl``, 0 ``skip``).
+
+trap_allowed = false
+
+# Real semantic features we plan to support but haven't yet.  Each
+# entry must carry a one-line rationale tying it to a specific gap.
+good_to_have = [
+    # 1.13 / 1.14: yield inside a non-top-level ``[subst {…[yield a]…}]``.
+    # The v1 segment driver splits the body at top-level statement
+    # boundaries; ``yield`` calls nested inside ``subst`` (or any
+    # other nested-eval context) can't suspend the WASM stack, so the
+    # body runs to completion in one resume and subsequent ``[c]``
+    # calls see a DEAD coroutine.  Asyncify-enabled builds have the
+    # stack-save/restore machinery to support this; v1 doesn't.
+    # Tracked alongside the asyncify enablement work.
+    "1.13",
+    "1.14",
+    # 3.7: ``dict get [coroutine X coroutine Y info frame 0] cmd``
+    # expects the ``cmd`` field of frame 0 inside the inner coroutine
+    # to report ``coroutine X coroutine Y info frame 0`` — the
+    # source-level outer call.  Our ``info frame`` doesn't walk
+    # through nested coroutine boundaries to find the outermost
+    # source command; fixable in tcl_cmd_info.zig::info_frame
+    # without touching the v1 driver.
+    "3.7",
+]
+
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+# Snapshot at triage time.  ``good_to_have_failing`` may drop (better)
+# but must not grow — a previously-passing test slipping into the
+# good_to_have bucket fires the gate even though the test name is
+# already listed.  ``just_to_match_ctcl`` and ``skip`` baselines are
+# recorded for visibility only.
+good_to_have_failing = 3
+just_to_match_ctcl_failing = 0
+skip_failing = 0

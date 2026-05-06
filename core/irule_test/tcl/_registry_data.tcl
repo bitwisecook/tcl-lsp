@@ -52,6 +52,7 @@ namespace eval ::tmm {
         ::tcl::mathop::|
         ::tcl::mathop::||
         ::tcl::mathop::~
+        ::tcl::unsupported::corotype
         <
         <<
         <=

@@ -274,6 +274,36 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         // arity error already raised; bail out.
         return result_mod.from_globals(0);
     }
+    // ``string cat ?str1? ?str2? …`` — concatenate the string
+    // arguments verbatim (no separators).  ``cat`` is the only
+    // string subcommand that takes 0+ args, so it has to be
+    // dispatched before the ``words.len < 3`` short-circuit
+    // below.  WASM-codegen has its own inline path for static
+    // calls (see ``cmds/string_.py``); this branch is what the
+    // eval-fallback / interpreter path inside coroutine /
+    // script bodies hits.  Reproduces in coroutine.test 11.1
+    // (``yieldto string cat "PHASE 2"``).
+    if (str_eq(sp, sub.len, "cat")) {
+        if (words.len == 2) return result_mod.from_globals(obj_new_string(0, 0));
+        if (words.len == 3) return result_mod.from_globals(words[2]);
+        var total: u32 = 0;
+        var i: u32 = 2;
+        while (i < words.len) : (i += 1) {
+            const ws = obj_ensure_string(words[i]);
+            total += ws.len;
+        }
+        const buf = rt.alloc(total);
+        var off: u32 = 0;
+        i = 2;
+        while (i < words.len) : (i += 1) {
+            const ws = obj_ensure_string(words[i]);
+            if (ws.len > 0) {
+                rt.memcpy(buf + off, ws.ptr, ws.len);
+                off += ws.len;
+            }
+        }
+        return result_mod.from_globals(obj_new_string(@bitCast(buf), @bitCast(total)));
+    }
     if (words.len < 3) return result_mod.from_globals(0);
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
     if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));

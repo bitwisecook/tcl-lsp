@@ -104,6 +104,21 @@ pub const Coro = struct {
     async_buf: u32,
     async_buf_size: u32,
     state: CoroState,
+    /// Last suspension reason: ``0`` = never yielded, ``1`` =
+    /// suspended via ``yield``, ``2`` = suspended via ``yieldto``.
+    /// Read by ``::tcl::unsupported::corotype`` to distinguish
+    /// the two suspension flavours (coroutine.test 11.1).
+    last_yield_kind: u8,
+    /// Body's terminal control-flow code, as a ``Code`` enum
+    /// integer.  Captured by ``resume_segments`` just before it
+    /// consumes a RETURN signal so the eager ``coroutine`` cmd
+    /// can re-arm it after ``cleanup_terminated`` runs.  Zero
+    /// (== Code.OK) when the body yielded or completed cleanly.
+    terminal_code: u8,
+    /// Body's terminal numeric return code (``return -code N``
+    /// for N ≥ 5).  Paired with ``terminal_code = .RETURN``;
+    /// zero otherwise.
+    terminal_return_code: i64,
     /// Phase 10: per-coro saved frame context.  Save-transfer
     /// ownership: the coro's frame retains live in this snapshot
     /// while the coro is suspended; on resume we restore them and
@@ -253,6 +268,9 @@ pub fn create(name_ptr: u32, name_len: u32, body_obj: i32) ?*Coro {
     c.async_buf = 0;
     c.async_buf_size = 0;
     c.state = .PENDING;
+    c.last_yield_kind = 0;
+    c.terminal_code = 0;
+    c.terminal_return_code = 0;
     // Phase 10: ``ctx`` starts unpopulated.  ``resume_segments``
     // detects the first-resume case via ``has_ctx == 0`` and
     // restores a fresh frame stack instead of an old snapshot.
@@ -322,6 +340,27 @@ fn pop_call() void {
 fn current_coro() ?*Coro {
     if (g_call_depth == 0) return null;
     return &g_coros[g_call_stack[g_call_depth - 1]];
+}
+
+/// Mark the currently-executing coroutine as suspended via ``yield``
+/// (kind=1) or ``yieldto`` (kind=2).  Read by
+/// ``::tcl::unsupported::corotype`` to surface the suspension flavour.
+/// No-op when called outside a coroutine (defensive — callers should
+/// gate on :func:`current_in_coroutine` first).
+pub fn record_yield_kind(kind: u8) void {
+    if (current_coro()) |c| {
+        c.last_yield_kind = kind;
+    }
+}
+
+/// FQN span of the currently-executing coroutine, or null when not
+/// running inside any coroutine.  Used by ``info coroutine``.
+pub fn current_coro_name() ?struct { ptr: u32, len: u32 } {
+    if (current_coro()) |c| {
+        if (c.name_len == 0) return null;
+        return .{ .ptr = c.name_ptr, .len = c.name_len };
+    }
+    return null;
 }
 
 /// Stage-2 asyncify resume — must be EXCLUDED from asyncify
@@ -472,29 +511,23 @@ fn resume_segments(c: *Coro) i32 {
         }
         const ir = result_mod.snapshot(result);
         if (ir.code == .ERROR or ir.code == .RETURN) {
-            // Consume the signal — the coroutine is terminating with
-            // this segment's result as its ``[c]`` return value.
-            // Without consuming, the RETURN flag leaks past the
-            // coroutine boundary and any subsequent ``catch`` /
-            // ``has_signal`` probe at script level mistakes the
-            // coroutine's terminal state for an in-flight return,
-            // tagging the next command's catch result with rc=2 and
-            // the coroutine's return value (regression caught by
+            // Capture the body's terminal flow-control code so the
+            // eager-invocation site (``eval_coroutine``) can
+            // re-arm it after ``cleanup_terminated`` runs.  We
+            // still consume RETURN here to keep stale flags from
+            // leaking past a deferred ``[c]`` resume that
+            // terminates — without the consume the next
+            // top-level statement's catch would observe the
+            // coroutine's RETURN as if the surrounding script
+            // had returned (regression:
             // ``test_coroutine_command_removed_after_terminal_return``).
-            // ERROR similarly: if the coroutine body errored, the
-            // error should be the coroutine's terminal observable
-            // result; the surrounding caller decides whether to
-            // forward it (compiled-proc dispatch) or swallow it
-            // (background scheduler).  Today the only consumer is
-            // ``puts [c]`` which propagates the i32 result by
-            // value, so consuming here keeps the global state
-            // clean for the next top-level command.
+            // ERROR is left set so non-eager callers still see
+            // the error.  ``eval_coroutine`` distinguishes the
+            // eager case via the captured ``terminal_code`` /
+            // ``terminal_return_code`` snapshots.
+            c.terminal_code = @intFromEnum(ir.code);
+            c.terminal_return_code = tcl_catch.state.return_code;
             if (ir.code == .RETURN) result_mod.consume(.RETURN);
-            // ERROR is left set so the caller still observes it —
-            // the coroutine's command-table tombstone clears on
-            // ``cleanup_terminated`` so a follow-up ``[c]`` correctly
-            // surfaces ``invalid command name``, but the body's
-            // original error should still propagate this round.
             c.state = .DEAD;
             // Drain the coro's live frames before installing the
             // caller's context — the coro's frame slots own retains
@@ -520,6 +553,31 @@ fn resume_segments(c: *Coro) i32 {
     return result;
 }
 
+/// Snapshot of a coroutine body's terminal control-flow state,
+/// captured by ``resume_one`` before ``cleanup_terminated`` runs
+/// (which clears the Coro slot).  Read by callers — typically
+/// ``eval_coroutine`` on the eager-invocation path — to re-arm
+/// the body's terminal code so a wrapping ``catch`` observes it.
+pub const TerminalState = struct {
+    /// ``Code`` enum integer (0=OK, 1=ERROR, 2=RETURN, 3=BREAK, 4=CONTINUE).
+    code: u8,
+    /// Numeric ``return -code N`` value for N ≥ 5; zero otherwise.
+    return_code: i64,
+};
+
+var g_last_terminal: TerminalState = .{ .code = 0, .return_code = 0 };
+
+/// Read (and clear) the terminal state captured by the most
+/// recent ``resume_one`` call that hit a body-completion path.
+/// Returns OK / 0 when the resume ended via yield (no terminal
+/// code) — callers compare against ``Code.OK`` to detect "the
+/// body completed".
+pub fn take_last_terminal() TerminalState {
+    const t = g_last_terminal;
+    g_last_terminal = .{ .code = 0, .return_code = 0 };
+    return t;
+}
+
 /// Resume the coroutine.  Routes to the asyncify driver when
 /// available, segment driver otherwise.  When the underlying
 /// driver flips state to DEAD (terminal return / error) we tear
@@ -529,7 +587,22 @@ fn resume_segments(c: *Coro) i32 {
 /// doesn't accumulate tombstones forever (Codex P1 on PR #284).
 pub fn resume_one(c: *Coro) i32 {
     const result = if (tcl_async.ENABLED) resume_async(c) else resume_segments(c);
-    if (c.state == .DEAD) cleanup_terminated(c);
+    // Capture terminal state into a process-global slot before
+    // ``cleanup_terminated`` clears the Coro fields — eager
+    // ``coroutine`` invocation reads this back to re-arm the
+    // body's terminal RETURN / numeric code so a wrapping catch
+    // surfaces the right code (coroutine.test 7.5).  ERROR
+    // doesn't need the same plumbing because its global flag is
+    // intentionally NOT consumed by ``resume_segments``.
+    if (c.state == .DEAD) {
+        g_last_terminal = .{
+            .code = c.terminal_code,
+            .return_code = c.terminal_return_code,
+        };
+        cleanup_terminated(c);
+    } else {
+        g_last_terminal = .{ .code = 0, .return_code = 0 };
+    }
     return result;
 }
 

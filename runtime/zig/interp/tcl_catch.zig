@@ -59,6 +59,14 @@ pub const State = struct {
     /// Extra proc levels for ``return -level N`` propagation —
     /// see :func:`tcl_return_set` for the wire-up.
     return_level: u32 = 0,
+    /// Custom numeric return code.  ``0`` means "use the standard
+    /// ``return_flag`` → TCL_RETURN (2)" mapping; any other value
+    /// is the user-specified ``return -code N`` numeric form.  Set
+    /// by :func:`eval_return` for codes ≥ 5 (codes 0..4 keep the
+    /// dedicated keyword / flag wiring) and read by
+    /// :func:`catch_leave` to surface the exact code through
+    /// ``catch``.  Cleared whenever ``return_flag`` is.
+    return_code: i64 = 0,
     /// 1 = break pending (absorbed by loops).
     break_flag: u32 = 0,
     /// 1 = continue pending (absorbed by loops).
@@ -249,7 +257,17 @@ pub export fn catch_leave() i32 {
     if (state.catch_depth > 0) state.catch_depth -= 1;
     const code: i64 = blk: {
         if (state.error_flag != 0) break :blk TCL_ERROR;
-        if (state.return_flag != 0) break :blk TCL_RETURN;
+        if (state.return_flag != 0) {
+            // ``return -code N`` for numeric N ≥ 5 sets
+            // ``return_code`` to the exact value the user passed —
+            // catch surfaces that code instead of the generic
+            // ``TCL_RETURN``.  Tcl 9 ``Tcl_CatchObjCmd`` reads the
+            // body's return code from ``iPtr->returnCode`` for
+            // the same purpose.  coroutine.test 7.5 round-trips
+            // codes 2..5 through this path.
+            if (state.return_code != 0) break :blk state.return_code;
+            break :blk TCL_RETURN;
+        }
         if (state.break_flag != 0) break :blk TCL_BREAK;
         if (state.continue_flag != 0) break :blk TCL_CONTINUE;
         break :blk TCL_OK;
@@ -286,6 +304,7 @@ pub export fn catch_leave() i32 {
     state.break_flag = 0;
     state.continue_flag = 0;
     state.return_level = 0;
+    state.return_code = 0;
     state.signal_break_flag = 0;
     state.signal_continue_flag = 0;
     if (state.return_val != 0) {
