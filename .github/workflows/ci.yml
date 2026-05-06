@@ -39,7 +39,12 @@ jobs:
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
+        with:
+          # v6's cache keys on uv.lock by default and works correctly
+          # (the v4 lockfile-glob bug is fixed).  Trims a few seconds off
+          # the gate on warm runs.
+          enable-cache: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,6 +54,12 @@ jobs:
       - name: Sync Python environment
         run: uv sync --extra dev
 
+      # Note: no wasmtime CLI setup here — the Python tests in ci-fast
+      # use the `wasmtime` Python package (already a uv dep) for any
+      # wasm execution, and `make test-zig` (which needs the CLI) is a
+      # test-slow target that runs locally, not in CI.  If a CI job for
+      # `test-zig` is ever added, the optimal action is
+      # `bytecodealliance/actions/wasmtime/setup@v1`.
       - name: Run fast CI gate (make ci-fast)
         run: make ci-fast
 
@@ -79,7 +90,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -128,7 +139,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -200,7 +211,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -248,7 +259,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -291,7 +302,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -347,7 +358,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -400,7 +411,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -443,7 +454,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -489,7 +500,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -532,7 +543,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -575,7 +586,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -627,7 +638,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -682,7 +693,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -693,9 +704,14 @@ jobs:
         run: uv sync --extra dev
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
+        # so we get cargo registry / target caching for free — meaningful
+        # speedup vs the bare dtolnay/rust-toolchain action.
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          targets: wasm32-wasip2
+          toolchain: stable
+          target: wasm32-wasip2
+          components: clippy, rustfmt
 
       - name: Build Zed extension
         run: make zed
