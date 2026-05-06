@@ -18,6 +18,7 @@ from ...expr_ast import (
     ExprBinary,
     ExprCall,
     ExprCommand,
+    ExprRaw,
     ExprTernary,
     ExprUnary,
     ExprVar,
@@ -656,6 +657,19 @@ def _scan_needed_imports(
         match expr:
             case ExprCommand(text=text):
                 _scan_text_for_cmd_subst(text, needed)
+            case ExprRaw(text=text):
+                # ``ExprRaw`` carries unparsed expr operand text
+                # (e.g. ``\"X\"`` from ``[expr \"X\"]`` inside an
+                # outer ``"..."``).  When the text contains a
+                # backslash escape, the codegen routes through
+                # ``tcl_eval_expr_str`` so the inner content is
+                # parsed as expression source rather than a
+                # literal value.  Pull the import in only when the
+                # raw text actually needs it; pure-arith modules
+                # never trigger this branch and keep their
+                # minimal-import contract intact.
+                if "\\" in text:
+                    needed.add("tcl_eval_expr_str")
             case ExprVar(name=name, text=text):
                 # ``$::ns::var`` in an expression reads from the global
                 # table; ``$arr(key)`` reads via tcl_array_get.
@@ -1225,8 +1239,6 @@ def _scan_needed_imports(
     # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
     needed.add("tcl_eval")
-    needed.add("tcl_eval_expr_str")
-    needed.add("tcl_expr_lnot")
     needed.add("tcl_ns_set")
     needed.add("tcl_ns_restore")
     needed.add("tcl_diag_set")
