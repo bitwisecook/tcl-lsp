@@ -1257,12 +1257,146 @@ pub fn info_vars(pattern: i32) i32 {
         return obj_new_string(@bitCast(merge_buf), @bitCast(off));
     }
 
-    // Unqualified pattern or no pattern — scan current frame locals.
-    // For simplicity, scanning frame internals isn't yet implemented;
-    // return an empty list so callers get a well-typed result rather
-    // than an error.  The qualified path above covers the primary use
-    // case (``info vars ::ns::pattern``).
-    return obj_new_string(0, 0);
+    // Unqualified pattern or no pattern.  Inside a proc frame, scan
+    // the frame's hash table and collect every bucket whose stored
+    // value is non-zero (Tcl semantics: ``unset`` leaves the slot's
+    // bucket alive but with value 0; ``info vars`` should filter
+    // those out so ``proc p1 {} { upvar 1 a x; unset x; info vars }``
+    // matches the caller's surviving locals — see upvar-3.1 / 3.2).
+    // Outside a proc frame, fall back to the global namespace's
+    // scalar var_table.
+    if (frames.frame_depth != 0) {
+        return frame_locals_names_matching(pat_ptr, pat_len, has_pattern);
+    }
+    return root_namespace_names_matching(pat_ptr, pat_len, has_pattern);
+}
+
+/// Collector state for :func:`frame_locals_visit_current` —
+/// accumulates name spans into a per-call list buffer.  The two-pass
+/// shape (size pass + emit pass) keeps the output buffer right-sized
+/// without resorting to a growable allocation; the visit predicate is
+/// the same in both passes.
+const FrameNamesCtx = struct {
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    // First pass: tally byte count + name count.
+    total_bytes: u32 = 0,
+    count: u32 = 0,
+    // Second pass: write into ``buf`` at ``off``.
+    buf: u32 = 0,
+    off: u32 = 0,
+    written: u32 = 0,
+};
+
+var g_names_ctx: FrameNamesCtx = .{ .pat_ptr = 0, .pat_len = 0, .has_pattern = false };
+
+fn frame_names_should_count(name_ptr: u32, name_len: u32, value: i32) bool {
+    // Skip ``unset``-cleared slots: a bucket whose value is 0 is the
+    // ``unset`` marker (the bucket header stays so ``frame_pop``'s
+    // mark-dirty bookkeeping can clear it later).  Aliases need their
+    // target probed — an upvar to an unset variable shouldn't appear
+    // in ``info vars`` either.
+    if (value == 0) return false;
+    if (value < 0) {
+        // ALIAS_GLOBAL or ALIAS_EXT — surface only when the alias
+        // chain terminates in an existing variable.
+        return frames.frame_alias_target_exists(value, name_ptr, name_len);
+    }
+    if (g_names_ctx.has_pattern) {
+        return tcl_string.glob_match(g_names_ctx.pat_ptr, g_names_ctx.pat_len, name_ptr, name_len);
+    }
+    return true;
+}
+
+fn frame_names_visit_size(_: u32, name_ptr: u32, name_len: u32, value: i32) callconv(.c) void {
+    if (!frame_names_should_count(name_ptr, name_len, value)) return;
+    if (g_names_ctx.has_pattern and value >= 0) {
+        // size-pass already filtered via has_pattern; nothing extra
+    }
+    if (g_names_ctx.count > 0) g_names_ctx.total_bytes += 1; // separator
+    g_names_ctx.total_bytes += name_len;
+    g_names_ctx.count += 1;
+}
+
+fn frame_names_visit_emit(_: u32, name_ptr: u32, name_len: u32, value: i32) callconv(.c) void {
+    if (!frame_names_should_count(name_ptr, name_len, value)) return;
+    if (g_names_ctx.written > 0) {
+        const dp: [*]u8 = @ptrFromInt(g_names_ctx.buf + g_names_ctx.off);
+        dp[0] = ' ';
+        g_names_ctx.off += 1;
+    }
+    memcpy(g_names_ctx.buf + g_names_ctx.off, name_ptr, name_len);
+    g_names_ctx.off += name_len;
+    g_names_ctx.written += 1;
+}
+
+fn frame_locals_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) i32 {
+    g_names_ctx = .{ .pat_ptr = pat_ptr, .pat_len = pat_len, .has_pattern = has_pattern };
+    frames.frame_locals_visit_current(0, &frame_names_visit_size);
+    if (g_names_ctx.count == 0) return obj_new_string(0, 0);
+    const total = g_names_ctx.total_bytes;
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
+    g_names_ctx.buf = buf;
+    g_names_ctx.off = 0;
+    g_names_ctx.written = 0;
+    frames.frame_locals_visit_current(0, &frame_names_visit_emit);
+    return obj.obj_new_string_take(buf, total, total);
+}
+
+/// Top-level fallback for ``info vars`` when no proc frame is active —
+/// scan the root namespace's scalar ``var_table`` for matching names.
+/// Mirrors the qualified branch above but without the ``::`` prefix,
+/// since the top-level scope is the root namespace itself.
+fn root_namespace_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) i32 {
+    const root = tcl_ns.ns_root();
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
+    if (ns.var_table.buf == 0) return obj_new_string(0, 0);
+
+    var total: u32 = 0;
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < ns.var_table.cap) : (i += 1) {
+        const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (var_addr == 0) continue;
+        const v_val = tcl_ns.var_get_scalar(var_addr);
+        if (v_val == 0) continue;
+        if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        if (count > 0) total += 1;
+        total += name_len;
+        count += 1;
+    }
+    if (count == 0) return obj_new_string(0, 0);
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < ns.var_table.cap) : (i += 1) {
+        const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (var_addr == 0) continue;
+        const v_val = tcl_ns.var_get_scalar(var_addr);
+        if (v_val == 0) continue;
+        if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        if (written > 0) {
+            const dp: [*]u8 = @ptrFromInt(buf + off);
+            dp[0] = ' ';
+            off += 1;
+        }
+        memcpy(buf + off, name_ptr, name_len);
+        off += name_len;
+        written += 1;
+    }
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 // -- Dispatch --------------------------------------------------------------

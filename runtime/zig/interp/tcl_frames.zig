@@ -1196,11 +1196,136 @@ fn rt_fd_write_stderr(msg: []const u8) void {
 
 // -- ALIAS_EXT resolution helpers --
 
+/// Splits an ``arr(key)`` target name into its array-name and key
+/// pieces.  Returns ``null`` when the name has no balanced ``(...)``
+/// suffix.  Used by the ``upvar`` array-element alias paths to route
+/// reads / writes / exists / unset through the array directory rather
+/// than treating ``a(0)`` as a flat scalar name.
+const ArrayElemSplit = struct {
+    arr_ptr: u32,
+    arr_len: u32,
+    key_ptr: u32,
+    key_len: u32,
+};
+
+fn split_array_elem_name(name_ptr: u32, name_len: u32) ?ArrayElemSplit {
+    if (name_len < 3) return null;
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    if (sp[name_len - 1] != ')') return null;
+    var paren: u32 = 0;
+    var found = false;
+    var k: u32 = 0;
+    while (k < name_len) : (k += 1) {
+        if (sp[k] == '(') {
+            paren = k;
+            found = true;
+            break;
+        }
+    }
+    if (!found or paren == 0) return null;
+    return .{
+        .arr_ptr = name_ptr,
+        .arr_len = paren,
+        .key_ptr = name_ptr + paren + 1,
+        .key_len = name_len - paren - 2,
+    };
+}
+
+/// Resolve an ``upvar #0 arr(key) x`` style alias on the read side.
+/// *tgt* is the target name TclObj (e.g. ``arr(key)``); the array's
+/// directory entry is found via the global-scope path.  Returns 0
+/// when the element doesn't exist — the caller must distinguish that
+/// from "exists but empty" via the ``exists`` probe.
+fn resolve_global_array_elem_get(tgt: i32, split: ArrayElemSplit) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const arr_name = obj.obj_new_string(@bitCast(split.arr_ptr), @bitCast(split.arr_len));
+    defer obj.tcl_obj_release(arr_name);
+    const key_obj = obj.obj_new_string(@bitCast(split.key_ptr), @bitCast(split.key_len));
+    defer obj.tcl_obj_release(key_obj);
+    _ = tgt; // unused — split provides the spans we need.
+    return tcl_array.array_get(arr_name, key_obj);
+}
+
+fn resolve_global_array_elem_set(_: i32, split: ArrayElemSplit, value: i32) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const arr_name = obj.obj_new_string(@bitCast(split.arr_ptr), @bitCast(split.arr_len));
+    defer obj.tcl_obj_release(arr_name);
+    const key_obj = obj.obj_new_string(@bitCast(split.key_ptr), @bitCast(split.key_len));
+    defer obj.tcl_obj_release(key_obj);
+    if (value == 0) {
+        _ = tcl_array.array_unset_element(arr_name, key_obj);
+        return 0;
+    }
+    _ = tcl_array.array_set(arr_name, key_obj, value);
+    return value;
+}
+
+fn resolve_global_array_elem_exists(_: i32, split: ArrayElemSplit) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const arr_name = obj.obj_new_string(@bitCast(split.arr_ptr), @bitCast(split.arr_len));
+    defer obj.tcl_obj_release(arr_name);
+    const key_obj = obj.obj_new_string(@bitCast(split.key_ptr), @bitCast(split.key_len));
+    defer obj.tcl_obj_release(key_obj);
+    return tcl_array.array_element_exists(arr_name, key_obj);
+}
+
+/// Resolve a frame-relative array element: ``upvar N arr(key) x``.  The
+/// array name is resolved in the target frame's scope by mimicking
+/// :func:`frame_resolve_array_name` at ``abs_depth`` — proc-local
+/// arrays land under ``::__local::<abs_depth>::<arr>``.
+fn resolve_frame_array_elem_qualified(arr_ptr: u32, arr_len: u32, abs_depth: u32) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const arr_name = obj.obj_new_string(@bitCast(arr_ptr), @bitCast(arr_len));
+    defer obj.tcl_obj_release(arr_name);
+    return tcl_array.make_local_array_obj(arr_name, abs_depth);
+}
+
+fn resolve_frame_array_elem_get(split: ArrayElemSplit, abs_depth: u32) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const qual = resolve_frame_array_elem_qualified(split.arr_ptr, split.arr_len, abs_depth);
+    defer obj.tcl_obj_release(qual);
+    const key_obj = obj.obj_new_string(@bitCast(split.key_ptr), @bitCast(split.key_len));
+    defer obj.tcl_obj_release(key_obj);
+    return tcl_array.array_get(qual, key_obj);
+}
+
+fn resolve_frame_array_elem_set(split: ArrayElemSplit, abs_depth: u32, value: i32) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const qual = resolve_frame_array_elem_qualified(split.arr_ptr, split.arr_len, abs_depth);
+    defer obj.tcl_obj_release(qual);
+    const key_obj = obj.obj_new_string(@bitCast(split.key_ptr), @bitCast(split.key_len));
+    defer obj.tcl_obj_release(key_obj);
+    if (value == 0) {
+        _ = tcl_array.array_unset_element(qual, key_obj);
+        return 0;
+    }
+    _ = tcl_array.array_set(qual, key_obj, value);
+    return value;
+}
+
+fn resolve_frame_array_elem_exists(split: ArrayElemSplit, abs_depth: u32) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    const qual = resolve_frame_array_elem_qualified(split.arr_ptr, split.arr_len, abs_depth);
+    defer obj.tcl_obj_release(qual);
+    const key_obj = obj.obj_new_string(@bitCast(split.key_ptr), @bitCast(split.key_len));
+    defer obj.tcl_obj_release(key_obj);
+    return tcl_array.array_element_exists(qual, key_obj);
+}
+
 /// Read the value that an ALIAS_EXT bucket points to.
 fn resolve_ext_get(desc: u32, local_name: i32) i32 {
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
-    if (kind == KIND_GLOBAL_NAMED) return globals.global_get(tgt);
+    if (kind == KIND_GLOBAL_NAMED) {
+        // ``upvar #0 arr(key) local`` — the target name is an
+        // array-element form; route through the array directory so
+        // reads see the same storage that ``set arr(key) ...`` wrote.
+        const sn = obj_ensure_string(tgt);
+        if (split_array_elem_name(sn.ptr, sn.len)) |split| {
+            return resolve_global_array_elem_get(tgt, split);
+        }
+        return globals.global_get(tgt);
+    }
     if (kind == KIND_NS_VAR_PTR) {
         // tgt is an absolute *Var address.  ``var_get_scalar``
         // follows VAR_LINK chains to the terminal storage.
@@ -1208,6 +1333,10 @@ fn resolve_ext_get(desc: u32, local_name: i32) i32 {
     }
     // KIND_FRAME_VAR
     const abs: u32 = @bitCast(read_i32(desc + 4));
+    const sn = obj_ensure_string(tgt);
+    if (split_array_elem_name(sn.ptr, sn.len)) |split| {
+        return resolve_frame_array_elem_get(split, abs);
+    }
     return frame_get_at_depth(abs, tgt, local_name);
 }
 
@@ -1215,12 +1344,22 @@ fn resolve_ext_get(desc: u32, local_name: i32) i32 {
 fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
-    if (kind == KIND_GLOBAL_NAMED) return globals.global_set(tgt, value);
+    if (kind == KIND_GLOBAL_NAMED) {
+        const sn = obj_ensure_string(tgt);
+        if (split_array_elem_name(sn.ptr, sn.len)) |split| {
+            return resolve_global_array_elem_set(tgt, split, value);
+        }
+        return globals.global_set(tgt, value);
+    }
     if (kind == KIND_NS_VAR_PTR) {
         tcl_ns.var_set_scalar(@bitCast(tgt), @bitCast(value));
         return value;
     }
     const abs: u32 = @bitCast(read_i32(desc + 4));
+    const sn = obj_ensure_string(tgt);
+    if (split_array_elem_name(sn.ptr, sn.len)) |split| {
+        return resolve_frame_array_elem_set(split, abs, value);
+    }
     frame_set_at_depth(abs, tgt, local_name, value);
     return value;
 }
@@ -1229,7 +1368,13 @@ fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
 fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
-    if (kind == KIND_GLOBAL_NAMED) return globals.global_exists(tgt);
+    if (kind == KIND_GLOBAL_NAMED) {
+        const sn = obj_ensure_string(tgt);
+        if (split_array_elem_name(sn.ptr, sn.len)) |split| {
+            return resolve_global_array_elem_exists(tgt, split);
+        }
+        return globals.global_exists(tgt);
+    }
     if (kind == KIND_NS_VAR_PTR) {
         // Reference Tcl's ``info exists`` returns 1 only when the
         // variable has been *assigned* a value — declaring a
@@ -1268,6 +1413,10 @@ fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
         return if (val != 0) obj_new_int(1) else obj_new_int(0);
     }
     const abs: u32 = @bitCast(read_i32(desc + 4));
+    const sn2 = obj_ensure_string(tgt);
+    if (split_array_elem_name(sn2.ptr, sn2.len)) |split| {
+        return resolve_frame_array_elem_exists(split, abs);
+    }
     return if (frame_exists_at_depth(abs, tgt, local_name)) obj_new_int(1) else obj_new_int(0);
 }
 
@@ -2077,8 +2226,24 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                 const desc = alias_desc_ptr(v);
                 const kind = read_i32(desc);
                 const tgt = read_i32(desc + 8);
-                if (kind == KIND_GLOBAL_NAMED or kind == KIND_FRAME_VAR) {
+                if (kind == KIND_GLOBAL_NAMED) {
+                    // Same-name global alias — let array ops use the
+                    // global directory under the bare target name.
                     return tgt;
+                }
+                if (kind == KIND_FRAME_VAR) {
+                    // ``upvar N a x`` aliases ``x`` to the array ``a``
+                    // in the frame at absolute depth ``N``.  Local
+                    // arrays in that frame live under
+                    // ``::__local::N::a`` in the array directory, so
+                    // surface the qualified key here — without it,
+                    // ``array names x`` / ``array exists x`` look up
+                    // the bare ``a`` (which only matches a top-level
+                    // global) and miss the proc-local storage.  See
+                    // upvar-6.1 (``foreach i [array names x] { ... }``).
+                    const abs: u32 = @bitCast(read_i32(desc + 4));
+                    const tcl_array = @import("../valtypes/tcl_array.zig");
+                    return tcl_array.make_local_array_obj(tgt, abs);
                 }
                 if (kind == KIND_NS_VAR_PTR) {
                     // Descriptor layout is 24 bytes for this kind:
@@ -2132,4 +2297,57 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
         return tcl_array.make_local_array_obj(local_name, frame_depth);
     }
     return local_name;
+}
+
+/// Bucket header offsets — matches the ``HEADER_SIZE = 12`` layout in
+/// :file:`valtypes/hash_table.zig`: ``[name_ptr, name_len, hash]``
+/// followed by the per-table value at ``OFF_VALUE``.
+const BUCKET_NAME_PTR: u32 = 0;
+const BUCKET_NAME_LEN: u32 = 4;
+
+/// Visitor callback for :func:`frame_locals_visit_current`.  Receives
+/// the bucket's name span and current value.  The implementation
+/// guarantees the bucket is live (non-zero name, non-tombstone) before
+/// the call; the visitor decides whether the entry counts as
+/// "existing" — e.g. ``info vars`` skips ``value == 0`` entries to
+/// match Tcl's ``unset``-leaves-the-slot-empty semantics.
+pub const FrameLocalVisitor = fn (ctx: u32, name_ptr: u32, name_len: u32, value: i32) callconv(.c) void;
+
+/// Walk the current frame's hash table, invoking *visit* for every
+/// occupied bucket.  No-op when called outside a proc frame.  Used by
+/// ``info vars`` / ``info locals`` to enumerate proc-local names; the
+/// visitor receives the raw bucket ``value`` (TclObj handle, 0 for
+/// unset, ALIAS_GLOBAL or ALIAS_EXT for upvar/global aliases) so the
+/// caller can decide whether to count ``unset``-cleared slots.
+pub fn frame_locals_visit_current(ctx: u32, visit: *const FrameLocalVisitor) void {
+    const base = current_frame() orelse return;
+    const cap = capacity_for_base(base);
+    var i: u32 = 0;
+    while (i < cap) : (i += 1) {
+        const bucket = base + i * FRAME_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket + BUCKET_NAME_PTR));
+        if (name_ptr == 0 or name_ptr == ht.TOMBSTONE) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + BUCKET_NAME_LEN));
+        if (name_len == 0) continue;
+        const value = read_i32(bucket + OFF_VALUE);
+        visit(ctx, name_ptr, name_len, value);
+    }
+}
+
+/// Probe whether an alias bucket's ALIAS_GLOBAL / ALIAS_EXT target
+/// currently has a stored value.  Returns true when the alias chain
+/// terminates in a live (non-zero) variable; ``info vars`` uses this
+/// to surface upvar locals that point at an existing target while
+/// hiding aliases whose targets have been ``unset``.
+pub fn frame_alias_target_exists(value: i32, name_ptr: u32, name_len: u32) bool {
+    if (value == ALIAS_GLOBAL) {
+        // Same-name global alias: probe the global table directly.
+        const name_obj = obj.obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+        defer obj.tcl_obj_release(name_obj);
+        return obj_get_int(globals.global_exists(name_obj)) != 0;
+    }
+    if (!is_alias_ext(value)) return false;
+    const name_obj = obj.obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    defer obj.tcl_obj_release(name_obj);
+    return obj_get_int(resolve_ext_exists(alias_desc_ptr(value), name_obj)) != 0;
 }
