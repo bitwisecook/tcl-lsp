@@ -160,6 +160,7 @@ pub const frame_local_at = tcl_frames.frame_local_at;
 pub const frame_local_set_at = tcl_frames.frame_local_set_at;
 pub const frame_alias_global = tcl_frames.frame_alias_global;
 pub const frame_depth_stash = tcl_frames.frame_depth_stash;
+pub const frame_depth_stash_abs = tcl_frames.frame_depth_stash_abs;
 pub const frame_depth_restore = tcl_frames.frame_depth_restore;
 pub const var_resolve = tcl_frames.var_resolve;
 pub const var_set = tcl_frames.var_set;
@@ -405,6 +406,7 @@ comptime {
     _ = &tcl_frames.frame_take_pending_argv0;
     _ = &tcl_frames.frame_get_depth;
     _ = &tcl_frames.frame_depth_stash;
+    _ = &tcl_frames.frame_depth_stash_abs;
     _ = &tcl_frames.frame_depth_restore;
     _ = &tcl_frames.local_set;
     _ = &tcl_frames.local_get;
@@ -860,4 +862,15 @@ pub export fn tcl_test_hidden_find_in(
         @bitCast(name_len),
     );
     return if (h != 0) 1 else 0;
+}
+
+/// Evaluate a raw expression source string and return its result
+/// as a TclObj.  Exposed for the WASM codegen's ``ExprRaw`` path
+/// where a backslash-substituted operand needs to be re-parsed
+/// by the runtime expression evaluator (matching reference Tcl's
+/// ``expr X`` behaviour, which treats *X* as expression source
+/// rather than a literal value).
+pub export fn tcl_eval_expr_str(src_ptr: i32, src_len: i32) i32 {
+    const expr_eval = @import("interp/tcl_expr_eval.zig");
+    return expr_eval.eval(@bitCast(src_ptr), @bitCast(src_len));
 }

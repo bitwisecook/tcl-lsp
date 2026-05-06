@@ -258,6 +258,39 @@ class _WasmEmitterVarMixin(_Base):
         if name in self._params:
             self._emit_local_get(idx)
             return
+        # Read the WASM-local mirror; when it's null, probe the
+        # runtime frame before raising.  A callee that did
+        # ``uplevel N set <name> ...`` writes through the
+        # interpreter's ``var_set`` to the *frame* table, not the
+        # WASM-local mirror — so a same-name read here would
+        # otherwise raise even though the variable now exists at
+        # the runtime level.  Falls back to the original null-check
+        # path when ``tcl_local_get`` isn't imported.
+        lget_lenient = self._shared_imports.get("tcl_local_get")
+        unset_err_idx = self._shared_imports.get("tcl_var_unset_error")
+        if lget_lenient is not None and unset_err_idx is not None:
+            if self._var_unset_check_scratch is None:
+                self._var_unset_check_scratch = self._add_extra_local(
+                    prefix="_var_check", val_type=ValType.I32
+                )
+            tmp = self._var_unset_check_scratch
+            self._emit_local_get(idx)
+            self._emit_local_tee(tmp)
+            self._emit(WasmOp.I32_EQZ)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            # WASM-local is null: probe the runtime frame in case
+            # an uplevel/upvar populated this slot.
+            self._emit_obj_literal(name)
+            self._emit_call(lget_lenient)
+            self._emit_local_tee(tmp)
+            self._emit(WasmOp.I32_EQZ)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_obj_literal(name)
+            self._emit_call(unset_err_idx)
+            self._emit(WasmOp.END)
+            self._emit(WasmOp.END)
+            self._emit_local_get(tmp)
+            return
         self._emit_local_get(idx)
         if not self._emit_unset_check_with_alias(name):
             # Runtime helper unavailable — leave the read as plain

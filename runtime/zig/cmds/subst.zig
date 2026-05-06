@@ -83,20 +83,49 @@ fn eval_subst(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_expr(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 2) {
-        // Use the bignum-aware evaluator so the runtime ``expr``
-        // command produces the same result as the AOT-compiled
-        // ``expr {...}`` body.  Returns a TclObj directly — no i64
-        // round-trip — so TYPE_BIGNUM results survive intact for
-        // downstream callers (``puts`` / ``set`` / mathop).  Closes
-        // the gap where ``[expr {1 << 70}]`` returned ``1`` (the
-        // legacy ``eval_expr_str`` recursive descent didn't even
-        // recognise ``<<``).
-        const expr_eval = @import("../interp/tcl_expr_eval.zig");
+    if (words.len < 2) return result_mod.from_globals(0);
+    // Tcl ``expr`` concatenates all arguments with spaces and
+    // evaluates the joined string as a single expression.
+    // ``expr 20 - 5 +10 -7`` → ``20 - 5 +10 -7`` → 18.  The
+    // single-arg case takes the simple fast path; anything else
+    // builds a join buffer first.
+    const expr_eval = @import("../interp/tcl_expr_eval.zig");
+    if (words.len == 2) {
         const es = obj_ensure_string(words[1]);
         return result_mod.from_globals(expr_eval.eval(es.ptr, es.len));
     }
-    return result_mod.from_globals(0);
+    var total: u32 = 0;
+    var wi: u32 = 1;
+    while (wi < words.len) : (wi += 1) {
+        const ws = obj_ensure_string(words[wi]);
+        total += ws.len;
+        if (wi + 1 < words.len) total += 1; // separator space
+    }
+    if (total == 0) return result_mod.from_globals(expr_eval.eval(0, 0));
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        // Out-of-memory while building the join buffer.  Surface as
+        // a generic error and bail rather than dereferencing a null
+        // address inside ``rt.memcpy`` below.
+        @import("../interp/tcl_catch.zig").tcl_cmd_error(obj_new_string(0, 0));
+        return result_mod.from_globals(0);
+    }
+    var off: u32 = 0;
+    wi = 1;
+    while (wi < words.len) : (wi += 1) {
+        const ws = obj_ensure_string(words[wi]);
+        rt.memcpy(buf + off, ws.ptr, ws.len);
+        off += ws.len;
+        if (wi + 1 < words.len) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+    }
+    const r = expr_eval.eval(buf, total);
+    obj_mod.free_sized(buf, total);
+    return result_mod.from_globals(r);
 }
 
 pub const registrations = [_]reg.CmdEntry{

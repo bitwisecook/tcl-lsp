@@ -987,6 +987,19 @@ class _WasmEmitterValuesMixin(_Base):
 
         try:
             int_val = int(value)
+            # Folding to ``int_val`` only round-trips the original
+            # source string when ``str(int_val)`` matches *value*.
+            # ``set arg 0005`` keeps the source ``0005`` (so
+            # ``string length $arg`` returns 4 and ``puts $arg``
+            # prints ``0005``); folding eagerly to ``5`` destroys
+            # the leading zeros.  Tcl shimmers values to int
+            # lazily — when used in arithmetic — but preserves the
+            # source string repr otherwise.  Same rule for
+            # ``+5`` / ``  5``: anything that doesn't already
+            # look like the canonical decimal output of
+            # ``str(int_val)`` falls through to the string path.
+            if str(int_val) != value:
+                raise ValueError("non-canonical integer literal")
             # Tcl 9 BigInt literal — fall through to the string path
             # so the runtime preserves the source bytes.  ``i64.const``
             # would saturate (or be rejected by wasmtime entirely) and

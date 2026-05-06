@@ -842,6 +842,13 @@ class _CFGBuilder:
                     # so that SSA/SCCP doesn't propagate stale pre-catch
                     # constants past the catch (an exception can leave
                     # variables partially modified).
+                    # Preserve ``stmt.tokens`` on the synthetic IRCall so
+                    # the codegen's eval-fallback can detect the braced
+                    # body word and re-wrap it in ``{…}`` when
+                    # reconstructing the script for ``tcl_eval``.
+                    # Without this, ``catch {$undef} msg`` becomes
+                    # ``catch $undef msg`` at runtime and the var-read
+                    # trap fires before catch can intercept it.
                     catch_defs: list[str] = _defs_from_ir_script(stmt.body)
                     if stmt.result_var:
                         catch_defs.append(stmt.result_var)
@@ -854,6 +861,7 @@ class _CFGBuilder:
                             canonical_command="::catch",
                             args=stmt.raw_args,
                             defs=tuple(dict.fromkeys(catch_defs)),
+                            tokens=stmt.tokens,
                         )
                     )
                 case IRTry():

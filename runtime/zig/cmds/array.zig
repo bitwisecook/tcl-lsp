@@ -52,8 +52,14 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     defer if (resolved_name != words[2]) obj_mod.tcl_obj_release(resolved_name);
     if (str_eq(sp, sub.len, "get")) {
-        if (words.len >= 4) return result_mod.from_globals(array_mod.array_get(resolved_name, words[3]));
-        return result_mod.from_globals(array_mod.array_get(resolved_name, obj_new_string(0, 0)));
+        // ``array get arrName ?pattern?`` — returns the whole array as a
+        // flat ``{k v k v …}`` list.  ``words[3]`` is an optional glob
+        // *pattern* (filter) — *not* an element key.  Earlier wiring
+        // misused ``array_get`` (single-element lookup) here, which
+        // matched only the empty-string element and produced an empty
+        // result for every well-formed array.
+        const pat: i32 = if (words.len >= 4) words[3] else 0;
+        return result_mod.from_globals(array_mod.array_get_all(resolved_name, pat));
     }
     if (str_eq(sp, sub.len, "set") and words.len >= 4) {
         // ``array set arr pairlist`` — payload is a flat

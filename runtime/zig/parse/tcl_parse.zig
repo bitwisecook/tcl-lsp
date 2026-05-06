@@ -316,14 +316,19 @@ pub fn parse_command(
         }
         // After a brace-quoted or ``"..."``-quoted word, the next
         // byte must be a word separator (whitespace, ``;``, ``\n``,
-        // ``\r``) or end-of-source.  Anything else is a syntax error
-        // — reference Tcl raises ``extra characters after
-        // close-brace`` (parse-18.19 / 18.20 / 18.21).  Surface it
-        // via the ``extra_chars_after_close`` flag so the caller
+        // ``\r``) or end-of-source.  ``\<NL>`` is also acceptable —
+        // reference Tcl treats backslash-newline as a whitespace
+        // replacement everywhere (parseOld-7.4, var-7.9 trap fix:
+        // ``-result [list ... \<NL> ...]`` after braced ``{...}``).
+        // Anything else is a syntax error — reference Tcl raises
+        // ``extra characters after close-brace`` (parse-18.19 /
+        // 18.20 / 18.21).  Surface it via the
+        // ``extra_chars_after_close`` flag so the caller
         // (eval_script) can route the error through tcl_cmd_error.
         if (word_kind_brace_or_quote and p < len) {
             const c = src[p];
-            if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';') {
+            const is_bs_nl = c == '\\' and p + 1 < len and src[p + 1] == '\n';
+            if (c != ' ' and c != '\t' and c != '\n' and c != '\r' and c != ';' and !is_bs_nl) {
                 return .{
                     .count = count,
                     .next = p,

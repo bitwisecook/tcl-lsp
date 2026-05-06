@@ -39,6 +39,26 @@ fn raise_subst_error(text: []const u8) i32 {
     return 0;
 }
 
+/// Cleanup helper used after a ``$var`` / ``$arr(idx)`` / ``${X}``
+/// substitution finds the referenced variable unset.  Releases any
+/// retained TclObjs and frees the per-piece arena allocations
+/// before the caller raises ``can't read "X": no such variable``
+/// and bails out of subst_flagged_full.
+fn release_pieces_for_bail(
+    retained_objs: u32,
+    n_retained: u32,
+    retained_alloc: arena.Allocation,
+    pieces_alloc: arena.Allocation,
+) void {
+    var rj: u32 = 0;
+    while (rj < n_retained) : (rj += 1) {
+        const r = read_i32(retained_objs + rj * 4);
+        if (r != 0) obj_mod.tcl_obj_release(r);
+    }
+    arena.arena_free(retained_alloc);
+    arena.arena_free(pieces_alloc);
+}
+
 /// Expand ``$var`` / ``[cmd]`` / ``\x`` in a raw byte span, with each
 /// substitution kind independently enabled.  ``do_vars`` / ``do_cmds``
 /// / ``do_bs`` correspond to the ``-novariables`` / ``-nocommands``
@@ -198,19 +218,29 @@ pub fn subst_flagged_full(
                 i += 1; // consume '}'
                 const name_obj = obj_new_string(@bitCast(wptr + vs), @bitCast(ve - vs));
                 const val = frames.var_resolve(name_obj);
-                // Release the temp name TclObj immediately — its
-                // bytes were borrowed from the source script and
-                // the lookup machinery doesn't retain a reference.
-                // Issue #303: each ``${var}`` substitution leaked
-                // one obj header per evaluation and pushed long-
-                // running scripts past the wasm32 4 GiB ceiling.
-                obj_mod.tcl_obj_release(name_obj);
                 if (val != 0) {
                     const sv = obj_ensure_string(val);
                     push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                     obj_mod.tcl_obj_retain(val);
                     write_i32(retained_objs + n_retained * 4, val);
                     n_retained += 1;
+                    // Release the temp name TclObj — its bytes were
+                    // borrowed from the source script and the lookup
+                    // machinery doesn't retain a reference.  Issue
+                    // #303: each ``${var}`` substitution leaked one
+                    // obj header per evaluation and pushed long-
+                    // running scripts past the wasm32 4 GiB ceiling.
+                    obj_mod.tcl_obj_release(name_obj);
+                } else {
+                    // ``${X}`` where ``X`` is unset — reference Tcl
+                    // raises ``can't read "X": no such variable``.
+                    // ``var_unset_error`` reads ``name_obj``'s bytes
+                    // for the diagnostic, so release it after the
+                    // call.
+                    release_pieces_for_bail(retained_objs, n_retained, retained_alloc, pieces_alloc);
+                    catch_mod.var_unset_error(name_obj);
+                    obj_mod.tcl_obj_release(name_obj);
+                    return 0;
                 }
             } else {
                 // Variable-name scanner: bareword chars + ``::``
@@ -312,28 +342,78 @@ pub fn subst_flagged_full(
                             for (0..key_s.len) |k| fd[arr_s.len + 1 + k] = kp[k];
                         }
                         fd[arr_s.len + 1 + key_s.len] = ')';
-                        const full_obj = obj_new_string(@bitCast(fbuf), @bitCast(full_len));
+                        // ``obj_new_string_take`` so the qualifier
+                        // TclObj owns the buffer.  ``obj_new_string``
+                        // would borrow ``fbuf`` and leak it on the
+                        // ``tcl_obj_release`` below — outside of an
+                        // outer ``catch`` the leak doesn't accumulate
+                        // (proc returns reset the arena), but read-
+                        // heavy paths through subst exercise this
+                        // hundreds of times per command.
+                        const full_obj = obj_mod.obj_new_string_take(fbuf, full_len, full_len);
                         elem = frames.var_resolve(full_obj);
                         obj_mod.tcl_obj_release(full_obj);
                     }
-                    obj_mod.tcl_obj_release(name_obj);
-                    if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
                     if (elem != 0) {
                         const sv = obj_ensure_string(elem);
                         push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                         obj_mod.tcl_obj_retain(elem);
                         write_i32(retained_objs + n_retained * 4, elem);
                         n_retained += 1;
+                        obj_mod.tcl_obj_release(name_obj);
+                        if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                    } else {
+                        // ``$arr(idx)`` element missing — reference
+                        // Tcl raises ``can't read "arr(idx)": no
+                        // such variable``.  Build the qualified
+                        // name ``arr(idx)`` from the post-subst
+                        // key bytes for the diagnostic.
+                        const arr_s2 = obj_ensure_string(name_obj);
+                        const key_len2: u32 = if (key_obj != 0) obj_ensure_string(key_obj).len else 0;
+                        const key_ptr2: u32 = if (key_obj != 0) obj_ensure_string(key_obj).ptr else 0;
+                        const qlen: u32 = arr_s2.len + 2 + key_len2;
+                        const qbuf = alloc(qlen);
+                        var qual_obj: i32 = 0;
+                        if (qbuf != 0) {
+                            const qd: [*]u8 = @ptrFromInt(qbuf);
+                            const ap: [*]const u8 = @ptrFromInt(arr_s2.ptr);
+                            for (0..arr_s2.len) |k| qd[k] = ap[k];
+                            qd[arr_s2.len] = '(';
+                            if (key_len2 > 0) {
+                                const kp: [*]const u8 = @ptrFromInt(key_ptr2);
+                                for (0..key_len2) |k| qd[arr_s2.len + 1 + k] = kp[k];
+                            }
+                            qd[arr_s2.len + 1 + key_len2] = ')';
+                            qual_obj = obj_mod.obj_new_string_take(qbuf, qlen, qlen);
+                        }
+                        obj_mod.tcl_obj_release(name_obj);
+                        if (key_obj != 0) obj_mod.tcl_obj_release(key_obj);
+                        release_pieces_for_bail(retained_objs, n_retained, retained_alloc, pieces_alloc);
+                        if (qual_obj != 0) {
+                            catch_mod.var_unset_error(qual_obj);
+                            obj_mod.tcl_obj_release(qual_obj);
+                        } else {
+                            catch_mod.tcl_cmd_error(0);
+                        }
+                        return 0;
                     }
                 } else {
                     const val = frames.var_resolve(name_obj);
-                    obj_mod.tcl_obj_release(name_obj);
                     if (val != 0) {
                         const sv = obj_ensure_string(val);
                         push_piece(pieces_buf, &n_pieces, &total_out, sv.ptr, sv.len);
                         obj_mod.tcl_obj_retain(val);
                         write_i32(retained_objs + n_retained * 4, val);
                         n_retained += 1;
+                        obj_mod.tcl_obj_release(name_obj);
+                    } else {
+                        // ``$X`` where ``X`` is unset — reference
+                        // Tcl raises ``can't read "X": no such
+                        // variable``.
+                        release_pieces_for_bail(retained_objs, n_retained, retained_alloc, pieces_alloc);
+                        catch_mod.var_unset_error(name_obj);
+                        obj_mod.tcl_obj_release(name_obj);
+                        return 0;
                     }
                 }
             }
