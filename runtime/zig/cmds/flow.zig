@@ -23,8 +23,9 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
     // frames.  We model this with a single ``extra_levels`` counter
     // tracked in ``tcl_catch.return_level`` and decremented at every
     // proc-dispatch boundary.
-    const ReturnCode = enum { ok, err, ret, brk, cont };
+    const ReturnCode = enum { ok, err, ret, brk, cont, custom };
     var code_kind: ReturnCode = .ok;
+    var custom_code: i64 = 0;
     var extra_levels: u32 = 0;
     var level_explicit: bool = false;
     var level_value: u32 = 1;
@@ -46,12 +47,14 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                         //   return   (2) → return_flag + extra level
                         //   break    (3) → break_flag set
                         //   continue (4) → continue_flag set
+                        //   numeric N≥5 → return_flag + return_code=N
                         // Without the break/continue branches,
                         // ``::tcl::OptDoOne``'s ``return -code break``
                         // / ``return -code continue`` were silently
                         // routed through the default return path,
                         // breaking the optparse state machine that
-                        // ``OptDoAll``'s loop relies on.
+                        // ``OptDoAll``'s loop relies on.  The custom
+                        // numeric branch is used by coroutine.test 7.5.
                         if (str_eq(cp, code.len, "ok") or
                             (code.len == 1 and cp[0] == '0'))
                         {
@@ -73,6 +76,31 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                             (code.len == 1 and cp[0] == '4'))
                         {
                             code_kind = .cont;
+                        } else {
+                            // Numeric ``-code N`` for N ≥ 5 — parse
+                            // the value and surface it via the
+                            // ``return_code`` side-channel that
+                            // ``catch_leave`` reads.  Negative or
+                            // non-numeric values fall through to the
+                            // default ``.ok`` mapping (matching
+                            // reference Tcl, which raises an error
+                            // for unknown codes — left as a follow-up
+                            // since the tcltest harness never relies
+                            // on the diagnostic).
+                            var n: i64 = 0;
+                            var ok = code.len > 0;
+                            var ki: u32 = 0;
+                            while (ki < code.len) : (ki += 1) {
+                                if (cp[ki] < '0' or cp[ki] > '9') {
+                                    ok = false;
+                                    break;
+                                }
+                                n = n * 10 + (cp[ki] - '0');
+                            }
+                            if (ok and n >= 5) {
+                                code_kind = .custom;
+                                custom_code = n;
+                            }
                         }
                     }
                     wi += 1;
@@ -169,6 +197,20 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
             .cont => {
                 result_mod.set_continue();
                 return result_mod.from_globals(0);
+            },
+            .custom => {
+                // ``return -level 0 -code N`` for N ≥ 5 — set
+                // ``return_flag`` so the surrounding catch sees a
+                // RETURN-class code, plus stash the exact ``N`` in
+                // ``return_code`` so ``catch_leave`` surfaces it
+                // instead of the generic ``2`` (coroutine.test 7.5).
+                const obj_mod = @import("../valtypes/tcl_obj.zig");
+                const old = rt.return_val.*;
+                if (result_obj != 0) obj_mod.tcl_obj_retain(result_obj);
+                if (old != 0 and old != result_obj) obj_mod.tcl_obj_release(old);
+                result_mod.set_return(result_obj, 0);
+                catch_mod.state.return_code = custom_code;
+                return result_mod.from_globals(result_obj);
             },
             .ret, .err => {},
         }

@@ -136,6 +136,7 @@ pub fn consume(code: Code) void {
             // before this clear.
             tcl_catch.state.return_val = 0;
             tcl_catch.state.return_level = 0;
+            tcl_catch.state.return_code = 0;
         },
         .BREAK => {
             tcl_catch.state.break_flag = 0;

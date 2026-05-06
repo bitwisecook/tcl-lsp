@@ -1496,5 +1496,18 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         const interp = @import("../interp/tcl_interp.zig");
         return obj_new_int(interp.cmd_count);
     }
+    if (str_eq(sp, sub.len, "coroutine")) {
+        // ``info coroutine`` returns the FQN of the currently
+        // executing coroutine, or the empty string outside a
+        // coroutine context.  coroutine.test 11.1 feeds this
+        // into ``::tcl::unsupported::corotype``; previously the
+        // missing branch returned empty and corotype raised
+        // ``can only get coroutine type of a coroutine``.
+        const coro_mod = @import("../sched/tcl_coro.zig");
+        if (coro_mod.current_coro_name()) |span| {
+            return obj.obj_new_string_copy(span.ptr, span.len);
+        }
+        return obj_new_string(0, 0);
+    }
     return obj_new_string(0, 0);
 }
