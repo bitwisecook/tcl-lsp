@@ -246,6 +246,39 @@ class _WasmEmitterExprMixin(_Base):
         self._emit_local_get(op_local)
         self._emit_call(release_idx)
 
+    def _emit_expr_unbox_arith_unary(
+        self,
+        func_idx: int,
+        operand: "ExprNode",
+    ) -> None:
+        """Like :meth:`_emit_expr_obj_arith_unary`, but unbox the
+        result TclObj to i64 and release it before re-pushing.
+
+        Used by ``_emit_unary`` for the unary arith helpers
+        (``tcl_arith_neg`` / ``tcl_arith_pos`` / ``tcl_arith_bnot``)
+        in i64 context so the runtime non-numeric / float / bignum
+        validation observes the original operand TclObj instead of
+        the silently-coerced ``0`` that the inline ``0 - x`` /
+        ``x ^ -1`` path produced.  Mirrors the i64 binary
+        counterpart's release discipline (Copilot review on PR
+        #287 / issue #261).
+        """
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if release_idx is None:
+            self._emit_expr_obj(operand)
+            self._emit_call(func_idx)
+            self._emit_unbox_int()
+            return
+        self._emit_expr_obj_arith_unary(func_idx, operand)
+        res_local = self._add_extra_local("_arith_un_res", ValType.I32)
+        val_local = self._add_extra_local("_arith_un_val", ValType.I64)
+        self._emit_local_tee(res_local)
+        self._emit_unbox_int()
+        self._emit_local_set(val_local)
+        self._emit_local_get(res_local)
+        self._emit_call(release_idx)
+        self._emit_local_get(val_local)
+
     def _emit_expr_unbox_arith_binary(
         self,
         func_idx: int,
@@ -424,8 +457,16 @@ class _WasmEmitterExprMixin(_Base):
                     if func_idx is not None:
                         self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
-                elif func in ("int", "entier", "wide") and len(args) == 1:
+                elif func in ("int", "entier") and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_int")
+                    if func_idx is not None:
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
+                        return
+                elif func == "wide" and len(args) == 1:
+                    # ``wide()`` truncates to signed int64 — distinct
+                    # from ``int()``/``entier()`` which preserve bignum
+                    # precision (expr-old-34.13 / 34.14).
+                    func_idx = self._shared_imports.get("tcl_math_wide")
                     if func_idx is not None:
                         self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
@@ -552,15 +593,17 @@ class _WasmEmitterExprMixin(_Base):
                     self._emit_i64_const(int_val)
                     self._emit_box_int()
                 return
-            # Out-of-i64 integer literal — skip the float fallback
-            # entirely (``float(value)`` truncates ``2^63`` to
-            # ``9.22e18`` and silently loses 11 bits of precision)
-            # and emit the source bytes as a string TclObj.  The
-            # runtime's ``try_parse_int`` / ``bignum.parse_i128``
-            # path then promotes the value to TYPE_BIGNUM the first
-            # time an arithmetic helper reads it, which is the path
-            # exercised by ``expr-32.{3..9}`` and the
-            # ``Tcl_NewWideIntObj`` round-trip cases.
+            # Out-of-i64 integer literal — emit the *decimal* form of
+            # the parsed value rather than the source bytes so the
+            # value's string repr matches the canonical bignum
+            # rendering downstream arithmetic produces (expr-old-36.16:
+            # ``[expr 0x100…000]`` would otherwise round-trip the
+            # ``0x…`` source text through ``puts`` while ``$x + 1``
+            # — which forces the bignum path — stamps the decimal
+            # form, and the two values mismatched).  ``str(int_val)``
+            # is the integer-canonical form: leading sign + decimal
+            # digits, no underscores, no ``0x``/``0o`` prefix.
+            value = str(int_val)
         except ValueError:
             pass
         if not is_integer_literal:
@@ -1376,22 +1419,41 @@ class _WasmEmitterExprMixin(_Base):
     def _emit_unary(self, op: UnaryOp, operand: ExprNode) -> None:
         """Emit a unary operation."""
         if op == UnaryOp.NEG:
-            self._emit_i64_const(0)
-            self._emit_expr(operand)
-            self._emit(WasmOp.I64_SUB)
+            # Tcl 9 rejects non-numeric / IEEE-keyword string operands
+            # on unary ``-`` (expr-old-5.1: ``expr {-"a"}`` raises
+            # ``cannot use non-numeric string "a" as operand of "-"``).
+            # Route through ``tcl_arith_neg`` so the runtime validation
+            # fires before the i64 subtract; the inline ``0 - x`` path
+            # silently coerced ``x = "a"`` to ``0`` and returned ``0``.
+            neg_idx = self._shared_imports.get("tcl_arith_neg")
+            if neg_idx is not None:
+                self._emit_expr_unbox_arith_unary(neg_idx, operand)
+            else:
+                self._emit_i64_const(0)
+                self._emit_expr(operand)
+                self._emit(WasmOp.I64_SUB)
         elif op == UnaryOp.POS:
-            self._emit_expr(operand)  # no-op
+            # Mirrors the unary minus rationale: ``expr {+"a"}`` raises
+            # ``cannot use non-numeric string "a" as operand of "+"``
+            # (expr-old-5.2).  Without ``tcl_arith_pos`` the no-op path
+            # passed the operand through unchanged.
+            pos_idx = self._shared_imports.get("tcl_arith_pos")
+            if pos_idx is not None:
+                self._emit_expr_unbox_arith_unary(pos_idx, operand)
+            else:
+                self._emit_expr(operand)  # no-op fallback
         elif op == UnaryOp.BIT_NOT:
             # Issue #261: ``~`` rejects float operands with ``cannot use
-            # floating-point value "X" as operand of "~"``.  Route through
-            # the runtime helper so the domain check fires before the
-            # XOR; falling back to inline ``x ^ -1`` would silently
-            # truncate floats and accept them.
+            # floating-point value "X" as operand of "~"``.  Tcl 9 also
+            # rejects non-numeric strings — ``expr {~"a"}`` raises
+            # ``cannot use non-numeric string "a" as operand of "~"``
+            # (expr-old-5.3).  Route through the runtime helper so both
+            # checks fire before the XOR; falling back to inline ``x ^
+            # -1`` silently truncated floats and ``~0 = -1`` for any
+            # non-numeric string operand.
             bnot_idx = self._shared_imports.get("tcl_arith_bnot")
             if bnot_idx is not None:
-                self._emit_expr_obj(operand)
-                self._emit_call(bnot_idx)
-                self._emit_unbox_int()
+                self._emit_expr_unbox_arith_unary(bnot_idx, operand)
             else:
                 self._emit_expr(operand)
                 self._emit_i64_const(-1)
@@ -1468,12 +1530,22 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_local_set(running)
                 self._emit(WasmOp.END)
             self._emit_local_get(running)
-        elif func in ("int", "entier", "wide") and len(args) == 1:
+        elif func in ("int", "entier") and len(args) == 1:
             # Truncate to integer — use runtime helper that handles TYPE_FLOAT.
             int_idx = self._shared_imports.get("tcl_math_int")
             if int_idx is not None:
                 self._emit_expr_obj(args[0])
                 self._emit_call(int_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+        elif func == "wide" and len(args) == 1:
+            # ``wide()`` truncates to signed int64 — distinct from
+            # ``int()`` / ``entier()`` (expr-old-34.13 / 34.14).
+            wide_idx = self._shared_imports.get("tcl_math_wide")
+            if wide_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(wide_idx)
                 self._emit_unbox_int()
             else:
                 self._emit_expr(args[0])

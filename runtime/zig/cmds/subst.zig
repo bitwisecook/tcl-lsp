@@ -90,7 +90,30 @@ fn eval_subst(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_expr(words: []const i32) result_mod.InterpResult {
-    if (words.len < 2) return result_mod.from_globals(0);
+    if (words.len < 2) {
+        // ``expr`` with no arguments raises ``wrong # args: should be
+        // "expr arg ?arg ...?"`` (expr-old-26.20).  The legacy
+        // silent-zero fallback let ``[catch expr]`` return 0 with an
+        // empty message instead of the canonical arity error.
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const obj_mod = @import("../valtypes/tcl_obj.zig");
+        const msg_text: []const u8 =
+            "wrong # args: should be \"expr arg ?arg ...?\"";
+        const buf = obj_mod.alloc(@intCast(msg_text.len));
+        if (buf == 0) {
+            catch_mod.tcl_cmd_error(0);
+            return result_mod.from_globals(0);
+        }
+        const d: [*]u8 = @ptrFromInt(buf);
+        for (msg_text, 0..) |b, k| d[k] = b;
+        const msg = obj_mod.obj_new_string_take(
+            buf,
+            @intCast(msg_text.len),
+            @intCast(msg_text.len),
+        );
+        catch_mod.tcl_cmd_error(msg);
+        return result_mod.from_globals(0);
+    }
     // Tcl ``expr`` concatenates all arguments with spaces and
     // evaluates the joined string as a single expression.
     // ``expr 20 - 5 +10 -7`` → ``20 - 5 +10 -7`` → 18.  The

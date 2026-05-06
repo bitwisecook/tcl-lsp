@@ -137,7 +137,18 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
     Subset of ``_scan_needed_imports`` that works without a CFGModule.
     Called by ``_scan_script_body_imports`` for inline body text.
     """
-    from ...ir import IRCatch, IRFor, IRForeach, IRIf, IRSwitch, IRTry, IRWhile
+    from ...ir import (
+        IRAssignExpr,
+        IRCatch,
+        IRExprEval,
+        IRFor,
+        IRForeach,
+        IRIf,
+        IRReturn,
+        IRSwitch,
+        IRTry,
+        IRWhile,
+    )
 
     def _scan_s(script: IRScript) -> None:
         for stmt in script.statements:
@@ -188,6 +199,21 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
                 _scan_s(body)
                 if finally_body:
                     _scan_s(finally_body)
+            case IRExprEval(expr=expr):
+                # Without walking the expr AST, imports that the
+                # expression needs (``tcl_arith_neg`` for unary
+                # ``-``, etc.) are missed when the ``expr`` command
+                # appears inside a brace-quoted body that the IR-only
+                # scanner sees (e.g. ``[catch {expr {-"a"}} msg]``).
+                # That left ``expr-old-5.1`` returning ``0 0`` even
+                # though ``tcl_arith_neg`` correctly validates string
+                # operands.
+                _scan_expr_body_imports_from_node(expr, needed)
+            case IRAssignExpr(expr=expr):
+                _scan_expr_body_imports_from_node(expr, needed)
+            case IRReturn(expr=expr):
+                if expr is not None:
+                    _scan_expr_body_imports_from_node(expr, needed)
             case _:
                 # Scan value strings in IRCall / IRAssignValue for cmd-substs.
                 args = getattr(stmt, "args", None)
@@ -201,15 +227,31 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
         _scan_s(proc.body)
 
 
+def _scan_expr_body_imports_from_node(node: object, needed: set[str]) -> None:
+    """Walk an already-parsed expr AST and add needed imports.
+
+    Same logic as ``_scan_expr_body_imports`` but accepts a parsed
+    node directly — used by ``_scan_needed_imports_ir_only`` to walk
+    ``IRExprEval`` / ``IRAssignExpr`` / ``IRReturn(expr=…)`` so
+    expressions inside catch bodies pick up their helper imports.
+    """
+    _scan_expr_body_imports_impl(node, needed)
+
+
 def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
     """Parse an expression body and add any runtime imports it needs."""
     from ....parsing.expr_parser import parse_expr
-    from ...expr_ast import BinOp
 
     try:
         node = parse_expr(expr_text)
     except Exception:
         return
+    _scan_expr_body_imports_impl(node, needed)
+
+
+def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
+    """Shared implementation for the AST-walking expr-import scan."""
+    from ...expr_ast import BinOp
 
     _ARITH_OPS = frozenset({BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW})
     _ARITH_IMPORT = {
@@ -266,7 +308,7 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
         "round": "tcl_math_round",
         "int": "tcl_math_int",
         "entier": "tcl_math_int",
-        "wide": "tcl_math_int",
+        "wide": "tcl_math_wide",
     }
 
     def _walk(n: object) -> None:
@@ -342,6 +384,15 @@ def _scan_expr_body_imports(expr_text: str, needed: set[str]) -> None:
                     needed.add("tcl_arith_neg")
                     needed.add("tcl_obj_new_int")
                     needed.add("tcl_obj_new_float")
+                    needed.add("tcl_obj_new_string")
+                if uop == UnaryOp.POS:
+                    # Tcl 9 unary ``+`` validates non-numeric strings —
+                    # ``expr {+"a"}`` raises ``cannot use non-numeric
+                    # string "a" as operand of "+"`` (expr-old-5.2).
+                    # Without ``tcl_arith_pos`` the codegen took a
+                    # silent identity path that returned the string
+                    # operand unchanged.
+                    needed.add("tcl_arith_pos")
                     needed.add("tcl_obj_new_string")
                 _walk(operand)
             case ExprTernary(condition=cond, true_branch=t, false_branch=f):
@@ -723,6 +774,24 @@ def _scan_needed_imports(
                     needed.add("tcl_obj_new_int")
                     needed.add("tcl_obj_new_float")
                     needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_string")
+                if uop == UnaryOp.NEG:
+                    # Match the per-expr-body scanner: register
+                    # ``tcl_arith_neg`` for any NEG so the i64-context
+                    # codegen can route through the bignum-aware
+                    # negate helper (which also raises ``cannot use
+                    # non-numeric string …`` on string operands —
+                    # expr-old-5.1).
+                    needed.add("tcl_arith_neg")
+                    needed.add("tcl_obj_new_int")
+                    needed.add("tcl_obj_new_float")
+                    needed.add("tcl_obj_new_string")
+                if uop == UnaryOp.POS:
+                    # ``tcl_arith_pos`` validates string operands
+                    # (expr-old-5.2: ``+"a"`` raises ``cannot use
+                    # non-numeric string "a" as operand of "+"``).
+                    needed.add("tcl_arith_pos")
+                    needed.add("tcl_obj_new_string")
                 _scan_expr(operand)
             case ExprTernary(condition=cond, true_branch=t, false_branch=f):
                 _scan_expr(cond)
@@ -755,7 +824,7 @@ def _scan_needed_imports(
                     "round": "tcl_math_round",
                     "int": "tcl_math_int",
                     "entier": "tcl_math_int",
-                    "wide": "tcl_math_int",
+                    "wide": "tcl_math_wide",
                 }
                 imp2 = _MATH_FUNC_IMPORT2.get(func)
                 if imp2:

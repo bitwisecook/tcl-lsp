@@ -1720,9 +1720,20 @@ fn raise_expected_integer(o: i32) void {
     // overwritten by the follow-on ``expected integer`` diagnostic.
     if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
-    const prefix: []const u8 = "expected integer but got \"";
-    const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    // Tcl 9 ``TclParseNumber`` says ``got a list`` (not ``got "X"``)
+    // when the offending operand parses as a list with more than one
+    // element — incr-2.32 / incr-2.33 cover this for ``incr x [list 1
+    // 2]`` / ``incr x [dict create 1 2]``.  Match the ``Tcl_SplitList``
+    // probe by counting non-quoted whitespace runs in the string repr.
+    const looks_like_list = looks_like_tcl_list(s.ptr, s.len);
+    const prefix: []const u8 = "expected integer but got ";
+    const list_suffix: []const u8 = "a list";
+    const open_quote: []const u8 = "\"";
+    const close_quote: []const u8 = "\"";
+    const total: u32 = if (looks_like_list)
+        @intCast(prefix.len + list_suffix.len)
+    else
+        @intCast(prefix.len + open_quote.len + s.len + close_quote.len);
     const buf_addr: u32 = obj.alloc(total);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     var off: usize = 0;
@@ -1730,19 +1741,147 @@ fn raise_expected_integer(o: i32) void {
         buf[off] = c;
         off += 1;
     }
-    if (s.len > 0) {
-        const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| {
-            buf[off] = sp[i];
+    if (looks_like_list) {
+        for (list_suffix) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+    } else {
+        for (open_quote) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+        if (s.len > 0) {
+            const sp: [*]const u8 = @ptrFromInt(s.ptr);
+            for (0..s.len) |i| {
+                buf[off] = sp[i];
+                off += 1;
+            }
+        }
+        for (close_quote) |c| {
+            buf[off] = c;
+            off += 1;
+        }
+    }
+    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
+    const tcl_catch = @import("tcl_catch.zig");
+    tcl_catch.tcl_cmd_error(msg);
+    // Tcl 9 adds a ``(reading increment)`` frame between the
+    // error message and the surrounding command frame in
+    // ``::errorInfo`` (incr-2.30 / 2.31 / 2.32 / 2.33).  Reference
+    // Tcl emits this via ``Tcl_AddObjErrorInfo`` from
+    // ``TclCompileIncrCmd`` after ``Tcl_GetIntFromObj`` rejects
+    // the increment operand.  Append it to ``::errorInfo`` after
+    // the canonical stamp and prime the log-command state so the
+    // next ``log_command_info`` uses ``invoked from within``
+    // rather than ``while executing``.
+    append_errinfo_frame("\n    (reading increment)");
+}
+
+/// Append a literal string to the current ``::errorInfo`` global
+/// (no quoting / wrapping).  Sets ``last_log_script != 0`` so the
+/// next ``log_command_info`` call uses the ``invoked from within``
+/// preamble instead of ``while executing``.
+fn append_errinfo_frame(suffix: []const u8) void {
+    const tcl_catch = @import("tcl_catch.zig");
+    const ec_name = obj.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+    defer obj.tcl_obj_release(ec_name);
+    const cur = global_get(ec_name);
+    var cur_ptr: u32 = 0;
+    var cur_len: u32 = 0;
+    if (cur != 0) {
+        const cs = obj.obj_ensure_string(cur);
+        cur_ptr = cs.ptr;
+        cur_len = cs.len;
+    }
+    const total: u32 = cur_len + @as(u32, @intCast(suffix.len));
+    const buf_addr = obj.alloc(total);
+    if (buf_addr == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf_addr);
+    var off: u32 = 0;
+    if (cur_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(cur_ptr);
+        for (0..cur_len) |i| {
+            dst[off] = sp[i];
             off += 1;
         }
     }
     for (suffix) |c| {
-        buf[off] = c;
+        dst[off] = c;
         off += 1;
     }
-    const msg = obj.obj_new_string(@bitCast(buf_addr), @bitCast(total));
-    @import("tcl_catch.zig").tcl_cmd_error(msg);
+    const new_info = obj.obj_new_string_take(buf_addr, total, total);
+    _ = global_set(ec_name, new_info);
+    // Sentinel: any non-zero value forces ``invoked from within``
+    // on the next ``log_command_info`` call (see the prefix
+    // selector in ``tcl_interp.log_command_info``).  ``1`` is
+    // an arbitrary non-zero — we never read this back as a
+    // pointer, the script-pos dedup probe is the only consumer.
+    tcl_catch.state.last_log_script = 1;
+    tcl_catch.state.last_log_pos = 0;
+}
+
+/// True if *o* parses as a Tcl list with more than one element.
+/// Used by :func:`raise_expected_integer` to match upstream's
+/// ``got a list`` wording for compound list / dict values
+/// (incr-2.32 / 2.33).  Implementation is a conservative
+/// whitespace-run counter that matches the reference
+/// ``Tcl_SplitList`` element boundary — quoted strings (``"..."``)
+/// and braced strings (``{...}``) count as a single element, every
+/// other whitespace run separates two elements.
+fn looks_like_tcl_list(ptr: u32, len: u32) bool {
+    if (len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var elements: u32 = 0;
+    while (i < len) {
+        // Skip whitespace.
+        while (i < len) : (i += 1) {
+            const c = sp[i];
+            if (c != ' ' and c != '\t' and c != '\n' and c != '\r') break;
+        }
+        if (i >= len) break;
+        elements += 1;
+        if (elements > 1) return true;
+        // Walk one element (handle quotes / braces conservatively).
+        if (sp[i] == '"') {
+            i += 1;
+            while (i < len and sp[i] != '"') {
+                if (sp[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            if (i < len) i += 1;
+        } else if (sp[i] == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < len and depth > 0) : (i += 1) {
+                if (sp[i] == '\\' and i + 1 < len) {
+                    i += 1;
+                    continue;
+                }
+                if (sp[i] == '{') depth += 1 else if (sp[i] == '}') depth -= 1;
+            }
+        } else {
+            while (i < len) {
+                const c = sp[i];
+                // ``Tcl_SplitList`` treats ``\<char>`` as a literal
+                // 2-byte unit inside an unquoted element, so an
+                // escaped space (``a\ b``) stays a single element.
+                // Without this skip, our walker counted the post-
+                // backslash space as a separator and misclassified
+                // the string as a multi-element list — "got a list"
+                // surfaced where reference Tcl emits "got \"a\\ b\""
+                // (Codex review on PR #346, P2).
+                if (c == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (c == ' ' or c == '\t' or c == '\n' or c == '\r') break;
+                i += 1;
+            }
+        }
+    }
+    return elements > 1;
 }
 
 // -- Test scaffolding -------------------------------------------------------

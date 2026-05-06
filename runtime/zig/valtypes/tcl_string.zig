@@ -101,20 +101,38 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
 
 // Exported: string compare — lexicographic comparison of string representations.
 pub export fn string_compare(a: i32, b: i32) i32 {
+    return string_compare_full(a, b, 0, -1);
+}
+
+/// ``string compare ?-nocase? ?-length N? a b`` — full-arity helper.
+/// ``nocase != 0`` switches to case-insensitive ASCII comparison;
+/// ``len_limit < 0`` means no length cap, ``len_limit >= 0`` clamps
+/// the comparison to the first ``len_limit`` bytes.  Returns a
+/// TclObj wrapping ``-1`` / ``0`` / ``1``.
+pub export fn string_compare_full(a: i32, b: i32, nocase: i32, len_limit: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
-    if (sa.len == 0 and sb.len == 0) return obj_new_int(0);
-    if (sa.len == 0) return obj_new_int(-1);
-    if (sb.len == 0) return obj_new_int(1);
-    const min_len = if (sa.len < sb.len) sa.len else sb.len;
+    var ea: u32 = sa.len;
+    var eb: u32 = sb.len;
+    if (len_limit >= 0) {
+        const lim: u32 = @intCast(len_limit);
+        if (lim < ea) ea = lim;
+        if (lim < eb) eb = lim;
+    }
+    if (ea == 0 and eb == 0) return obj_new_int(0);
+    if (ea == 0) return obj_new_int(-1);
+    if (eb == 0) return obj_new_int(1);
+    const min_len = if (ea < eb) ea else eb;
     const pa: [*]const u8 = @ptrFromInt(sa.ptr);
     const pb: [*]const u8 = @ptrFromInt(sb.ptr);
     for (0..min_len) |i| {
-        if (pa[i] < pb[i]) return obj_new_int(-1);
-        if (pa[i] > pb[i]) return obj_new_int(1);
+        const ca: u8 = if (nocase != 0) ascii_lower(pa[i]) else pa[i];
+        const cb: u8 = if (nocase != 0) ascii_lower(pb[i]) else pb[i];
+        if (ca < cb) return obj_new_int(-1);
+        if (ca > cb) return obj_new_int(1);
     }
-    if (sa.len < sb.len) return obj_new_int(-1);
-    if (sa.len > sb.len) return obj_new_int(1);
+    if (ea < eb) return obj_new_int(-1);
+    if (ea > eb) return obj_new_int(1);
     return obj_new_int(0);
 }
 
@@ -497,6 +515,20 @@ pub export fn string_equal(a: i32, b: i32) i32 {
         if (pa[i] != pb[i]) return obj_new_int(0);
     }
     return obj_new_int(1);
+}
+
+/// ``string equal ?-nocase? ?-length N? a b`` — full-arity helper.
+/// Same flag semantics as :func:`string_compare_full`.
+pub export fn string_equal_full(a: i32, b: i32, nocase: i32, len_limit: i32) i32 {
+    if (nocase == 0 and len_limit < 0) {
+        // Fast path: bytewise equality without flag interpretation —
+        // matches the historical ``string_equal`` exactly.
+        return string_equal(a, b);
+    }
+    const r = string_compare_full(a, b, nocase, len_limit);
+    const v = obj.obj_get_int(r);
+    obj.tcl_obj_release(r);
+    return obj_new_int(if (v == 0) @as(i64, 1) else @as(i64, 0));
 }
 
 // Exported: string first — find first occurrence of needle in haystack.

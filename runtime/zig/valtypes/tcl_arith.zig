@@ -205,6 +205,12 @@ pub export fn tcl_arith_div(a: i32, b: i32) i32 {
 
 pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
     if (!check_numeric_binary(a, b, "%")) return obj.obj_new_int(0);
+    // Tcl 9 forbids float operands on ``%`` — ``expr 27 % 4.0`` raises
+    // ``cannot use floating-point value "4.0" as right operand of "%"``.
+    // ``tclExecute.c`` INST_MOD checks for ``TCL_NUMBER_DOUBLE`` /
+    // ``TCL_NUMBER_NAN`` on either side and routes through
+    // ``IllegalExprOperandType`` before the integer fast path.
+    if (!check_int_binary(a, b, "%")) return obj.obj_new_int(0);
     // Tcl's ``%`` follows Python-like "result has same sign as
     // divisor" semantics — see ``tclExecute.c`` INST_MOD which does
     // ``remainder = w1 % w2;  if (remainder != 0 && (remainder ^ w2) < 0)
@@ -213,16 +219,6 @@ pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
     // ``-1`` instead of the upstream-correct ``9223372036854775807``
     // (the regression covered by ``expr-32.4`` and ``expr-32.6`` and
     // the ``Bug 1585704`` cluster).
-    if (is_float(a) or is_float(b)) {
-        const bf = obj.obj_get_float(b);
-        if (bf == 0.0) {
-            stubs.raise("divide by zero");
-            return obj.obj_new_int(0);
-        }
-        var r = @rem(obj.obj_get_float(a), bf);
-        if (r != 0.0 and ((r < 0) != (bf < 0))) r += bf;
-        return obj.obj_new_float(r);
-    }
     if (is_bignum(a) or is_bignum(b)) {
         const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
         defer release_promoted(ap);
@@ -246,30 +242,66 @@ pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
 }
 
 /// Convert an f64 magnitude that exceeds the i128 range to a
-/// TYPE_BIGNUM TclObj holding the exact integer part of *fval*.
-/// Used by :func:`tcl_math_int` for inputs like ``1.0e30`` which
-/// the i128 fast path can't represent.
+/// TYPE_BIGNUM TclObj holding the *exact IEEE-754 integer view*
+/// of *fval*.  Used by :func:`tcl_math_int` for inputs like
+/// ``1e60`` which the i128 fast path can't represent.
 ///
-/// Implementation: format the float in fixed-point notation via
-/// ``std.fmt.bufPrint("{d:.0}", ...)`` (rounded to no fractional
-/// digits, but Zig formats f64 conservatively so we get the exact
-/// IEEE-754 integer view), then feed the resulting digit string
-/// to ``bignum.alloc_from_string``.  Matches upstream Tcl's
-/// ``int(1.0e30) = 1000000000000000019884624838656`` (the exact
-/// double value, not the mathematical ``1e30``).
+/// Reference Tcl's ``int(1e60)`` returns
+/// ``999999999999999949387135297074018866963645011013410073083904``
+/// — the exact integer value of the IEEE-754 representation of
+/// ``1e60``, not the mathematical ``1e60``.  Earlier versions
+/// formatted via ``bufPrint("{d:.0}", ...)`` which rendered the
+/// shortest round-trip decimal (``1e60``) and lost the IEEE
+/// remainder bits below 2^53.
+///
+/// Implementation: decompose ``fval`` into its IEEE-754 mantissa
+/// + exponent (11-bit biased, 52-bit mantissa with implicit leading
+/// ``1`` for normal numbers), build a BigInt from the implicit
+/// 53-bit integer mantissa, and shift it by the binary exponent.
+/// Negative shifts (fractional value, |fval| < 2^52) are handled
+/// by the i128 fast path upstream so we don't need to mask the
+/// fractional bits here — :func:`tcl_math_int` only routes to this
+/// helper when ``fval`` exceeds ``maxInt(i128)``, which already
+/// implies an exponent ≥ 127 and an integral value.
 fn float_to_bignum_obj(fval: f64) i32 {
-    // Truncate toward zero before formatting so fractional bits
-    // don't appear in the digit string ``alloc_from_string``
-    // would reject.
     const trunc = @trunc(fval);
-    var buf: [80]u8 = undefined;
-    const slice = std.fmt.bufPrint(&buf, "{d:.0}", .{trunc}) catch {
+    const negative = trunc < 0;
+    const mag = if (negative) -trunc else trunc;
+    const bits: u64 = @bitCast(mag);
+    const raw_exp: u11 = @intCast((bits >> 52) & 0x7FF);
+    const raw_mant: u52 = @truncate(bits);
+    if (raw_exp == 0) return obj.obj_new_int(0); // subnormal / 0
+    if (raw_exp == 0x7FF) {
+        // ±Inf / NaN — caller should have rejected; surface as 0.
         return obj.obj_new_int(0);
-    };
-    const m = bignum.alloc_from_string(@intFromPtr(slice.ptr), @intCast(slice.len)) orelse {
-        return obj.obj_new_int(0);
-    };
-    return obj.obj_new_bignum_take(m);
+    }
+    // Implicit-1 53-bit integer mantissa.
+    const mantissa_int: u64 = (@as(u64, 1) << 52) | @as(u64, raw_mant);
+    const unbiased_exp: i32 = @as(i32, raw_exp) - 1023;
+    // Build BigInt from the 53-bit mantissa, then shift by
+    // ``unbiased_exp - 52`` bits (positive shift left).  For our
+    // callers ``|fval| > maxInt(i128)`` so ``unbiased_exp >= 127``
+    // and the shift count is ≥ 75.
+    const m0 = bignum.alloc_from_int(@as(i128, mantissa_int)) orelse return obj.obj_new_int(0);
+    defer bignum.destroy(m0);
+    const shift_amt: i32 = unbiased_exp - 52;
+    var result: *bignum.BigInt = undefined;
+    if (shift_amt > 0) {
+        result = bignum.alloc_shl(m0, @intCast(shift_amt)) orelse return obj.obj_new_int(0);
+    } else {
+        // Integer mantissa already covers the whole value (small
+        // exponent) — clone into a fresh BigInt for ownership.
+        result = bignum.alloc_from_int(@as(i128, mantissa_int)) orelse return obj.obj_new_int(0);
+    }
+    if (negative) {
+        const neg = bignum.alloc_neg(result) orelse {
+            bignum.destroy(result);
+            return obj.obj_new_int(0);
+        };
+        bignum.destroy(result);
+        return obj.obj_new_bignum_take(neg);
+    }
+    return obj.obj_new_bignum_take(result);
 }
 
 /// double(x) — coerce to float.  Used in ``expr {$n / double($d)}``.
@@ -531,8 +563,90 @@ pub export fn tcl_math_cos(a: i32) i32 {
 }
 
 /// fabs(x) — absolute value as float.
+/// ``wide(x)`` — convert *x* to a signed 64-bit integer, taking the
+/// low 64 bits of the integer view of *x*.  Unlike :func:`tcl_math_int`
+/// (which preserves bignum precision), ``wide()`` truncates: reference
+/// Tcl's ``ExprWideFunc`` calls ``ExprIntFunc`` then
+/// ``TclGetWideBitsFromObj`` to extract the low 64 bits of the result.
+///
+/// Examples:
+///   * ``wide(1.0e30)`` → ``5076964154930102272`` (the IEEE integer
+///     of ``1e30`` is ``1000000000000000019884624838656`` —
+///     128 bits — and its low 64 bits are ``5076964154930102272``).
+///   * ``wide(0x8000000000000000)`` → ``-9223372036854775808``.
+///
+/// Used by the ``wide()`` math function (expr-old-34.13 / 34.14).
+pub export fn tcl_math_wide(a: i32) i32 {
+    const big = tcl_math_int(a);
+    const tag = obj.obj_type(big);
+    if (tag == TYPE_INT) {
+        // Already fits i64 — no truncation needed.
+        return big;
+    }
+    if (tag == TYPE_BIGNUM) {
+        // Take the low 64 bits as a signed value.  ``promote_to_bignum``
+        // gives us a Managed handle; ``to_i64`` reduces mod 2^64 and
+        // reinterprets as signed.
+        const ap = promote_to_bignum(big) orelse {
+            obj.tcl_obj_release(big);
+            return obj.obj_new_int(0);
+        };
+        defer release_promoted(ap);
+        const low: i64 = bignum.to_i64(ap.m);
+        obj.tcl_obj_release(big);
+        return obj.obj_new_int(low);
+    }
+    if (tag == TYPE_FLOAT) {
+        // Should be unreachable since ``tcl_math_int`` rejects float
+        // results — fall through cleanly.
+        const f = obj.obj_get_float(big);
+        obj.tcl_obj_release(big);
+        if (std.math.isNan(f) or std.math.isInf(f)) {
+            stubs.raise("integer value too large to represent");
+            return obj.obj_new_int(0);
+        }
+        return obj.obj_new_int(@intFromFloat(f));
+    }
+    return big;
+}
+
 pub export fn tcl_math_fabs(a: i32) i32 {
-    return obj.obj_new_float(@abs(obj.obj_get_float(a)));
+    // Tcl's ``abs()`` preserves the operand's numeric type — int /
+    // bignum stay integer-typed, only float operands return a float.
+    // The previous unconditional ``obj_new_float`` cast every input
+    // to f64 and lost bignum precision (expr-old-32.25a:
+    // ``expr abs(0x8000000000000000)`` returned ``9.22e18`` instead
+    // of the exact ``9223372036854775808`` bignum).  Reference Tcl
+    // routes through ``ExprAbsFunc`` which switches on the operand
+    // type — match that here.
+    if (a == 0) return obj.obj_new_int(0);
+    if (is_float(a)) {
+        return obj.obj_new_float(@abs(obj.obj_get_float(a)));
+    }
+    if (is_bignum(a)) {
+        const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        if (ap.m.isPositive() or ap.m.eqlZero()) {
+            // Already non-negative — clone via a fresh BigInt so the
+            // caller owns one ref and the source slot is unaffected.
+            const r = ap.m.clone() catch return obj.obj_new_int(0);
+            const heap = bignum.allocator.create(bignum.BigInt) catch {
+                var c = r;
+                c.deinit();
+                return obj.obj_new_int(0);
+            };
+            heap.* = r;
+            return obj.obj_new_bignum_take(heap);
+        }
+        const neg = bignum.alloc_neg(ap.m) orelse return obj.obj_new_int(0);
+        return obj.obj_new_bignum_take(neg);
+    }
+    const ai = obj.obj_get_int(a);
+    if (ai == std.math.minInt(i64)) {
+        // ``-(-2^63) = 2^63`` doesn't fit i64; promote to bignum.
+        return obj.obj_new_bignum(-@as(i128, ai));
+    }
+    return obj.obj_new_int(if (ai < 0) -ai else ai);
 }
 
 /// tan(x).
@@ -540,16 +654,31 @@ pub export fn tcl_math_tan(a: i32) i32 {
     return obj.obj_new_float(@tan(obj.obj_get_float(a)));
 }
 
-/// asin(x) — arc sine.  Domain is ``-1 ≤ x ≤ 1``; outside the
-/// domain we follow C / IEEE-754 semantics and emit a NaN
-/// (``std.math.asin`` returns NaN for |x| > 1).
+/// asin(x) — arc sine.  Domain is ``-1 ≤ x ≤ 1``; Tcl 9 raises
+/// ``domain error: argument not in valid range`` for operands
+/// outside the domain (``ARITH DOMAIN`` errorCode auto-stamped
+/// by the central error sink).  Without this guard the underlying
+/// ``std.math.asin`` returns NaN and the test sees ``-nan.0``
+/// instead of the canonical error.
 pub export fn tcl_math_asin(a: i32) i32 {
-    return obj.obj_new_float(std.math.asin(obj.obj_get_float(a)));
+    const x = obj.obj_get_float(a);
+    if (std.math.isNan(x) or x < -1.0 or x > 1.0) {
+        stubs.raise("domain error: argument not in valid range");
+        return obj.obj_new_int(0);
+    }
+    return obj.obj_new_float(std.math.asin(x));
 }
 
-/// acos(x) — arc cosine.  Same domain handling as :func:`tcl_math_asin`.
+/// acos(x) — arc cosine.  Same domain rule as :func:`tcl_math_asin`
+/// (expr-old-34.9: ``acos(-2.0)`` raises with errorCode
+/// ``ARITH DOMAIN``).
 pub export fn tcl_math_acos(a: i32) i32 {
-    return obj.obj_new_float(std.math.acos(obj.obj_get_float(a)));
+    const x = obj.obj_get_float(a);
+    if (std.math.isNan(x) or x < -1.0 or x > 1.0) {
+        stubs.raise("domain error: argument not in valid range");
+        return obj.obj_new_int(0);
+    }
+    return obj.obj_new_float(std.math.acos(x));
 }
 
 /// atan(x) — arc tangent (single-arg form).  ``atan2(y, x)`` is a
@@ -854,7 +983,65 @@ fn check_numeric_binary(a: i32, b: i32, op_sym: []const u8) bool {
     return true;
 }
 
+/// Build ``cannot use non-numeric string "X" as operand of "<op>"``
+/// (unary form — no left/right qualifier).  Mirrors the binary
+/// ``raise_non_numeric`` helper but emits the unary surface used
+/// by ``-X`` / ``+X`` / ``~X`` (expr-old-5.1 / 5.2 / 5.3).
+fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const s = obj.obj_ensure_string(o);
+    const ieee_kw = is_ieee_keyword_string(o);
+    const prefix: []const u8 = if (ieee_kw)
+        "cannot use non-numeric floating-point value \""
+    else
+        "cannot use non-numeric string \"";
+    const middle: []const u8 = "\" as operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        stubs.raise("non-numeric operand");
+        return;
+    }
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (middle) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (op_sym) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+}
+
+fn check_numeric_unary(a: i32, op_sym: []const u8) bool {
+    if (!obj_is_numeric(a)) {
+        raise_non_numeric_unary(a, op_sym);
+        return false;
+    }
+    return true;
+}
+
 pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "<<")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, "<<")) return obj.obj_new_int(0);
     const bi = obj.obj_get_int(b);
     if (bi < 0) {
@@ -886,6 +1073,7 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, ">>")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, ">>")) return obj.obj_new_int(0);
     const bi = obj.obj_get_int(b);
     if (bi < 0) {
@@ -970,6 +1158,7 @@ pub export fn tcl_arith_bxor(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_bnot(a: i32) i32 {
+    if (!check_numeric_unary(a, "~")) return obj.obj_new_int(0);
     if (is_float(a)) {
         raise_float_in_unary_bitwise(a, "~");
         return obj.obj_new_int(0);
@@ -1006,6 +1195,7 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
 /// route through :func:`bignum.sub_overflow(0, av)` and saturate to
 /// i128::MAX on the one boundary case.
 pub export fn tcl_arith_neg(a: i32) i32 {
+    if (!check_numeric_unary(a, "-")) return obj.obj_new_int(0);
     if (is_float(a)) return obj.obj_new_float(-obj.obj_get_float(a));
     if (is_bignum(a)) {
         const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
@@ -1019,4 +1209,18 @@ pub export fn tcl_arith_neg(a: i32) i32 {
         return obj.obj_new_bignum(-@as(i128, ai));
     }
     return obj.obj_new_int(-ai);
+}
+
+/// Unary plus.  Tcl 9 forbids non-numeric string operands —
+/// ``expr {+"a"}`` raises ``cannot use non-numeric string "a" as
+/// operand of "+"`` (expr-old-5.2).  For numeric operands ``+x``
+/// is the identity, so we retain the original handle and return
+/// it; the caller's release-of-arg + release-of-result pair
+/// then balances the refcount cleanly (mirrors ``tcl_math_double``
+/// which already takes the same shape for already-float operands).
+pub export fn tcl_arith_pos(a: i32) i32 {
+    if (!check_numeric_unary(a, "+")) return obj.obj_new_int(0);
+    if (a == 0) return obj.obj_new_int(0);
+    obj.tcl_obj_retain(a);
+    return a;
 }
