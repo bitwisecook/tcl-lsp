@@ -1369,19 +1369,62 @@ before this value so it is treated as data, not an option."
         // `_diag_commands.py:264-296`.
         let globals_written = globals_written_by_procs(&cu);
 
+        // **C41-default-on-followups-postpass W220-IR-paths.**
+        // pkgIndex.tcl files have ``$dir`` set by the package
+        // loader before the script body runs — suppress dead-
+        // store / unused-variable diagnostics for it at the
+        // top-level.  Mirrors `_diagnostics.py:147-149`.
+        let top_level_cross_event_vars: HashSet<String> = if self
+            .file_path
+            .as_deref()
+            .is_some_and(|p| p.ends_with("pkgIndex.tcl"))
+        {
+            HashSet::from(["dir".to_string()])
+        } else {
+            HashSet::new()
+        };
+
         // Top-level first, then procedures in insertion order —
         // matches the iteration order of
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
-        self.emit_cfg_ssa_diagnostics_for_function_with_extra(
+        self.emit_cfg_ssa_diagnostics_for_function_full(
             &cu.top_level,
             &cu.ir_module,
             &globals_written,
+            &top_level_cross_event_vars,
         );
         self.emit_channel_diagnostics(&cu.top_level, &registry);
         for (qname, fu) in &cu.procedures {
-            self.emit_cfg_ssa_diagnostics_for_function(fu, &cu.ir_module);
+            // **C41-default-on-followups-postpass W220-IR-paths.**
+            // For ``::when::*`` procs, threaded
+            // ``cross_event_defs | cross_event_imports`` from the
+            // ConnectionScope so dead-store / unused-variable
+            // diagnostics suppress vars that may be read in a
+            // different iRule event.  Mirrors
+            // `_diagnostics.py:165-167`.
+            let cross_event_vars: HashSet<String> =
+                if let Some(scope) = cu.connection_scope.as_ref() {
+                    if qname.starts_with("::when::") {
+                        scope
+                            .cross_event_defs
+                            .iter()
+                            .chain(scope.cross_event_imports.iter())
+                            .cloned()
+                            .collect()
+                    } else {
+                        HashSet::new()
+                    }
+                } else {
+                    HashSet::new()
+                };
+            self.emit_cfg_ssa_diagnostics_for_function_full(
+                fu,
+                &cu.ir_module,
+                &HashSet::new(),
+                &cross_event_vars,
+            );
             self.emit_channel_diagnostics(fu, &registry);
             // **C41d7.** IRULE4005 — racy ``static::``
             // cross-event flow.  Only fires for non-RULE_INIT
@@ -1429,9 +1472,10 @@ before this value so it is treated as data, not an option."
         function_unit: &crate::compilation_unit::FunctionUnit,
         ir_module: &crate::ir::Module,
     ) {
-        self.emit_cfg_ssa_diagnostics_for_function_with_extra(
+        self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             ir_module,
+            &HashSet::new(),
             &HashSet::new(),
         );
     }
@@ -1453,6 +1497,36 @@ before this value so it is treated as data, not an option."
         ir_module: &crate::ir::Module,
         extra_known_defined: &HashSet<String>,
     ) {
+        self.emit_cfg_ssa_diagnostics_for_function_full(
+            function_unit,
+            ir_module,
+            extra_known_defined,
+            &HashSet::new(),
+        );
+    }
+
+    /// Per-function diagnostic dispatcher with the full
+    /// suppression context.
+    ///
+    /// Adds `cross_event_vars` on top of
+    /// [`Self::emit_cfg_ssa_diagnostics_for_function_with_extra`].
+    /// Used by the W220 IR-paths port to suppress dead-store
+    /// diagnostics for variables a `::when::*` proc may carry
+    /// across iRule events (`cu.connection_scope.cross_event_defs
+    /// | cross_event_imports`) and for `pkgIndex.tcl` `$dir`,
+    /// which the package loader assigns before the script body
+    /// runs.
+    ///
+    /// Mirrors the `cross_event_vars=` arg threaded through
+    /// `_emit_cfg_ssa_diagnostics_for_function` in
+    /// `_diagnostics.py:159, 171`.
+    pub fn emit_cfg_ssa_diagnostics_for_function_full(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+        ir_module: &crate::ir::Module,
+        extra_known_defined: &HashSet<String>,
+        cross_event_vars: &HashSet<String>,
+    ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         let scope_aliases = crate::optimiser::elimination::scan_scope_aliases(&function_unit.cfg);
         let textually_referenced = crate::optimiser::elimination::collect_textual_var_references(
@@ -1460,7 +1534,7 @@ before this value so it is treated as data, not an option."
             &function_unit.cfg,
         );
         let ir_proc = ir_module.procedures.get(&function_unit.name);
-        self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases);
+        self.emit_dead_store_diagnostics(function_unit, &defined, &scope_aliases, cross_event_vars);
         self.emit_unused_variable_diagnostics(
             function_unit,
             &defined,
@@ -1485,7 +1559,10 @@ before this value so it is treated as data, not an option."
     /// W220 — dead-store hint.
     ///
     /// Mirrors `_emit_dead_store_diagnostics` in
-    /// `_diag_var_lifecycle.py:29-72`.  A *dead store* is an
+    /// `_diag_var_lifecycle.py:29-72`, plus the
+    /// IR-statement-type / SCCP path-sensitivity filters baked
+    /// into Python's underlying `_dead_stores` analysis
+    /// (`core_analyses.py:1105-1156`).  A *dead store* is an
     /// assignment whose value is overwritten before being read —
     /// some other SSA version of the same variable is live, so
     /// this version's value never reaches a user.
@@ -1497,29 +1574,63 @@ before this value so it is treated as data, not an option."
     /// case-insensitive twin among `defined_vars`, the message
     /// includes a "did you mean…?" suggestion.
     ///
-    /// **Known limitations** (deferred to a follow-up): no
-    /// scope-alias filter (vars introduced via ``global`` /
-    /// ``upvar`` are visible elsewhere and may be falsely
-    /// flagged); no textual-reference filter (vars only ever
-    /// referenced inside ``"$x"`` interpolations or inside a
-    /// ``Return`` value miss the def-use scan).
+    /// Filters applied (each one mirrors a Python suppression):
+    ///
+    /// 1. **SCCP-unreachable blocks** — definitions in blocks
+    ///    SCCP proved unreachable are reported as O107 by the
+    ///    optimiser and intentionally suppressed here so we
+    ///    don't double-up on dead-code calls.
+    /// 2. **Scope aliases** (`global` / `upvar`) — writes are
+    ///    visible in another scope; the local "no use" verdict
+    ///    is unsafe.
+    /// 3. **Cross-event vars** — for `pkgIndex.tcl` `$dir` and
+    ///    iRules `::when::*` cross-event defs/imports, a write
+    ///    in one event may be read in another at runtime.
+    /// 4. **Globals (`::`-prefixed)** — externally consumed.
+    ///    Python skips them in `_dead_stores`.
+    /// 5. **Side-effecting stores** — only `AssignConst`,
+    ///    `AssignValue` without `[`, and `AssignExpr` without a
+    ///    command call are considered.  `Call.defs`, `Incr`, and
+    ///    other side-effecting writes shouldn't be flagged
+    ///    because removing the assignment would also drop the
+    ///    side effect.
     fn emit_dead_store_diagnostics(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         defined_vars: &HashSet<String>,
         scope_aliases: &HashSet<String>,
+        cross_event_vars: &HashSet<String>,
     ) {
         use crate::def_use::DefKind;
+        use crate::ir::Statement;
+        use crate::ir_helpers::expr_has_command;
         use std::fmt::Write as _;
         for chain in fu.def_use.chains.values() {
             if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
                 continue;
             }
             let (var, version) = &chain.key;
+            // Globals (``::``-prefixed) are externally consumed
+            // — Python `_dead_stores` skips them.
+            if var.starts_with("::") {
+                continue;
+            }
             // Scope-aliased vars (introduced via ``global`` or
             // ``upvar``) write through to a different scope — the
             // local "no use" verdict is unsafe.
             if scope_aliases.contains(var) {
+                continue;
+            }
+            // Cross-event vars (iRules ``::when::*`` defs/imports
+            // or ``pkgIndex.tcl`` ``$dir``) may be read in
+            // another event/scope at runtime.
+            if cross_event_vars.contains(var) {
+                continue;
+            }
+            // Suppress dead stores in SCCP-unreachable blocks —
+            // O107 already reports the whole block as dead, and
+            // re-flagging individual stores inside it adds noise.
+            if !fu.sccp.executable_blocks.contains(&chain.definition.block) {
                 continue;
             }
             // ``any_other_live`` — another SSA version of this
@@ -1544,6 +1655,27 @@ before this value so it is treated as data, not an option."
             let Some(stmt) = block.statements.get(idx) else {
                 continue;
             };
+            // IR-statement type filter — mirror Python's
+            // `_dead_stores` shape (`core_analyses.py:1149-1155`).
+            // Only pure assignments are reportable; side-effecting
+            // writes (``Call``, ``Incr``, command-substitution
+            // values, expressions invoking commands) are skipped
+            // because dropping them would also drop the side
+            // effect.
+            match stmt {
+                Statement::AssignConst { .. } => {}
+                Statement::AssignValue { value, .. } => {
+                    if value.contains('[') {
+                        continue;
+                    }
+                }
+                Statement::AssignExpr { expr, .. } => {
+                    if expr_has_command(expr) {
+                        continue;
+                    }
+                }
+                _ => continue,
+            }
             let span = stmt.span();
             if span.is_empty() {
                 continue;
@@ -3333,6 +3465,245 @@ mod tests {
         );
         assert!(w220s.iter().any(|d| d.message.contains("'x'")));
         assert_eq!(w220s[0].severity, Severity::Hint);
+    }
+
+    /// W220-IR-paths.  Variables prefixed with ``::`` are
+    /// externally consumed (other namespaces, the global frame
+    /// outside this file) — Python's ``_dead_stores`` skips
+    /// them in `core_analyses.py:1147-1148`, and the Rust port
+    /// must too.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("set ::x 1\nset ::x 2\nputs $::x");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.is_empty(),
+            "W220 must skip ``::``-prefixed globals; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  ``set x [foo]`` is a side-effecting
+    /// store: dropping the assignment would also drop the call
+    /// to ``foo``.  Python's ``_dead_stores`` filters
+    /// ``IRAssignValue`` containing ``[`` (`core_analyses.py:1152`).
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("set x [clock seconds]\nset x 2\nputs $x");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.is_empty(),
+            "W220 must skip ``set x [cmd]`` side-effecting stores; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  ``set x [expr {[foo]}]`` lowers as
+    /// ``IRAssignExpr`` with a command call inside — same
+    /// side-effecting reasoning as command-substitution
+    /// values.  Python's ``_dead_stores`` filters
+    /// ``IRAssignExpr`` whose tree contains an
+    /// ``IRExprCommand`` (`core_analyses.py:1154`).
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("set x [expr {[clock seconds] + 1}]\nset x 2\nputs $x");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.is_empty(),
+            "W220 must skip ``IRAssignExpr`` containing a command call; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  ``incr x`` is a side-effecting write
+    /// (it reads the current value first).  Python's
+    /// ``_dead_stores`` only matches ``IRAssignConst`` /
+    /// ``IRAssignValue`` / ``IRAssignExpr`` — ``IRIncr`` and
+    /// ``IRCall.defs`` are skipped by exclusion.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
+        let mut a = Analyser::new();
+        // ``incr x`` reads x then writes x+1; even when later
+        // overwritten, dropping the incr would also drop the
+        // implicit read.  Of the three writes to ``x``, only
+        // the ``incr`` qualifies as overwritten-before-read
+        // (``set x 0`` is read by incr, ``set x 5`` is read
+        // by puts), so any W220 on x must be from the incr,
+        // and the IR-statement-type filter must drop it.
+        a.emit_cfg_ssa_diagnostics("set x 0\nincr x\nset x 5\nputs $x");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220" && d.message.contains("'x'"))
+            .collect();
+        assert!(
+            w220s.is_empty(),
+            "W220 must skip ``incr`` side-effecting writes; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  ``lassign $list a b`` defines ``a`` and
+    /// ``b`` via ``IRCall.defs`` — a side-effecting write that
+    /// can't be dropped without also dropping the call.
+    /// Python's ``_dead_stores`` only matches the three
+    /// pure-assign IR shapes; ``IRCall`` is skipped by
+    /// exclusion.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
+        let mut a = Analyser::new();
+        a.emit_cfg_ssa_diagnostics("lassign {1 2} a b\nset a 5\nputs $a");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.iter().all(|d| !d.message.contains("'a'")),
+            "W220 must skip ``IRCall.defs`` side-effecting writes; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  In a ``pkgIndex.tcl`` file, ``$dir`` is
+    /// set by the Tcl package loader before the script body
+    /// runs — even when the script reassigns it, the original
+    /// store can't be considered dead (the loader-supplied
+    /// value is the relevant initial state).  Mirrors
+    /// `_diagnostics.py:147-149`.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
+        let mut a = Analyser::new();
+        a.file_path = Some("/some/path/pkgIndex.tcl".to_string());
+        a.emit_cfg_ssa_diagnostics("set dir foo\nset dir bar\nputs $dir");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.is_empty(),
+            "W220 must suppress ``$dir`` in pkgIndex.tcl; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  Outside ``pkgIndex.tcl``, ``$dir`` is
+    /// just a regular variable — no special suppression.
+    /// Negative control for the pkgIndex special-case.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
+        let mut a = Analyser::new();
+        a.file_path = Some("/some/path/script.tcl".to_string());
+        a.emit_cfg_ssa_diagnostics("set dir foo\nset dir bar\nputs $dir");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            !w220s.is_empty(),
+            "W220 must fire on ``$dir`` outside pkgIndex.tcl; got {:?}",
+            a.result.diagnostics,
+        );
+        assert!(w220s.iter().any(|d| d.message.contains("'dir'")));
+    }
+
+    /// W220-IR-paths.  Variables shared across iRule events
+    /// via ``::when::*`` procs (collected in
+    /// ``ConnectionScope::cross_event_imports``) may be read
+    /// in a different event from where they're set — the
+    /// local "no use" verdict is unsafe.  Mirrors
+    /// `_diagnostics.py:165-167`.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
+        let mut a = Analyser::new();
+        a.dialect = "irules".to_string();
+        // ``HTTP_REQUEST`` writes ``v``, ``HTTP_RESPONSE``
+        // reads ``v`` — ``v`` is a cross-event def.  The
+        // ``set v 1\nset v 2`` shape inside ``HTTP_REQUEST``
+        // would normally fire W220 on the first ``set v 1``,
+        // but cross-event suppression should drop it.
+        a.emit_cfg_ssa_diagnostics(
+            "when HTTP_REQUEST {\n  set v 1\n  set v 2\n}\nwhen HTTP_RESPONSE {\n  log local0. $v\n}",
+        );
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.iter().all(|d| !d.message.contains("'v'")),
+            "W220 must suppress vars shared across iRule events; got {w220s:?}",
+        );
+    }
+
+    /// W220-IR-paths.  Negative control: a proc-local variable
+    /// (NOT shared across events) inside a ``::when::*`` proc
+    /// is still subject to W220.  Confirms the cross-event
+    /// filter is targeted, not a blanket
+    /// "skip everything in `::when::`*" rule.
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
+        let mut a = Analyser::new();
+        a.dialect = "irules".to_string();
+        // ``local`` is only used inside HTTP_REQUEST — not a
+        // cross-event var, so W220 should still fire on the
+        // overwritten first assignment.
+        a.emit_cfg_ssa_diagnostics(
+            "when HTTP_REQUEST {\n  set local 1\n  set local 2\n  log local0. $local\n}",
+        );
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.iter().any(|d| d.message.contains("'local'")),
+            "W220 must still fire for proc-local vars in ::when::*; got {:?}",
+            a.result.diagnostics,
+        );
+    }
+
+    /// W220-IR-paths.  Dead stores in SCCP-unreachable blocks
+    /// are reported as O107 by the optimiser; the analyser
+    /// must not double-report them as W220.  Mirrors Python's
+    /// ``_dead_stores`` `executable_blocks` filter
+    /// (`core_analyses.py:1112-1140`).
+    #[test]
+    fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
+        let mut a = Analyser::new();
+        // ``if {0} { ... }`` makes the then-branch unreachable
+        // under SCCP.  Any dead store inside is suppressed.
+        a.emit_cfg_ssa_diagnostics("if {0} {\n  set x 1\n  set x 2\n  puts $x\n}\nputs done");
+        let w220s: Vec<_> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "W220")
+            .collect();
+        assert!(
+            w220s.is_empty(),
+            "W220 must skip dead stores in SCCP-unreachable blocks; got {w220s:?}",
+        );
     }
 
     #[test]
