@@ -350,6 +350,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_flow_check_signal_loop": ("tcl", "flow_check_signal_loop", [], [ValType.I32]),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
+    # Runtime expression-source evaluator — used by the codegen's
+    # ``ExprRaw`` path when an operand needs re-parsing as expr
+    # source (e.g. backslash-substituted ``\\"…\\"`` from
+    # ``[expr \\"X\\"]`` inside an outer ``"…"``).
+    "tcl_eval_expr_str": (
+        "tcl",
+        "tcl_eval_expr_str",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Namespace context for eval-fallback calls — compiled procs set the
     # current namespace before ``tcl_eval`` so dynamic ``proc $name`` /
     # ``variable $name`` inside the fallback qualify into the enclosing

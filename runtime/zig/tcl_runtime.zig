@@ -863,3 +863,14 @@ pub export fn tcl_test_hidden_find_in(
     );
     return if (h != 0) 1 else 0;
 }
+
+/// Evaluate a raw expression source string and return its result
+/// as a TclObj.  Exposed for the WASM codegen's ``ExprRaw`` path
+/// where a backslash-substituted operand needs to be re-parsed
+/// by the runtime expression evaluator (matching reference Tcl's
+/// ``expr X`` behaviour, which treats *X* as expression source
+/// rather than a literal value).
+pub export fn tcl_eval_expr_str(src_ptr: i32, src_len: i32) i32 {
+    const expr_eval = @import("interp/tcl_expr_eval.zig");
+    return expr_eval.eval(@bitCast(src_ptr), @bitCast(src_len));
+}

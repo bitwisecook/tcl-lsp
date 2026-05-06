@@ -700,7 +700,27 @@ fn parse_quoted(s: *State) i32 {
     if (s.skip) return obj_new_int(0);
     const inner_ptr = @intFromPtr(s.src) + start;
     const subst = @import("../parse/tcl_subst.zig");
-    return subst.subst_flagged(ptr_as_u32(inner_ptr), inner_len, true, true, true);
+    const result = subst.subst_flagged(ptr_as_u32(inner_ptr), inner_len, true, true, true);
+    // Tcl 9 ``expr`` shimmers a quoted operand to its numeric
+    // form when the string parses as an integer or float — so
+    // ``expr "0005"`` returns ``5`` (canonical int), not ``"0005"``.
+    // Without this, an ``expr "0005"`` whose result is consumed
+    // verbatim by ``return`` / ``set`` keeps the leading zeroes
+    // and downstream comparisons against ``5`` mismatch.
+    if (result != 0) {
+        const rs = obj.obj_ensure_string(result);
+        if (rs.len > 0) {
+            if (obj.try_parse_int(rs.ptr, rs.len)) |iv| {
+                obj.tcl_obj_release(result);
+                return obj_new_int(iv);
+            }
+            if (obj.try_parse_float(rs.ptr, rs.len)) |fv| {
+                obj.tcl_obj_release(result);
+                return obj.obj_new_float(fv);
+            }
+        }
+    }
+    return result;
 }
 
 fn parse_braced(s: *State) i32 {

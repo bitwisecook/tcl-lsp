@@ -1225,6 +1225,7 @@ def _scan_needed_imports(
     # that keeps ``::top`` writes visible to eval fallbacks.
     needed.add("tcl_error")
     needed.add("tcl_eval")
+    needed.add("tcl_eval_expr_str")
     needed.add("tcl_ns_set")
     needed.add("tcl_ns_restore")
     needed.add("tcl_diag_set")

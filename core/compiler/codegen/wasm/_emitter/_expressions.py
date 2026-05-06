@@ -17,6 +17,7 @@ from ....expr_ast import (
     ExprCommand,
     ExprLiteral,
     ExprNode,
+    ExprRaw,
     ExprString,
     ExprTernary,
     ExprUnary,
@@ -105,8 +106,29 @@ class _WasmEmitterExprMixin(_Base):
             case ExprString(text=text):
                 # Quoted string in expr context — try numeric parse
                 self._emit_literal(text)
+            case ExprRaw(text=text):
+                # ``ExprRaw`` carries an unparsed expr operand
+                # (e.g. ``\\"X\\"`` from ``[expr \\"X\\"]`` inside an
+                # outer ``"..."`` quote).  Apply backslash subst
+                # to recover the post-substitution source the
+                # interpreter would see, then route through the
+                # runtime ``tcl_eval_expr_str`` helper so the
+                # inner content gets parsed as an expression.
+                # Without this branch the catch-all below emits a
+                # silent ``i64.const 0`` and the test reports ``0``.
+                eval_idx = self._shared_imports.get("tcl_eval_expr_str")
+                if eval_idx is not None:
+                    substituted = _tcl_backslash_subst(text)
+                    offset = self._intern_string(substituted)
+                    encoded = substituted.encode("utf-8", errors="surrogatepass")
+                    self._emit_i32_const(offset + 4)
+                    self._emit_i32_const(len(encoded))
+                    self._emit_call(eval_idx)
+                    self._emit_unbox_int()
+                else:
+                    self._emit_i64_const(0)
             case _:
-                # Fallback for unsupported expression types (ExprRaw)
+                # Fallback for unsupported expression types
                 self._emit_i64_const(0)
 
     # --- Float-aware arithmetic path ---
@@ -1190,6 +1212,32 @@ class _WasmEmitterExprMixin(_Base):
                 # $m] {…}`` compared ``"[llength $m]"`` (the
                 # literal string) against each arm's pattern and
                 # always fell through to the ``default`` branch.
+                #
+                # When the text contains a backslash escape that
+                # produces an expr-grammar token (a quoted string
+                # literal ``\"…\"`` is the most common case from
+                # ``[expr \"…\"]`` inside an outer ``"…"`` quote),
+                # route through the runtime ``tcl_eval_expr_str``
+                # helper so the inner content gets parsed as an
+                # expression rather than emitted as the raw byte
+                # sequence.  ``_emit_value`` would dquote-subst
+                # ``\"`` to ``"`` and then emit the literal 6-byte
+                # string ``"0005"`` — Tcl 9 instead expects expr
+                # to *parse* that string and shimmer the result
+                # to a number (``5``).
+                if "\\" in text:
+                    eval_idx = self._shared_imports.get("tcl_eval_expr_str")
+                    if eval_idx is not None:
+                        # Apply backslash substitution to recover
+                        # the post-substitution expr source the
+                        # interpreter would see.
+                        substituted = _tcl_backslash_subst(text)
+                        offset = self._intern_string(substituted)
+                        encoded = substituted.encode("utf-8", errors="surrogatepass")
+                        self._emit_i32_const(offset + 4)
+                        self._emit_i32_const(len(encoded))
+                        self._emit_call(eval_idx)
+                        return
                 self._emit_value(text)
                 return
             case ExprLiteral(text=text):
