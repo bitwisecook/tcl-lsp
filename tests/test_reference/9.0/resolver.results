@@ -1,0 +1,20 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     resolver.test
+DATE     2026-05-06T21:17:34Z
+---
+SKIP resolver-1.1 testinterpresolver
+SKIP resolver-1.2 testinterpresolver
+SKIP resolver-1.3 testinterpresolver
+SKIP resolver-1.4 testinterpresolver
+SKIP resolver-1.5 testinterpresolver
+SKIP resolver-1.6 testinterpresolver
+SKIP resolver-2.1 testinterpresolver
+SKIP resolver-3.1a testinterpresolver
+SKIP resolver-3.1b testinterpresolver
+SKIP resolver-3.1c testinterpresolver
+---
+TOTAL   10
+PASSED  0
+SKIPPED 10
+FAILED  0

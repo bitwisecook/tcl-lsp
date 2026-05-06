@@ -1,0 +1,23 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     safe-stock.test
+DATE     2026-05-06T21:17:43Z
+---
+PASS safe-stock-18.1
+PASS safe-stock-18.2
+PASS safe-stock-18.4
+PASS safe-stock-7.1
+PASS safe-stock-7.2
+PASS safe-stock-7.4
+PASS safe-stock-9.11
+PASS safe-stock-9.13
+PASS safe-stock-9.8
+FAIL safe-stock-18.5
+FAIL safe-stock-18.5 cf. safe-stock-7.5 - tests positive and negative module loading without conventional AutoPathSync
+FAIL safe-stock-7.5
+FAIL safe-stock-7.5 tests positive and negative module loading with conventional AutoPathSync
+---
+TOTAL   13
+PASSED  9
+SKIPPED 0
+FAILED  4

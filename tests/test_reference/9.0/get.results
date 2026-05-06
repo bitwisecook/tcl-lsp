@@ -1,0 +1,33 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     get.test
+DATE     2026-05-06T21:17:31Z
+---
+PASS get-2.1
+PASS get-2.2
+PASS get-2.3
+PASS get-2.4
+PASS get-3.1
+PASS get-3.2
+SKIP get-1.1 testgetint
+SKIP get-1.10 testgetint
+SKIP get-1.11 testgetint
+SKIP get-1.12 testgetint
+SKIP get-1.13 testgetint
+SKIP get-1.14 testgetint
+SKIP get-1.2 testgetint
+SKIP get-1.3 testgetint
+SKIP get-1.4 testgetint
+SKIP get-1.5 testgetint
+SKIP get-1.6 testgetint
+SKIP get-1.7 testgetint
+SKIP get-1.8 testgetint
+SKIP get-1.9 testgetint
+SKIP get-3.3 testgetint
+SKIP get-3.4 testdoubleobj
+SKIP get-3.5 testgetint
+---
+TOTAL   23
+PASSED  6
+SKIPPED 17
+FAILED  0

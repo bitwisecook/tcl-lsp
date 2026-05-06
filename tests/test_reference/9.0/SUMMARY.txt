@@ -1,35 +1,56 @@
 # Reference test results for Tcl 9.0.3
-# tclsh: /opt/homebrew/bin/tclsh9.0
-# tests: (local Tcl source tree)
-# Generated: 2026-03-03T12:54:13Z
+# tclsh: /usr/bin/tclsh9.0
+# tests: /home/jimd/src/tcl-lsp/tmp/tcl9.0.3/tests
+# Generated: 2026-05-06T21:18:35Z
 #
 # File                             Total  Passed Skipped  Failed
 # ----                             -----  ------ -------  ------
+  aaa_exit.test                        2       2       0       0
+  abstractlist.test                  123       0     123       0
   append.test                         52      49       3       0
+  appendComp.test                     48      43       5       0
   apply.test                          42      38       4       0
-  cmdAH.test                       17001   16823     178       0
-  cmdIL.test                         168     161       7       0
+  assocd.test                         11       0      11       0
+  basic.test                         146      69      77       0
+  brodnik.test                         0       0       0       0
+  chan.test                           42      42       0       0
+  chanio.test                        780     391     387       2
+  cmdAH.test                       17002   16822     178       2
+  cmdIL.test                         168     163       5       0
+  cmdInfo.test                        12       0      12       0
+  cmdMZ.test                          97      96       1       0
   compExpr-old.test                  184     183       1       0
   compExpr.test                       82      80       2       0
+  compile.test                       179     130      33      16
   concat.test                          9       9       0       0
+  coroutine.test                      77      74       3       0
   dict.test                          383     357       6      20
+  dstring.test                        46       0      46       0
   error.test                         317     309       8       0
   eval.test                           12      12       0       0
+  execute.test                       157      79      78       0
   expr-old.test                      461     430      31       0
   expr.test                         2168    2137      31       0
   for-old.test                         9       9       0       0
   for.test                            88      64      24       0
   foreach.test                        44      42       0       2
   format.test                        269     269       0       0
+  get.test                            23       6      17       0
   if-old.test                         33      33       0       0
   if.test                             73      73       0       0
   incr-old.test                       14      14       0       0
   incr.test                           69      69       0       0
+  indexObj.test                       65       0      65       0
   info.test                          352     217       5     130
+  interp.test                        354     340      14       0
+  io.test                            885     479     404       2
+  ioCmd.test                         382     269     103      10
   join.test                           10      10       0       0
   lindex.test                         84      47      37       0
   linsert.test                        28      28       0       0
   list.test                           78      78       0       0
+  listObj.test                        59      42      17       0
+  listRep.test                       231       4     227       0
   llength.test                         6       6       0       0
   lmap.test                           66      66       0       0
   lpop.test                           19      17       2       0
@@ -37,26 +58,50 @@
   lrepeat.test                        12      11       1       0
   lreplace.test                     3579    3579       0       0
   lsearch.test                       165     165       0       0
-  lseq.test                          134     131       3       0
+  lseq.test                          134     132       2       0
   lset.test                           89       0      89       0
+  lsetComp.test                       19      19       0       0
   mathop.test                        385     385       0       0
+  misc.test                          301       2     299       0
   namespace-old.test                 126     126       0       0
   namespace.test                     314     311       3       0
+  nre.test                            28       5      23       0
+  oo.test                            390     370      16       4
+  ooNext2.test                        62      57       5       0
+  ooProp.test                         55      55       0       0
+  ooUtil.test                         33      33       0       0
+  opt.test                            31      31       0       0
   parse.test                         271      90     181       0
+  parseExpr.test                     286      67     219       0
   parseOld.test                      158     158       0       0
   proc-old.test                       74      74       0       0
   proc.test                           38      29       9       0
+  range.test                           0       0       0       0
+  reg.test                          1141      34    1107       0
+  regexp.test                        257     253       4       0
+  regexpComp.test                    179     179       0       0
   rename.test                         19      11       8       0
+  resolver.test                       10       0      10       0
   result.test                         26       4      22       0
+  safe-stock.test                     13       9       0       4
+  safe-stock86.test                    0       0       0       0
+  safe.test                          168     134       8      26
   scan.test                          185     184       1       0
   set-old.test                       153     153       0       0
+  set.test                            64      63       1       0
+  source.test                         23      23       0       0
   split.test                          18      18       0       0
+  stack.test                           3       3       0       0
   string.test                        705     693      12       0
+  stringObj.test                      81       0      81       0
   subst.test                          63      62       1       0
   switch.test                        113     113       0       0
+  tailcall.test                       37      29       8       0
+  trace.test                         290     273      17       0
   unknown.test                         7       7       0       0
   uplevel.test                        57      57       0       0
   upvar.test                          74      58       8       8
   var.test                           220     197      21       2
   while-old.test                      15      15       0       0
   while.test                          46      46       0       0
+  word.test                           55      55       0       0

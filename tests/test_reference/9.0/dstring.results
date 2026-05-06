@@ -1,0 +1,56 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     dstring.test
+DATE     2026-05-06T21:17:44Z
+---
+SKIP dstring-1.1 testdstring
+SKIP dstring-1.2 testdstring
+SKIP dstring-1.3 testdstring
+SKIP dstring-2.1 testdstring
+SKIP dstring-2.10 testdstring
+SKIP dstring-2.11 testdstring
+SKIP dstring-2.12 testdstring
+SKIP dstring-2.13 testdstring
+SKIP dstring-2.14 testdstring
+SKIP dstring-2.15 testdstring
+SKIP dstring-2.16 testdstring
+SKIP dstring-2.17 testdstring
+SKIP dstring-2.18 testdstring
+SKIP dstring-2.19 testdstring
+SKIP dstring-2.2 testdstring
+SKIP dstring-2.3 testdstring
+SKIP dstring-2.4 testdstring
+SKIP dstring-2.5 testdstring
+SKIP dstring-2.6 testdstring
+SKIP dstring-2.7 testdstring
+SKIP dstring-2.8 testdstring
+SKIP dstring-2.9 testdstring
+SKIP dstring-3.1 testdstring
+SKIP dstring-3.10 testdstring
+SKIP dstring-3.11 testdstring
+SKIP dstring-3.12 testdstring
+SKIP dstring-3.2 testdstring
+SKIP dstring-3.3 testdstring
+SKIP dstring-3.4 testdstring
+SKIP dstring-3.5 testdstring
+SKIP dstring-3.6 testdstring
+SKIP dstring-3.7 testdstring
+SKIP dstring-3.8 testdstring
+SKIP dstring-3.9 testdstring
+SKIP dstring-4.1 testdstring
+SKIP dstring-4.2 testdstring
+SKIP dstring-4.3 testdstring
+SKIP dstring-5.1 testdstring
+SKIP dstring-5.2 testdstring
+SKIP dstring-6.1 testdstring
+SKIP dstring-6.2 testdstring
+SKIP dstring-6.3 testdstring
+SKIP dstring-6.4 testdstring
+SKIP dstring-6.5 testdstring
+SKIP dstring-7.1 testdstring
+SKIP dstring-7.2 testdstring
+---
+TOTAL   46
+PASSED  0
+SKIPPED 46
+FAILED  0

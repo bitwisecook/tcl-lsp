@@ -24,77 +24,126 @@ RUNNER_85="$SCRIPT_DIR/reference_test_runner.tcl"
 RUNNER_84="$SCRIPT_DIR/reference_test_runner_84.tcl"
 OUTPUT_BASE="$REPO_ROOT/tests/test_reference"
 
-# Test files from the VM conformance plan
-# Phases 1-12, ordered by phase.  Files that don't exist in a given
-# Tcl version are skipped automatically.
+# Test files matched against tests/external/run_tcl9_tests.py::_IN_SCOPE
+# (the WASM sweep's bundle list) so reference vs WASM comparisons cover
+# the same surface.  Grouped by category to mirror the sweep.  Files
+# that don't exist in a given Tcl version are skipped automatically.
 TEST_FILES=(
-    # Phase 1 — Parser
+    # Parsing
     parse.test
     parseOld.test
-    # Phase 2 — Expressions
-    compExpr-old.test
-    compExpr.test
-    expr-old.test
+    parseExpr.test
+    subst.test
+    word.test
+    # Lists
+    list.test
+    listObj.test
+    listRep.test
+    llength.test
+    lindex.test
+    linsert.test
+    lrange.test
+    lreplace.test
+    lsearch.test
+    lset.test
+    lsetComp.test
+    lmap.test
+    lpop.test
+    lseq.test
+    lrepeat.test
+    foreach.test
+    abstractlist.test
+    # Dicts
+    dict.test
+    # Strings
+    string.test
+    stringObj.test
+    format.test
+    scan.test
+    regexp.test
+    regexpComp.test
+    reg.test
+    get.test
+    split.test
+    join.test
+    # Expressions
     expr.test
+    expr-old.test
+    compExpr.test
+    compExpr-old.test
     mathop.test
-    # Phase 3 — Variables & Scoping
-    incr-old.test
-    incr.test
+    # Control flow
+    if.test
+    if-old.test
+    for.test
+    for-old.test
+    while.test
+    while-old.test
+    switch.test
+    error.test
+    result.test
+    # Variables / scopes
+    set.test
     set-old.test
     var.test
     upvar.test
     uplevel.test
-    # Phase 4 — Strings
-    split.test
-    format.test
-    scan.test
-    append.test
-    subst.test
-    string.test
-    # Phase 5 — Lists (Core)
-    list.test
-    llength.test
-    concat.test
-    join.test
-    lindex.test
-    lrange.test
-    linsert.test
-    lreplace.test
-    lrepeat.test
-    # Phase 6 — Lists (Advanced)
-    lsearch.test
-    cmdIL.test
-    lmap.test
-    lset.test
-    lpop.test
-    lseq.test
-    # Phase 7 — Control Flow
-    if-old.test
-    if.test
-    while-old.test
-    while.test
-    for-old.test
-    for.test
-    foreach.test
-    switch.test
-    # Phase 8 — Procedures
-    proc-old.test
+    namespace.test
+    namespace-old.test
+    trace.test
+    resolver.test
+    # Procedures / apply / info
     proc.test
+    proc-old.test
     apply.test
+    info.test
+    cmdInfo.test
     rename.test
     unknown.test
-    # Phase 9 — Dicts & Arrays
-    dict.test
-    cmdAH.test
-    # Phase 10 — Namespaces
-    namespace-old.test
-    namespace.test
-    # Phase 11 — Error Handling & Eval
+    # Eval / execution
     eval.test
-    error.test
-    result.test
-    # Phase 12 — Info & Introspection
-    info.test
+    compile.test
+    execute.test
+    basic.test
+    # Command dispatch buckets
+    cmdAH.test
+    cmdIL.test
+    cmdMZ.test
+    # TclOO
+    oo.test
+    ooNext2.test
+    ooProp.test
+    ooUtil.test
+    # Coroutines / NRE / tailcall
+    coroutine.test
+    nre.test
+    tailcall.test
+    # Interp / safe / source
+    interp.test
+    safe.test
+    safe-stock.test
+    safe-stock86.test
+    source.test
+    # Misc scalar / object machinery
+    append.test
+    appendComp.test
+    concat.test
+    incr.test
+    incr-old.test
+    indexObj.test
+    dstring.test
+    assocd.test
+    opt.test
+    stack.test
+    misc.test
+    brodnik.test
+    range.test
+    aaa_exit.test
+    # I/O
+    chan.test
+    chanio.test
+    io.test
+    ioCmd.test
 )
 
 # Time limit per test file (seconds).

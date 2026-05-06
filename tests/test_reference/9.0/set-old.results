@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     set-old.test
-DATE     2026-03-03T12:53:58Z
+DATE     2026-05-06T21:17:34Z
 ---
 PASS set-old-1.1
 PASS set-old-1.2

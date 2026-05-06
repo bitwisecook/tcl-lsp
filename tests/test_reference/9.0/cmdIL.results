@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     cmdIL.test
-DATE     2026-03-03T12:54:02Z
+DATE     2026-05-06T21:17:40Z
 ---
 PASS cmdIL-1.1
 PASS cmdIL-1.10
@@ -117,6 +117,7 @@ PASS cmdIL-5.3
 PASS cmdIL-5.4
 PASS cmdIL-5.5
 PASS cmdIL-5.6
+PASS cmdIL-5.7
 PASS cmdIL-6.1
 PASS cmdIL-6.10
 PASS cmdIL-6.11
@@ -134,6 +135,7 @@ PASS cmdIL-6.22
 PASS cmdIL-6.23
 PASS cmdIL-6.25
 PASS cmdIL-6.26
+PASS cmdIL-6.27
 PASS cmdIL-6.3
 PASS cmdIL-6.4
 PASS cmdIL-6.5
@@ -166,13 +168,11 @@ PASS cmdIL-8.9
 PASS info-20.6
 SKIP cmdIL-4.24 hasIsoLocale
 SKIP cmdIL-4.25 hasIsoLocale
-SKIP cmdIL-5.7 testWithLimit
 SKIP cmdIL-6.12 memory
 SKIP cmdIL-6.24 memory
-SKIP cmdIL-6.27 hasMemUsage
 SKIP cmdIL-7.8 testobj
 ---
 TOTAL   168
-PASSED  161
-SKIPPED 7
+PASSED  163
+SKIPPED 5
 FAILED  0
