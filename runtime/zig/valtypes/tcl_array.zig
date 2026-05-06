@@ -1160,6 +1160,79 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
 /// matching array names as a TclObj.  Used by ``tcl_cmd_info.info_vars``
 /// to include array variables in ``info vars`` results.
 /// ``pat_len == 0`` means "no pattern — return all array names".
+/// True iff *(name_ptr, name_len)* contains a ``::`` namespace
+/// separator anywhere — used by :func:`array_top_level_names_matching`
+/// to exclude qualified entries.  ``::``-prefixed bare-root names
+/// are already stripped to their bare form by ``normalize_ns_name``
+/// before they reach the directory, so a hit here is always a real
+/// namespace qualifier (``::ns::arr``).
+fn name_has_ns_separator(name_ptr: u32, name_len: u32) bool {
+    if (name_len < 2) return false;
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    var i: u32 = 0;
+    while (i + 1 < name_len) : (i += 1) {
+        if (sp[i] == ':' and sp[i + 1] == ':') return true;
+    }
+    return false;
+}
+
+/// Like :func:`array_dir_names_matching` but skips qualified entries
+/// (anything containing ``::``) so the result is exactly the set of
+/// arrays visible at the top-level / global scope.  Used by
+/// ``info vars`` (no proc frame) to surface ``array set arr {...}``
+/// entries — these live in the array directory rather than the root
+/// namespace's scalar ``var_table``, so the var-table-only scan
+/// otherwise drops them silently.
+pub fn array_top_level_names_matching(pat_ptr: u32, pat_len: u32) i32 {
+    if (dir_buf == 0) return obj_new_string(0, 0);
+    const str_mod = @import("tcl_string.zig");
+    const use_filter = pat_len > 0;
+
+    var total: u32 = 0;
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < dir_cap) : (i += 1) {
+        const bucket = dir_buf + i * DIR_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0 or name_ptr == @as(u32, 0xFFFFFFFF)) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (name_ptr_is_local_internal(name_ptr, name_len)) continue;
+        if (name_has_ns_separator(name_ptr, name_len)) continue;
+        const table_ptr: u32 = @bitCast(read_i32(bucket + 12));
+        if (table_ptr == 0) continue;
+        if (use_filter and !str_mod.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        if (count > 0) total += 1;
+        total += name_len;
+        count += 1;
+    }
+    if (total == 0) return obj_new_string(0, 0);
+
+    const buf = alloc(total);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < dir_cap) : (i += 1) {
+        const bucket = dir_buf + i * DIR_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0 or name_ptr == @as(u32, 0xFFFFFFFF)) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        if (name_ptr_is_local_internal(name_ptr, name_len)) continue;
+        if (name_has_ns_separator(name_ptr, name_len)) continue;
+        const table_ptr: u32 = @bitCast(read_i32(bucket + 12));
+        if (table_ptr == 0) continue;
+        if (use_filter and !str_mod.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+        if (written > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        memcpy(buf + off, name_ptr, name_len);
+        off += name_len;
+        written += 1;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(off));
+}
+
 pub fn array_dir_names_matching(pat_ptr: u32, pat_len: u32) i32 {
     if (dir_buf == 0) return obj_new_string(0, 0);
     const str_mod = @import("tcl_string.zig");

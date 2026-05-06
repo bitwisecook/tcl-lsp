@@ -1300,8 +1300,15 @@ fn frame_names_should_count(name_ptr: u32, name_len: u32, value: i32) bool {
     if (value == 0) return false;
     if (value < 0) {
         // ALIAS_GLOBAL or ALIAS_EXT — surface only when the alias
-        // chain terminates in an existing variable.
-        return frames.frame_alias_target_exists(value, name_ptr, name_len);
+        // chain terminates in an existing variable AND the local
+        // alias name matches the requested glob pattern.  Skipping
+        // the pattern check here would make ``info vars foo*`` emit
+        // every live alias regardless of name (Codex P2 review).
+        if (!frames.frame_alias_target_exists(value, name_ptr, name_len)) return false;
+        if (g_names_ctx.has_pattern) {
+            return tcl_string.glob_match(g_names_ctx.pat_ptr, g_names_ctx.pat_len, name_ptr, name_len);
+        }
+        return true;
     }
     if (g_names_ctx.has_pattern) {
         return tcl_string.glob_match(g_names_ctx.pat_ptr, g_names_ctx.pat_len, name_ptr, name_len);
@@ -1345,58 +1352,102 @@ fn frame_locals_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) i3
     return obj.obj_new_string_take(buf, total, total);
 }
 
+/// Decide whether a top-level Var record represents an existing
+/// variable for ``info vars`` purposes.  Scalars with a non-zero
+/// stored value count; arrays (``VAR_ARRAY`` flag set) count too —
+/// ``var_get_scalar`` returns 0 for arrays by design, so the prior
+/// "var_val == 0 → skip" rule silently dropped every array name
+/// from the top-level scan (Codex P2 review).  Follows ``VAR_LINK``
+/// to the terminal record so a global aliased to another global is
+/// reported when its target exists.
+fn root_var_exists(var_addr: u32) bool {
+    if (var_addr == 0) return false;
+    const v: *const tcl_ns.Var = @ptrFromInt(var_addr);
+    if ((v.flags & tcl_ns.VAR_LINK) != 0) {
+        // ``var_get_scalar`` walks the link chain; for the terminal
+        // we still need to distinguish array-vs-scalar, so resolve
+        // the chain ourselves and re-probe.
+        const terminal = tcl_ns.var_resolve_link(var_addr);
+        if (terminal == 0) return false;
+        return root_var_exists(terminal);
+    }
+    if ((v.flags & tcl_ns.VAR_ARRAY) != 0) return v.value != 0;
+    return tcl_ns.var_get_scalar(var_addr) != 0;
+}
+
 /// Top-level fallback for ``info vars`` when no proc frame is active —
-/// scan the root namespace's scalar ``var_table`` for matching names.
+/// merge scalar globals from the root namespace's ``var_table`` with
+/// top-level (un-namespaced) array names from the array directory.
 /// Mirrors the qualified branch above but without the ``::`` prefix,
-/// since the top-level scope is the root namespace itself.
+/// since the top-level scope is the root namespace itself.  Arrays
+/// live in :mod:`tcl_array`'s directory rather than the var_table, so
+/// a var-table-only scan would silently drop ``array set arr {...}``
+/// entries (Codex P2 review).
 fn root_namespace_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+
+    // Pull the top-level array names through the directory iterator
+    // — already glob-matched and ``::__local::*``-filtered.
+    const arr_list = tcl_array.array_top_level_names_matching(pat_ptr, pat_len);
+    const arr_s = obj_ensure_string(arr_list);
+
     const root = tcl_ns.ns_root();
     const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
-    if (ns.var_table.buf == 0) return obj_new_string(0, 0);
 
-    var total: u32 = 0;
-    var count: u32 = 0;
-    var i: u32 = 0;
-    while (i < ns.var_table.cap) : (i += 1) {
-        const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
-        const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
-        const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-        if (var_addr == 0) continue;
-        const v_val = tcl_ns.var_get_scalar(var_addr);
-        if (v_val == 0) continue;
-        if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
-        if (count > 0) total += 1;
-        total += name_len;
-        count += 1;
+    // Size pass over the scalar half so we can right-size the output
+    // buffer up front; the merge loop appends without further alloc.
+    var scalar_total: u32 = 0;
+    var scalar_count: u32 = 0;
+    if (ns.var_table.buf != 0) {
+        var i: u32 = 0;
+        while (i < ns.var_table.cap) : (i += 1) {
+            const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (!root_var_exists(var_addr)) continue;
+            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+            if (scalar_count > 0) scalar_total += 1;
+            scalar_total += name_len;
+            scalar_count += 1;
+        }
     }
-    if (count == 0) return obj_new_string(0, 0);
-    const buf = alloc(total);
+
+    if (arr_s.len == 0 and scalar_count == 0) return obj_new_string(0, 0);
+    if (scalar_count == 0) return arr_list;
+
+    const arr_sep: u32 = if (arr_s.len > 0) @as(u32, 1) else @as(u32, 0);
+    const merge_total: u32 = arr_s.len + arr_sep + scalar_total;
+    const buf = alloc(merge_total);
     if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
-    var written: u32 = 0;
-    i = 0;
-    while (i < ns.var_table.cap) : (i += 1) {
-        const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
-        const name_ptr: u32 = @bitCast(read_i32(bucket));
-        if (name_ptr == 0) continue;
-        const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
-        if (var_addr == 0) continue;
-        const v_val = tcl_ns.var_get_scalar(var_addr);
-        if (v_val == 0) continue;
-        if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
-        if (written > 0) {
-            const dp: [*]u8 = @ptrFromInt(buf + off);
-            dp[0] = ' ';
-            off += 1;
-        }
-        memcpy(buf + off, name_ptr, name_len);
-        off += name_len;
-        written += 1;
+    if (arr_s.len > 0) {
+        memcpy(buf, arr_s.ptr, arr_s.len);
+        off = arr_s.len;
     }
-    return obj.obj_new_string_take(buf, total, total);
+    var written: u32 = if (arr_s.len > 0) 1 else 0;
+    if (ns.var_table.buf != 0) {
+        var i: u32 = 0;
+        while (i < ns.var_table.cap) : (i += 1) {
+            const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (!root_var_exists(var_addr)) continue;
+            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+            if (written > 0) {
+                const dp: [*]u8 = @ptrFromInt(buf + off);
+                dp[0] = ' ';
+                off += 1;
+            }
+            memcpy(buf + off, name_ptr, name_len);
+            off += name_len;
+            written += 1;
+        }
+    }
+    return obj.obj_new_string_take(buf, merge_total, merge_total);
 }
 
 // -- Dispatch --------------------------------------------------------------
