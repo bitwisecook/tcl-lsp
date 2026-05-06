@@ -23,10 +23,15 @@ three feature branches can merge into ``main`` without conflict.
 
 from __future__ import annotations
 
-import tomllib
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover — repo runs on 3.11+ in CI; 3.10 falls back to tomli
+    import tomli as tomllib  # type: ignore[no-redef]
 
 # Repo-relative path to the per-stem TOML files.  Resolved once at
 # import time so a ``cd`` mid-test doesn't break the lookup.
@@ -194,8 +199,7 @@ def _load_uncached(stem: str) -> StemCategories:
                 # ID lives in exactly one bucket, with the rest
                 # implicitly must_pass.
                 msg = (
-                    f"{path}: test id {tid!r} listed in both "
-                    f"{test_to_bucket[tid]!r} and {bucket!r}"
+                    f"{path}: test id {tid!r} listed in both {test_to_bucket[tid]!r} and {bucket!r}"
                 )
                 raise RuntimeError(msg)
             if tid not in test_to_bucket:
@@ -346,10 +350,7 @@ def gate(cats: StemCategories, report: BucketReport) -> GateOutcome:
         suffix = " …" if len(report.must_pass_failures) > 5 else ""
         return GateOutcome(
             passed=False,
-            reason=(
-                f"{len(report.must_pass_failures)} MUST_PASS test(s) failed: "
-                f"{sample}{suffix}"
-            ),
+            reason=(f"{len(report.must_pass_failures)} MUST_PASS test(s) failed: {sample}{suffix}"),
         )
     if len(report.good_to_have_failures) > cats.good_to_have_baseline:
         return GateOutcome(
