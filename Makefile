@@ -1,7 +1,10 @@
 # tcl-lsp — build, test, and package
 #
 # Targets:
-#   make prep-pr       Run the full CI-equivalent gate before opening a PR
+#   make ci-fast       Fast CI gate (lint + typecheck + LSP e2e); mirrors GitHub PR job
+#   make test-slow     Comprehensive local gate (everything); writes tmp/test-slow.stamp
+#   make install-hooks Install pre-push hook that enforces the test-slow stamp
+#   make prep-pr       Fast pre-PR gate (format + codegen + lint + typecheck + fast tests)
 #   make vsix          Build the .vsix file (runs tests first)
 #   make install       Build and install the .vsix into VS Code
 #   make publish-vsix  Publish the .vsix to the VS Code Marketplace
@@ -126,7 +129,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -348,11 +351,142 @@ _prep-pr-checks: lint-py typecheck-py lint-ts typecheck-ts check-editor-settings
 _prep-pr-tests: test-py test-opt
 _prep-pr-smoke: smoke-zipapps smoke-vsix
 
+# Fast CI gate (target wall-clock < 20s) — what GitHub Actions runs on PRs.
+# Covers: lint + typecheck + structural invariants + a tightly scoped pytest
+# subset that exercises the LSP server end-to-end.  Everything else is the
+# responsibility of `make test-slow` (run locally, gated by the pre-push hook).
+# Use a fixed worker count (not NPROC) so we don't over-subscribe when this
+# runs in parallel with ty in _ci-fast-checks.  2 workers keeps the LSP
+# subset under 8s on its own while leaving CPU headroom for the typecheck.
+_ci-fast-pytest: $(UV_STAMP)
+	@echo "==> Running LSP end-to-end pytest subset"
+	cd $(ROOT) && $(UV) run --extra dev pytest -q -n 2 \
+		tests/test_server_commands.py \
+		tests/test_server_config.py \
+		tests/test_per_folder_config_e2e.py \
+		tests/test_proc_lookup_lsp_features.py \
+		tests/test_completion.py \
+		tests/test_hover.py \
+		tests/test_definition.py \
+		tests/test_references.py \
+		tests/test_diagnostics.py \
+		tests/test_semantic_tokens.py \
+		tests/test_code_actions.py \
+		tests/test_document_symbols.py \
+		tests/test_signature_help.py \
+		tests/test_rename.py \
+		-m "not slow"
+
+# Python-only check phase for ci-fast (no TS lint/typecheck — those run in
+# test-slow locally and on push:main in GitHub Actions).  Uses the full
+# ruff/ty scope (lsp + core + explorer + tests + scripts) to match prep-pr.
+_ci-fast-checks: lint-py typecheck-py check-editor-settings check-wasm-parity
+
+ci-fast: $(UV_STAMP) $(BUILD_INFO) ## Fast CI gate — lint + typecheck + LSP e2e (mirrors GitHub Actions PR job)
+	@$(MAKE) -j $(NPROC) _ci-fast-checks _ci-fast-pytest
+
 prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests
 
-test-slow: ## Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX) + Zig WASM runtime tests + Emacs eglot
-	@$(MAKE) -j $(NPROC) test-ext _prep-pr-smoke test-zig test-emacs
+# Optional Rust test step.  Cargo tests run only if a workspace exists at the
+# repo root (some branches add Rust code beyond the Zed extension); otherwise
+# this is a no-op.  Set SKIP_TEST_RUST=1 to skip explicitly.
+test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (skip with SKIP_TEST_RUST=1)
+	@set -eu; \
+	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
+		echo "==> SKIP_TEST_RUST set — skipping Rust tests"; \
+		exit 0; \
+	fi; \
+	if [ ! -f "$(ROOT)Cargo.toml" ]; then \
+		echo "==> No top-level Cargo.toml — skipping Rust tests"; \
+		exit 0; \
+	fi; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; \
+		echo "       Set SKIP_TEST_RUST=1 to skip this target."; \
+		exit 1; \
+	fi; \
+	echo "==> Running Rust workspace tests"; \
+	cd $(ROOT) && cargo test --workspace --all-features
+
+## Pre-push gate: full lint + typecheck across every language (Python, TS,
+## Zig, Rust).  This is what the pre-push hook checks via tmp/check-all.stamp.
+## Tests are NOT included here — those are gated separately by test-slow
+## before PR creation.
+
+# Zig: format check + full compile (Zig has no separate type-checker; the
+# build itself catches type errors).  Skip with SKIP_CHECK_ZIG=1.
+check-zig: ## Zig format check + compile (no tests); skip with SKIP_CHECK_ZIG=1
+	@set -eu; \
+	if [ -n "$${SKIP_CHECK_ZIG:-}" ]; then \
+		echo "==> SKIP_CHECK_ZIG set — skipping Zig lint/typecheck"; \
+		exit 0; \
+	fi; \
+	if ! command -v zig >/dev/null 2>&1; then \
+		echo "ERROR: 'zig' not found on PATH (need Zig 0.16+)."; \
+		echo "       Set SKIP_CHECK_ZIG=1 to skip."; \
+		exit 1; \
+	fi; \
+	echo "==> Checking Zig formatting"; \
+	cd $(ROOT)runtime/zig && zig fmt --check .; \
+	echo "==> Compiling Zig (type-check via build)"; \
+	cd $(ROOT)runtime/zig && zig build install
+
+# Rust: cargo fmt --check + cargo clippy on the Zed extension (always
+# present) and on a top-level Cargo.toml when it exists (Rust branches).
+# Skip with SKIP_CHECK_RUST=1.
+check-rust: ## Rust fmt-check + clippy on Zed extension and top-level workspace if present
+	@set -eu; \
+	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
+		echo "==> SKIP_CHECK_RUST set — skipping Rust lint/typecheck"; \
+		exit 0; \
+	fi; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; \
+		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
+		exit 1; \
+	fi; \
+	if [ -f "$(ROOT)Cargo.toml" ]; then \
+		echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
+		cd $(ROOT) && cargo fmt --all --check && \
+			cargo clippy --workspace --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
+		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
+		if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
+		cd $(ZED_DIR) && cargo fmt --all --check && \
+			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
+	fi
+
+# All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
+# extra languages CI doesn't cover (Zig, Rust, full TS).  On success writes
+# tmp/check-all.stamp — the pre-push hook requires this stamp to match the
+# current worktree before allowing a push.
+check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, Rust); writes tmp/check-all.stamp on success
+	@$(MAKE) -j $(NPROC) _prep-pr-checks check-zig check-rust
+	@mkdir -p $(ROOT)tmp
+	@$(ROOT)scripts/worktree-fingerprint.sh > $(ROOT)tmp/check-all.stamp
+	@echo "==> check-all: PASSED — stamped $(ROOT)tmp/check-all.stamp"
+
+# Comprehensive local gate — must pass before opening a PR.  On success,
+# writes BOTH tmp/check-all.stamp and tmp/test-slow.stamp (since test-slow
+# subsumes check-all by running prep-pr).
+#
+# Covers: prep-pr (format/codegen/lint/typecheck/test-py/test-opt/parity) +
+# Zig & Rust lint/typecheck + VM tcltest + tclpkg + VS Code extension +
+# Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust
+# workspace tests (when present).
+test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
+	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
+	@$(MAKE) prep-pr
+	@echo "==> test-slow: running cross-language lint/typecheck + heavy suites in parallel"
+	@$(MAKE) -j $(NPROC) check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust
+	@mkdir -p $(ROOT)tmp
+	@$(ROOT)scripts/worktree-fingerprint.sh | tee $(ROOT)tmp/check-all.stamp > $(ROOT)tmp/test-slow.stamp
+	@echo "==> test-slow: PASSED — stamped tmp/check-all.stamp + tmp/test-slow.stamp"
+
+install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
+	@bash $(ROOT)scripts/install-hooks.sh
 
 test-emacs: ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
 	@set -eu; \
