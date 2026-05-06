@@ -857,7 +857,8 @@ class _WasmEmitterExprMixin(_Base):
                     break
                 n_pos += 1
             min_positional = 2 if cmd_name == "regexp" else 3
-            if uses_options or n_pos > min_positional:
+            too_few = n_pos < min_positional
+            if uses_options or n_pos > min_positional or too_few:
                 from .cmds.regexp_ import _capture_vars_for as _cap_vars
 
                 for vname in _cap_vars(cmd_name, tuple(cmd_args)):

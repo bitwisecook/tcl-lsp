@@ -9,5 +9,5 @@ fn eval_regsub(words: []const i32) result_mod.InterpResult {
 }
 
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "regsub", .arity_min = 3, .arity_max = 4, .handler = &eval_regsub },
+    .{ .name = "regsub", .arity_min = 1, .arity_max = null, .handler = &eval_regsub },
 };

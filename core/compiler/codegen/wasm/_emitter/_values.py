@@ -802,7 +802,14 @@ class _WasmEmitterValuesMixin(_Base):
                     break
                 n_pos += 1
             min_positional = 2 if cmd_name == "regexp" else 3
-            if uses_options or n_pos > min_positional:
+            # Route to eval-fallback whenever options are present, the
+            # positional count is past the fast path's strict slot count,
+            # OR the call is missing required positionals — the fast
+            # path silently returns 0 for malformed calls; the eval
+            # path raises Tcl 9's ``wrong # args`` so regexp.test
+            # 6.1 / 6.2 / 11.1-11.4 see the correct error wording.
+            too_few = n_pos < min_positional
+            if uses_options or n_pos > min_positional or too_few:
                 # Pre-intern capture-var names so the proc's frame
                 # readback after eval-fallback reloads them into
                 # the wasm-local cache.  Without this, ``regexp
