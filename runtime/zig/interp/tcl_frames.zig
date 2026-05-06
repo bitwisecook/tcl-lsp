@@ -129,16 +129,6 @@ var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var frame_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 pub var frame_depth: u32 = 0;
 
-/// External accessor for the current proc-frame depth.  Used by
-/// ``tcl_array.normalize_ns_name`` to gate the
-/// ``foo`` → ``::foo`` canonicalisation: at top level (``frame_depth ==
-/// 0``) bare unqualified names share a directory bucket with their
-/// ``::``-prefixed form (matching real Tcl), but inside a proc body the
-/// bare name is the proc-local storage key and must stay un-prefixed.
-pub export fn frame_depth_get() u32 {
-    return frame_depth;
-}
-
 // Per-frame namespace context.  Set by the proc-call dispatcher
 // (see :file:`tcl_interp.zig` immediately after each ``frame_push``)
 // so ``uplevel`` can restore the caller's namespace alongside the
@@ -1972,24 +1962,6 @@ pub export fn var_exists(name: i32) i32 {
     return globals.global_exists(name);
 }
 
-/// Build a fresh TclObj for ``::<simple>`` from the byte span of
-/// *local_name*.  Used by :func:`frame_resolve_array_name` to canonicalise
-/// unqualified names that resolve to root-namespace globals (``::foo``)
-/// so the array directory keys ``foo`` and ``::foo`` collide on a single
-/// bucket.  Returns *local_name* unchanged on OOM.
-fn fq_root_name(local_name: i32, name_ptr: u32, name_len: u32) i32 {
-    if (name_len == 0) return local_name;
-    const total: u32 = name_len + 2;
-    const buf = obj.alloc(total);
-    if (buf == 0) return local_name;
-    const dst: [*]u8 = @ptrFromInt(buf);
-    dst[0] = ':';
-    dst[1] = ':';
-    const sp: [*]const u8 = @ptrFromInt(name_ptr);
-    for (0..name_len) |k| dst[2 + k] = sp[k];
-    return obj.obj_new_string_take(buf, total, total);
-}
-
 /// Resolve an alias to get the underlying array name for ``array names``,
 /// ``array exists``, ``array size``, etc.  When the current frame has an
 /// ALIAS_EXT entry for *local_name* (created by ``upvar N otherVar
@@ -1997,13 +1969,10 @@ fn fq_root_name(local_name: i32, name_ptr: u32, name_len: u32) i32 {
 /// find the array in the global directory.  For KIND_GLOBAL_NAMED and
 /// KIND_FRAME_VAR descriptors the stored ``tgt`` field IS the name; for
 /// KIND_NS_VAR_PTR the name isn't available, so fall back to *local_name*.
-/// At top level (no proc frame) in the root namespace, unqualified names
-/// canonicalise to ``::<name>`` so ``set foo(a) 1`` and ``set ::foo(a) 1``
-/// share a directory bucket — matching real Tcl, where the global scope
-/// treats ``foo`` and ``::foo`` as the same variable for both scalars and
-/// arrays.  In a non-root namespace the unqualified name passes through
-/// unchanged; ``find_or_create`` / ``find_table`` qualify with the active
-/// namespace's full name (``<ns_full>::<name>``) on the read/write side.
+/// When there is no alias, return *local_name* unchanged — root-global
+/// canonicalisation of ``foo`` ↔ ``::foo`` happens in
+/// :func:`tcl_array.normalize_ns_name` at the directory layer (strip
+/// direction, matching :func:`tcl_ns.strip_global_prefix`).
 pub export fn frame_resolve_array_name(local_name: i32) i32 {
     const sn = obj_ensure_string(local_name);
     // Already-FQ names (``::nsa::name``) bypass scope resolution —
@@ -2063,16 +2032,7 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                     }
                 }
             }
-            if (v == ALIAS_GLOBAL) {
-                // ``global foo`` aliases the local to the *root* global
-                // ``::foo``.  Canonicalise to the FQ form so array writes
-                // and reads land in the same directory bucket as
-                // ``set ::foo(a) X``.  Without this, ``proc p {} { global
-                // foo; set foo(a) 1 }; p; puts $::foo(a)`` traps because
-                // the alias side stored under bucket ``foo`` and the
-                // top-level read probes bucket ``::foo``.
-                return fq_root_name(local_name, sn.ptr, sn.len);
-            }
+            if (v == ALIAS_GLOBAL) return local_name; // global alias keeps the same name
         }
         // Phase 1 unification: an unqualified, unaliased array inside
         // a proc frame lives in the global directory under a synthetic
@@ -2082,16 +2042,6 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
         // entries via ``drop_local_arrays_for_depth``.
         const tcl_array = @import("../valtypes/tcl_array.zig");
         return tcl_array.make_local_array_obj(local_name, frame_depth);
-    }
-    // No proc frame.  In the root namespace, canonicalise unqualified
-    // names to ``::<name>`` so ``set foo(a) 1`` and ``set ::foo(a) 1``
-    // hit the same directory bucket (matching real Tcl, where global
-    // scope unifies the two spellings).  In a non-root namespace,
-    // ``find_or_create`` / ``find_table`` already qualify unqualified
-    // names with ``<ns_full>::``, so leave them alone here.
-    const ns_full_len = tcl_ns.current_ns_full_len();
-    if (ns_full_len <= 2) {
-        return fq_root_name(local_name, sn.ptr, sn.len);
     }
     return local_name;
 }
