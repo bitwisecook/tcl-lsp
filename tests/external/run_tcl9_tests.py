@@ -40,8 +40,10 @@ import pytest
 from tests.conftest import ensure_tcl_source, record_tcl9_result
 from tests.external._tcl9_categories import (
     bucket_failures,
-    gate as _categories_gate,
     load_categories,
+)
+from tests.external._tcl9_categories import (
+    gate as _categories_gate,
 )
 from tests.test_wasm_real_tcl import (
     _compile_tcl,

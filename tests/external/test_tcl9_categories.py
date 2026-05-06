@@ -18,16 +18,13 @@ from tests.external._tcl9_categories import (
     DEFAULT_BUCKET,
     BucketReport,
     StemCategories,
-    _load_uncached,
     _reset_cache_for_tests,
     bucket_failures,
     gate,
     load_categories,
 )
 
-_CATEGORIES_DIR = (
-    Path(__file__).resolve().parents[1] / "baselines" / "tcl9-tcltest" / "categories"
-)
+_CATEGORIES_DIR = Path(__file__).resolve().parents[1] / "baselines" / "tcl9-tcltest" / "categories"
 
 
 @pytest.fixture(autouse=True)
@@ -154,9 +151,7 @@ def test_gate_fails_on_good_to_have_growth(tmp_path, monkeypatch) -> None:
         """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     cats = load_categories("synth")
     report = BucketReport(
@@ -176,9 +171,7 @@ def test_loader_rejects_overlap(tmp_path, monkeypatch) -> None:
         """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     with pytest.raises(RuntimeError, match="listed in both"):
         load_categories("bad")
@@ -192,9 +185,7 @@ def test_loader_rejects_unknown_top_level_key(tmp_path, monkeypatch) -> None:
         """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     with pytest.raises(RuntimeError, match="unknown top-level keys"):
         load_categories("typo")
@@ -211,17 +202,13 @@ def test_loader_rejects_unknown_baseline_key(tmp_path, monkeypatch) -> None:
         """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     with pytest.raises(RuntimeError, match="unknown \\[baseline\\] keys"):
         load_categories("bad")
 
 
-def test_loader_rejects_baseline_exceeding_listed_count(
-    tmp_path, monkeypatch
-) -> None:
+def test_loader_rejects_baseline_exceeding_listed_count(tmp_path, monkeypatch) -> None:
     inline = tmp_path / "bad.toml"
     inline.write_text(
         """
@@ -231,9 +218,7 @@ def test_loader_rejects_baseline_exceeding_listed_count(
         """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     with pytest.raises(RuntimeError, match="exceeds the number of listed"):
         load_categories("bad")
@@ -242,17 +227,13 @@ def test_loader_rejects_baseline_exceeding_listed_count(
 def test_trap_allowed_round_trip(tmp_path, monkeypatch) -> None:
     inline = tmp_path / "trap.toml"
     inline.write_text("trap_allowed = true\n", encoding="utf-8")
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     cats = load_categories("trap")
     assert cats.trap_allowed is True
 
 
-def test_skip_full_ids_round_trips_with_stem_prefix(
-    tmp_path, monkeypatch
-) -> None:
+def test_skip_full_ids_round_trips_with_stem_prefix(tmp_path, monkeypatch) -> None:
     inline = tmp_path / "skipper.toml"
     inline.write_text(
         """
@@ -260,9 +241,7 @@ def test_skip_full_ids_round_trips_with_stem_prefix(
         """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        "tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path
-    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
     _reset_cache_for_tests()
     cats = load_categories("skipper")
     assert cats.skip_full_ids() == ["skipper-1.1", "skipper-2.2"]
