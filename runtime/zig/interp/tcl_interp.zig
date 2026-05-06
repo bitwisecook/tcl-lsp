@@ -3141,7 +3141,39 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     const max_len: u32 = 150;
     const trunc_len: u32 = if (cmd_len > max_len) max_len else cmd_len;
     const need_ellipsis: bool = cmd_len > max_len;
-    const cur_s = obj_mod.obj_ensure_string(cur);
+    // Prefer the current ``::errorInfo`` global as the base text
+    // when it has been augmented past the raw error message — e.g.
+    // ``incr`` raises and appends ``\n    (reading increment)`` to
+    // ``::errorInfo`` before unwinding.  Without this, the next
+    // frame would rebuild errorInfo from ``error_msg`` and drop
+    // any per-command frames already added (incr-2.30 / 2.31 /
+    // 2.32 / 2.33).
+    const ec_name_probe = obj_mod.obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+    defer obj_mod.tcl_obj_release(ec_name_probe);
+    const ei_cur = tcl_ns.global_get(ec_name_probe);
+    const cur_s = blk: {
+        const msg_s = obj_mod.obj_ensure_string(cur);
+        if (ei_cur != 0) {
+            const ei_s = obj_mod.obj_ensure_string(ei_cur);
+            // Use ``::errorInfo`` only when it strictly extends the
+            // raw error message — guards against a stale value left
+            // over from a prior error event.
+            if (ei_s.len > msg_s.len) {
+                const msg_p: [*]const u8 = @ptrFromInt(msg_s.ptr);
+                const ei_p: [*]const u8 = @ptrFromInt(ei_s.ptr);
+                var matches = true;
+                var k: u32 = 0;
+                while (k < msg_s.len) : (k += 1) {
+                    if (msg_p[k] != ei_p[k]) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) break :blk ei_s;
+            }
+        }
+        break :blk msg_s;
+    };
     // First frame after a fresh error → ``while executing``;
     // subsequent unwinding frames → ``invoked from within``.  The
     // ``last_log_script == 0`` sentinel is reset by ``tcl_cmd_error``
