@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Install the project's git hooks into .git/hooks/.
+# Install the project's git hooks into the repo's hooks directory.
 #
 # Currently installs:
-#   pre-push  — refuses to push unless 'make test-slow' has been run against
-#               the current worktree (see scripts/hooks/pre-push).
+#   pre-push  — refuses to push unless 'make check-all' (or 'make test-slow',
+#               which is a strict superset) has been run against the current
+#               worktree.  See scripts/hooks/pre-push.
+#
+# Resolves the destination via `git rev-parse --git-path hooks` so it works
+# correctly for git worktrees (where .git is a file) and for repos that set
+# core.hooksPath.
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
 src_dir="$repo_root/scripts/hooks"
-dst_dir="$repo_root/.git/hooks"
-
-if [ ! -d "$dst_dir" ]; then
-    echo "install-hooks: $dst_dir does not exist — is this a git checkout?" >&2
-    exit 1
-fi
+dst_dir=$(cd "$repo_root" && git rev-parse --git-path hooks)
+case "$dst_dir" in
+    /*) ;;
+    *)  dst_dir="$repo_root/$dst_dir" ;;
+esac
 
 mkdir -p "$dst_dir"
 

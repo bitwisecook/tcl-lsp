@@ -22,6 +22,11 @@ fi
 repo_root=$(git rev-parse --show-toplevel)
 stamp_file="$repo_root/tmp/check-all.stamp"
 fingerprint_script="$repo_root/scripts/worktree-fingerprint.sh"
+hooks_dir=$(cd "$repo_root" && git rev-parse --git-path hooks)
+case "$hooks_dir" in
+    /*) ;;
+    *)  hooks_dir="$repo_root/$hooks_dir" ;;
+esac
 
 if [ ! -x "$fingerprint_script" ]; then
     echo "pre-push: $fingerprint_script not found or not executable" >&2
@@ -47,7 +52,7 @@ pre-push:
 pre-push: Either target writes tmp/check-all.stamp on success.
 pre-push:
 pre-push: To bypass temporarily: SKIP_PUSH_GATE=1 git push ...
-pre-push: To uninstall the hook:  rm .git/hooks/pre-push
+pre-push: To uninstall the hook:  rm $hooks_dir/pre-push
 EOF
     exit 1
 fi

@@ -2,8 +2,9 @@
 #
 # Targets:
 #   make ci-fast       Fast CI gate (lint + typecheck + LSP e2e); mirrors GitHub PR job
-#   make test-slow     Comprehensive local gate (everything); writes tmp/test-slow.stamp
-#   make install-hooks Install pre-push hook that enforces the test-slow stamp
+#   make check-all     Pre-push gate: full lint + typecheck across all languages; writes tmp/check-all.stamp
+#   make test-slow     Pre-PR gate: comprehensive (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp
+#   make install-hooks Install pre-push hook that enforces the check-all stamp
 #   make prep-pr       Fast pre-PR gate (format + codegen + lint + typecheck + fast tests)
 #   make vsix          Build the .vsix file (runs tests first)
 #   make install       Build and install the .vsix into VS Code

@@ -365,14 +365,20 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 const sp: [*]const u8 = @ptrFromInt(ss.ptr);
                 const fq = "::namespace inscope ";
                 var ok: bool = true;
-                for (0..fq.len) |k| if (sp[k] != fq[k]) { ok = false; break; };
+                for (0..fq.len) |k| if (sp[k] != fq[k]) {
+                    ok = false;
+                    break;
+                };
                 if (ok) return result_mod.from_globals(words[2]);
             }
             if (ss.len >= 18) {
                 const sp: [*]const u8 = @ptrFromInt(ss.ptr);
                 const bare = "namespace inscope ";
                 var ok: bool = true;
-                for (0..bare.len) |k| if (sp[k] != bare[k]) { ok = false; break; };
+                for (0..bare.len) |k| if (sp[k] != bare[k]) {
+                    ok = false;
+                    break;
+                };
                 if (ok) return result_mod.from_globals(words[2]);
             }
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
