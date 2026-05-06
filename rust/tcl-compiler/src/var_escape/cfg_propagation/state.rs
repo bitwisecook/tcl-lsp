@@ -115,7 +115,6 @@ impl CfgState {
     }
 
     /// Mark *name*'s current SSA version as `Frame`.
-    #[allow(clippy::implicit_hasher)]
     pub fn escape(&mut self, name: &str, defs: &HashMap<String, Version>) {
         if name.is_empty() || is_dynamic_name(name) {
             return;
@@ -129,7 +128,6 @@ impl CfgState {
 
     /// Mark every known proc-local name as `Frame` at its current
     /// version.
-    #[allow(clippy::implicit_hasher)]
     pub fn escape_all_known(&mut self, defs: &HashMap<String, Version>) {
         let names: Vec<String> = self.known_names.iter().cloned().collect();
         for name in names {

@@ -25,8 +25,7 @@ use crate::var_scoping::{
 
 /// Detect the `upvar ?level? src dst ...` shape and apply escape
 /// rules. Mirrors the intra-procedural variant.
-#[allow(clippy::implicit_hasher)]
-pub fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     if args.is_empty() {
         return;
     }
@@ -66,8 +65,11 @@ pub fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap<String
 }
 
 /// Escape every var named in `global a b c`.
-#[allow(clippy::implicit_hasher)]
-pub fn handle_global(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+pub(crate) fn handle_global(
+    args: &[String],
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) {
     let owned: Vec<String> = args.to_vec();
     for idx in global_declaration_indices(&owned) {
         if let Some(name) = args.get(idx) {
@@ -77,8 +79,11 @@ pub fn handle_global(args: &[String], state: &mut CfgState, defs: &HashMap<Strin
 }
 
 /// Escape every var declared by `variable name ?value? ...`.
-#[allow(clippy::implicit_hasher)]
-pub fn handle_variable(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+pub(crate) fn handle_variable(
+    args: &[String],
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) {
     let owned: Vec<String> = args.to_vec();
     for idx in variable_declaration_indices(&owned) {
         if let Some(name) = args.get(idx) {
@@ -89,8 +94,7 @@ pub fn handle_variable(args: &[String], state: &mut CfgState, defs: &HashMap<Str
 
 /// Handle `namespace upvar ns src dst ...` — only the upvar
 /// subcommand matters here.
-#[allow(clippy::implicit_hasher)]
-pub fn handle_namespace_call(
+pub(crate) fn handle_namespace_call(
     args: &[String],
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
@@ -110,8 +114,7 @@ pub fn handle_namespace_call(
 }
 
 /// Classify `info <subcmd> ...` against the allow-list.
-#[allow(clippy::implicit_hasher)]
-pub fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
+pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     let Some(sub) = args.first() else {
         state.mark_pessimistic();
         return;
@@ -143,8 +146,7 @@ pub fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String,
 
 /// Handle `set` / `incr` / `append` / `lappend` / `unset` whose
 /// first arg is a variable name.
-#[allow(clippy::implicit_hasher)]
-pub fn handle_dynamic_name_first(
+pub(crate) fn handle_dynamic_name_first(
     cmd: &str,
     args: &[String],
     state: &mut CfgState,
