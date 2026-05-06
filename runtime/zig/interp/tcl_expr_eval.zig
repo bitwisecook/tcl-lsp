@@ -148,10 +148,14 @@ fn match_kw_op(s: *State, kw: []const u8) bool {
         if (s.src[s.pos + i] != c) return false;
     }
     if (s.pos + kw.len == s.len) return true;
+    // Tcl 9 ``expr`` accepts ``3eq2`` as ``3 eq 2`` — after a
+    // keyword operator, only an alpha or underscore continues
+    // the identifier.  Digits and punctuation are valid
+    // boundaries (they cannot extend ``eq`` into a longer
+    // identifier).  The earlier rule lumped digits in with
+    // alpha and rejected ``3eq2`` outright.
     const next = s.src[s.pos + kw.len];
-    if ((next >= 'a' and next <= 'z') or (next >= 'A' and next <= 'Z') or
-        (next >= '0' and next <= '9') or next == '_')
-    {
+    if ((next >= 'a' and next <= 'z') or (next >= 'A' and next <= 'Z') or next == '_') {
         return false;
     }
     return true;
@@ -211,7 +215,16 @@ fn parse_ternary(s: *State) i32 {
         // recurse with skip set on both branches — the outer
         // parse_ternary already chose its result before the inner
         // ones were parsed.
-        const taken_true = if (s.skip) false else truthy(cond);
+        var taken_true: bool = false;
+        if (!s.skip) {
+            if (truthy_strict(cond)) |b| {
+                taken_true = b;
+            } else {
+                raise_expected_boolean(cond);
+                obj.tcl_obj_release(cond);
+                return obj_new_int(0);
+            }
+        }
         obj.tcl_obj_release(cond);
         const saved_skip = s.skip;
         s.skip = saved_skip or !taken_true;
@@ -242,12 +255,36 @@ fn parse_or(s: *State) i32 {
             // every side effect via ``s.skip``.  ``expr {1 || (1/0)}``
             // without the gate raised divide-by-zero on the dummy
             // RHS evaluation; with the gate it returns 1 cleanly.
-            const left_truthy = if (s.skip) false else truthy(left);
+            // Tcl 9 also requires both operands be valid booleans
+            // — ``expr {"a" || "b"}`` raises ``expected boolean
+            // value but got "a"`` rather than silently returning 0.
+            var left_truthy: bool = false;
+            if (!s.skip) {
+                if (truthy_strict(left)) |b| {
+                    left_truthy = b;
+                } else {
+                    raise_expected_boolean(left);
+                    obj.tcl_obj_release(left);
+                    return obj_new_int(0);
+                }
+            }
             const saved_skip = s.skip;
             s.skip = saved_skip or left_truthy;
             const right = parse_and(s);
             s.skip = saved_skip;
-            const result_val: i64 = if (saved_skip) 0 else if (left_truthy or truthy(right)) 1 else 0;
+            var result_val: i64 = 0;
+            if (!saved_skip) {
+                if (left_truthy) {
+                    result_val = 1;
+                } else if (truthy_strict(right)) |b| {
+                    result_val = if (b) 1 else 0;
+                } else {
+                    raise_expected_boolean(right);
+                    obj.tcl_obj_release(left);
+                    obj.tcl_obj_release(right);
+                    return obj_new_int(0);
+                }
+            }
             obj.tcl_obj_release(left);
             obj.tcl_obj_release(right);
             left = obj_new_int(result_val);
@@ -263,14 +300,35 @@ fn parse_and(s: *State) i32 {
         if (match2(s, '&', '&')) {
             // Short-circuit: if ``left`` is falsy we suppress the
             // RHS via ``s.skip`` so ``expr {0 && [error boom]}``
-            // doesn't trigger ``boom``.
-            const left_truthy = if (s.skip) false else truthy(left);
+            // doesn't trigger ``boom``.  Strict-boolean check
+            // mirrors ``||``.
+            var left_truthy: bool = false;
+            if (!s.skip) {
+                if (truthy_strict(left)) |b| {
+                    left_truthy = b;
+                } else {
+                    raise_expected_boolean(left);
+                    obj.tcl_obj_release(left);
+                    return obj_new_int(0);
+                }
+            }
             const saved_skip = s.skip;
             s.skip = saved_skip or !left_truthy;
             const right = parse_bit_or(s);
             s.skip = saved_skip;
-            const result_val: i64 =
-                if (saved_skip) 0 else if (left_truthy and truthy(right)) 1 else 0;
+            var result_val: i64 = 0;
+            if (!saved_skip) {
+                if (!left_truthy) {
+                    result_val = 0;
+                } else if (truthy_strict(right)) |b| {
+                    result_val = if (b) 1 else 0;
+                } else {
+                    raise_expected_boolean(right);
+                    obj.tcl_obj_release(left);
+                    obj.tcl_obj_release(right);
+                    return obj_new_int(0);
+                }
+            }
             obj.tcl_obj_release(left);
             obj.tcl_obj_release(right);
             left = obj_new_int(result_val);
@@ -586,7 +644,18 @@ fn parse_unary(s: *State) i32 {
             obj.tcl_obj_release(operand);
             return obj_new_int(0);
         }
-        const result = obj_new_int(if (truthy(operand)) @as(i64, 0) else 1);
+        // Tcl 9 ``!`` requires a boolean operand — raise
+        // ``expected boolean value but got "X"`` for non-boolean
+        // strings rather than silently returning 1.
+        var b: bool = false;
+        if (truthy_strict(operand)) |bv| {
+            b = bv;
+        } else {
+            raise_expected_boolean(operand);
+            obj.tcl_obj_release(operand);
+            return obj_new_int(0);
+        }
+        const result = obj_new_int(if (b) @as(i64, 0) else 1);
         obj.tcl_obj_release(operand);
         return result;
     }
@@ -782,9 +851,18 @@ fn parse_number(s: *State) i32 {
             has_dot = true;
             s.pos += 1;
         } else if ((ch == 'e' or ch == 'E') and !has_exp) {
+            // ``e``/``E`` only starts a float exponent when at
+            // least one digit follows (with an optional sign).
+            // ``expr 3eq2`` (string-equal operator) must NOT
+            // consume the ``e`` as exponent — without this guard
+            // ``parse_number`` greedily ate ``3e`` and the test
+            // got the literal ``"3e"`` back instead of comparing
+            // ``3 eq 2``.
+            var look = s.pos + 1;
+            if (look < s.len and (s.src[look] == '+' or s.src[look] == '-')) look += 1;
+            if (look >= s.len or s.src[look] < '0' or s.src[look] > '9') break;
             has_exp = true;
-            s.pos += 1;
-            if (s.pos < s.len and (s.src[s.pos] == '+' or s.src[s.pos] == '-')) s.pos += 1;
+            s.pos = look;
         } else break;
     }
     return finalize_num(s, start);
@@ -974,4 +1052,65 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
 
 fn truthy(o: i32) bool {
     return obj.obj_get_int(o) != 0;
+}
+
+/// Strict ``truthy`` that returns null when *o*'s string repr
+/// isn't a valid Tcl boolean (a number, or the keywords ``yes`` /
+/// ``no`` / ``true`` / ``false`` / ``on`` / ``off``).  Used by
+/// the logical operators (``&&``, ``||``, ``!``) and the
+/// conditional (``?:``) which raise ``expected boolean value
+/// but got "X"`` for non-boolean operands.  Numeric types
+/// (TYPE_INT / TYPE_FLOAT / TYPE_BIGNUM) are always boolean;
+/// strings dispatch through ``try_parse_int`` / ``try_parse_float`` /
+/// ``try_parse_bool`` so ``"0"`` / ``"1.5"`` / ``"true"`` all
+/// answer correctly.
+fn truthy_strict(o: i32) ?bool {
+    if (o == 0) return false;
+    // Tagged-immediate small ints and TYPE_INT / TYPE_FLOAT /
+    // TYPE_BIGNUM all answer ``boolean`` directly via
+    // ``obj_get_int``'s numeric-domain.  String / inline-string
+    // forms route through the parse helpers so ``"true"`` /
+    // ``"0"`` / ``"1.5"`` all work.
+    const handle: u32 = @bitCast(o);
+    const is_immediate = (handle & obj.IMMEDIATE_TAG_BIT) != 0;
+    if (!is_immediate) {
+        const tag = obj.read_i32(handle + obj.OBJ_TYPE_TAG);
+        if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT or tag == obj.TYPE_BIGNUM) {
+            return obj.obj_get_int(o) != 0;
+        }
+    } else {
+        return obj.obj_get_int(o) != 0;
+    }
+    const s = obj.obj_ensure_string(o);
+    if (s.len == 0) return false;
+    if (obj.try_parse_int(s.ptr, s.len)) |iv| return iv != 0;
+    if (obj.try_parse_float(s.ptr, s.len)) |fv| return fv != 0.0;
+    if (obj.try_parse_bool(s.ptr, s.len)) |bv| return bv != 0;
+    return null;
+}
+
+/// Raise ``expected boolean value but got "<text>"`` and
+/// return ``false``.  Caller must short-circuit the surrounding
+/// op after the call.
+fn raise_expected_boolean(o: i32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "expected boolean value but got \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + s.len + @as(u32, @intCast(suffix.len));
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| { dst[off] = c; off += 1; }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| { dst[off] = sp[i]; off += 1; }
+    }
+    for (suffix) |c| { dst[off] = c; off += 1; }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
 }
