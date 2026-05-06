@@ -893,18 +893,21 @@ fn bitwise_managed(
 }
 
 pub export fn tcl_arith_band(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "&")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, "&")) return obj.obj_new_int(0);
     if (is_bignum(a) or is_bignum(b)) return bitwise_managed(a, b, .band);
     return obj.obj_new_int(obj.obj_get_int(a) & obj.obj_get_int(b));
 }
 
 pub export fn tcl_arith_bor(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "|")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, "|")) return obj.obj_new_int(0);
     if (is_bignum(a) or is_bignum(b)) return bitwise_managed(a, b, .bor);
     return obj.obj_new_int(obj.obj_get_int(a) | obj.obj_get_int(b));
 }
 
 pub export fn tcl_arith_bxor(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "^")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, "^")) return obj.obj_new_int(0);
     if (is_bignum(a) or is_bignum(b)) return bitwise_managed(a, b, .bxor);
     return obj.obj_new_int(obj.obj_get_int(a) ^ obj.obj_get_int(b));

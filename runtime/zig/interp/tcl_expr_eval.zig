@@ -644,14 +644,15 @@ fn parse_unary(s: *State) i32 {
             obj.tcl_obj_release(operand);
             return obj_new_int(0);
         }
-        // Tcl 9 ``!`` requires a boolean operand — raise
-        // ``expected boolean value but got "X"`` for non-boolean
-        // strings rather than silently returning 1.
+        // Tcl 9 ``!`` requires a boolean operand.  Unlike ``||`` /
+        // ``&&`` which raise ``expected boolean value but got
+        // "X"``, the unary form uses ``cannot use non-numeric
+        // string "X" as operand of "!"`` (expr-4.10 / 21.13–22).
         var b: bool = false;
         if (truthy_strict(operand)) |bv| {
             b = bv;
         } else {
-            raise_expected_boolean(operand);
+            raise_non_numeric_unary(operand, "!");
             obj.tcl_obj_release(operand);
             return obj_new_int(0);
         }
@@ -1057,11 +1058,14 @@ fn parse_func_or_word(s: *State) i32 {
         for (args[0..argc]) |arg| obj.tcl_obj_release(arg);
         return result;
     }
-    // Bare keyword: ``true`` / ``false`` / ``yes`` / ``no`` / ``on`` / ``off``.
-    if (parse_bool_keyword(name)) |v| return obj_new_int(v);
-    // Otherwise treat as a string literal — matches Tcl's handling
-    // of bare words in expressions when they don't match a known
-    // function name.
+    // Bare boolean keyword (``true`` / ``false`` / ``yes`` / ``no``
+    // / ``on`` / ``off``) — Tcl 9 returns the SOURCE spelling
+    // verbatim when the keyword is the whole expression
+    // (``expr false`` → ``false``, not ``0``).  Coercion to int
+    // only happens when the value flows into an arithmetic /
+    // logical operator.  ``parse_bool_keyword`` is still useful
+    // for identifying the operand class but we no longer use its
+    // numeric form for the bare-keyword case.
     if (s.skip) return obj_new_int(0);
     const sptr = @intFromPtr(s.src) + start;
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(name_len));
@@ -1146,6 +1150,64 @@ fn truthy_strict(o: i32) ?bool {
     if (obj.try_parse_float(s.ptr, s.len)) |fv| return fv != 0.0;
     if (obj.try_parse_bool(s.ptr, s.len)) |bv| return bv != 0;
     return null;
+}
+
+/// Raise ``cannot use non-numeric string "<text>" as operand of
+/// "<op>"`` — used by the unary ``!`` and the AOT logical-not
+/// helper.  The wording differs from the binary logical
+/// operators which use ``expected boolean value but got "X"``.
+fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
+    const catch_mod = @import("tcl_catch.zig");
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "cannot use non-numeric string \"";
+    const middle: []const u8 = "\" as operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: usize = 0;
+    for (prefix) |c| { dst[off] = c; off += 1; }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| { dst[off] = sp[i]; off += 1; }
+    }
+    for (middle) |c| { dst[off] = c; off += 1; }
+    for (op_sym) |c| { dst[off] = c; off += 1; }
+    for (suffix) |c| { dst[off] = c; off += 1; }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Strict logical-NOT runtime helper exported for the AOT
+/// ``UnaryOp.NOT`` codegen.  Validates *operand* as a boolean,
+/// raises ``cannot use non-numeric string "X" as operand of
+/// "!"`` for non-boolean strings, and returns the boxed
+/// negation as a TclObj.  ``operand == 0`` (null TclObj) is
+/// treated as ``false`` so the caller can chain through the
+/// existing tagged-immediate handle path.
+pub export fn tcl_expr_lnot(operand: i32) i32 {
+    // Preserve the first error in a chain — when the operand
+    // expression already raised (e.g. a missing-variable read
+    // upstream), don't wrap the prior error message into a
+    // ``cannot use non-numeric string`` diagnostic.  Without
+    // this guard, ``info exists arr($x) && !$arr($x)`` whose
+    // first arm correctly returned 0 but left a partially
+    // populated TclObj on the stack lit up as the operand of
+    // ``!`` and produced the bizarre nested-quote diagnostic
+    // ``cannot use non-numeric string "can't read ..." as
+    // operand of "!"``.
+    const result_mod = @import("tcl_result.zig");
+    if (result_mod.snapshot(0).code == .ERROR) return obj_new_int(0);
+    if (truthy_strict(operand)) |b| {
+        return obj_new_int(if (b) @as(i64, 0) else 1);
+    }
+    raise_non_numeric_unary(operand, "!");
+    return obj_new_int(0);
 }
 
 /// Raise ``expected boolean value but got "<text>"`` and

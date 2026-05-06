@@ -360,6 +360,19 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # AOT strict logical-NOT — validates the operand is a
+    # boolean (numeric or yes/no/true/false/on/off keyword),
+    # raises ``cannot use non-numeric string "X" as operand of
+    # "!"`` otherwise.  Used by ``UnaryOp.NOT`` in
+    # ``_emit_unary`` so ``expr {!$v}`` for a non-boolean
+    # ``$v`` errors instead of silently coercing through
+    # ``obj_get_int``.
+    "tcl_expr_lnot": (
+        "tcl",
+        "tcl_expr_lnot",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     # Namespace context for eval-fallback calls — compiled procs set the
     # current namespace before ``tcl_eval`` so dynamic ``proc $name`` /
     # ``variable $name`` inside the fallback qualify into the enclosing
