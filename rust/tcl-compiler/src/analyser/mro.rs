@@ -67,69 +67,59 @@ impl std::error::Error for MroError {}
 /// 3. Recurse into superclasses (inheriting current mixin-path
 ///    status).
 ///
-/// `is_mixin_path` corresponds to Tcl's ``TRAVERSED_MIXIN``:
-/// `true` when the class was reached via a mixin edge.
+/// Per-pass context for [`tcloo_dfs`].
+///
+/// Bundles the immutable maps that drive the walk
+/// (`mixins_map` / `supers_map`), the mutable accumulator
+/// (`result` / `visiting`), and the per-pass `building_mixins`
+/// flag.  Only `cls` and `is_mixin_path` vary per recursive
+/// call — they stay as direct parameters.
 ///
 /// `building_mixins` corresponds to Tcl's ``BUILDING_MIXINS``:
 /// when set, only mixin-path classes are added; when clear,
 /// only non-mixin-path classes are added.
-#[allow(clippy::too_many_arguments)]
-fn tcloo_dfs(
-    cls: &str,
-    mixins_map: &HashMap<String, Vec<String>>,
-    supers_map: &HashMap<String, Vec<String>>,
-    result: &mut Vec<String>,
-    visiting: &mut HashSet<String>,
-    is_mixin_path: bool,
+struct DfsCtx<'a> {
+    mixins_map: &'a HashMap<String, Vec<String>>,
+    supers_map: &'a HashMap<String, Vec<String>>,
+    result: &'a mut Vec<String>,
+    visiting: &'a mut HashSet<String>,
     building_mixins: bool,
-) {
-    if visiting.contains(cls) {
+}
+
+/// `is_mixin_path` corresponds to Tcl's ``TRAVERSED_MIXIN``:
+/// `true` when the class was reached via a mixin edge.
+fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool) {
+    if ctx.visiting.contains(cls) {
         // Cycles through mixins are valid in TclOO; just skip.
         return;
     }
-    visiting.insert(cls.to_string());
+    ctx.visiting.insert(cls.to_string());
 
     // 1. Process class-level mixins (enter mixin path).
-    if let Some(mixins) = mixins_map.get(cls) {
-        for mixin in mixins {
-            tcloo_dfs(
-                mixin,
-                mixins_map,
-                supers_map,
-                result,
-                visiting,
-                true,
-                building_mixins,
-            );
+    if let Some(mixins) = ctx.mixins_map.get(cls) {
+        for mixin in mixins.clone() {
+            tcloo_dfs(&mixin, ctx, true);
         }
     }
 
     // 2. Add own class with MIXIN_CONSISTENT gate:
     //    Pass 1 (building_mixins=true):  only add if on mixin path
     //    Pass 2 (building_mixins=false): only add if NOT on mixin path
-    if building_mixins == is_mixin_path {
-        if let Some(pos) = result.iter().position(|c| c == cls) {
-            result.remove(pos);
+    if ctx.building_mixins == is_mixin_path {
+        if let Some(pos) = ctx.result.iter().position(|c| c == cls) {
+            ctx.result.remove(pos);
         }
-        result.push(cls.to_string());
+        ctx.result.push(cls.to_string());
     }
 
     // 3. Process superclasses (inherit mixin-path status).
-    if let Some(supers) = supers_map.get(cls) {
-        for parent in supers {
-            tcloo_dfs(
-                parent,
-                mixins_map,
-                supers_map,
-                result,
-                visiting,
-                is_mixin_path,
-                building_mixins,
-            );
+    if let Some(supers) = ctx.supers_map.get(cls) {
+        for parent in supers.clone() {
+            tcloo_dfs(&parent, ctx, is_mixin_path);
         }
     }
 
-    visiting.remove(cls);
+    ctx.visiting.remove(cls);
 }
 
 /// Detect a pure superclass cycle starting at `start`.
@@ -194,28 +184,26 @@ pub fn tcloo_linearise(
 
     // Pass 1: BUILDING_MIXINS — only collect mixin-path classes.
     let mut visiting = HashSet::new();
-    tcloo_dfs(
-        class_name,
+    let mut ctx = DfsCtx {
         mixins_map,
-        superclasses_map,
-        &mut result,
-        &mut visiting,
-        false,
-        true,
-    );
+        supers_map: superclasses_map,
+        result: &mut result,
+        visiting: &mut visiting,
+        building_mixins: true,
+    };
+    tcloo_dfs(class_name, &mut ctx, false);
 
     // Pass 2: collect non-mixin-path classes (shares result list
     // for late-placement dedup).
     let mut visiting = HashSet::new();
-    tcloo_dfs(
-        class_name,
+    let mut ctx = DfsCtx {
         mixins_map,
-        superclasses_map,
-        &mut result,
-        &mut visiting,
-        false,
-        false,
-    );
+        supers_map: superclasses_map,
+        result: &mut result,
+        visiting: &mut visiting,
+        building_mixins: false,
+    };
+    tcloo_dfs(class_name, &mut ctx, false);
 
     Ok(result)
 }

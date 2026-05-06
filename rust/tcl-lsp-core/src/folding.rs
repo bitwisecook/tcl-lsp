@@ -102,16 +102,16 @@ pub fn folding_ranges(
         &mut ranges,
     );
     collect_comment_folds(source, &mut seen, &mut ranges);
-    collect_body_folds(
-        source,
+    let mut ctx = FoldCtx {
         registry,
-        &line_index,
-        source,
-        0,
-        0,
-        false, // top-level body is not inside an OO definition
-        &mut seen,
-        &mut ranges,
+        line_index: &line_index,
+        original_source: source,
+        seen: &mut seen,
+        ranges: &mut ranges,
+    };
+    collect_body_folds(
+        source, 0, 0, false, // top-level body is not inside an OO definition
+        &mut ctx,
     );
 
     ranges
@@ -338,18 +338,28 @@ fn collect_comment_folds(
 /// context — outside it, a user proc named `method` must not be
 /// misidentified.
 ///
+/// Per-walk context for [`collect_body_folds`].
+///
+/// Bundles the immutable references that don't change across the
+/// recursive walk (`registry`, `line_index`, `original_source`)
+/// and the two mutable accumulators (`seen`, `ranges`).  Only
+/// `body_source`, `base_offset`, `depth`, and `inside_oo_body`
+/// vary per call — they stay as direct parameters.
+struct FoldCtx<'a> {
+    registry: &'a CommandRegistry,
+    line_index: &'a LineIndex,
+    original_source: &'a str,
+    seen: &'a mut HashSet<(u32, u32)>,
+    ranges: &'a mut Vec<FoldingRange>,
+}
+
 /// Recursion depth is capped at 20 to mirror the Python guard.
-#[allow(clippy::too_many_arguments)]
 fn collect_body_folds(
     body_source: &str,
-    registry: &CommandRegistry,
-    line_index: &LineIndex,
-    original_source: &str,
     base_offset: u32,
     depth: u32,
     inside_oo_body: bool,
-    seen: &mut HashSet<(u32, u32)>,
-    ranges: &mut Vec<FoldingRange>,
+    ctx: &mut FoldCtx<'_>,
 ) {
     if depth > 20 {
         return;
@@ -373,7 +383,8 @@ fn collect_body_folds(
             if inside_oo_body && is_inner_oo_definition_command(cmd.name()) {
                 inner_oo_body_indices(cmd.name(), &args_borrow)
             } else {
-                registry.arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body)
+                ctx.registry
+                    .arg_indices_for_role(cmd.name(), &args_borrow, ArgRole::Body)
             };
 
         // What "inside_oo_body" should the recursion into THIS
@@ -404,7 +415,13 @@ fn collect_body_folds(
             if !matches!(body_tok.kind, TokenType::Str) {
                 continue;
             }
-            emit_body_span_fold(body_tok.span, original_source, line_index, seen, ranges);
+            emit_body_span_fold(
+                body_tok.span,
+                ctx.original_source,
+                ctx.line_index,
+                ctx.seen,
+                ctx.ranges,
+            );
 
             // Recurse into the body's content. The lexer's STR span
             // includes the opening ``{``; for closed non-empty bodies
@@ -415,7 +432,7 @@ fn collect_body_folds(
             let span = body_tok.span;
             let content_start = span.start() as usize + body_tok.content_offset as usize;
             let raw_end = span.end() as usize;
-            let bytes = original_source.as_bytes();
+            let bytes = ctx.original_source.as_bytes();
             // Strip the trailing ``}`` for the empty-body clamp case
             // so the sub-lexer doesn't see a stray close-brace.
             let content_end = if raw_end > content_start
@@ -429,17 +446,13 @@ fn collect_body_folds(
             if content_end <= content_start {
                 continue;
             }
-            let inner = &original_source[content_start..content_end];
+            let inner = &ctx.original_source[content_start..content_end];
             collect_body_folds(
                 inner,
-                registry,
-                line_index,
-                original_source,
                 u32::try_from(content_start).expect("content offset fits u32"),
                 depth + 1,
                 next_inside_oo_body,
-                seen,
-                ranges,
+                ctx,
             );
         }
     }

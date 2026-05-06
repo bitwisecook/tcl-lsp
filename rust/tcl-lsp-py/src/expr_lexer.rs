@@ -1,4 +1,3 @@
-#![allow(clippy::useless_conversion)]
 //! `PyO3` wrapper for `tcl_lexer::expr_lexer`.
 
 use pyo3::prelude::*;
