@@ -1862,9 +1862,22 @@ fn looks_like_tcl_list(ptr: u32, len: u32) bool {
                 if (sp[i] == '{') depth += 1 else if (sp[i] == '}') depth -= 1;
             }
         } else {
-            while (i < len) : (i += 1) {
+            while (i < len) {
                 const c = sp[i];
+                // ``Tcl_SplitList`` treats ``\<char>`` as a literal
+                // 2-byte unit inside an unquoted element, so an
+                // escaped space (``a\ b``) stays a single element.
+                // Without this skip, our walker counted the post-
+                // backslash space as a separator and misclassified
+                // the string as a multi-element list — "got a list"
+                // surfaced where reference Tcl emits "got \"a\\ b\""
+                // (Codex review on PR #346, P2).
+                if (c == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
                 if (c == ' ' or c == '\t' or c == '\n' or c == '\r') break;
+                i += 1;
             }
         }
     }
