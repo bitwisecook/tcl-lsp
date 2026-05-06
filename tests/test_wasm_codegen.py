@@ -290,10 +290,14 @@ def test_ternary_expr():
 
 
 def test_unary_neg():
-    """Unary negation should produce 0 - x."""
+    """Unary negation routes through ``tcl_arith_neg`` so non-numeric
+    operands raise ``cannot use non-numeric string …`` (expr-old-5.1)
+    and bignum / float tags survive the negate.  Earlier the codegen
+    inlined ``0 - x`` (``i64.sub``); the runtime helper supersedes
+    that path."""
     module = _compile("set x [expr {-$y}]\n")
     wat = module.to_wat()
-    assert "i64.sub" in wat
+    assert "tcl_arith_neg" in wat
 
 
 # Binary validity

@@ -330,6 +330,46 @@ fn list_contains_string(list: StringSpan, needle: StringSpan) bool {
     return false;
 }
 
+/// Raise ``expected boolean value but got "<text>"`` from the
+/// legacy expr atom evaluator.  Used by the quoted-string branch
+/// (``"YES"`` / ``"abc"`` etc.) when the operand isn't a numeric
+/// or boolean literal — reference Tcl 9 surfaces this exact text
+/// at the if / while / && / || / ?: callsites (expr-old-28.12 ..
+/// 28.14).  Compiled-context tasks already raise this through
+/// ``tcl_expr_eval.raise_expected_boolean``; this version is the
+/// runtime fallback for the interpreter.
+fn raise_expected_boolean_str(ptr: u32, slen: u32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const prefix: []const u8 = "expected boolean value but got \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + slen + @as(u32, @intCast(suffix.len));
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (slen > 0) {
+        const sp: [*]const u8 = @ptrFromInt(ptr);
+        for (0..slen) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// Short-circuit evaluation: when *skip* is true the expression walks the
 /// tokens to advance ``pos`` but does NOT run ``[cmd]`` substitutions —
 /// so ``{[info exists x] && [use $x]}`` only runs ``[use $x]`` when the
@@ -461,13 +501,17 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         return val;
     }
     // String literal "...": advance past closing quote and parse the
-    // content as an integer if possible.  In Tcl expressions ``"5"``
-    // evaluates to 5 and participates in numeric context; falling back
-    // to 0 silently made any ``{"$x" == "5"}`` comparison compare
-    // against 0 regardless of value.  (String-vs-string comparison
-    // operators go through dedicated runtime helpers, not this atom
-    // path — this return value only surfaces when the literal is
-    // used in a numeric slot.)
+    // content as an integer / float / boolean.  In Tcl expressions
+    // ``"5"`` evaluates to 5 and ``"YES"`` evaluates to 1 (true).
+    // Falling back to 0 silently made ``if {"YES"}`` test false
+    // (expr-old-28.6 / 28.8 / 28.10).  When the string isn't any of
+    // those forms the operand is invalid in the surrounding numeric
+    // / boolean context — raise ``expected boolean value but got
+    // "X"`` (expr-old-28.12 / 28.13 / 28.14).  String-equality
+    // operators (``eq`` / ``ne`` / ``in`` / ``ni``) bypass this
+    // atom path via :func:`find_top_string_op` so this return value
+    // only surfaces when the literal is used in a numeric / boolean
+    // slot.
     if (src[pos.*] == '"') {
         pos.* += 1;
         const content_start = pos.*;
@@ -477,9 +521,21 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         }
         const content_end = pos.*;
         if (pos.* < len) pos.* += 1; // closing quote
-        if (obj_mod.try_parse_int(ptr + content_start, content_end - content_start)) |v| {
+        const clen: u32 = content_end - content_start;
+        if (obj_mod.try_parse_int(ptr + content_start, clen)) |v| {
             return v;
         }
+        if (obj_mod.try_parse_float(ptr + content_start, clen)) |fv| {
+            return if (fv != 0.0) @as(i64, 1) else @as(i64, 0);
+        }
+        if (obj_mod.try_parse_bool(ptr + content_start, clen)) |bv| {
+            return bv;
+        }
+        // Not a recognised numeric or boolean literal — raise the
+        // canonical ``expected boolean value but got "X"`` so callers
+        // (``if`` / ``while`` / ``&&`` / ``||`` / ``?:``) report the
+        // same surface as reference Tcl.
+        raise_expected_boolean_str(ptr + content_start, clen);
         return 0;
     }
     if (src[pos.*] == '$') {

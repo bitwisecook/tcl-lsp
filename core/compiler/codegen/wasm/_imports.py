@@ -184,6 +184,11 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # the float and raise the canonical error (Codex review on
     # PR #287; issue #261).
     "tcl_arith_neg": ("tcl", "tcl_arith_neg", [ValType.I32], [ValType.I32]),
+    # Unary ``+``: identity on numeric operands, raises ``cannot use
+    # non-numeric string …`` on string operands.  Without this the
+    # inline no-op path silently passed through ``+"a"`` (expr-old
+    # 5.2).
+    "tcl_arith_pos": ("tcl", "tcl_arith_pos", [ValType.I32], [ValType.I32]),
     # ``**`` operator — bignum-aware integer exponentiation.  The
     # WASM emitter previously inlined an i64 multiplication loop
     # (``_emit_power``) which silently wrapped past the i64 boundary;

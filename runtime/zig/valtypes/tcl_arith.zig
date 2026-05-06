@@ -205,6 +205,12 @@ pub export fn tcl_arith_div(a: i32, b: i32) i32 {
 
 pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
     if (!check_numeric_binary(a, b, "%")) return obj.obj_new_int(0);
+    // Tcl 9 forbids float operands on ``%`` — ``expr 27 % 4.0`` raises
+    // ``cannot use floating-point value "4.0" as right operand of "%"``.
+    // ``tclExecute.c`` INST_MOD checks for ``TCL_NUMBER_DOUBLE`` /
+    // ``TCL_NUMBER_NAN`` on either side and routes through
+    // ``IllegalExprOperandType`` before the integer fast path.
+    if (!check_int_binary(a, b, "%")) return obj.obj_new_int(0);
     // Tcl's ``%`` follows Python-like "result has same sign as
     // divisor" semantics — see ``tclExecute.c`` INST_MOD which does
     // ``remainder = w1 % w2;  if (remainder != 0 && (remainder ^ w2) < 0)
@@ -213,16 +219,6 @@ pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
     // ``-1`` instead of the upstream-correct ``9223372036854775807``
     // (the regression covered by ``expr-32.4`` and ``expr-32.6`` and
     // the ``Bug 1585704`` cluster).
-    if (is_float(a) or is_float(b)) {
-        const bf = obj.obj_get_float(b);
-        if (bf == 0.0) {
-            stubs.raise("divide by zero");
-            return obj.obj_new_int(0);
-        }
-        var r = @rem(obj.obj_get_float(a), bf);
-        if (r != 0.0 and ((r < 0) != (bf < 0))) r += bf;
-        return obj.obj_new_float(r);
-    }
     if (is_bignum(a) or is_bignum(b)) {
         const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
         defer release_promoted(ap);
@@ -854,7 +850,65 @@ fn check_numeric_binary(a: i32, b: i32, op_sym: []const u8) bool {
     return true;
 }
 
+/// Build ``cannot use non-numeric string "X" as operand of "<op>"``
+/// (unary form — no left/right qualifier).  Mirrors the binary
+/// ``raise_non_numeric`` helper but emits the unary surface used
+/// by ``-X`` / ``+X`` / ``~X`` (expr-old-5.1 / 5.2 / 5.3).
+fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const s = obj.obj_ensure_string(o);
+    const ieee_kw = is_ieee_keyword_string(o);
+    const prefix: []const u8 = if (ieee_kw)
+        "cannot use non-numeric floating-point value \""
+    else
+        "cannot use non-numeric string \"";
+    const middle: []const u8 = "\" as operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        stubs.raise("non-numeric operand");
+        return;
+    }
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            buf[off] = sp[i];
+            off += 1;
+        }
+    }
+    for (middle) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (op_sym) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        buf[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+}
+
+fn check_numeric_unary(a: i32, op_sym: []const u8) bool {
+    if (!obj_is_numeric(a)) {
+        raise_non_numeric_unary(a, op_sym);
+        return false;
+    }
+    return true;
+}
+
 pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "<<")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, "<<")) return obj.obj_new_int(0);
     const bi = obj.obj_get_int(b);
     if (bi < 0) {
@@ -886,6 +940,7 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, ">>")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, ">>")) return obj.obj_new_int(0);
     const bi = obj.obj_get_int(b);
     if (bi < 0) {
@@ -970,6 +1025,7 @@ pub export fn tcl_arith_bxor(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_bnot(a: i32) i32 {
+    if (!check_numeric_unary(a, "~")) return obj.obj_new_int(0);
     if (is_float(a)) {
         raise_float_in_unary_bitwise(a, "~");
         return obj.obj_new_int(0);
@@ -1006,6 +1062,7 @@ pub export fn tcl_arith_bnot(a: i32) i32 {
 /// route through :func:`bignum.sub_overflow(0, av)` and saturate to
 /// i128::MAX on the one boundary case.
 pub export fn tcl_arith_neg(a: i32) i32 {
+    if (!check_numeric_unary(a, "-")) return obj.obj_new_int(0);
     if (is_float(a)) return obj.obj_new_float(-obj.obj_get_float(a));
     if (is_bignum(a)) {
         const ap = promote_to_bignum(a) orelse return obj.obj_new_int(0);
@@ -1019,4 +1076,18 @@ pub export fn tcl_arith_neg(a: i32) i32 {
         return obj.obj_new_bignum(-@as(i128, ai));
     }
     return obj.obj_new_int(-ai);
+}
+
+/// Unary plus.  Tcl 9 forbids non-numeric string operands —
+/// ``expr {+"a"}`` raises ``cannot use non-numeric string "a" as
+/// operand of "+"`` (expr-old-5.2).  For numeric operands ``+x``
+/// is the identity, so we retain the original handle and return
+/// it; the caller's release-of-arg + release-of-result pair
+/// then balances the refcount cleanly (mirrors ``tcl_math_double``
+/// which already takes the same shape for already-float operands).
+pub export fn tcl_arith_pos(a: i32) i32 {
+    if (!check_numeric_unary(a, "+")) return obj.obj_new_int(0);
+    if (a == 0) return obj.obj_new_int(0);
+    obj.tcl_obj_retain(a);
+    return a;
 }
