@@ -793,6 +793,77 @@ fn parse_number(s: *State) i32 {
 fn finalize_num(s: *State, start: u32) i32 {
     const slen = s.pos - start;
     const sptr = @intFromPtr(s.src) + start;
+    // Tcl 9 ``expr`` canonicalises numeric literals: ``0005``
+    // collapses to ``5``, ``0x1234`` to ``4660``, ``1.5e2`` to
+    // ``150.0``.  Without this normalisation the returned obj
+    // keeps the source bytes and a top-level ``expr 0005`` prints
+    // the literal spelling instead of the canonical decimal
+    // form.  Detect base-prefixed forms first (``0x`` / ``0o`` /
+    // ``0b``) so hex / octal / binary literals collapse to
+    // their decimal int form; otherwise fall back to the
+    // ``try_parse_int`` / ``try_parse_float`` decimal path.
+    const src: [*]const u8 = @ptrFromInt(sptr);
+    if (slen >= 2 and src[0] == '0' and slen <= 18) {
+        const c = src[1];
+        if (c == 'x' or c == 'X') {
+            var v: u64 = 0;
+            var i: u32 = 2;
+            var ok = i < slen;
+            while (i < slen) : (i += 1) {
+                const ch = src[i];
+                const d: u8 = if (ch >= '0' and ch <= '9')
+                    ch - '0'
+                else if (ch >= 'a' and ch <= 'f')
+                    (ch - 'a') + 10
+                else if (ch >= 'A' and ch <= 'F')
+                    (ch - 'A') + 10
+                else blk: { ok = false; break :blk 0; };
+                if (!ok) break;
+                const m = @mulWithOverflow(v, @as(u64, 16));
+                if (m[1] != 0) { ok = false; break; }
+                const a = @addWithOverflow(m[0], @as(u64, d));
+                if (a[1] != 0) { ok = false; break; }
+                v = a[0];
+            }
+            if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
+                return obj_new_int(@intCast(v));
+            }
+        } else if (c == 'o' or c == 'O') {
+            var v: u64 = 0;
+            var i: u32 = 2;
+            var ok = i < slen;
+            while (i < slen) : (i += 1) {
+                const ch = src[i];
+                if (ch < '0' or ch > '7') { ok = false; break; }
+                const m = @mulWithOverflow(v, @as(u64, 8));
+                if (m[1] != 0) { ok = false; break; }
+                const a = @addWithOverflow(m[0], @as(u64, ch - '0'));
+                if (a[1] != 0) { ok = false; break; }
+                v = a[0];
+            }
+            if (ok) return obj_new_int(@intCast(v));
+        } else if (c == 'b' or c == 'B') {
+            var v: u64 = 0;
+            var i: u32 = 2;
+            var ok = i < slen;
+            while (i < slen) : (i += 1) {
+                const ch = src[i];
+                if (ch != '0' and ch != '1') { ok = false; break; }
+                const m = @mulWithOverflow(v, @as(u64, 2));
+                if (m[1] != 0) { ok = false; break; }
+                v = m[0] + @as(u64, ch - '0');
+            }
+            if (ok) return obj_new_int(@intCast(v));
+        }
+    }
+    if (obj.try_parse_int(@bitCast(sptr), @bitCast(slen))) |iv| {
+        return obj_new_int(iv);
+    }
+    if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
+        return obj.obj_new_float(fv);
+    }
+    // Bignum / unparseable — fall back to the source bytes so
+    // the caller sees the original spelling.
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(slen));
 }
 
