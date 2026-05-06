@@ -1,0 +1,24 @@
+# Categorisation for upvar.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass``.
+
+# Real semantic features that aren't yet implemented but should be.
+good_to_have = [
+  "5.1",          # upvar-5.1: write trace fires through an upvar
+                  #   alias with name1 = the local alias name.
+                  #   Needs trace dispatch to chase alias chains and
+                  #   surface the local-frame name on fire.
+  "5.2",          # upvar-5.2: read-trace counterpart of 5.1
+  "5.3",          # upvar-5.3: unset-trace counterpart of 5.1
+  "7.1",          # upvar-7.1: ``upvar #0 x uv`` at top-level scope
+                  #   (no proc frame).  Needs a same-namespace
+                  #   VAR_LINK so the global frame can carry an
+                  #   alias bucket.
+]
+
+[baseline]
+# Snapshot at triage time.  Drops welcome; growth past the cap
+# fires the gate even though the test names are already listed.
+good_to_have_failing = 4
+just_to_match_ctcl_failing = 0
+skip_failing = 0
