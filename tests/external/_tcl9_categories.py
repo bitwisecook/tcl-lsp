@@ -1,221 +1,369 @@
-"""Loader for ``tests/baselines/tcl9-tcltest/categories/<stem>.toml``.
+"""Per-stem categorisation lookup for the Tcl 9 tcltest harness.
 
-The TOML files bin individual tcltest failures into one of four
-buckets:
+See ``tests/baselines/tcl9-tcltest/categories/README.md`` for the
+bucket definitions and file format.  This module's job is the small
+plumbing layer: read the TOML for a stem, expose a ``bucket_of`` query
+that returns ``"must_pass"`` for unlisted test IDs (the deliberately
+fail-closed default), and aggregate per-stem counts so the harness
+can emit them in its JSON record without each call site re-parsing
+the file.
 
-* ``must_pass`` — gates the sweep; count must be 0.
-* ``good_to_have`` — tracked but doesn't gate; count cannot grow.
-* ``wasm_n_a`` — **skipped**: tests probing exact Tcl VM bytecode
-  that can't pass in principle on a wasm-codegen runtime.
-* ``just_to_match_ctcl`` — counted for visibility, never gates;
-  non-semantic implementation-detail differences (error-wording
-  variations that are functionally equivalent, dict shimmer
-  ordering, etc.).
+Synthesised from three parallel categorisation efforts:
 
-The default for any failing test that has no explicit entry is
-``must_pass``: that forces explicit triage on every new failure.
+* the ``tcl9-arith-wording`` stream's per-stem split with cluster-level
+  hand-off notes for un-binned residuals,
+* the ``tcl9-frames-aliases-trace`` stream's ``trap_allowed`` + cached
+  loader + ``tcltest::configure -skip`` injection,
+* the ``tcl9-codegen-misc`` stream's ``[baseline]`` cap, overlap and
+  unknown-key validation.
 
-Schema (see ``categories/README.md`` for the long form):
-
-    [meta]
-    bundle = "expr-old.test"
-    total = 461
-    stream = "tcl9-arith-wording"
-
-    [[entries]]
-    id = "32.50"
-    bucket = "just_to_match_ctcl"
-    reason = "..."
-
-This module only loads + validates the TOML; wiring the buckets into
-the actual sweep gate is the consumer's job (see
-:func:`category_for` for the lookup primitive and
-:func:`gate_decision` for the must_pass-by-default rule).
+The combined surface keeps every stream's gating semantics so the
+three feature branches can merge into ``main`` without conflict.
 """
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from threading import Lock
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover — repo runs on 3.11+
-    import tomli as tomllib  # type: ignore[no-redef]
+# Repo-relative path to the per-stem TOML files.  Resolved once at
+# import time so a ``cd`` mid-test doesn't break the lookup.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_CATEGORIES_DIR = _REPO_ROOT / "tests" / "baselines" / "tcl9-tcltest" / "categories"
 
-VALID_BUCKETS = ("must_pass", "good_to_have", "wasm_n_a", "just_to_match_ctcl")
 
-CATEGORIES_DIR = (
-    Path(__file__).parent.parent / "baselines" / "tcl9-tcltest" / "categories"
+# Recognised bucket names — the keys we accept at the TOML top level.
+# Test IDs not appearing in any of these implicitly fall into
+# :data:`DEFAULT_BUCKET`.  ``must_pass`` is the "everything else"
+# bucket; listing it explicitly in a TOML is allowed but redundant.
+#
+# ``skip`` is the bucket for tests we explicitly do not run — they
+# probe C-Tcl bytecode shape, instruction count, ``info frame``
+# line numbers tied to the bcc, the ``::tcl::test`` /
+# ``::tcl::dict::*`` internal namespaces, or other implementation
+# details our WASM runtime cannot meaningfully emulate.  The harness
+# passes the list to ``tcltest::configure -skip`` so they show up in
+# the skipped count, never as failures, and cost zero runtime.
+BUCKETS = ("must_pass", "good_to_have", "just_to_match_ctcl", "skip")
+DEFAULT_BUCKET = "must_pass"
+
+# Top-level TOML keys we recognise.  Unknown keys are rejected so a
+# typo (``goodto_have = [...]``) doesn't silently disable a list.
+_KNOWN_KEYS = frozenset(BUCKETS) | {"baseline", "trap_allowed"}
+
+# Baseline-table keys we recognise.
+_BASELINE_KEYS = frozenset(
+    {
+        "good_to_have_failing",
+        "just_to_match_ctcl_failing",
+        "skip_failing",
+    }
 )
 
 
-@dataclass(frozen=True, slots=True)
-class CategoryEntry:
-    """A single triaged test failure."""
+@dataclass(frozen=True)
+class StemCategories:
+    """Loaded categorisation for a single tcltest stem.
 
-    id: str
-    bucket: str
+    ``test_to_bucket`` maps an ID *suffix* (e.g. ``"3.5"`` for
+    ``dict-3.5``) to its bucket name.  ``trap_allowed`` is the
+    stem-wide hatch for stems that currently trap mid-run before
+    reaching a tcltest summary — when true the harness records the
+    trap as a tracked failure rather than promoting it to a hard
+    fail.
+
+    The ``*_baseline`` fields are the recorded snapshot counts at
+    triage time.  ``good_to_have_baseline`` is the cap the gate
+    enforces (current count must not exceed it — drops are welcome,
+    growth fires the gate so a previously-passing GOOD_TO_HAVE test
+    that starts failing surfaces even though the test name was
+    already listed in the bucket).  The ``just_to_match_ctcl`` and
+    ``skip`` baselines are recorded for visibility only — neither
+    direction is gating.
+
+    ``raw`` retains the original parsed TOML for the JSON record so
+    the report consumer can see exactly what was loaded.
+    """
+
+    stem: str
+    test_to_bucket: dict[str, str] = field(default_factory=dict)
+    trap_allowed: bool = False
+    good_to_have_baseline: int = 0
+    just_to_match_ctcl_baseline: int = 0
+    skip_baseline: int = 0
+    raw: dict = field(default_factory=dict)
+
+    def bucket_of(self, test_id_or_suffix: str) -> str:
+        """Return the bucket for *test_id_or_suffix*.
+
+        Accepts either ``"dict-3.5"`` or the bare ``"3.5"`` suffix —
+        callers parsing tcltest output have full IDs while seed
+        authors edit suffixes, so the function tolerates both.
+        Unlisted IDs return :data:`DEFAULT_BUCKET` (``must_pass``).
+        """
+        if not test_id_or_suffix:
+            return DEFAULT_BUCKET
+        suffix = _strip_stem(self.stem, test_id_or_suffix)
+        return self.test_to_bucket.get(suffix, DEFAULT_BUCKET)
+
+    def skip_full_ids(self) -> list[str]:
+        """Return the list of full ``<stem>-<suffix>`` IDs in the
+        ``skip`` bucket — the form ``tcltest::configure -skip``
+        wants.  Order is the seed-file order so the generated
+        directive is reproducible across runs.
+        """
+        return [
+            f"{self.stem}-{suffix}"
+            for suffix, bucket in self.test_to_bucket.items()
+            if bucket == "skip"
+        ]
+
+
+def _strip_stem(stem: str, test_id: str) -> str:
+    """Return *test_id* with its ``<stem>-`` prefix removed if present.
+
+    ``upvar-3.1`` → ``"3.1"``.  Bare suffixes pass through unchanged
+    so seed-file editing and runtime lookup share one code path.
+    """
+    prefix = f"{stem}-"
+    if test_id.startswith(prefix):
+        return test_id[len(prefix) :]
+    return test_id
+
+
+# Per-stem cache: ``load_categories`` is called from every test_runs
+# invocation in the suite, so re-parsing the TOML on each call would
+# be needlessly expensive (a 200-test sweep does it 200 times).  The
+# Lock is a defensive measure against pytest-xdist worker forks; in
+# practice the cache is populated once per worker.
+_cache: dict[str, StemCategories] = {}
+_cache_lock = Lock()
+
+
+def load_categories(stem: str) -> StemCategories:
+    """Load the categorisation for *stem*, caching the result.
+
+    Returns a :class:`StemCategories` with empty mappings (so every
+    test defaults to ``must_pass``) when the file is absent — that is
+    the new-stem onboarding path.  Malformed TOML, duplicate IDs,
+    overlap, unknown keys, or a baseline that exceeds the listed-test
+    count all raise :class:`RuntimeError` so the seed-file mistake
+    surfaces at the next ``test_runs`` invocation rather than silently
+    mis-categorising failures.
+    """
+    with _cache_lock:
+        cached = _cache.get(stem)
+        if cached is not None:
+            return cached
+        loaded = _load_uncached(stem)
+        _cache[stem] = loaded
+        return loaded
+
+
+def _load_uncached(stem: str) -> StemCategories:
+    path = _CATEGORIES_DIR / f"{stem}.toml"
+    if not path.exists():
+        return StemCategories(stem=stem)
+    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+
+    # Reject unknown top-level keys so a typo doesn't silently
+    # disable a category list (e.g. ``goodto_have = [...]``).
+    unknown_top = set(raw.keys()) - _KNOWN_KEYS
+    if unknown_top:
+        msg = (
+            f"{path}: unknown top-level keys: {sorted(unknown_top)} "
+            f"(allowed: {sorted(_KNOWN_KEYS)})"
+        )
+        raise RuntimeError(msg)
+
+    test_to_bucket: dict[str, str] = {}
+    bucket_counts: dict[str, int] = {b: 0 for b in BUCKETS}
+    for bucket in BUCKETS:
+        ids = raw.get(bucket, [])
+        if not isinstance(ids, list):
+            msg = f"{path}: top-level '{bucket}' must be an array of strings"
+            raise RuntimeError(msg)
+        for tid in ids:
+            if not isinstance(tid, str):
+                msg = f"{path}: '{bucket}' entry {tid!r} is not a string"
+                raise RuntimeError(msg)
+            if tid in test_to_bucket and test_to_bucket[tid] != bucket:
+                # Catching this keeps the seed file unambiguous: every
+                # ID lives in exactly one bucket, with the rest
+                # implicitly must_pass.
+                msg = (
+                    f"{path}: test id {tid!r} listed in both "
+                    f"{test_to_bucket[tid]!r} and {bucket!r}"
+                )
+                raise RuntimeError(msg)
+            if tid not in test_to_bucket:
+                bucket_counts[bucket] += 1
+            test_to_bucket[tid] = bucket
+
+    trap_allowed = bool(raw.get("trap_allowed", False))
+
+    # Parse the optional ``[baseline]`` table.  A missing table or
+    # missing key is fine — we default each cap to the listed count
+    # so a fresh manifest (still being built up) doesn't fire the
+    # cap accidentally.  Reject unknown keys here too.
+    baseline = raw.get("baseline", {}) or {}
+    if not isinstance(baseline, dict):
+        msg = f"{path}: [baseline] must be a table"
+        raise RuntimeError(msg)
+    unknown_baseline = set(baseline.keys()) - _BASELINE_KEYS
+    if unknown_baseline:
+        msg = (
+            f"{path}: unknown [baseline] keys: {sorted(unknown_baseline)} "
+            f"(allowed: {sorted(_BASELINE_KEYS)})"
+        )
+        raise RuntimeError(msg)
+
+    good_baseline = int(baseline.get("good_to_have_failing", bucket_counts["good_to_have"]))
+    ctcl_baseline = int(
+        baseline.get("just_to_match_ctcl_failing", bucket_counts["just_to_match_ctcl"])
+    )
+    skip_baseline = int(baseline.get("skip_failing", bucket_counts["skip"]))
+
+    # Sanity: a baseline that exceeds the listed-test count is a
+    # bookkeeping error — every failing GOOD_TO_HAVE test must be
+    # listed by name so we can detect "this specific test is no
+    # longer failing in the way we expected" or "a previously-
+    # passing one regressed".
+    for label, listed_count, recorded in (
+        ("good_to_have", bucket_counts["good_to_have"], good_baseline),
+        ("just_to_match_ctcl", bucket_counts["just_to_match_ctcl"], ctcl_baseline),
+        ("skip", bucket_counts["skip"], skip_baseline),
+    ):
+        if recorded > listed_count:
+            msg = (
+                f"{path}: baseline.{label}_failing ({recorded}) exceeds "
+                f"the number of listed {label} tests ({listed_count})"
+            )
+            raise RuntimeError(msg)
+
+    return StemCategories(
+        stem=stem,
+        test_to_bucket=test_to_bucket,
+        trap_allowed=trap_allowed,
+        good_to_have_baseline=good_baseline,
+        just_to_match_ctcl_baseline=ctcl_baseline,
+        skip_baseline=skip_baseline,
+        raw=raw,
+    )
+
+
+@dataclass
+class BucketReport:
+    """Per-bucket counts and the IDs in each, for a single test run.
+
+    The harness builds one of these from the failure list parsed out
+    of the tcltest summary, then surfaces the counts in the JSON
+    triage record and uses ``must_pass`` plus the ``good_to_have``
+    cap as the gate condition.
+    """
+
+    must_pass_failures: list[str] = field(default_factory=list)
+    good_to_have_failures: list[str] = field(default_factory=list)
+    just_to_match_ctcl_failures: list[str] = field(default_factory=list)
+    skip_failures: list[str] = field(default_factory=list)
+
+    @property
+    def total(self) -> int:
+        return (
+            len(self.must_pass_failures)
+            + len(self.good_to_have_failures)
+            + len(self.just_to_match_ctcl_failures)
+            + len(self.skip_failures)
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "must_pass": self.must_pass_failures,
+            "good_to_have": self.good_to_have_failures,
+            "just_to_match_ctcl": self.just_to_match_ctcl_failures,
+            "skip": self.skip_failures,
+        }
+
+
+def bucket_failures(stem: str, failed_ids: list[str]) -> BucketReport:
+    """Partition *failed_ids* into a :class:`BucketReport` for *stem*.
+
+    The IDs are full tcltest names (``"dict-3.5"``); the loader's
+    suffix-stripping handles the prefix.  Order is preserved within
+    each bucket so the JSON record is reproducible.
+
+    Failed IDs that fall in the ``skip`` bucket land in
+    ``skip_failures`` rather than blocking the gate — but emitting
+    one is still suspicious, because the harness should have asked
+    tcltest to skip those tests via ``tcltest::configure -skip``.
+    Surface in the JSON record so a missed injection shows up in
+    review.
+    """
+    cats = load_categories(stem)
+    report = BucketReport()
+    for fid in failed_ids:
+        bucket = cats.bucket_of(fid)
+        if bucket == "must_pass":
+            report.must_pass_failures.append(fid)
+        elif bucket == "good_to_have":
+            report.good_to_have_failures.append(fid)
+        elif bucket == "just_to_match_ctcl":
+            report.just_to_match_ctcl_failures.append(fid)
+        else:
+            report.skip_failures.append(fid)
+    return report
+
+
+@dataclass(frozen=True)
+class GateOutcome:
+    """Result of :func:`gate`: pass / fail and a one-line reason.
+
+    ``passed`` is the AND of:
+
+    1. ``len(report.must_pass_failures) == 0``
+    2. ``len(report.good_to_have_failures) <= cats.good_to_have_baseline``
+
+    Drops in any bucket are always welcome — only growth fires.
+    """
+
+    passed: bool
     reason: str
 
 
-@dataclass(frozen=True, slots=True)
-class StemCategories:
-    """Parsed contents of one ``<stem>.toml`` file.
+def gate(cats: StemCategories, report: BucketReport) -> GateOutcome:
+    """Decide pass / fail for one stem given its bucket report.
 
-    ``entries`` is keyed by test ID (the suffix after ``<stem>-``,
-    e.g. ``"32.50"``) so :func:`category_for` is O(1).
+    ``must_pass`` failures gate immediately.  ``good_to_have`` growth
+    past the recorded baseline also gates — that catches the case
+    where a previously-passing GOOD_TO_HAVE test regresses, even
+    though the test name is already listed in the bucket (a list-
+    membership-only gate would silently accept the regression).
     """
-
-    bundle: str
-    total: int
-    stream: str
-    entries: dict[str, CategoryEntry] = field(default_factory=dict)
-
-
-def load_stem(stem: str) -> StemCategories | None:
-    """Return the parsed categories for ``<stem>.test`` or ``None``.
-
-    A missing file is *not* an error — the gate falls through to the
-    default-``must_pass`` rule for every failure in that bundle.
-    """
-    path = CATEGORIES_DIR / f"{stem}.toml"
-    if not path.exists():
-        return None
-    raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    return _parse(raw, source=path)
-
-
-def _parse(raw: dict[str, object], *, source: Path) -> StemCategories:
-    meta = raw.get("meta")
-    if not isinstance(meta, dict):
-        raise ValueError(f"{source}: missing [meta] table")
-    bundle = meta.get("bundle")
-    total = meta.get("total")
-    stream = meta.get("stream")
-    if not isinstance(bundle, str) or not bundle.endswith(".test"):
-        raise ValueError(f"{source}: meta.bundle must be \"<stem>.test\"")
-    if not isinstance(total, int) or total <= 0:
-        raise ValueError(f"{source}: meta.total must be a positive int")
-    if not isinstance(stream, str):
-        raise ValueError(f"{source}: meta.stream must be a string")
-
-    entries: dict[str, CategoryEntry] = {}
-    raw_entries = raw.get("entries", [])
-    if not isinstance(raw_entries, list):
-        raise ValueError(f"{source}: entries must be an array of tables")
-    for i, e in enumerate(raw_entries):
-        if not isinstance(e, dict):
-            raise ValueError(f"{source}: entries[{i}] must be a table")
-        eid = e.get("id")
-        bucket = e.get("bucket")
-        reason = e.get("reason")
-        if not isinstance(eid, str) or not eid:
-            raise ValueError(f"{source}: entries[{i}].id must be a non-empty string")
-        if bucket not in VALID_BUCKETS:
-            raise ValueError(
-                f"{source}: entries[{i}].bucket={bucket!r} must be one of {VALID_BUCKETS}"
-            )
-        if not isinstance(reason, str) or not reason.strip():
-            raise ValueError(f"{source}: entries[{i}].reason must be a non-empty string")
-        if eid in entries:
-            raise ValueError(f"{source}: duplicate entry id {eid!r}")
-        entries[eid] = CategoryEntry(id=eid, bucket=bucket, reason=reason)
-    return StemCategories(
-        bundle=bundle,
-        total=total,
-        stream=stream,
-        entries=entries,
-    )
+    if report.must_pass_failures:
+        sample = ", ".join(report.must_pass_failures[:5])
+        suffix = " …" if len(report.must_pass_failures) > 5 else ""
+        return GateOutcome(
+            passed=False,
+            reason=(
+                f"{len(report.must_pass_failures)} MUST_PASS test(s) failed: "
+                f"{sample}{suffix}"
+            ),
+        )
+    if len(report.good_to_have_failures) > cats.good_to_have_baseline:
+        return GateOutcome(
+            passed=False,
+            reason=(
+                f"GOOD_TO_HAVE failure count {len(report.good_to_have_failures)} "
+                f"exceeds baseline {cats.good_to_have_baseline}"
+            ),
+        )
+    return GateOutcome(passed=True, reason="ok")
 
 
-def category_for(cats: StemCategories | None, test_id: str) -> str:
-    """Bucket assignment for a single failing test ID.
-
-    The default — when ``cats`` is ``None`` or the ID isn't listed —
-    is ``must_pass``.  That's the explicit-triage rule: a new failure
-    blocks the gate until someone classifies it.
-    """
-    if cats is None:
-        return "must_pass"
-    entry = cats.entries.get(test_id)
-    if entry is None:
-        return "must_pass"
-    return entry.bucket
-
-
-@dataclass(frozen=True, slots=True)
-class GateDecision:
-    """Result of :func:`gate_decision`.
-
-    ``blocking_failures`` is the must_pass set that gates the sweep
-    (empty = pass).  Other tuples are reported for visibility:
-
-    * ``tracked_good_to_have`` — features we intend to ship but
-      haven't yet.
-    * ``tracked_wasm_n_a`` — bytecode-shape probes we treat as
-      skipped because a wasm-codegen runtime can't satisfy them
-      in principle.  These should be filtered out of the failing
-      set entirely by the consumer (e.g. via tcltest constraint
-      injection) once the IDs are known.
-    * ``tracked_just_to_match_ctcl`` — non-semantic wording /
-      ordering / display differences.
-    """
-
-    blocking_failures: tuple[str, ...]
-    tracked_good_to_have: tuple[str, ...]
-    tracked_wasm_n_a: tuple[str, ...]
-    tracked_just_to_match_ctcl: tuple[str, ...]
-
-    @property
-    def passes(self) -> bool:
-        return len(self.blocking_failures) == 0
-
-
-def gate_decision(
-    cats: StemCategories | None, failing_ids: Iterable[str]
-) -> GateDecision:
-    """Bucket the *failing_ids* from one bundle run.
-
-    Failing IDs not in the categories file (or any ID when ``cats``
-    is ``None``) land in ``must_pass`` and block the gate.  Listed
-    ``good_to_have`` / ``wasm_n_a`` / ``just_to_match_ctcl`` IDs are
-    returned for reporting but don't block.
-    """
-    blocking: list[str] = []
-    good: list[str] = []
-    wasm_na: list[str] = []
-    ctcl: list[str] = []
-    for tid in failing_ids:
-        bucket = category_for(cats, tid)
-        if bucket == "must_pass":
-            blocking.append(tid)
-        elif bucket == "good_to_have":
-            good.append(tid)
-        elif bucket == "wasm_n_a":
-            wasm_na.append(tid)
-        else:
-            ctcl.append(tid)
-    return GateDecision(
-        blocking_failures=tuple(blocking),
-        tracked_good_to_have=tuple(good),
-        tracked_wasm_n_a=tuple(wasm_na),
-        tracked_just_to_match_ctcl=tuple(ctcl),
-    )
-
-
-def wasm_n_a_ids(cats: StemCategories | None) -> tuple[str, ...]:
-    """Return the test IDs marked ``wasm_n_a`` in *cats*.
-
-    Consumers that want to filter these out of the running test set
-    entirely (e.g. by adding a tcltest ``-constraints`` injection or
-    a pre-execution skip list) can read this directly without
-    re-walking the entry dict.
-    """
-    if cats is None:
-        return ()
-    return tuple(
-        e.id for e in cats.entries.values() if e.bucket == "wasm_n_a"
-    )
+# Cache invalidation hook for tests that author manifests inline and
+# need a fresh load on next call.  Not part of the production API.
+def _reset_cache_for_tests() -> None:
+    with _cache_lock:
+        _cache.clear()

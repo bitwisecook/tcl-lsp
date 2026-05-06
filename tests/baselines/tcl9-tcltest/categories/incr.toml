@@ -1,12 +1,26 @@
-# incr.test category triage — Stream 2 (tcl9-arith-wording).
-# 68/69 passing; 1 listed below.  Default for unlisted failures is must_pass.
+# incr.test categorisation (Tcl 9.0.3 source tree).
+# Stream: tcl9-arith-wording.  See ``categories/README.md`` for
+# bucket definitions.  Unlisted IDs default to ``must_pass``.
+#
+# Snapshot: 68/69 passing; 1 categorised below.
 
-[meta]
-bundle = "incr.test"
-total = 69
-stream = "tcl9-arith-wording"
+# Real semantic gaps we intend to fix in a follow-up stream.
+good_to_have = [
+  "1.32",         # incr-1.32: ``incr i 0xFFFFFFFFFFFFFF80`` (and 11
+                  #   similar large-hex deltas) should add the bignum
+                  #   value, but tcl_incr falls into the i64 path
+                  #   because obj_type of a hex-shaped string is
+                  #   TYPE_STRING (not TYPE_BIGNUM).  obj_get_int
+                  #   truncates 18446744073709551488 to -128.  Real
+                  #   precision bug in incr's bignum-trigger probe;
+                  #   tcl_incr should call is_bignum (parse-aware)
+                  #   instead of obj_type.
+]
 
-[[entries]]
-id = "1.32"
-bucket = "must_pass"
-reason = "incr i 0xFFFFFFFFFFFFFF80 (and 11 similar large-hex deltas) — should add the bignum value to i, but our tcl_incr falls into the i64 path because obj_type of a hex-shaped string is TYPE_STRING (not TYPE_BIGNUM). obj_get_int truncates 18446744073709551488 to -128. Real precision bug in incr's bignum-trigger probe; tcl_incr should call is_bignum (parse-aware) instead of obj_type."
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 1
+just_to_match_ctcl_failing = 0
+skip_failing = 0

@@ -38,6 +38,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.conftest import ensure_tcl_source, record_tcl9_result
+from tests.external._tcl9_categories import (
+    bucket_failures,
+    gate as _categories_gate,
+    load_categories,
+)
 from tests.test_wasm_real_tcl import (
     _compile_tcl,
     _compile_tcl_with_diag,
@@ -962,6 +967,31 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             test_path = _tcl9_test_file(filename)
             src = _bundle(test_path)
 
+            # Inject ``tcltest::configure -skip [list ...]`` for every
+            # test ID listed in the categorisation TOML's ``skip``
+            # bucket.  These tests probe C-Tcl-internal behaviour we
+            # don't claim to mirror (bytecode shape, ``[linenumber]``-
+            # via-bcc, ``::tcl::dict::*`` private interfaces); running
+            # them costs cycles and the failures are noise.  Using
+            # tcltest's own ``-skip`` mechanism counts them in the
+            # ``Skipped`` summary alongside the upstream
+            # constraint-driven skips, keeping the JSON triage record
+            # honest about coverage.
+            categories = load_categories(test_name)
+            skip_ids = categories.skip_full_ids()
+            if skip_ids:
+                # Quote each ID as a brace-balanced list element so a
+                # name with regex-meta characters round-trips through
+                # tcltest's ``-skip`` glob match.  ``tcltest::configure
+                # -skip`` accepts a list of patterns; the patterns are
+                # glob-matched against test names, so the literal IDs
+                # we ship match exactly one test each.
+                pattern_list = " ".join(f"{{{sid}}}" for sid in skip_ids)
+                inject = f"\n::tcltest::configure -skip [list {pattern_list}]\n"
+                marker = f"# ===== {filename} ====="
+                if marker in src:
+                    src = src.replace(marker, marker + inject, 1)
+
             trap_site: str | None = None
             compiled = False
             ran = False
@@ -1015,6 +1045,20 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                 deferred=deferred,
             )
             total, passed, skipped, failed = summary or (0, 0, 0, 0)
+
+            # Triage gate: when the stem has a categories TOML we
+            # bucket each failed test ID into MUST_PASS /
+            # GOOD_TO_HAVE / JUST_TO_MATCH_CTCL and gate only on the
+            # MUST_PASS bucket.  Stems without a TOML keep their
+            # historical behaviour (strict ``failed == 0`` or a
+            # ``_BASELINE`` numeric band) so the rollout can be
+            # incremental.  ``categories.test_to_bucket`` being empty
+            # AND ``trap_allowed`` being false means "no triage file
+            # on disk" — fall back to the legacy gate in that case.
+            has_triage_file = bool(categories.test_to_bucket) or categories.trap_allowed
+            failed_ids = [m.group(1) for m in _FAIL_RE.finditer(stdout)]
+            buckets = bucket_failures(test_name, failed_ids)
+
             record_tcl9_result(
                 request.config,
                 {
@@ -1030,6 +1074,7 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                     "trap_site": trap_site,
                     "stderr_tail": _stderr_tail(stderr),
                     "category": category,
+                    "buckets": buckets.to_dict(),
                     **_summarise_diag(diag),
                 },
             )
@@ -1037,22 +1082,51 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
             if not compiled:
                 pytest.fail(f"{filename} bundle failed to compile: {stderr[-400:]}")
             if not ran:
-                # Baselined I/O suites are allowed to trap when their
-                # baseline entry sets ``trap_ok`` — the residual blockers
-                # are tracked as separate follow-up sub-issues.  A NEW
-                # compile/run failure on a previously-passing baseline is
-                # still a regression.
+                # Triage TOMLs can opt-in to ``trap_allowed`` for the
+                # whole stem — pre-existing cumulative-state traps
+                # (e.g. trace.test's exponential trace re-entry
+                # cascade) that we know about and have a separate
+                # follow-up for.  Legacy I/O baselines retain their
+                # ``trap_ok`` hatch for backwards compatibility.
+                if categories.trap_allowed:
+                    return
                 if baseline_io is not None and baseline_io.get("trap_ok"):
                     return
                 pytest.fail(f"{filename} trapped: {trap_site or stderr[-400:]}")
             if summary is None:
+                if categories.trap_allowed:
+                    return
                 if baseline_io is not None and baseline_io.get("trap_ok"):
                     return
                 pytest.fail(
                     f"No tcltest summary line in stdout for {filename}.\n"
                     f"stdout tail:\n{stdout[-400:]}\nstderr tail:\n{stderr[-400:]}"
                 )
-            if baseline_io is not None:
+            if has_triage_file:
+                # Triage gate: ``must_pass`` failures block, plus
+                # ``good_to_have`` growth past the recorded baseline
+                # cap (catches a previously-passing test slipping
+                # into the bucket even though its name is already
+                # listed).  ``just_to_match_ctcl`` and ``skip``
+                # counts surface in the JSON record but don't gate.
+                outcome = _categories_gate(categories, buckets)
+                if not outcome.passed:
+                    sample = "\n  ".join(buckets.must_pass_failures[:10])
+                    extra = (
+                        f"\n  ... and {len(buckets.must_pass_failures) - 10} more"
+                        if len(buckets.must_pass_failures) > 10
+                        else ""
+                    )
+                    pytest.fail(
+                        f"{filename}: {outcome.reason}\n"
+                        f"  must_pass={len(buckets.must_pass_failures)}, "
+                        f"good_to_have={len(buckets.good_to_have_failures)} "
+                        f"(cap {categories.good_to_have_baseline}), "
+                        f"just_to_match_ctcl={len(buckets.just_to_match_ctcl_failures)}, "
+                        f"skip={len(buckets.skip_failures)}:\n"
+                        f"  {sample}{extra}"
+                    )
+            elif baseline_io is not None:
                 min_passed = int(baseline_io.get("min_passed", 0))  # type: ignore[arg-type]
                 max_failed = int(baseline_io.get("max_failed", 0))  # type: ignore[arg-type]
                 assert passed >= min_passed and failed <= max_failed, (
