@@ -378,7 +378,10 @@ class _WasmEmitterStmtMixin(_Base):
                             and argv[i] is not None
                             and argv[i].type is TokenType.ESC
                             and (i >= len(single_word) or single_word[i])
-                            and any(c in t for c in (" ", "\t", "\n", "\r", ";", "$", "[", "{", "}", '"', "\\"))
+                            and any(
+                                c in t
+                                for c in (" ", "\t", "\n", "\r", ";", "$", "[", "{", "}", '"', "\\")
+                            )
                         ):
                             # ESC single-token arg from a quoted /
                             # backslash-bearing word.  See the
@@ -632,7 +635,22 @@ class _WasmEmitterStmtMixin(_Base):
                                     and i < len(argv)
                                     and argv[i] is not None
                                     and argv[i].type is TokenType.ESC
-                                    and any(c in t for c in (" ", "\t", "\n", "\r", ";", "$", "[", "{", "}", '"', "\\"))
+                                    and any(
+                                        c in t
+                                        for c in (
+                                            " ",
+                                            "\t",
+                                            "\n",
+                                            "\r",
+                                            ";",
+                                            "$",
+                                            "[",
+                                            "{",
+                                            "}",
+                                            '"',
+                                            "\\",
+                                        )
+                                    )
                                 ):
                                     # ESC arg from a single-token quoted /
                                     # backslash-bearing word.  Source-level
