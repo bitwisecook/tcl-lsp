@@ -1228,6 +1228,7 @@ class _Lowerer:
             result_var=result_var,
             options_var=options_var,
             raw_args=tuple(args),
+            tokens=cmd.cmd_tokens,
         )
 
     def _lower_try(self, cmd: _Command, *, namespace: str) -> IRTry | IRBarrier:

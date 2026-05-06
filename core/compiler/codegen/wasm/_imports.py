@@ -350,6 +350,29 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_flow_check_signal_loop": ("tcl", "flow_check_signal_loop", [], [ValType.I32]),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
+    # Runtime expression-source evaluator — used by the codegen's
+    # ``ExprRaw`` path when an operand needs re-parsing as expr
+    # source (e.g. backslash-substituted ``\\"…\\"`` from
+    # ``[expr \\"X\\"]`` inside an outer ``"…"``).
+    "tcl_eval_expr_str": (
+        "tcl",
+        "tcl_eval_expr_str",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    # AOT strict logical-NOT — validates the operand is a
+    # boolean (numeric or yes/no/true/false/on/off keyword),
+    # raises ``cannot use non-numeric string "X" as operand of
+    # "!"`` otherwise.  Used by ``UnaryOp.NOT`` in
+    # ``_emit_unary`` so ``expr {!$v}`` for a non-boolean
+    # ``$v`` errors instead of silently coercing through
+    # ``obj_get_int``.
+    "tcl_expr_lnot": (
+        "tcl",
+        "tcl_expr_lnot",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     # Namespace context for eval-fallback calls — compiled procs set the
     # current namespace before ``tcl_eval`` so dynamic ``proc $name`` /
     # ``variable $name`` inside the fallback qualify into the enclosing
@@ -502,6 +525,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32],
         [ValType.I32],
     ),
+    "tcl_frame_depth_stash_abs": (
+        "tcl",
+        "frame_depth_stash_abs",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_frame_depth_restore": ("tcl", "frame_depth_restore", [ValType.I32], []),
     # Arrays — dedicated per-array hash tables.  ``array`` subcommands
     # are spec-owned but the helpers the codegen calls are shared
@@ -514,6 +543,12 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32],
     ),
     "tcl_array_get": ("tcl", "array_get", [ValType.I32, ValType.I32], [ValType.I32]),
+    "tcl_array_get_all": (
+        "tcl",
+        "array_get_all",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_array_exists": ("tcl", "array_exists", [ValType.I32], [ValType.I32]),
     "tcl_array_element_exists": (
         "tcl",

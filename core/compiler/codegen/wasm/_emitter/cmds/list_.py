@@ -108,7 +108,16 @@ def _emit_list_value(emitter, args: tuple[str, ...]) -> None:
     runtime value they hold, changing semantics).
     """
     if not args:
-        emitter._emit_i32_const(0)
+        # ``[list]`` with no args produces the empty list — an
+        # *empty-string* TclObj, NOT the null handle.  Emitting
+        # ``i32_const(0)`` (null) made downstream ``set valid
+        # [list]`` store a null pointer, which the var-read path
+        # interprets as "variable unset" and traps with
+        # ``can't read "valid"`` — breaking tcltest's
+        # ``AcceptVerbose`` (and any user code following the
+        # idiomatic ``set xs [list]; foreach … { lappend xs … }``
+        # pattern with an empty seed).
+        emitter._emit_obj_literal("")
         return
     # Fast path: all literals → compile-time string.
     # _tcl_token_value expands each source token to its VALUE (strips

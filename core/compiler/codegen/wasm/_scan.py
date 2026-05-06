@@ -18,6 +18,7 @@ from ...expr_ast import (
     ExprBinary,
     ExprCall,
     ExprCommand,
+    ExprRaw,
     ExprTernary,
     ExprUnary,
     ExprVar,
@@ -510,6 +511,7 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                 elif cmd == "uplevel":
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
                 elif cmd == "set" and len(parts) >= 2:
                     # ``[set arr(key)]`` reads through ``tcl_array_get``
@@ -541,10 +543,12 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         # degrading to a raw literal (which would
                         # disable the glob filter).
                         needed.add("tcl_append")
+                    elif sub == "get":
+                        # ``array get arr ?pat?`` — see ``names``.
+                        needed.add("tcl_array_get_all")
+                        needed.add("tcl_append")
                     elif sub == "set":
                         needed.add("tcl_array_set")
-                    elif sub == "get":
-                        needed.add("tcl_array_get")
                 elif cmd == "namespace" and len(parts) > 1 and parts[1] == "eval":
                     # ``[namespace eval ns arg1 arg2 ...]`` with dynamic
                     # script args: needs tcl_eval to run the assembled
@@ -651,6 +655,19 @@ def _scan_needed_imports(
         match expr:
             case ExprCommand(text=text):
                 _scan_text_for_cmd_subst(text, needed)
+            case ExprRaw(text=text):
+                # ``ExprRaw`` carries unparsed expr operand text
+                # (e.g. ``\"X\"`` from ``[expr \"X\"]`` inside an
+                # outer ``"..."``).  When the text contains a
+                # backslash escape, the codegen routes through
+                # ``tcl_eval_expr_str`` so the inner content is
+                # parsed as expression source rather than a
+                # literal value.  Pull the import in only when the
+                # raw text actually needs it; pure-arith modules
+                # never trigger this branch and keep their
+                # minimal-import contract intact.
+                if "\\" in text:
+                    needed.add("tcl_eval_expr_str")
             case ExprVar(name=name, text=text):
                 # ``$::ns::var`` in an expression reads from the global
                 # table; ``$arr(key)`` reads via tcl_array_get.
@@ -983,6 +1000,7 @@ def _scan_needed_imports(
                 elif command == "::uplevel":
                     needed.add("tcl_eval")
                     needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
                     # Multi-word bodies concat with spaces; also each body
                     # part is run through _emit_value which may need
@@ -1091,6 +1109,7 @@ def _scan_needed_imports(
                     needed.add("tcl_error_full")
                 elif barrier_cmd == "uplevel":
                     needed.add("tcl_frame_depth_stash")
+                    needed.add("tcl_frame_depth_stash_abs")
                     needed.add("tcl_frame_depth_restore")
                     # The body may contain ``$var``/``[cmd]`` references
                     # that have to be resolved BEFORE eval — scan for

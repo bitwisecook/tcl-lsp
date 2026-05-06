@@ -148,10 +148,14 @@ fn match_kw_op(s: *State, kw: []const u8) bool {
         if (s.src[s.pos + i] != c) return false;
     }
     if (s.pos + kw.len == s.len) return true;
+    // Tcl 9 ``expr`` accepts ``3eq2`` as ``3 eq 2`` — after a
+    // keyword operator, only an alpha or underscore continues
+    // the identifier.  Digits and punctuation are valid
+    // boundaries (they cannot extend ``eq`` into a longer
+    // identifier).  The earlier rule lumped digits in with
+    // alpha and rejected ``3eq2`` outright.
     const next = s.src[s.pos + kw.len];
-    if ((next >= 'a' and next <= 'z') or (next >= 'A' and next <= 'Z') or
-        (next >= '0' and next <= '9') or next == '_')
-    {
+    if ((next >= 'a' and next <= 'z') or (next >= 'A' and next <= 'Z') or next == '_') {
         return false;
     }
     return true;
@@ -211,7 +215,16 @@ fn parse_ternary(s: *State) i32 {
         // recurse with skip set on both branches — the outer
         // parse_ternary already chose its result before the inner
         // ones were parsed.
-        const taken_true = if (s.skip) false else truthy(cond);
+        var taken_true: bool = false;
+        if (!s.skip) {
+            if (truthy_strict(cond)) |b| {
+                taken_true = b;
+            } else {
+                raise_expected_boolean(cond);
+                obj.tcl_obj_release(cond);
+                return obj_new_int(0);
+            }
+        }
         obj.tcl_obj_release(cond);
         const saved_skip = s.skip;
         s.skip = saved_skip or !taken_true;
@@ -242,12 +255,36 @@ fn parse_or(s: *State) i32 {
             // every side effect via ``s.skip``.  ``expr {1 || (1/0)}``
             // without the gate raised divide-by-zero on the dummy
             // RHS evaluation; with the gate it returns 1 cleanly.
-            const left_truthy = if (s.skip) false else truthy(left);
+            // Tcl 9 also requires both operands be valid booleans
+            // — ``expr {"a" || "b"}`` raises ``expected boolean
+            // value but got "a"`` rather than silently returning 0.
+            var left_truthy: bool = false;
+            if (!s.skip) {
+                if (truthy_strict(left)) |b| {
+                    left_truthy = b;
+                } else {
+                    raise_expected_boolean(left);
+                    obj.tcl_obj_release(left);
+                    return obj_new_int(0);
+                }
+            }
             const saved_skip = s.skip;
             s.skip = saved_skip or left_truthy;
             const right = parse_and(s);
             s.skip = saved_skip;
-            const result_val: i64 = if (saved_skip) 0 else if (left_truthy or truthy(right)) 1 else 0;
+            var result_val: i64 = 0;
+            if (!saved_skip) {
+                if (left_truthy) {
+                    result_val = 1;
+                } else if (truthy_strict(right)) |b| {
+                    result_val = if (b) 1 else 0;
+                } else {
+                    raise_expected_boolean(right);
+                    obj.tcl_obj_release(left);
+                    obj.tcl_obj_release(right);
+                    return obj_new_int(0);
+                }
+            }
             obj.tcl_obj_release(left);
             obj.tcl_obj_release(right);
             left = obj_new_int(result_val);
@@ -263,14 +300,35 @@ fn parse_and(s: *State) i32 {
         if (match2(s, '&', '&')) {
             // Short-circuit: if ``left`` is falsy we suppress the
             // RHS via ``s.skip`` so ``expr {0 && [error boom]}``
-            // doesn't trigger ``boom``.
-            const left_truthy = if (s.skip) false else truthy(left);
+            // doesn't trigger ``boom``.  Strict-boolean check
+            // mirrors ``||``.
+            var left_truthy: bool = false;
+            if (!s.skip) {
+                if (truthy_strict(left)) |b| {
+                    left_truthy = b;
+                } else {
+                    raise_expected_boolean(left);
+                    obj.tcl_obj_release(left);
+                    return obj_new_int(0);
+                }
+            }
             const saved_skip = s.skip;
             s.skip = saved_skip or !left_truthy;
             const right = parse_bit_or(s);
             s.skip = saved_skip;
-            const result_val: i64 =
-                if (saved_skip) 0 else if (left_truthy and truthy(right)) 1 else 0;
+            var result_val: i64 = 0;
+            if (!saved_skip) {
+                if (!left_truthy) {
+                    result_val = 0;
+                } else if (truthy_strict(right)) |b| {
+                    result_val = if (b) 1 else 0;
+                } else {
+                    raise_expected_boolean(right);
+                    obj.tcl_obj_release(left);
+                    obj.tcl_obj_release(right);
+                    return obj_new_int(0);
+                }
+            }
             obj.tcl_obj_release(left);
             obj.tcl_obj_release(right);
             left = obj_new_int(result_val);
@@ -586,7 +644,19 @@ fn parse_unary(s: *State) i32 {
             obj.tcl_obj_release(operand);
             return obj_new_int(0);
         }
-        const result = obj_new_int(if (truthy(operand)) @as(i64, 0) else 1);
+        // Tcl 9 ``!`` requires a boolean operand.  Unlike ``||`` /
+        // ``&&`` which raise ``expected boolean value but got
+        // "X"``, the unary form uses ``cannot use non-numeric
+        // string "X" as operand of "!"`` (expr-4.10 / 21.13–22).
+        var b: bool = false;
+        if (truthy_strict(operand)) |bv| {
+            b = bv;
+        } else {
+            raise_non_numeric_unary(operand, "!");
+            obj.tcl_obj_release(operand);
+            return obj_new_int(0);
+        }
+        const result = obj_new_int(if (b) @as(i64, 0) else 1);
         obj.tcl_obj_release(operand);
         return result;
     }
@@ -700,7 +770,27 @@ fn parse_quoted(s: *State) i32 {
     if (s.skip) return obj_new_int(0);
     const inner_ptr = @intFromPtr(s.src) + start;
     const subst = @import("../parse/tcl_subst.zig");
-    return subst.subst_flagged(ptr_as_u32(inner_ptr), inner_len, true, true, true);
+    const result = subst.subst_flagged(ptr_as_u32(inner_ptr), inner_len, true, true, true);
+    // Tcl 9 ``expr`` shimmers a quoted operand to its numeric
+    // form when the string parses as an integer or float — so
+    // ``expr "0005"`` returns ``5`` (canonical int), not ``"0005"``.
+    // Without this, an ``expr "0005"`` whose result is consumed
+    // verbatim by ``return`` / ``set`` keeps the leading zeroes
+    // and downstream comparisons against ``5`` mismatch.
+    if (result != 0) {
+        const rs = obj.obj_ensure_string(result);
+        if (rs.len > 0) {
+            if (obj.try_parse_int(rs.ptr, rs.len)) |iv| {
+                obj.tcl_obj_release(result);
+                return obj_new_int(iv);
+            }
+            if (obj.try_parse_float(rs.ptr, rs.len)) |fv| {
+                obj.tcl_obj_release(result);
+                return obj.obj_new_float(fv);
+            }
+        }
+    }
+    return result;
 }
 
 fn parse_braced(s: *State) i32 {
@@ -723,6 +813,65 @@ fn parse_braced(s: *State) i32 {
     const inner_len = s.pos - start;
     if (s.pos < s.len) s.pos += 1; // skip closing }
     const inner_ptr = @intFromPtr(s.src) + start;
+    // Tcl 9 ``expr {{X}}`` shimmers the brace-quoted operand
+    // toward its numeric form when the inner text parses as a
+    // number.  ``expr {{-0x1234}}`` returns ``-4660`` rather
+    // than the literal string ``"-0x1234"``.  Use the same
+    // detector ``finalize_num`` runs on bare numeric literals
+    // (base-prefix, decimal, float).
+    if (inner_len > 0) {
+        const sptr = inner_ptr;
+        const slen = inner_len;
+        const src: [*]const u8 = @ptrFromInt(sptr);
+        // Trim leading minus/plus to inspect base prefix.
+        var off: u32 = 0;
+        var sign_neg = false;
+        if (slen > 0 and (src[0] == '-' or src[0] == '+')) {
+            sign_neg = src[0] == '-';
+            off = 1;
+        }
+        if (off + 2 <= slen and src[off] == '0') {
+            const c = src[off + 1];
+            if (c == 'x' or c == 'X' or c == 'o' or c == 'O' or c == 'b' or c == 'B') {
+                // Re-use finalize_num's logic by funnelling the
+                // entire (possibly signed) source through
+                // ``try_parse_int`` first via a synthetic buffer.
+                // For simplicity, inline the base-prefix loop
+                // since ``try_parse_int`` only handles decimal.
+                var v: u64 = 0;
+                var base: u8 = 10;
+                if (c == 'x' or c == 'X') base = 16
+                else if (c == 'o' or c == 'O') base = 8
+                else base = 2;
+                var i: u32 = off + 2;
+                var ok = i < slen;
+                while (i < slen) : (i += 1) {
+                    const ch = src[i];
+                    var d: u32 = 16;
+                    if (ch >= '0' and ch <= '9') d = ch - '0'
+                    else if (ch >= 'a' and ch <= 'f') d = (ch - 'a') + 10
+                    else if (ch >= 'A' and ch <= 'F') d = (ch - 'A') + 10
+                    else { ok = false; break; }
+                    if (d >= @as(u32, base)) { ok = false; break; }
+                    const m = @mulWithOverflow(v, @as(u64, base));
+                    if (m[1] != 0) { ok = false; break; }
+                    const a = @addWithOverflow(m[0], @as(u64, d));
+                    if (a[1] != 0) { ok = false; break; }
+                    v = a[0];
+                }
+                if (ok and v <= @as(u64, 9223372036854775807)) {
+                    const iv: i64 = @intCast(v);
+                    return obj_new_int(if (sign_neg) -iv else iv);
+                }
+            }
+        }
+        if (obj.try_parse_int(@bitCast(sptr), @bitCast(slen))) |iv| {
+            return obj_new_int(iv);
+        }
+        if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
+            return obj.obj_new_float(fv);
+        }
+    }
     return obj_new_string(ptr_as_i32(inner_ptr), len_as_i32(inner_len));
 }
 
@@ -762,9 +911,18 @@ fn parse_number(s: *State) i32 {
             has_dot = true;
             s.pos += 1;
         } else if ((ch == 'e' or ch == 'E') and !has_exp) {
+            // ``e``/``E`` only starts a float exponent when at
+            // least one digit follows (with an optional sign).
+            // ``expr 3eq2`` (string-equal operator) must NOT
+            // consume the ``e`` as exponent — without this guard
+            // ``parse_number`` greedily ate ``3e`` and the test
+            // got the literal ``"3e"`` back instead of comparing
+            // ``3 eq 2``.
+            var look = s.pos + 1;
+            if (look < s.len and (s.src[look] == '+' or s.src[look] == '-')) look += 1;
+            if (look >= s.len or s.src[look] < '0' or s.src[look] > '9') break;
             has_exp = true;
-            s.pos += 1;
-            if (s.pos < s.len and (s.src[s.pos] == '+' or s.src[s.pos] == '-')) s.pos += 1;
+            s.pos = look;
         } else break;
     }
     return finalize_num(s, start);
@@ -773,6 +931,77 @@ fn parse_number(s: *State) i32 {
 fn finalize_num(s: *State, start: u32) i32 {
     const slen = s.pos - start;
     const sptr = @intFromPtr(s.src) + start;
+    // Tcl 9 ``expr`` canonicalises numeric literals: ``0005``
+    // collapses to ``5``, ``0x1234`` to ``4660``, ``1.5e2`` to
+    // ``150.0``.  Without this normalisation the returned obj
+    // keeps the source bytes and a top-level ``expr 0005`` prints
+    // the literal spelling instead of the canonical decimal
+    // form.  Detect base-prefixed forms first (``0x`` / ``0o`` /
+    // ``0b``) so hex / octal / binary literals collapse to
+    // their decimal int form; otherwise fall back to the
+    // ``try_parse_int`` / ``try_parse_float`` decimal path.
+    const src: [*]const u8 = @ptrFromInt(sptr);
+    if (slen >= 2 and src[0] == '0') {
+        const c = src[1];
+        if (c == 'x' or c == 'X') {
+            var v: u64 = 0;
+            var i: u32 = 2;
+            var ok = i < slen;
+            while (i < slen) : (i += 1) {
+                const ch = src[i];
+                const d: u8 = if (ch >= '0' and ch <= '9')
+                    ch - '0'
+                else if (ch >= 'a' and ch <= 'f')
+                    (ch - 'a') + 10
+                else if (ch >= 'A' and ch <= 'F')
+                    (ch - 'A') + 10
+                else blk: { ok = false; break :blk 0; };
+                if (!ok) break;
+                const m = @mulWithOverflow(v, @as(u64, 16));
+                if (m[1] != 0) { ok = false; break; }
+                const a = @addWithOverflow(m[0], @as(u64, d));
+                if (a[1] != 0) { ok = false; break; }
+                v = a[0];
+            }
+            if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
+                return obj_new_int(@intCast(v));
+            }
+        } else if (c == 'o' or c == 'O') {
+            var v: u64 = 0;
+            var i: u32 = 2;
+            var ok = i < slen;
+            while (i < slen) : (i += 1) {
+                const ch = src[i];
+                if (ch < '0' or ch > '7') { ok = false; break; }
+                const m = @mulWithOverflow(v, @as(u64, 8));
+                if (m[1] != 0) { ok = false; break; }
+                const a = @addWithOverflow(m[0], @as(u64, ch - '0'));
+                if (a[1] != 0) { ok = false; break; }
+                v = a[0];
+            }
+            if (ok) return obj_new_int(@intCast(v));
+        } else if (c == 'b' or c == 'B') {
+            var v: u64 = 0;
+            var i: u32 = 2;
+            var ok = i < slen;
+            while (i < slen) : (i += 1) {
+                const ch = src[i];
+                if (ch != '0' and ch != '1') { ok = false; break; }
+                const m = @mulWithOverflow(v, @as(u64, 2));
+                if (m[1] != 0) { ok = false; break; }
+                v = m[0] + @as(u64, ch - '0');
+            }
+            if (ok) return obj_new_int(@intCast(v));
+        }
+    }
+    if (obj.try_parse_int(@bitCast(sptr), @bitCast(slen))) |iv| {
+        return obj_new_int(iv);
+    }
+    if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
+        return obj.obj_new_float(fv);
+    }
+    // Bignum / unparseable — fall back to the source bytes so
+    // the caller sees the original spelling.
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(slen));
 }
 
@@ -829,11 +1058,14 @@ fn parse_func_or_word(s: *State) i32 {
         for (args[0..argc]) |arg| obj.tcl_obj_release(arg);
         return result;
     }
-    // Bare keyword: ``true`` / ``false`` / ``yes`` / ``no`` / ``on`` / ``off``.
-    if (parse_bool_keyword(name)) |v| return obj_new_int(v);
-    // Otherwise treat as a string literal — matches Tcl's handling
-    // of bare words in expressions when they don't match a known
-    // function name.
+    // Bare boolean keyword (``true`` / ``false`` / ``yes`` / ``no``
+    // / ``on`` / ``off``) — Tcl 9 returns the SOURCE spelling
+    // verbatim when the keyword is the whole expression
+    // (``expr false`` → ``false``, not ``0``).  Coercion to int
+    // only happens when the value flows into an arithmetic /
+    // logical operator.  ``parse_bool_keyword`` is still useful
+    // for identifying the operand class but we no longer use its
+    // numeric form for the bare-keyword case.
     if (s.skip) return obj_new_int(0);
     const sptr = @intFromPtr(s.src) + start;
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(name_len));
@@ -883,4 +1115,127 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
 
 fn truthy(o: i32) bool {
     return obj.obj_get_int(o) != 0;
+}
+
+/// Strict ``truthy`` that returns null when *o*'s string repr
+/// isn't a valid Tcl boolean (a number, or the keywords ``yes`` /
+/// ``no`` / ``true`` / ``false`` / ``on`` / ``off``).  Used by
+/// the logical operators (``&&``, ``||``, ``!``) and the
+/// conditional (``?:``) which raise ``expected boolean value
+/// but got "X"`` for non-boolean operands.  Numeric types
+/// (TYPE_INT / TYPE_FLOAT / TYPE_BIGNUM) are always boolean;
+/// strings dispatch through ``try_parse_int`` / ``try_parse_float`` /
+/// ``try_parse_bool`` so ``"0"`` / ``"1.5"`` / ``"true"`` all
+/// answer correctly.
+fn truthy_strict(o: i32) ?bool {
+    // Empty / null operand: Tcl 9 ``expr {"" && 1}`` raises
+    // ``expected boolean value but got ""`` rather than treating
+    // ``""`` as ``false``.  Return ``null`` so callers route
+    // through ``raise_expected_boolean`` / ``raise_non_numeric_unary``.
+    if (o == 0) return null;
+    // Tagged-immediate small ints and TYPE_INT / TYPE_FLOAT /
+    // TYPE_BIGNUM all answer ``boolean`` directly via
+    // ``obj_get_int``'s numeric-domain.  String / inline-string
+    // forms route through the parse helpers so ``"true"`` /
+    // ``"0"`` / ``"1.5"`` all work.
+    const handle: u32 = @bitCast(o);
+    const is_immediate = (handle & obj.IMMEDIATE_TAG_BIT) != 0;
+    if (!is_immediate) {
+        const tag = obj.read_i32(handle + obj.OBJ_TYPE_TAG);
+        if (tag == obj.TYPE_INT or tag == obj.TYPE_FLOAT or tag == obj.TYPE_BIGNUM) {
+            return obj.obj_get_int(o) != 0;
+        }
+    } else {
+        return obj.obj_get_int(o) != 0;
+    }
+    const s = obj.obj_ensure_string(o);
+    if (s.len == 0) return null;
+    if (obj.try_parse_int(s.ptr, s.len)) |iv| return iv != 0;
+    if (obj.try_parse_float(s.ptr, s.len)) |fv| return fv != 0.0;
+    if (obj.try_parse_bool(s.ptr, s.len)) |bv| return bv != 0;
+    return null;
+}
+
+/// Raise ``cannot use non-numeric string "<text>" as operand of
+/// "<op>"`` — used by the unary ``!`` and the AOT logical-not
+/// helper.  The wording differs from the binary logical
+/// operators which use ``expected boolean value but got "X"``.
+fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
+    const catch_mod = @import("tcl_catch.zig");
+    if (@import("tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "cannot use non-numeric string \"";
+    const middle: []const u8 = "\" as operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: usize = 0;
+    for (prefix) |c| { dst[off] = c; off += 1; }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| { dst[off] = sp[i]; off += 1; }
+    }
+    for (middle) |c| { dst[off] = c; off += 1; }
+    for (op_sym) |c| { dst[off] = c; off += 1; }
+    for (suffix) |c| { dst[off] = c; off += 1; }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Strict logical-NOT runtime helper exported for the AOT
+/// ``UnaryOp.NOT`` codegen.  Validates *operand* as a boolean,
+/// raises ``cannot use non-numeric string "X" as operand of
+/// "!"`` for non-boolean strings, and returns the boxed
+/// negation as a TclObj.  ``operand == 0`` (null TclObj) is
+/// treated as ``false`` so the caller can chain through the
+/// existing tagged-immediate handle path.
+pub export fn tcl_expr_lnot(operand: i32) i32 {
+    // Preserve the first error in a chain — when the operand
+    // expression already raised (e.g. a missing-variable read
+    // upstream), don't wrap the prior error message into a
+    // ``cannot use non-numeric string`` diagnostic.  Without
+    // this guard, ``info exists arr($x) && !$arr($x)`` whose
+    // first arm correctly returned 0 but left a partially
+    // populated TclObj on the stack lit up as the operand of
+    // ``!`` and produced the bizarre nested-quote diagnostic
+    // ``cannot use non-numeric string "can't read ..." as
+    // operand of "!"``.
+    const result_mod = @import("tcl_result.zig");
+    if (result_mod.snapshot(0).code == .ERROR) return obj_new_int(0);
+    if (truthy_strict(operand)) |b| {
+        return obj_new_int(if (b) @as(i64, 0) else 1);
+    }
+    raise_non_numeric_unary(operand, "!");
+    return obj_new_int(0);
+}
+
+/// Raise ``expected boolean value but got "<text>"`` and
+/// return ``false``.  Caller must short-circuit the surrounding
+/// op after the call.
+fn raise_expected_boolean(o: i32) void {
+    const catch_mod = @import("tcl_catch.zig");
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "expected boolean value but got \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + s.len + @as(u32, @intCast(suffix.len));
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| { dst[off] = c; off += 1; }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| { dst[off] = sp[i]; off += 1; }
+    }
+    for (suffix) |c| { dst[off] = c; off += 1; }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
 }

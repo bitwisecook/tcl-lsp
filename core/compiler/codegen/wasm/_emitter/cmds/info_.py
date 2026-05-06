@@ -169,7 +169,17 @@ def _emit_info_value(emitter, args: tuple[str, ...]) -> None:
         # land through _emit_var_write_obj.
         idx = emitter._local_index.get(resolved)
         if idx is None:
-            # Never referenced — always non-existent.  Emit boxed 0.
+            # Never referenced through the static-name path — but
+            # a callee might still have written this name into the
+            # frame via ``uplevel N set <name> ...`` from an inner
+            # proc.  Dispatch through the runtime helper which
+            # probes the frame table; falls back to a boxed 0 only
+            # when the helper is unavailable.
+            info_exists_idx = emitter._shared_imports.get("tcl_info_exists")
+            if info_exists_idx is not None:
+                emitter._emit_obj_literal(resolved)
+                emitter._emit_call(info_exists_idx)
+                return
             emitter._emit_i64_const(0)
             emitter._emit_box_int()
             return

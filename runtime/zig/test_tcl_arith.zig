@@ -104,10 +104,14 @@ test "tcl_arith_mul — float promotion" {
 
 // ---- div ------------------------------------------------------------
 
-test "tcl_arith_div — int / int = trunc-int" {
+test "tcl_arith_div — int / int = floor-int" {
+    // Tcl 9 ``/`` rounds toward negative infinity (floor division)
+    // — see expr-11.3 ``expr -1/2 == -1``.  ``-7/2`` is ``-4``,
+    // not the C / @divTrunc value ``-3``.
     try expectInt(arith.tcl_arith_div(intObj(7), intObj(2)), 3);
-    try expectInt(arith.tcl_arith_div(intObj(-7), intObj(2)), -3); // truncation, NOT floor
-    try expectInt(arith.tcl_arith_div(intObj(7), intObj(-2)), -3);
+    try expectInt(arith.tcl_arith_div(intObj(-7), intObj(2)), -4);
+    try expectInt(arith.tcl_arith_div(intObj(7), intObj(-2)), -4);
+    try expectInt(arith.tcl_arith_div(intObj(-7), intObj(-2)), 3);
 }
 
 test "tcl_arith_div — float operand promotes the result" {
@@ -137,10 +141,23 @@ test "is_float — string with 'e' notation triggers float coercion" {
     try expectFloatClose(arith.tcl_arith_add(stringObj("1e2"), stringObj("0")), 100.0, 1e-9);
 }
 
-test "is_float — empty string is NOT float" {
-    // Empty strings parse as int 0; result stays in int domain.
-    const result = arith.tcl_arith_add(stringObj(""), intObj(5));
-    try expectInt(result, 5);
+test "is_float — empty string raises non-numeric error" {
+    // Tcl 9 ``expr {"" + 5}`` raises ``cannot use non-numeric
+    // string "" as left operand of "+"`` — the previous wiring
+    // silently parsed empty string as ``0`` and returned ``5``.
+    // The arith helper sets the error flag; the caller-side
+    // sweep below verifies the catch path picks it up.
+    const fixture = @import("runtime_test_fixture.zig");
+    const trap_msg = fixture.with_catch(&struct {
+        fn body() void {
+            _ = arith.tcl_arith_add(stringObj(""), intObj(5));
+        }
+    }.body);
+    try testing.expect(trap_msg != null);
+    try testing.expectEqualStrings(
+        "cannot use non-numeric string \"\" as left operand of \"+\"",
+        trap_msg.?,
+    );
 }
 
 // ---- math functions -------------------------------------------------

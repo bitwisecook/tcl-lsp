@@ -984,6 +984,28 @@ var parked_count_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 /// clear — without parking, ``uplevel 1 [list CompiledCall]``
 /// would zero every populated bucket of the caller's frame on
 /// the inner push, losing all of its locals.
+/// Absolute-level variant of :func:`frame_depth_stash`.  ``abs_level``
+/// is the Tcl-style absolute level number (``#N``):
+///   * ``0`` → global scope (clamps shift to ``frame_depth``).
+///   * ``1`` → outermost proc frame (a in a→b→c).
+///   * ``frame_depth`` → current frame (no shift).
+/// Computes ``shift = frame_depth - abs_level`` and routes through
+/// the relative-form stash so callers don't need to know the
+/// runtime call depth at compile time.  ``uplevel #N body`` from
+/// the WASM codegen lands here.
+pub export fn frame_depth_stash_abs(abs_level: i32) i32 {
+    const lvl: u32 = if (abs_level < 0) 0 else @intCast(abs_level);
+    // ``lvl == frame_depth`` is the current frame: ``shift = 0``.
+    // ``lvl > frame_depth`` is over-deep; treat as the current
+    // frame too rather than aliasing to the global scope.
+    // ``lvl == 0`` (``#0`` global) clamps to ``shift = frame_depth``
+    // through the explicit subtract below.
+    if (lvl >= frame_depth) {
+        return frame_depth_stash(0);
+    }
+    return frame_depth_stash(@intCast(frame_depth - lvl));
+}
+
 pub export fn frame_depth_stash(relative_up: i32) i32 {
     const saved: i32 = @intCast(frame_depth);
     var up = relative_up;

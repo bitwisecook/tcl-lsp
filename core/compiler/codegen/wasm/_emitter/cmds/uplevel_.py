@@ -178,21 +178,19 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
     if not args:
         emitter._emit_i32_const(0)
         return
-    # Parse the level specifier.  ``#0`` → absolute 0 which clamps
-    # to global; a bare integer N → relative N; anything else means
+    # Parse the level specifier.  ``#N`` → absolute level N; a
+    # bare integer N → relative N frames up; anything else means
     # no level, default 1, and args[0] is the first body word.
     level_spec = args[0]
     up: int
     body_start = 1
+    use_abs = False
+    abs_level: int = 0
     if level_spec.startswith("#"):
         try:
             abs_level = int(level_spec[1:])
-            # "#N means N frames above global".  We approximate by
-            # stashing all the way to that absolute depth; frame_depth_stash
-            # subtracts, so ``up`` is (current_depth - abs_level), which
-            # we can't know at compile time.  For the common #0 case
-            # we stash "all the way" by passing a large relative shift.
-            up = 0 if abs_level == 0 else 1
+            use_abs = True
+            up = 0
         except ValueError:
             up = 1
     else:
@@ -211,6 +209,7 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
 
     eval_idx = emitter._shared_imports.get("tcl_eval")
     stash_idx = emitter._shared_imports.get("tcl_frame_depth_stash")
+    stash_abs_idx = emitter._shared_imports.get("tcl_frame_depth_stash_abs")
     restore_idx = emitter._shared_imports.get("tcl_frame_depth_restore")
     if eval_idx is None or stash_idx is None or restore_idx is None:
         # Missing runtime helpers — fall back to plain eval, which
@@ -223,9 +222,6 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
             emitter._emit_i32_const(0)
         return
 
-    # For ``#0`` we pass a large shift (INT32_MAX / 2) so
-    # frame_depth_stash clamps to zero regardless of the actual depth.
-    shift = 0x3FFF_FFFF if level_spec == "#0" else up
     saved_local = emitter._add_extra_local(prefix="_uplevel_saved", val_type=ValType.I32)
     body_local = emitter._add_extra_local(prefix="_uplevel_body", val_type=ValType.I32)
 
@@ -235,8 +231,23 @@ def _emit_cmd_uplevel(emitter, args: tuple[str, ...]) -> None:
     emitter._emit_uplevel_body(body_parts)
     emitter._emit_local_set(body_local)
 
-    emitter._emit_i32_const(shift)
-    emitter._emit_call(stash_idx)
+    # Choose the right stash variant.  ``#N`` is an *absolute*
+    # level — only resolvable at runtime (relative shift depends on
+    # the current call depth).  ``frame_depth_stash_abs`` does the
+    # ``frame_depth - abs_level`` arithmetic on the runtime side
+    # and routes through the relative path.  Bare integer ``N``
+    # uses the simple relative stash.
+    if use_abs and stash_abs_idx is not None:
+        emitter._emit_i32_const(abs_level)
+        emitter._emit_call(stash_abs_idx)
+    else:
+        # Fallback: ``#0`` gets the legacy "shift to zero" hack
+        # via INT32_MAX/2; other ``#N`` values without the abs
+        # helper degrade to relative-1 which matches the previous
+        # behaviour.
+        shift = 0x3FFF_FFFF if level_spec == "#0" else up
+        emitter._emit_i32_const(shift)
+        emitter._emit_call(stash_idx)
     emitter._emit_local_set(saved_local)
 
     emitter._emit_local_get(body_local)

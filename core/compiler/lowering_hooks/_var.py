@@ -95,6 +95,17 @@ def lower_set(lowerer: _LowererLike, cmd: _Command) -> object | None:
         if tok.type is TokenType.STR:
             return IRAssignConst(range=cmd.range, name=name, value=value)
         const_value = _parse_decimal_int(value) if tok.type is TokenType.ESC else None
+        # Only fold to the parsed numeric form when the source
+        # spelling already matches the canonical decimal form.
+        # ``set arg 0005`` must store ``0005`` verbatim (Tcl
+        # preserves the source string repr — the value only
+        # shimmers to int 5 when used as an integer); folding
+        # eagerly here destroys the leading zeros and breaks
+        # ``puts $arg``, ``string length $arg``, and
+        # ``expr "0005"`` which all care about the original
+        # spelling.
+        if const_value is not None and const_value != value.strip():
+            const_value = None
         if const_value is not None:
             return IRAssignConst(range=cmd.range, name=name, value=const_value)
         if tok.type is TokenType.CMD:

@@ -58,11 +58,27 @@ def _emit_array_subcmd_value(emitter, args: tuple[str, ...]) -> None:
         emitter._emit_array_set_list(args[1], args[2])
         return
     elif subcmd == "get" and len(args) >= 2:
-        # ``array get arr`` — return a flat {key val key val ...}
-        # list.  Not implemented in the compiled runtime yet; fall
-        # back to tcl_eval so the interpreter handles it (returns
-        # empty for now, which degrades rather than mis-computes).
-        pass
+        # ``array get arr ?pattern?`` — return a flat ``{k v k v
+        # …}`` list, optionally glob-filtered.  Routed through
+        # ``tcl_array_get_all`` so the array-name resolution uses
+        # the same compile-time-emitted name path as the
+        # ``array set`` / ``array names`` / ``array exists``
+        # siblings.  Without this, ``array get`` fell into the
+        # eval-fallback whose ``frame_resolve_array_name`` builds
+        # a synthetic ``::__local::<depth>::arr`` lookup key — but
+        # the AOT writer side stores under the bare unqualified
+        # name, so the two halves of the read look at different
+        # directory entries and ``[array get arr]`` always came
+        # back empty inside a proc.
+        fidx = emitter._shared_imports.get("tcl_array_get_all")
+        if fidx is not None:
+            emitter._emit_array_name_obj(args[1])
+            if len(args) >= 3:
+                emitter._emit_value(args[2])
+            else:
+                emitter._emit_i32_const(0)
+            emitter._emit_call(fidx)
+            return
     emitter._emit_eval_fallback("array", args)
 
 
