@@ -1,0 +1,21 @@
+# winNotify.test categorisation (Tcl 9.0.3 source tree).
+# Stem: platform-specific deferred — Windows-only Tcl_Notifier (WaitForMultipleObjects).
+# Not in `_IN_SCOPE` in tests/external/run_tcl9_tests.py: the
+# WASM target has no path to mimic this OS subsystem, so every
+# test ID is parked in `skip` per categories/README.md.  If the
+# stem is ever added to the harness, the existing `-skip`
+# injection routes these IDs to the Skipped column.
+
+good_to_have = []
+just_to_match_ctcl = []
+
+skip = [
+  "1.1", "1.2", "1.3", "1.4", "2.1", "2.2",
+  "3.1", "3.2", "3.3", "3.4", "3.5", "3.6",
+  "3.7", "3.8",
+]
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 14

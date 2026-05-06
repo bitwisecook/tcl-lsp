@@ -1,0 +1,18 @@
+# winConsole.test categorisation (Tcl 9.0.3 source tree).
+# Stem: platform-specific deferred — Windows-only console subsystem.
+# Not in `_IN_SCOPE` in tests/external/run_tcl9_tests.py: the
+# WASM target has no path to mimic this OS subsystem, so every
+# test ID is parked in `skip` per categories/README.md.  If the
+# stem is ever added to the harness, the existing `-skip`
+# injection routes these IDs to the Skipped column.
+
+good_to_have = []
+just_to_match_ctcl = []
+
+skip = [
+]
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0

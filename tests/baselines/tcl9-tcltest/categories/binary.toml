@@ -1,0 +1,18 @@
+# binary.test categorisation (Tcl 9.0.3 source tree).
+# Stem: deferred (runtime-internal) — [binary] format/scan — deferred for full sweep.
+# Not in `_IN_SCOPE` in tests/external/run_tcl9_tests.py, so
+# the harness never runs this file and the loader is never
+# queried for it.  This TOML is a placeholder so every Tcl 9
+# test stem has an explicit categorisation record per
+# categories/README.md.  When/if the stem is added to the
+# in-scope list, the failing test IDs will be triaged into
+# `must_pass` / `good_to_have` / `just_to_match_ctcl` / `skip`.
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
