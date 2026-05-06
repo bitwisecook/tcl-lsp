@@ -126,8 +126,16 @@ test "tcl_arith_mod — int % int" {
     try expectInt(arith.tcl_arith_mod(intObj(0), intObj(5)), 0);
 }
 
-test "tcl_arith_mod — float promotes via @rem semantics" {
-    try expectFloatClose(arith.tcl_arith_mod(floatObj(5.5), floatObj(2.0)), 1.5, 1e-12);
+test "tcl_arith_mod — float operands raise (Tcl 9 INST_MOD)" {
+    // Tcl 9 forbids floats on ``%``: ``expr 5.5 % 2.0`` raises
+    // ``cannot use floating-point value "5.5" as left operand of
+    // "%"`` (expr-old-3.2 / 3.3).  The handler sets the catch error
+    // flag and returns 0; the host-side sweep verifies the wording.
+    const catch_mod = @import("interp/tcl_catch.zig");
+    catch_mod.catch_enter();
+    _ = arith.tcl_arith_mod(floatObj(5.5), floatObj(2.0));
+    try std.testing.expect(catch_mod.catch_has_error() != 0);
+    _ = catch_mod.catch_leave();
 }
 
 // ---- string operands triggering float promotion --------------------

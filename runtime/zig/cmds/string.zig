@@ -54,10 +54,227 @@ pub const subcommands: []const reg.SubEntry = &.{
     .{ .name = "wordstart", .arity_min = 2, .arity_max = 2, .handler = &eval },
 };
 
+/// Wording table for the ``wrong # args`` surface raised when a
+/// ``string SUB`` call doesn't satisfy the subcommand's arity.
+/// Mirrors reference Tcl's per-subcommand ``Tcl_WrongNumArgs``
+/// strings — see ``tclCmdMZ.c``'s ``StringCmd`` switch.
+const SubArityRule = struct {
+    name: []const u8,
+    /// Minimum *total* word count (command + args) for the
+    /// subcommand to dispatch.  Below this threshold we raise
+    /// ``wrong # args`` with ``message`` and bail.
+    min_words: u32,
+    /// Maximum total word count (or ``null`` for variadic).
+    max_words: ?u32,
+    message: []const u8,
+};
+
+const sub_arity_table: []const SubArityRule = &.{
+    .{
+        .name = "compare",
+        .min_words = 4,
+        .max_words = 7,
+        .message = "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"",
+    },
+    .{
+        .name = "equal",
+        .min_words = 4,
+        .max_words = 7,
+        .message = "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\"",
+    },
+    .{
+        .name = "first",
+        .min_words = 4,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string first needleString haystackString ?startIndex?\"",
+    },
+    .{
+        .name = "last",
+        .min_words = 4,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string last needleString haystackString ?lastIndex?\"",
+    },
+    .{
+        .name = "index",
+        .min_words = 4,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string index string charIndex\"",
+    },
+    .{
+        .name = "length",
+        .min_words = 3,
+        .max_words = 3,
+        .message = "wrong # args: should be \"string length string\"",
+    },
+    .{
+        .name = "range",
+        .min_words = 5,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string range string first last\"",
+    },
+    .{
+        .name = "repeat",
+        .min_words = 4,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string repeat string count\"",
+    },
+    .{
+        .name = "replace",
+        .min_words = 5,
+        .max_words = 6,
+        .message = "wrong # args: should be \"string replace string first last ?string?\"",
+    },
+    .{
+        .name = "match",
+        .min_words = 4,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string match ?-nocase? pattern string\"",
+    },
+    .{
+        .name = "is",
+        .min_words = 4,
+        .max_words = null,
+        .message = "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
+    },
+};
+
+/// Validate the call's word count against the subcommand's arity
+/// rule.  Returns ``null`` and raises ``wrong # args`` if the call
+/// is short / long; returns ``some unit`` when the call is legal.
+fn check_subcommand_arity(sp: [*]const u8, sub_len: u32, n_words: usize) ?void {
+    for (sub_arity_table) |rule| {
+        if (slice_eq_runtime(sp, sub_len, rule.name)) {
+            if (n_words < rule.min_words) {
+                raise_string_wrong_args(rule.message);
+                return null;
+            }
+            if (rule.max_words) |max| {
+                if (n_words > max) {
+                    raise_string_wrong_args(rule.message);
+                    return null;
+                }
+            }
+            return;
+        }
+    }
+    // Unknown subcommand or one without an arity rule — let the
+    // dispatch fall through and either succeed or no-op.
+    return;
+}
+
+fn slice_eq_runtime(a: [*]const u8, alen: u32, b: []const u8) bool {
+    if (alen != b.len) return false;
+    for (0..alen) |i| {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+/// Parse ``string compare`` / ``string equal`` flags and dispatch
+/// through the full-arity runtime helpers.  Accepted flags
+/// (matching reference Tcl 9 ``StringCmpOpts`` in tclCmdMZ.c):
+///   * ``-nocase`` (no value)
+///   * ``-length N`` (positional integer)
+/// Stops flag parsing at ``--`` or the first non-flag word; the
+/// next two words are the comparison operands.  When the parse
+/// fails (unknown flag, missing operand, bad ``-length`` value)
+/// we raise the canonical wording and return 0.
+fn dispatch_compare(words: []const i32, eq: bool) i32 {
+    var i: u32 = 2;
+    var nocase: bool = false;
+    var len_limit: i32 = -1;
+    while (i < words.len) : (i += 1) {
+        const w = obj_ensure_string(words[i]);
+        if (w.len == 0) break;
+        const wp: [*]const u8 = @ptrFromInt(w.ptr);
+        if (wp[0] != '-') break;
+        if (slice_eq_runtime(wp, w.len, "--")) {
+            i += 1;
+            break;
+        }
+        if (slice_eq_runtime(wp, w.len, "-nocase")) {
+            nocase = true;
+            continue;
+        }
+        if (slice_eq_runtime(wp, w.len, "-length")) {
+            i += 1;
+            if (i >= words.len) {
+                raise_string_wrong_args(if (eq)
+                    "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\""
+                else
+                    "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"");
+                return obj_new_int(0);
+            }
+            const lv = rt.obj_get_int(words[i]);
+            // Tcl 9 treats ``-length`` <= 0 as "no limit".  Cap at
+            // INT32_MAX so the ``string compare`` byte indexing stays
+            // within u32 in our impl.
+            len_limit = if (lv >= @as(i64, std.math.maxInt(i32)))
+                std.math.maxInt(i32)
+            else if (lv < 0) -1 else @intCast(lv);
+            continue;
+        }
+        // Unknown flag — surface the wrong # args wording so the
+        // caller sees a recognisable diagnostic.
+        raise_string_wrong_args(if (eq)
+            "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\""
+        else
+            "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"");
+        return obj_new_int(0);
+    }
+    if (i + 1 >= words.len) {
+        raise_string_wrong_args(if (eq)
+            "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\""
+        else
+            "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"");
+        return obj_new_int(0);
+    }
+    const a = words[i];
+    const b = words[i + 1];
+    const nc: i32 = if (nocase) 1 else 0;
+    if (eq) return rt.string_equal_full(a, b, nc, len_limit);
+    return rt.string_compare_full(a, b, nc, len_limit);
+}
+
+const std = @import("std");
+
+fn raise_string_wrong_args(msg: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const total: u32 = @intCast(msg.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    for (msg, 0..) |c, i| dst[i] = c;
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
 pub fn eval(words: []const i32) result_mod.InterpResult {
-    if (words.len < 3) return result_mod.from_globals(0);
+    if (words.len < 2) {
+        // ``string`` with no subcommand raises the canonical
+        // ``wrong # args`` (string-1.2: ``string`` → ``wrong # args:
+        // should be "string subcommand ?arg ...?"``).
+        raise_string_wrong_args(
+            "wrong # args: should be \"string subcommand ?arg ...?\"",
+        );
+        return result_mod.from_globals(0);
+    }
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
+    // Per-subcommand arity check — emits the upstream wording so
+    // tests like ``string compare`` (arity 0) raise ``wrong # args:
+    // should be "string compare ?-nocase? ?-length int? string1
+    // string2"`` instead of returning silently (string-2.1, 3.9,
+    // 4.1, etc.).
+    if (check_subcommand_arity(sp, sub.len, words.len)) |_| {} else {
+        // arity error already raised; bail out.
+        return result_mod.from_globals(0);
+    }
+    if (words.len < 3) return result_mod.from_globals(0);
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
     if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));
     if (str_eq(sp, sub.len, "range") and words.len >= 5) return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));

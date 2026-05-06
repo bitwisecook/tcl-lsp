@@ -368,11 +368,15 @@ class TestBignumIntCoercion:
         assert _expr_puts("int(1<<200)") == str(1 << 200)
 
     def test_wide_of_64bit_hex(self) -> None:
-        # Tcl 9 ``wide(0x8000000000000000)`` is the bignum
-        # ``9223372036854775808`` — fits a wide on 64-bit Tcl, but
-        # the literal value exceeds i64 max so we route through the
-        # bignum path.
-        assert _expr_puts("wide(0x8000000000000000)") == "9223372036854775808"
+        # Tcl 9 ``wide()`` truncates to a signed 64-bit integer (low
+        # 64 bits of ``int(x)``) — see ``ExprWideFunc`` in
+        # ``tclBasic.c`` which calls ``ExprIntFunc`` then
+        # ``TclGetWideBitsFromObj``.  ``0x8000000000000000`` is
+        # ``2**63`` — its low 64 bits viewed as signed are
+        # ``-2**63 = -9223372036854775808``.  ``int(x)`` preserves
+        # the unsigned magnitude as a bignum (``test_int_of_bignum``);
+        # ``wide(x)`` deliberately drops to the wrap-around int.
+        assert _expr_puts("wide(0x8000000000000000)") == "-9223372036854775808"
 
     def test_int_of_float_within_i128(self) -> None:
         # ``int(3.7)`` truncates toward zero.

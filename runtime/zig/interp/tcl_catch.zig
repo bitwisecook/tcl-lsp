@@ -450,23 +450,71 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
     if (default_code) obj.tcl_obj_release(code_val);
 }
 
-/// Probe for the ``wrong # args:`` prefix used by reference Tcl's
-/// ``Tcl_WrongNumArgs``.  Reference Tcl stamps ``::errorCode = TCL
-/// WRONGARGS`` on every such error; rename.test 3.1 / 3.2 (and many
-/// others) grep for this exact errorCode in the test result.  The
-/// simplest way to keep all "wrong # args" call sites in sync is to
-/// auto-detect the prefix at the central error sink rather than
-/// thread an explicit ``code`` argument through every call site.
-fn detect_wrong_args_code(msg: i32) i32 {
+/// Probe error message text for well-known prefixes/values that
+/// reference Tcl decorates with a specific ``::errorCode``.
+///
+/// Detected:
+///   * ``wrong # args:``  → ``TCL WRONGARGS``
+///     (``Tcl_WrongNumArgs`` stamps this on every arity error;
+///     rename.test 3.1 / 3.2 etc. grep for the exact code.)
+///   * ``divide by zero``
+///       → ``ARITH DIVZERO {divide by zero}``
+///   * ``domain error: argument not in valid range``
+///       → ``ARITH DOMAIN {domain error: argument not in valid range}``
+///   * ``floating-point value too large to represent``
+///       → ``ARITH OVERFLOW {floating-point value too large to represent}``
+///   * ``integer value too large to represent``
+///       → ``ARITH IOVERFLOW {integer value too large to represent}``
+///
+/// Centralising the detection at the error sink keeps every
+/// ``stubs.raise(...)`` call site free of errorCode plumbing —
+/// arith helpers in ``tcl_arith.zig`` / ``tcl_mathop.zig``, the
+/// math funcs, and the bignum overflow paths all benefit without
+/// changes (expr-old 26.8/26.9, 34.9/34.10, etc.).
+fn detect_error_code(msg: i32) i32 {
     const s = obj_ensure_string(msg);
-    const prefix: []const u8 = "wrong # args:";
-    if (s.len < prefix.len) return 0;
+    if (s.len == 0) return 0;
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    for (prefix, 0..) |c, i| {
-        if (sp[i] != c) return 0;
+    if (starts_with(sp, s.len, "wrong # args:")) {
+        const code_text: []const u8 = "TCL WRONGARGS";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
     }
-    const code_text: []const u8 = "TCL WRONGARGS";
-    return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    if (slice_eq_lit(sp, s.len, "divide by zero")) {
+        const code_text: []const u8 = "ARITH DIVZERO {divide by zero}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "domain error: argument not in valid range")) {
+        const code_text: []const u8 =
+            "ARITH DOMAIN {domain error: argument not in valid range}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "floating-point value too large to represent")) {
+        const code_text: []const u8 =
+            "ARITH OVERFLOW {floating-point value too large to represent}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    if (slice_eq_lit(sp, s.len, "integer value too large to represent")) {
+        const code_text: []const u8 =
+            "ARITH IOVERFLOW {integer value too large to represent}";
+        return obj_new_string_copy(@intFromPtr(code_text.ptr), code_text.len);
+    }
+    return 0;
+}
+
+fn starts_with(sp: [*]const u8, slen: u32, prefix: []const u8) bool {
+    if (slen < prefix.len) return false;
+    for (prefix, 0..) |c, i| {
+        if (sp[i] != c) return false;
+    }
+    return true;
+}
+
+fn slice_eq_lit(sp: [*]const u8, slen: u32, lit: []const u8) bool {
+    if (slen != lit.len) return false;
+    for (lit, 0..) |c, i| {
+        if (sp[i] != c) return false;
+    }
+    return true;
 }
 
 // Exported: error — write message to stderr and trap, OR set error flag in catch.
@@ -484,7 +532,7 @@ fn detect_wrong_args_code(msg: i32) i32 {
 pub export fn tcl_cmd_error(msg: i32) void {
     state.last_log_script = 0;
     state.last_log_pos = 0;
-    stamp_error_globals(msg, 0, detect_wrong_args_code(msg));
+    stamp_error_globals(msg, 0, detect_error_code(msg));
     if (state.catch_depth > 0) {
         state.error_flag = 1;
         state.error_msg = msg;
