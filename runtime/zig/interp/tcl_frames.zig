@@ -1235,10 +1235,18 @@ fn resolve_ext_exists(desc: u32, local_name: i32) i32 {
     const tgt = read_i32(desc + 8);
     if (kind == KIND_GLOBAL_NAMED) return globals.global_exists(tgt);
     if (kind == KIND_NS_VAR_PTR) {
-        // The Var entry exists once we've created it; existence
-        // checks return 1 even if the value was never written.
-        // Matches the long-standing ``global_exists`` semantics.
-        return if (tgt != 0) obj_new_int(1) else obj_new_int(0);
+        // Reference Tcl's ``info exists`` returns 1 only when the
+        // variable has been *assigned* a value — declaring a
+        // namespace var via ``variable name`` (no initialiser) is
+        // not enough.  Without this, ``proc Default {n v} {
+        // variable $n; if {![info exists $n]} { variable $n $v } }``
+        // (tcltest's per-namespace lazy initialiser) skipped its
+        // initialiser branch — the bare ``variable $n`` had already
+        // fabricated a Var entry and the previous "tgt non-zero ⇒
+        // exists" rule reported it as initialised.
+        if (tgt == 0) return obj_new_int(0);
+        const val = tcl_ns.var_get_scalar(@bitCast(tgt));
+        return if (val != 0) obj_new_int(1) else obj_new_int(0);
     }
     const abs: u32 = @bitCast(read_i32(desc + 4));
     return if (frame_exists_at_depth(abs, tgt, local_name)) obj_new_int(1) else obj_new_int(0);
@@ -1373,12 +1381,32 @@ pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name
 /// value is the negated descriptor address.  Reads / writes go
 /// through ``var_get_scalar`` / ``var_set_scalar`` which transparently
 /// chase ``VAR_LINK`` chains on the target side.
-pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32) void {
+pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, full_name: i32) void {
     const cur = current_frame() orelse return;
-    const desc = alloc(12);
+    // Descriptor layout (16 bytes — extended from the 12-byte form
+    // for KIND_GLOBAL_NAMED / KIND_FRAME_VAR):
+    //   desc[0..4]  = kind
+    //   desc[4..8]  = unused (mirrors the GLOBAL_NAMED/FRAME_VAR
+    //                 ``param`` slot)
+    //   desc[8..12] = ``*Var`` for the namespace var (scalar fast path)
+    //   desc[12..16] = TclObj of the FQ name, used by
+    //                 :func:`frame_resolve_array_name` so a proc-local
+    //                 ``variable arr`` correctly routes ``set arr(k)``
+    //                 to the namespace's array directory entry rather
+    //                 than the synthetic ``::__local::<depth>::arr``
+    //                 form.  Without it, traces installed against the
+    //                 namespace array (e.g. tcltest's ``SafeFetch``
+    //                 read trace on ``::tcltest::testConstraints``)
+    //                 never fire from inside an interpreted proc body
+    //                 because the resolver landed on a different
+    //                 array — string.test's ``[testConstraint
+    //                 valgrind]`` returned ``""`` and PR #341's strict
+    //                 boolean ``!`` then trapped.
+    const desc = alloc(16);
     write_i32(desc, KIND_NS_VAR_PTR);
     write_i32(desc + 4, 0);
     write_i32(desc + 8, @bitCast(var_ptr));
+    write_i32(desc + 12, full_name);
     const encoded: i32 = -@as(i32, @intCast(desc));
     const sn = obj_ensure_string(local_name);
     const hash = fnv1a(sn.ptr, sn.len);
@@ -1919,6 +1947,18 @@ pub export fn frame_resolve_array_name(local_name: i32) i32 {
                 const tgt = read_i32(desc + 8);
                 if (kind == KIND_GLOBAL_NAMED or kind == KIND_FRAME_VAR) {
                     return tgt;
+                }
+                if (kind == KIND_NS_VAR_PTR) {
+                    // Descriptor layout is 16 bytes for this kind;
+                    // desc+12 holds the FQ-name TclObj stashed by
+                    // ``frame_alias_ns_var`` when ``variable`` ran.
+                    // Use it so array writes / reads land in the
+                    // namespace's array directory instead of the
+                    // proc-local synthetic key.  Falls back to
+                    // *local_name* when missing (e.g. ``frame_alias_ns_var``
+                    // was called with a 0 full_name during bootstrap).
+                    const full_name = read_i32(desc + 12);
+                    if (full_name != 0) return full_name;
                 }
             }
             if (v == ALIAS_GLOBAL) return local_name; // global alias keeps the same name

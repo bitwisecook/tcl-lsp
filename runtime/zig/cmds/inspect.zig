@@ -115,6 +115,74 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(trace_mod.tcl_cmd_trace_cmd(sub, arg_obj));
 }
 
+/// Resolve a user-supplied variable name to the canonical FQ form
+/// the trace directory keys against.  Mirrors what reference Tcl
+/// does when ``trace add variable NAME …`` runs inside a
+/// ``namespace eval`` body: an unqualified ``NAME`` resolves
+/// against the active namespace, so a later read via
+/// ``$::ns::NAME`` (or via a proc-local ``variable NAME`` alias)
+/// fires the trace.  Without this, ``trace add variable a …``
+/// inside ``namespace eval ::ns { … }`` registered against a bare
+/// ``a`` while the array module looked up traces under
+/// ``::ns::a`` — so ``tcltest::SafeFetch`` never fired and
+/// ``$testConstraints(valgrind)`` returned ``""`` instead of
+/// triggering the lazy initialiser, which our PR #341 strict-
+/// boolean ``!`` then rejected (regression that emptied
+/// ``string.test`` and friends).
+///
+/// Rules (in order):
+///   1. Names starting with ``::`` pass through unchanged.
+///   2. Names containing ``::`` but not starting with it get a
+///      leading ``::`` so ``ns::var`` becomes ``::ns::var``;
+///      mirrors :func:`tcl_array.normalize_ns_name`.
+///   3. Bare names at top level inside a non-root namespace
+///      (``frame_depth == 0`` and ``current_ns_full_len > 2``)
+///      get prefixed with ``<current_ns>::``.
+///   4. Anything else passes through unchanged.
+fn canonical_var_name(name: i32) i32 {
+    const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len == 0) return name;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') return name;
+    // Probe for an internal ``::`` — if present, ``ns::var`` form;
+    // prepend ``::`` to FQ-ify per :func:`tcl_array.normalize_ns_name`.
+    var i: u32 = 0;
+    while (i + 1 < sn.len) : (i += 1) {
+        if (sp[i] == ':' and sp[i + 1] == ':') {
+            const total: u32 = sn.len + 2;
+            const buf = rt.alloc(total);
+            if (buf == 0) return name;
+            const dst: [*]u8 = @ptrFromInt(buf);
+            dst[0] = ':';
+            dst[1] = ':';
+            for (0..sn.len) |k| dst[2 + k] = sp[k];
+            return obj_new_string(@bitCast(buf), @bitCast(total));
+        }
+    }
+    // Bare unqualified name — only top-level (frame_depth == 0)
+    // calls reach here, since ``is_local_trace_target`` already
+    // routed proc-local bare-name traces to the per-frame chain.
+    // When a ``namespace eval`` body is active, qualify against
+    // the running namespace so the canonical-name dir matches the
+    // ``::ns::name`` form used by the array fire path and by
+    // ``variable``-aliased proc-local reads.
+    if (frames.frame_depth != 0) return name;
+    const tcl_ns = @import("../interp/tcl_ns.zig");
+    const ns_ptr = tcl_ns.current_ns_full_ptr();
+    const ns_len = tcl_ns.current_ns_full_len();
+    if (ns_len <= 2) return name; // root namespace ``::`` — no qualification
+    const total: u32 = ns_len + 2 + sn.len;
+    const buf = rt.alloc(total);
+    if (buf == 0) return name;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const ns_p: [*]const u8 = @ptrFromInt(ns_ptr);
+    for (0..ns_len) |k| dst[k] = ns_p[k];
+    dst[ns_len] = ':';
+    dst[ns_len + 1] = ':';
+    for (0..sn.len) |k| dst[ns_len + 2 + k] = sp[k];
+    return obj_new_string(@bitCast(buf), @bitCast(total));
+}
+
 /// Phase 6 follow-up: route a trace install to the per-frame chain
 /// when the target is a proc-local, otherwise to the canonical-name
 /// directory.  Centralised so all ``trace add variable`` /
@@ -124,7 +192,7 @@ fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
         var_trace.add_to_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
         return;
     }
-    var_trace.add(name, ops, cmd_prefix);
+    var_trace.add(canonical_var_name(name), ops, cmd_prefix);
 }
 
 /// Mirror of :func:`install_var_trace` for the remove path.
@@ -132,7 +200,7 @@ fn uninstall_var_trace(name: i32, ops: u32, cmd_prefix: i32) bool {
     if (is_local_trace_target(name)) {
         return var_trace.remove_from_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
     }
-    return var_trace.remove(name, ops, cmd_prefix);
+    return var_trace.remove(canonical_var_name(name), ops, cmd_prefix);
 }
 
 /// Mirror of :func:`install_var_trace` for the ``trace info`` query.
@@ -140,7 +208,7 @@ fn query_var_trace(name: i32) i32 {
     if (is_local_trace_target(name)) {
         return var_trace.info_for_list(frames.frame_trace_heads[frames.frame_depth - 1], name);
     }
-    return var_trace.info(name);
+    return var_trace.info(canonical_var_name(name));
 }
 
 /// Parse the ops list ``{read write unset array}`` (any subset, in
@@ -169,10 +237,15 @@ fn eval_pid(words: []const i32) result_mod.InterpResult {
 }
 
 /// Stub for ``tcl::build-info`` — returns a hard-coded string for the
-/// queries Tcl test suites actually use (``patchlevel``, ``version``,
-/// ``commit``).  The real C Tcl reads these from compile-time defines
-/// in ``tclConfig.sh``; for our WASM runtime, returning sensible
-/// strings is enough to keep tests like ``format.test`` running.
+/// known string queries (``patchlevel``, ``version``, ``commit``,
+/// ``compiler``).  Reference Tcl 9 (``BuildInfoObjCmd2`` in
+/// ``generic/tclBasic.c``) treats any other identifier as a boolean
+/// presence check against the build-info string and returns
+/// ``Tcl_NewBooleanObj(0)`` when the flag is absent — so callers like
+/// ``tcltests.tcl`` can write ``expr {![tcl::build-info no-deprecate]}``
+/// without tripping strict-boolean rules.  Our WASM build claims none of
+/// the optional flags (``no-deprecate``, ``debug``, ``purify``,
+/// ``memdebug``, …), so unknown keys must return ``0``, not ``""``.
 fn eval_tcl_build_info(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) {
         return result_mod.from_globals(obj_new_string_lit("9.0.3"));
@@ -182,11 +255,10 @@ fn eval_tcl_build_info(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "patchlevel")) return result_mod.from_globals(obj_new_string_lit("9.0.3"));
     if (str_eq(sp, sub.len, "version")) return result_mod.from_globals(obj_new_string_lit("9.0"));
     if (str_eq(sp, sub.len, "commit")) return result_mod.from_globals(obj_new_string_lit("0000000000000000000000000000000000000000"));
-    if (str_eq(sp, sub.len, "branch")) return result_mod.from_globals(obj_new_string_lit("core-9-0-3"));
     if (str_eq(sp, sub.len, "compiler")) return result_mod.from_globals(obj_new_string_lit("zig-wasm32"));
-    // Unknown sub-key — return empty rather than trapping; matches
-    // reference Tcl which returns "" for unknown build-info keys.
-    return result_mod.from_globals(obj_new_string(0, 0));
+    // Unknown sub-key: boolean presence check.  None of the optional
+    // build flags are set in our runtime, so always answer ``0``.
+    return result_mod.from_globals(obj_new_string_lit("0"));
 }
 
 /// Helper: allocate a TclObj wrapping a Zig string literal.  The

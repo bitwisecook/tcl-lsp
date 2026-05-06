@@ -328,11 +328,56 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             }
             return result_mod.from_globals(interp.eval_script(buf, total));
         }
-        // ``namespace code script`` — wrap with [namespace inscope current script]
-        // For our purposes, return the script unchanged (no-op approximation).
+        // ``namespace code script`` — return a script that evaluates
+        // *script* in the current namespace.  Reference Tcl
+        // (``NamespaceCodeCmd`` in ``generic/tclNamesp.c``) returns
+        // ``::namespace inscope <currentNs> <script>`` (with *script*
+        // properly list-quoted) so the resulting prefix is callable
+        // from any context — e.g. ``trace add variable v read
+        // [namespace code SafeFetch]`` registered against a callback
+        // that lives in ``::tcltest`` but isn't ``namespace export``-ed,
+        // so the trace fire path needs the inscope wrapping to find
+        // it.  When *script* already begins with ``::namespace
+        // inscope `` or ``namespace inscope `` it's returned
+        // unchanged (idempotent).  The previous "return the script
+        // unchanged (no-op approximation)" implementation registered
+        // bare callback names that the trace dispatcher looked up in
+        // root, so unexported ``::tcltest::SafeFetch`` traces silently
+        // failed and ``$testConstraints(valgrind)`` never populated —
+        // tcltests.tcl's ``expr {![testConstraint valgrind]}`` then
+        // tripped PR #341's strict-boolean ``!`` (string.test
+        // regression).
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "code")) {
             if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
-            return result_mod.from_globals(words[2]);
+            const ss = obj_ensure_string(words[2]);
+            // Idempotency check — already wrapped scripts pass
+            // through.  Match both the canonical ``::namespace
+            // inscope `` and the unqualified ``namespace inscope ``
+            // forms, mirroring reference Tcl.
+            if (ss.len >= 20) {
+                const sp: [*]const u8 = @ptrFromInt(ss.ptr);
+                const fq = "::namespace inscope ";
+                var ok: bool = true;
+                for (0..fq.len) |k| if (sp[k] != fq[k]) { ok = false; break; };
+                if (ok) return result_mod.from_globals(words[2]);
+            }
+            if (ss.len >= 18) {
+                const sp: [*]const u8 = @ptrFromInt(ss.ptr);
+                const bare = "namespace inscope ";
+                var ok: bool = true;
+                for (0..bare.len) |k| if (sp[k] != bare[k]) { ok = false; break; };
+                if (ok) return result_mod.from_globals(words[2]);
+            }
+            const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
+            // Build ``::namespace inscope <ns> <script>`` via
+            // ``tcl_list`` so each element is properly list-quoted
+            // (handles braces, spaces, backslashes in ``<script>``).
+            var acc: i32 = obj_new_string_copy(0, 0);
+            acc = rt.tcl_list(acc, obj_new_string_copy(@bitCast(@intFromPtr("::namespace".ptr)), 11));
+            acc = rt.tcl_list(acc, obj_new_string_copy(@bitCast(@intFromPtr("inscope".ptr)), 7));
+            acc = rt.tcl_list(acc, obj_new_string_copy(@bitCast(nf.ptr), @bitCast(nf.len)));
+            acc = rt.tcl_list(acc, words[2]);
+            return result_mod.from_globals(acc);
         }
     }
     return result_mod.from_globals(0);

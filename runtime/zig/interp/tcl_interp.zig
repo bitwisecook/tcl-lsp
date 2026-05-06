@@ -2097,9 +2097,46 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
         var pi: u32 = 0;
         while (pi < n_params) : (pi += 1) {
             const param_elem = list_element_at(ps.ptr, ps.len, @intCast(pi));
-            const param_name_ptr = ps.ptr + param_elem.start;
-            const param_name_len = param_elem.len;
+            // Each parameter is either a bare name (``a``) or a
+            // 2-element list of ``{name default}``.  Detect the latter
+            // by re-parsing the post-brace span as a sub-list and
+            // checking the count.  Without this, an interpreted proc
+            // body whose params include defaults (e.g. tcltest's
+            // ``proc ConstraintInitializer {constraint {script ""}}``
+            // sourced at runtime) treated ``script ""`` as a single
+            // literal name — the first arg-less call wired up a local
+            // named ``script "" `` (with embedded space and quotes)
+            // and the body's ``$script`` reference then errored
+            // "no such variable".  In tcltest's SafeFetch path that
+            // error is caught silently and the read trace returns
+            // ``""``, which PR #341's strict-boolean ``!`` then
+            // trapped on (string.test regression).  Reference Tcl
+            // (``TclCreateProc``) parses the sub-list at proc-define
+            // time; doing it on every call keeps the binding cheap
+            // and matches the existing eval-fallback shape — the
+            // compiled-codegen path already does its own pre-parse
+            // via ``tcl_proc_register_compiled``.
+            var param_name_ptr = ps.ptr + param_elem.start;
+            var param_name_len = param_elem.len;
+            var param_default: i32 = 0;
+            var has_default: bool = false;
+            const sub_n = list_count_elements(param_name_ptr, param_name_len);
+            if (sub_n == 2) {
+                const name_elem = list_element_at(param_name_ptr, param_name_len, 0);
+                const default_elem = list_element_at(param_name_ptr, param_name_len, 1);
+                const default_ptr = param_name_ptr + default_elem.start;
+                const default_len = default_elem.len;
+                param_default = obj_new_string_copy(default_ptr, default_len);
+                obj_mod.tcl_obj_retain(param_default);
+                has_default = true;
+                // Narrow the name span before allocating ``param_name``.
+                const new_name_ptr = param_name_ptr + name_elem.start;
+                const new_name_len = name_elem.len;
+                param_name_ptr = new_name_ptr;
+                param_name_len = new_name_len;
+            }
             const param_name = obj_new_string_copy(param_name_ptr, param_name_len);
+            defer if (has_default) obj_mod.tcl_obj_release(param_default);
             // Issue #317: ``local_set`` only reads ``param_name``'s byte
             // span (the hash table copies the bytes into its own
             // bucket); the TclObj itself is not retained anywhere
@@ -2175,10 +2212,16 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
                 if (arg_idx < words.len) {
                     // Caller-owned TclObj — no creator-side ref to drop.
                     _ = frames.local_set(param_name, words[arg_idx]);
+                } else if (has_default) {
+                    // Use the parsed default value when the caller
+                    // omitted this positional arg.
+                    _ = frames.local_set(param_name, param_default);
                 } else {
-                    // Default-empty for missing positional args; drop
-                    // the creator-side ref the same way as the empty
-                    // ``args`` branch above.
+                    // No default and no caller-supplied value —
+                    // reference Tcl raises ``wrong # args`` here, but
+                    // legacy tests (and our own existing baselines)
+                    // rely on the lenient empty-default behaviour, so
+                    // keep that for the no-default case.
                     const empty = obj_new_string(0, 0);
                     _ = frames.local_set(param_name, empty);
                     obj_mod.tcl_obj_release(empty);
