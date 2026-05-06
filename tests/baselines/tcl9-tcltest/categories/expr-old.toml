@@ -1,0 +1,33 @@
+# expr-old.test category triage — Stream 2 (tcl9-arith-wording).
+# 429/461 passing; 27 skipped (constraint-gated tcl::test extensions);
+# 5 listed below.  Default for unlisted failures is must_pass.
+
+[meta]
+bundle = "expr-old.test"
+total = 461
+stream = "tcl9-arith-wording"
+
+[[entries]]
+id = "32.50"
+bucket = "just_to_match_ctcl"
+reason = "srand/rand seed→sequence mapping; we use Zig's PRNG. Behaviour (rand returns float in (0,1), srand returns int) is correct; only the exact seed→sequence pairing differs."
+
+[[entries]]
+id = "32.53"
+bucket = "just_to_match_ctcl"
+reason = "expr {srand((1<<31)-1) > 0} — same root cause as 32.50; the boolean return depends on the seed-mapping detail."
+
+[[entries]]
+id = "34.3"
+bucket = "just_to_match_ctcl"
+reason = "hypot(\"a b\", 2.0) — we raise `expected floating-point number but got \"a b\"`; reference Tcl's TclParseNumber detects list-shape input and shortens to `... but got a list`. Functionally equivalent diagnostic."
+
+[[entries]]
+id = "34.10"
+bucket = "must_pass"
+reason = "pow(-3, 1000001) — the math function should coerce to double per ExprPowFunc and return -Inf. Our tcl_arith_pow keeps the integer path and returns a 100k-digit bignum. Real semantic gap: pow() math function is float-typed in Tcl 9 (distinct from the ** operator)."
+
+[[entries]]
+id = "36.16"
+bucket = "just_to_match_ctcl"
+reason = "expr {$x+1} where $x is `0xff…ff` (152-bit hex) vs [expr 0x100…000] — both compute the same value (2^152). The diff is the string repr of the bignum result (we always emit decimal canonical; reference Tcl preserves the source-spelling hex). Display detail; the underlying arithmetic agrees."
