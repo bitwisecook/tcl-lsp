@@ -47,8 +47,6 @@
 //! Sinks are still resolved through the [`Traits::TAINT_SINK`] /
 //! [`Traits::EVALUATES_CODE`] flags inside `find_taint_warnings`.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use bitflags::bitflags;
@@ -674,7 +672,7 @@ fn collect_global_reads(ssa: &SsaFunction) -> HashSet<String> {
 ///   namespace-prefixed commands (`HTTP::`, `URI::`, …) are treated
 ///   as taint sources.
 #[must_use]
-pub fn propagate_taints(
+pub(crate) fn propagate_taints(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     sccp: &SccpResult,
@@ -945,7 +943,7 @@ fn irule3002_name_position_safe(
 /// one `TaintWarning`. Iterates blocks in `cfg_order` for deterministic
 /// diagnostic ordering (matching the other shimmer/taint passes).
 #[must_use]
-pub fn find_taint_warnings(
+pub(crate) fn find_taint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,
@@ -1274,7 +1272,7 @@ const SETTER_CONSTRAINTS: &[(&str, &str, &str, &str)] = &[
 ///    when `PATH_PREFIXED | PATH_NORMALISED | PATH_BOUNDED` is set.
 /// 3. **Dynamic expression** (interpolation, command sub) — always warn.
 #[must_use]
-pub fn find_setter_constraint_warnings(
+pub(crate) fn find_setter_constraint_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice>,

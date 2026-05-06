@@ -23,8 +23,6 @@
 //! pair to its inferred type. Values not present in the map are
 //! implicitly `Unknown`.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::HashMap;
 
 use tcl_registry::{CommandRegistry, TclType};
