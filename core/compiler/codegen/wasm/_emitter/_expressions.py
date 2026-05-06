@@ -519,6 +519,20 @@ class _WasmEmitterExprMixin(_Base):
         new_int_idx = self._shared_imports.get("tcl_obj_new_int")
         new_float_idx = self._shared_imports.get("tcl_obj_new_float")
         new_str_idx = self._shared_imports.get("tcl_obj_new_string")
+        # Strip outer braces / double-quotes that the expr parser
+        # left on the value.  ``ExprString(text='{-0x1234}')``
+        # carries the source spelling verbatim; the numeric
+        # detection below needs the unwrapped inner content.
+        # Quoted values get backslash subst applied so escapes
+        # like ``\n`` collapse before we try the int / float
+        # parse.
+        if len(value) >= 2:
+            if value[0] == "{" and value[-1] == "}":
+                value = value[1:-1]
+            elif value[0] == '"' and value[-1] == '"':
+                value = value[1:-1]
+                if "\\" in value:
+                    value = _tcl_backslash_subst(value)
         is_integer_literal = False
         try:
             int_val = int(value, 0) if not value.lstrip("+-").isdigit() else int(value)

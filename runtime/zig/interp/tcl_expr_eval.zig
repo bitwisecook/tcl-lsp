@@ -812,6 +812,65 @@ fn parse_braced(s: *State) i32 {
     const inner_len = s.pos - start;
     if (s.pos < s.len) s.pos += 1; // skip closing }
     const inner_ptr = @intFromPtr(s.src) + start;
+    // Tcl 9 ``expr {{X}}`` shimmers the brace-quoted operand
+    // toward its numeric form when the inner text parses as a
+    // number.  ``expr {{-0x1234}}`` returns ``-4660`` rather
+    // than the literal string ``"-0x1234"``.  Use the same
+    // detector ``finalize_num`` runs on bare numeric literals
+    // (base-prefix, decimal, float).
+    if (inner_len > 0) {
+        const sptr = inner_ptr;
+        const slen = inner_len;
+        const src: [*]const u8 = @ptrFromInt(sptr);
+        // Trim leading minus/plus to inspect base prefix.
+        var off: u32 = 0;
+        var sign_neg = false;
+        if (slen > 0 and (src[0] == '-' or src[0] == '+')) {
+            sign_neg = src[0] == '-';
+            off = 1;
+        }
+        if (off + 2 <= slen and src[off] == '0') {
+            const c = src[off + 1];
+            if (c == 'x' or c == 'X' or c == 'o' or c == 'O' or c == 'b' or c == 'B') {
+                // Re-use finalize_num's logic by funnelling the
+                // entire (possibly signed) source through
+                // ``try_parse_int`` first via a synthetic buffer.
+                // For simplicity, inline the base-prefix loop
+                // since ``try_parse_int`` only handles decimal.
+                var v: u64 = 0;
+                var base: u8 = 10;
+                if (c == 'x' or c == 'X') base = 16
+                else if (c == 'o' or c == 'O') base = 8
+                else base = 2;
+                var i: u32 = off + 2;
+                var ok = i < slen;
+                while (i < slen) : (i += 1) {
+                    const ch = src[i];
+                    var d: u32 = 16;
+                    if (ch >= '0' and ch <= '9') d = ch - '0'
+                    else if (ch >= 'a' and ch <= 'f') d = (ch - 'a') + 10
+                    else if (ch >= 'A' and ch <= 'F') d = (ch - 'A') + 10
+                    else { ok = false; break; }
+                    if (d >= @as(u32, base)) { ok = false; break; }
+                    const m = @mulWithOverflow(v, @as(u64, base));
+                    if (m[1] != 0) { ok = false; break; }
+                    const a = @addWithOverflow(m[0], @as(u64, d));
+                    if (a[1] != 0) { ok = false; break; }
+                    v = a[0];
+                }
+                if (ok and v <= @as(u64, 9223372036854775807)) {
+                    const iv: i64 = @intCast(v);
+                    return obj_new_int(if (sign_neg) -iv else iv);
+                }
+            }
+        }
+        if (obj.try_parse_int(@bitCast(sptr), @bitCast(slen))) |iv| {
+            return obj_new_int(iv);
+        }
+        if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
+            return obj.obj_new_float(fv);
+        }
+    }
     return obj_new_string(ptr_as_i32(inner_ptr), len_as_i32(inner_len));
 }
 
