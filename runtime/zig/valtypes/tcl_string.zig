@@ -48,8 +48,12 @@ pub export fn tcl_cmd_append(current: i32, addition: i32) i32 {
     // integer is a tagged handle whose ``@intCast`` value is a low
     // integer — rc/tag/cap reads would dereference wasm data-segment
     // bytes.  Skip the in-place paths on immediates and fall through
-    // to the new-buffer fallback below.
-    if (!obj.is_immediate(current)) {
+    // to the new-buffer fallback below.  ``current > 0`` additionally
+    // skips the i32-MIN / negative-handle case that arises when a
+    // long-running session's heap grows past the 2 GiB boundary —
+    // ``@intCast`` to u32 panics on negative inputs in ReleaseSafe,
+    // and the canonical-rebuild fallback is the safe degraded path.
+    if (current > 0 and !obj.is_immediate(current)) {
         const addr: u32 = @intCast(current);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);

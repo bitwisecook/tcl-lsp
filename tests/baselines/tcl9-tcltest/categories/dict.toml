@@ -1,0 +1,100 @@
+# Categorisation for dict.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+# Real semantic features that aren't yet implemented but should be.
+good_to_have = [
+  "3.5",          # dict-3.5: ``dict get NESTED a p`` — multi-arg path
+  "3.6",          # dict-3.6: same — multi-arg path traversal
+  "3.7",          # dict-3.7: same
+  "3.8",          # dict-3.8: same
+  "4.11",         # dict-4.11: ``dict replace`` canonicality forcing
+                  #   (collapse interior whitespace in input)
+  "4.12",         # dict-4.12: same — also de-duplicates keys
+  "4.14a",        # dict-4.14a: Tcl 9 strict type-check on malformed
+                  #   key-value pair input to ``dict replace``
+  "4.15a",        # dict-4.15a: same
+  "4.16a",        # dict-4.16a: same
+  "4.18",         # dict-4.18: ``dict replace`` doesn't mutate the
+                  #   caller's literal (canonicality is non-destructive)
+  "5.8",          # dict-5.8: ``dict remove`` canonicality forcing
+  "5.9",          # dict-5.9: same
+  "5.13",         # dict-5.13: same — non-destructive
+  "6.4",          # dict-6.4: ``dict keys`` glob-pattern filter arg
+  "6.5",          # dict-6.5: same
+  "6.6",          # dict-6.6: same
+  "6.7",          # dict-6.7: same
+  "7.4",          # dict-7.4: ``dict values`` glob-pattern filter arg
+  "7.5",          # dict-7.5: same
+  "7.6",          # dict-7.6: same
+  "7.7",          # dict-7.7: same
+  "9.4",          # dict-9.4: ``dict exists`` with multi-arg nested
+                  #   path traversal (mirrors 3.5)
+  "9.6",          # dict-9.6: same
+  "17.16",        # dict-17.16: ``dict filter DICT script ...`` —
+                  #   we currently raise unsupported_sub on ``script``
+  "19.1",         # dict-19.1: refcount-shimmer "memory bug" repro;
+                  #   currently fails because shimmer-on-write hands
+                  #   back the wrong sub-dict.  Real semantic, fixable.
+  "22.12",        # dict-22.12: ``dict with`` inside ``apply`` reads
+                  #   back the modified dict from the caller frame
+  "22.13",        # dict-22.13: ``dict with d($i) ...`` — same shape
+                  #   targeting an array element (varname with index
+                  #   substitution).  Real feature, separate fix.
+]
+
+# Tests we intentionally do NOT run on the WASM side: they probe
+# C-Tcl bytecode shape (instruction count, ``[linenumber]`` from
+# ``info frame -1`` tied to the bcc), the ``::tcl::dict::*``
+# private namespace, or other reference-implementation internals
+# our codegen doesn't emulate.  Routed through
+# ``tcltest::configure -skip`` so they appear in the Skipped count
+# and never as failures — saves the runtime cycles, and a future
+# accidental "pass" is still surfaced via the bucket count drop.
+skip = [
+  "23.1",         # dict-23.1: bytecode compile-crash regression for
+                  #   Bug 3487626 — uses ``::tcl::dict::for`` /
+                  #   ``::tcl::dict::update`` and ``[linenumber]``
+                  #   via ``dict get [info frame -1] line``.  Tests
+                  #   C bcc shape, not user-visible semantics.
+  "23.2",         # dict-23.2: same family — internal compiler probe
+  "23.3",         # dict-23.3
+  "23.4",         # dict-23.4
+  "23.5",         # dict-23.5: ``CompileWord`` OBOE — direct internal
+                  #   C bytecode operand-emit regression
+  "23.6",         # dict-23.6
+  "23.7",         # dict-23.7
+  "23.8",         # dict-23.8
+  "23.9",         # dict-23.9
+  "23.10",        # dict-23.10
+  "23.11",        # dict-23.11
+  "23.12",        # dict-23.12
+  "23.13",        # dict-23.13
+  "23.14",        # dict-23.14
+  "24.20.1",      # dict-24.20.1: ``dict for`` bytecode compile-crash
+                  #   (Bug 3487626) — same shape as 23.1
+  "24.21",        # dict-24.21: same family
+]
+
+# Implementation-detail divergences from C Tcl that aren't bytecode-
+# shape per se but where matching the reference output isn't a
+# parity claim we make.  Counted but not gating; a future accidental
+# pass is informative.
+just_to_match_ctcl = [
+  "24.24",        # dict-24.24: ``dict map`` over a 100k-pair "huge
+                  #   dict" — bignum precision beyond what tcl_arith
+                  #   claims to match (sum of squares overflows i64)
+  "24.25",        # dict-24.25: compiled form of 24.24 — same root
+                  #   cause; the compiled-side ``dict map`` also
+                  #   diverges in the rebuilt result shape
+]
+
+[baseline]
+# Snapshot at triage time.  ``good_to_have_failing`` MAY drop
+# (better) but MUST NOT grow — a previously-passing test slipping
+# into the good_to_have bucket fires the gate even though the
+# test name is already listed.  The other two are recorded for
+# visibility only — neither direction is gating.
+good_to_have_failing = 27
+just_to_match_ctcl_failing = 2
+skip_failing = 16
