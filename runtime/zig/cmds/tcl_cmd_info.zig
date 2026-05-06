@@ -968,6 +968,17 @@ fn scan_builtin_table(ctx: *CmdWalkCtx) void {
 fn walk_qualified(target_ns: u32, ctx: *CmdWalkCtx) void {
     if (target_ns == 0) return;
     scan_ns_cmd_table(target_ns, ctx);
+    // Builtins (``apply``, ``puts``, ``string``, …) live in a
+    // static table outside any namespace's ``cmd_table`` but are
+    // resolution-attached to the root namespace.  Without this
+    // pass, ``info commands ::apply`` came back empty and
+    // apply.test bailed out at its early ``if {[info commands
+    // ::apply] eq {}} { return }`` guard, producing no tcltest
+    // summary at all.  Mirrors the same opt-in in
+    // :func:`walk_unqualified_path` for ``commands``-kind walks.
+    if (ctx.kind == .commands and target_ns == tcl_ns.ns_root()) {
+        scan_builtin_table(ctx);
+    }
 }
 
 /// Produce a TclObj list of matching FQNs, space-separated.
