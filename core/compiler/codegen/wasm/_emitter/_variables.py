@@ -123,6 +123,18 @@ class _WasmEmitterVarMixin(_Base):
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             self._emit_array_element_read(*array_ref)
+            # Reference Tcl raises ``can't read "arr(key)": no such
+            # variable`` when the element is missing.  ``tcl_array_get``
+            # signals "missing" by returning the null TclObj handle;
+            # without this check the compiled ``return $arr(key)`` for
+            # an absent element silently propagated empty, so
+            # ``proc tcltest::ConstraintInitializer {... {script ""}}
+            # { return $ConstraintInitializer($constraint) }`` returned
+            # ``""`` instead of erroring — which let SafeFetch's outer
+            # ``catch`` succeed with rc=0 and leave
+            # ``testConstraints(valgrind)`` unset, so PR #341's strict-
+            # boolean ``!`` then trapped on the empty result.
+            self._emit_unset_check_with_alias(name)
             return
         binding = self._aliases.get(name)
         if binding is not None:
@@ -1155,46 +1167,74 @@ class _WasmEmitterVarMixin(_Base):
                 gset_idx = self._shared_imports.get("tcl_global_set")
                 append_idx = self._shared_imports.get("tcl_append")
                 gexist_idx = self._shared_imports.get("tcl_global_exists")
-                if has_value and gset_idx is not None and append_idx is not None:
-                    # Construct ``<ns>::<name>`` at runtime by
-                    # concatenating the namespace prefix with the
-                    # dynamic name value via ``tcl_append``.  Stash
-                    # the result in a hidden local so the existence
-                    # check and the write can reuse it without
-                    # recomputing the concat.
+                alias_named_idx = self._shared_imports.get("tcl_frame_alias_named")
+                # Build ``<ns>::<name>`` at runtime — needed for both
+                # the alias install (so later ``array set $n $v`` /
+                # ``$n(key)`` reads from the proc's own frame route to
+                # the namespace's array directory under the canonical
+                # FQ key) and the optional value write.  Without the
+                # alias install, tcltest's ``ArrayDefault`` /
+                # ``Default`` (``variable $varName ?value?``)
+                # populated a synthetic ``::__local::<depth>::<n>``
+                # array that no caller could observe — so
+                # ``cleanupTests``'s ``$numTests(Skipped)`` lookup
+                # came back empty (silent before PR #341, then a
+                # strict-check trap once the missing-element raise
+                # landed).
+                if append_idx is not None and (alias_named_idx is not None or gset_idx is not None):
                     ns_prefix = f"{ns}::" if ns != "::" else "::"
+                    # Substitute the dynamic name *once* and stash both
+                    # the resolved local-name TclObj (used for the
+                    # alias install) and the qualified ``<ns>::<name>``
+                    # TclObj (used for the optional value write).  The
+                    # earlier shape called ``self._emit_value(name)``
+                    # twice — for ``[incr i]``-style names (Tcl
+                    # argument substitution is single-pass per word)
+                    # that incremented the counter twice and bound the
+                    # alias to a different name than the write target.
+                    # Single-evaluate via the resolved-name local
+                    # ``_var_dyn_resolved`` and reference it from both
+                    # paths (Codex review on PR #343).
+                    resolved_idx = self._add_extra_local(
+                        prefix="_var_dyn_resolved", val_type=ValType.I32
+                    )
+                    self._emit_value(name)
+                    self._emit_local_set(resolved_idx)
                     qname_idx = self._add_extra_local(prefix="_var_dyn_qname", val_type=ValType.I32)
                     self._emit_obj_literal(ns_prefix)
-                    self._emit_value(name)
+                    self._emit_local_get(resolved_idx)
                     self._emit_call(append_idx)
                     self._emit_local_set(qname_idx)
-                    # ``variable`` only initialises when the variable
-                    # does not already exist — check via
-                    # ``tcl_global_exists`` and skip the write on hit.
-                    if gexist_idx is not None:
+                    # Install local alias ``<name-value>`` ->
+                    # ``<ns>::<name-value>`` (KIND_GLOBAL_NAMED) so
+                    # subsequent ``array set $n …`` / ``$n(key)``
+                    # references inside this proc body resolve to the
+                    # namespace's array directory.  Routes through
+                    # ``frame_resolve_array_name``'s existing
+                    # KIND_GLOBAL_NAMED branch — no descriptor
+                    # extension needed.
+                    if alias_named_idx is not None:
+                        self._emit_local_get(resolved_idx)
                         self._emit_local_get(qname_idx)
-                        self._emit_call(gexist_idx)
-                        self._emit_call(self._shared_imports["tcl_obj_get_int"])
-                        self._emit(WasmOp.I64_EQZ)
-                        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
-                        self._emit_local_get(qname_idx)
-                        self._emit_value(args[i + 1])
-                        self._emit_call(gset_idx)
-                        self._emit(WasmOp.DROP)
-                        self._emit(WasmOp.END)
-                    else:
-                        self._emit_local_get(qname_idx)
-                        self._emit_value(args[i + 1])
-                        self._emit_call(gset_idx)
-                        self._emit(WasmOp.DROP)
-                    i += 2
-                else:
-                    # Bare ``variable $name`` declaration or missing
-                    # runtime helpers — nothing to emit at compile time;
-                    # reads of the local ``name`` won't route through a
-                    # namespace alias, but that's the same degraded
-                    # mode we had before dynamic support landed.
-                    i += 2 if has_value else 1
+                        self._emit_call(alias_named_idx)
+                    if has_value and gset_idx is not None:
+                        if gexist_idx is not None:
+                            self._emit_local_get(qname_idx)
+                            self._emit_call(gexist_idx)
+                            self._emit_call(self._shared_imports["tcl_obj_get_int"])
+                            self._emit(WasmOp.I64_EQZ)
+                            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                            self._emit_local_get(qname_idx)
+                            self._emit_value(args[i + 1])
+                            self._emit_call(gset_idx)
+                            self._emit(WasmOp.DROP)
+                            self._emit(WasmOp.END)
+                        else:
+                            self._emit_local_get(qname_idx)
+                            self._emit_value(args[i + 1])
+                            self._emit_call(gset_idx)
+                            self._emit(WasmOp.DROP)
+                i += 2 if has_value else 1
                 continue
 
             # Resolve the target name: ``::ns::name`` for unqualified
