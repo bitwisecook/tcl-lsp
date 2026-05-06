@@ -1342,6 +1342,30 @@ fn frame_exists_at_depth(abs_depth: u32, name: i32, fallback_name: i32) bool {
 
 // -- Alias registration --
 
+/// Byte length of an ALIAS_EXT descriptor by kind.  Used by the
+/// re-alias path to decide whether the existing slot can be reused
+/// in place, or whether the old slab must be returned to the
+/// allocator's free-list before a differently-sized one is allocated.
+inline fn desc_size_for_kind(kind: i32) u32 {
+    return if (kind == KIND_NS_VAR_PTR) 24 else 12;
+}
+
+/// If *bucket* currently holds an ALIAS_EXT descriptor whose kind
+/// differs from *new_kind* (or is held at a different size class),
+/// return its slab to the allocator's free-list so the next ``alloc``
+/// can recycle it.  No-op for non-ALIAS_EXT bucket values.  Without
+/// this, every ``variable`` / ``upvar`` re-binding leaks a 12- or
+/// 24-byte descriptor, which under workloads that re-alias inside a
+/// hot loop (tcltest's option-fetch helpers, dict iteration with
+/// per-iteration ``upvar``) accumulates into multi-megabyte heap
+/// growth and a corresponding scan-time slowdown.
+inline fn release_alias_desc_if_extant(old_v: i32) void {
+    if (!is_alias_ext(old_v)) return;
+    const old_desc = alias_desc_ptr(old_v);
+    const old_kind = read_i32(old_desc);
+    obj.free_sized(old_desc, desc_size_for_kind(old_kind));
+}
+
 /// Register *name* in the current frame as an alias to the global scope.
 /// Subsequent var_set/var_resolve/var_exists calls for this name pass
 /// through to the globals table.  This is how the Tcl ``global`` command
@@ -1351,6 +1375,8 @@ pub export fn frame_alias_global(name: i32) void {
     if (current_frame()) |base| {
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+            const old = read_i32(bucket + OFF_VALUE);
+            release_alias_desc_if_extant(old);
             write_i32(bucket + OFF_VALUE, ALIAS_GLOBAL);
             return;
         }
@@ -1363,19 +1389,38 @@ pub export fn frame_alias_global(name: i32) void {
 /// variable *target_name* (which may differ from *local_name*).
 /// Used by the interpreter's ``upvar #0 other local`` handling.
 pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
-    const desc = alloc(12);
-    write_i32(desc, KIND_GLOBAL_NAMED);
-    write_i32(desc + 4, 0); // param unused for global aliases
-    write_i32(desc + 8, target_name);
-    const encoded: i32 = -@as(i32, @intCast(desc));
     if (current_frame()) |base| {
         const sn = obj_ensure_string(local_name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            write_i32(bucket + OFF_VALUE, encoded);
-        } else {
-            frame_insert(base, sn.ptr, sn.len, hash, encoded);
+            // Re-alias fast path: if the existing slot is already a
+            // 12-byte descriptor (KIND_GLOBAL_NAMED or KIND_FRAME_VAR),
+            // overwrite its fields in place rather than allocating a
+            // fresh slab and leaking the old one.
+            const old = read_i32(bucket + OFF_VALUE);
+            if (is_alias_ext(old)) {
+                const old_desc = alias_desc_ptr(old);
+                const old_kind = read_i32(old_desc);
+                if (old_kind != KIND_NS_VAR_PTR) {
+                    write_i32(old_desc, KIND_GLOBAL_NAMED);
+                    write_i32(old_desc + 4, 0);
+                    write_i32(old_desc + 8, target_name);
+                    return;
+                }
+                obj.free_sized(old_desc, 24);
+            }
+            const desc = alloc(12);
+            write_i32(desc, KIND_GLOBAL_NAMED);
+            write_i32(desc + 4, 0);
+            write_i32(desc + 8, target_name);
+            write_i32(bucket + OFF_VALUE, -@as(i32, @intCast(desc)));
+            return;
         }
+        const desc = alloc(12);
+        write_i32(desc, KIND_GLOBAL_NAMED);
+        write_i32(desc + 4, 0);
+        write_i32(desc + 8, target_name);
+        frame_insert(base, sn.ptr, sn.len, hash, -@as(i32, @intCast(desc)));
     }
 }
 
@@ -1383,19 +1428,34 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
 /// *target_name* in the frame at absolute depth *abs_depth* (1-indexed).
 /// Used by the interpreter's ``upvar N other local`` handling.
 pub export fn frame_alias_frame_var(local_name: i32, abs_depth: i32, target_name: i32) void {
-    const desc = alloc(12);
-    write_i32(desc, KIND_FRAME_VAR);
-    write_i32(desc + 4, abs_depth);
-    write_i32(desc + 8, target_name);
-    const encoded: i32 = -@as(i32, @intCast(desc));
     if (current_frame()) |base| {
         const sn = obj_ensure_string(local_name);
         const hash = fnv1a(sn.ptr, sn.len);
         if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            write_i32(bucket + OFF_VALUE, encoded);
-        } else {
-            frame_insert(base, sn.ptr, sn.len, hash, encoded);
+            const old = read_i32(bucket + OFF_VALUE);
+            if (is_alias_ext(old)) {
+                const old_desc = alias_desc_ptr(old);
+                const old_kind = read_i32(old_desc);
+                if (old_kind != KIND_NS_VAR_PTR) {
+                    write_i32(old_desc, KIND_FRAME_VAR);
+                    write_i32(old_desc + 4, abs_depth);
+                    write_i32(old_desc + 8, target_name);
+                    return;
+                }
+                obj.free_sized(old_desc, 24);
+            }
+            const desc = alloc(12);
+            write_i32(desc, KIND_FRAME_VAR);
+            write_i32(desc + 4, abs_depth);
+            write_i32(desc + 8, target_name);
+            write_i32(bucket + OFF_VALUE, -@as(i32, @intCast(desc)));
+            return;
         }
+        const desc = alloc(12);
+        write_i32(desc, KIND_FRAME_VAR);
+        write_i32(desc + 4, abs_depth);
+        write_i32(desc + 8, target_name);
+        frame_insert(base, sn.ptr, sn.len, hash, -@as(i32, @intCast(desc)));
     }
 }
 
@@ -1437,6 +1497,41 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_
     // different array — string.test's ``[testConstraint valgrind]``
     // returned ``""`` and PR #341's strict-boolean ``!`` then
     // trapped.  (Codex review on PR #343.)
+    const sn = obj_ensure_string(local_name);
+    const hash = fnv1a(sn.ptr, sn.len);
+    if (frame_find(cur, sn.ptr, sn.len, hash)) |bucket| {
+        // Re-alias fast path: if the existing slot is already a
+        // 24-byte KIND_NS_VAR_PTR descriptor, overwrite in place so a
+        // proc body that calls ``variable foo`` repeatedly (or one
+        // that re-binds via ``upvar`` after a ``variable``) doesn't
+        // leak a 24-byte slab on every call.
+        const old = read_i32(bucket + OFF_VALUE);
+        if (is_alias_ext(old)) {
+            const old_desc = alias_desc_ptr(old);
+            const old_kind = read_i32(old_desc);
+            if (old_kind == KIND_NS_VAR_PTR) {
+                write_i32(old_desc + 4, 0);
+                write_i32(old_desc + 8, @bitCast(var_ptr));
+                write_i32(old_desc + 12, @bitCast(target_ns));
+                write_i32(old_desc + 16, @bitCast(simple_ptr));
+                write_i32(old_desc + 20, @bitCast(simple_len));
+                return;
+            }
+            // Old descriptor was 12 bytes (KIND_GLOBAL_NAMED /
+            // KIND_FRAME_VAR) — return its slab to the free-list
+            // before allocating a fresh 24-byte one.
+            obj.free_sized(old_desc, 12);
+        }
+        const desc = alloc(24);
+        write_i32(desc, KIND_NS_VAR_PTR);
+        write_i32(desc + 4, 0);
+        write_i32(desc + 8, @bitCast(var_ptr));
+        write_i32(desc + 12, @bitCast(target_ns));
+        write_i32(desc + 16, @bitCast(simple_ptr));
+        write_i32(desc + 20, @bitCast(simple_len));
+        write_i32(bucket + OFF_VALUE, -@as(i32, @intCast(desc)));
+        return;
+    }
     const desc = alloc(24);
     write_i32(desc, KIND_NS_VAR_PTR);
     write_i32(desc + 4, 0);
@@ -1444,14 +1539,7 @@ pub fn frame_alias_ns_var(local_name: i32, var_ptr: u32, target_ns: u32, simple_
     write_i32(desc + 12, @bitCast(target_ns));
     write_i32(desc + 16, @bitCast(simple_ptr));
     write_i32(desc + 20, @bitCast(simple_len));
-    const encoded: i32 = -@as(i32, @intCast(desc));
-    const sn = obj_ensure_string(local_name);
-    const hash = fnv1a(sn.ptr, sn.len);
-    if (frame_find(cur, sn.ptr, sn.len, hash)) |bucket| {
-        write_i32(bucket + OFF_VALUE, encoded);
-    } else {
-        frame_insert(cur, sn.ptr, sn.len, hash, encoded);
-    }
+    frame_insert(cur, sn.ptr, sn.len, hash, -@as(i32, @intCast(desc)));
 }
 
 /// Resolve a Tcl ``upvar`` *level* token to an absolute frame depth.
