@@ -755,12 +755,43 @@ fn obj_is_numeric(o: i32) bool {
     return false;
 }
 
+/// Return true when *o*'s string repr is a recognised
+/// non-numeric IEEE-754 keyword (``NaN`` / ``Inf`` / ``Infinity``,
+/// case-insensitive, with optional leading sign).  Tcl 9 routes
+/// these through a separate diagnostic
+/// (``cannot use non-numeric floating-point value "X"``) so the
+/// reader can tell the difference between an unrecognised
+/// string and a recognised-but-unrepresentable float.
+fn is_ieee_keyword_string(o: i32) bool {
+    const s = obj.obj_ensure_string(o);
+    if (s.len == 0 or s.len > 9) return false;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    var off: u32 = 0;
+    if (sp[0] == '+' or sp[0] == '-') off = 1;
+    const remain = s.len - off;
+    if (remain != 3 and remain != 8) return false;
+    var buf: [9]u8 = undefined;
+    for (0..remain) |i| {
+        const c = sp[off + i];
+        buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    const lc = buf[0..remain];
+    return std.mem.eql(u8, lc, "nan") or std.mem.eql(u8, lc, "inf") or std.mem.eql(u8, lc, "infinity");
+}
+
 /// Build ``cannot use non-numeric string "X" as <position>
 /// operand of "<op>"`` and route it through the Tcl error path.
+/// IEEE-754 keyword operands (``NaN`` / ``Inf``) get the
+/// ``non-numeric floating-point value "X"`` wording instead —
+/// reference Tcl 9 distinguishes the two cases (expr-22.1 / 22.3).
 fn raise_non_numeric(o: i32, op_sym: []const u8, position: []const u8) void {
     if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
-    const prefix: []const u8 = "cannot use non-numeric string \"";
+    const ieee_kw = is_ieee_keyword_string(o);
+    const prefix: []const u8 = if (ieee_kw)
+        "cannot use non-numeric floating-point value \""
+    else
+        "cannot use non-numeric string \"";
     const middle: []const u8 = "\" as ";
     const between: []const u8 = " operand of \"";
     const suffix: []const u8 = "\"";

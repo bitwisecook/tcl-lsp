@@ -970,8 +970,20 @@ class _WasmEmitterExprMixin(_Base):
         except ValueError:
             try:
                 float_val = float(value)
-                self._emit_i64_const(int(float_val))
-            except ValueError:
+                # Reject non-finite floats (``NaN`` / ``Inf``) — the
+                # i64 expression pipeline can't represent them.
+                # Falling through to ``int(float_val)`` would
+                # raise ``OverflowError`` on infinities; a 0
+                # placeholder lets the surrounding op fire its
+                # own non-numeric / domain-error diagnostic when
+                # it reaches the operand at runtime.
+                import math
+
+                if math.isfinite(float_val):
+                    self._emit_i64_const(int(float_val))
+                else:
+                    self._emit_i64_const(0)
+            except (ValueError, OverflowError):
                 # String literal in expr context — no meaningful integer value
                 self._emit_i64_const(0)
 

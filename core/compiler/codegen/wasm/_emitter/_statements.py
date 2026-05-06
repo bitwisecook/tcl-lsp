@@ -1415,11 +1415,7 @@ class _WasmEmitterStmtMixin(_Base):
                 # this the runtime raises ``can't read "X(Y)": no
                 # such variable`` against the literal scalar.
                 cmd_emit = command
-                if (
-                    command.startswith("${")
-                    and command.endswith("}")
-                    and "(" in command
-                ):
+                if command.startswith("${") and command.endswith("}") and "(" in command:
                     inner = command[2:-1]
                     if inner.endswith(")") and "(" in inner:
                         cmd_emit = "$" + inner
