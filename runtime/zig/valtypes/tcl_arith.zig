@@ -107,6 +107,7 @@ fn managed_binop(
 }
 
 pub export fn tcl_arith_add(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "+")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) + obj.obj_get_float(b));
     // Bignum operand → Managed path (arbitrary precision).  The
@@ -131,6 +132,7 @@ pub export fn tcl_arith_add(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_sub(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "-")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) - obj.obj_get_float(b));
     if (is_bignum(a) or is_bignum(b)) {
@@ -144,6 +146,7 @@ pub export fn tcl_arith_sub(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "*")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b))
         return obj.obj_new_float(obj.obj_get_float(a) * obj.obj_get_float(b));
     if (is_bignum(a) or is_bignum(b)) {
@@ -159,6 +162,7 @@ pub export fn tcl_arith_mul(a: i32, b: i32) i32 {
 }
 
 pub export fn tcl_arith_div(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "/")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b)) {
         const bf = obj.obj_get_float(b);
         if (bf == 0.0) {
@@ -188,10 +192,19 @@ pub export fn tcl_arith_div(a: i32, b: i32) i32 {
     if (ai == std.math.minInt(i64) and bi == -1) {
         return obj.obj_new_bignum(-@as(i128, ai));
     }
-    return obj.obj_new_int(@divTrunc(ai, bi));
+    // Tcl 9 ``/`` uses floored division (rounds toward negative
+    // infinity).  ``-1 / 2`` is ``-1`` in Tcl (and Python), not
+    // ``0`` like C / ``@divTrunc``.  Compute via @divTrunc and
+    // adjust when the remainder is non-zero and the operand
+    // signs differ.
+    var q = @divTrunc(ai, bi);
+    const r = ai - q * bi;
+    if (r != 0 and ((r < 0) != (bi < 0))) q -= 1;
+    return obj.obj_new_int(q);
 }
 
 pub export fn tcl_arith_mod(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "%")) return obj.obj_new_int(0);
     // Tcl's ``%`` follows Python-like "result has same sign as
     // divisor" semantics — see ``tclExecute.c`` INST_MOD which does
     // ``remainder = w1 % w2;  if (remainder != 0 && (remainder ^ w2) < 0)
@@ -721,6 +734,65 @@ fn check_int_binary(a: i32, b: i32, op_sym: []const u8) bool {
     }
     if (is_float(b)) {
         raise_float_in_bitwise(b, op_sym, "right");
+        return false;
+    }
+    return true;
+}
+
+/// Return true iff *o* parses as a number (int / float / bignum
+/// keyword like ``Inf``).  Used by the arithmetic helpers to
+/// raise ``cannot use non-numeric string "X" as Y operand of
+/// "OP"`` rather than silently treating non-numeric operands as
+/// 0 (the legacy ``obj_get_int`` / ``obj_get_float`` fallback).
+fn obj_is_numeric(o: i32) bool {
+    if (o == 0) return false;
+    const tag = obj.obj_type(o);
+    if (tag == TYPE_INT or tag == TYPE_FLOAT or is_bignum(o)) return true;
+    const s = obj.obj_ensure_string(o);
+    if (s.len == 0) return false;
+    if (obj.try_parse_int(s.ptr, s.len) != null) return true;
+    if (obj.try_parse_float(s.ptr, s.len) != null) return true;
+    return false;
+}
+
+/// Build ``cannot use non-numeric string "X" as <position>
+/// operand of "<op>"`` and route it through the Tcl error path.
+fn raise_non_numeric(o: i32, op_sym: []const u8, position: []const u8) void {
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const s = obj.obj_ensure_string(o);
+    const prefix: []const u8 = "cannot use non-numeric string \"";
+    const middle: []const u8 = "\" as ";
+    const between: []const u8 = " operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + position.len + between.len + op_sym.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |c| { buf[off] = c; off += 1; }
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| { buf[off] = sp[i]; off += 1; }
+    }
+    for (middle) |c| { buf[off] = c; off += 1; }
+    for (position) |c| { buf[off] = c; off += 1; }
+    for (between) |c| { buf[off] = c; off += 1; }
+    for (op_sym) |c| { buf[off] = c; off += 1; }
+    for (suffix) |c| { buf[off] = c; off += 1; }
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
+}
+
+/// Validate both operands are numeric for an arithmetic op.
+/// Returns true when the call should proceed; raises the
+/// ``cannot use non-numeric string`` error and returns false
+/// when either operand is a non-numeric string.
+fn check_numeric_binary(a: i32, b: i32, op_sym: []const u8) bool {
+    if (!obj_is_numeric(a)) {
+        raise_non_numeric(a, op_sym, "left");
+        return false;
+    }
+    if (!obj_is_numeric(b)) {
+        raise_non_numeric(b, op_sym, "right");
         return false;
     }
     return true;
