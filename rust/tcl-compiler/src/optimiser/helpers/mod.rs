@@ -7,8 +7,6 @@
 //!
 //! - [`naming`] — namespace / proc-name resolution.
 //! - [`literals`] — literal parsing + Tcl-source rendering.
-//! - [`constants`] — builds a `name → literal` map from an SSA
-//!   block's exit (or use-site) versions and the SCCP lattice.
 //! - [`select`] — overlap-aware optimisation selection (the
 //!   `manager`'s final output filter).
 //!
@@ -20,7 +18,6 @@
 //! consumer pulls them in as they land (`pattern_recognition`,
 //! `elimination`, `propagation`).
 
-pub mod constants;
 pub mod expr_simplify;
 pub mod literals;
 pub mod naming;

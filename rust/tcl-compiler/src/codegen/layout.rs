@@ -12,8 +12,11 @@ use super::{Instruction, Op, Operand};
 /// Iterates up to `max_iters` times until no more replacements are
 /// possible (each replacement may change offsets enough to enable
 /// further replacements).
-#[allow(clippy::implicit_hasher)]
-pub fn optimise_jumps(instrs: &mut [Instruction], labels: &HashMap<String, usize>, max_iters: u32) {
+pub(crate) fn optimise_jumps(
+    instrs: &mut [Instruction],
+    labels: &HashMap<String, usize>,
+    max_iters: u32,
+) {
     let jump4_to_jump1: &[(Op, Op)] = &[
         (Op::JUMP4, Op::JUMP1),
         (Op::JUMP_TRUE4, Op::JUMP_TRUE1),
@@ -84,8 +87,7 @@ pub fn optimise_jumps(instrs: &mut [Instruction], labels: &HashMap<String, usize
 /// `implicit_hasher` is allowed because call sites always construct a
 /// default `HashMap`; plumbing a hasher parameter through the whole
 /// layout pass is noise for no measurable win.
-#[allow(clippy::implicit_hasher)]
-pub fn resolve_layout(
+pub(crate) fn resolve_layout(
     instrs: &mut [Instruction],
     labels: &HashMap<String, usize>,
 ) -> HashMap<String, usize> {
