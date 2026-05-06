@@ -360,15 +360,15 @@ fn eq(a: [*]const u8, alen: u32, literal: []const u8) bool {
 /// doesn't matter — the resolver checks every name for prefix
 /// equality and returns the canonical one when exactly one matches.
 const FILE_SUBCMDS = [_][]const u8{
-    "atime",     "attributes",  "channels",   "copy",
-    "ctime",     "delete",      "dirname",    "executable",
-    "exists",    "extension",   "isdirectory","isfile",
-    "join",      "link",        "lstat",      "mkdir",
-    "mtime",     "nativename",  "normalize",  "owned",
-    "pathtype",  "readable",    "readlink",   "rename",
-    "rootname",  "separator",   "size",       "split",
-    "stat",      "system",      "tail",       "tempfile",
-    "type",      "volumes",     "writable",
+    "atime",    "attributes", "channels",    "copy",
+    "ctime",    "delete",     "dirname",     "executable",
+    "exists",   "extension",  "isdirectory", "isfile",
+    "join",     "link",       "lstat",       "mkdir",
+    "mtime",    "nativename", "normalize",   "owned",
+    "pathtype", "readable",   "readlink",    "rename",
+    "rootname", "separator",  "size",        "split",
+    "stat",     "system",     "tail",        "tempfile",
+    "type",     "volumes",    "writable",
 };
 
 const FileSubcmdResolution = struct {

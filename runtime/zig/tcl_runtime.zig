@@ -388,7 +388,7 @@ comptime {
     _ = &tcl_time_stubs.tcl_cmd_coroutine;
     _ = &tcl_time_stubs.tcl_cmd_yield;
     _ = &tcl_time_stubs.tcl_cmd_yieldto;
-    _ = &tcl_env_stubs.@"namespace";
+    _ = &tcl_env_stubs.namespace;
     _ = &tcl_env_stubs.tcl_cmd_package_cmd;
     // trace lives in tcl_trace.zig (pass-through impl).
     _ = &tcl_trace.tcl_cmd_trace_cmd;

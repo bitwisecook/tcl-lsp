@@ -35,8 +35,7 @@ fn eval_after(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(0);
     }
     const sub = obj.obj_ensure_string(words[1]);
-    const sp: []const u8 = if (sub.ptr == 0) "" else
-        @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
+    const sp: []const u8 = if (sub.ptr == 0) "" else @as([*]const u8, @ptrFromInt(sub.ptr))[0..sub.len];
 
     // ``after cancel ...``
     if (std.mem.eql(u8, sp, "cancel")) {

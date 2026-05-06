@@ -10,7 +10,7 @@
 // returning empty — matches the convention in
 // :file:`tcl_stub_fallback.zig`.
 
-const rt  = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const enc = @import("../valtypes/tcl_encoding.zig");
 const chan = @import("../io/tcl_chan.zig");
@@ -21,12 +21,12 @@ const obj = @import("../valtypes/tcl_obj.zig");
 const list_quote = @import("../valtypes/tcl_list_quote.zig");
 const tcl_string = @import("../valtypes/tcl_string.zig");
 
-const alloc          = rt.alloc;
+const alloc = rt.alloc;
 const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 
 fn eval_encoding(words: []const i32) result_mod.InterpResult {
-    const sub  = if (words.len >= 2) words[1] else 0;
+    const sub = if (words.len >= 2) words[1] else 0;
     const arg1 = if (words.len >= 3) words[2] else 0;
     const arg2 = if (words.len >= 4) words[3] else 0;
     return result_mod.from_globals(enc.tcl_cmd_encoding(sub, arg1, arg2));

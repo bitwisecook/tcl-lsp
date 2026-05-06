@@ -386,15 +386,31 @@ fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '+') { pos.* += 1; left = left + expr_mul(ptr, len, pos, skip); }
-        else if (src[pos.*] == '-') { pos.* += 1; left = left - expr_mul(ptr, len, pos, skip); }
-        else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left == expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left != expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left <= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
-        else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') { pos.* += 2; left = if (left >= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
-        else if (src[pos.*] == '<') { pos.* += 1; left = if (left < expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
-        else if (src[pos.*] == '>') { pos.* += 1; left = if (left > expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0); }
-        else break;
+        if (src[pos.*] == '+') {
+            pos.* += 1;
+            left = left + expr_mul(ptr, len, pos, skip);
+        } else if (src[pos.*] == '-') {
+            pos.* += 1;
+            left = left - expr_mul(ptr, len, pos, skip);
+        } else if (pos.* + 1 < len and src[pos.*] == '=' and src[pos.* + 1] == '=') {
+            pos.* += 2;
+            left = if (left == expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
+        } else if (pos.* + 1 < len and src[pos.*] == '!' and src[pos.* + 1] == '=') {
+            pos.* += 2;
+            left = if (left != expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
+        } else if (pos.* + 1 < len and src[pos.*] == '<' and src[pos.* + 1] == '=') {
+            pos.* += 2;
+            left = if (left <= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
+        } else if (pos.* + 1 < len and src[pos.*] == '>' and src[pos.* + 1] == '=') {
+            pos.* += 2;
+            left = if (left >= expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
+        } else if (src[pos.*] == '<') {
+            pos.* += 1;
+            left = if (left < expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
+        } else if (src[pos.*] == '>') {
+            pos.* += 1;
+            left = if (left > expr_mul(ptr, len, pos, skip)) @as(i64, 1) else @as(i64, 0);
+        } else break;
     }
     return left;
 }
@@ -405,10 +421,18 @@ fn expr_mul(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     while (pos.* < len) {
         expr_skip_ws(src, len, pos);
         if (pos.* >= len) break;
-        if (src[pos.*] == '*') { pos.* += 1; left = left * expr_atom(ptr, len, pos, skip); }
-        else if (src[pos.*] == '/') { pos.* += 1; const r = expr_atom(ptr, len, pos, skip); left = if (r != 0) @divTrunc(left, r) else 0; }
-        else if (src[pos.*] == '%') { pos.* += 1; const r = expr_atom(ptr, len, pos, skip); left = if (r != 0) @rem(left, r) else 0; }
-        else break;
+        if (src[pos.*] == '*') {
+            pos.* += 1;
+            left = left * expr_atom(ptr, len, pos, skip);
+        } else if (src[pos.*] == '/') {
+            pos.* += 1;
+            const r = expr_atom(ptr, len, pos, skip);
+            left = if (r != 0) @divTrunc(left, r) else 0;
+        } else if (src[pos.*] == '%') {
+            pos.* += 1;
+            const r = expr_atom(ptr, len, pos, skip);
+            left = if (r != 0) @rem(left, r) else 0;
+        } else break;
     }
     return left;
 }
@@ -417,9 +441,18 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     const src: [*]const u8 = @ptrFromInt(ptr);
     expr_skip_ws(src, len, pos);
     if (pos.* >= len) return 0;
-    if (src[pos.*] == '!') { pos.* += 1; return if (expr_atom(ptr, len, pos, skip) != 0) @as(i64, 0) else @as(i64, 1); }
-    if (src[pos.*] == '~') { pos.* += 1; return ~expr_atom(ptr, len, pos, skip); }
-    if (src[pos.*] == '-') { pos.* += 1; return -expr_atom(ptr, len, pos, skip); }
+    if (src[pos.*] == '!') {
+        pos.* += 1;
+        return if (expr_atom(ptr, len, pos, skip) != 0) @as(i64, 0) else @as(i64, 1);
+    }
+    if (src[pos.*] == '~') {
+        pos.* += 1;
+        return ~expr_atom(ptr, len, pos, skip);
+    }
+    if (src[pos.*] == '-') {
+        pos.* += 1;
+        return -expr_atom(ptr, len, pos, skip);
+    }
     if (src[pos.*] == '(') {
         pos.* += 1;
         const val = expr_or(ptr, len, pos, skip);
@@ -455,7 +488,9 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
         while (pos.* < len and ((src[pos.*] >= 'a' and src[pos.*] <= 'z') or
             (src[pos.*] >= 'A' and src[pos.*] <= 'Z') or
             (src[pos.*] >= '0' and src[pos.*] <= '9') or src[pos.*] == '_'))
-        { pos.* += 1; }
+        {
+            pos.* += 1;
+        }
         const name = obj_new_string(@bitCast(ptr + vs), @bitCast(pos.* - vs));
         // Issue #303 — release the per-atom name temp.
         // ``var_resolve`` returns a borrowed handle to the variable
@@ -498,17 +533,26 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     }
     var negative = false;
     if (src[pos.*] == '+') pos.* += 1;
-    if (pos.* < len and src[pos.*] == '-') { negative = true; pos.* += 1; }
+    if (pos.* < len and src[pos.*] == '-') {
+        negative = true;
+        pos.* += 1;
+    }
     var val: i64 = 0;
     // Hex literal: 0x...
     if (pos.* + 1 < len and src[pos.*] == '0' and (src[pos.* + 1] == 'x' or src[pos.* + 1] == 'X')) {
         pos.* += 2;
         while (pos.* < len) {
             const c = src[pos.*];
-            if (c >= '0' and c <= '9') { val = val * 16 + @as(i64, c - '0'); pos.* += 1; }
-            else if (c >= 'a' and c <= 'f') { val = val * 16 + @as(i64, c - 'a' + 10); pos.* += 1; }
-            else if (c >= 'A' and c <= 'F') { val = val * 16 + @as(i64, c - 'A' + 10); pos.* += 1; }
-            else break;
+            if (c >= '0' and c <= '9') {
+                val = val * 16 + @as(i64, c - '0');
+                pos.* += 1;
+            } else if (c >= 'a' and c <= 'f') {
+                val = val * 16 + @as(i64, c - 'a' + 10);
+                pos.* += 1;
+            } else if (c >= 'A' and c <= 'F') {
+                val = val * 16 + @as(i64, c - 'A' + 10);
+                pos.* += 1;
+            } else break;
         }
         return if (negative) -val else val;
     }
@@ -816,7 +860,7 @@ pub fn eval_upvar(words: []const i32) i32 {
 
     var i = pairs_start;
     while (i + 1 < words.len) : (i += 2) {
-        const other_var = words[i];     // name in the target frame
+        const other_var = words[i]; // name in the target frame
         const local_var = words[i + 1]; // alias name in the current frame
         if (is_global or abs_target <= 0) {
             // #0 or level underflow → global alias
@@ -885,16 +929,26 @@ pub fn eval_if(words: []const i32) i32 {
         const kw = obj_ensure_string(words[i]);
         const kp: [*]const u8 = @ptrFromInt(kw.ptr);
         if (str_eq(kp, kw.len, "else")) {
-            if (i + 1 < words.len) { const bs = obj_ensure_string(words[i + 1]); return eval_script(bs.ptr, bs.len); }
+            if (i + 1 < words.len) {
+                const bs = obj_ensure_string(words[i + 1]);
+                return eval_script(bs.ptr, bs.len);
+            }
             return 0;
         }
         const cond_s = obj_ensure_string(words[i]);
         if (eval_expr_str(cond_s.ptr, cond_s.len) != 0) {
-            if (i + 1 < words.len) { const bs = obj_ensure_string(words[i + 1]); return eval_script(bs.ptr, bs.len); }
+            if (i + 1 < words.len) {
+                const bs = obj_ensure_string(words[i + 1]);
+                return eval_script(bs.ptr, bs.len);
+            }
             return 0;
         }
         i += 2;
-        if (i < words.len) { const nk = obj_ensure_string(words[i]); const np: [*]const u8 = @ptrFromInt(nk.ptr); if (str_eq(np, nk.len, "elseif")) i += 1; }
+        if (i < words.len) {
+            const nk = obj_ensure_string(words[i]);
+            const np: [*]const u8 = @ptrFromInt(nk.ptr);
+            if (str_eq(np, nk.len, "elseif")) i += 1;
+        }
     }
     return 0;
 }
@@ -916,8 +970,14 @@ pub fn eval_while(words: []const i32) i32 {
         const ir = result_mod.snapshot(result);
         switch (ir.code) {
             .OK => {},
-            .BREAK => { result_mod.consume(.BREAK); break; },
-            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE => {
+                result_mod.consume(.CONTINUE);
+                continue;
+            },
             .ERROR, .RETURN => return result,
         }
     }
@@ -950,7 +1010,10 @@ pub fn eval_for(words: []const i32) i32 {
             // ``for`` runs the next-clause even after ``continue``;
             // ``while`` doesn't have one, hence the divergence above.
             .CONTINUE => result_mod.consume(.CONTINUE),
-            .BREAK => { result_mod.consume(.BREAK); break; },
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
             .ERROR, .RETURN => return result,
         }
         const next_res = eval_script(next_s.ptr, next_s.len);
@@ -992,11 +1055,26 @@ pub fn eval_switch(words: []const i32) i32 {
         if (w.len < 1) break;
         const wp: [*]const u8 = @ptrFromInt(w.ptr);
         if (wp[0] != '-') break;
-        if (str_eq(wp, w.len, "-exact")) { mode = .exact; continue; }
-        if (str_eq(wp, w.len, "-glob")) { mode = .glob; continue; }
-        if (str_eq(wp, w.len, "-regexp")) { mode = .regexp; continue; }
-        if (str_eq(wp, w.len, "-nocase")) { nocase = true; continue; }
-        if (str_eq(wp, w.len, "--")) { i += 1; break; }
+        if (str_eq(wp, w.len, "-exact")) {
+            mode = .exact;
+            continue;
+        }
+        if (str_eq(wp, w.len, "-glob")) {
+            mode = .glob;
+            continue;
+        }
+        if (str_eq(wp, w.len, "-regexp")) {
+            mode = .regexp;
+            continue;
+        }
+        if (str_eq(wp, w.len, "-nocase")) {
+            nocase = true;
+            continue;
+        }
+        if (str_eq(wp, w.len, "--")) {
+            i += 1;
+            break;
+        }
         if (str_eq(wp, w.len, "-matchvar") or str_eq(wp, w.len, "-indexvar")) {
             stubs.raise("switch: -matchvar / -indexvar not yet supported");
             return 0;
@@ -1008,12 +1086,21 @@ pub fn eval_switch(words: []const i32) i32 {
         const buf = obj_mod.alloc(total);
         const bp: [*]u8 = @ptrFromInt(buf);
         var off: usize = 0;
-        for (prefix) |c| { bp[off] = c; off += 1; }
+        for (prefix) |c| {
+            bp[off] = c;
+            off += 1;
+        }
         if (w.len > 0) {
             const sp: [*]const u8 = @ptrFromInt(w.ptr);
-            for (0..w.len) |k| { bp[off] = sp[k]; off += 1; }
+            for (0..w.len) |k| {
+                bp[off] = sp[k];
+                off += 1;
+            }
         }
-        for (suffix) |c| { bp[off] = c; off += 1; }
+        for (suffix) |c| {
+            bp[off] = c;
+            off += 1;
+        }
         const msg = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
         const catch_mod = @import("tcl_catch.zig");
         catch_mod.tcl_cmd_error(msg);
@@ -1094,7 +1181,7 @@ pub fn eval_switch(words: []const i32) i32 {
     // Iterate pattern/body pairs.  We do two passes when ``-`` body
     // appears: the first pass picks the matching pattern, the second
     // walks forward to find the first non-``-`` body.
-    var match_idx: i64 = -1;  // index of matching pair (0-based pair index)
+    var match_idx: i64 = -1; // index of matching pair (0-based pair index)
     var n_pairs: i64 = 0;
     if (pairs_in_list) {
         const list_s = obj_ensure_string(words[i]);
@@ -1262,8 +1349,7 @@ pub fn eval_foreach(words: []const i32) i32 {
                         const out_len = copy_unbraced_elem(buf, src_elem, elem.len);
                         break :inner obj_new_string_take(buf, out_len, elem.len + 1);
                     };
-                } else
-                    obj_new_string(0, 0); // past end of list → ""
+                } else obj_new_string(0, 0); // past end of list → ""
                 _ = frames.var_set(var_name_obj, elem_val);
                 obj_mod.tcl_obj_release(elem_val);
                 obj_mod.tcl_obj_release(var_name_obj);
@@ -1275,8 +1361,14 @@ pub fn eval_foreach(words: []const i32) i32 {
         const ir = result_mod.snapshot(result);
         switch (ir.code) {
             .OK => {},
-            .CONTINUE => { result_mod.consume(.CONTINUE); continue; },
-            .BREAK => { result_mod.consume(.BREAK); break; },
+            .CONTINUE => {
+                result_mod.consume(.CONTINUE);
+                continue;
+            },
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
             .ERROR, .RETURN => return result,
         }
     }
@@ -1795,10 +1887,18 @@ fn try_auto_index_load(cmd_obj: i32) i32 {
                 const dst: [*]u8 = @ptrFromInt(buf);
                 const nsp: [*]const u8 = @ptrFromInt(ns_full_ptr);
                 var off: u32 = 0;
-                for (0..ns_full_len) |k| { dst[off] = nsp[k]; off += 1; }
-                dst[off] = ':'; off += 1;
-                dst[off] = ':'; off += 1;
-                for (0..cmd_s.len) |k| { dst[off] = cmd_p[k]; off += 1; }
+                for (0..ns_full_len) |k| {
+                    dst[off] = nsp[k];
+                    off += 1;
+                }
+                dst[off] = ':';
+                off += 1;
+                dst[off] = ':';
+                off += 1;
+                for (0..cmd_s.len) |k| {
+                    dst[off] = cmd_p[k];
+                    off += 1;
+                }
                 const fq_key = obj_mod.obj_new_string_take(buf, total, total);
                 const entry = tcl_array.array_get(arr_name, fq_key);
                 if (entry != 0) {
@@ -2300,8 +2400,6 @@ fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
     return result;
 }
 
-
-
 pub fn eval_interp(words: []const i32) i32 {
     if (words.len < 2) {
         const catch_mod = @import("tcl_catch.zig");
@@ -2657,9 +2755,6 @@ fn eval_interp_eval(words: []const i32) i32 {
     return result;
 }
 
-
-
-
 // -- Main eval entry point --
 
 // Maximum number of words after {*} expansion.  The parse limit is
@@ -2694,7 +2789,7 @@ pub fn eval_apply(words: []const i32) i32 {
     }
 
     const params_elem = list_element_at(lambda_s.ptr, lambda_s.len, 0);
-    const body_elem   = list_element_at(lambda_s.ptr, lambda_s.len, 1);
+    const body_elem = list_element_at(lambda_s.ptr, lambda_s.len, 1);
 
     const params_obj = if (params_elem.braced)
         obj_new_string_copy(lambda_s.ptr + params_elem.start, params_elem.len)
@@ -2728,7 +2823,8 @@ pub fn eval_apply(words: []const i32) i32 {
         if (ns_elem.len > 0) {
             const ns_ptr: u32 = lambda_s.ptr + ns_elem.start;
             tcl_ns_mod.current_ns = tcl_ns_mod.ns_create_from_fqn(
-                @bitCast(ns_ptr), @bitCast(ns_elem.len),
+                @bitCast(ns_ptr),
+                @bitCast(ns_elem.len),
             );
         }
     }
@@ -3009,13 +3105,28 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     var off: u32 = 0;
     if (cur_s.len > 0) {
         const csp: [*]const u8 = @ptrFromInt(cur_s.ptr);
-        for (0..cur_s.len) |k| { dst[off] = csp[k]; off += 1; }
+        for (0..cur_s.len) |k| {
+            dst[off] = csp[k];
+            off += 1;
+        }
     }
-    for (prefix) |b| { dst[off] = b; off += 1; }
+    for (prefix) |b| {
+        dst[off] = b;
+        off += 1;
+    }
     const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
-    for (0..trunc_len) |k| { dst[off] = cmdp[k]; off += 1; }
-    if (need_ellipsis) for (ellipsis) |b| { dst[off] = b; off += 1; };
-    for (suffix) |b| { dst[off] = b; off += 1; }
+    for (0..trunc_len) |k| {
+        dst[off] = cmdp[k];
+        off += 1;
+    }
+    if (need_ellipsis) for (ellipsis) |b| {
+        dst[off] = b;
+        off += 1;
+    };
+    for (suffix) |b| {
+        dst[off] = b;
+        off += 1;
+    }
     // Only update ``::errorInfo`` — ``error_msg`` (which becomes the
     // ``catch BODY msg`` variable) MUST stay just the original error
     // string per Tcl semantics.  The ``while executing`` frame

@@ -9,17 +9,17 @@
 // codegen fast path can't express and routes the call to the
 // corresponding ``tcl_cmd_*`` export.
 
-const rt       = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const frames   = @import("../interp/tcl_frames.zig");
-const fmt_mod  = @import("../valtypes/tcl_format.zig");
-const reg      = @import("../dispatch/tcl_cmd_registry.zig");
-const chan     = @import("../io/tcl_chan.zig");
-const obj      = @import("../valtypes/tcl_obj.zig");
-const stubs    = @import("../stubs/tcl_stubs.zig");
+const frames = @import("../interp/tcl_frames.zig");
+const fmt_mod = @import("../valtypes/tcl_format.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const chan = @import("../io/tcl_chan.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
+const stubs = @import("../stubs/tcl_stubs.zig");
 
 const obj_ensure_string = obj.obj_ensure_string;
-const obj_new_string    = obj.obj_new_string;
+const obj_new_string = obj.obj_new_string;
 
 fn word_eq(w: i32, literal: []const u8) bool {
     if (w == 0) return literal.len == 0;

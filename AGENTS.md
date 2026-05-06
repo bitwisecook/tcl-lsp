@@ -96,8 +96,13 @@ The project uses GNU Make. Key targets:
 
 | Target             | Purpose                                  |
 |--------------------|------------------------------------------|
-| `make prep-pr`     | **Fast pre-PR gate** (format + lint + typecheck + fast tests) — run this before every PR |
-| `make test-slow`   | Slow tests: VS Code extension tests + smoke tests (zipapp + VSIX) |
+| `make ci-fast`     | **Fast CI gate** — mirrors what GitHub Actions runs on every PR (~10s wall clock): Ruff + ty (full scope) + WASM parity + editor settings check + LSP end-to-end pytest subset. This is the only thing CI runs on PRs. |
+| `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language (Python via Ruff + ty, TypeScript via ESLint + Prettier + tsc, Zig via `zig fmt --check` + `zig build`, Rust via `cargo fmt --check` + `cargo clippy`). On success writes `tmp/check-all.stamp`; the pre-push hook requires this. |
+| `make test-slow`   | **Pre-PR gate** — must pass before opening a PR. Runs everything: `prep-pr` + `check-zig` + `check-rust` + VM tcltest + tclpkg + VS Code extension + Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace tests when present. On success writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`. |
+| `make check-zig`   | Zig format check + compile (`zig fmt --check` + `zig build install`). Skip with `SKIP_CHECK_ZIG=1`. |
+| `make check-rust`  | Rust format check + clippy on the Zed extension and any top-level Cargo workspace. Skip with `SKIP_CHECK_RUST=1`. |
+| `make install-hooks` | Install the project's git pre-push hook, which refuses pushes unless `make check-all` (or `make test-slow`) has been run against the current worktree. |
+| `make prep-pr`     | Pre-PR formatting + fast checks (a subset of test-slow; auto-formats code).  Use `make test-slow` for the full gate. |
 | `make test`        | Run all tests (Python + VS Code extension) |
 | `make test-py`     | Python test suite only                   |
 | `make lint`        | All lint and style checks                |
@@ -205,26 +210,85 @@ orphans, new mismatches), the change is almost certainly incorrect.
 
 ## Workflow requirements
 
-**When a feature is complete, before suggesting creating a PR, always first
-rebase off `main` and fix conflicts then run:**
+There are **two distinct gates**, with different scopes and enforcement:
+
+| Gate | Required before | What runs | Enforcement |
+|---|---|---|---|
+| **`make check-all`** | every `git push` | Full lint + typecheck for every language: Python (Ruff + ty), TypeScript (ESLint + Prettier + tsc), Zig (`zig fmt --check` + `zig build`), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook (`scripts/hooks/pre-push`) checks `tmp/check-all.stamp` against the current worktree fingerprint and refuses the push on mismatch |
+| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Python test suite, optimiser coverage, VM tcltest, tclpkg, VS Code extension, Zig runtime tests, Emacs eglot, zipapp & VSIX smokes, and Rust workspace tests when present | Agent rule (below) + reviewer responsibility — verify `tmp/test-slow.stamp` matches the worktree before opening the PR |
+
+GitHub Actions only runs `make ci-fast` on PRs (~10s wall clock — Python lint
++ typecheck + LSP end-to-end pytest subset).  Everything else is the
+responsibility of the local gates above.  CI is **not** a substitute for
+either gate.
+
+### Before any push
+
+**Lint and typecheck must be clean for every language before you push.**
+Run:
 
 ```
-make prep-pr
+make check-all
 ```
 
-This target auto-formats code and then runs fast checks (no VS Code UI tests,
-no smoke tests):
+This must complete successfully — failures must be fixed, not skipped.
+Tooling missing on your machine?  Document the skip with the appropriate
+variable: `SKIP_CHECK_ZIG=1`, `SKIP_CHECK_RUST=1`.  Do not skip blindly.
 
-1. **Format** — Auto-fix Python (Ruff) and TypeScript (Prettier) formatting
-2. **Lint** — Ruff check + format check + KCS docs validation
-3. **Type-check** — ty (Python) + tsc (TypeScript)
-4. **Fast tests** — Python pytest suite + optimiser coverage tests
+`make check-all` writes `tmp/check-all.stamp` on success.  The pre-push
+hook (installed via `make install-hooks`) reads that stamp and rejects
+any push where the worktree has drifted since the stamp was written.
 
-Use `make test-slow` for VS Code extension tests and smoke tests
-(zipapp + VSIX packaging).
+### Before opening a PR
 
-All checks must pass before a PR is submitted. Do not skip individual steps.
-Commit any formatting changes that `make prep-pr` applies before creating the PR.
+**Rebase off `main`, fix conflicts, then run the full pre-PR gate:**
+
+```
+make test-slow
+```
+
+`test-slow` is a strict superset of `check-all`.  It runs:
+
+1. **prep-pr** — format (Ruff + Prettier) + codegen + lint + typecheck (ty + tsc)
+   + WASM parity + editor settings + Python pytest suite + optimiser coverage
+2. **check-zig** + **check-rust** — Zig and Rust lint/typecheck
+3. **VM tcltest suite** (`test-vm`)
+4. **tclpkg** (`test-tclpkg`)
+5. **VS Code extension** (`test-ext`) — xvfb if no DISPLAY
+6. **Zig WASM runtime** (`test-zig`) — runtime unit tests via `wasmtime`
+7. **Emacs eglot** (`test-emacs`)
+8. **Zipapp & VSIX smokes** (`_prep-pr-smoke`)
+9. **Rust workspace** (`test-rust`) — `cargo test --workspace` if a top-level
+   `Cargo.toml` is present; no-op otherwise
+
+On success it writes both `tmp/check-all.stamp` and `tmp/test-slow.stamp`.
+
+Skip variables for missing tooling: `SKIP_TEST_ZIG=1`, `SKIP_TEST_EMACS=1`,
+`SKIP_TEST_RUST=1`.  Use these only when the tool genuinely isn't available
+on your machine — the gate must still cover everything else.
+
+### Rule for agents
+
+**Agents MUST NOT open a PR (or instruct the user to open one) until
+`make test-slow` has completed successfully in its entirety against the
+exact worktree being proposed.**  Verify before opening the PR:
+
+```
+test "$(cat tmp/test-slow.stamp 2>/dev/null)" = "$(scripts/worktree-fingerprint.sh)"
+```
+
+If the check fails (no stamp, or mismatch), re-run `make test-slow` before
+proceeding.  Likewise, **agents MUST NOT push** without `make check-all`
+having completed cleanly — the pre-push hook will reject the push, and
+agents must not bypass the hook with `SKIP_PUSH_GATE=1` or
+`git push --no-verify` unless the user has explicitly authorised it.
+
+These rules are non-negotiable: CI covers only the fast LSP-e2e surface, so
+the local gates are the only thing standing between a regression and `main`.
+
+Commit any formatting changes that `make test-slow` applies before creating
+the PR (it runs `prep-pr` which auto-formats — re-running test-slow after
+any commits is required so the stamp matches the final tree).
 
 ## Knowledge base and documentation
 

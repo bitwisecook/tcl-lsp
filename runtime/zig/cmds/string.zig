@@ -18,7 +18,9 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "string",
-    .arity_min = 1, .arity_max = null, .handler = &eval,
+    .arity_min = 1,
+    .arity_max = null,
+    .handler = &eval,
 };
 
 // Sub-command arities — mirrors ``core/commands/registry/tcl/string.py``.
@@ -141,7 +143,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) { i += 1; continue; }
+                if (b >= 0x80) {
+                    i += 1;
+                    continue;
+                }
                 if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) return result_mod.from_globals(obj_new_int(0));
             }
             return result_mod.from_globals(obj_new_int(1));
@@ -157,7 +162,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) { i += 1; continue; }
+                if (b >= 0x80) {
+                    i += 1;
+                    continue;
+                }
                 if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or (b >= '0' and b <= '9'))) return result_mod.from_globals(obj_new_int(0));
             }
             return result_mod.from_globals(obj_new_int(1));
@@ -180,7 +188,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
             if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
-            if (i < sv.len and svp[i] == '0' and i + 1 < sv.len and (svp[i+1] == 'x' or svp[i+1] == 'X')) {
+            if (i < sv.len and svp[i] == '0' and i + 1 < sv.len and (svp[i + 1] == 'x' or svp[i + 1] == 'X')) {
                 i += 2;
                 if (i >= sv.len) return result_mod.from_globals(obj_new_int(0));
                 while (i < sv.len) : (i += 1) {
@@ -224,7 +232,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) { i += 1; continue; }
+                if (b >= 0x80) {
+                    i += 1;
+                    continue;
+                }
                 if (b <= 0x20 or b == 0x7F) return result_mod.from_globals(obj_new_int(0));
             }
             return result_mod.from_globals(obj_new_int(1));
@@ -233,7 +244,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) { i += 1; continue; }
+                if (b >= 0x80) {
+                    i += 1;
+                    continue;
+                }
                 if (b < 'a' or b > 'z') return result_mod.from_globals(obj_new_int(0));
             }
             return result_mod.from_globals(obj_new_int(1));
@@ -242,7 +256,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) { i += 1; continue; }
+                if (b >= 0x80) {
+                    i += 1;
+                    continue;
+                }
                 if (b < 'A' or b > 'Z') return result_mod.from_globals(obj_new_int(0));
             }
             return result_mod.from_globals(obj_new_int(1));
@@ -251,7 +268,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             var i: u32 = 0;
             while (i < sv.len) : (i += 1) {
                 const b = svp[i];
-                if (b >= 0x80) { i += 1; continue; }
+                if (b >= 0x80) {
+                    i += 1;
+                    continue;
+                }
                 const is_punct = (b >= '!' and b <= '/') or (b >= ':' and b <= '@') or
                     (b >= '[' and b <= '`') or (b >= '{' and b <= '~');
                 if (!is_punct) return result_mod.from_globals(obj_new_int(0));
@@ -272,10 +292,16 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
             if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
             var has_digit = false;
-            while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
+            while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') {
+                i += 1;
+                has_digit = true;
+            }
             if (i < sv.len and svp[i] == '.') {
                 i += 1;
-                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') { i += 1; has_digit = true; }
+                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') {
+                    i += 1;
+                    has_digit = true;
+                }
             }
             if (!has_digit) return result_mod.from_globals(obj_new_int(0));
             if (i < sv.len and (svp[i] == 'e' or svp[i] == 'E')) {

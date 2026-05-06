@@ -149,7 +149,8 @@ pub fn convert_element(src_ptr: u32, len_in: u32, dst_base: u32, flags_in: u8) u
     // Empty string is always ``{}``.
     if (len_in == 0) {
         const d: [*]u8 = @ptrFromInt(dst_base);
-        d[0] = '{'; d[1] = '}';
+        d[0] = '{';
+        d[1] = '}';
         return 2;
     }
 
@@ -162,7 +163,8 @@ pub fn convert_element(src_ptr: u32, len_in: u32, dst_base: u32, flags_in: u8) u
     if (src[0] == '#' and (flags & FLAG_DONT_QUOTE_HASH) == 0) {
         if (conversion == FLAG_CONVERT_ESCAPE) {
             const d: [*]u8 = @ptrFromInt(dst_base + p);
-            d[0] = '\\'; d[1] = '#';
+            d[0] = '\\';
+            d[1] = '#';
             p += 2;
             s += 1;
             len -= 1;
@@ -207,31 +209,36 @@ pub fn convert_element(src_ptr: u32, len_in: u32, dst_base: u32, flags_in: u8) u
             },
             '\n' => {
                 const d: [*]u8 = @ptrFromInt(dst_base + p);
-                d[0] = '\\'; d[1] = 'n';
+                d[0] = '\\';
+                d[1] = 'n';
                 p += 2;
                 continue;
             },
             '\t' => {
                 const d: [*]u8 = @ptrFromInt(dst_base + p);
-                d[0] = '\\'; d[1] = 't';
+                d[0] = '\\';
+                d[1] = 't';
                 p += 2;
                 continue;
             },
             '\r' => {
                 const d: [*]u8 = @ptrFromInt(dst_base + p);
-                d[0] = '\\'; d[1] = 'r';
+                d[0] = '\\';
+                d[1] = 'r';
                 p += 2;
                 continue;
             },
             0x0B => { // \v
                 const d: [*]u8 = @ptrFromInt(dst_base + p);
-                d[0] = '\\'; d[1] = 'v';
+                d[0] = '\\';
+                d[1] = 'v';
                 p += 2;
                 continue;
             },
             0x0C => { // \f
                 const d: [*]u8 = @ptrFromInt(dst_base + p);
-                d[0] = '\\'; d[1] = 'f';
+                d[0] = '\\';
+                d[1] = 'f';
                 p += 2;
                 continue;
             },

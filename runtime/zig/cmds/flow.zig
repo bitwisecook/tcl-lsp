@@ -1,17 +1,17 @@
 // ``return``, ``break``, ``continue``, ``error``, ``catch``,
 // ``throw``, ``try``, ``apply``, ``tailcall``, ``time`` — control-flow signals.
 
-const rt     = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
-const stubs             = @import("../stubs/tcl_stubs.zig");
-const catch_mod         = @import("../interp/tcl_catch.zig");
-const result_mod        = @import("../interp/tcl_result.zig");
-const str_eq            = @import("../valtypes/tcl_chars.zig").str_eq;
+const stubs = @import("../stubs/tcl_stubs.zig");
+const catch_mod = @import("../interp/tcl_catch.zig");
+const result_mod = @import("../interp/tcl_result.zig");
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
 const obj_ensure_string = rt.obj_ensure_string;
-const obj_new_int       = rt.obj_new_int;
-const obj_new_string    = rt.obj_new_string;
+const obj_new_int = rt.obj_new_int;
+const obj_new_string = rt.obj_new_string;
 
 fn eval_return(words: []const i32) result_mod.InterpResult {
     // Tcl's ``return -level N -code C value`` produces an exception
@@ -93,7 +93,10 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                         var nv: u32 = 0;
                         var ok = true;
                         for (0..lev.len) |k| {
-                            if (lp[k] < '0' or lp[k] > '9') { ok = false; break; }
+                            if (lp[k] < '0' or lp[k] > '9') {
+                                ok = false;
+                                break;
+                            }
                             nv = nv * 10 + @as(u32, @intCast(lp[k] - '0'));
                         }
                         if (ok) {
@@ -263,16 +266,15 @@ fn eval_throw(words: []const i32) result_mod.InterpResult {
 // ``try body ?on code varlist handler? ... ?finally body?``
 fn eval_try(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
-    const interp    = @import("../interp/tcl_interp.zig");
-
+    const interp = @import("../interp/tcl_interp.zig");
 
     rt.catch_enter();
-    const body_s    = obj_ensure_string(words[1]);
-    const body_res  = interp.eval_script(body_s.ptr, body_s.len);
+    const body_s = obj_ensure_string(words[1]);
+    const body_res = interp.eval_script(body_s.ptr, body_s.len);
     rt.catch_set_ok_result(body_res);
     // Order matters: ``catch_leave`` snapshots ``last_catch_had_error``
     // that ``catch_result`` reads.  See ``eval_catch`` above.
-    const code_obj  = rt.catch_leave();
+    const code_obj = rt.catch_leave();
     const catch_val = rt.catch_result();
     const had_error: bool = rt.obj_get_int(code_obj) != 0;
 
@@ -285,35 +287,44 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
     var wi: u32 = 2;
     while (wi < words.len) {
         const kw = obj_ensure_string(words[wi]);
-        if (kw.len == 0) { wi += 1; continue; }
+        if (kw.len == 0) {
+            wi += 1;
+            continue;
+        }
         const kp: [*]const u8 = @ptrFromInt(kw.ptr);
 
         // "finally body"
-        if (kw.len == 7 and kp[0]=='f' and kp[1]=='i' and kp[2]=='n' and
-            kp[3]=='a' and kp[4]=='l' and kp[5]=='l' and kp[6]=='y')
+        if (kw.len == 7 and kp[0] == 'f' and kp[1] == 'i' and kp[2] == 'n' and
+            kp[3] == 'a' and kp[4] == 'l' and kp[5] == 'l' and kp[6] == 'y')
         {
             wi += 1;
-            if (wi < words.len) { finally_body = words[wi]; wi += 1; }
+            if (wi < words.len) {
+                finally_body = words[wi];
+                wi += 1;
+            }
             continue;
         }
 
         // "on code varlist handler"
-        if (kw.len == 2 and kp[0]=='o' and kp[1]=='n') {
+        if (kw.len == 2 and kp[0] == 'o' and kp[1] == 'n') {
             wi += 1;
             if (wi + 2 >= words.len) break;
-            const code_word = words[wi]; wi += 1;
-            const varlist   = words[wi]; wi += 1;
-            const handler   = words[wi]; wi += 1;
+            const code_word = words[wi];
+            wi += 1;
+            const varlist = words[wi];
+            wi += 1;
+            const handler = words[wi];
+            wi += 1;
             if (!handled) {
                 const cs = obj_ensure_string(code_word);
                 const cp: [*]const u8 = @ptrFromInt(cs.ptr);
-                const is_error_kw = cs.len == 5 and cp[0]=='e' and cp[1]=='r' and
-                    cp[2]=='r' and cp[3]=='o' and cp[4]=='r';
-                const is_ok_kw    = cs.len == 2 and cp[0]=='o' and cp[1]=='k';
-                const code_n      = rt.obj_get_int(code_word);
+                const is_error_kw = cs.len == 5 and cp[0] == 'e' and cp[1] == 'r' and
+                    cp[2] == 'r' and cp[3] == 'o' and cp[4] == 'r';
+                const is_ok_kw = cs.len == 2 and cp[0] == 'o' and cp[1] == 'k';
+                const code_n = rt.obj_get_int(code_word);
                 const matches =
-                    (had_error  and (is_error_kw or code_n == 1)) or
-                    (!had_error and (is_ok_kw    or code_n == 0));
+                    (had_error and (is_error_kw or code_n == 1)) or
+                    (!had_error and (is_ok_kw or code_n == 0));
                 if (matches) {
                     const vl_s = obj_ensure_string(varlist);
                     const vl_n = rt.list_count_elements(vl_s.ptr, vl_s.len);
@@ -334,12 +345,14 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
         }
 
         // "trap type varlist handler" — matches any error (type prefix ignored for now)
-        if (kw.len == 4 and kp[0]=='t' and kp[1]=='r' and kp[2]=='a' and kp[3]=='p') {
+        if (kw.len == 4 and kp[0] == 't' and kp[1] == 'r' and kp[2] == 'a' and kp[3] == 'p') {
             wi += 1;
             if (wi + 2 >= words.len) break;
             wi += 1; // skip type
-            const varlist = words[wi]; wi += 1;
-            const handler = words[wi]; wi += 1;
+            const varlist = words[wi];
+            wi += 1;
+            const handler = words[wi];
+            wi += 1;
             if (!handled and had_error) {
                 const vl_s = obj_ensure_string(varlist);
                 const vl_n = rt.list_count_elements(vl_s.ptr, vl_s.len);
@@ -373,7 +386,7 @@ fn eval_try(words: []const i32) result_mod.InterpResult {
         rt.catch_set_ok_result(fb_result);
         // ``catch_leave`` before ``catch_result`` — see ``eval_catch``.
         const finally_code = rt.catch_leave();
-        const fb_val      = rt.catch_result();
+        const fb_val = rt.catch_result();
         if (rt.obj_get_int(finally_code) != 0) {
             // Finally raised an error — propagate it, overriding handler result.
             catch_mod.tcl_cmd_error(fb_val);
@@ -417,7 +430,7 @@ fn eval_tailcall(words: []const i32) result_mod.InterpResult {
 fn eval_time(words: []const i32) result_mod.InterpResult {
     if (words.len < 2) return result_mod.from_globals(obj_new_string(0, 0));
     const interp = @import("../interp/tcl_interp.zig");
-    const clock  = @import("../io/tcl_clock.zig");
+    const clock = @import("../io/tcl_clock.zig");
 
     const count: i64 = if (words.len >= 3) rt.obj_get_int(words[2]) else 1;
     const body_s = obj_ensure_string(words[1]);
@@ -430,7 +443,7 @@ fn eval_time(words: []const i32) result_mod.InterpResult {
         const ir = result_mod.snapshot(last);
         if (ir.code == .ERROR or ir.code == .RETURN) return result_mod.from_globals(last);
     }
-    const end_us   = rt.obj_get_int(clock.clock_clicks());
+    const end_us = rt.obj_get_int(clock.clock_clicks());
     const per_iter = if (count > 0) @divTrunc(end_us - start_us, count) else 0;
 
     // Build "<N> microseconds per iteration"

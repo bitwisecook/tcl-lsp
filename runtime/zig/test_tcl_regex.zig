@@ -159,7 +159,7 @@ test "do_regsub — all=true replaces every occurrence" {
         s("a1 b22 c333"),
         s("#"),
         false, // nocase
-        true,  // all
+        true, // all
         &n,
     );
     try testing.expectEqualStrings("a# b# c#", bytes(out));

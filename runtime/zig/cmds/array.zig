@@ -15,7 +15,9 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 
 pub const registration = reg.CmdEntry{
     .name = "array",
-    .arity_min = 1, .arity_max = null, .handler = &eval,
+    .arity_min = 1,
+    .arity_max = null,
+    .handler = &eval,
 };
 
 // Sub-command arities — mirrors ``core/commands/registry/tcl/array.py``.

@@ -1,23 +1,23 @@
 // ``namespace`` — namespace management command (eval, export, import, forget,
 // which, current, path, qualifiers, tail, parent, exists, children subcommands).
 
-const rt          = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
-const tcl_ns      = @import("../interp/tcl_ns.zig");
-const procs       = @import("../interp/tcl_procs.zig");
+const tcl_ns = @import("../interp/tcl_ns.zig");
+const procs = @import("../interp/tcl_procs.zig");
 const interp_impl = @import("./tcl_cmd_interp.zig");
-const obj_mod     = @import("../valtypes/tcl_obj.zig");
-const reg         = @import("../dispatch/tcl_cmd_registry.zig");
-const tcl_string  = @import("../valtypes/tcl_string.zig");
+const obj_mod = @import("../valtypes/tcl_obj.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const tcl_string = @import("../valtypes/tcl_string.zig");
 
-const str_eq              = @import("../valtypes/tcl_chars.zig").str_eq;
-const alloc               = rt.alloc;
-const memcpy              = rt.memcpy;
-const obj_new_string      = rt.obj_new_string;
+const str_eq = @import("../valtypes/tcl_chars.zig").str_eq;
+const alloc = rt.alloc;
+const memcpy = rt.memcpy;
+const obj_new_string = rt.obj_new_string;
 const obj_new_string_copy = rt.obj_new_string_copy;
-const obj_ensure_string   = rt.obj_ensure_string;
-const obj_new_int         = rt.obj_new_int;
-const obj_get_int         = rt.obj_get_int;
+const obj_ensure_string = rt.obj_ensure_string;
+const obj_new_int = rt.obj_new_int;
+const obj_get_int = rt.obj_get_int;
 
 /// Walk *name* (a relative ``::``-separated namespace path) starting
 /// from *parent* and create each missing component.  Used by
@@ -64,9 +64,7 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 // wiring always anchored at root, so nested
                 // ``namespace eval`` chains lost the parent ns when
                 // dispatched through a multi-level uplevel chain.
-                const target_ns = if (ns_obj_s.len >= 2
-                    and @as([*]const u8, @ptrFromInt(ns_obj_s.ptr))[0] == ':'
-                    and @as([*]const u8, @ptrFromInt(ns_obj_s.ptr))[1] == ':')
+                const target_ns = if (ns_obj_s.len >= 2 and @as([*]const u8, @ptrFromInt(ns_obj_s.ptr))[0] == ':' and @as([*]const u8, @ptrFromInt(ns_obj_s.ptr))[1] == ':')
                     tcl_ns.ns_create_from_fqn(ns_obj_s.ptr, ns_obj_s.len)
                 else
                     ns_create_relative(tcl_ns.current_ns, ns_obj_s.ptr, ns_obj_s.len);
@@ -181,10 +179,19 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                                 }
                                 const dst: [*]u8 = @ptrFromInt(buf2);
                                 var off2: u32 = 0;
-                                for (prefix) |b| { dst[off2] = b; off2 += 1; }
+                                for (prefix) |b| {
+                                    dst[off2] = b;
+                                    off2 += 1;
+                                }
                                 const ip: [*]const u8 = @ptrFromInt(is.ptr);
-                                for (0..is.len) |kk| { dst[off2] = ip[kk]; off2 += 1; }
-                                for (suffix) |b| { dst[off2] = b; off2 += 1; }
+                                for (0..is.len) |kk| {
+                                    dst[off2] = ip[kk];
+                                    off2 += 1;
+                                }
+                                for (suffix) |b| {
+                                    dst[off2] = b;
+                                    off2 += 1;
+                                }
                                 const msg = obj_mod.obj_new_string_take(buf2, total, total);
                                 catch_mod.tcl_cmd_error(msg);
                                 return result_mod.from_globals(0);
@@ -358,14 +365,20 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 const sp: [*]const u8 = @ptrFromInt(ss.ptr);
                 const fq = "::namespace inscope ";
                 var ok: bool = true;
-                for (0..fq.len) |k| if (sp[k] != fq[k]) { ok = false; break; };
+                for (0..fq.len) |k| if (sp[k] != fq[k]) {
+                    ok = false;
+                    break;
+                };
                 if (ok) return result_mod.from_globals(words[2]);
             }
             if (ss.len >= 18) {
                 const sp: [*]const u8 = @ptrFromInt(ss.ptr);
                 const bare = "namespace inscope ";
                 var ok: bool = true;
-                for (0..bare.len) |k| if (sp[k] != bare[k]) { ok = false; break; };
+                for (0..bare.len) |k| if (sp[k] != bare[k]) {
+                    ok = false;
+                    break;
+                };
                 if (ok) return result_mod.from_globals(words[2]);
             }
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
@@ -509,12 +522,20 @@ fn ns_children(ns_handle: u32, pat_ptr: u32, pat_len: u32) i32 {
                 const pbuf: [*]u8 = @ptrFromInt(prefixed_buf_addr);
                 const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
                 var off2: u32 = 0;
-                for (0..ns_full.len) |k| { pbuf[off2] = ns_p[k]; off2 += 1; }
-                if (!ns_root_only) {
-                    pbuf[off2] = ':'; off2 += 1;
-                    pbuf[off2] = ':'; off2 += 1;
+                for (0..ns_full.len) |k| {
+                    pbuf[off2] = ns_p[k];
+                    off2 += 1;
                 }
-                for (0..pat_len) |k| { pbuf[off2] = psp[k]; off2 += 1; }
+                if (!ns_root_only) {
+                    pbuf[off2] = ':';
+                    off2 += 1;
+                    pbuf[off2] = ':';
+                    off2 += 1;
+                }
+                for (0..pat_len) |k| {
+                    pbuf[off2] = psp[k];
+                    off2 += 1;
+                }
                 eff_pat_ptr = prefixed_buf_addr;
                 eff_pat_len = prefixed_total;
             }

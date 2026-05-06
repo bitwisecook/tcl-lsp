@@ -840,23 +840,30 @@ fn parse_braced(s: *State) i32 {
                 // since ``try_parse_int`` only handles decimal.
                 var v: u64 = 0;
                 var base: u8 = 10;
-                if (c == 'x' or c == 'X') base = 16
-                else if (c == 'o' or c == 'O') base = 8
-                else base = 2;
+                if (c == 'x' or c == 'X') base = 16 else if (c == 'o' or c == 'O') base = 8 else base = 2;
                 var i: u32 = off + 2;
                 var ok = i < slen;
                 while (i < slen) : (i += 1) {
                     const ch = src[i];
                     var d: u32 = 16;
-                    if (ch >= '0' and ch <= '9') d = ch - '0'
-                    else if (ch >= 'a' and ch <= 'f') d = (ch - 'a') + 10
-                    else if (ch >= 'A' and ch <= 'F') d = (ch - 'A') + 10
-                    else { ok = false; break; }
-                    if (d >= @as(u32, base)) { ok = false; break; }
+                    if (ch >= '0' and ch <= '9') d = ch - '0' else if (ch >= 'a' and ch <= 'f') d = (ch - 'a') + 10 else if (ch >= 'A' and ch <= 'F') d = (ch - 'A') + 10 else {
+                        ok = false;
+                        break;
+                    }
+                    if (d >= @as(u32, base)) {
+                        ok = false;
+                        break;
+                    }
                     const m = @mulWithOverflow(v, @as(u64, base));
-                    if (m[1] != 0) { ok = false; break; }
+                    if (m[1] != 0) {
+                        ok = false;
+                        break;
+                    }
                     const a = @addWithOverflow(m[0], @as(u64, d));
-                    if (a[1] != 0) { ok = false; break; }
+                    if (a[1] != 0) {
+                        ok = false;
+                        break;
+                    }
                     v = a[0];
                 }
                 if (ok and v <= @as(u64, 9223372036854775807)) {
@@ -955,12 +962,21 @@ fn finalize_num(s: *State, start: u32) i32 {
                     (ch - 'a') + 10
                 else if (ch >= 'A' and ch <= 'F')
                     (ch - 'A') + 10
-                else blk: { ok = false; break :blk 0; };
+                else blk: {
+                    ok = false;
+                    break :blk 0;
+                };
                 if (!ok) break;
                 const m = @mulWithOverflow(v, @as(u64, 16));
-                if (m[1] != 0) { ok = false; break; }
+                if (m[1] != 0) {
+                    ok = false;
+                    break;
+                }
                 const a = @addWithOverflow(m[0], @as(u64, d));
-                if (a[1] != 0) { ok = false; break; }
+                if (a[1] != 0) {
+                    ok = false;
+                    break;
+                }
                 v = a[0];
             }
             if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
@@ -972,11 +988,20 @@ fn finalize_num(s: *State, start: u32) i32 {
             var ok = i < slen;
             while (i < slen) : (i += 1) {
                 const ch = src[i];
-                if (ch < '0' or ch > '7') { ok = false; break; }
+                if (ch < '0' or ch > '7') {
+                    ok = false;
+                    break;
+                }
                 const m = @mulWithOverflow(v, @as(u64, 8));
-                if (m[1] != 0) { ok = false; break; }
+                if (m[1] != 0) {
+                    ok = false;
+                    break;
+                }
                 const a = @addWithOverflow(m[0], @as(u64, ch - '0'));
-                if (a[1] != 0) { ok = false; break; }
+                if (a[1] != 0) {
+                    ok = false;
+                    break;
+                }
                 v = a[0];
             }
             if (ok) return obj_new_int(@intCast(v));
@@ -986,9 +1011,15 @@ fn finalize_num(s: *State, start: u32) i32 {
             var ok = i < slen;
             while (i < slen) : (i += 1) {
                 const ch = src[i];
-                if (ch != '0' and ch != '1') { ok = false; break; }
+                if (ch != '0' and ch != '1') {
+                    ok = false;
+                    break;
+                }
                 const m = @mulWithOverflow(v, @as(u64, 2));
-                if (m[1] != 0) { ok = false; break; }
+                if (m[1] != 0) {
+                    ok = false;
+                    break;
+                }
                 v = m[0] + @as(u64, ch - '0');
             }
             if (ok) return obj_new_int(@intCast(v));
@@ -1175,14 +1206,29 @@ fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
     }
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: usize = 0;
-    for (prefix) |c| { dst[off] = c; off += 1; }
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
     if (s.len > 0) {
         const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| { dst[off] = sp[i]; off += 1; }
+        for (0..s.len) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
     }
-    for (middle) |c| { dst[off] = c; off += 1; }
-    for (op_sym) |c| { dst[off] = c; off += 1; }
-    for (suffix) |c| { dst[off] = c; off += 1; }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (op_sym) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
     const msg = obj.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }
@@ -1230,12 +1276,21 @@ fn raise_expected_boolean(o: i32) void {
     }
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
-    for (prefix) |c| { dst[off] = c; off += 1; }
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
     if (s.len > 0) {
         const sp: [*]const u8 = @ptrFromInt(s.ptr);
-        for (0..s.len) |i| { dst[off] = sp[i]; off += 1; }
+        for (0..s.len) |i| {
+            dst[off] = sp[i];
+            off += 1;
+        }
     }
-    for (suffix) |c| { dst[off] = c; off += 1; }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
     const msg = obj.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(msg);
 }

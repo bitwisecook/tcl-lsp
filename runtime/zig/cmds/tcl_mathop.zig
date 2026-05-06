@@ -41,22 +41,22 @@
 // divide-by-zero, matching ``tclMathOp.c``'s ``Tcl_WrongNumArgs`` /
 // ``DIVZERO`` paths.
 
-const std    = @import("std");
+const std = @import("std");
 const result_mod = @import("../interp/tcl_result.zig");
-const obj    = @import("../valtypes/tcl_obj.zig");
+const obj = @import("../valtypes/tcl_obj.zig");
 const bignum = @import("../valtypes/tcl_bignum.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
-const stubs  = @import("../stubs/tcl_stubs.zig");
-const list   = @import("../valtypes/tcl_list.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
+const stubs = @import("../stubs/tcl_stubs.zig");
+const list = @import("../valtypes/tcl_list.zig");
 
-const obj_new_int    = obj.obj_new_int;
-const obj_new_float  = obj.obj_new_float;
-const obj_get_int    = obj.obj_get_int;
-const obj_get_float  = obj.obj_get_float;
+const obj_new_int = obj.obj_new_int;
+const obj_new_float = obj.obj_new_float;
+const obj_get_int = obj.obj_get_int;
+const obj_get_float = obj.obj_get_float;
 const obj_ensure_str = obj.obj_ensure_string;
-const TYPE_FLOAT     = obj.TYPE_FLOAT;
-const TYPE_BIGNUM    = obj.TYPE_BIGNUM;
-const TYPE_STRING    = obj.TYPE_STRING;
+const TYPE_FLOAT = obj.TYPE_FLOAT;
+const TYPE_BIGNUM = obj.TYPE_BIGNUM;
+const TYPE_STRING = obj.TYPE_STRING;
 const TYPE_INLINE_STRING = obj.TYPE_INLINE_STRING;
 
 /// Detect bignum-shaped operand: TYPE_BIGNUM directly, or a string
@@ -806,15 +806,25 @@ fn op_chain_num(args: []const i32, k: CmpKind) i32 {
     return obj_new_int(1);
 }
 
-fn op_eq_num(args: []const i32) i32 { return op_chain_num(args, .eq); }
+fn op_eq_num(args: []const i32) i32 {
+    return op_chain_num(args, .eq);
+}
 fn op_ne_num(args: []const i32) i32 {
     if (!require_arity(args, "!=", 2, 2)) return obj_new_int(0);
     return obj_new_int(if (cmp_pair_num(args[0], args[1], .ne)) 1 else 0);
 }
-fn op_lt_num(args: []const i32) i32 { return op_chain_num(args, .lt); }
-fn op_le_num(args: []const i32) i32 { return op_chain_num(args, .le); }
-fn op_gt_num(args: []const i32) i32 { return op_chain_num(args, .gt); }
-fn op_ge_num(args: []const i32) i32 { return op_chain_num(args, .ge); }
+fn op_lt_num(args: []const i32) i32 {
+    return op_chain_num(args, .lt);
+}
+fn op_le_num(args: []const i32) i32 {
+    return op_chain_num(args, .le);
+}
+fn op_gt_num(args: []const i32) i32 {
+    return op_chain_num(args, .gt);
+}
+fn op_ge_num(args: []const i32) i32 {
+    return op_chain_num(args, .ge);
+}
 
 // -- string compare ----------------------------------------------------------
 
@@ -1038,69 +1048,69 @@ fn eval(words: []const i32) result_mod.InterpResult {
 // expression compiler at codegen time, and registering them as
 // commands would shadow ``[catch {puts -}]`` style inputs.
 pub const registrations = [_]reg.CmdEntry{
-    .{ .name = "::tcl::mathop::+",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::-",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::*",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::/",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::%",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "::tcl::mathop::+", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::-", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::*", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::/", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::%", .arity_min = 2, .arity_max = 2, .handler = &eval },
     .{ .name = "::tcl::mathop::**", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::==", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::!=", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::<",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::>",  .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::!=", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::<", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::>", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::<=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::>=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::eq", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::ne", .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "::tcl::mathop::ne", .arity_min = 2, .arity_max = 2, .handler = &eval },
     .{ .name = "::tcl::mathop::lt", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::le", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::gt", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::ge", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::in", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::ni", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::&",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::|",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::^",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::~",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
-    .{ .name = "::tcl::mathop::<<", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::>>", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "::tcl::mathop::!",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
+    .{ .name = "::tcl::mathop::in", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::ni", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::&", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::|", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::^", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::~", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "::tcl::mathop::<<", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::>>", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "::tcl::mathop::!", .arity_min = 1, .arity_max = 1, .handler = &eval },
     .{ .name = "::tcl::mathop::&&", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "::tcl::mathop::||", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::min",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::max",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "::tcl::mathop::@",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "::tcl::mathop::min", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::max", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "::tcl::mathop::@", .arity_min = 2, .arity_max = 2, .handler = &eval },
     // Half-qualified spellings (inside ``namespace eval ::tcl``).
-    .{ .name = "tcl::mathop::+",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::-",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::*",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::/",  .arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::%",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "tcl::mathop::+", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::-", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::*", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::/", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::%", .arity_min = 2, .arity_max = 2, .handler = &eval },
     .{ .name = "tcl::mathop::**", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::==", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::!=", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::<",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::>",  .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::!=", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::<", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::>", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::<=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::>=", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::eq", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::ne", .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "tcl::mathop::ne", .arity_min = 2, .arity_max = 2, .handler = &eval },
     .{ .name = "tcl::mathop::lt", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::le", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::gt", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::ge", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::in", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::ni", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::&",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::|",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::^",  .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::~",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
-    .{ .name = "tcl::mathop::<<", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::>>", .arity_min = 2, .arity_max = 2,    .handler = &eval },
-    .{ .name = "tcl::mathop::!",  .arity_min = 1, .arity_max = 1,    .handler = &eval },
+    .{ .name = "tcl::mathop::in", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::ni", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::&", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::|", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::^", .arity_min = 0, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::~", .arity_min = 1, .arity_max = 1, .handler = &eval },
+    .{ .name = "tcl::mathop::<<", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::>>", .arity_min = 2, .arity_max = 2, .handler = &eval },
+    .{ .name = "tcl::mathop::!", .arity_min = 1, .arity_max = 1, .handler = &eval },
     .{ .name = "tcl::mathop::&&", .arity_min = 0, .arity_max = null, .handler = &eval },
     .{ .name = "tcl::mathop::||", .arity_min = 0, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::min",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::max",.arity_min = 1, .arity_max = null, .handler = &eval },
-    .{ .name = "tcl::mathop::@",  .arity_min = 2, .arity_max = 2,    .handler = &eval },
+    .{ .name = "tcl::mathop::min", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::max", .arity_min = 1, .arity_max = null, .handler = &eval },
+    .{ .name = "tcl::mathop::@", .arity_min = 2, .arity_max = 2, .handler = &eval },
 };

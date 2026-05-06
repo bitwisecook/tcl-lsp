@@ -346,8 +346,7 @@ fn skip_braced_complete(sp: [*]const u8, start: u32, len: u32) ?u32 {
             p += 2;
             continue;
         }
-        if (sp[p] == '{') depth += 1
-        else if (sp[p] == '}') depth -= 1;
+        if (sp[p] == '{') depth += 1 else if (sp[p] == '}') depth -= 1;
         p += 1;
     }
     if (depth != 0) return null;
@@ -663,10 +662,16 @@ pub fn info_frame(arg: i32) i32 {
         if (buf == 0) return obj_new_string(0, 0);
         const dst: [*]u8 = @ptrFromInt(buf);
         var off: u32 = 0;
-        for (prefix) |c| { dst[off] = c; off += 1; }
+        for (prefix) |c| {
+            dst[off] = c;
+            off += 1;
+        }
         if (arg_s.len > 0) {
             const ap: [*]const u8 = @ptrFromInt(arg_s.ptr);
-            for (0..arg_s.len) |i| { dst[off] = ap[i]; off += 1; }
+            for (0..arg_s.len) |i| {
+                dst[off] = ap[i];
+                off += 1;
+            }
         }
         dst[off] = '"';
         const msg = obj.obj_new_string_take(buf, total, total);

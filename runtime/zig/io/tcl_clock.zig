@@ -18,7 +18,6 @@ const obj_new_string = obj.obj_new_string;
 const obj_ensure_string = obj.obj_ensure_string;
 const alloc = obj.alloc;
 
-
 const NS_PER_SECOND: i64 = 1_000_000_000;
 const NS_PER_USEC: i64 = 1_000;
 
@@ -117,8 +116,8 @@ const WEEKDAY_FULL = [_][]const u8{
 };
 const WEEKDAY_ABBR = [_][]const u8{ "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 const MONTH_FULL = [_][]const u8{
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January", "February", "March",     "April",   "May",      "June",
+    "July",    "August",   "September", "October", "November", "December",
 };
 const MONTH_ABBR = [_][]const u8{
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -228,18 +227,18 @@ fn render_epoch(t: BrokenDown, utoff: i32) i64 {
 /// entry rather than a post-pass, which keeps the loop simple.
 const ROMAN_TABLE = [_]struct { v: u32, s: []const u8 }{
     .{ .v = 1000, .s = "m" },
-    .{ .v = 900,  .s = "cm" },
-    .{ .v = 500,  .s = "d" },
-    .{ .v = 400,  .s = "cd" },
-    .{ .v = 100,  .s = "c" },
-    .{ .v = 90,   .s = "xc" },
-    .{ .v = 50,   .s = "l" },
-    .{ .v = 40,   .s = "xl" },
-    .{ .v = 10,   .s = "x" },
-    .{ .v = 9,    .s = "ix" },
-    .{ .v = 5,    .s = "v" },
-    .{ .v = 4,    .s = "iv" },
-    .{ .v = 1,    .s = "i" },
+    .{ .v = 900, .s = "cm" },
+    .{ .v = 500, .s = "d" },
+    .{ .v = 400, .s = "cd" },
+    .{ .v = 100, .s = "c" },
+    .{ .v = 90, .s = "xc" },
+    .{ .v = 50, .s = "l" },
+    .{ .v = 40, .s = "xl" },
+    .{ .v = 10, .s = "x" },
+    .{ .v = 9, .s = "ix" },
+    .{ .v = 5, .s = "v" },
+    .{ .v = 4, .s = "iv" },
+    .{ .v = 1, .s = "i" },
 };
 
 /// Render *value* as a lowercase Roman numeral into ``out`` starting
@@ -283,7 +282,10 @@ fn read_roman(s: []const u8, i_in: usize) ?struct { v: i64, i: usize } {
             if (!matched and i + slen <= s.len) {
                 var ok = true;
                 for (entry.s, 0..) |c, k| {
-                    if (ascii_lower(s[i + k]) != c) { ok = false; break; }
+                    if (ascii_lower(s[i + k]) != c) {
+                        ok = false;
+                        break;
+                    }
                 }
                 if (ok) {
                     v += @as(i64, @intCast(entry.v));
@@ -470,13 +472,11 @@ fn expand_format(
                 off += 1;
             },
             'Y' => {
-                if (roman_e) off = write_roman(out, off, t.year)
-                else off = write_pad_signed(out, off, @intCast(t.year), 4);
+                if (roman_e) off = write_roman(out, off, t.year) else off = write_pad_signed(out, off, @intCast(t.year), 4);
             },
             'y' => {
                 const y2: u32 = @intCast(@mod(@as(i64, t.year), 100));
-                if (roman_o) off = write_roman(out, off, y2)
-                else off = write_pad_int(out, off, y2, 2, '0');
+                if (roman_o) off = write_roman(out, off, y2) else off = write_pad_int(out, off, y2, 2, '0');
             },
             'C' => {
                 if (roman_e) {
@@ -489,48 +489,38 @@ fn expand_format(
             },
             's' => off = write_pad_signed(out, off, render_epoch(t, utoff), 0),
             'm' => {
-                if (roman_o) off = write_roman(out, off, t.month)
-                else off = write_pad_int(out, off, t.month, 2, '0');
+                if (roman_o) off = write_roman(out, off, t.month) else off = write_pad_int(out, off, t.month, 2, '0');
             },
             'N' => {
-                if (roman_o) off = write_roman(out, off, t.month)
-                else off = write_pad_int(out, off, t.month, 2, ' ');
+                if (roman_o) off = write_roman(out, off, t.month) else off = write_pad_int(out, off, t.month, 2, ' ');
             },
             'd' => {
-                if (roman_o) off = write_roman(out, off, t.day)
-                else off = write_pad_int(out, off, t.day, 2, '0');
+                if (roman_o) off = write_roman(out, off, t.day) else off = write_pad_int(out, off, t.day, 2, '0');
             },
             'e' => {
-                if (roman_o) off = write_roman(out, off, t.day)
-                else off = write_pad_int(out, off, t.day, 2, ' ');
+                if (roman_o) off = write_roman(out, off, t.day) else off = write_pad_int(out, off, t.day, 2, ' ');
             },
             'H' => {
-                if (roman_o) off = write_roman(out, off, t.hour)
-                else off = write_pad_int(out, off, t.hour, 2, '0');
+                if (roman_o) off = write_roman(out, off, t.hour) else off = write_pad_int(out, off, t.hour, 2, '0');
             },
             'k' => {
-                if (roman_o) off = write_roman(out, off, t.hour)
-                else off = write_pad_int(out, off, t.hour, 2, ' ');
+                if (roman_o) off = write_roman(out, off, t.hour) else off = write_pad_int(out, off, t.hour, 2, ' ');
             },
             'M' => {
-                if (roman_o) off = write_roman(out, off, t.minute)
-                else off = write_pad_int(out, off, t.minute, 2, '0');
+                if (roman_o) off = write_roman(out, off, t.minute) else off = write_pad_int(out, off, t.minute, 2, '0');
             },
             'S' => {
-                if (roman_o) off = write_roman(out, off, t.second)
-                else off = write_pad_int(out, off, t.second, 2, '0');
+                if (roman_o) off = write_roman(out, off, t.second) else off = write_pad_int(out, off, t.second, 2, '0');
             },
             'I' => {
                 var hr12: u32 = t.hour % 12;
                 if (hr12 == 0) hr12 = 12;
-                if (roman_o) off = write_roman(out, off, hr12)
-                else off = write_pad_int(out, off, hr12, 2, '0');
+                if (roman_o) off = write_roman(out, off, hr12) else off = write_pad_int(out, off, hr12, 2, '0');
             },
             'l' => {
                 var hr12: u32 = t.hour % 12;
                 if (hr12 == 0) hr12 = 12;
-                if (roman_o) off = write_roman(out, off, hr12)
-                else off = write_pad_int(out, off, hr12, 2, ' ');
+                if (roman_o) off = write_roman(out, off, hr12) else off = write_pad_int(out, off, hr12, 2, ' ');
             },
             'j' => off = write_pad_int(out, off, t.yday, 3, '0'),
             'J' => off = write_pad_signed(out, off, julian_day_of(t), 0),
@@ -1368,7 +1358,8 @@ const ScanState = struct {
 fn scan_skip_ws(s: []const u8, i_in: usize) usize {
     var i = i_in;
     while (i < s.len and (s[i] == ' ' or s[i] == '\t' or
-        s[i] == '\n' or s[i] == '\r')) : (i += 1) {}
+        s[i] == '\n' or s[i] == '\r')) : (i += 1)
+    {}
     return i;
 }
 
@@ -1693,9 +1684,7 @@ fn scan_drive_part(
                             frac_den *= 10;
                             fdigits += 1;
                         }
-                        while (ki < input.len and input[ki] >= '0' and input[ki] <= '9')
-                            : (ki += 1)
-                        {}
+                        while (ki < input.len and input[ki] >= '0' and input[ki] <= '9') : (ki += 1) {}
                         const frac_secs = @divFloor(frac_num * SECS_PER_DAY, frac_den);
                         var combined = frac_secs;
                         while (combined >= SECS_PER_DAY) {
@@ -2203,7 +2192,7 @@ pub export fn clock_scan_format(
     // overflow with both integer and fractional inputs above
     // 5373484) expect the dateTooLarge error.
     const jd_max: i64 = 5373484; // last representable Gregorian day
-    const jd_min: i64 = -1095;   // far past the proleptic horizon
+    const jd_min: i64 = -1095; // far past the proleptic horizon
     if (st.have_julian) {
         if (st.julian > jd_max or st.julian < jd_min) {
             raise_clock_error("requested date too large to represent", "CLOCK dateTooLarge");
@@ -2442,4 +2431,3 @@ pub export fn clock_format_tz_locale(
     };
     return render_format(f.ptr, f.len, local, off_info.utoff, off_info.abbr, locale_from(loc_slice));
 }
-

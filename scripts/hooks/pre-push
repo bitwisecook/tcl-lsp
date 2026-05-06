@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Pre-push hook: refuse to push unless `make check-all` has been run against
+# the current worktree.
+#
+# `make check-all` runs full lint + typecheck across every language
+# (Python via Ruff/ty, TypeScript via ESLint/Prettier/tsc, Zig via
+# zig fmt --check + zig build, Rust via cargo fmt --check + clippy).
+# On success it writes the worktree fingerprint to tmp/check-all.stamp.
+# `make test-slow` is a superset and writes the same stamp.
+#
+# This hook recomputes the fingerprint and rejects the push if it doesn't
+# match the stamp.  See AGENTS.md for the stricter rule that agents must
+# also have a matching tmp/test-slow.stamp before opening a PR.
+#
+# Bypass with --no-verify or SKIP_PUSH_GATE=1 only when explicitly authorised.
+set -euo pipefail
+
+if [ -n "${SKIP_PUSH_GATE:-}" ] || [ -n "${SKIP_TEST_SLOW_GATE:-}" ]; then
+    exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+stamp_file="$repo_root/tmp/check-all.stamp"
+fingerprint_script="$repo_root/scripts/worktree-fingerprint.sh"
+hooks_dir=$(cd "$repo_root" && git rev-parse --git-path hooks)
+case "$hooks_dir" in
+    /*) ;;
+    *)  hooks_dir="$repo_root/$hooks_dir" ;;
+esac
+
+if [ ! -x "$fingerprint_script" ]; then
+    echo "pre-push: $fingerprint_script not found or not executable" >&2
+    echo "pre-push: did the hook get installed against an old checkout?" >&2
+    exit 1
+fi
+
+current=$("$fingerprint_script")
+
+if [ ! -f "$stamp_file" ]; then
+    cat >&2 <<EOF
+pre-push: refused — no check-all stamp found at $stamp_file
+pre-push:
+pre-push: Before any push, full lint + typecheck across every language
+pre-push: (Python, TypeScript, Zig, Rust) must pass and be fixed.  Run:
+pre-push:
+pre-push:     make check-all
+pre-push:
+pre-push: Or, if you also intend to open a PR (which requires test-slow):
+pre-push:
+pre-push:     make test-slow
+pre-push:
+pre-push: Either target writes tmp/check-all.stamp on success.
+pre-push:
+pre-push: To bypass temporarily: SKIP_PUSH_GATE=1 git push ...
+pre-push: To uninstall the hook:  rm $hooks_dir/pre-push
+EOF
+    exit 1
+fi
+
+stamped=$(cat "$stamp_file")
+
+if [ "$stamped" != "$current" ]; then
+    cat >&2 <<EOF
+pre-push: refused — worktree fingerprint does not match the recorded check-all stamp
+pre-push:
+pre-push:   stamp at: $stamp_file
+pre-push:   stamped:  $stamped
+pre-push:   current:  $current
+pre-push:
+pre-push: The worktree has changed since 'make check-all' last passed.
+pre-push: Re-run 'make check-all' (or 'make test-slow') before pushing.
+pre-push:
+pre-push: To bypass temporarily: SKIP_PUSH_GATE=1 git push ...
+EOF
+    exit 1
+fi
+
+exit 0

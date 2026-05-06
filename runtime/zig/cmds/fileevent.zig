@@ -25,8 +25,7 @@ fn eval_fileevent(words: []const i32) result_mod.InterpResult {
     }
     const chan = obj.obj_ensure_string(words[1]);
     const ev = obj.obj_ensure_string(words[2]);
-    const ev_s: []const u8 = if (ev.ptr == 0) "" else
-        @as([*]const u8, @ptrFromInt(ev.ptr))[0..ev.len];
+    const ev_s: []const u8 = if (ev.ptr == 0) "" else @as([*]const u8, @ptrFromInt(ev.ptr))[0..ev.len];
     const is_read = std.mem.eql(u8, ev_s, "readable");
     const is_write = std.mem.eql(u8, ev_s, "writable");
     if (!is_read and !is_write) {

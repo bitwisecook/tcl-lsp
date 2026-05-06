@@ -23,21 +23,21 @@
 // Width fields (e.g. %5d) are parsed but ignored for non-%s specifiers.
 // For %s a width field limits the number of characters taken.
 
-const rt     = @import("../tcl_runtime.zig");
+const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
-const stubs  = @import("../stubs/tcl_stubs.zig");
-const chars  = @import("../valtypes/tcl_chars.zig");
-const reg    = @import("../dispatch/tcl_cmd_registry.zig");
+const stubs = @import("../stubs/tcl_stubs.zig");
+const chars = @import("../valtypes/tcl_chars.zig");
+const reg = @import("../dispatch/tcl_cmd_registry.zig");
 const obj_mod = @import("../valtypes/tcl_obj.zig");
 const bignum = @import("../valtypes/tcl_bignum.zig");
 
-const obj_new_int       = rt.obj_new_int;
-const obj_new_string    = rt.obj_new_string;
+const obj_new_int = rt.obj_new_int;
+const obj_new_string = rt.obj_new_string;
 const obj_ensure_string = rt.obj_ensure_string;
-const alloc             = rt.alloc;
-const memcpy            = rt.memcpy;
-const is_space          = chars.is_space;
+const alloc = rt.alloc;
+const memcpy = rt.memcpy;
+const is_space = chars.is_space;
 
 // Re-use the saturating integer parser from tcl_fmt_stubs.zig via its
 // module-level helpers.
@@ -66,15 +66,15 @@ fn read_utf8_cp(src: [*]const u8, len: u32, i: *u32) i64 {
         return cp;
     } else if ((b0 & 0xF0) == 0xE0 and i.* + 2 < len) {
         const cp = (@as(i64, b0 & 0x0F) << 12) |
-                   (@as(i64, src[i.* + 1] & 0x3F) << 6) |
-                   @as(i64, src[i.* + 2] & 0x3F);
+            (@as(i64, src[i.* + 1] & 0x3F) << 6) |
+            @as(i64, src[i.* + 2] & 0x3F);
         i.* += 3;
         return cp;
     } else if ((b0 & 0xF8) == 0xF0 and i.* + 3 < len) {
         const cp = (@as(i64, b0 & 0x07) << 18) |
-                   (@as(i64, src[i.* + 1] & 0x3F) << 12) |
-                   (@as(i64, src[i.* + 2] & 0x3F) << 6) |
-                   @as(i64, src[i.* + 3] & 0x3F);
+            (@as(i64, src[i.* + 1] & 0x3F) << 12) |
+            (@as(i64, src[i.* + 2] & 0x3F) << 6) |
+            @as(i64, src[i.* + 3] & 0x3F);
         i.* += 4;
         return cp;
     }
@@ -110,12 +110,15 @@ fn digit_val(c: u8, base: i64) i64 {
 /// Parse an integer at ``src[pos..]``, advancing ``pos`` past the digits.
 /// Returns the TclObj with the parsed value, or sets ``matched`` to false on
 /// total failure (no digit consumed at all).
-fn scan_int(src: [*]const u8, src_len: u32, pos: *u32,
-            base_in: i64, accept_0x: bool, matched: *bool) i32 {
+fn scan_int(src: [*]const u8, src_len: u32, pos: *u32, base_in: i64, accept_0x: bool, matched: *bool) i32 {
     var i = pos.*;
     var neg = false;
-    if (i < src_len and src[i] == '-') { neg = true; i += 1; }
-    else if (i < src_len and src[i] == '+') { i += 1; }
+    if (i < src_len and src[i] == '-') {
+        neg = true;
+        i += 1;
+    } else if (i < src_len and src[i] == '+') {
+        i += 1;
+    }
 
     var base = base_in;
     if (base == 0) {
@@ -125,7 +128,8 @@ fn scan_int(src: [*]const u8, src_len: u32, pos: *u32,
             i += 2;
         }
     } else if (accept_0x and i + 1 < src_len and src[i] == '0' and
-               (src[i + 1] == 'x' or src[i + 1] == 'X')) {
+        (src[i + 1] == 'x' or src[i + 1] == 'X'))
+    {
         i += 2;
     }
 
@@ -204,9 +208,9 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
     const src: [*]const u8 = if (ss.len > 0) @ptrFromInt(ss.ptr) else @ptrFromInt(1);
     const fmt: [*]const u8 = if (fs.len > 0) @ptrFromInt(fs.ptr) else @ptrFromInt(1);
 
-    var si: u32 = 0;   // position in the source string
-    var fi: u32 = 0;   // position in the format string
-    var vi: u32 = 0;   // next variable index
+    var si: u32 = 0; // position in the source string
+    var fi: u32 = 0; // position in the format string
+    var vi: u32 = 0; // next variable index
     var assigned: u32 = 0;
     // In no-variable form, collected values are appended here.
     var list_result: i32 = obj_new_string(0, 0);
@@ -305,7 +309,10 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
 
         if (spec == 'd' or spec == 'i' or spec == 'x' or spec == 'X' or spec == 'o') {
             const base: i64 = switch (spec) {
-                'd' => 10, 'i' => 0, 'x', 'X' => 16, else => 8,
+                'd' => 10,
+                'i' => 0,
+                'x', 'X' => 16,
+                else => 8,
             };
             const accept_0x = (spec == 'x' or spec == 'X');
             var matched = false;
@@ -327,9 +334,13 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
         if (spec == 'f' or spec == 'e' or spec == 'g' or spec == 'E' or spec == 'G') {
             // Floating-point: parse as much as looks like a float, return int
             // truncation (we have no fp runtime).
-            const neg = if (si < ss.len and src[si] == '-') blk: { si += 1; break :blk true; }
-                        else if (si < ss.len and src[si] == '+') blk: { si += 1; break :blk false; }
-                        else false;
+            const neg = if (si < ss.len and src[si] == '-') blk: {
+                si += 1;
+                break :blk true;
+            } else if (si < ss.len and src[si] == '+') blk: {
+                si += 1;
+                break :blk false;
+            } else false;
             var int_val: i64 = 0;
             var has_digits = false;
             while (si < ss.len and src[si] >= '0' and src[si] <= '9') : (si += 1) {
