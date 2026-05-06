@@ -24,8 +24,6 @@
 //! `TaintColour::PATH_PREFIXED`, `STARTS_WITH_DASH` absent →
 //! `TaintColour::NON_DASH_PREFIXED`).
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::HashMap;
 
 use bitflags::bitflags;

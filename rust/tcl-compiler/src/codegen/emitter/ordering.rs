@@ -144,8 +144,7 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
 ///
 /// Blocks that are the loop's `exit_block` (or beyond) are excluded so
 /// that `break` jumps don't pull exit blocks into the body.
-#[allow(clippy::implicit_hasher)]
-pub fn collect_loop_body(
+pub(crate) fn collect_loop_body(
     cfg: &CfgFunction,
     start: &str,
     header: &str,

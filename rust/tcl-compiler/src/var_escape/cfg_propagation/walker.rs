@@ -38,7 +38,6 @@ use crate::var_escape::helpers::{
 /// flag a fallback when any non-frameless head appears, then
 /// run [`scan_value_for_info_hazards`] for embedded `[info ...]`
 /// shapes.
-#[allow(clippy::implicit_hasher)]
 fn apply_value_scan(value: &str, state: &mut CfgState, defs: &HashMap<String, Version>) {
     if value.is_empty() {
         return;
@@ -62,7 +61,6 @@ fn apply_value_scan(value: &str, state: &mut CfgState, defs: &HashMap<String, Ve
     }
 }
 
-#[allow(clippy::implicit_hasher)]
 fn apply_expr_scan(expr: Option<&ExprNode>, state: &mut CfgState, defs: &HashMap<String, Version>) {
     let Some(expr) = expr else {
         return;
@@ -108,7 +106,6 @@ fn extract_cmd_subst_heads(value: &str) -> Vec<String> {
 
 /// Generic call dispatcher. Mirrors the intra-procedural variant
 /// but threads *defs* through to the per-command handlers.
-#[allow(clippy::implicit_hasher)]
 fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Version>) {
     let Statement::Call {
         command,
@@ -152,7 +149,6 @@ fn handle_call(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Ve
 /// Handle ``eval``: literal body is recursively walked with
 /// [`escape_every_name_touched_tree`]; non-literal body is
 /// pessimistic.
-#[allow(clippy::implicit_hasher)]
 fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     if args.is_empty() {
         state.mark_pessimistic();
@@ -179,7 +175,6 @@ fn handle_eval(args: &[String], state: &mut CfgState, defs: &HashMap<String, Ver
 
 /// Handle ``uplevel``: only ``#0`` / ``0`` with a literal body
 /// is safe; everything else is pessimistic.
-#[allow(clippy::implicit_hasher)]
 fn handle_uplevel(args: &[String], state: &mut CfgState, _defs: &HashMap<String, Version>) {
     if args.is_empty() {
         state.mark_pessimistic();
@@ -213,7 +208,6 @@ fn handle_uplevel(args: &[String], state: &mut CfgState, _defs: &HashMap<String,
 }
 
 /// Dispatch on the barrier command name.
-#[allow(clippy::implicit_hasher)]
 fn handle_barrier(
     command: &str,
     args: &[String],
@@ -250,7 +244,6 @@ fn is_eval_block(tokens: Option<&CommandTokens>) -> bool {
 /// statements aren't part of the enclosing SSA, so we tag every
 /// name escape at the caller's current version (via *defs* /
 /// `version_for`).
-#[allow(clippy::implicit_hasher)]
 #[allow(clippy::too_many_lines)]
 pub(crate) fn escape_every_name_touched_tree(
     stmts: &[Statement],

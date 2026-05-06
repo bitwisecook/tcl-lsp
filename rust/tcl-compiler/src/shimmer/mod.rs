@@ -14,8 +14,6 @@
 //! | [`expr`]      | S100 expression-level shimmer detection         |
 //! | [`thunking`]  | S102 loop-oscillation detection                 |
 
-#![allow(clippy::implicit_hasher)]
-
 pub mod expr;
 pub mod graph;
 pub mod hints;
@@ -34,7 +32,6 @@ use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::TypeLattice;
 
 // Re-export the graph helpers that are part of the historical public API.
-pub use graph::{blocks_reaching, loop_body_blocks};
 
 // ---------------------------------------------------------------------------
 // Shared diagnostic types
@@ -109,7 +106,7 @@ pub fn type_name(t: TclType) -> String {
 /// 3. **Expression** ([`expr`]): arithmetic/comparison operators used with
 ///    the wrong operand type (S100).
 #[must_use]
-pub fn find_shimmer_warnings(
+pub(crate) fn find_shimmer_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,
@@ -134,7 +131,7 @@ pub fn find_shimmer_warnings(
 /// Identifies variables that oscillate between two intrep types across
 /// loop iterations, causing a type conversion on every pass (S102).
 #[must_use]
-pub fn find_thunking_warnings(
+pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,

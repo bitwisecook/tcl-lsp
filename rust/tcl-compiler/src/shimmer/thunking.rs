@@ -19,8 +19,6 @@
 //! - **S102**: variable oscillates between two intrep types across loop
 //!   iterations.
 
-#![allow(clippy::implicit_hasher)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::cfg::Function as CfgFunction;
@@ -37,7 +35,7 @@ use super::{type_name, ThunkingWarning};
 /// Returns one [`ThunkingWarning`] per phi node at a loop header whose
 /// type lattice is `Shimmered`.
 #[must_use]
-pub fn find_thunking_warnings(
+pub(crate) fn find_thunking_warnings(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     types: &HashMap<ValueKey, TypeLattice>,

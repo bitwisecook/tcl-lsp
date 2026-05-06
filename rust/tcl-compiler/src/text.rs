@@ -1,5 +1,3 @@
-#![allow(clippy::implicit_hasher)]
-
 //! Shared text-similarity utilities — Rust port of
 //! `core/common/text.py`.
 //!
@@ -117,7 +115,7 @@ const MAX_FOLD_PRODUCT: usize = 32;
 /// head positions, and rejecting them errs on the safe side
 /// (returns `None`, leaving the W123 in place).
 #[must_use]
-pub fn fold_interpolation_set(
+pub(crate) fn fold_interpolation_set(
     word: &str,
     var_values: &std::collections::HashMap<String, HashSet<String>>,
 ) -> Option<HashSet<String>> {
