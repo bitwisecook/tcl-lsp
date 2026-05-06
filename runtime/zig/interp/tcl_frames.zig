@@ -1969,7 +1969,10 @@ pub export fn var_exists(name: i32) i32 {
 /// find the array in the global directory.  For KIND_GLOBAL_NAMED and
 /// KIND_FRAME_VAR descriptors the stored ``tgt`` field IS the name; for
 /// KIND_NS_VAR_PTR the name isn't available, so fall back to *local_name*.
-/// When there is no alias, return *local_name* unchanged.
+/// When there is no alias, return *local_name* unchanged — root-global
+/// canonicalisation of ``foo`` ↔ ``::foo`` happens in
+/// :func:`tcl_array.normalize_ns_name` at the directory layer (strip
+/// direction, matching :func:`tcl_ns.strip_global_prefix`).
 pub export fn frame_resolve_array_name(local_name: i32) i32 {
     const sn = obj_ensure_string(local_name);
     // Already-FQ names (``::nsa::name``) bypass scope resolution —
