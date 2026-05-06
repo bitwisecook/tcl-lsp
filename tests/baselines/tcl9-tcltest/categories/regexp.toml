@@ -1,0 +1,91 @@
+# Tcl 9 ``regexp.test`` per-case categorisation.
+#
+# Default for unlisted tests: ``must_pass`` — failure here = real bug.
+# See ``tests/baselines/tcl9-tcltest/categories/README.md`` for the
+# bucket semantics and triage workflow.
+#
+# Snapshot: 226 / 257 passing (27 ``good_to_have`` failing,
+# 0 ``just_to_match_ctcl``, 0 ``skip``, 4 tcltest-skipped).
+#
+# All current failures are real Tcl 9 regex / regsub features we plan
+# to support but haven't fully wired:
+#   * empty-subject matching with anchored / optional patterns (1.5,
+#     22.1)
+#   * ``-line`` / ``-lineanchor`` interaction with ``-all`` and the
+#     ``regsub -all -line`` codepath (21.x, 23.x, 24.x, 26.x)
+#   * ``regsub -command CALLBACK`` (Tcl 9 feature, 27.x).
+
+trap_allowed = false
+
+good_to_have = [
+    # 1.5: ``regexp {^([^ ]*)[ ]*([^ ]*)} "" a`` should match the
+    # empty string with both captures empty.  Our engine returns 0
+    # — empty-subject + optional captures isn't reaching the
+    # ``run_match_cap`` happy path.  Real correctness gap in
+    # ``runtime/zig/valtypes/tcl_regex.zig`` (or the vendored
+    # Spencer engine's empty-subject path).
+    "1.5",
+
+    # 21.10 / 21.12: ``regsub -all -lineanchor`` and ``regsub -all
+    # -line`` against multi-line subjects.  Our regsub codepath
+    # honours ``-lineanchor`` for matching but the replacement
+    # walking interleaves ``\n``-handling differently from
+    # reference Tcl.
+    "21.10",
+    "21.12",
+
+    # 22.1: ``regexp ($|^X)* {}`` should match.  Same family as
+    # 1.5 — empty-subject matching with anchored alternation.
+    "22.1",
+
+    # 23.1 / 23.3 / 23.6: ``regexp -all -inline -indices -line``
+    # multi-line index ranges.  Our impl reports the wrong
+    # ``rm_so/rm_eo`` for the trailing zero-width match at line
+    # boundaries.
+    "23.1",
+    "23.3",
+    "23.6",
+
+    # 24.x: ``regsub -all -line`` against multi-line subjects.
+    # Same root cause as the 23.x cluster — the per-line newline
+    # anchor advancement skips the next match in some shapes.
+    "24.2",
+    "24.3",
+    "24.4",
+    "24.5",
+    "24.6",
+    "24.7",
+    "24.8",
+    "24.9",
+    "24.10",
+
+    # 26.7 / 26.8 / 26.9: Tcl bug 2826551 — line-sensitive regexp
+    # honouring ``-start`` and embedded ``(?i)`` / ``(?:^…)$``
+    # combinations.  Reference Tcl carries specific fixups for
+    # these we haven't ported.
+    "26.7",
+    "26.8",
+    "26.9",
+
+    # 27.x: ``regsub -command CALLBACK`` — Tcl 9 feature where the
+    # replacement is computed by invoking ``CALLBACK`` with the
+    # match captures and using the return value as the replacement.
+    # Our impl currently treats the callback word as a literal
+    # replacement string.
+    "27.1",
+    "27.2",
+    "27.3",
+    "27.5",
+    "27.6",
+    "27.7",
+    "27.8",
+    "27.12",
+]
+
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 27
+just_to_match_ctcl_failing = 0
+skip_failing = 0

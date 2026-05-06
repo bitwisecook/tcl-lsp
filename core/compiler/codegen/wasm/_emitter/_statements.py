@@ -371,6 +371,23 @@ class _WasmEmitterStmtMixin(_Base):
 
                         if i < len(argv) and argv[i] is not None and argv[i].type is TokenType.STR:
                             t = "{" + t + "}"
+                        elif (
+                            i > 0
+                            and t
+                            and i < len(argv)
+                            and argv[i] is not None
+                            and argv[i].type is TokenType.ESC
+                            and (i >= len(single_word) or single_word[i])
+                            and any(
+                                c in t
+                                for c in (" ", "\t", "\n", "\r", ";", "$", "[", "{", "}", '"', "\\")
+                            )
+                        ):
+                            # ESC single-token arg from a quoted /
+                            # backslash-bearing word.  See the
+                            # IRBarrier branch above for the
+                            # ``namespace {*}"…\n…"`` repro.
+                            t = _tcl_list_quote(t, first=False)
                         elif i < len(single_word) and not single_word[i] and t:
                             # Multi-token concatenation (``"$body (suffix)"``,
                             # ``foo$bar``, …).  ``_word_piece`` joined the
@@ -612,6 +629,46 @@ class _WasmEmitterStmtMixin(_Base):
                                     t = "{" + t + "}"
                                 elif i < len(single_word) and not single_word[i] and t:
                                     t = '"' + _escape_dquote(t) + '"'
+                                elif (
+                                    i > 0
+                                    and t
+                                    and i < len(argv)
+                                    and argv[i] is not None
+                                    and argv[i].type is TokenType.ESC
+                                    and any(
+                                        c in t
+                                        for c in (
+                                            " ",
+                                            "\t",
+                                            "\n",
+                                            "\r",
+                                            ";",
+                                            "$",
+                                            "[",
+                                            "{",
+                                            "}",
+                                            '"',
+                                            "\\",
+                                        )
+                                    )
+                                ):
+                                    # ESC arg from a single-token quoted /
+                                    # backslash-bearing word.  Source-level
+                                    # ``{*}"..."`` lowered to the IR
+                                    # without the outer quotes; if we
+                                    # re-emit it bare here, embedded
+                                    # whitespace / newlines split it into
+                                    # multiple words at re-parse time and
+                                    # ``namespace {*}"…\n…\n…"`` becomes
+                                    # several stray commands.  Round-trip
+                                    # through Tcl's list-quote so the
+                                    # interpreter sees one word and the
+                                    # ``{*}`` expansion list-parses the
+                                    # content.  Skipped for argv[0] (the
+                                    # command name itself, which list-quote
+                                    # would force-brace despite never
+                                    # needing the wrap).
+                                    t = _tcl_list_quote(t, first=False)
                                 parts.append(prefix + t)
                             script = " ".join(parts)
                             self._emit_eval_fallback(
@@ -1026,6 +1083,15 @@ class _WasmEmitterStmtMixin(_Base):
         # only exists to carry the ``defs`` list for SSA reasoning, and
         # emits no code.
         if command == "<cond>":
+            return
+        # <empty_clause> — synthetic IRCall emitted by the CFG builder
+        # for ``for {} {cond} {} { body }``-style empty init / next
+        # clauses.  Bytecode codegen turns this into 3 NOPs to mirror
+        # tclsh 9.0's ``push ""; pop`` literal-pool ordering; the WASM
+        # backend emits nothing.  Without this dispatch the placeholder
+        # fell through to the eval-fallback and the runtime trapped
+        # with ``invalid command name "<empty_clause>"``.
+        if command == "<empty_clause>":
             return
         # ``frame_set_line`` stamping happens once per IRStatement at
         # ``_emit_stmt``'s top — no per-call duplicate needed.
@@ -1612,6 +1678,13 @@ class _WasmEmitterStmtMixin(_Base):
         # In tail position (rare, but possible if placed last by optimisation)
         # we still need to push a null TclObj.
         if command == "<upvar-invalidate>":
+            self._emit_i32_const(0)
+            return
+        # <cond> / <empty_clause> — synthetic CFG-builder placeholders
+        # that emit no real instructions.  In tail position we still
+        # need a TclObj to leave on the stack so the caller's return
+        # has a value; push null.
+        if command == "<cond>" or command == "<empty_clause>":
             self._emit_i32_const(0)
             return
 

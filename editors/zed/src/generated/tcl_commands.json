@@ -158,6 +158,10 @@
       "summary": "bitwise NOT (unary)"
     },
     {
+      "name": "::tcl::unsupported::corotype",
+      "summary": "Return the suspension state of a coroutine."
+    },
+    {
       "name": "<",
       "summary": "numeric less-than"
     },

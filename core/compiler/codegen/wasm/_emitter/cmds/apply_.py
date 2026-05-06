@@ -75,6 +75,20 @@ def _emit_apply(
     func_idx = emitter._shared_imports.get("tcl_apply")
     if func_idx is None:
         return False
+    # Detect whether the source word was brace-quoted.  ``apply
+    # {x {puts $x}} hello`` lowers args[0] to the IR content
+    # ``x {puts $x}`` (outer braces stripped); without the
+    # ``was_braced`` hint, ``_emit_value`` sees the embedded ``$x``
+    # and interpolates it at codegen time, producing the lambda
+    # ``x {puts }`` and the runtime traps reading ``x``.  Tcl
+    # semantics: braced words suppress all substitution, so the
+    # lambda must reach the runtime byte-identical to the source.
+    from ......parsing.tokens import TokenType
+
+    tokens = getattr(emitter, "_current_call_tokens", None)
+    lambda_was_braced = False
+    if tokens is not None and tokens.argv is not None and len(tokens.argv) > 1:
+        lambda_was_braced = tokens.argv[1].type is TokenType.STR
     # First arg is the lambda; remaining are positional args.
     # When the IR captured a brace-quoted lambda (``{paramList}
     # {body}``) as a single word, ``_emit_value``'s generic
@@ -82,7 +96,7 @@ def _emit_apply(
     if _is_brace_quoted_lambda(args[0]):
         emitter._emit_obj_literal(args[0])
     else:
-        emitter._emit_value(args[0])
+        emitter._emit_value(args[0], was_braced=lambda_was_braced)
     emitter._emit_args_list(tuple(args[1:]))
     emitter._emit_call(func_idx)
     if context is EmitContext.VALUE:
