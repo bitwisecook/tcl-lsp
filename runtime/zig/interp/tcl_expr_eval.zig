@@ -635,7 +635,13 @@ fn parse_unary(s: *State) i32 {
     }
     if (c == '+') {
         s.pos += 1;
-        return parse_unary(s);
+        // Tcl 9 unary ``+`` validates non-numeric strings — ``expr
+        // {+"a"}`` raises ``cannot use non-numeric string "a" as
+        // operand of "+"`` (expr-old-5.2).  Route through
+        // ``tcl_arith_pos`` so the runtime fast-path test bundle
+        // (which uses this evaluator) observes the same surface as
+        // the AOT codegen path.
+        return apply_unary(s, arith.tcl_arith_pos, parse_unary(s));
     }
     if (c == '!') {
         s.pos += 1;
@@ -1098,8 +1104,30 @@ fn parse_func_or_word(s: *State) i32 {
     // for identifying the operand class but we no longer use its
     // numeric form for the bare-keyword case.
     if (s.skip) return obj_new_int(0);
+    // Tcl 9 ``expr nan`` (bareword) raises ``domain error: argument
+    // not in valid range`` — expr-old-36.7.  ``inf`` / ``infinity``
+    // are valid float keywords (``expr Inf`` round-trips cleanly),
+    // but ``NaN`` has no defined value in numeric expressions.  Match
+    // the surface text reference Tcl emits via ``TclParseNumber`` →
+    // ``ExprIeeeFromObj``.
+    if (is_nan_keyword(name)) {
+        @import("../stubs/tcl_stubs.zig").raise(
+            "domain error: argument not in valid range",
+        );
+        return obj_new_int(0);
+    }
     const sptr = @intFromPtr(s.src) + start;
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(name_len));
+}
+
+fn is_nan_keyword(name: []const u8) bool {
+    if (name.len != 3) return false;
+    var buf: [3]u8 = undefined;
+    for (0..3) |i| {
+        const c = name[i];
+        buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    return std.mem.eql(u8, buf[0..3], "nan");
 }
 
 fn parse_bool_keyword(name: []const u8) ?i64 {
@@ -1112,8 +1140,10 @@ fn parse_bool_keyword(name: []const u8) ?i64 {
 
 fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
     if (args.len == 1) {
-        if (std.mem.eql(u8, name, "int") or std.mem.eql(u8, name, "wide") or std.mem.eql(u8, name, "entier"))
+        if (std.mem.eql(u8, name, "int") or std.mem.eql(u8, name, "entier"))
             return arith.tcl_math_int(args[0]);
+        if (std.mem.eql(u8, name, "wide"))
+            return arith.tcl_math_wide(args[0]);
         if (std.mem.eql(u8, name, "double") or std.mem.eql(u8, name, "float"))
             return arith.tcl_math_double(args[0]);
         if (std.mem.eql(u8, name, "round")) return arith.tcl_math_round(args[0]);

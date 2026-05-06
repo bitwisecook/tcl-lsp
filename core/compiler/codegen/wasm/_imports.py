@@ -202,6 +202,13 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # Math functions — called from expr codegen by name.
     "tcl_math_double": ("tcl", "tcl_math_double", [ValType.I32], [ValType.I32]),
     "tcl_math_int": ("tcl", "tcl_math_int", [ValType.I32], [ValType.I32]),
+    # ``wide(x)`` — signed 64-bit truncation of ``int(x)``.  Distinct
+    # from ``tcl_math_int`` (which preserves bignum precision) because
+    # reference Tcl's ``ExprWideFunc`` calls ``ExprIntFunc`` then
+    # ``TclGetWideBitsFromObj`` to extract the low 64 bits — used by
+    # expr-old-34.13 / 34.14 (``wide(1.0e30)`` truncates to
+    # ``5076964154930102272``).
+    "tcl_math_wide": ("tcl", "tcl_math_wide", [ValType.I32], [ValType.I32]),
     "tcl_math_round": ("tcl", "tcl_math_round", [ValType.I32], [ValType.I32]),
     "tcl_math_log": ("tcl", "tcl_math_log", [ValType.I32], [ValType.I32]),
     "tcl_math_sqrt": ("tcl", "tcl_math_sqrt", [ValType.I32], [ValType.I32]),

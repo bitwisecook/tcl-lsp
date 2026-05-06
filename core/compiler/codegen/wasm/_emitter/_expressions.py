@@ -457,8 +457,16 @@ class _WasmEmitterExprMixin(_Base):
                     if func_idx is not None:
                         self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
-                elif func in ("int", "entier", "wide") and len(args) == 1:
+                elif func in ("int", "entier") and len(args) == 1:
                     func_idx = self._shared_imports.get("tcl_math_int")
+                    if func_idx is not None:
+                        self._emit_expr_obj_arith_unary(func_idx, args[0])
+                        return
+                elif func == "wide" and len(args) == 1:
+                    # ``wide()`` truncates to signed int64 — distinct
+                    # from ``int()``/``entier()`` which preserve bignum
+                    # precision (expr-old-34.13 / 34.14).
+                    func_idx = self._shared_imports.get("tcl_math_wide")
                     if func_idx is not None:
                         self._emit_expr_obj_arith_unary(func_idx, args[0])
                         return
@@ -585,15 +593,17 @@ class _WasmEmitterExprMixin(_Base):
                     self._emit_i64_const(int_val)
                     self._emit_box_int()
                 return
-            # Out-of-i64 integer literal — skip the float fallback
-            # entirely (``float(value)`` truncates ``2^63`` to
-            # ``9.22e18`` and silently loses 11 bits of precision)
-            # and emit the source bytes as a string TclObj.  The
-            # runtime's ``try_parse_int`` / ``bignum.parse_i128``
-            # path then promotes the value to TYPE_BIGNUM the first
-            # time an arithmetic helper reads it, which is the path
-            # exercised by ``expr-32.{3..9}`` and the
-            # ``Tcl_NewWideIntObj`` round-trip cases.
+            # Out-of-i64 integer literal — emit the *decimal* form of
+            # the parsed value rather than the source bytes so the
+            # value's string repr matches the canonical bignum
+            # rendering downstream arithmetic produces (expr-old-36.16:
+            # ``[expr 0x100…000]`` would otherwise round-trip the
+            # ``0x…`` source text through ``puts`` while ``$x + 1``
+            # — which forces the bignum path — stamps the decimal
+            # form, and the two values mismatched).  ``str(int_val)``
+            # is the integer-canonical form: leading sign + decimal
+            # digits, no underscores, no ``0x``/``0o`` prefix.
+            value = str(int_val)
         except ValueError:
             pass
         if not is_integer_literal:
@@ -1520,12 +1530,22 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_local_set(running)
                 self._emit(WasmOp.END)
             self._emit_local_get(running)
-        elif func in ("int", "entier", "wide") and len(args) == 1:
+        elif func in ("int", "entier") and len(args) == 1:
             # Truncate to integer — use runtime helper that handles TYPE_FLOAT.
             int_idx = self._shared_imports.get("tcl_math_int")
             if int_idx is not None:
                 self._emit_expr_obj(args[0])
                 self._emit_call(int_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+        elif func == "wide" and len(args) == 1:
+            # ``wide()`` truncates to signed int64 — distinct from
+            # ``int()`` / ``entier()`` (expr-old-34.13 / 34.14).
+            wide_idx = self._shared_imports.get("tcl_math_wide")
+            if wide_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(wide_idx)
                 self._emit_unbox_int()
             else:
                 self._emit_expr(args[0])

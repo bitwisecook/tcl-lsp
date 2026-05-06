@@ -308,7 +308,7 @@ def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
         "round": "tcl_math_round",
         "int": "tcl_math_int",
         "entier": "tcl_math_int",
-        "wide": "tcl_math_int",
+        "wide": "tcl_math_wide",
     }
 
     def _walk(n: object) -> None:
@@ -824,7 +824,7 @@ def _scan_needed_imports(
                     "round": "tcl_math_round",
                     "int": "tcl_math_int",
                     "entier": "tcl_math_int",
-                    "wide": "tcl_math_int",
+                    "wide": "tcl_math_wide",
                 }
                 imp2 = _MATH_FUNC_IMPORT2.get(func)
                 if imp2:
