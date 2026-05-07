@@ -51,7 +51,25 @@ _CATEGORIES_DIR = _REPO_ROOT / "tests" / "baselines" / "tcl9-tcltest" / "categor
 # details our WASM runtime cannot meaningfully emulate.  The harness
 # passes the list to ``tcltest::configure -skip`` so they show up in
 # the skipped count, never as failures, and cost zero runtime.
-BUCKETS = ("must_pass", "good_to_have", "just_to_match_ctcl", "skip")
+#
+# ``impossible_in_wasm_wasi`` and ``impossible_in_wasm_browser``
+# are runtime-target-impossibility buckets — the test cannot pass
+# under that WASM flavour because the underlying capability is
+# absent (fork/exec under WASI, real sockets / FS / signals under
+# the browser sandbox, etc.).  Tracked for visibility, never gating;
+# a future change can wire ``-skip`` injection so the active runtime
+# target only runs the tests it can plausibly pass.  Browser is the
+# stricter sandbox: a test in ``impossible_in_wasm_wasi`` is also
+# impossible under the browser, but not vice versa, so the two lists
+# are kept independent rather than implicitly nested.
+BUCKETS = (
+    "must_pass",
+    "good_to_have",
+    "just_to_match_ctcl",
+    "skip",
+    "impossible_in_wasm_wasi",
+    "impossible_in_wasm_browser",
+)
 DEFAULT_BUCKET = "must_pass"
 
 # Top-level TOML keys we recognise.  Unknown keys are rejected so a
@@ -64,6 +82,8 @@ _BASELINE_KEYS = frozenset(
         "good_to_have_failing",
         "just_to_match_ctcl_failing",
         "skip_failing",
+        "impossible_in_wasm_wasi_failing",
+        "impossible_in_wasm_browser_failing",
     }
 )
 
@@ -84,9 +104,10 @@ class StemCategories:
     enforces (current count must not exceed it — drops are welcome,
     growth fires the gate so a previously-passing GOOD_TO_HAVE test
     that starts failing surfaces even though the test name was
-    already listed in the bucket).  The ``just_to_match_ctcl`` and
-    ``skip`` baselines are recorded for visibility only — neither
-    direction is gating.
+    already listed in the bucket).  The ``just_to_match_ctcl``,
+    ``skip``, ``impossible_in_wasm_wasi`` and
+    ``impossible_in_wasm_browser`` baselines are recorded for
+    visibility only — none of those directions are gating.
 
     ``raw`` retains the original parsed TOML for the JSON record so
     the report consumer can see exactly what was loaded.
@@ -98,6 +119,8 @@ class StemCategories:
     good_to_have_baseline: int = 0
     just_to_match_ctcl_baseline: int = 0
     skip_baseline: int = 0
+    impossible_in_wasm_wasi_baseline: int = 0
+    impossible_in_wasm_browser_baseline: int = 0
     raw: dict = field(default_factory=dict)
 
     def bucket_of(self, test_id_or_suffix: str) -> str:
@@ -119,10 +142,27 @@ class StemCategories:
         wants.  Order is the seed-file order so the generated
         directive is reproducible across runs.
         """
+        return self._full_ids_for("skip")
+
+    def wasi_impossible_full_ids(self) -> list[str]:
+        """Return the IDs in ``impossible_in_wasm_wasi`` as full
+        ``<stem>-<suffix>`` names.  Suitable for a runtime-target-
+        aware ``-skip`` injection when the harness runs under a
+        WASI runtime."""
+        return self._full_ids_for("impossible_in_wasm_wasi")
+
+    def browser_impossible_full_ids(self) -> list[str]:
+        """Return the IDs in ``impossible_in_wasm_browser`` as full
+        ``<stem>-<suffix>`` names.  Suitable for a runtime-target-
+        aware ``-skip`` injection when the harness runs under a
+        browser WASM runtime."""
+        return self._full_ids_for("impossible_in_wasm_browser")
+
+    def _full_ids_for(self, bucket: str) -> list[str]:
         return [
             f"{self.stem}-{suffix}"
-            for suffix, bucket in self.test_to_bucket.items()
-            if bucket == "skip"
+            for suffix, b in self.test_to_bucket.items()
+            if b == bucket
         ]
 
 
@@ -229,6 +269,17 @@ def _load_uncached(stem: str) -> StemCategories:
         baseline.get("just_to_match_ctcl_failing", bucket_counts["just_to_match_ctcl"])
     )
     skip_baseline = int(baseline.get("skip_failing", bucket_counts["skip"]))
+    wasi_baseline = int(
+        baseline.get(
+            "impossible_in_wasm_wasi_failing", bucket_counts["impossible_in_wasm_wasi"]
+        )
+    )
+    browser_baseline = int(
+        baseline.get(
+            "impossible_in_wasm_browser_failing",
+            bucket_counts["impossible_in_wasm_browser"],
+        )
+    )
 
     # Sanity: a baseline that exceeds the listed-test count is a
     # bookkeeping error — every failing GOOD_TO_HAVE test must be
@@ -239,6 +290,16 @@ def _load_uncached(stem: str) -> StemCategories:
         ("good_to_have", bucket_counts["good_to_have"], good_baseline),
         ("just_to_match_ctcl", bucket_counts["just_to_match_ctcl"], ctcl_baseline),
         ("skip", bucket_counts["skip"], skip_baseline),
+        (
+            "impossible_in_wasm_wasi",
+            bucket_counts["impossible_in_wasm_wasi"],
+            wasi_baseline,
+        ),
+        (
+            "impossible_in_wasm_browser",
+            bucket_counts["impossible_in_wasm_browser"],
+            browser_baseline,
+        ),
     ):
         if recorded > listed_count:
             msg = (
@@ -254,6 +315,8 @@ def _load_uncached(stem: str) -> StemCategories:
         good_to_have_baseline=good_baseline,
         just_to_match_ctcl_baseline=ctcl_baseline,
         skip_baseline=skip_baseline,
+        impossible_in_wasm_wasi_baseline=wasi_baseline,
+        impossible_in_wasm_browser_baseline=browser_baseline,
         raw=raw,
     )
 
@@ -272,6 +335,8 @@ class BucketReport:
     good_to_have_failures: list[str] = field(default_factory=list)
     just_to_match_ctcl_failures: list[str] = field(default_factory=list)
     skip_failures: list[str] = field(default_factory=list)
+    impossible_in_wasm_wasi_failures: list[str] = field(default_factory=list)
+    impossible_in_wasm_browser_failures: list[str] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -280,6 +345,8 @@ class BucketReport:
             + len(self.good_to_have_failures)
             + len(self.just_to_match_ctcl_failures)
             + len(self.skip_failures)
+            + len(self.impossible_in_wasm_wasi_failures)
+            + len(self.impossible_in_wasm_browser_failures)
         )
 
     def to_dict(self) -> dict:
@@ -288,6 +355,8 @@ class BucketReport:
             "good_to_have": self.good_to_have_failures,
             "just_to_match_ctcl": self.just_to_match_ctcl_failures,
             "skip": self.skip_failures,
+            "impossible_in_wasm_wasi": self.impossible_in_wasm_wasi_failures,
+            "impossible_in_wasm_browser": self.impossible_in_wasm_browser_failures,
         }
 
 
@@ -304,6 +373,11 @@ def bucket_failures(stem: str, failed_ids: list[str]) -> BucketReport:
     tcltest to skip those tests via ``tcltest::configure -skip``.
     Surface in the JSON record so a missed injection shows up in
     review.
+
+    The ``impossible_in_wasm_wasi`` / ``impossible_in_wasm_browser``
+    buckets follow the same non-gating pattern: a failure under the
+    target where the capability is missing is expected, surfaced for
+    visibility, and never blocks the gate.
     """
     cats = load_categories(stem)
     report = BucketReport()
@@ -315,6 +389,10 @@ def bucket_failures(stem: str, failed_ids: list[str]) -> BucketReport:
             report.good_to_have_failures.append(fid)
         elif bucket == "just_to_match_ctcl":
             report.just_to_match_ctcl_failures.append(fid)
+        elif bucket == "impossible_in_wasm_wasi":
+            report.impossible_in_wasm_wasi_failures.append(fid)
+        elif bucket == "impossible_in_wasm_browser":
+            report.impossible_in_wasm_browser_failures.append(fid)
         else:
             report.skip_failures.append(fid)
     return report
