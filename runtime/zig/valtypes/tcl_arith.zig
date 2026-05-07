@@ -1354,16 +1354,73 @@ fn obj_is_list_shape(o: i32) bool {
     if (o == 0) return false;
     const s = obj.obj_ensure_string(o);
     if (s.len == 0) return false;
+    // Use the real list parser to validate — Tcl 9 only reports the
+    // "cannot use a list as ..." wording when the string is a
+    // well-formed Tcl list with >= 2 elements.  ``{1 2 "}`` has
+    // multiple whitespace-separated tokens but is NOT a valid list
+    // (unterminated quote), and reference Tcl falls back to the
+    // "non-numeric string" wording for it (expr-11.15).
+    const list_parse = @import("tcl_list_parse.zig");
+    if (!list_parse.validate_list_braces(s.ptr, s.len)) return false;
+    // Walk the string with the list-element rules (quoted, braced,
+    // bare) to confirm syntactic well-formedness AND count >= 2
+    // elements.  A single-element string can shimmer to a list but
+    // we don't want to relabel its diagnostic — leave that as
+    // "non-numeric string".
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    // Skip leading whitespace, find first non-ws token, find any
-    // intra-token whitespace, then a second token.  If we don't see
-    // two tokens separated by whitespace, the string isn't a list.
     var i: u32 = 0;
-    while (i < s.len and (sp[i] == ' ' or sp[i] == '\t' or sp[i] == '\n')) i += 1;
-    while (i < s.len and sp[i] != ' ' and sp[i] != '\t' and sp[i] != '\n') i += 1;
-    while (i < s.len and (sp[i] == ' ' or sp[i] == '\t' or sp[i] == '\n')) i += 1;
-    if (i >= s.len) return false;
-    return true;
+    var count: u32 = 0;
+    while (i < s.len) {
+        while (i < s.len and (sp[i] == ' ' or sp[i] == '\t' or sp[i] == '\n')) i += 1;
+        if (i >= s.len) break;
+        count += 1;
+        if (count >= 2) {
+            // Two elements minimum is enough — but we still need to
+            // validate the second element's termination so we don't
+            // accept ``"1 2 ""`` as a list.
+        }
+        if (sp[i] == '{') {
+            var depth: u32 = 1;
+            i += 1;
+            while (i < s.len and depth > 0) {
+                if (sp[i] == '\\' and i + 1 < s.len) {
+                    i += 2;
+                    continue;
+                }
+                if (sp[i] == '{') depth += 1 else if (sp[i] == '}') depth -= 1;
+                i += 1;
+            }
+            if (depth > 0) return false;
+            // After ``}``, next char must be whitespace or end.
+            if (i < s.len and sp[i] != ' ' and sp[i] != '\t' and sp[i] != '\n') return false;
+        } else if (sp[i] == '"') {
+            i += 1;
+            var closed = false;
+            while (i < s.len) {
+                if (sp[i] == '\\' and i + 1 < s.len) {
+                    i += 2;
+                    continue;
+                }
+                if (sp[i] == '"') {
+                    i += 1;
+                    closed = true;
+                    break;
+                }
+                i += 1;
+            }
+            if (!closed) return false;
+            if (i < s.len and sp[i] != ' ' and sp[i] != '\t' and sp[i] != '\n') return false;
+        } else {
+            while (i < s.len and sp[i] != ' ' and sp[i] != '\t' and sp[i] != '\n') {
+                if (sp[i] == '\\' and i + 1 < s.len) {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    return count >= 2;
 }
 
 /// Build ``cannot use non-numeric string "X" as <position>

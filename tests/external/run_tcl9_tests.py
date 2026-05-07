@@ -475,49 +475,56 @@ def _patch_tcltest_source(src: str) -> str:
 
 
 def _patch_hello_world_procs(script: str) -> str:
-    """Replace the ``12days`` / ``do_twelve_days`` stress-test procs
-    with no-ops before bundling the test file.
+    """Pass-through — no procs require source-level patching anymore.
 
-    ``hello_world`` and ``put_hello_char`` previously needed the same
-    workaround but now run real after the global-mirror staleness fix
-    (``global``-declared names inside a proc consult the global table
-    on every read instead of trusting the WASM-local mirror, which
-    callees mutate via the global table — see set_.py / lappend_.py /
-    append_.py / _variables.py).
+    Both stress tests (``hello_world`` / ``put_hello_char`` and
+    ``12days`` / ``do_twelve_days``) now run real against the
+    compiled runtime.  Kept as an identity function so the bundle
+    pipeline below doesn't need a structural change; can be deleted
+    once nothing calls it.
 
-    ``12days`` remains stubbed: the recursion eventually reaches a
-    branch that runs ``[scan [string index $c 0] %c x; set x]`` with
-    ``$c`` empty, and the eval-fallback path raises ``can't read "x":
-    no such variable``.  Reference Tcl 9 produces 376 chars in
-    ``$xxx``, so the recursion path differs subtly between the two —
-    likely a string-range / ternary-arity disagreement that needs
-    its own investigation.  Triaged separately from the expr suite
-    parity work.
+    Bugs fixed along the way:
+
+    * Global-mirror staleness — ``global``-declared names inside a
+      proc consult the global table on every read instead of
+      trusting the WASM-local mirror that callees mutate through
+      the global table.  See set_.py / lappend_.py / append_.py /
+      _variables.py.
+    * ``[append xxx X]`` / ``[lappend xxx X]`` cmd-subs in VALUE
+      and expr context now dispatch through the WASM emitter
+      registry first; the previous fall-through to the runtime's
+      string-concat helper (``tcl_cmd_append``) silently dropped
+      the var write and returned the mis-built ``"xxxX"`` value.
+    * Multi-command cmd-substitutions
+      (``[append xxx X; scan ...; set x]`` / ``[expr {…};expr {…}]``)
+      now split at top-level ``;`` / newline and compile each
+      command inline.  ``_split_command_subst`` parses one command
+      only and would otherwise drag the trailing commands' words
+      into the first command's argv.
+    * ``scan " " %c x`` skipped leading whitespace and never set
+      ``x``.  Tcl 9's ``%c`` is the one consuming spec that does
+      NOT skip whitespace beforehand (matches ``CharConvert`` in
+      tclScan.c).
+    * ``MAX_DEPTH`` for the runtime frame stack was 64; raised to
+      1024 to match reference Tcl 9's ``Tcl_RecursionLimit``
+      default.  At depth >64 ``frame_push`` was returning -1 and
+      the codegen DROPped the result, so subsequent ``local_set``
+      calls landed in the previous frame and clobbered unrelated
+      locals.
+    * ``extract_single_expr_argument`` returned the first ``expr``
+      argument from a cmd-sub body that had a trailing
+      ``; cmd2``; the second command was silently dropped.  The
+      lexer now bails out when it sees a real word after the
+      first command's EOL.
+    * ``obj_is_list_shape`` accepted any whitespace-bearing string
+      as a list, so the ``cannot use a list as operand of "X"``
+      diagnostic mis-fired on values like ``{1 2 "}`` (which is
+      not a valid list — unterminated quote).  Now uses a real
+      list-element parser and requires >= 2 well-formed elements.
+    * The escape analysis records a fallback for any value
+      embedding a multi-command cmd-sub so the proc keeps its
+      runtime frame around the eval boundary.
     """
-    for proc_name in ("12days", "do_twelve_days"):
-        start_marker = f"proc {proc_name} "
-        idx = script.find(start_marker)
-        if idx < 0:
-            continue
-        body_start = script.index("{", script.index("{", idx) + 1)
-        depth = 1
-        pos = body_start + 1
-        while depth > 0 and pos < len(script):
-            ch = script[pos]
-            if ch == "\\":
-                pos += 2
-                continue
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-            pos += 1
-        end_of_proc = pos
-        args_start = script.index("{", idx)
-        args_end = script.index("}", args_start) + 1
-        arg_list = script[args_start:args_end]
-        replacement = f"proc {proc_name} {arg_list} {{}}"
-        script = script[:idx] + replacement + script[end_of_proc:]
     return script
 
 
