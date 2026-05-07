@@ -181,11 +181,7 @@ class StemCategories:
         ]
 
     def _full_ids_for(self, bucket: str) -> list[str]:
-        return [
-            f"{self.stem}-{suffix}"
-            for suffix, b in self.test_to_bucket.items()
-            if b == bucket
-        ]
+        return [f"{self.stem}-{suffix}" for suffix, b in self.test_to_bucket.items() if b == bucket]
 
 
 def _strip_stem(stem: str, test_id: str) -> str:
@@ -292,9 +288,7 @@ def _load_uncached(stem: str) -> StemCategories:
     )
     skip_baseline = int(baseline.get("skip_failing", bucket_counts["skip"]))
     wasi_baseline = int(
-        baseline.get(
-            "impossible_in_wasm_wasi_failing", bucket_counts["impossible_in_wasm_wasi"]
-        )
+        baseline.get("impossible_in_wasm_wasi_failing", bucket_counts["impossible_in_wasm_wasi"])
     )
     browser_baseline = int(
         baseline.get(
