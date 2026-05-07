@@ -145,13 +145,19 @@ class _WasmEmitterBase:
         # made so the body emitters can decide whether to wrap each
         # write with retain/release.
         self._wants_frame: bool = False
-        # Debug-only check: ``_emit_local_set`` / ``_emit_local_tee``
-        # asserts that no direct ``local.set`` is emitted for a
-        # non-pessimistic FRAME-tagged Tcl variable.  Off in prod
-        # builds; flip on with ``TCLLSP_DEBUG_VAR_CONTRACT=1`` to
-        # catch the bypass-via-direct-write codegen bug class.
-        self._var_write_contract_check: bool = bool(
-            os.environ.get("TCLLSP_DEBUG_VAR_CONTRACT")
+        # Codegen-time invariant: ``_emit_local_set`` / ``_emit_local_tee``
+        # raises if a direct WASM ``local.set`` is emitted for a
+        # non-pessimistic FRAME-tagged Tcl variable.  The frame is
+        # the authoritative storage for such a name; bypassing
+        # ``_emit_var_write_obj`` desyncs the WASM-local mirror from
+        # the frame and surfaces as ``can't read "<name>": no such
+        # variable`` at runtime (the parseExpr-trap bug class).
+        # Always-on — the check is O(1) per write and the failure
+        # mode it prevents is silent corruption of variable state.
+        # ``TCLLSP_DISABLE_VAR_CONTRACT=1`` bypasses it for emergency
+        # forensics if a regression hits the gate.
+        self._var_write_contract_check: bool = not os.environ.get(
+            "TCLLSP_DISABLE_VAR_CONTRACT"
         )
         # Lazy scratch slot for the retain/release wrap.  Allocated on
         # first use of ``_emit_owned_local_write`` and reused for
@@ -456,12 +462,17 @@ class _WasmEmitterBase:
         "<name>": no such variable`` (or worse, return the previous
         iteration's value).
 
-        Disabled by default so prod compiles take no extra cost; turn on
-        with ``TCLLSP_DEBUG_VAR_CONTRACT=1`` for testing.  The check is
-        per-write and O(1) but allocating a useful traceback is not, so
-        gate it behind an explicit opt-in.
+        The check is per-write and O(1).  Always-on — see the
+        ``_var_write_contract_check`` comment in ``__init__`` for the
+        rationale and the emergency-bypass env var.
         """
         if not self._var_write_contract_check:
+            return
+        if not self._is_proc:
+            # Top-level (``::top``).  ``_emit_var_write_obj_impl``'s
+            # non-proc branch intentionally mirrors every write to a
+            # WASM-local after ``tcl_global_set``, so a raw
+            # ``local.set`` here is part of the helper, not a bypass.
             return
         if idx >= len(self._local_names):
             return
@@ -477,6 +488,21 @@ class _WasmEmitterBase:
             # Param prologue legitimately mirrors the incoming arg
             # into the WASM-local before a separate frame_local_set_at
             # publishes it to the frame.  Allowed.
+            return
+        if name in self._globals:
+            # ``global x`` declarations pre-load the global value
+            # into a WASM-local mirror for fast in-proc reads.
+            # Real writes route through ``tcl_global_set`` (in
+            # ``_emit_var_write_obj_impl``'s alias branch); the
+            # mirror itself is a read cache.
+            return
+        if name in self._aliases:
+            # Aliases (``upvar`` / ``variable``) maintain a
+            # WASM-local that stores the *target* name (not the
+            # value) — see ``_register_global_alias`` /
+            # ``_register_frame_var_alias``.  The actual var-set
+            # routes through ``tcl_global_set`` /
+            # ``tcl_local_set`` against that target.
             return
         raise AssertionError(
             f"var-write contract: direct {op} to slot {idx} ({name!r}) "
