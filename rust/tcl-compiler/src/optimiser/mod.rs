@@ -20,9 +20,11 @@
 //!   the four AST-level rewriters (instcombine / strength reduction /
 //!   strlen-simplify / streq-simplify) in [`helpers::expr_simplify`].
 //! - [`pattern_recognition`] — O114 incr-idiom + O119 multi-set
-//!   packing hint + O122 string-build chain hint.
-//! - [`propagation`] — O100 var-ref + O102 load-forward + O103
-//!   static-proc-call + O104 return-terminator folding.
+//!   packing hint + O104 string-build chain hint (canonical
+//!   allocation per `docs/generated/optimisation_codes.md`).
+//! - [`propagation`] — O100 var-ref + O100 string-interpolation +
+//!   O102 load-forward + O103 static-proc-call folding + O100
+//!   return-terminator folding.
 //! - [`structure_elimination`] — O112 if/while/for/switch elimination.
 //! - [`tail_call`] — O121 bare + return-subst variants, O122 loop hint,
 //!   O123 accumulator-candidate hint.
@@ -346,15 +348,24 @@ impl PassId {
 /// - [`PassId::Elimination`] → [`elimination::run`] — O107
 ///   unreachable-block + O108 ADCE + O109 dead stores + O126
 ///   unused-variable assignments.
-/// - [`PassId::ExprSimplify`] → [`expr_simplify::run`] — O101 fold
-///   + O115 redundant-`expr` unwrap on standalone `expr` statements (AST-level rewriters live in [`helpers::expr_simplify`] and are exercised through `branch_folding::propagate_into_branches`).
+/// - [`PassId::ExprSimplify`] → [`expr_simplify::run`] — walks
+///   both `Statement::ExprEval` and `Statement::AssignExpr`.
+///   Emits O101 fold + O115 redundant-`expr` unwrap on standalone
+///   `expr` statements; on `AssignExpr` (`set name [expr {…}]`)
+///   it can additionally emit O110 (instcombine identities) and
+///   O113 (strength reduction) directly, before the
+///   `branch_folding::propagate_into_branches` cascade gets a
+///   shot at branch conditions.
 /// - [`PassId::Propagation`] → [`propagation::run`] — O100
 ///   constant-var-ref + O100 string-interpolation + O102 load
-///   forwarding + O103 static-proc-call folding + O104
+///   forwarding + O103 static-proc-call folding + O100
 ///   return-terminator folding.
 /// - [`PassId::PatternRecognition`] →
 ///   [`pattern_recognition::run`] — O114 incr-idiom + O119 multi-set
-///   packing hint + O122 string-build chain hint.
+///   packing hint + O104 string-build chain hint (canonical
+///   allocation per `docs/generated/optimisation_codes.md`;
+///   earlier Rust commits emitted O122 here, colliding with
+///   `tail_call`).
 /// - [`PassId::TailCall`] → [`tail_call::run`] — O121 (bare +
 ///   return-subst variants) + O122 loop-conversion hint + O123
 ///   accumulator-candidate hint.

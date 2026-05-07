@@ -6,10 +6,15 @@
 //!
 //! - **`optimise_incr_idioms`** (`O114`) — rewrite
 //!   `set x [expr {$x ± N}]` to `incr x N`.
-//! - **`optimise_string_build_chains`** (`O122`) — detect
+//! - **`optimise_string_build_chains`** (`O104`) — detect
 //!   accumulation chains `set s ""; append s …; append s …` and
-//!   emit a hint-only `O122` on the first `append` suggesting
-//!   a single-statement rewrite.
+//!   emit a hint-only `O104` on the first `append` suggesting
+//!   a single-statement rewrite.  `O104` matches the Python
+//!   optimiser allocation and the canonical
+//!   `docs/generated/optimisation_codes.md` table; earlier Rust
+//!   commits emitted `O122` here, but `O122` is reserved for the
+//!   `tail_call` recursion-to-loop conversion and the collision
+//!   was fixed in the C* close-out audit.
 //! - **`optimise_multi_set_packing`** (`O119`) — detect three
 //!   or more contiguous `set` commands with safe-literal
 //!   values and emit a hint-only `O119` suggesting a
@@ -17,7 +22,7 @@
 //!   (appropriate on Tcl 8.5 / 8.6; Tcl 9.0 prefers individual
 //!   sets).
 //!
-//! O119 and O122 are hint-only. The source-level multi-statement
+//! O104 and O119 are hint-only. The source-level multi-statement
 //! deletion + re-emission the Python pass performs is tracked as
 //! a follow-up — emitting the hint is enough to surface the
 //! opportunity in editors / linters.
@@ -87,7 +92,7 @@ fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
     }
 }
 
-/// O122: detect `set s ""` followed by two or more
+/// O104: detect `set s ""` followed by two or more
 /// `append s …` to the same variable — a classic
 /// string-build pattern. Emit a hint on the first `append`.
 fn detect_string_build_chain(ctx: &mut PassContext<'_>, script: &Script) {
@@ -123,7 +128,7 @@ fn detect_string_build_chain(ctx: &mut PassContext<'_>, script: &Script) {
             let span_end = stmts[j - 1].span().end();
             let span = tcl_lexer::Span::new(span_start, span_end);
             let mut opt = Optimisation::new(
-                "O122",
+                "O104",
                 format!("Replace `{appends}`-step append chain on '{var}' with a single set"),
                 span,
                 "",
@@ -391,8 +396,8 @@ mod tests {
     fn string_build_chain_hints_on_two_plus_appends() {
         let opts = run_pass("set s {}\nappend s foo\nappend s bar");
         assert!(
-            opts.iter().any(|o| o.code == "O122" && o.hint_only),
-            "expected O122 hint for string-build chain, got {opts:?}",
+            opts.iter().any(|o| o.code == "O104" && o.hint_only),
+            "expected O104 hint for string-build chain, got {opts:?}",
         );
     }
 
@@ -402,8 +407,8 @@ mod tests {
         // the initial value is non-empty.
         let opts = run_pass("set s foo\nappend s bar\nappend s baz");
         assert!(
-            opts.iter().all(|o| o.code != "O122"),
-            "non-empty initial should not emit O122, got {opts:?}",
+            opts.iter().all(|o| o.code != "O104"),
+            "non-empty initial should not emit O104, got {opts:?}",
         );
     }
 
