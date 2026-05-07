@@ -1,12 +1,12 @@
 # assemble.test categorisation (Tcl 9.0.3 source tree).
-# Stem: deferred (bcc-internal) — [assemble] — exposes the bcc instruction set; not applicable.
-# Not in `_IN_SCOPE` in tests/external/run_tcl9_tests.py, so
-# the harness never runs this file and the loader is never
-# queried for it.  This TOML is a placeholder so every Tcl 9
-# test stem has an explicit categorisation record per
-# categories/README.md.  When/if the stem is added to the
-# in-scope list, the failing test IDs will be triaged into
-# `must_pass` / `good_to_have` / `just_to_match_ctcl` / `skip`.
+# Stem: in-scope, currently traps — [assemble] exposes the bcc instruction set — out of scope for WASM codegen but kept in-scope for source-level coverage.
+# Per categories/README.md: ``trap_allowed = true`` lets the
+# harness record the mid-run trap as a tracked failure rather
+# than promoting it to a hard fail.  Per-test-ID triage will
+# be added once the runtime gap closes and the bundle reaches
+# a tcltest summary line.
+
+trap_allowed = true
 
 good_to_have = []
 just_to_match_ctcl = []
