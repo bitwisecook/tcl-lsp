@@ -29,6 +29,7 @@ from ....ir import (
     IRForeach,
     IRIf,
     IRIncr,
+    IRInterpBoundary,
     IRReturn,
     IRStatement,
     IRSwitch,
@@ -224,6 +225,19 @@ class _WasmEmitterStmtMixin(_Base):
         # statement.  Skipped at top level (no proc frame to stamp)
         # and when the setter isn't imported.
         self._emit_frame_set_line(stmt)
+        # Centralised interp-boundary dispatch: an IRInterpBoundary
+        # node is a structural sync point — codegen translates it to
+        # the same ``_emit_interp_boundary`` helper the eval/dispatch
+        # call sites already go through.  Lowering inserts these
+        # nodes immediately before any statement that hands control
+        # to the interpreter, so the sync becomes part of the IR
+        # rather than a method call codegen has to remember.
+        if isinstance(stmt, IRInterpBoundary):
+            vars_observed = (
+                set(stmt.vars_observed) if stmt.vars_observed is not None else None
+            )
+            self._emit_interp_boundary(stmt.kind, vars_observed=vars_observed)
+            return
         match stmt:
             case IRAssignConst(name=name, value=value):
                 self._emit_obj_literal(value)

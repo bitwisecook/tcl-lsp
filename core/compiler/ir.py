@@ -170,6 +170,39 @@ class IRBarrier:
 
 
 @dataclass(frozen=True, slots=True)
+class IRInterpBoundary:
+    """Marker statement: control is about to enter the Tcl interpreter.
+
+    Inserted by the lowerer (or a pre-codegen pass) immediately before
+    any statement that will hand control to the runtime interpreter
+    — eval-fallback dispatch, ``[eval $body]`` execution, ``info``
+    introspection, dynamic-dispatch, etc.  Codegen translates this
+    node into a frame-sync call (mirror compiled-side WASM-locals
+    into the runtime frame so the interpreter can resolve names).
+
+    ``kind`` matches the BarrierKind taxonomy in the var-escape
+    analysis (``"call"``, ``"eval"``, ``"dispatch"``, ``"info"``)
+    so per-kind narrowing in codegen can sync only the subset of
+    locals each boundary type actually needs to observe.
+
+    ``vars_observed`` is the *known* set of names the upcoming
+    interpreter activity will touch (e.g. names referenced in a
+    statically-scanned eval body).  ``None`` means "unknown — sync
+    every Tcl local".  An empty set explicitly skips the sync.
+
+    Centralising the boundary as data (an IR node) rather than as
+    scattered ``_emit_frame_sync()`` calls in codegen makes
+    "forgot to sync before this interp call" structurally
+    impossible — the sync is part of the IR.
+    """
+
+    range: Range
+    kind: str
+    vars_observed: frozenset[str] | None = None
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class IRScript:
     statements: tuple["IRStatement", ...] = ()
 
@@ -554,6 +587,7 @@ IRStatement = (
     | IRCall
     | IRReturn
     | IRBarrier
+    | IRInterpBoundary
     | IRIf
     | IRFor
     | IRWhile
