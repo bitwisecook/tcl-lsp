@@ -414,6 +414,14 @@ impl Scope {
 /// emitter so commands handled by ``unknown`` aren't false-
 /// positived.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+// `chains_original` / `empty_stub` / `case_insensitive` /
+// `has_pattern_dispatch` / `has_exec` / `has_auto_load` are
+// orthogonal facts detected about the body of an ``unknown``
+// proc, each consumed independently by the W123 suppression
+// logic. The type also crosses the PyO3 serialisation boundary
+// (the materialiser unpacks each bool by name), so a bitflags
+// migration needs to rewrite the Python-side reader in lockstep
+// — deferred to its own chunk.
 #[allow(clippy::struct_excessive_bools)]
 pub struct UnknownProcInfo {
     /// Command names explicitly dispatched (e.g. switch arm

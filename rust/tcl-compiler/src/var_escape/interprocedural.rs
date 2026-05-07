@@ -20,7 +20,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::hash::BuildHasher;
 
-use crate::var_escape::types::ProcEscapeSummary;
+use crate::var_escape::types::{EscapeFlags, ProcEscapeSummary};
 
 fn caller_namespace(qname: &str) -> String {
     if qname.is_empty() || qname == "::" {
@@ -121,7 +121,7 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         .collect();
     let mut transitive_unbounded: HashMap<String, bool> = summaries
         .iter()
-        .map(|(k, s)| (k.clone(), s.unbounded_upvar_source))
+        .map(|(k, s)| (k.clone(), s.unbounded_upvar_source()))
         .collect();
 
     // Reverse edges: qname → set of qnames that call it.
@@ -176,7 +176,7 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
     //         | (has_call_fallback & not all-callees-resolve)
     let mut downgraded_fallback: HashMap<String, bool> = HashMap::new();
     for (qname, summary) in summaries {
-        let call_fallback_final = if summary.has_call_fallback {
+        let call_fallback_final = if summary.has_call_fallback() {
             !summary
                 .direct_callees
                 .iter()
@@ -184,7 +184,7 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         } else {
             false
         };
-        downgraded_fallback.insert(qname.clone(), summary.has_fallback || call_fallback_final);
+        downgraded_fallback.insert(qname.clone(), summary.has_fallback() || call_fallback_final);
     }
 
     // Materialise the final per-proc summary.
@@ -192,11 +192,15 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
     for (qname, summary) in summaries {
         let sources = transitive_sources[qname].clone();
         let unbounded = transitive_unbounded[qname];
-        let pessimistic = unbounded && !summary.dynamic_barrier;
+        let pessimistic = unbounded && !summary.dynamic_barrier();
         let mut new_summary = summary.with_escapes(sources.iter().cloned(), pessimistic);
         new_summary.upvar_source_names = sources.into_iter().collect::<BTreeSet<_>>();
-        new_summary.unbounded_upvar_source = unbounded;
-        new_summary.has_fallback = downgraded_fallback[qname];
+        new_summary
+            .flags
+            .set(EscapeFlags::UNBOUNDED_UPVAR_SOURCE, unbounded);
+        new_summary
+            .flags
+            .set(EscapeFlags::HAS_FALLBACK, downgraded_fallback[qname]);
         result.insert(qname.clone(), new_summary);
     }
     result
@@ -275,11 +279,11 @@ mod tests {
         let mut s = HashMap::new();
         s.insert("::caller".to_string(), summary(&["::leaf"], &[]));
         let mut leaf = summary(&[], &[]);
-        leaf.unbounded_upvar_source = true;
+        leaf.flags.insert(EscapeFlags::UNBOUNDED_UPVAR_SOURCE);
         s.insert("::leaf".to_string(), leaf);
         let r = solve_interprocedural_escape(&s);
-        assert!(r["::caller"].dynamic_barrier);
-        assert!(r["::caller"].unbounded_upvar_source);
+        assert!(r["::caller"].dynamic_barrier());
+        assert!(r["::caller"].unbounded_upvar_source());
     }
 
     #[test]
@@ -299,36 +303,36 @@ mod tests {
     fn has_call_fallback_downgrades_when_all_callees_resolve() {
         let mut s = HashMap::new();
         let mut caller = summary(&["::leaf"], &[]);
-        caller.has_call_fallback = true;
+        caller.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
         s.insert("::caller".to_string(), caller);
         s.insert("::leaf".to_string(), summary(&[], &[]));
         let r = solve_interprocedural_escape(&s);
         // ::leaf is a tracked proc, so the call_fallback downgrades
         // and final has_fallback stays false (intraproc didn't set
         // has_fallback either).
-        assert!(!r["::caller"].has_fallback);
+        assert!(!r["::caller"].has_fallback());
     }
 
     #[test]
     fn has_call_fallback_keeps_set_when_callee_unresolved() {
         let mut s = HashMap::new();
         let mut caller = summary(&["unknown_external"], &[]);
-        caller.has_call_fallback = true;
+        caller.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
         s.insert("::caller".to_string(), caller);
         let r = solve_interprocedural_escape(&s);
         // No tracked proc resolves ``unknown_external`` → final
         // has_fallback is true.
-        assert!(r["::caller"].has_fallback);
+        assert!(r["::caller"].has_fallback());
     }
 
     #[test]
     fn has_fallback_intraproc_value_preserved() {
         let mut s = HashMap::new();
         let mut caller = summary(&[], &[]);
-        caller.has_fallback = true;
+        caller.flags.insert(EscapeFlags::HAS_FALLBACK);
         s.insert("::caller".to_string(), caller);
         let r = solve_interprocedural_escape(&s);
-        assert!(r["::caller"].has_fallback);
+        assert!(r["::caller"].has_fallback());
     }
 
     #[test]

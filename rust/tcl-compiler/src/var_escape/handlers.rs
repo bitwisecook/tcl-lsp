@@ -194,7 +194,7 @@ mod tests {
     fn upvar_dynamic_level_marks_pessimistic() {
         let mut s = EscapeState::default();
         handle_upvar(&args_of(&["$lvl", "src", "dst"]), &mut s);
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
@@ -236,21 +236,21 @@ mod tests {
         let mut s = EscapeState::default();
         handle_namespace_call(&args_of(&["eval", "ns", "body"]), &mut s);
         assert!(s.tags.is_empty());
-        assert!(!s.dynamic_barrier);
+        assert!(!s.dynamic_barrier());
     }
 
     #[test]
     fn info_no_subcommand_is_pessimistic() {
         let mut s = EscapeState::default();
         handle_info(&[], &mut s);
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
     fn info_dynamic_subcommand_is_pessimistic() {
         let mut s = EscapeState::default();
         handle_info(&args_of(&["$dyn"]), &mut s);
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
@@ -258,7 +258,7 @@ mod tests {
         for sub in ["level", "frame", "vars", "locals"] {
             let mut s = EscapeState::default();
             handle_info(&args_of(&[sub]), &mut s);
-            assert!(s.dynamic_barrier, "{sub} should be pessimistic");
+            assert!(s.dynamic_barrier(), "{sub} should be pessimistic");
         }
     }
 
@@ -273,14 +273,14 @@ mod tests {
     fn info_exists_dynamic_target_is_pessimistic() {
         let mut s = EscapeState::default();
         handle_info(&args_of(&["exists", "$dyn"]), &mut s);
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
     fn info_safe_subcommand_does_nothing() {
         let mut s = EscapeState::default();
         handle_info(&args_of(&["patchlevel"]), &mut s);
-        assert!(!s.dynamic_barrier);
+        assert!(!s.dynamic_barrier());
         assert!(s.tags.is_empty());
     }
 
@@ -288,7 +288,7 @@ mod tests {
     fn info_unknown_subcommand_is_pessimistic() {
         let mut s = EscapeState::default();
         handle_info(&args_of(&["totally_made_up"]), &mut s);
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]

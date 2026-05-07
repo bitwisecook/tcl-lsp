@@ -184,6 +184,11 @@ impl CommandSpec {
 /// Carries its own arity, arg roles, return type, effect classification,
 /// and hooks — a self-contained metadata bundle.
 #[derive(Debug, Clone)]
+// `pure` / `mutator` / `destructive` / `loop_list_header` /
+// `creates_scope_alias` are subcommand-shaped behavioural facts.
+// They could fold into the existing [`Traits`] bitflags field
+// above, but doing so is a registry-API change that touches
+// every command-spec literal; deferred to its own chunk.
 #[allow(clippy::struct_excessive_bools)]
 pub struct SubCommand {
     /// Subcommand name (e.g. `"create"`, `"for"`, `"length"`).

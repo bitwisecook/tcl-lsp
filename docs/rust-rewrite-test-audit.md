@@ -675,6 +675,17 @@ follow-up since main hasn't seen this issue.
 
 ## C40-default-on — flip the C40 dispatcher to Rust by default
 
+> **Status banner — post-#241 reality (audited 2026-05-07).**
+> `core/analysis/signature_scan.py` is now pure Python — no Rust
+> dispatch shim, no `_extract_signatures_python` fallback, no
+> `TCL_LSP_RUST_SIGNATURE_SCAN` env-var read. The dispatcher
+> described below was removed in the same wave as the C41
+> shim removal at PR #241 (no commit-log entry tracks it). The
+> Rust signature-scan port (`tcl_compiler::signature_scan`)
+> still exists as a library but isn't invoked from production
+> Python. Closure path is the `S*` LSP-server port. The
+> two-commit chunk below is historical record only.
+
 Two-commit chunk:
 
 - **Phase 1** (`rust_shim_enabled` keyword extension): one new test
@@ -698,6 +709,23 @@ Two-commit chunk:
   declarations from the workspace index.
 
 ## C41 — `core/analysis/_analyser/`
+
+> **Status banner — post-#241 reality (audited 2026-05-07).** The
+> Python dispatch shim, `_materialise_rust_analysis`,
+> `_merge_rust_with_python_supplement`, and the
+> `TCL_LSP_RUST_ANALYSER` env var were silently removed when
+> `core/analysis/_analyser/__init__.py` was simplified from 535
+> LOC to 47 during PR #241's merge resolution (`cd7a8441`,
+> 2026-04-30). The differential test file
+> (`tests/test_rust_analyser_differential.py`) described below
+> is now broken — its `from core.analysis._analyser import
+> _materialise_rust_analysis` line raises `ImportError`. The
+> Rust analyser library itself (`rust/tcl-compiler/src/analyser/`)
+> is intact. Restoration or deletion of the harness is tracked
+> as `SYNC-JUN-DIFF-harness-restore` in the Tracking-main
+> section of `docs/rust-rewrite.md`. The text below documents
+> what the chunk **was**; do not treat its present-tense
+> assertions as live.
 
 The analyser has the largest test surface in the repo
 (`tests/test_analyser.py` carries 2,049 cases covering every
@@ -813,6 +841,12 @@ tracked as its own Rust-side follow-up; see the
   diagnostics.
 
 ## C41-default-on — flip the C41 dispatcher to Rust by default
+
+> **Status banner — post-#241 reality (audited 2026-05-07).** The
+> dispatcher this section describes does not exist in the current
+> code: it was silently removed at PR #241. The two phases below
+> are kept as a historical record of the chunk's design only.
+> The flip is moot; closure path is the `S*` LSP-server port.
 
 Mirrors the C40-default-on shape.  Two phases:
 

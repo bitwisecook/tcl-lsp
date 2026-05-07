@@ -12,7 +12,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::ssa::{SsaStatement, ValueKey, Version};
 use crate::var_escape::helpers::is_dynamic_name;
-use crate::var_escape::types::EscapeTag;
+use crate::var_escape::types::{EscapeFlags, EscapeTag};
 
 /// Tracked literal binding for the alias-inference path.
 #[derive(Debug, Clone)]
@@ -26,52 +26,65 @@ enum LiteralBinding {
 /// `ssa_tags` is the authoritative per-version result;
 /// `name_tags` collapses to per-name (a name is `Frame` if any of
 /// its versions was tagged `Frame`).
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CfgEscapeResult {
     /// Per-(name, version) escape tags.
     pub ssa_tags: HashMap<ValueKey, EscapeTag>,
     /// Per-name collapse: `Frame` iff any version was tagged.
     pub name_tags: HashMap<String, EscapeTag>,
-    /// Whole-proc pessimism marker.
-    pub dynamic_barrier: bool,
+    /// Pessimism / fallback flag set.
+    pub flags: EscapeFlags,
     /// Caller-frame names this proc reaches via `upvar`.
     pub upvar_source_names: BTreeSet<String>,
-    /// True if the upvar source set can't be enumerated.
-    pub unbounded_upvar_source: bool,
     /// Statically-resolvable callees.
     pub direct_callees: BTreeSet<String>,
-    /// Codegen eval-fallback gate.
-    pub has_fallback: bool,
-    /// Eval-fallback gate downgradable by interprocedural pass.
-    pub has_call_fallback: bool,
     /// Every name the analysis saw (params + assigns + reads).
     pub known_names: HashSet<String>,
+}
+
+impl CfgEscapeResult {
+    /// True if the whole-proc dynamic-barrier marker is set.
+    #[must_use]
+    pub fn dynamic_barrier(&self) -> bool {
+        self.flags.dynamic_barrier()
+    }
+
+    /// True if the upvar-source set can't be statically enumerated.
+    #[must_use]
+    pub fn unbounded_upvar_source(&self) -> bool {
+        self.flags.unbounded_upvar_source()
+    }
+
+    /// True if codegen needs the eval fallback for this proc.
+    #[must_use]
+    pub fn has_fallback(&self) -> bool {
+        self.flags.has_fallback()
+    }
+
+    /// True if a non-frameless `IRCall` with a statically
+    /// resolvable command word was seen.
+    #[must_use]
+    pub fn has_call_fallback(&self) -> bool {
+        self.flags.has_call_fallback()
+    }
 }
 
 /// Mutable accumulator for the CFG walk.
 ///
 /// Tracks per-SSA-version tags plus per-name auxiliary data.
 /// Auxiliary data is monotonic — no per-block join state.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 pub struct CfgState {
     /// Per-(name, version) escape tags.
     pub ssa_tags: HashMap<ValueKey, EscapeTag>,
-    /// Whole-proc pessimism marker.
-    pub dynamic_barrier: bool,
+    /// Pessimism / fallback flag set.
+    pub flags: EscapeFlags,
     /// Names the analysis has seen.
     pub known_names: HashSet<String>,
     /// Caller-frame names this proc reaches via `upvar`.
     pub upvar_source_names: BTreeSet<String>,
-    /// True if a dynamic-source `upvar` defeats enumeration.
-    pub unbounded_upvar_source: bool,
     /// Statically-resolvable callees.
     pub direct_callees: BTreeSet<String>,
-    /// Codegen eval-fallback gate.
-    pub has_fallback: bool,
-    /// Eval-fallback gate downgradable by interprocedural pass.
-    pub has_call_fallback: bool,
     /// Single-writer alias tracking (`set $n` resolution).
     literal_assigns: HashMap<String, LiteralBinding>,
     /// Most recent SSA version observed per name.
@@ -86,6 +99,31 @@ impl CfgState {
             known_names: known_names.into_iter().collect(),
             ..Default::default()
         }
+    }
+
+    /// True if the whole-proc dynamic-barrier marker is set.
+    #[must_use]
+    pub fn dynamic_barrier(&self) -> bool {
+        self.flags.dynamic_barrier()
+    }
+
+    /// True if the upvar-source set can't be statically enumerated.
+    #[must_use]
+    pub fn unbounded_upvar_source(&self) -> bool {
+        self.flags.unbounded_upvar_source()
+    }
+
+    /// True if codegen needs the eval fallback for this proc.
+    #[must_use]
+    pub fn has_fallback(&self) -> bool {
+        self.flags.has_fallback()
+    }
+
+    /// True if a non-frameless `IRCall` with a statically
+    /// resolvable command word was seen.
+    #[must_use]
+    pub fn has_call_fallback(&self) -> bool {
+        self.flags.has_call_fallback()
     }
 
     /// Return the SSA version to tag for *name* at this statement.
@@ -141,7 +179,7 @@ impl CfgState {
 
     /// Mark the whole proc as needing a dynamic-barrier fallback.
     pub fn mark_pessimistic(&mut self) {
-        self.dynamic_barrier = true;
+        self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
     }
 
     /// Record a literal caller-frame name reached via `upvar`.
@@ -153,7 +191,7 @@ impl CfgState {
 
     /// Record that the upvar source set cannot be enumerated.
     pub fn record_unbounded_upvar(&mut self) {
-        self.unbounded_upvar_source = true;
+        self.flags.insert(EscapeFlags::UNBOUNDED_UPVAR_SOURCE);
     }
 
     /// Record a statically-resolvable callee.
@@ -165,12 +203,12 @@ impl CfgState {
 
     /// Record a definite interpreter dispatch (barrier-shaped).
     pub fn record_fallback(&mut self) {
-        self.has_fallback = true;
+        self.flags.insert(EscapeFlags::HAS_FALLBACK);
     }
 
     /// Record a non-frameless `IRCall` with a static command word.
     pub fn record_call_fallback(&mut self) {
-        self.has_call_fallback = true;
+        self.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
     }
 
     /// Track *name* = literal *value* under the single-writer rule.
@@ -242,12 +280,9 @@ impl CfgState {
         CfgEscapeResult {
             ssa_tags: self.ssa_tags,
             name_tags,
-            dynamic_barrier: self.dynamic_barrier,
+            flags: self.flags,
             upvar_source_names: self.upvar_source_names,
-            unbounded_upvar_source: self.unbounded_upvar_source,
             direct_callees: self.direct_callees,
-            has_fallback: self.has_fallback,
-            has_call_fallback: self.has_call_fallback,
             known_names: self.known_names,
         }
     }
@@ -346,9 +381,9 @@ mod tests {
     fn fallback_flags_are_independent() {
         let mut s = CfgState::default();
         s.record_fallback();
-        assert!(s.has_fallback);
-        assert!(!s.has_call_fallback);
+        assert!(s.has_fallback());
+        assert!(!s.has_call_fallback());
         s.record_call_fallback();
-        assert!(s.has_call_fallback);
+        assert!(s.has_call_fallback());
     }
 }

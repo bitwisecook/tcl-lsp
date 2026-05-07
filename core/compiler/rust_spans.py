@@ -49,7 +49,10 @@ def rust_shim_enabled(env_var: str, *, default: bool = False) -> bool:
 
     Centralising the check here prevents silent divergence between
     the `TCL_LSP_RUST_*` dispatch shims (`OPTIMISER`, `INTERPROC`,
-    `GVN`, `SIGNATURE_SCAN`).
+    `GVN`). The `SIGNATURE_SCAN` and `ANALYSER` shims that used to
+    consume this helper were removed at PR #241; the helper kept
+    its `default` keyword so the remaining three shims stay
+    polarity-flexible.
     """
     raw = os.environ.get(env_var, "").strip().lower()
     if raw in _TRUTHY_VALUES:

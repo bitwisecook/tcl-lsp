@@ -9,7 +9,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::var_escape::helpers::is_dynamic_name;
-use crate::var_escape::types::EscapeTag;
+use crate::var_escape::types::{EscapeFlags, EscapeTag};
 
 /// Tracked literal binding for the alias-inference path.
 ///
@@ -24,13 +24,12 @@ enum LiteralBinding {
 }
 
 /// Mutable per-proc escape accumulator used during the IR walk.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 pub struct EscapeState {
     /// Per-name escape tags collected so far.
     pub tags: HashMap<String, EscapeTag>,
-    /// Whole-proc pessimism marker.
-    pub dynamic_barrier: bool,
+    /// Pessimism / fallback flag set.
+    pub flags: EscapeFlags,
     /// Names the compiler already knows about (params, assigns,
     /// upvars). Used by the "spill all" branch of alias inference.
     pub known_names: HashSet<String>,
@@ -38,17 +37,9 @@ pub struct EscapeState {
     /// via `upvar <positive-level>`. Consumed by the
     /// interprocedural pass to escape matching locals in callers.
     pub upvar_source_names: BTreeSet<String>,
-    /// True if a dynamic-source `upvar` defeats enumeration.
-    pub unbounded_upvar_source: bool,
     /// Statically-resolvable callees — qualified proc names this
     /// proc invokes with a known command word.
     pub direct_callees: BTreeSet<String>,
-    /// True if this proc definitely dispatches to the interpreter
-    /// at runtime regardless of what its callees look like.
-    pub has_fallback: bool,
-    /// True if a non-frameless `IRCall` (with a statically
-    /// resolvable command word) was seen.
-    pub has_call_fallback: bool,
     /// Sequential single-literal alias tracking. Used by the
     /// `set $n` alias inference to resolve `$n` back to the
     /// literal when one writer was observed.
@@ -63,6 +54,31 @@ impl EscapeState {
             known_names: known_names.into_iter().collect(),
             ..Default::default()
         }
+    }
+
+    /// True if the whole-proc dynamic-barrier marker is set.
+    #[must_use]
+    pub fn dynamic_barrier(&self) -> bool {
+        self.flags.dynamic_barrier()
+    }
+
+    /// True if the upvar-source set can't be statically enumerated.
+    #[must_use]
+    pub fn unbounded_upvar_source(&self) -> bool {
+        self.flags.unbounded_upvar_source()
+    }
+
+    /// True if codegen needs the eval fallback for this proc.
+    #[must_use]
+    pub fn has_fallback(&self) -> bool {
+        self.flags.has_fallback()
+    }
+
+    /// True if a non-frameless `IRCall` with a statically
+    /// resolvable command word was seen.
+    #[must_use]
+    pub fn has_call_fallback(&self) -> bool {
+        self.flags.has_call_fallback()
     }
 
     /// Mark *name* as needing frame storage.
@@ -84,7 +100,7 @@ impl EscapeState {
 
     /// Mark the whole proc as needing a dynamic-barrier fallback.
     pub fn mark_pessimistic(&mut self) {
-        self.dynamic_barrier = true;
+        self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
     }
 
     /// Record a literal caller-frame name this proc accesses via
@@ -98,7 +114,7 @@ impl EscapeState {
     /// Record that the upvar source set cannot be statically
     /// enumerated.
     pub fn record_unbounded_upvar(&mut self) {
-        self.unbounded_upvar_source = true;
+        self.flags.insert(EscapeFlags::UNBOUNDED_UPVAR_SOURCE);
     }
 
     /// Record a statically-resolvable callee.
@@ -110,7 +126,7 @@ impl EscapeState {
 
     /// Record a definite interpreter dispatch (barrier-shaped).
     pub fn record_fallback(&mut self) {
-        self.has_fallback = true;
+        self.flags.insert(EscapeFlags::HAS_FALLBACK);
     }
 
     /// Record a non-frameless `IRCall` with a static command word.
@@ -118,7 +134,7 @@ impl EscapeState {
     /// the interprocedural pass; if the callee resolves to a
     /// compiled proc the downgrade there drops the flag.
     pub fn record_call_fallback(&mut self) {
-        self.has_call_fallback = true;
+        self.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
     }
 
     /// Record that *name* was assigned *value* via
@@ -219,7 +235,7 @@ mod tests {
     fn mark_pessimistic_sets_dynamic_barrier() {
         let mut s = EscapeState::default();
         s.mark_pessimistic();
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
@@ -283,9 +299,9 @@ mod tests {
     fn fallback_flags_are_independent() {
         let mut s = EscapeState::default();
         s.record_fallback();
-        assert!(s.has_fallback);
-        assert!(!s.has_call_fallback);
+        assert!(s.has_fallback());
+        assert!(!s.has_call_fallback());
         s.record_call_fallback();
-        assert!(s.has_call_fallback);
+        assert!(s.has_call_fallback());
     }
 }
