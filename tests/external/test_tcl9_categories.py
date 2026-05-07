@@ -41,8 +41,15 @@ def test_categories_dir_exists() -> None:
     assert (_CATEGORIES_DIR / "README.md").is_file()
 
 
-def test_buckets_constant_includes_skip() -> None:
-    assert BUCKETS == ("must_pass", "good_to_have", "just_to_match_ctcl", "skip")
+def test_buckets_constant_includes_runtime_target_buckets() -> None:
+    assert BUCKETS == (
+        "must_pass",
+        "good_to_have",
+        "just_to_match_ctcl",
+        "skip",
+        "impossible_in_wasm_wasi",
+        "impossible_in_wasm_browser",
+    )
     assert DEFAULT_BUCKET == "must_pass"
 
 
@@ -110,6 +117,8 @@ def test_bucket_report_to_dict() -> None:
         good_to_have_failures=["b", "c"],
         just_to_match_ctcl_failures=[],
         skip_failures=["d"],
+        impossible_in_wasm_wasi_failures=["e"],
+        impossible_in_wasm_browser_failures=["f", "g"],
     )
     d = report.to_dict()
     assert d == {
@@ -117,8 +126,67 @@ def test_bucket_report_to_dict() -> None:
         "good_to_have": ["b", "c"],
         "just_to_match_ctcl": [],
         "skip": ["d"],
+        "impossible_in_wasm_wasi": ["e"],
+        "impossible_in_wasm_browser": ["f", "g"],
     }
-    assert report.total == 4
+    assert report.total == 7
+
+
+def test_runtime_target_buckets_round_trip(tmp_path, monkeypatch) -> None:
+    """Loading a TOML with the new buckets routes IDs correctly and
+    surfaces the matching baseline counters."""
+    inline = tmp_path / "rtt.toml"
+    inline.write_text(
+        """
+        impossible_in_wasm_wasi = ["1.1"]
+        impossible_in_wasm_browser = ["2.1", "2.2"]
+        [baseline]
+        impossible_in_wasm_wasi_failing = 1
+        impossible_in_wasm_browser_failing = 2
+        """,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
+    _reset_cache_for_tests()
+    cats = load_categories("rtt")
+    assert cats.bucket_of("1.1") == "impossible_in_wasm_wasi"
+    assert cats.bucket_of("2.1") == "impossible_in_wasm_browser"
+    assert cats.bucket_of("999.9") == "must_pass"
+    assert cats.impossible_in_wasm_wasi_baseline == 1
+    assert cats.impossible_in_wasm_browser_baseline == 2
+    # WASI helper returns just the wasi bucket (browser-stricter
+    # IDs aren't WASI-impossible).
+    assert cats.wasi_impossible_full_ids() == ["rtt-1.1"]
+    # Browser is the strictly stricter sandbox, so the helper
+    # composes the union of both buckets.
+    assert sorted(cats.browser_impossible_full_ids()) == [
+        "rtt-1.1",
+        "rtt-2.1",
+        "rtt-2.2",
+    ]
+
+
+def test_runtime_target_buckets_do_not_gate(tmp_path, monkeypatch) -> None:
+    """Failures landing in either runtime-target-impossibility bucket
+    must NOT fire the gate — they are tracked-only, like skip."""
+    inline = tmp_path / "rtt2.toml"
+    inline.write_text(
+        """
+        impossible_in_wasm_wasi = ["1.1"]
+        impossible_in_wasm_browser = ["2.1"]
+        """,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.external._tcl9_categories._CATEGORIES_DIR", tmp_path)
+    _reset_cache_for_tests()
+    cats = load_categories("rtt2")
+    report = bucket_failures("rtt2", ["rtt2-1.1", "rtt2-2.1"])
+    assert report.must_pass_failures == []
+    assert report.impossible_in_wasm_wasi_failures == ["rtt2-1.1"]
+    assert report.impossible_in_wasm_browser_failures == ["rtt2-2.1"]
+    outcome = gate(cats, report)
+    assert outcome.passed
+    assert outcome.reason == "ok"
 
 
 def test_gate_passes_when_within_baseline() -> None:

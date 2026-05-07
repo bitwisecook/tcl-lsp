@@ -1,0 +1,18 @@
+# ooNext2.test categorisation (Tcl 9.0.3 source tree).
+# Stem: in-scope, currently trap — ooNext2.test gets wrong # args from a NextN probe before summary.
+# `trap_allowed = true` lets the harness record the
+# trap as a tracked failure rather than promoting it
+# to a hard fail (see categories/README.md).  Per-test-ID
+# triage will be added once the bundle reaches a tcltest
+# summary line.
+
+trap_allowed = true
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0

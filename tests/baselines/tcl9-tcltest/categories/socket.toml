@@ -1,0 +1,35 @@
+# socket.test categorisation (Tcl 9.0.3 source tree).
+# Stem: in-scope, currently traps before tcltest summary —
+# Raw BSD sockets — WASI preview2 can host them, the browser cannot.
+# Test IDs are parked in impossible_in_wasm_browser only — WASI can host this
+# surface today (or with a near-term preview2 step) so the
+# WASI-target injector should *not* skip these.
+# trap_allowed = true keeps the harness from promoting the
+# current mid-run trap to a hard fail; the impossibility
+# list is forward-looking documentation for a runtime-
+# target-aware -skip injector once the bundle reaches a
+# tcltest summary line (see categories/README.md).
+
+trap_allowed = true
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+impossible_in_wasm_wasi = []
+
+impossible_in_wasm_browser = [
+  "14.0.0", "14.0.1", "14.1", "14.2", "14.3", "14.4",
+  "14.5", "14.6.0", "14.6.1", "14.7.0", "14.7.1", "14.7.2",
+  "14.8.0", "14.8.1", "14.8.2", "14.9.0", "14.9.1", "14.10.0",
+  "14.10.1", "14.11.0", "14.11.1", "14.12", "14.13", "14.14",
+  "14.15", "14.16", "14.17", "14.18", "14.19", "15.1",
+  "bug-31fc36fe47",
+]
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+impossible_in_wasm_wasi_failing = 0
+impossible_in_wasm_browser_failing = 31
