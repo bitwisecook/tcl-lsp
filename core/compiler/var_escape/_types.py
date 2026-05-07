@@ -114,6 +114,29 @@ class ProcEscapeSummary:
         """Shorthand: does ``name`` need to live in the runtime frame?"""
         return self.tag(name) is EscapeTag.FRAME
 
+    @property
+    def wants_frame(self) -> bool:
+        """Single source of truth for "this proc needs a runtime frame".
+
+        Combines every analysis-known reason a proc body can't run with
+        the frame elided:
+
+        * ``frame_needed`` — at least one var is FRAME (escapes to a
+          callee's ``upvar`` source, or the dynamic barrier flagged
+          everything FRAME).
+        * ``has_fallback`` — a statically resolvable command falls
+          through to the eval fallback, which resolves names against
+          the runtime frame.
+
+        Codegen should consult this property instead of recomposing
+        the same condition at each call site.  The property does NOT
+        include codegen-time scans (e.g. ``info level`` references
+        the analysis missed) — those are layered on top of this gate
+        by the emitter's top-level ``wants_frame`` resolver until the
+        analysis itself catches every hazard.
+        """
+        return self.frame_needed or self.has_fallback
+
     # -- PR #237 review: split predicates for separate proofs ---------
     #
     # ``pure_leaf`` is the union of every safety constraint we've

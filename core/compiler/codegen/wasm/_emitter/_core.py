@@ -488,6 +488,48 @@ class _WasmEmitterBase:
     def _emit_call(self, func_idx: int) -> None:
         self._emit(WasmOp.CALL, _leb128_unsigned(func_idx))
 
+    def _proc_wants_frame(self) -> bool:
+        """Single decision point for "this proc body needs a runtime frame".
+
+        Combines:
+
+        * Feasibility — top-level scripts (``self._is_proc=False``) and
+          modules that don't import ``tcl_frame_push`` / ``tcl_local_set``
+          / ``tcl_frame_pop`` can never push a frame, so the answer is
+          False regardless of analysis.
+        * Analysis result — :attr:`ProcEscapeSummary.wants_frame`
+          (frame_needed or has_fallback) is the canonical "yes" signal.
+          When no summary is available, fall back to "yes" — pushing a
+          frame is always safe; eliding is the optimisation.
+        * Codegen-time backstop — :meth:`_body_references_info_level`
+          catches ``info level`` / ``info frame`` usages the analysis
+          missed (today's analysis covers IRCall + IRReturn-value but
+          not every compound IR node).  Drop this fallback once the
+          escape pass walks every IR shape that can carry a bracketed
+          info subst.
+
+        Honours the ``self._frame_elision`` opt-in: when False, every
+        proc gets a frame (used by debug builds / regression bisects).
+        """
+        if not self._is_proc:
+            return False
+        if "tcl_frame_push" not in self._shared_imports:
+            return False
+        if "tcl_local_set" not in self._shared_imports:
+            return False
+        if "tcl_frame_pop" not in self._shared_imports:
+            return False
+        if not self._frame_elision:
+            return True
+        summary = self._escape_summary
+        if summary is None:
+            return True
+        if summary.wants_frame:
+            return True
+        if self._body_references_info_level():
+            return True
+        return False
+
     # -- S2.2: refcount-disciplined owned-slot write --------------------
 
     def _owned_local_wrap_active(self, idx: int) -> bool:
@@ -837,37 +879,7 @@ class _WasmEmitterBase:
         # ``$varName`` against the compiled proc's locals) see the
         # param values via ``var_resolve``.  ``::top`` isn't a
         # proc — it runs in global scope and doesn't get a frame.
-        wants_frame = (
-            self._is_proc
-            and "tcl_frame_push" in self._shared_imports
-            and "tcl_local_set" in self._shared_imports
-            and "tcl_frame_pop" in self._shared_imports
-        )
-        # Escape-aware frame elision: a proc the analysis proved has
-        # no FRAME vars and no interpreter fallback path doesn't need
-        # a runtime frame at all.  Skip frame_push / param mirrors /
-        # frame_pop entirely in that case.  Falls back to "push the
-        # frame" whenever the analysis is missing or indefinite.
-        #
-        # Elision is also disabled when the proc's body references
-        # ``info level`` — the runtime's ``info_level`` reads the
-        # frame stack, so without a push the caller's frame would
-        # answer the callee's query.  A more aggressive ("does any
-        # proc reachable from here use info level?") transitive
-        # check would let more procs elide, but computing it
-        # inside the emitter requires a whole-module pass; the
-        # per-proc check is a reasonable trade-off until a
-        # profiler justifies more work.
-        summary = self._escape_summary
-        if (
-            wants_frame
-            and self._frame_elision
-            and summary is not None
-            and not summary.frame_needed
-            and not summary.has_fallback
-            and not self._body_references_info_level()
-        ):
-            wants_frame = False
+        wants_frame = self._proc_wants_frame()
         # Publish the elision decision so the body emitters
         # (``_emit_local_set_owned``, S2.3 onwards) know whether to
         # wrap owned-slot writes with retain/release.  When a frame
