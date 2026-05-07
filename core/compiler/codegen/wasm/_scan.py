@@ -755,13 +755,14 @@ def _scan_needed_imports(
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
-                if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD):
+                if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW):
                     _ARITH_IMPORT2 = {
                         BinOp.ADD: "tcl_arith_add",
                         BinOp.SUB: "tcl_arith_sub",
                         BinOp.MUL: "tcl_arith_mul",
                         BinOp.DIV: "tcl_arith_div",
                         BinOp.MOD: "tcl_arith_mod",
+                        BinOp.POW: "tcl_arith_pow",
                     }
                     imp2 = _ARITH_IMPORT2.get(op)
                     if imp2:

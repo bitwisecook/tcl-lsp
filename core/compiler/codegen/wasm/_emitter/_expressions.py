@@ -1123,8 +1123,18 @@ class _WasmEmitterExprMixin(_Base):
             if wasm_op in self._I32_RESULT_OPS:
                 self._emit(WasmOp.I64_EXTEND_I32_S)
         elif op == BinOp.POW:
-            # Exponentiation — emit as a runtime call or loop
-            self._emit_power(left, right)
+            # Exponentiation — route through the bignum-aware
+            # ``tcl_arith_pow`` runtime helper when available so
+            # ``2**63``, ``2**64`` etc. promote to bignum instead
+            # of wrapping in i64.  Fall back to the inline
+            # ``_emit_power`` integer loop for older runtime builds
+            # that don't export the helper.
+            func_idx = self._shared_imports.get("tcl_arith_pow")
+            if func_idx is not None:
+                self._emit_expr_obj_arith_binary(func_idx, left, right)
+                self._emit_unbox_int()
+            else:
+                self._emit_power(left, right)
         elif op in (BinOp.AND, BinOp.OR):
             self._emit_logical(op, left, right)
         elif op in (BinOp.STR_EQ, BinOp.STR_EQUALS):

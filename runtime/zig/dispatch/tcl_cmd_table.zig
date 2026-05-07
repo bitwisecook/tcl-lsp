@@ -46,6 +46,7 @@ const fileevent_cmd = @import("../cmds/fileevent.zig");
 const exec_cmd = @import("../cmds/exec.zig");
 const exit_cmd = @import("../cmds/exit.zig");
 const mathop_cmd = @import("../cmds/tcl_mathop.zig");
+const mathfunc_cmd = @import("../cmds/tcl_mathfunc.zig");
 
 const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration} ++
     [_]reg.CmdEntry{array_cmd.registration} ++
@@ -76,7 +77,8 @@ const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration
     fileevent_cmd.registrations ++
     exec_cmd.registrations ++
     exit_cmd.registrations ++
-    mathop_cmd.registrations);
+    mathop_cmd.registrations ++
+    mathfunc_cmd.registrations);
 
 /// Look up a command by name.  Returns the handler function pointer on
 /// hit, null on miss.  Called from ``tcl_interp.zig:eval_command``
