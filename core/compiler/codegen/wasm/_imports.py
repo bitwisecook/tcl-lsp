@@ -229,6 +229,11 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_math_fmod": ("tcl", "tcl_math_fmod", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_math_hypot": ("tcl", "tcl_math_hypot", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_math_fabs": ("tcl", "tcl_math_fabs", [ValType.I32], [ValType.I32]),
+    # ``isqrt(x)`` — bignum-aware integer square root (expr-47.x).
+    "tcl_math_isqrt": ("tcl", "tcl_math_isqrt", [ValType.I32], [ValType.I32]),
+    # ``bool(x)`` — coerce to Tcl boolean accepting keyword forms
+    # (``yes`` / ``no`` / ``true`` / ``false`` / ``on`` / ``off``).
+    "tcl_math_bool": ("tcl", "tcl_math_bool", [ValType.I32], [ValType.I32]),
     # Infra used by the puts specialisation for ``-nonewline``.
     "tcl_puts_nonewline": (
         "tcl",

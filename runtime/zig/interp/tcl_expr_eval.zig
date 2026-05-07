@@ -1010,7 +1010,13 @@ fn finalize_num(s: *State, start: u32) i32 {
                 }
                 v = a[0];
             }
-            if (ok) return obj_new_int(@intCast(v));
+            // ``@intCast(v)`` panics under Zig safety checks when ``v``
+            // exceeds ``i64`` max, so the i64-bounds check here is
+            // load-bearing — without it, ``0o7777777777777777777777`` and
+            // friends trap rather than falling through to the bignum path.
+            if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
+                return obj_new_int(@intCast(v));
+            }
         } else if (c == 'b' or c == 'B') {
             var v: u64 = 0;
             var i: u32 = 2;
@@ -1028,7 +1034,11 @@ fn finalize_num(s: *State, start: u32) i32 {
                 }
                 v = m[0] + @as(u64, ch - '0');
             }
-            if (ok) return obj_new_int(@intCast(v));
+            // Same i64-bounds gate as the hex path — guard against
+            // ``@intCast`` panicking for values >= 2^63.
+            if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
+                return obj_new_int(@intCast(v));
+            }
         }
     }
     if (obj.try_parse_int(@bitCast(sptr), @bitCast(slen))) |iv| {
@@ -1139,6 +1149,51 @@ fn parse_bool_keyword(name: []const u8) ?i64 {
 }
 
 fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
+    // Variable-arity math functions — checked before the per-arity
+    // chains so e.g. ``min(1)`` and ``max(1,2,3,4)`` both reach the
+    // same handler.  Reference Tcl allows the empty form (``min()`` →
+    // Inf, ``max()`` → -Inf) so the harness's deg-test cases that
+    // exercise zero-arg dispatch don't trap.
+    // Zero-arity ``rand()`` — uniform float in [0, 1).
+    if (std.mem.eql(u8, name, "rand")) {
+        if (args.len != 0) return raise_too_many_args(name);
+        return arith.tcl_math_rand();
+    }
+    if (std.mem.eql(u8, name, "srand")) {
+        if (args.len != 1) {
+            if (args.len > 1) return raise_too_many_args(name);
+            return raise_too_few_args(name);
+        }
+        return arith.tcl_math_srand(args[0]);
+    }
+    if (std.mem.eql(u8, name, "min")) {
+        if (args.len == 0) return obj.obj_new_float(std.math.inf(f64));
+        var best = args[0];
+        obj.tcl_obj_retain(best);
+        var i: usize = 1;
+        while (i < args.len) : (i += 1) {
+            if (arith.compare_for_minmax(args[i], best) < 0) {
+                obj.tcl_obj_release(best);
+                best = args[i];
+                obj.tcl_obj_retain(best);
+            }
+        }
+        return best;
+    }
+    if (std.mem.eql(u8, name, "max")) {
+        if (args.len == 0) return obj.obj_new_float(-std.math.inf(f64));
+        var best = args[0];
+        obj.tcl_obj_retain(best);
+        var i: usize = 1;
+        while (i < args.len) : (i += 1) {
+            if (arith.compare_for_minmax(args[i], best) > 0) {
+                obj.tcl_obj_release(best);
+                best = args[i];
+                obj.tcl_obj_retain(best);
+            }
+        }
+        return best;
+    }
     if (args.len == 1) {
         if (std.mem.eql(u8, name, "int") or std.mem.eql(u8, name, "entier"))
             return arith.tcl_math_int(args[0]);
@@ -1152,6 +1207,8 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "log")) return arith.tcl_math_log(args[0]);
         if (std.mem.eql(u8, name, "log10")) return arith.tcl_math_log10(args[0]);
         if (std.mem.eql(u8, name, "sqrt")) return arith.tcl_math_sqrt(args[0]);
+        if (std.mem.eql(u8, name, "isqrt")) return arith.tcl_math_isqrt(args[0]);
+        if (std.mem.eql(u8, name, "bool")) return arith.tcl_math_bool(args[0]);
         if (std.mem.eql(u8, name, "exp")) return arith.tcl_math_exp(args[0]);
         if (std.mem.eql(u8, name, "sin")) return arith.tcl_math_sin(args[0]);
         if (std.mem.eql(u8, name, "cos")) return arith.tcl_math_cos(args[0]);
@@ -1171,6 +1228,78 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "fmod")) return arith.tcl_math_fmod(args[0], args[1]);
         if (std.mem.eql(u8, name, "hypot")) return arith.tcl_math_hypot(args[0], args[1]);
     }
+    // Reference Tcl 9 raises a specific surface diagnostic for unknown
+    // function names (expr-50.x) and arg-count mismatches on known
+    // functions (expr-47.1).  Falling through silently as
+    // ``obj_new_int(0)`` would mask user errors.
+    if (std.mem.eql(u8, name, "isqrt") or std.mem.eql(u8, name, "bool") or
+        std.mem.eql(u8, name, "abs") or std.mem.eql(u8, name, "fabs") or
+        std.mem.eql(u8, name, "int") or std.mem.eql(u8, name, "entier") or
+        std.mem.eql(u8, name, "wide") or std.mem.eql(u8, name, "double") or
+        std.mem.eql(u8, name, "float") or std.mem.eql(u8, name, "round") or
+        std.mem.eql(u8, name, "log") or std.mem.eql(u8, name, "log10") or
+        std.mem.eql(u8, name, "sqrt") or std.mem.eql(u8, name, "exp") or
+        std.mem.eql(u8, name, "sin") or std.mem.eql(u8, name, "cos") or
+        std.mem.eql(u8, name, "tan") or std.mem.eql(u8, name, "asin") or
+        std.mem.eql(u8, name, "acos") or std.mem.eql(u8, name, "atan") or
+        std.mem.eql(u8, name, "sinh") or std.mem.eql(u8, name, "cosh") or
+        std.mem.eql(u8, name, "tanh") or std.mem.eql(u8, name, "floor") or
+        std.mem.eql(u8, name, "ceil"))
+    {
+        if (args.len > 1) return raise_too_many_args(name);
+        if (args.len < 1) return raise_too_few_args(name);
+    }
+    if (std.mem.eql(u8, name, "pow") or std.mem.eql(u8, name, "atan2") or
+        std.mem.eql(u8, name, "fmod") or std.mem.eql(u8, name, "hypot"))
+    {
+        if (args.len > 2) return raise_too_many_args(name);
+        if (args.len < 2) return raise_too_few_args(name);
+    }
+    return raise_unknown_func(name);
+}
+
+fn raise_too_many_args(name: []const u8) i32 {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const prefix: []const u8 = "too many arguments for math function \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    @memcpy(buf[prefix.len .. prefix.len + name.len], name);
+    @memcpy(buf[prefix.len + name.len ..][0..suffix.len], suffix);
+    stubs.raise(buf[0..total]);
+    obj.free_sized(buf_addr, total);
+    return obj_new_int(0);
+}
+
+fn raise_too_few_args(name: []const u8) i32 {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const prefix: []const u8 = "too few arguments for math function \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    @memcpy(buf[prefix.len .. prefix.len + name.len], name);
+    @memcpy(buf[prefix.len + name.len ..][0..suffix.len], suffix);
+    stubs.raise(buf[0..total]);
+    obj.free_sized(buf_addr, total);
+    return obj_new_int(0);
+}
+
+fn raise_unknown_func(name: []const u8) i32 {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const prefix: []const u8 = "unknown math function \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    @memcpy(buf[prefix.len .. prefix.len + name.len], name);
+    @memcpy(buf[prefix.len + name.len ..][0..suffix.len], suffix);
+    stubs.raise(buf[0..total]);
+    obj.free_sized(buf_addr, total);
     return obj_new_int(0);
 }
 

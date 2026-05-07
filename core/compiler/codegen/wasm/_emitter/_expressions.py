@@ -1609,11 +1609,29 @@ class _WasmEmitterExprMixin(_Base):
             else:
                 self._emit_i64_const(0)
         elif func == "bool" and len(args) == 1:
-            # bool(x) == x != 0
-            self._emit_expr(args[0])
-            self._emit_i64_const(0)
-            self._emit(WasmOp.I64_NE)
-            self._emit(WasmOp.I64_EXTEND_I32_S)
+            # bool(x) — Tcl 9 accepts the boolean keyword forms (``yes`` /
+            # ``no`` / ``true`` / ``false`` / ``on`` / ``off`` and their
+            # single-letter prefixes), so route through the runtime
+            # helper rather than the inline ``x != 0`` shortcut which
+            # only works for numeric operands.  See expr-31.x.
+            bool_idx = self._shared_imports.get("tcl_math_bool")
+            if bool_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(bool_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+                self._emit_i64_const(0)
+                self._emit(WasmOp.I64_NE)
+                self._emit(WasmOp.I64_EXTEND_I32_S)
+        elif func == "isqrt" and len(args) == 1:
+            isqrt_idx = self._shared_imports.get("tcl_math_isqrt")
+            if isqrt_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(isqrt_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
         elif func == "pow" and len(args) == 2:
             # Delegate to the existing integer-power loop.  Float pow
             # isn't covered; callers with float operands hit this path
