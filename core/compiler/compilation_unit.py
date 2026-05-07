@@ -170,8 +170,10 @@ def compile_source(
     # rather than as scattered ``_emit_frame_sync()`` calls in
     # codegen.  Pure-additive transformation; codegen short-circuits
     # on the new node and dispatches to ``_emit_interp_boundary``.
-    # Idempotent — re-running after CFG construction would be a
-    # no-op so we run once here.
+    # Idempotent — the pass skips insertion when an
+    # ``IRInterpBoundary`` already precedes the ``IRBarrier``, so
+    # ``compile_source(..., ir_module=cu.ir_module)`` re-runs
+    # don't accumulate duplicate boundaries.  Run once here.
     from .passes.interp_boundaries import insert_interp_boundaries
 
     ir_module = insert_interp_boundaries(ir_module)

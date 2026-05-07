@@ -78,7 +78,14 @@ def _boundary_kind_for(barrier: IRBarrier) -> str:
 
 
 def _transform_script(script: IRScript) -> IRScript:
-    """Rewrite *script* with an :class:`IRInterpBoundary` before every barrier."""
+    """Rewrite *script* with an :class:`IRInterpBoundary` before every barrier.
+
+    Skips insertion when the immediately-preceding statement is already
+    an ``IRInterpBoundary`` — this keeps the pass idempotent so
+    re-running on an already-transformed module (e.g. ``compile_source``
+    called twice with ``ir_module=cu.ir_module``) doesn't accumulate
+    duplicate boundary nodes that would emit redundant frame syncs.
+    """
     new_stmts: list[IRStatement] = []
     changed = False
     for stmt in script.statements:
@@ -86,16 +93,17 @@ def _transform_script(script: IRScript) -> IRScript:
         if did_change:
             changed = True
         if isinstance(rewritten, IRBarrier):
-            new_stmts.append(
-                IRInterpBoundary(
-                    range=rewritten.range,
-                    kind=_boundary_kind_for(rewritten),
-                    vars_observed=None,
-                    detail=rewritten.reason,
+            if not new_stmts or not isinstance(new_stmts[-1], IRInterpBoundary):
+                new_stmts.append(
+                    IRInterpBoundary(
+                        range=rewritten.range,
+                        kind=_boundary_kind_for(rewritten),
+                        vars_observed=None,
+                        detail=rewritten.reason,
+                    )
                 )
-            )
+                changed = True
             new_stmts.append(rewritten)
-            changed = True
         else:
             new_stmts.append(rewritten)
     if not changed:
@@ -247,13 +255,15 @@ def _transform_stmt(stmt: IRStatement) -> tuple[IRStatement, bool]:
 def insert_interp_boundaries(module: IRModule) -> IRModule:
     """Return *module* with IRInterpBoundary markers inserted before each barrier.
 
-    Idempotent: a second run is a no-op because barriers already preceded
-    by IRInterpBoundary stay unchanged at the loop's leading insert
-    (the new boundary would be inserted again, but pre-condition is
-    checked by the codegen-side dispatch which is robust to a redundant
-    boundary node — sync becomes a no-op when nothing has changed).
-    Callers should run this pass once during pipeline assembly to keep
-    the IR clean.
+    Idempotent — :func:`_transform_script` skips insertion when an
+    ``IRInterpBoundary`` already precedes the ``IRBarrier``, so a
+    second run on an already-transformed module is a no-op.  This
+    matters for ``compile_source(..., ir_module=cu.ir_module)``
+    incremental-recompile paths, which would otherwise accumulate
+    ``IRInterpBoundary, IRInterpBoundary, IRBarrier`` triples and
+    emit redundant frame syncs (with potential trace-firing
+    behaviour change when the runtime falls back to
+    ``tcl_local_set`` instead of ``tcl_local_set_silent``).
     """
     new_top = _transform_script(module.top_level)
     new_procs: dict[str, IRProcedure] = {}

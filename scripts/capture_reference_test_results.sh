@@ -307,12 +307,30 @@ EOF
     echo ""
     echo "  $captured captured, $failed failed, $skipped missing"
 
+    # Normalise the tests-source path so the committed SUMMARY.txt
+    # stays reproducible across machines.  Paths under the repo's
+    # ``tmp/`` (where ``fetch-tcl-source`` extracts the tarballs)
+    # collapse to ``tmp/<rel>``; system paths under ``/usr/src``
+    # stay as-is (reproducible by package).  Anything else gets the
+    # ``(external)`` label so the diff doesn't carry the developer's
+    # ``$HOME``.  Without this, ``# tests: /home/<user>/src/...`` in
+    # the committed file produced a noisy diff every time the
+    # reference was regenerated on a different machine.
+    local tests_label
+    if [[ "$TESTS_SRC" == "$REPO_ROOT"/* ]]; then
+        tests_label="${TESTS_SRC#"$REPO_ROOT"/}"
+    elif [[ "$TESTS_SRC" == /usr/src/* ]]; then
+        tests_label="$TESTS_SRC"
+    else
+        tests_label="(external) $(basename "$(dirname "$TESTS_SRC")")/$(basename "$TESTS_SRC")"
+    fi
+
     # Generate combined summary
     local summary="$OUTPUT_DIR/SUMMARY.txt"
     {
         echo "# Reference test results for Tcl $VERSION"
         echo "# tclsh: $(command -v "$TCLSH")"
-        echo "# tests: $TESTS_SRC"
+        echo "# tests: $tests_label"
         echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
         echo "#"
         printf "# %-30s %7s %7s %7s %7s\n" "File" "Total" "Passed" "Skipped" "Failed"
