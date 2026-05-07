@@ -668,6 +668,34 @@ class _WasmEmitterExprMixin(_Base):
             self._emit_i64_const(0)
             return
 
+        # Multi-command body (``[cmd1; cmd2]``) — ``_split_command_subst``
+        # only parses one command and would drag the second command's
+        # words into the first command's argv.  Split at top-level
+        # command separators and compile each command's bracketed
+        # form in sequence: every command except the last produces a
+        # discarded result, and the final command's value (unboxed to
+        # i64 for expr context) stays on the stack as the cmd-sub's
+        # result.  Compiling inline keeps recursive proc calls
+        # compiled and avoids the per-recursion eval-fallback parser
+        # re-entry that would otherwise exhaust the runtime allocator
+        # on deeply-nested expressions like 12days's
+        # ``[expr {…};expr {…};expr {…}]``.
+        from ._values import _contains_command_separator as _has_sep
+        from ._values import _split_top_level_commands as _split_cmds
+
+        if _has_sep(cmd_text):
+            sub_cmds = _split_cmds(cmd_text)
+            if not sub_cmds:
+                self._emit_i64_const(0)
+                return
+            for sub in sub_cmds[:-1]:
+                self._emit_command_subst("[" + sub + "]")
+                # ``_emit_command_subst`` always leaves an i64 on the
+                # stack — drop it for every command except the last.
+                self._emit(WasmOp.DROP)
+            self._emit_command_subst("[" + sub_cmds[-1] + "]")
+            return
+
         # Simple split — handles most Tcl command forms.
         # For nested brackets, we rely on the expression parser having
         # already extracted the outermost command boundary.
@@ -866,6 +894,27 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                 self._emit_unbox_int()
                 return
+
+        # Registered WASM emitter — consult the registry before the
+        # generic runtime-import fast path so ``append`` / ``lappend``
+        # / similar mutators dispatch through their proper var-handling
+        # hooks rather than the bare runtime helper (which would treat
+        # the variable name as a value and silently lose the mutation).
+        # Mirrors the same dispatch in ``_emit_command_subst_value``.
+        from .....commands.registry import REGISTRY as _REGISTRY
+        from .....commands.registry import EmitContext as _EmitContext
+
+        prev_tokens = getattr(self, "_current_call_tokens", None)
+        self._current_call_tokens = None
+        try:
+            hook = _REGISTRY.get_wasm_hook(cmd_name)
+            if hook is not None and hook(self, tuple(cmd_args), (), _EmitContext.VALUE):
+                # Hook left an i32 TclObj on the stack — unbox to i64
+                # for expression context.
+                self._emit_unbox_int()
+                return
+        finally:
+            self._current_call_tokens = prev_tokens
 
         # Runtime command — returns i32 TclObj, unbox to i64
         rimp = runtime_import_for(cmd_name)
