@@ -1,0 +1,48 @@
+# exec.test categorisation (Tcl 9.0.3 source tree).
+# Stem: in-scope, currently traps before tcltest summary —
+# [exec] needs fork/exec; absent in WASI and the browser sandbox.
+# Test IDs are parked in impossible_in_wasm_wasi (and therefore also impossible
+# under the browser, which is strictly stricter — the
+# browser-target injector picks them up via the union).
+# trap_allowed = true keeps the harness from promoting the
+# current mid-run trap to a hard fail; the impossibility
+# list is forward-looking documentation for a runtime-
+# target-aware -skip injector once the bundle reaches a
+# tcltest summary line (see categories/README.md).
+
+trap_allowed = true
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+impossible_in_wasm_wasi = [
+  "1.1", "1.2", "1.3", "1.4", "1.5", "2.1",
+  "2.2", "2.3", "2.4", "2.5", "2.6", "2.7",
+  "3.1", "3.2", "3.3", "3.4", "3.5", "3.6",
+  "3.7", "3.8", "4.1", "4.2", "4.3", "4.4",
+  "4.5", "5.1", "5.2", "5.3", "5.4", "5.5",
+  "5.6", "5.7", "5.8", "6.1", "6.2", "6.3",
+  "7.1", "7.2", "8.1", "8.2", "9.1", "9.2",
+  "9.3", "9.4", "9.5", "9.6", "9.7", "9.8",
+  "10.1", "10.2", "10.3", "10.4", "10.5", "10.6",
+  "10.7", "10.8", "10.9", "10.10", "10.11", "10.12",
+  "10.13", "10.14", "10.15", "10.16", "10.17", "10.18",
+  "10.19", "10.20.1", "10.20.2", "10.21.1", "10.21.2", "10.22",
+  "11.1", "11.2", "11.3", "11.4", "11.5", "11.6",
+  "12.1", "12.2", "12.3", "13.1", "13.2", "13.3",
+  "13.4", "13.5", "13.6", "14.1", "14.2", "14.3",
+  "14.4", "14.5", "15.1", "15.2", "15.3", "15.4",
+  "15.5", "15.6", "15.7", "16.1", "16.2", "17.1",
+  "18.1", "18.2", "19.1", "20.0", "20.1", "21.1",
+  "21.2", "22.0", "22.1", "bug-4f0b5767ac",
+]
+
+impossible_in_wasm_browser = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+impossible_in_wasm_wasi_failing = 112
+impossible_in_wasm_browser_failing = 0

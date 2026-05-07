@@ -1,0 +1,32 @@
+# fileName.test categorisation (Tcl 9.0.3 source tree).
+# Stem: in-scope, currently traps before tcltest summary —
+# [file] path manipulation — POSIX-shaped FS only.
+# Test IDs are parked in impossible_in_wasm_browser only — WASI can host this
+# surface today (or with a near-term preview2 step) so the
+# WASI-target injector should *not* skip these.
+# trap_allowed = true keeps the harness from promoting the
+# current mid-run trap to a hard fail; the impossibility
+# list is forward-looking documentation for a runtime-
+# target-aware -skip injector once the bundle reaches a
+# tcltest summary line (see categories/README.md).
+
+trap_allowed = true
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+impossible_in_wasm_wasi = []
+
+impossible_in_wasm_browser = [
+  "18.1", "19.1", "20.1", "20.2", "20.3", "20.4",
+  "20.5", "20.6", "20.7", "20.8", "20.10", "20.11",
+  "6d4e9d1af5bf5b7d",
+]
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+impossible_in_wasm_wasi_failing = 0
+impossible_in_wasm_browser_failing = 13
