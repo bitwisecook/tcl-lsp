@@ -882,7 +882,7 @@ class _WasmEmitterVarMixin(_Base):
             and summary.dynamic_barrier
             and summary.barriers
         ):
-            from ...var_escape import BarrierKind, EscapeReasonKind
+            from ....var_escape import BarrierKind, EscapeReasonKind
 
             if all(b.kind is BarrierKind.INFO for b in summary.barriers):
                 # Collect every literal target named by an INFO_EXISTS
