@@ -675,16 +675,19 @@ follow-up since main hasn't seen this issue.
 
 ## C40-default-on — flip the C40 dispatcher to Rust by default
 
-> **Status banner — post-#241 reality (audited 2026-05-07).**
-> `core/analysis/signature_scan.py` is now pure Python — no Rust
-> dispatch shim, no `_extract_signatures_python` fallback, no
-> `TCL_LSP_RUST_SIGNATURE_SCAN` env-var read. The dispatcher
-> described below was removed in the same wave as the C41
-> shim removal at PR #241 (no commit-log entry tracks it). The
-> Rust signature-scan port (`tcl_compiler::signature_scan`)
-> still exists as a library but isn't invoked from production
-> Python. Closure path is the `S*` LSP-server port. The
-> two-commit chunk below is historical record only.
+> **Status banner — restored (audited 2026-05-07, restored in
+> the C40-followups #4 PR).** The dispatcher in
+> `core/analysis/signature_scan.py` was silently dropped during
+> PR #241's merge resolution; the `tests/test_rust_signature_
+> scan_differential.py` import errors made this visible during
+> the C* close-out audit. Restored here (default-on dispatch:
+> Rust path runs unless `TCL_LSP_RUST_SIGNATURE_SCAN` is set to
+> a falsy value, with try/except fallback to Python on any
+> binding regression). The four dispatcher tests now run green;
+> the 28-fixture corpus exercises both paths via `_assert_same`.
+> Final retirement of the Python implementation still waits on
+> the `S*` LSP-server port, at which point the dispatcher and
+> the Python body both retire together.
 
 Two-commit chunk:
 

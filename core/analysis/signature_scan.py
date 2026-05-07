@@ -24,7 +24,9 @@ and retains orders of magnitude less memory per file than ``analyse()``.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.analysis import parse_param_list
 from core.analysis.semantic_model import (
@@ -34,12 +36,24 @@ from core.analysis.semantic_model import (
     CommandInvocation,
     NamespaceImport,
     PackageRequire,
+    ParamDef,
     ProcDef,
     SourceTarget,
 )
 from core.common.ranges import range_from_token
+from core.compiler.rust_spans import build_position_resolver, rust_shim_enabled
 from core.parsing.command_segmenter import segment_commands
 from core.parsing.tokens import Token, TokenType
+
+log = logging.getLogger(__name__)
+
+# Lazy binding for the Rust signature_scan extension.  Imported on
+# first call to keep the Python-only test environment clean (no
+# ``ImportError`` at module-import time when the wheel is absent).
+try:
+    from tcl_lsp_rust import signature_scan_extract as _rust_signature_scan_extract  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover — exercised in pure-Python CI envs
+    _rust_signature_scan_extract = None
 
 
 @dataclass
@@ -77,11 +91,146 @@ class _ScanCtx:
 
 
 def extract_signatures(source: str) -> AnalysisResult:
-    """Return a minimal AnalysisResult for a background-indexed file."""
+    """Return a minimal AnalysisResult for a background-indexed file.
+
+    Default-on dispatch: when the ``tcl_lsp_rust`` binding is
+    available and ``TCL_LSP_RUST_SIGNATURE_SCAN`` is not set to a
+    falsy value (``0`` / ``false`` / …), the Rust port runs and the
+    raw dict is materialised back into an :class:`AnalysisResult`.
+
+    Set ``TCL_LSP_RUST_SIGNATURE_SCAN=0`` to force the Python path,
+    which still lives in :func:`_extract_signatures_python`.  Any
+    exception raised by the Rust path falls back to Python (logged
+    at DEBUG) so a binding regression cannot silently degrade
+    workspace indexing.
+    """
+    if rust_shim_enabled("TCL_LSP_RUST_SIGNATURE_SCAN", default=True):
+        try:
+            raw = _rust_extract(source)
+        except Exception:  # pragma: no cover — defensive fallback
+            log.debug("rust signature_scan_extract raised; falling back to Python", exc_info=True)
+        else:
+            if raw is not None:
+                return _materialise_rust_signatures(source, raw)
+    return _extract_signatures_python(source)
+
+
+def _extract_signatures_python(source: str) -> AnalysisResult:
+    """Pure-Python implementation of :func:`extract_signatures`.
+
+    Kept as a module-private entry point so the dispatcher can
+    delegate to it on Rust failure / opt-out, and so the
+    differential test harness can exercise both implementations
+    side by side.
+    """
     ctx = _ScanCtx(result=AnalysisResult())
     _scan(source, body_token=None, ns_prefix="", conditional=False, ctx=ctx)
     _resolve_factory_defs(ctx)
     return ctx.result
+
+
+def _rust_extract(source: str) -> dict[str, Any] | None:
+    """Thin wrapper around the PyO3 binding.
+
+    Exists as a module-level symbol so the differential test harness
+    can monkeypatch it with a sentinel.  Returns ``None`` when the
+    binding is unavailable; callers consult that sentinel to decide
+    whether to dispatch to the Rust path.
+    """
+    if _rust_signature_scan_extract is None:
+        return None
+    return dict(_rust_signature_scan_extract(source))
+
+
+def _materialise_rust_signatures(source: str, raw: dict[str, Any]) -> AnalysisResult:
+    """Convert the Rust ``signature_scan_extract`` dict into an
+    :class:`AnalysisResult` populated with the same fields the
+    Python implementation populates.
+
+    See ``rust/tcl-lsp-py/src/signature_scan.rs`` for the dict shape.
+    Spans are encoded as ``(start, end)`` byte offsets; this helper
+    builds a position resolver against ``source`` once and reuses
+    it for every record.
+    """
+    _, range_at = build_position_resolver(source)
+
+    def _range(span: tuple[int, int]) -> Any:
+        return range_at(span[0], span[1])
+
+    result = AnalysisResult()
+
+    for qname, p in raw.get("procs", {}).items():
+        params: list[ParamDef] = [
+            ParamDef(
+                name=param["name"],
+                has_default=param["has_default"],
+                default_value=param.get("default_value") or "",
+            )
+            for param in p.get("params", [])
+        ]
+        result.all_procs[qname] = ProcDef(
+            name=p["name"],
+            qualified_name=p["qualified_name"],
+            params=params,
+            name_range=_range(tuple(p["name_range"])),
+            body_range=_range(tuple(p["body_range"])),
+        )
+
+    for qname, c in raw.get("classes", {}).items():
+        result.all_classes[qname] = ClassDef(
+            name=c["name"],
+            qualified_name=c["qualified_name"],
+            name_range=_range(tuple(c["name_range"])),
+            body_range=_range(tuple(c["body_range"])),
+        )
+
+    for inv in raw.get("command_invocations", []):
+        result.command_invocations.append(
+            CommandInvocation(name=inv["name"], range=_range(tuple(inv["range"])))
+        )
+
+    for pr in raw.get("package_requires", []):
+        result.package_requires.append(
+            PackageRequire(
+                name=pr["name"],
+                version=pr.get("version"),
+                range=_range(tuple(pr["range"])),
+                conditional=pr["conditional"],
+            )
+        )
+
+    for s in raw.get("source_targets", []):
+        result.source_targets.append(
+            SourceTarget(
+                raw_path=s["raw_path"],
+                range=_range(tuple(s["range"])),
+                is_literal=s["is_literal"],
+            )
+        )
+
+    for qname, alias in raw.get("command_aliases", {}).items():
+        result.command_aliases[qname] = (alias["target"], tuple(alias.get("extras", [])))
+
+    for imp in raw.get("namespace_imports", []):
+        result.namespace_imports.append(
+            NamespaceImport(
+                ns=imp["ns"],
+                pattern=imp["pattern"],
+                range=_range(tuple(imp["range"])),
+                conjectured=imp["conjectured"],
+            )
+        )
+
+    for entry in raw.get("auto_path_entries", []):
+        result.auto_path_entries.append(
+            AutoPathEntry(
+                resolved_path=None,
+                raw=entry["raw"],
+                range=_range(tuple(entry["range"])),
+            )
+        )
+
+    return result
 
 
 def _qualify(ns_prefix: str, name: str) -> str:
