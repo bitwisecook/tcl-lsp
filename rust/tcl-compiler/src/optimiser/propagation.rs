@@ -15,8 +15,12 @@
 //!   span is the rewrite target); the bare statement form stays
 //!   hint-only because the call result is discarded and folding
 //!   `::answer` to `42` would leave an invalid command name.
-//! - **`optimise_return_terminator`** (`O104`) — rewrite
+//! - **`optimise_return_terminator`** (`O100`) — rewrite
 //!   `return $v` as `return K` when `v` is SCCP-constant.
+//!   (Earlier Rust commits emitted `O104`; that code is reserved
+//!   by the canonical optimisation-codes table for the
+//!   string-build chain fold and was reassigned in the C* close-out
+//!   audit.)
 //!
 //! - **`optimise_string_interpolation_var_refs`** (`O100`) —
 //!   inline SCCP-proved constants into `"…$x…"` double-quoted
@@ -380,10 +384,16 @@ fn try_fold_static_proc_call(
     ctx.report(opt);
 }
 
-/// O104: rewrite `return $v` to `return K` when the SCCP
+/// O100: rewrite `return $v` to `return K` when the SCCP
 /// environment proves `v` is a constant. Works on the `value`
 /// text since `Statement::Return::expr` is populated only when
 /// the original source was `return [expr …]`.
+///
+/// Uses `O100` (the canonical constant-propagation code) rather
+/// than the `O104` that earlier Rust commits emitted — `O104` is
+/// reserved by `docs/generated/optimisation_codes.md` for the
+/// pattern-recognition string-build chain fold (matching the
+/// Python optimiser's allocation).
 fn try_fold_return_terminator(
     ctx: &mut PassContext<'_>,
     span: tcl_lexer::Span,
@@ -418,7 +428,7 @@ fn try_fold_return_terminator(
         return;
     }
     ctx.report(Optimisation::new(
-        "O104",
+        "O100",
         "Fold return of constant variable",
         span,
         format!("return {resolved}"),
@@ -907,8 +917,8 @@ mod tests {
         let opts = run_pass("proc ::f {} { set x 42; return $x }");
         assert!(
             opts.iter()
-                .any(|o| o.code == "O104" && o.replacement.contains("42")),
-            "expected O104 folding return $x to return 42, got {opts:?}",
+                .any(|o| o.code == "O100" && o.replacement.contains("42")),
+            "expected O100 folding return $x to return 42, got {opts:?}",
         );
     }
 

@@ -1,18 +1,36 @@
 //! Optimiser passes — source-rewrite suggestions produced by
 //! analysing the compiled IR / CFG / SSA.
 //!
-//! Ported from `core/compiler/optimiser/` (C30). This module
-//! owns the shared optimiser types (`Optimisation`,
-//! `PassContext`, opt priorities, `PassId`, `run_passes`) plus
-//! per-pass submodules. Pass bodies land as follow-up strips
-//! (C30a–j):
+//! Ported from `core/compiler/optimiser/` (C30 + follow-up sub-strips
+//! C30a … C30j and the per-pass `*-final` / `*-remainder` strips
+//! tracked in `docs/rust-rewrite.md`).  This module owns the shared
+//! optimiser types (`Optimisation`, `PassContext`, opt priorities,
+//! `PassId`, `run_passes`) plus per-pass submodules.  Every pass body
+//! is now landed:
 //!
-//! - **C30a** — [`branch_folding`] — constant branch folding,
-//!   powered by SCCP's
-//!   [`ConstantBranch`](crate::sccp::ConstantBranch) output.
-//! - C30b–j — elimination, expr-simplify, pattern-recognition,
-//!   propagation, structure-elimination, tail-call, unused-procs,
-//!   code-sinking, and the manager — still stubbed.
+//! - [`branch_folding`] — constant branch folding (O101) +
+//!   `propagate_into_branches` cascade (`substitute` →
+//!   `strength_reduce` → `strlen` → `streq` → `instcombine`).
+//! - [`code_sinking`] — O125 sink-set rewrites (paired delete +
+//!   insert, falls back to hint-only when the original span is
+//!   local-offset).
+//! - [`elimination`] — O107 unreachable-block, O108 ADCE, O109 dead
+//!   stores, O126 unused-variable assignments.
+//! - [`expr_simplify`] — O101 fold + O115 redundant-`expr` unwrap +
+//!   the four AST-level rewriters (instcombine / strength reduction /
+//!   strlen-simplify / streq-simplify) in [`helpers::expr_simplify`].
+//! - [`pattern_recognition`] — O114 incr-idiom + O119 multi-set
+//!   packing hint + O104 string-build chain hint (canonical
+//!   allocation per `docs/generated/optimisation_codes.md`).
+//! - [`propagation`] — O100 var-ref + O100 string-interpolation +
+//!   O102 load-forward + O103 static-proc-call folding + O100
+//!   return-terminator folding.
+//! - [`structure_elimination`] — O112 if/while/for/switch elimination.
+//! - [`tail_call`] — O121 bare + return-subst variants, O122 loop hint,
+//!   O123 accumulator-candidate hint.
+//! - [`unused_procs`] — O124 iRules unreachable-proc commenting.
+//! - [`manager`] — `optimise` / `optimise_with_dialect` / `optimise_raw`
+//!   façade that runs every `PassId::all()` in canonical order.
 
 pub mod branch_folding;
 pub mod code_sinking;
@@ -317,35 +335,43 @@ impl PassId {
 /// diagnostics in `ctx.optimisations`.
 ///
 /// Dispatches each requested [`PassId`] to its landed pass body.
-/// Passes whose body has not landed yet are silently skipped —
-/// the caller's pass list stays stable as follow-up strips plug
-/// in.
 ///
-/// Currently landed passes:
+/// Pass coverage:
 ///
-/// - [`PassId::BranchFolding`] → [`branch_folding::run`] (C30a).
-/// - [`PassId::UnusedProcs`] → [`unused_procs::run`] (C30b).
+/// - [`PassId::BranchFolding`] → [`branch_folding::run`] — O101
+///   constant-fold + the `propagate_into_branches` cascade
+///   (`substitute` → `strength_reduce` → `strlen` → `streq` → `instcombine`).
+/// - [`PassId::UnusedProcs`] → [`unused_procs::run`] — O124
+///   iRules unreachable-proc commenting.
 /// - [`PassId::StructureElimination`] →
-///   [`structure_elimination::run`] (C30c).
-/// - [`PassId::Elimination`] → [`elimination::run`] (C30d,
-///   O107 only — O108/O109/O126 land alongside the liveness
-///   analyser in a follow-up).
-/// - [`PassId::ExprSimplify`] → [`expr_simplify::run`] (C30e,
-///   O101 fold + O115 unwrap; deeper AST rewrites deferred to
-///   C30e4–C30e7).
-/// - [`PassId::Propagation`] → [`propagation::run`] (C30f,
-///   O100 constant-var-ref only; six remaining propagation
-///   modes deferred).
+///   [`structure_elimination::run`] — O112 structural elimination.
+/// - [`PassId::Elimination`] → [`elimination::run`] — O107
+///   unreachable-block + O108 ADCE + O109 dead stores + O126
+///   unused-variable assignments.
+/// - [`PassId::ExprSimplify`] → [`expr_simplify::run`] — walks
+///   both `Statement::ExprEval` and `Statement::AssignExpr`.
+///   Emits O101 fold + O115 redundant-`expr` unwrap on standalone
+///   `expr` statements; on `AssignExpr` (`set name [expr {…}]`)
+///   it can additionally emit O110 (instcombine identities) and
+///   O113 (strength reduction) directly, before the
+///   `branch_folding::propagate_into_branches` cascade gets a
+///   shot at branch conditions.
+/// - [`PassId::Propagation`] → [`propagation::run`] — O100
+///   constant-var-ref + O100 string-interpolation + O102 load
+///   forwarding + O103 static-proc-call folding + O100
+///   return-terminator folding.
 /// - [`PassId::PatternRecognition`] →
-///   [`pattern_recognition::run`] (C30g, O114 incr-idiom only;
-///   O119 + O122 deferred).
-/// - [`PassId::TailCall`] → [`tail_call::run`] (C30h, O121
-///   bare-call tail variant only; return-subst / O122 loop
-///   conversion / O123 accumulator deferred).
-/// - [`PassId::CodeSinking`] → [`code_sinking::run`] (C30i,
-///   scaffolding / walker only — the O125 emitter is blocked
-///   on side-effect classification + per-statement variable-use
-///   scanning that the Rust pipeline does not yet expose).
+///   [`pattern_recognition::run`] — O114 incr-idiom + O119 multi-set
+///   packing hint + O104 string-build chain hint (canonical
+///   allocation per `docs/generated/optimisation_codes.md`;
+///   earlier Rust commits emitted O122 here, colliding with
+///   `tail_call`).
+/// - [`PassId::TailCall`] → [`tail_call::run`] — O121 (bare +
+///   return-subst variants) + O122 loop-conversion hint + O123
+///   accumulator-candidate hint.
+/// - [`PassId::CodeSinking`] → [`code_sinking::run`] — O125
+///   sink-set rewrites (paired delete + insert; falls back to
+///   hint-only when the original `set` span is local-offset).
 pub fn run_passes(ctx: &mut PassContext<'_>, cu: &CompilationUnit, passes: &[PassId]) {
     for pass in passes {
         match pass {

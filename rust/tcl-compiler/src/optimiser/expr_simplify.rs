@@ -1,26 +1,41 @@
-//! Expression-simplification optimiser pass (C30e).
+//! Expression-simplification optimiser pass (C30e + follow-up
+//! C30e4–C30e7).
 //!
-//! Walks every `ExprEval` statement in the IR (the Rust
-//! lowering's representation of a bare `expr {…}` command) and
-//! applies the landed [`helpers::expr_simplify`] rewriters:
+//! Walks `Statement::ExprEval` (a bare `expr {…}` command) and
+//! `Statement::AssignExpr` (the lowered form of
+//! `set name [expr {…}]`) in the IR, plus the bodies of every
+//! structural-control statement (if / while / for / foreach /
+//! switch / catch / try) so nested `expr` and `set … [expr …]`
+//! sites are visited too.
 //!
-//! - [`super::helpers::expr_simplify::try_unwrap_expr_in_expr`]
-//!   → **`O115`** (remove redundant nested `[expr {…}]`).
-//! - AST-level constant folding via
-//!   [`crate::tcl_expr_eval::eval_tcl_expr`] → **`O101`** (fold
-//!   constant expression).
+//! Diagnostics emitted by this pass:
 //!
-//! The deeper AST-level rewriters (`InstCombine`, strength
-//! reduction, strlen / `streq` simplification) are stubs until
-//! their sub-strips (`C30e4` – `C30e7`) land; their diagnostic
-//! codes (`O113` / `O117` / `O120` / `O110`) will start firing
-//! here as soon as the stubs are replaced.
+//! - **`O115`** ([`super::helpers::expr_simplify::try_unwrap_expr_in_expr`])
+//!   — remove redundant nested `[expr {…}]` on a standalone
+//!   `expr` statement.
+//! - **`O101`** — full constant fold via
+//!   [`crate::tcl_expr_eval::eval_tcl_expr`] on either an
+//!   `ExprEval` body or an `AssignExpr` right-hand side.
+//! - **`O110`** ([`super::helpers::expr_simplify::instcombine_expr`])
+//!   — instcombine identities (`x + 0` → `x`, etc.) on an
+//!   `AssignExpr` right-hand side.  Skipped on `AssignExpr`
+//!   bodies that contain a command substitution.
+//! - **`O113`** ([`super::helpers::expr_simplify::try_strength_reduce_expr`])
+//!   — strength-reduction (`x*1` → `x`, `x**2` → `x*x`,
+//!   `x % 2^k` → `x & (2^k-1)`) on an `AssignExpr` right-hand
+//!   side.
 //!
-//! Branch conditions (`if` / `while` / `for`) are *not* visited
-//! here — those go through
-//! [`super::branch_folding::optimise_branch_proc_calls`] (C30a',
-//! pending) which has richer context (SSA uses, interprocedural
-//! summaries). The two passes deliberately do not overlap.
+//! The other AST-level rewriters
+//! ([`super::helpers::expr_simplify::try_strlen_simplify_expr`]
+//! `O117`,
+//! [`super::helpers::expr_simplify::try_eq_ne_string_compare_simplify_expr`]
+//! `O120`) fire through the
+//! [`super::branch_folding::propagate_into_branches`] cascade
+//! that has the richer context (SSA uses, interprocedural
+//! summaries) those rewrites need to be sound on branch
+//! conditions.  The two passes deliberately do not overlap on
+//! `if` / `while` / `for` conditions — those go through
+//! `branch_folding::optimise_branch_proc_calls` only.
 
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
