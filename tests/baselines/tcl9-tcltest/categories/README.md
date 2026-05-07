@@ -64,28 +64,31 @@ fundamentally cannot pass.
     target — including WASI — can host.
 
   Tracked for visibility, never gating.  When the harness runs
-  under a WASI runtime it can opt to inject these IDs into
+  under a WASI runtime it injects these IDs into
   `tcltest::configure -skip` (see
   `StemCategories.wasi_impossible_full_ids`).
 
-* **impossible_in_wasm_browser** — tests that cannot pass when the
-  harness runs in a browser WASM runtime.  Strictly more restrictive
-  than WASI: the browser sandbox additionally rules out
+* **impossible_in_wasm_browser** — tests impossible under the
+  browser WASM runtime *that WASI can still host*.  Browser is the
+  strictly stricter sandbox, so anything in
+  `impossible_in_wasm_wasi` is impossible under the browser too —
+  this bucket holds only the *additional* restriction the browser
+  imposes on top of WASI:
   * raw BSD sockets (`socket.test`, `http*.test`);
   * a writable POSIX filesystem (`fCmd.test`, `fileSystem.test`,
     `pwd.test`);
   * the host process environment (`env.test`);
-  * dynamic loading of host shared libraries (`load.test`).
+  * dynamic loading of host shared libraries (`load.test`);
+  * POSIX-style threads (`thread.test`, `mutex.test`).
 
-  Tracked for visibility, never gating.  When the harness runs in a
-  browser context it can opt to inject these IDs into
-  `tcltest::configure -skip` (see
-  `StemCategories.browser_impossible_full_ids`).  The WASI and
-  browser lists are kept independent rather than nested — a stem
-  may pick out a different ID set for each runtime, and listing an
-  ID in `impossible_in_wasm_wasi` does **not** imply it is also
-  listed in `impossible_in_wasm_browser` (a runtime-target-aware
-  injector should query both).
+  Tracked for visibility, never gating.  Each ID lives in exactly
+  one bucket — the loader enforces "every test in exactly one
+  bucket" the same way as the other buckets, so an ID impossible
+  under both runtimes goes in `impossible_in_wasm_wasi` only.  The
+  `browser_impossible_full_ids()` helper composes the union of
+  `impossible_in_wasm_wasi` + `impossible_in_wasm_browser` so the
+  browser-target injector sees the full set; the WASI injector
+  uses `wasi_impossible_full_ids()` (just the WASI bucket).
 
 The ``skip`` / ``just_to_match_ctcl`` distinction is deliberate:
 ``skip`` is the strong claim "fundamentally inapplicable to a
@@ -204,10 +207,11 @@ The loader is cached per-stem with a thread-safe lock so a
    inject ``tcltest::configure -skip`` so the test never runs).
 5. **Needs a host capability missing under WASI** (fork/exec,
    privileged FS ops, OS-specific subsystem): add to
-   ``impossible_in_wasm_wasi``.
-6. **Needs a host capability missing under the browser sandbox**
-   (raw sockets, POSIX FS, host env, dlopen): add to
-   ``impossible_in_wasm_browser``.  List the ID under both
-   buckets if it is impossible under both runtimes.
+   ``impossible_in_wasm_wasi``.  This implies browser-impossible
+   too (since browser is stricter), so do **not** also list the
+   ID in ``impossible_in_wasm_browser``.
+6. **Needs a host capability missing under the browser sandbox
+   that WASI can host** (raw sockets, POSIX FS, host env, dlopen,
+   POSIX threads): add to ``impossible_in_wasm_browser``.
 7. **Fix lands**: drop the entry — the must_pass-by-default rule
    keeps regressions out.

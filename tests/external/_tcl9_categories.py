@@ -59,9 +59,21 @@ _CATEGORIES_DIR = _REPO_ROOT / "tests" / "baselines" / "tcl9-tcltest" / "categor
 # the browser sandbox, etc.).  Tracked for visibility, never gating;
 # a future change can wire ``-skip`` injection so the active runtime
 # target only runs the tests it can plausibly pass.  Browser is the
-# stricter sandbox: a test in ``impossible_in_wasm_wasi`` is also
-# impossible under the browser, but not vice versa, so the two lists
-# are kept independent rather than implicitly nested.
+# strictly stricter sandbox: WASI-impossible IDs are by definition
+# also browser-impossible.  The TOML buckets store the *difference*
+# rather than the full sets — so each ID lives in exactly one
+# bucket (matching the per-ID-one-bucket rule the loader enforces):
+#
+# * ``impossible_in_wasm_wasi`` lists IDs impossible at the WASI
+#   level (and therefore also under the browser).
+# * ``impossible_in_wasm_browser`` lists IDs that are
+#   browser-impossible but WASI-possible — i.e. the additional
+#   restriction the browser imposes on top of WASI.
+#
+# A runtime-target-aware ``-skip`` injector composes the right set:
+# under WASI it injects only the wasi list, under the browser it
+# injects the union (see ``StemCategories.wasi_impossible_full_ids``
+# and ``browser_impossible_full_ids``).
 BUCKETS = (
     "must_pass",
     "good_to_have",
@@ -145,18 +157,28 @@ class StemCategories:
         return self._full_ids_for("skip")
 
     def wasi_impossible_full_ids(self) -> list[str]:
-        """Return the IDs in ``impossible_in_wasm_wasi`` as full
+        """Return the IDs that are impossible under WASI as full
         ``<stem>-<suffix>`` names.  Suitable for a runtime-target-
         aware ``-skip`` injection when the harness runs under a
-        WASI runtime."""
+        WASI runtime.  Equal to the ``impossible_in_wasm_wasi``
+        bucket; a browser-stricter ID stays in
+        ``impossible_in_wasm_browser`` and is *not* injected here
+        because WASI can host that capability."""
         return self._full_ids_for("impossible_in_wasm_wasi")
 
     def browser_impossible_full_ids(self) -> list[str]:
-        """Return the IDs in ``impossible_in_wasm_browser`` as full
-        ``<stem>-<suffix>`` names.  Suitable for a runtime-target-
-        aware ``-skip`` injection when the harness runs under a
-        browser WASM runtime."""
-        return self._full_ids_for("impossible_in_wasm_browser")
+        """Return the IDs that are impossible under a browser WASM
+        runtime as full ``<stem>-<suffix>`` names — the union of
+        ``impossible_in_wasm_wasi`` (impossible everywhere) and
+        ``impossible_in_wasm_browser`` (browser-stricter than WASI).
+        Browser is the strictly stricter sandbox so anything WASI
+        cannot host the browser also cannot host; the two TOML
+        lists store the difference rather than the full sets."""
+        return [
+            f"{self.stem}-{suffix}"
+            for suffix, b in self.test_to_bucket.items()
+            if b in ("impossible_in_wasm_wasi", "impossible_in_wasm_browser")
+        ]
 
     def _full_ids_for(self, bucket: str) -> list[str]:
         return [

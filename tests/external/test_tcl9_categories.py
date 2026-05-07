@@ -154,8 +154,16 @@ def test_runtime_target_buckets_round_trip(tmp_path, monkeypatch) -> None:
     assert cats.bucket_of("999.9") == "must_pass"
     assert cats.impossible_in_wasm_wasi_baseline == 1
     assert cats.impossible_in_wasm_browser_baseline == 2
+    # WASI helper returns just the wasi bucket (browser-stricter
+    # IDs aren't WASI-impossible).
     assert cats.wasi_impossible_full_ids() == ["rtt-1.1"]
-    assert cats.browser_impossible_full_ids() == ["rtt-2.1", "rtt-2.2"]
+    # Browser is the strictly stricter sandbox, so the helper
+    # composes the union of both buckets.
+    assert sorted(cats.browser_impossible_full_ids()) == [
+        "rtt-1.1",
+        "rtt-2.1",
+        "rtt-2.2",
+    ]
 
 
 def test_runtime_target_buckets_do_not_gate(tmp_path, monkeypatch) -> None:

@@ -1,10 +1,14 @@
 # http.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently traps — depends on socket runtime which is not yet implemented.
-# Per categories/README.md: ``trap_allowed = true`` lets the
-# harness record the mid-run trap as a tracked failure rather
-# than promoting it to a hard fail.  Per-test-ID triage will
-# be added once the runtime gap closes and the bundle reaches
-# a tcltest summary line.
+# Stem: in-scope, currently traps before tcltest summary —
+# HTTP client uses raw sockets under the hood; browser-stricter than WASI.
+# Test IDs are parked in impossible_in_wasm_browser only — WASI can host this
+# surface today (or with a near-term preview2 step) so the
+# WASI-target injector should *not* skip these.
+# trap_allowed = true keeps the harness from promoting the
+# current mid-run trap to a hard fail; the impossibility
+# list is forward-looking documentation for a runtime-
+# target-aware -skip injector once the bundle reaches a
+# tcltest summary line (see categories/README.md).
 
 trap_allowed = true
 
@@ -12,7 +16,38 @@ good_to_have = []
 just_to_match_ctcl = []
 skip = []
 
+impossible_in_wasm_wasi = []
+
+impossible_in_wasm_browser = [
+  "1.1", "1.2", "1.3", "1.4", "1.5", "1.6",
+  "2.1", "2.2", "2.3", "2.4", "2.5", "2.6",
+  "2.7", "2.8", "3.1", "3.2", "3.3", "3.4",
+  "3.5", "3.6", "3.7", "3.8", "3.9", "3.10",
+  "3.11", "3.12", "3.13", "3.14", "3.15", "3.16",
+  "3.17", "3.18", "3.19", "3.20", "3.21", "3.22",
+  "3.23", "3.24", "3.25", "3.26", "3.27", "3.28",
+  "3.29", "3.30", "3.31", "3.32", "3.33", "3.34",
+  "3.35", "4.1", "4.2", "4.3", "4.4", "4.5",
+  "4.6", "4.6.1", "4.7", "4.8", "4.9", "4.10",
+  "4.11", "4.12", "4.13", "4.14", "4.15", "4.16",
+  "5.1", "5.3", "5.4", "5.5", "6.1", "7.1",
+  "7.2", "7.3", "7.4", "idna-1.1", "idna-1.2", "idna-1.3",
+  "idna-1.4", "idna-1.5", "idna-1.6", "idna-1.7", "idna-1.8", "idna-1.9",
+  "idna-1.10", "idna-1.11", "idna-1.12", "idna-2.1", "idna-2.2", "idna-2.3",
+  "idna-2.4", "idna-2.5", "idna-2.6", "idna-2.7", "idna-2.8", "idna-2.9",
+  "idna-2.10", "idna-2.11", "idna-2.12", "idna-2.13", "idna-2.14", "idna-3.1",
+  "idna-3.2", "idna-3.3", "idna-3.4", "idna-3.5", "idna-3.6", "idna-3.7",
+  "idna-3.8", "idna-3.9", "idna-3.10", "idna-3.11", "idna-3.12", "idna-3.13",
+  "idna-3.14", "idna-3.15", "idna-3.16", "idna-3.17", "idna-3.18", "idna-3.19",
+  "idna-4.1", "idna-4.2", "idna-4.3", "idna-4.4", "idna-4.5", "idna-4.6",
+  "idna-4.7", "idna-4.7.1", "idna-4.8", "idna-4.9", "idna-4.9.1", "idna-4.10",
+  "idna-5.1", "idna-5.2", "idna-5.3", "idna-5.4", "idna-5.5", "idna-5.5.1",
+  "idna-5.6", "idna-5.6.1",
+]
+
 [baseline]
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
+impossible_in_wasm_wasi_failing = 0
+impossible_in_wasm_browser_failing = 140

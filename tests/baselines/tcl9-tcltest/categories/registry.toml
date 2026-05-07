@@ -1,15 +1,19 @@
 # registry.test categorisation (Tcl 9.0.3 source tree).
-# Stem: platform-specific deferred — Windows-only [registry] package.
-# Not in `_IN_SCOPE` in tests/external/run_tcl9_tests.py: the
-# WASM target has no path to mimic this OS subsystem, so every
-# test ID is parked in `skip` per categories/README.md.  If the
-# stem is ever added to the harness, the existing `-skip`
-# injection routes these IDs to the Skipped column.
+# Stem: platform-specific — Windows-only [registry] package.
+# Every test ID is parked in impossible_in_wasm_wasi: the
+# host OS subsystem under test does not exist on either WASM
+# runtime target.  Because browser is the strictly stricter
+# sandbox, WASI-impossible implies browser-impossible — IDs
+# are NOT also listed in impossible_in_wasm_browser (the
+# loader rejects overlap, and `browser_impossible_full_ids()`
+# composes the union for a browser-target injector).  Tracked
+# for visibility per categories/README.md, never gating.
 
 good_to_have = []
 just_to_match_ctcl = []
+skip = []
 
-skip = [
+impossible_in_wasm_wasi = [
   "1.0", "1.1", "1.2", "1.3", "1.4", "1.5",
   "1.6", "1.7", "1.8", "1.9", "1.10", "1.11",
   "1.12", "1.13", "1.14", "1.15", "1.16", "1.17",
@@ -33,7 +37,11 @@ skip = [
   "12.1", "12.2", "12.3", "12.4", "12.5",
 ]
 
+impossible_in_wasm_browser = []
+
 [baseline]
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
-skip_failing = 125
+skip_failing = 0
+impossible_in_wasm_wasi_failing = 125
+impossible_in_wasm_browser_failing = 0

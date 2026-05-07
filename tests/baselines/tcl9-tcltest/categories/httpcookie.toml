@@ -1,10 +1,14 @@
 # httpcookie.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently traps — depends on the http stack which depends on sockets.
-# Per categories/README.md: ``trap_allowed = true`` lets the
-# harness record the mid-run trap as a tracked failure rather
-# than promoting it to a hard fail.  Per-test-ID triage will
-# be added once the runtime gap closes and the bundle reaches
-# a tcltest summary line.
+# Stem: in-scope, currently traps before tcltest summary —
+# HTTP cookies — depends on the http stack.
+# Test IDs are parked in impossible_in_wasm_browser only — WASI can host this
+# surface today (or with a near-term preview2 step) so the
+# WASI-target injector should *not* skip these.
+# trap_allowed = true keeps the harness from promoting the
+# current mid-run trap to a hard fail; the impossibility
+# list is forward-looking documentation for a runtime-
+# target-aware -skip injector once the bundle reaches a
+# tcltest summary line (see categories/README.md).
 
 trap_allowed = true
 
@@ -12,7 +16,13 @@ good_to_have = []
 just_to_match_ctcl = []
 skip = []
 
+impossible_in_wasm_wasi = []
+
+impossible_in_wasm_browser = []
+
 [baseline]
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
+impossible_in_wasm_wasi_failing = 0
+impossible_in_wasm_browser_failing = 0
