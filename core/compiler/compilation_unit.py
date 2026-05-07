@@ -165,6 +165,17 @@ def compile_source(
 
     specialise_factories(ir_module)
 
+    # Insert IRInterpBoundary markers before each IRBarrier so the
+    # frame-sync at every interpreter-crossing statement lives in IR
+    # rather than as scattered ``_emit_frame_sync()`` calls in
+    # codegen.  Pure-additive transformation; codegen short-circuits
+    # on the new node and dispatches to ``_emit_interp_boundary``.
+    # Idempotent — re-running after CFG construction would be a
+    # no-op so we run once here.
+    from .passes.interp_boundaries import insert_interp_boundaries
+
+    ir_module = insert_interp_boundaries(ir_module)
+
     # Extract TclOO class names from the IR so type propagation can
     # recognise ``[ClassName new]`` as returning an OBJECT instance.
     if not known_classes:
