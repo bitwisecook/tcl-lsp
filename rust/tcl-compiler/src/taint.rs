@@ -23,12 +23,22 @@
 //!
 //! ## What is not yet implemented
 //!
-//! - Path-concat / URI-split heuristics.
-//! - iRules-specific sink codes (IRULE3001–3004): sources are
-//!   dialect-driven via the `dialect` parameter, but the iRules sink
-//!   categorisation lives in the broader compiler-checks wiring.
-//! - T103 regex-injection, T104 SSRF, T105 cross-interpreter injection
-//!   — follow-up strips once the registry gains full taint-hint metadata.
+//! - **URI-split / IRULE3103** (`core/compiler/taint/_uri_split.py`,
+//!   ~959 LOC) — IRULE3103 detection of `*::uri` getter + manual
+//!   decomposition patterns is still Python-only.  Tracked as the
+//!   C29 follow-up in `docs/rust-rewrite.md`.
+//! - **T103 regex-injection, T104 SSRF, T105 cross-interpreter
+//!   injection** — follow-up strips once the registry gains full
+//!   taint-hint metadata.
+//!
+//! ## What is implemented (was previously listed as deferred)
+//!
+//! - Path-concat heuristic (W201) — see [`crate::path_concat`].
+//! - iRules-specific sink codes IRULE3001–3004 / 3101 / 3102 —
+//!   dispatched from [`classify_sink`] / [`find_taint_warnings`] /
+//!   [`find_setter_constraint_warnings`] when the dialect is
+//!   `f5-irules` / `irules`. IRULE3102 (unnormalised getter) lives
+//!   in the sibling [`crate::irules_checks`] module.
 //!
 //! ## Source / sink / sanitiser facts live in the registry
 //!

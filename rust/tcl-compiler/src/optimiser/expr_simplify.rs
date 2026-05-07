@@ -1,8 +1,9 @@
-//! Expression-simplification optimiser pass (C30e).
+//! Expression-simplification optimiser pass (C30e + follow-up
+//! C30e4–C30e7).
 //!
 //! Walks every `ExprEval` statement in the IR (the Rust
 //! lowering's representation of a bare `expr {…}` command) and
-//! applies the landed [`helpers::expr_simplify`] rewriters:
+//! applies the rewriters in [`super::helpers::expr_simplify`]:
 //!
 //! - [`super::helpers::expr_simplify::try_unwrap_expr_in_expr`]
 //!   → **`O115`** (remove redundant nested `[expr {…}]`).
@@ -10,17 +11,22 @@
 //!   [`crate::tcl_expr_eval::eval_tcl_expr`] → **`O101`** (fold
 //!   constant expression).
 //!
-//! The deeper AST-level rewriters (`InstCombine`, strength
-//! reduction, strlen / `streq` simplification) are stubs until
-//! their sub-strips (`C30e4` – `C30e7`) land; their diagnostic
-//! codes (`O113` / `O117` / `O120` / `O110`) will start firing
-//! here as soon as the stubs are replaced.
+//! The deeper AST-level rewriters (`instcombine_expr`,
+//! `try_strength_reduce_expr`, `try_strlen_simplify_expr`,
+//! `try_eq_ne_string_compare_simplify_expr`) all landed under
+//! sub-strips C30e4–C30e7. Their diagnostic codes (`O113` /
+//! `O117` / `O120` / `O110`) fire through the
+//! [`super::branch_folding::propagate_into_branches`] cascade,
+//! which has the richer context (SSA uses, interprocedural
+//! summaries) those rewriters need to be sound — the standalone
+//! `expr` statement form would re-fire diagnostics already
+//! emitted by the propagation cascade, so this pass deliberately
+//! sticks to the O115 / O101 pair for `Statement::ExprEval`.
 //!
-//! Branch conditions (`if` / `while` / `for`) are *not* visited
-//! here — those go through
-//! [`super::branch_folding::optimise_branch_proc_calls`] (C30a',
-//! pending) which has richer context (SSA uses, interprocedural
-//! summaries). The two passes deliberately do not overlap.
+//! Branch conditions (`if` / `while` / `for`) go through
+//! [`super::branch_folding::optimise_branch_proc_calls`] which
+//! has richer context (SSA uses, interprocedural summaries).
+//! The two passes deliberately do not overlap.
 
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;

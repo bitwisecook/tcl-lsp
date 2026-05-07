@@ -28,8 +28,9 @@ use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// Run the tail-call detection pass. Emits `O121` for every
-/// self-call in tail position (bare-call variant only; see
-/// module docs for deferred variants).
+/// self-call in tail position (bare-call + return-subst variants),
+/// plus the hint-only `O122` loop-conversion and `O123`
+/// accumulator-candidate diagnostics described in the module docs.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     for (qname, proc) in &cu.ir_module.procedures {
         let self_names = self_name_variants(qname);

@@ -13,9 +13,11 @@
 //!   [`super::helpers::expr_simplify`] toolkit). Emits **`O100`**
 //!   ("Propagate constants into branch expression") when a
 //!   substitution produced a text change. The deeper
-//!   simplification rewrites (O113 / O117 / O120 / O110) plug
-//!   in here once their C30e sub-strips land — their signatures
-//!   already work and the stubs silently no-op.
+//!   simplification rewriters all landed under C30e4–C30e7;
+//!   `propagate_into_branches` cascades `substitute` →
+//!   `strength_reduce` → `strlen` → `streq` → `instcombine`, and
+//!   the first rewriter to change text wins its diagnostic code
+//!   (`O113` / `O117` / `O120` / `O110` / `O100`).
 //!
 //! Switch-dispatch branches (the ones `cfg_builder` synthesises
 //! inside `switch` blocks: a chain of `StrEq` probes against

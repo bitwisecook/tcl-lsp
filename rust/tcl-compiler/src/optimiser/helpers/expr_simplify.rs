@@ -1,11 +1,10 @@
-//! Expression-simplification helpers (C30e, partial).
+//! Expression-simplification helpers (C30e + C30e4–C30e7).
 //!
-//! Ported from `core/compiler/optimiser/_expr_simplify.py`. The
+//! Ported from `core/compiler/optimiser/_expr_simplify.py`.  The
 //! Python module is a 1100-line toolkit of AST-level expression
 //! rewriters consumed by the propagation, branch-folding, and
-//! pattern-recognition passes. This strip lands the three
-//! helpers every one of those consumers actually depends on to
-//! produce any rewrite at all:
+//! pattern-recognition passes.  Every helper used by those
+//! consumers is now landed:
 //!
 //! - [`try_fold_expr`] — constant-fold an expression text via
 //!   [`eval_tcl_expr`].
@@ -13,25 +12,25 @@
 //!   `[expr {…}]` in expression context (`O115`).
 //! - [`substitute_expr_constants`] — replace `$var` references
 //!   with their SCCP-proved literals.
+//! - [`instcombine_expr`] — bottom-up fixpoint of local
+//!   instcombine rewrites (capped at 16 iterations).
+//! - [`try_strength_reduce_expr`] — `x+0` / `x-0` / `x*0` /
+//!   `x*1` / `x/1` / `x**2` / `x % 2^k` strength-reduction set.
+//! - [`try_strlen_simplify_expr`] — `[string length OP] == 0`
+//!   → `OP eq ""`.
+//! - [`try_eq_ne_string_compare_simplify_expr`] — `==`/`!=`
+//!   against an `ExprNode::String` literal → `eq`/`ne`.
 //!
-//! The deeper AST rewrites (`InstCombine`, strength reduction,
-//! strlen simplification, `eq`/`ne` → `eq`/`ne` string-compare
-//! promotion, pattern-match conversion, `DeMorgan`, etc.) are
-//! stubbed and will land as follow-up sub-strips. Each stub returns
-//! `(expr.to_owned(), false)` — "no change" — so downstream
-//! passes using the stable signature keep working and their
-//! diagnostic codes will fire once the real rewrite is
-//! populated.
-//!
-//! The sub-strips are sized independently:
-//!
-//! - **C30e1** — `try_fold_expr` (landed).
-//! - **C30e2** — `try_unwrap_expr_in_expr` (landed).
-//! - **C30e3** — `substitute_expr_constants` (landed).
-//! - **C30e4** — `instcombine_expr` fixpoint + `simplify_to_fixpoint`.
-//! - **C30e5** — `try_strength_reduce_expr`.
-//! - **C30e6** — `try_strlen_simplify_expr`.
-//! - **C30e7** — `try_eq_ne_string_compare_simplify_expr`.
+//! Sub-strip history: C30e1 `try_fold_expr` · C30e2
+//! `try_unwrap_expr_in_expr` · C30e3 `substitute_expr_constants`
+//! · C30e4 `instcombine_expr` · C30e5 `try_strength_reduce_expr`
+//! · C30e6 `try_strlen_simplify_expr` · C30e7
+//! `try_eq_ne_string_compare_simplify_expr`.  The four AST
+//! rewriters are wired into
+//! [`super::super::branch_folding::propagate_into_branches`] as a
+//! cascade (`substitute` → `strength_reduce` → `strlen` → `streq`
+//! → `instcombine`); the first rewriter to change text wins its
+//! diagnostic code (`O113` / `O117` / `O120` / `O110` / `O100`).
 
 use std::collections::HashSet;
 
