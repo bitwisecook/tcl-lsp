@@ -32,12 +32,12 @@ Mathfunc and mathop are *not* handled here — they are owned by
 
 bcc-shape probes — ``::tcl::unsupported::representation``,
 ``disassemble``, ``getbytecode``, ``assemble`` — describe the C
-interpreter's ``Tcl_Obj`` layout and bytecode listing.  Our WASM
-target compiles to an unrelated instruction stream, so faking their
+interpreter's ``Tcl_Obj`` layout and bytecode listing.  Neither the
+Python VM nor the Zig WASM runtime produces that shape, so faking the
 output would mislead pattern-matching tests.  We register the names
 (matching C ``info commands`` introspection) but the handlers raise a
-clear "not implemented on WASM" error; tests that exercise them are
-categorised under the ``skip`` bucket in
+clear "not implemented in this runtime" error; tests that exercise
+them are categorised under the ``skip`` bucket in
 ``tests/baselines/tcl9-tcltest/categories/<stem>.toml`` and never run.
 """
 
@@ -427,11 +427,14 @@ def _register_namespace(
     ns = ensure_namespace(interp.root_namespace, qualname)
     for sub in subcmds:
         ns.register_command(sub, handler_factory(sub))
-        # Also register the fully-qualified form on the runtime command
-        # table — keeps ``rename ::tcl::string::length …`` and other
-        # operations that look up by FQN working consistently.
-        interp._runtime_commands[f"{qualname}::{sub}"] = handler_factory(sub)
     ns.add_export("*")
+    # NB: do *not* duplicate the alias into ``interp._runtime_commands``
+    # under the FQN.  A flat-table copy would shadow the namespace
+    # entry and survive ``ns.delete()`` / ``rename`` operations,
+    # leaving ``::tcl::dict::get`` callable after ``namespace delete
+    # ::tcl::dict``.  Dispatch already resolves qualified names via
+    # the namespace path in ``_invoke_inner`` (line ~570), so the
+    # namespace registration alone is sufficient.
 
 
 def _bgerror_default(interp: "TclInterp", args: list[str]) -> TclResult:
@@ -476,9 +479,9 @@ def _bcc_shape_unsupported(cmd: str):
 
     ``::tcl::unsupported::representation``, ``disassemble``, and
     ``getbytecode`` are bcc-internal probes — they describe the C
-    interpreter's ``Tcl_Obj`` layout and bytecode listing.  Our WASM
-    target compiles to an unrelated instruction stream, so any
-    response we produce would either lie about C-Tcl internals or
+    interpreter's ``Tcl_Obj`` layout and bytecode listing.  Neither
+    the Python VM nor the WASM Zig runtime emits that shape, so any
+    response we produced would either lie about C-Tcl internals or
     be parsed as garbage by callers expecting the bcc format.
 
     Tests that depend on these commands are categorised under the
@@ -494,9 +497,9 @@ def _bcc_shape_unsupported(cmd: str):
 
     def handler(interp: "TclInterp", args: list[str]) -> TclResult:
         raise TclError(
-            f"::tcl::unsupported::{cmd} is not implemented on the WASM "
-            "target: it inspects C-bcc Tcl_Obj/bytecode shape that this "
-            "runtime does not produce"
+            f"::tcl::unsupported::{cmd} is not implemented in this "
+            "runtime: it inspects C-bcc Tcl_Obj/bytecode shape that "
+            "neither the Python VM nor the Zig WASM backend produces"
         )
 
     return handler
@@ -507,13 +510,15 @@ def _unsupported_assemble(interp: "TclInterp", args: list[str]) -> TclResult:
 
     Same reasoning as :func:`_bcc_shape_unsupported`: the assembler
     parses C bcc instruction mnemonics that our codegen does not
-    emit.  ``assemble.test`` is currently marked ``trap_allowed`` at
-    the stem level (see ``categories/assemble.toml``).
+    emit, regardless of whether the host is the Python VM or the
+    WASM Zig runtime.  ``assemble.test`` is currently marked
+    ``trap_allowed`` at the stem level (see
+    ``categories/assemble.toml``).
     """
     raise TclError(
-        "::tcl::unsupported::assemble is not implemented on the WASM "
-        "target: it produces C-bcc bytecode that this runtime does not "
-        "execute"
+        "::tcl::unsupported::assemble is not implemented in this "
+        "runtime: it produces C-bcc bytecode that neither the Python "
+        "VM nor the Zig WASM backend executes"
     )
 
 
@@ -597,23 +602,19 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
     }
     for sub, handler in unsupported_cmds.items():
         unsupported_ns.register_command(sub, handler)
-        interp._runtime_commands[f"::tcl::unsupported::{sub}"] = handler
     unsupported_ns.add_export("*")
 
     # init.tcl pokes ``::tcl::unsupported::clock::configure -init-complete``
     # immediately after wiring up the user-facing ``clock`` ensemble.
     unsupported_clock_ns = ensure_namespace(interp.root_namespace, "::tcl::unsupported::clock")
     unsupported_clock_ns.register_command("configure", _unsupported_clock_configure)
-    interp._runtime_commands["::tcl::unsupported::clock::configure"] = _unsupported_clock_configure
 
-    # ``::tcl::Bgerror`` and ``::tcl::build-info`` — singleton commands
-    # at ``::tcl`` level, not inside a sub-namespace.  ``build-info`` is
-    # already registered by ``inspect.zig`` / ``tcl_build_info.py`` for
-    # the runtime/core paths; we add a Python alias here too so the
-    # VM-only execution path doesn't depend on those backends.
+    # ``::tcl::Bgerror`` — singleton command at ``::tcl`` level, not
+    # inside a sub-namespace.  (``::tcl::build-info`` is registered
+    # separately by ``runtime/zig/cmds/inspect.zig`` /
+    # ``core/.../tcl_build_info.py``; we don't duplicate it here.)
     tcl_ns = ensure_namespace(interp.root_namespace, "::tcl")
     tcl_ns.register_command("Bgerror", _bgerror_default)
-    interp._runtime_commands["::tcl::Bgerror"] = _bgerror_default
 
 
 def _oo_helpers_stub(sub: str):
