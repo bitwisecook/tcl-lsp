@@ -4,6 +4,8 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use bitflags::bitflags;
+
 /// Where a Tcl variable must live at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EscapeTag {
@@ -13,6 +15,62 @@ pub enum EscapeTag {
     /// Must live in the runtime frame so the interpreter (or an
     /// `upvar` alias) can read and write it by name.
     Frame,
+}
+
+bitflags! {
+    /// Pessimism / fallback flag set shared by the var-escape
+    /// analysis structs ([`ProcEscapeSummary`],
+    /// [`super::state::EscapeState`],
+    /// [`super::cfg_propagation::state::CfgEscapeResult`],
+    /// [`super::cfg_propagation::state::CfgState`]).
+    ///
+    /// Each flag is monotonic (set once, never cleared) and
+    /// orthogonal to the others. Stored as a single byte so the
+    /// analysis state stays small.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+    pub struct EscapeFlags: u8 {
+        /// Whole-proc pessimism marker: `eval $body`, `uplevel 1`,
+        /// `info level`, or any other construct whose name-reference
+        /// set cannot be bounded. Forces every variable to `Frame`.
+        const DYNAMIC_BARRIER        = 0b0001;
+        /// The set of caller-frame names this proc reaches via
+        /// `upvar` cannot be statically enumerated. Callers must
+        /// spill every local.
+        const UNBOUNDED_UPVAR_SOURCE = 0b0010;
+        /// Codegen needs the eval fallback for this proc — a
+        /// definite interpreter dispatch (barrier-shaped).
+        const HAS_FALLBACK           = 0b0100;
+        /// A non-frameless `IRCall` with a statically resolvable
+        /// command word was seen. The interprocedural pass decides
+        /// whether this reaches the eval fallback.
+        const HAS_CALL_FALLBACK      = 0b1000;
+    }
+}
+
+impl EscapeFlags {
+    /// True if the [`Self::DYNAMIC_BARRIER`] flag is set.
+    #[must_use]
+    pub fn dynamic_barrier(self) -> bool {
+        self.contains(Self::DYNAMIC_BARRIER)
+    }
+
+    /// True if the [`Self::UNBOUNDED_UPVAR_SOURCE`] flag is set.
+    #[must_use]
+    pub fn unbounded_upvar_source(self) -> bool {
+        self.contains(Self::UNBOUNDED_UPVAR_SOURCE)
+    }
+
+    /// True if the [`Self::HAS_FALLBACK`] flag is set.
+    #[must_use]
+    pub fn has_fallback(self) -> bool {
+        self.contains(Self::HAS_FALLBACK)
+    }
+
+    /// True if the [`Self::HAS_CALL_FALLBACK`] flag is set.
+    #[must_use]
+    pub fn has_call_fallback(self) -> bool {
+        self.contains(Self::HAS_CALL_FALLBACK)
+    }
 }
 
 /// Join operator on the lattice: `Frame` dominates `Local`.
@@ -30,11 +88,11 @@ pub fn join(a: EscapeTag, b: EscapeTag) -> EscapeTag {
 /// `tags` maps variable name to its escape tag. Names not present
 /// default to [`EscapeTag::Local`].
 ///
-/// `dynamic_barrier` is set when the analysis encountered a
-/// construct whose name-reference set cannot be bounded
-/// (`eval $body`, `uplevel 1`, `info level`, etc.). In that case
-/// every variable in the proc is effectively `Frame` regardless
-/// of what `tags` contains.
+/// `flags` carries the four orthogonal pessimism markers
+/// ([`EscapeFlags::DYNAMIC_BARRIER`],
+/// [`EscapeFlags::UNBOUNDED_UPVAR_SOURCE`],
+/// [`EscapeFlags::HAS_FALLBACK`],
+/// [`EscapeFlags::HAS_CALL_FALLBACK`]).
 ///
 /// `frame_needed` is a convenience flag for codegen: true if the
 /// proc needs a runtime frame at all.
@@ -44,32 +102,18 @@ pub fn join(a: EscapeTag, b: EscapeTag) -> EscapeTag {
 /// interprocedural pass has run) names as the *source* of a
 /// caller-frame `upvar`. A caller must treat any of its local
 /// vars whose names appear here as `Frame`.
-///
-/// `unbounded_upvar_source` is true when the source set can't be
-/// enumerated (dynamic source name, pessimistic callee). Callers
-/// must spill every local in that case.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProcEscapeSummary {
     /// Per-name escape tag.
     pub tags: HashMap<String, EscapeTag>,
-    /// Whole-proc pessimism marker.
-    pub dynamic_barrier: bool,
+    /// Pessimism / fallback flag set.
+    pub flags: EscapeFlags,
     /// Convenience flag for codegen.
     pub frame_needed: bool,
     /// Names this proc treats as upvar sources.
     pub upvar_source_names: BTreeSet<String>,
-    /// True if the upvar-source set can't be enumerated.
-    pub unbounded_upvar_source: bool,
     /// Statically resolvable callees.
     pub direct_callees: BTreeSet<String>,
-    /// True if codegen needs the eval fallback for this proc.
-    pub has_fallback: bool,
-    /// True if the intraprocedural pass saw a non-frameless `IRCall`
-    /// with a statically resolvable command word. Whether that
-    /// reaches the eval fallback depends on whether the callee is
-    /// a compiled proc — only the interprocedural pass can tell.
-    pub has_call_fallback: bool,
     /// Per-SSA-version escape tags, populated by the flow-sensitive
     /// CFG+SSA propagation. Empty when the analysis was driven
     /// from an IR-only source. Keyed by `(name, ssa_version)`.
@@ -77,10 +121,38 @@ pub struct ProcEscapeSummary {
 }
 
 impl ProcEscapeSummary {
+    /// True if the whole-proc dynamic-barrier marker is set.
+    #[must_use]
+    pub fn dynamic_barrier(&self) -> bool {
+        self.flags.dynamic_barrier()
+    }
+
+    /// True if the upvar-source set can't be statically enumerated.
+    #[must_use]
+    pub fn unbounded_upvar_source(&self) -> bool {
+        self.flags.unbounded_upvar_source()
+    }
+
+    /// True if codegen needs the eval fallback for this proc.
+    #[must_use]
+    pub fn has_fallback(&self) -> bool {
+        self.flags.has_fallback()
+    }
+
+    /// True if the intraprocedural pass saw a non-frameless
+    /// `IRCall` with a statically resolvable command word. Whether
+    /// that reaches the eval fallback depends on whether the
+    /// callee is a compiled proc — only the interprocedural pass
+    /// can tell.
+    #[must_use]
+    pub fn has_call_fallback(&self) -> bool {
+        self.flags.has_call_fallback()
+    }
+
     /// Return the tag for *name* (defaults to `Local`).
     #[must_use]
     pub fn tag(&self, name: &str) -> EscapeTag {
-        if self.dynamic_barrier {
+        if self.dynamic_barrier() {
             return EscapeTag::Frame;
         }
         self.tags.get(name).copied().unwrap_or(EscapeTag::Local)
@@ -106,17 +178,16 @@ impl ProcEscapeSummary {
         for name in extra_escaped {
             new_tags.insert(name, EscapeTag::Frame);
         }
-        let new_pessimistic = self.dynamic_barrier || pessimistic;
+        let new_pessimistic = self.dynamic_barrier() || pessimistic;
         let new_frame_needed = new_pessimistic || new_tags.values().any(|t| *t == EscapeTag::Frame);
+        let mut new_flags = self.flags;
+        new_flags.set(EscapeFlags::DYNAMIC_BARRIER, new_pessimistic);
         Self {
             tags: new_tags,
-            dynamic_barrier: new_pessimistic,
+            flags: new_flags,
             frame_needed: new_frame_needed,
             upvar_source_names: self.upvar_source_names.clone(),
-            unbounded_upvar_source: self.unbounded_upvar_source,
             direct_callees: self.direct_callees.clone(),
-            has_fallback: self.has_fallback,
-            has_call_fallback: self.has_call_fallback,
             ssa_tags: self.ssa_tags.clone(),
         }
     }
@@ -154,7 +225,7 @@ mod tests {
     #[test]
     fn dynamic_barrier_forces_frame_for_all_names() {
         let s = ProcEscapeSummary {
-            dynamic_barrier: true,
+            flags: EscapeFlags::DYNAMIC_BARRIER,
             tags: HashMap::from([("x".into(), EscapeTag::Local)]),
             ..Default::default()
         };
@@ -177,7 +248,7 @@ mod tests {
     fn with_escapes_pessimistic_sets_dynamic_barrier() {
         let s = ProcEscapeSummary::default();
         let new = s.with_escapes(std::iter::empty(), true);
-        assert!(new.dynamic_barrier);
+        assert!(new.dynamic_barrier());
         assert!(new.frame_needed);
     }
 }

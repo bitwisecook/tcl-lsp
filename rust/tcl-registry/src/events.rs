@@ -12,6 +12,14 @@ use std::collections::{HashMap, HashSet};
 /// it requires, which profiles must be active, and classification
 /// flags (hot, common, deprecated).
 #[derive(Debug, Clone, PartialEq, Eq)]
+// `client_side` / `server_side` are mutually exclusive in
+// principle but the static tables include both-sides events; the
+// remaining four (`flow`, `deprecated`, `hot`, `common`) are
+// orthogonal classification facts. A bitflags consolidation is
+// possible but the type is part of the registry's public surface
+// and the static-data tables encode 247 events as `EventProps {
+// client_side: true, ... }` literals — deferred to a registry-
+// API audit chunk.
 #[allow(clippy::struct_excessive_bools)]
 pub struct EventProps {
     /// Fires on client side.
@@ -54,6 +62,9 @@ impl EventProps {
 /// Embedded on command specs via `excluded_events` and `EventRequires`
 /// in the Python registry.
 #[derive(Debug, Clone, PartialEq, Eq)]
+// `client_side` / `server_side` / `init_only` / `flow` are
+// orthogonal protocol-stack requirements. Same deferral as
+// [`EventProps`]: registry public surface, static-data literals.
 #[allow(clippy::struct_excessive_bools)]
 pub struct EventRequires {
     /// Requires client side.

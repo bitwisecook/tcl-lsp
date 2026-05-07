@@ -267,7 +267,7 @@ fn is_eval_block(tokens: Option<&crate::ir::CommandTokens>) -> bool {
 #[allow(clippy::too_many_lines)]
 pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeState) {
     for stmt in stmts {
-        if state.dynamic_barrier {
+        if state.dynamic_barrier() {
             return;
         }
         match stmt {
@@ -398,7 +398,7 @@ pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeS
 #[allow(clippy::too_many_lines)]
 fn walk(stmts: &[Statement], state: &mut EscapeState) {
     for stmt in stmts {
-        if state.dynamic_barrier {
+        if state.dynamic_barrier() {
             return;
         }
         match stmt {
@@ -558,16 +558,14 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
     let known = collect_known_names(params, body);
     let mut state = EscapeState::new(known);
     walk(&body.statements, &mut state);
-    let frame_needed = state.dynamic_barrier || state.tags.values().any(|t| *t == EscapeTag::Frame);
+    let frame_needed =
+        state.dynamic_barrier() || state.tags.values().any(|t| *t == EscapeTag::Frame);
     ProcEscapeSummary {
         tags: state.tags,
-        dynamic_barrier: state.dynamic_barrier,
+        flags: state.flags,
         frame_needed,
         upvar_source_names: state.upvar_source_names,
-        unbounded_upvar_source: state.unbounded_upvar_source,
         direct_callees: state.direct_callees,
-        has_fallback: state.has_fallback,
-        has_call_fallback: state.has_call_fallback,
         ssa_tags: std::collections::HashMap::new(),
     }
 }
@@ -590,7 +588,7 @@ mod tests {
     #[test]
     fn pure_set_does_not_escape() {
         let s = analyse("set x 1");
-        assert!(!s.dynamic_barrier);
+        assert!(!s.dynamic_barrier());
         assert!(!s.is_frame("x"));
     }
 
@@ -617,7 +615,7 @@ mod tests {
     #[test]
     fn info_level_marks_pessimistic() {
         let s = analyse("info level");
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
@@ -629,25 +627,25 @@ mod tests {
     #[test]
     fn upvar_with_dynamic_level_marks_pessimistic() {
         let s = analyse("upvar $lvl src dst");
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
     fn frameless_runtime_call_does_not_set_call_fallback() {
         let s = analyse("string length foo");
-        assert!(!s.has_call_fallback);
+        assert!(!s.has_call_fallback());
     }
 
     #[test]
     fn unknown_command_sets_call_fallback() {
         let s = analyse("some_user_proc arg");
-        assert!(s.has_call_fallback);
+        assert!(s.has_call_fallback());
     }
 
     #[test]
     fn dynamic_command_sets_record_fallback() {
         let s = analyse("$cmd arg");
-        assert!(s.has_fallback);
+        assert!(s.has_fallback());
     }
 
     #[test]

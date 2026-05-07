@@ -204,7 +204,7 @@ mod tests {
     fn upvar_dynamic_level_marks_pessimistic() {
         let mut s = CfgState::default();
         handle_upvar(&args_of(&["$lvl", "src", "dst"]), &mut s, &HashMap::new());
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
@@ -258,7 +258,7 @@ mod tests {
     fn info_no_subcommand_is_pessimistic() {
         let mut s = CfgState::default();
         handle_info(&[], &mut s, &HashMap::new());
-        assert!(s.dynamic_barrier);
+        assert!(s.dynamic_barrier());
     }
 
     #[test]
@@ -266,7 +266,7 @@ mod tests {
         for sub in ["level", "frame", "vars", "locals"] {
             let mut s = CfgState::default();
             handle_info(&args_of(&[sub]), &mut s, &HashMap::new());
-            assert!(s.dynamic_barrier, "{sub} should be pessimistic");
+            assert!(s.dynamic_barrier(), "{sub} should be pessimistic");
         }
     }
 
@@ -281,7 +281,7 @@ mod tests {
     fn info_safe_subcommand_does_nothing() {
         let mut s = CfgState::default();
         handle_info(&args_of(&["patchlevel"]), &mut s, &HashMap::new());
-        assert!(!s.dynamic_barrier);
+        assert!(!s.dynamic_barrier());
         assert!(s.ssa_tags.is_empty());
     }
 

@@ -251,7 +251,7 @@ pub(crate) fn escape_every_name_touched_tree(
     defs: &HashMap<String, Version>,
 ) {
     for stmt in stmts {
-        if state.dynamic_barrier {
+        if state.dynamic_barrier() {
             return;
         }
         match stmt {
@@ -546,7 +546,7 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
 /// condition isn't missed).
 fn walk_block(block: &SsaBlock, state: &mut CfgState, terminator_condition: Option<&ExprNode>) {
     for stmt in &block.statements {
-        if state.dynamic_barrier {
+        if state.dynamic_barrier() {
             return;
         }
         handle_statement(stmt, state);
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn pure_set_does_not_escape() {
         let r = analyse("set x 1");
-        assert!(!r.dynamic_barrier);
+        assert!(!r.dynamic_barrier());
         assert!(r.name_tags.is_empty());
     }
 
@@ -643,7 +643,7 @@ mod tests {
     #[test]
     fn info_level_marks_pessimistic() {
         let r = analyse("info level");
-        assert!(r.dynamic_barrier);
+        assert!(r.dynamic_barrier());
     }
 
     #[test]
@@ -655,13 +655,13 @@ mod tests {
     #[test]
     fn unknown_command_sets_call_fallback() {
         let r = analyse("some_user_proc arg");
-        assert!(r.has_call_fallback);
+        assert!(r.has_call_fallback());
     }
 
     #[test]
     fn frameless_runtime_call_does_not_set_call_fallback() {
         let r = analyse("string length foo");
-        assert!(!r.has_call_fallback);
+        assert!(!r.has_call_fallback());
     }
 
     #[test]

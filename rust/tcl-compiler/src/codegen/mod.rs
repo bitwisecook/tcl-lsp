@@ -882,6 +882,14 @@ pub struct ModuleAsm {
 /// produces one [`FunctionAsm`] — create a separate context for each
 /// procedure or top-level script.
 #[derive(Debug)]
+// `is_proc` is a constructor-time configuration flag; the others
+// (`seen_generic_invoke`, `used_generic_invoke`,
+// `used_inline_cmd_subst`) are emission-time tracking flags
+// written and read at hot-path code-emission sites. They're
+// genuinely orthogonal — folding into a bitflags type would just
+// rename `ctx.is_proc` to `ctx.flags.contains(...)` without any
+// readability or perf gain — and the emitter is a churn-sensitive
+// area. Leaving the allow.
 #[allow(clippy::struct_excessive_bools)]
 pub struct CodegenCtx<'r> {
     /// Literal constant pool.
