@@ -494,10 +494,22 @@ class _WasmEmitterValuesMixin(_Base):
             if expr_arg.startswith("{") and expr_arg.endswith("}"):
                 expr_arg = expr_arg[1:-1]
             from .....parsing.expr_parser import parse_expr
+            from .....compiler.expr_ast import ExprVar, ExprLiteral, ExprString
 
             try:
                 nested_expr = parse_expr(expr_arg)
                 self._emit_expr_obj(nested_expr)
+                # Single-token expressions (``expr {$var}`` /
+                # ``expr {0o00123}``) need to canonicalise through
+                # the runtime parser so a numeric-shaped string ``$a``
+                # value collapses to its decimal form.  Compound
+                # expressions (with operators) are already canonical
+                # because the arithmetic helpers stamp the canonical
+                # int / float / bignum tag on their result obj.
+                if isinstance(nested_expr, (ExprVar, ExprLiteral, ExprString)):
+                    canon_idx = self._shared_imports.get("tcl_expr_canonicalise")
+                    if canon_idx is not None:
+                        self._emit_call(canon_idx)
                 return
             except Exception:
                 pass

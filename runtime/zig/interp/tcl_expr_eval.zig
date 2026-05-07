@@ -723,7 +723,81 @@ fn parse_var(s: *State) i32 {
     const slice_ptr = @intFromPtr(s.src) + start;
     const slice_len = s.pos - start;
     const subst = @import("../parse/tcl_subst.zig");
-    return subst.subst_flagged(ptr_as_u32(slice_ptr), slice_len, true, false, false);
+    const result = subst.subst_flagged(ptr_as_u32(slice_ptr), slice_len, true, false, false);
+    // Tcl 9 ``expr`` shimmers a variable operand to its canonical
+    // numeric form when the value's *full* string repr parses as a
+    // Tcl integer or float — so ``set a 0o00123 ; expr {$a}`` returns
+    // ``83``, not ``"0o00123"`` (compExpr-1.4).  Skip already-numeric
+    // tagged operands so a TYPE_FLOAT obj keeps its float-ness.  The
+    // base-prefix path (``0x`` / ``0o`` / ``0b``) requires every digit
+    // after the prefix to be valid for that base — partial parses
+    // (``0o289`` ➜ trailing ``89`` ignored) would mis-canonicalise an
+    // invalid octal as ``2`` and let ``$x+1`` return ``3`` instead of
+    // raising ``cannot use non-numeric string …`` (expr-old-36.2).
+    if (result != 0 and !obj.is_immediate(result)) {
+        const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
+        if (tag != obj.TYPE_INT and tag != obj.TYPE_FLOAT and tag != obj.TYPE_BIGNUM) {
+            const rs = obj.obj_ensure_string(result);
+            if (rs.len > 0) {
+                if (try_canonicalise_string(rs.ptr, rs.len)) |canon| {
+                    obj.tcl_obj_release(result);
+                    return canon;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+/// Try to convert *s* to a canonical numeric obj, returning ``null``
+/// when the string isn't a valid Tcl integer / hex / octal / binary /
+/// float literal in its entirety.  Distinct from the expression
+/// evaluator's eager parser (which would consume ``0o289`` as ``0o2``
+/// and silently drop the trailing ``89``).
+fn try_canonicalise_string(ptr: u32, len: u32) ?i32 {
+    if (len == 0) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len and obj.is_space(src[i])) i += 1;
+    if (i >= len) return null;
+    const sign_start = i;
+    if (src[i] == '+' or src[i] == '-') i += 1;
+    if (i >= len) return null;
+    // Base prefix?
+    if (i + 1 < len and src[i] == '0' and (src[i + 1] == 'x' or src[i + 1] == 'X' or
+        src[i + 1] == 'o' or src[i + 1] == 'O' or src[i + 1] == 'b' or src[i + 1] == 'B'))
+    {
+        const base_char = src[i + 1];
+        const digit_start = i + 2;
+        var j = digit_start;
+        while (j < len and !obj.is_space(src[j])) : (j += 1) {
+            const ch = src[j];
+            const ok = switch (base_char) {
+                'x', 'X' => (ch >= '0' and ch <= '9') or (ch >= 'a' and ch <= 'f') or (ch >= 'A' and ch <= 'F'),
+                'o', 'O' => ch >= '0' and ch <= '7',
+                'b', 'B' => ch == '0' or ch == '1',
+                else => unreachable,
+            };
+            if (!ok) return null;
+        }
+        if (j == digit_start) return null;
+        // Trailing whitespace allowed.
+        var k = j;
+        while (k < len and obj.is_space(src[k])) k += 1;
+        if (k != len) return null;
+        // Re-use eval() now that we know the string is fully valid:
+        // it handles bignum overflow and emits the canonical decimal
+        // form.  ``sign_start`` covers the optional ``+``/``-`` prefix.
+        const slice_ptr: u32 = @intCast(@intFromPtr(src) + sign_start);
+        const slice_len: u32 = j - sign_start;
+        return eval(slice_ptr, slice_len);
+    }
+    // Plain decimal int form (covers leading zeros like ``0005`` per
+    // Tcl 9 — which canonicalises to ``5`` decimal, not octal).
+    if (obj.try_parse_int(ptr, len)) |iv| return obj_new_int(iv);
+    // Floating point.
+    if (obj.try_parse_float(ptr, len)) |fv| return obj.obj_new_float(fv);
+    return null;
 }
 
 fn parse_cmd_subst(s: *State) i32 {

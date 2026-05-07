@@ -234,6 +234,16 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # ``bool(x)`` — coerce to Tcl boolean accepting keyword forms
     # (``yes`` / ``no`` / ``true`` / ``false`` / ``on`` / ``off``).
     "tcl_math_bool": ("tcl", "tcl_math_bool", [ValType.I32], [ValType.I32]),
+    # Canonicalise an obj via the expression parser — single-token
+    # ``expr {$var}`` semantics.  Returns the canonical numeric obj
+    # when the string parses as a Tcl integer / hex / octal / binary /
+    # float; otherwise the original obj.
+    "tcl_expr_canonicalise": (
+        "tcl",
+        "tcl_expr_canonicalise",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     # Infra used by the puts specialisation for ``-nonewline``.
     "tcl_puts_nonewline": (
         "tcl",

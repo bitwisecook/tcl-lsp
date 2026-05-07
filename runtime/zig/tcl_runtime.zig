@@ -876,3 +876,51 @@ pub export fn tcl_eval_expr_str(src_ptr: i32, src_len: i32) i32 {
     const expr_eval = @import("interp/tcl_expr_eval.zig");
     return expr_eval.eval(@bitCast(src_ptr), @bitCast(src_len));
 }
+
+/// Canonicalise *obj* through the expression evaluator's numeric
+/// parser.  Reference Tcl 9 semantics: a single-token expression like
+/// ``expr {$a}`` shimmers ``$a``'s string repr to a numeric obj when
+/// it parses as int / hex / octal / binary / float, returning the
+/// canonical decimal form (``0o00123`` ➜ ``83``).  Strings that don't
+/// parse as numbers are returned verbatim.  Used by the AOT codegen
+/// for the var-only / literal-only expression shortcut.
+pub export fn tcl_expr_canonicalise(o: i32) i32 {
+    const obj_mod = @import("valtypes/tcl_obj.zig");
+    if (o == 0) return 0;
+    if (obj_mod.is_immediate(o)) return o;
+    const handle: u32 = @bitCast(o);
+    const tag = obj_mod.read_i32(handle + obj_mod.OBJ_TYPE_TAG);
+    // Already-numeric tags are canonical.  Skip the re-parse for
+    // TYPE_INT / TYPE_FLOAT / TYPE_BIGNUM — their string repr is
+    // already produced from the numeric value.
+    if (tag == obj_mod.TYPE_INT or tag == obj_mod.TYPE_FLOAT or tag == obj_mod.TYPE_BIGNUM) {
+        return o;
+    }
+    const s = obj_mod.obj_ensure_string(o);
+    if (s.len == 0) return o;
+    // Run the source bytes through the expression evaluator so the
+    // ``finalize_num`` path normalises ``0xff`` / ``0o77`` / ``0b101``
+    // to decimal form, preserves bignum precision, and rejects
+    // non-numeric strings (in which case we fall back to the original
+    // obj rather than the parser's error result).
+    const expr_eval = @import("interp/tcl_expr_eval.zig");
+    const parsed = expr_eval.eval(@bitCast(s.ptr), @bitCast(s.len));
+    if (parsed == 0) return o;
+    // If the parser produced a string-form obj that exactly matches
+    // the input, no canonicalisation happened — drop the duplicate
+    // and return the original.
+    if (obj_mod.is_immediate(parsed)) {
+        // Tagged immediates are always canonical; release the original
+        // and return the new handle.  No retain/release needed since
+        // immediates are not heap-backed.
+        obj_mod.tcl_obj_release(o);
+        return parsed;
+    }
+    const ptag = obj_mod.read_i32(@as(u32, @bitCast(parsed)) + obj_mod.OBJ_TYPE_TAG);
+    if (ptag == obj_mod.TYPE_INT or ptag == obj_mod.TYPE_FLOAT or ptag == obj_mod.TYPE_BIGNUM) {
+        obj_mod.tcl_obj_release(o);
+        return parsed;
+    }
+    obj_mod.tcl_obj_release(parsed);
+    return o;
+}

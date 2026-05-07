@@ -616,6 +616,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         if rest.startswith("{") and rest.endswith("}"):
                             rest = rest[1:-1]
                         _scan_expr_body_imports(rest, needed)
+                        # ``[expr {$var}]`` and ``[expr {literal}]`` paths
+                        # route through ``tcl_expr_canonicalise`` so a
+                        # number-shaped string value collapses to the
+                        # canonical numeric form.  Pull in the helper here
+                        # so the import is present whenever an expr command
+                        # substitution appears in a value context.
+                        needed.add("tcl_expr_canonicalise")
                 elif cmd == "catch":
                     # ``[catch {body} ?var?]`` as a command substitution
                     # compiles via the real catch codegen path (see
