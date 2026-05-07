@@ -1187,8 +1187,17 @@ fn finalize_num(s: *State, start: u32) i32 {
     if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
         return obj.obj_new_float(fv);
     }
-    // Bignum / unparseable — fall back to the source bytes so
-    // the caller sees the original spelling.
+    // Bignum path — base-prefixed integer literals that overflow i64
+    // (``0b1[64 zeros]`` = 2^64, ``0xff…ff`` past 16 digits) and plain
+    // decimal literals beyond i64 / i128 range get the full Managed
+    // parser, which collapses to the canonical decimal string repr.
+    // Without this, ``expr-43.11`` returned ``0b11…1`` (the source
+    // bytes) instead of ``18446744073709551615``.
+    const bn = @import("../valtypes/tcl_bignum.zig");
+    if (bn.alloc_from_string(@bitCast(sptr), @bitCast(slen))) |m| {
+        return obj.obj_new_bignum_take(m);
+    }
+    // Truly unparseable — fall back to the source bytes.
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(slen));
 }
 

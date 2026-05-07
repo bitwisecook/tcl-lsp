@@ -491,13 +491,26 @@ class _WasmEmitterValuesMixin(_Base):
         # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
-            if expr_arg.startswith("{") and expr_arg.endswith("}"):
+            was_braced = expr_arg.startswith("{") and expr_arg.endswith("}")
+            if was_braced:
                 expr_arg = expr_arg[1:-1]
             from .....parsing.expr_parser import parse_expr
-            from .....compiler.expr_ast import ExprVar, ExprLiteral, ExprString
+            from .....compiler.expr_ast import ExprVar, ExprLiteral, ExprString, ExprRaw
 
             try:
                 nested_expr = parse_expr(expr_arg)
+                # Unbraced expr with a substitution (``expr 0b$s`` /
+                # ``expr 0b[string repeat 1 64]``) parses as
+                # ``ExprRaw`` because the variable / command-subst
+                # token isn't valid expression syntax in isolation.
+                # The compile-time path doesn't have the substituted
+                # value, so route through the eval fallback which
+                # builds the script, runs Tcl word-substitution,
+                # joins the parts, and only then dispatches ``expr``
+                # against the joined source — mirroring reference
+                # Tcl's behaviour (expr-43.10 / 43.12 / 44.x).
+                if not was_braced and isinstance(nested_expr, ExprRaw):
+                    raise RuntimeError("unbraced ExprRaw — defer to eval-fallback")
                 self._emit_expr_obj(nested_expr)
                 # Single-token expressions (``expr {$var}`` /
                 # ``expr {0o00123}``) need to canonicalise through
