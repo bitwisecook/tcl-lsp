@@ -474,60 +474,6 @@ def _patch_tcltest_source(src: str) -> str:
     return patched
 
 
-def _patch_hello_world_procs(script: str) -> str:
-    """Pass-through — no procs require source-level patching anymore.
-
-    Both stress tests (``hello_world`` / ``put_hello_char`` and
-    ``12days`` / ``do_twelve_days``) now run real against the
-    compiled runtime.  Kept as an identity function so the bundle
-    pipeline below doesn't need a structural change; can be deleted
-    once nothing calls it.
-
-    Bugs fixed along the way:
-
-    * Global-mirror staleness — ``global``-declared names inside a
-      proc consult the global table on every read instead of
-      trusting the WASM-local mirror that callees mutate through
-      the global table.  See set_.py / lappend_.py / append_.py /
-      _variables.py.
-    * ``[append xxx X]`` / ``[lappend xxx X]`` cmd-subs in VALUE
-      and expr context now dispatch through the WASM emitter
-      registry first; the previous fall-through to the runtime's
-      string-concat helper (``tcl_cmd_append``) silently dropped
-      the var write and returned the mis-built ``"xxxX"`` value.
-    * Multi-command cmd-substitutions
-      (``[append xxx X; scan ...; set x]`` / ``[expr {…};expr {…}]``)
-      now split at top-level ``;`` / newline and compile each
-      command inline.  ``_split_command_subst`` parses one command
-      only and would otherwise drag the trailing commands' words
-      into the first command's argv.
-    * ``scan " " %c x`` skipped leading whitespace and never set
-      ``x``.  Tcl 9's ``%c`` is the one consuming spec that does
-      NOT skip whitespace beforehand (matches ``CharConvert`` in
-      tclScan.c).
-    * ``MAX_DEPTH`` for the runtime frame stack was 64; raised to
-      1024 to match reference Tcl 9's ``Tcl_RecursionLimit``
-      default.  At depth >64 ``frame_push`` was returning -1 and
-      the codegen DROPped the result, so subsequent ``local_set``
-      calls landed in the previous frame and clobbered unrelated
-      locals.
-    * ``extract_single_expr_argument`` returned the first ``expr``
-      argument from a cmd-sub body that had a trailing
-      ``; cmd2``; the second command was silently dropped.  The
-      lexer now bails out when it sees a real word after the
-      first command's EOL.
-    * ``obj_is_list_shape`` accepted any whitespace-bearing string
-      as a list, so the ``cannot use a list as operand of "X"``
-      diagnostic mis-fired on values like ``{1 2 "}`` (which is
-      not a valid list — unterminated quote).  Now uses a real
-      list-element parser and requires >= 2 well-formed elements.
-    * The escape analysis records a fallback for any value
-      embedding a multi-command cmd-sub so the proc keeps its
-      runtime frame around the eval boundary.
-    """
-    return script
-
-
 def _bundle(test_file_path: Path) -> str:
     """Concatenate Tcl 9 tcltest + preamble + test file into one script.
 
@@ -542,7 +488,7 @@ def _bundle(test_file_path: Path) -> str:
     "no such variable".
     """
     tcltest_src = _patch_tcltest_source(_tcl9_tcltest().read_text(encoding="utf-8"))
-    test_src = _patch_hello_world_procs(test_file_path.read_text(encoding="utf-8"))
+    test_src = test_file_path.read_text(encoding="utf-8")
 
     parts: list[str] = [
         "# ===== run_tcl9_tests pre-tcltest stubs =====",
