@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
 from .....analysis.semantic_model import Range
@@ -144,6 +145,14 @@ class _WasmEmitterBase:
         # made so the body emitters can decide whether to wrap each
         # write with retain/release.
         self._wants_frame: bool = False
+        # Debug-only check: ``_emit_local_set`` / ``_emit_local_tee``
+        # asserts that no direct ``local.set`` is emitted for a
+        # non-pessimistic FRAME-tagged Tcl variable.  Off in prod
+        # builds; flip on with ``TCLLSP_DEBUG_VAR_CONTRACT=1`` to
+        # catch the bypass-via-direct-write codegen bug class.
+        self._var_write_contract_check: bool = bool(
+            os.environ.get("TCLLSP_DEBUG_VAR_CONTRACT")
+        )
         # Lazy scratch slot for the retain/release wrap.  Allocated on
         # first use of ``_emit_owned_local_write`` and reused for
         # every wrapped write in this proc.
@@ -426,10 +435,55 @@ class _WasmEmitterBase:
         self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
 
     def _emit_local_set(self, idx: int) -> None:
+        self._assert_var_write_contract(idx, "local.set")
         self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(idx))
 
     def _emit_local_tee(self, idx: int) -> None:
+        self._assert_var_write_contract(idx, "local.tee")
         self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(idx))
+
+    def _assert_var_write_contract(self, idx: int, op: str) -> None:
+        """Catch direct ``local.set`` / ``local.tee`` writes that bypass
+        the FRAME-routing contract for Tcl-visible variables.
+
+        For a Tcl name with a non-pessimistic FRAME tag the runtime frame
+        is the authoritative storage.  ``_emit_var_write_obj`` routes
+        such writes through ``tcl_local_set`` / ``tcl_frame_local_set_at``
+        and never falls through to a plain ``local.set``.  Any direct
+        ``local.set idx`` where ``idx`` resolves to such a name is a
+        codegen bug — reads through ``tcl_local_get_or_error`` will
+        miss the WASM-local-only write and trap with ``can't read
+        "<name>": no such variable`` (or worse, return the previous
+        iteration's value).
+
+        Disabled by default so prod compiles take no extra cost; turn on
+        with ``TCLLSP_DEBUG_VAR_CONTRACT=1`` for testing.  The check is
+        per-write and O(1) but allocating a useful traceback is not, so
+        gate it behind an explicit opt-in.
+        """
+        if not self._var_write_contract_check:
+            return
+        if idx >= len(self._local_names):
+            return
+        name = self._local_names[idx]
+        if not name or name.startswith("_"):
+            return
+        summary = self._escape_summary
+        if summary is None or summary.dynamic_barrier:
+            return
+        if not summary.is_frame(name):
+            return
+        if name in self._params:
+            # Param prologue legitimately mirrors the incoming arg
+            # into the WASM-local before a separate frame_local_set_at
+            # publishes it to the frame.  Allowed.
+            return
+        raise AssertionError(
+            f"var-write contract: direct {op} to slot {idx} ({name!r}) "
+            f"in proc {self._proc_qname!r} bypasses FRAME routing — "
+            f"this var is non-pessimistic FRAME-tagged and must go "
+            f"through _emit_var_write_obj"
+        )
 
     def _emit_call(self, func_idx: int) -> None:
         self._emit(WasmOp.CALL, _leb128_unsigned(func_idx))

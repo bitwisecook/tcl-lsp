@@ -131,6 +131,34 @@ def _is_dynamic_name(name: str) -> bool:
     return _is_dynamic_token(name)
 
 
+def _array_element_array_name(name: str) -> str | None:
+    """If ``name`` is an array-element ref (``arr(...)``) where the array
+    name is a plain literal identifier, return that literal array name.
+
+    ``set arr($k) v`` / ``unset arr($k)`` / ``incr arr($k)`` only touches
+    the *array* by name — the index is dynamic but doesn't widen the
+    proc's escape set beyond ``arr``.  Without this narrowing every such
+    call falls into :func:`_handle_dynamic_name_first`'s fallback
+    (``escape_all_known``) and forces the whole proc onto the slow
+    frame path.
+
+    Returns ``None`` for plain scalars, fully-dynamic names (``$x(y)``),
+    and ``::``-qualified arrays (those route through the global table
+    and don't need proc-local escape tracking).
+    """
+    if not name or "(" not in name or not name.endswith(")"):
+        return None
+    if name.startswith("$") or name.startswith("[") or name.startswith("::"):
+        return None
+    open_paren = name.find("(")
+    if open_paren <= 0:
+        return None
+    arr = name[:open_paren]
+    if "$" in arr or "[" in arr or "{" in arr or "}" in arr:
+        return None
+    return arr
+
+
 # Match ``[info <subcmd> ...]`` command substitutions embedded in value
 # strings. Used to detect frame-inspecting ``info`` calls that the lowering
 # stuffed inside an ``IRAssignValue`` value rather than surfacing as a
@@ -521,8 +549,20 @@ def _handle_dynamic_name_first(call: IRCall, state: _EscapeState) -> None:
         literal = state.resolve_literal(name)
         if literal is not None:
             state.escape(literal)
-        else:
-            state.escape_all_known()
+            return
+        arr = _array_element_array_name(name)
+        if arr is not None:
+            # ``unset arr($k)`` / ``set arr($k) v`` / ``incr arr($k)`` —
+            # only the array name escapes; the dynamic index doesn't
+            # widen the touched-by-name set.  Without this narrowing,
+            # the fallback below would spill every proc-local and
+            # force the proc onto ``escape_all_known`` (and from there
+            # often into the dynamic-barrier slow path), regressing
+            # the foreach-loop-var visibility for any body that
+            # mutates an array element by computed index.
+            state.escape(arr)
+            return
+        state.escape_all_known()
 
 
 def _escape_every_name_touched(

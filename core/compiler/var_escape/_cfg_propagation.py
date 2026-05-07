@@ -48,6 +48,7 @@ from ._propagation import (
     _CMD_SUBST_HEAD_RE,
     _FRAMELESS_RUNTIME_COMMANDS,
     _NAME_FIRST_COMMANDS,
+    _array_element_array_name,
     _is_dynamic_name,
     _is_dynamic_token,
     _normalise_cmd_subst_head,
@@ -363,8 +364,14 @@ def _handle_dynamic_name_first(
         literal = state.resolve_literal(name)
         if literal is not None:
             state.escape(literal, defs)
-        else:
-            state.escape_all_known(defs)
+            return
+        arr = _array_element_array_name(name)
+        if arr is not None:
+            # See ``_propagation._handle_dynamic_name_first`` for the
+            # rationale: array-element refs only touch the array name.
+            state.escape(arr, defs)
+            return
+        state.escape_all_known(defs)
 
 
 def _escape_every_name_touched_tree(
