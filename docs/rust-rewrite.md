@@ -884,11 +884,21 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
-Refreshed: 2026-05-07 against `origin/main`@`31d5d473`,
-`origin/rust`@`9205b90b`.
+Refreshed: 2026-05-07 (re-audited later same day against
+`origin/main`@`8b68af55`, `origin/rust`@`7364fd85`; previous audit
+was `31d5d473` / `9205b90b`).
 
-`main` carries 94 commits past the last rust-side rebase point
-(`SYNC-MAY26`).  Triage:
+`main` carries 97 commits past the last rust-side rebase point
+(`SYNC-MAY26`).  The 3 commits added since the morning audit
+(`#347` Zig dict iter / array upvar; `#348` regexp/regsub +
+coroutine semantics; `#349` WASM test-bucket categorisation) are
+all out of scope except for one new Python registry entry —
+`::tcl::unsupported::corotype` — added in `#348`.  That mirror
+landed in PR #355 (`rust/tcl-registry/src/commands/tcl/tcl_unsupported_corotype.rs`
++ `mod.rs` registration) and is not tracked in the Outstanding
+table.
+
+Triage:
 
 - **Out of scope (≈ 80 commits)** — Tcl 9 runtime semantics,
   WASM AOT staircase + emitter follow-ups, expr-bignum (i128 /
