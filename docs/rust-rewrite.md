@@ -953,6 +953,10 @@ to the chunk-log entry that has the full spec.
 | 1 | `SYNC-MAY26` family (`SYNC1` … `SYNC11`) | Sync gaps surfaced by the 2026-04-30 → 2026-05-01 main-rebase audit.  Eleven scoped sub-chunks tracking changes that landed on `main` while the rust workstream was open and that affect a Rust mirror.  Order matters: `SYNC1` (`arg_role_resolver` → multi-role frozenset) unblocks `SYNC4` / `SYNC5` / `SYNC6` (SSA fallout); `SYNC7` (canonical command names on IR) unblocks the rest of the `#246` body-kind canonicalisation.  See the per-chunk sub-plans below. |
 | 2 | `C41-default-on-followups-postpass` (= ``C42``) | **Code-side: every post-pass W code (W105, W110, W302, W001, E004, W304, W101, W220-IR-paths) has landed as a Rust-side emitter in ``rust/tcl-compiler/src/analyser/diagnostics.rs``.** The Python override the chunk was supposed to retire (`_merge_rust_with_python_supplement` in `core/analysis/_analyser/__init__.py`) was silently deleted at PR #241 (`cd7a8441`, 2026-04-30) when `__init__.py` was simplified from 535 LOC to 47 — there is now nothing left to flip. The Rust analyser is in `rust/tcl-compiler/src/analyser/` but is invoked only by `tests/test_rust_analyser_differential.py` (currently broken — its `_materialise_rust_analysis` import raises). Closes with the ``S*`` LSP-server port, which replaces the consumers of `analyse()` with Rust-native callers. |
 | 3 | `C41-default-on-followups-structural` | Naturally closes with the ``S*`` LSP-server port.  Lower priority for direct work — the structural-triple override survives only because Python consumers depend on object identity; rewriting them in Rust eliminates the question.  Status sibling of the postpass row: the override the chunk was supposed to flip is gone since #241; the work closes with `S*`. |
+| 4 | `C45-uri-split` | Port `core/compiler/taint/_uri_split.py` (~959 LOC) — IRULE3103 detection of `*::uri` getter + manual decomposition patterns.  Promoted out of the C* aggregate row by the C* close-out audit (2026-05-07).  Scope is contained: one taint-side diagnostic with parametric pattern detection, plus the URI-family discovery that generalises to registry-known `*::uri` siblings.  Lands alongside the smaller T103 / T104 / T105 sink codes as their own sub-strips. |
+| 5 | `C44-irules-flow` | Port `core/compiler/irules_flow.py` (~1634 LOC) — iRules control-flow checker emitting IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 / IRULE1201 / IRULE1202 / IRULE5002 / IRULE5004 / IRULE4004.  Promoted out of the C* aggregate row by the C* close-out audit (2026-05-07).  Largest of the three remaining C-prefixed ports; consumes the `connection_scope` infrastructure already landed under C28 follow-up.  Each diagnostic is its own sub-strip. |
+| 6 | `C43` | Codegen + lowering hooks port — registry-driven hook dispatch in `rust/tcl-compiler/src/lowering/mod.rs::lower_command` (currently uses string-pattern dispatch on `cmd_name`) plus the Python `lowering_hooks/` package (`_barrier_gate.py` + `_var.py` + `_control.py`, ~466 LOC).  Unblocked by ARCH1 + ARCH2.  Per the chunk-log row, each command form's hook lands as its own sub-commit. |
+| 7 | clippy-cleanup Chunk D (`too_many_lines`) | ~30 `#[allow(clippy::too_many_lines)]` allows still in the workspace, mostly in long emitter functions in `rust/tcl-compiler/src/analyser/diagnostics.rs` and `rust/tcl-compiler/src/optimiser/`.  Mechanical cleanup — split each over-long function into helpers, drop the allow.  Continues the cleanup from PRs #340 / #342 / #350 (Chunks A / B / E + var_escape bitflags), targeting the 50% allow-removal milestone. |
 | — | `ARCH0` … `ARCH9` | Landed.  Initial crate-and-registry cleanup (ARCH0–ARCH4) plus the post-cleanup follow-ups (ARCH5–ARCH9): pure LSP feature crate, typed hook IDs, registry-driven hook dispatch, registry-owned diagnostics facts, codegen registry threading, `SubCommand::traits` for subcommand-shaped facts, `tcl-lsp-rust` binding-only audit, `tcl-lsp-server` bootstrap, and `tcl-lsp-py` public binding crate.  See chunk log and `docs/design/rust/current-architecture.md`. |
 | — | `S*` (LSP server) | Per-feature ports.  ARCH8 landed the `tcl-lsp-server` bootstrap with folding; subsequent providers (document symbols, hover, completion, semantic tokens, diagnostics, …) extend it one at a time, smallest first. |
 | — | `VM*`, `F*`, `REF*`, `IT*`, `DBG*`, `EXP*`, `AI*`, `BIG*`, `APL*`, `TK*`, `DIAG*`, `PKG*`, `XK*`, `SCR*` | The other top-level Python-retirement chunks.  See the chunk-log rows for scope. |
@@ -960,9 +964,15 @@ to the chunk-log entry that has the full spec.
 | — | `TEST-MIGRATE` | Per-file commits — port test, delete the matching ``test_*.py`` in the same commit.  Picks up incrementally as each port lands. |
 | — | `PYTHON-RETIRE` | Final chunk; deletes ``core/`` / ``lsp/`` / ``vm/`` / ``debugger/`` / ``explorer/`` / ``ai/`` / ``scripts/``.  v2.0 release. |
 
-ARCH0–ARCH9 have all landed.  The next prioritised work is the
-analyser-followup family (`C41-default-on-followups-*`) followed
-by per-feature LSP server ports (`S*`) building on the
+ARCH0–ARCH9 have all landed.  The C* aggregate row is also
+closed (2026-05-07 close-out): every shimmer / interprocedural /
+optimiser / connection-scope sub-item is landed, and the three
+remaining C-prefixed ports (C45-uri-split, C44-irules-flow, C43)
+are now first-class rows in their own right (priorities 4 / 5 /
+6 above) rather than aggregate-row hidden work.  After those, the
+next prioritised work is the analyser-followup family
+(`C41-default-on-followups-*`, priorities 2 / 3) followed by
+per-feature LSP server ports (`S*`) building on the
 `tcl-lsp-server` bootstrap.
 
 ## Chunk log
