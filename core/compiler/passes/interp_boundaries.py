@@ -132,8 +132,9 @@ def _transform_stmt(stmt: IRStatement) -> tuple[IRStatement, bool]:
 
         return replace(stmt, clauses=tuple(new_clauses), else_body=new_else), True
     if isinstance(stmt, IRFor):
+        # ``stmt.condition`` is an IRExpr (no nested statements), so
+        # there's nothing to recurse into for it.
         new_init = _transform_script(stmt.init)
-        new_cond_body = stmt.condition  # IRExpr, no nested stmts
         new_next = _transform_script(stmt.next)
         new_body = _transform_script(stmt.body)
         if (

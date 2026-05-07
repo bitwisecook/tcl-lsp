@@ -29,7 +29,6 @@ from ....ir import (
 from .._encoding import (
     _leb128_signed,
 )
-from .._ownership import Ownership
 from .._ir import (
     _BLOCK_VOID,
     ValType,
@@ -37,6 +36,7 @@ from .._ir import (
     WasmOp,
     _decode_leb128_signed,
 )
+from .._ownership import Ownership
 from ._statements import _escape_dquote
 
 
