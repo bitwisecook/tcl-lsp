@@ -227,6 +227,24 @@ pub fn eval_top(ptr: u32, len: u32) i32 {
     skip_ws(&s);
     const result = parse_ternary(&s);
     skip_ws(&s);
+    // Reject ``NaN`` as the whole-expression result — reference Tcl 9
+    // emits ``domain error: argument not in valid range`` for
+    // ``expr nan`` (expr-old-36.7).  We let nested operands carry
+    // NaN through (so ``isnan(NaN)`` / ``isunordered(NaN, $v)``
+    // work) and only check at this top-level entry.
+    if (result != 0 and !obj.is_immediate(result)) {
+        const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
+        if (tag == obj.TYPE_FLOAT) {
+            const fv: f64 = @bitCast(obj.read_i64(@as(u32, @bitCast(result)) + obj.OBJ_INT_CACHE));
+            if (std.math.isNan(fv)) {
+                @import("../stubs/tcl_stubs.zig").raise(
+                    "domain error: argument not in valid range",
+                );
+                obj.tcl_obj_release(result);
+                return obj_new_int(0);
+            }
+        }
+    }
     if (s.pos == s.len and result != 0 and !obj.is_immediate(result)) {
         const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
         if (tag != obj.TYPE_INT and tag != obj.TYPE_FLOAT and tag != obj.TYPE_BIGNUM) {
@@ -1263,20 +1281,37 @@ fn parse_func_or_word(s: *State) i32 {
     // for identifying the operand class but we no longer use its
     // numeric form for the bare-keyword case.
     if (s.skip) return obj_new_int(0);
-    // Tcl 9 ``expr nan`` (bareword) raises ``domain error: argument
-    // not in valid range`` — expr-old-36.7.  ``inf`` / ``infinity``
-    // are valid float keywords (``expr Inf`` round-trips cleanly),
-    // but ``NaN`` has no defined value in numeric expressions.  Match
-    // the surface text reference Tcl emits via ``TclParseNumber`` →
-    // ``ExprIeeeFromObj``.
+    // Tcl 9 ``NaN`` (case-insensitive) is a valid float keyword in
+    // expr — it produces a NaN-valued ``TYPE_FLOAT`` operand.
+    // Arithmetic operators that reject non-finite operands raise
+    // their own diagnostic (``cannot use non-numeric floating-point
+    // value …``), so we shouldn't pre-emptively block parsing here.
+    // ``isunordered(NaN, $v)`` and ``isnan(NaN)`` both depend on the
+    // bareword returning a real NaN.
     if (is_nan_keyword(name)) {
-        @import("../stubs/tcl_stubs.zig").raise(
-            "domain error: argument not in valid range",
-        );
-        return obj_new_int(0);
+        return obj.obj_new_float(std.math.nan(f64));
+    }
+    // ``Inf`` / ``Infinity`` are likewise valid float keywords.  The
+    // expression-level numeric path picks them up via
+    // ``try_parse_float`` once the bareword reaches the operator
+    // dispatch, but eagerly returning a TYPE_FLOAT here means
+    // ``isfinite(Inf)`` / ``isnan(Inf)`` get a real numeric operand
+    // rather than a TYPE_STRING ``"Inf"`` they'd have to re-parse.
+    if (is_inf_keyword(name)) {
+        return obj.obj_new_float(std.math.inf(f64));
     }
     const sptr = @intFromPtr(s.src) + start;
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(name_len));
+}
+
+fn is_inf_keyword(name: []const u8) bool {
+    if (name.len != 3 and name.len != 8) return false;
+    var buf: [8]u8 = undefined;
+    for (0..name.len) |i| {
+        const c = name[i];
+        buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    return std.mem.eql(u8, buf[0..name.len], "inf") or std.mem.eql(u8, buf[0..name.len], "infinity");
 }
 
 fn is_nan_keyword(name: []const u8) bool {

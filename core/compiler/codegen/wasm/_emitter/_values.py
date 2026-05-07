@@ -499,20 +499,19 @@ class _WasmEmitterValuesMixin(_Base):
 
             try:
                 nested_expr = parse_expr(expr_arg)
-                # Unbraced expr with a substitution (``expr 0b$s`` /
-                # ``expr 0b[string repeat 1 64]``) parses as
-                # ``ExprRaw`` because the variable / command-subst
-                # token isn't valid expression syntax in isolation.
-                # The compile-time path doesn't have the substituted
-                # value, so route through the eval fallback which
-                # builds the script, runs Tcl word-substitution,
-                # joins the parts, and only then dispatches ``expr``
-                # against the joined source — mirroring reference
-                # Tcl's behaviour (expr-43.10 / 43.12 / 44.x).
-                if not was_braced and isinstance(nested_expr, ExprRaw):
-                    raise RuntimeError("unbraced ExprRaw — defer to eval-fallback")
+                # Unbraced ``expr X`` re-parses ``X`` as an expression
+                # *after* Tcl word-substitution.  The AOT compile-time
+                # path can't see the post-substitution shape — e.g.
+                # ``expr $v`` where ``$v = "1e308**1e10"`` should
+                # evaluate as ``1e308**1e10`` (Inf), but the compiled
+                # var read just returns the string ``"1e308**1e10"``.
+                # Defer all unbraced forms to the eval-fallback so
+                # the runtime sees the substituted source and runs
+                # ``eval_expr_top`` against it.
+                if not was_braced:
+                    raise RuntimeError("unbraced expr — defer to eval-fallback")
                 self._emit_expr_obj(nested_expr)
-                # Single-token expressions (``expr {$var}`` /
+                # Single-token braced expressions (``expr {$var}`` /
                 # ``expr {0o00123}``) need to canonicalise through
                 # the runtime parser so a numeric-shaped string ``$a``
                 # value collapses to its decimal form.  Compound

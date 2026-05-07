@@ -754,12 +754,63 @@ fn prng() *std.Random.DefaultPrng {
 // return a 0/1 boolean (``isunordered`` takes two operands).
 
 fn float_value_or_int(o: i32) f64 {
-    // Return the float view of *o* — the existing ``obj_get_float``
-    // does this conversion already, but it returns 0 for null and
-    // sets the error path for non-numeric strings.  We want the
-    // bare cast so the predicate functions can answer correctly.
+    // Return the float view of *o*, recognising ``Inf`` / ``Infinity``
+    // / ``NaN`` string forms (case-insensitive).  Reference Tcl's
+    // ``Tcl_GetDoubleFromObj`` accepts these special strings so the
+    // float-classification predicates can answer correctly when the
+    // operand is e.g. ``set v NaN; expr {isnan($v)}``.
     if (is_float(o)) return obj.obj_get_float(o);
+    if (o != 0 and !obj.is_immediate(o)) {
+        const tag = obj.obj_type(o);
+        if (tag == TYPE_STRING or tag == obj.TYPE_INLINE_STRING) {
+            const s = obj.obj_ensure_string(o);
+            if (special_float_value(s.ptr, s.len)) |fv| return fv;
+        }
+    }
     return obj.obj_get_float(o);
+}
+
+/// Recognise a ``NaN`` / ``Inf`` / ``Infinity`` string (case-
+/// insensitive, with optional ``+`` / ``-`` sign and surrounding
+/// whitespace) and return the corresponding f64.  Used by the
+/// float-classification math functions whose operand may be a
+/// number-shaped string variable.  Distinct from
+/// :func:`obj.try_parse_float` which deliberately rejects these
+/// special values to avoid clobbering string-comparison semantics
+/// (a quoted ``"NaN"`` operand of ``eq`` must remain the literal
+/// string ``"NaN"`` for the comparison to fall back to bytewise).
+fn special_float_value(ptr: u32, len: u32) ?f64 {
+    if (len == 0) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len and obj.is_space(src[i])) i += 1;
+    if (i >= len) return null;
+    var negative = false;
+    if (src[i] == '-' or src[i] == '+') {
+        negative = src[i] == '-';
+        i += 1;
+    }
+    if (i >= len) return null;
+    const tail_len = len - i;
+    if (tail_len != 3 and tail_len != 8) return null;
+    var buf: [8]u8 = undefined;
+    var k: u32 = 0;
+    while (k < tail_len) : (k += 1) {
+        const c = src[i + k];
+        buf[k] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    var j: u32 = i + tail_len;
+    while (j < len and obj.is_space(src[j])) j += 1;
+    if (j != len) return null;
+    const lc = buf[0..tail_len];
+    if (std.mem.eql(u8, lc, "nan")) return std.math.nan(f64);
+    if (std.mem.eql(u8, lc, "inf")) {
+        return if (negative) -std.math.inf(f64) else std.math.inf(f64);
+    }
+    if (std.mem.eql(u8, lc, "infinity")) {
+        return if (negative) -std.math.inf(f64) else std.math.inf(f64);
+    }
+    return null;
 }
 
 pub export fn tcl_math_isfinite(a: i32) i32 {

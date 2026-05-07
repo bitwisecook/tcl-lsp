@@ -877,42 +877,49 @@ pub export fn tcl_eval_expr_str(src_ptr: i32, src_len: i32) i32 {
     return expr_eval.eval(@bitCast(src_ptr), @bitCast(src_len));
 }
 
-/// Canonicalise *obj* through the expression evaluator's numeric
-/// parser.  Reference Tcl 9 semantics: a single-token expression like
-/// ``expr {$a}`` shimmers ``$a``'s string repr to a numeric obj when
+/// Canonicalise *obj* through the expression evaluator.  Reference
+/// Tcl 9 semantics: a single-token expression like ``expr {$a}`` /
+/// ``expr $a`` shimmers ``$a``'s string repr to a numeric obj when
 /// it parses as int / hex / octal / binary / float, returning the
-/// canonical decimal form (``0o00123`` ➜ ``83``).  Strings that don't
-/// parse as numbers are returned verbatim.  Used by the AOT codegen
-/// for the var-only / literal-only expression shortcut.
+/// canonical decimal form (``0o00123`` ➜ ``83``).  Strings that
+/// contain a full sub-expression (``"1e308**1e10"``, ``"1+2"``)
+/// also re-parse — Tcl substitutes ``$a`` first, then ``expr``
+/// evaluates the resulting source as a fresh expression.  Strings
+/// that don't parse as expressions return verbatim.
 pub export fn tcl_expr_canonicalise(o: i32) i32 {
     const obj_mod = @import("valtypes/tcl_obj.zig");
     if (o == 0) return 0;
     if (obj_mod.is_immediate(o)) return o;
     const handle: u32 = @bitCast(o);
     const tag = obj_mod.read_i32(handle + obj_mod.OBJ_TYPE_TAG);
-    // Already-numeric tags are canonical.  Skip the re-parse for
-    // TYPE_INT / TYPE_FLOAT / TYPE_BIGNUM — their string repr is
-    // already produced from the numeric value.
+    // Already-numeric tags are canonical.
     if (tag == obj_mod.TYPE_INT or tag == obj_mod.TYPE_FLOAT or tag == obj_mod.TYPE_BIGNUM) {
         return o;
     }
     const s = obj_mod.obj_ensure_string(o);
     if (s.len == 0) return o;
-    // Run the source bytes through the expression evaluator so the
-    // ``finalize_num`` path normalises ``0xff`` / ``0o77`` / ``0b101``
-    // to decimal form, preserves bignum precision, and rejects
-    // non-numeric strings (in which case we fall back to the original
-    // obj rather than the parser's error result).
+    // Route through ``eval_top`` which re-parses the string as a full
+    // expression — handles bare numeric literals, base-prefix forms,
+    // and compound sub-expressions like ``"1e308**1e10"``.
     const expr_eval = @import("interp/tcl_expr_eval.zig");
-    const parsed = expr_eval.eval(@bitCast(s.ptr), @bitCast(s.len));
+    // Snapshot the error state so a failed sub-parse can fall back
+    // to returning the original obj rather than propagating the
+    // diagnostic from a non-numeric input.
+    const result_mod = @import("interp/tcl_result.zig");
+    const before_code = result_mod.snapshot(0).code;
+    const parsed = expr_eval.eval_top(@bitCast(s.ptr), @bitCast(s.len));
+    const after = result_mod.snapshot(0);
+    if (after.code == .ERROR and before_code != .ERROR) {
+        // Sub-parse raised — clear the error and return the original
+        // (matches Tcl 9 behaviour where ``expr $v`` falls back to
+        // the original string when the value isn't numeric / a valid
+        // expression).
+        result_mod.consume(.ERROR);
+        if (parsed != 0) obj_mod.tcl_obj_release(parsed);
+        return o;
+    }
     if (parsed == 0) return o;
-    // If the parser produced a string-form obj that exactly matches
-    // the input, no canonicalisation happened — drop the duplicate
-    // and return the original.
     if (obj_mod.is_immediate(parsed)) {
-        // Tagged immediates are always canonical; release the original
-        // and return the new handle.  No retain/release needed since
-        // immediates are not heap-backed.
         obj_mod.tcl_obj_release(o);
         return parsed;
     }

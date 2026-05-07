@@ -211,6 +211,12 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
                 _scan_expr_body_imports_from_node(expr, needed)
             case IRAssignExpr(expr=expr):
                 _scan_expr_body_imports_from_node(expr, needed)
+                # ``set r [expr $v]`` (var-only RHS) re-parses ``$v``'s
+                # value as an expression at runtime.  Pull in the
+                # canonicaliser so the codegen path that handles this
+                # case has the import wired up.
+                if isinstance(expr, ExprVar):
+                    needed.add("tcl_expr_canonicalise")
             case IRReturn(expr=expr):
                 if expr is not None:
                     _scan_expr_body_imports_from_node(expr, needed)
@@ -1178,6 +1184,13 @@ def _scan_needed_imports(
             case IRAssignExpr(name=name, expr=expr):
                 _scan_qualified_name(name)
                 _scan_expr(expr)
+                # ``set r [expr $v]`` (var-only RHS) re-parses the
+                # var's value as an expression at runtime — pull in
+                # the canonicaliser used by the IRAssignExpr emitter
+                # for the ``ExprVar`` shape (compExpr-1.4 / expr-58.x
+                # subnormal pre-evaluation).
+                if isinstance(expr, ExprVar):
+                    needed.add("tcl_expr_canonicalise")
             case IRReturn(value=value, expr=expr):
                 if value is not None:
                     _scan_value(value)
