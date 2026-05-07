@@ -441,8 +441,18 @@ pub export fn tcl_math_int(a: i32) i32 {
 /// ``expr {2.0 ** 0.5}`` keeps working — the integer path applies
 /// only when both operands are integer-shaped.
 pub export fn tcl_arith_pow(a: i32, b: i32) i32 {
+    if (!check_numeric_binary(a, b, "**")) return obj.obj_new_int(0);
     if (is_float(a) or is_float(b)) {
-        return obj.obj_new_float(std.math.pow(f64, obj.obj_get_float(a), obj.obj_get_float(b)));
+        const af = obj.obj_get_float(a);
+        const bf = obj.obj_get_float(b);
+        // ``0.0 ** N`` for any negative N raises ``exponentiation of
+        // zero by negative power`` (expr-23.12) — the float-domain
+        // path lets ``std.math.pow`` saturate to ``Inf`` otherwise.
+        if (af == 0.0 and bf < 0.0) {
+            stubs.raise("exponentiation of zero by negative power");
+            return obj.obj_new_int(0);
+        }
+        return obj.obj_new_float(std.math.pow(f64, af, bf));
     }
     // Integer base / integer exponent.  We need the exponent as an
     // i64 to detect the negative-exponent corner cases; even a
@@ -946,6 +956,60 @@ pub export fn tcl_math_bool(a: i32) i32 {
     return obj.obj_new_int(0);
 }
 
+/// Build ``expected number but got "X"`` (or ``... but got a list``
+/// for list-shaped inputs that aren't numbers) and route it through
+/// the Tcl error path.  Used by the math-function arity / domain
+/// gates (``isqrt``, ``bool``, …) that reject non-numeric operands.
+fn raise_expected_number(o: i32) void {
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const s = obj.obj_ensure_string(o);
+    // ``a list`` shorthand fires when the string contains an
+    // un-escaped space or tab — matches reference Tcl 9's
+    // ``Tcl_GetNumberFromObj`` error path.  Otherwise the string is
+    // wrapped verbatim in quotes.
+    var is_list = false;
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        for (0..s.len) |i| {
+            if (sp[i] == ' ' or sp[i] == '\t') {
+                is_list = true;
+                break;
+            }
+        }
+    }
+    if (is_list) {
+        const msg_text: []const u8 = "expected number but got a list";
+        const total: u32 = @intCast(msg_text.len);
+        const buf_addr: u32 = obj.alloc(total);
+        if (buf_addr == 0) {
+            stubs.raise("expected number but got a list");
+            return;
+        }
+        const buf: [*]u8 = @ptrFromInt(buf_addr);
+        @memcpy(buf[0..total], msg_text);
+        stubs.raise(buf[0..total]);
+        obj.free_sized(buf_addr, total);
+        return;
+    }
+    const prefix: []const u8 = "expected number but got \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        stubs.raise("expected number");
+        return;
+    }
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    if (s.len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        @memcpy(buf[prefix.len .. prefix.len + s.len], sp[0..s.len]);
+    }
+    @memcpy(buf[prefix.len + s.len ..][0..suffix.len], suffix);
+    stubs.raise(buf[0..total]);
+    obj.free_sized(buf_addr, total);
+}
+
 fn raise_expected_boolean(o: i32) void {
     if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
@@ -975,7 +1039,15 @@ fn raise_expected_boolean(o: i32) void {
 /// off-by-one adjust.  See expr-47.8 / 47.10 / 47.12 for the
 /// huge-input regression coverage.
 pub export fn tcl_math_isqrt(a: i32) i32 {
-    if (a == 0) return obj.obj_new_int(0);
+    if (a == 0) {
+        stubs.raise("expected number but got \"\"");
+        return obj.obj_new_int(0);
+    }
+    // Reject non-numeric operands with the canonical wording.
+    if (!obj_is_numeric(a)) {
+        raise_expected_number(a);
+        return obj.obj_new_int(0);
+    }
     if (is_float(a)) {
         const f = obj.obj_get_float(a);
         if (std.math.isNan(f)) {
@@ -1272,23 +1344,46 @@ fn is_ieee_keyword_string(o: i32) bool {
     return std.mem.eql(u8, lc, "nan") or std.mem.eql(u8, lc, "inf") or std.mem.eql(u8, lc, "infinity");
 }
 
+/// True iff *o*'s string repr is shaped like a Tcl list — contains
+/// at least one un-escaped space / tab, or is a brace-quoted block.
+/// Used to switch error wording from ``cannot use non-numeric
+/// string "X"`` to ``cannot use a list`` (expr-11.14 / 11.16).
+fn obj_is_list_shape(o: i32) bool {
+    if (o == 0) return false;
+    const s = obj.obj_ensure_string(o);
+    if (s.len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    for (0..s.len) |i| {
+        const c = sp[i];
+        if (c == ' ' or c == '\t') return true;
+    }
+    return false;
+}
+
 /// Build ``cannot use non-numeric string "X" as <position>
 /// operand of "<op>"`` and route it through the Tcl error path.
 /// IEEE-754 keyword operands (``NaN`` / ``Inf``) get the
 /// ``non-numeric floating-point value "X"`` wording instead —
 /// reference Tcl 9 distinguishes the two cases (expr-22.1 / 22.3).
+/// List-shaped operands (``{1 2 3}`` etc.) get the ``cannot use a
+/// list as <position> operand of "<op>"`` shortened wording
+/// (expr-11.14).
 fn raise_non_numeric(o: i32, op_sym: []const u8, position: []const u8) void {
     if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
     const ieee_kw = is_ieee_keyword_string(o);
-    const prefix: []const u8 = if (ieee_kw)
+    const list_shape = !ieee_kw and obj_is_list_shape(o);
+    const prefix: []const u8 = if (list_shape)
+        "cannot use a list as "
+    else if (ieee_kw)
         "cannot use non-numeric floating-point value \""
     else
         "cannot use non-numeric string \"";
-    const middle: []const u8 = "\" as ";
+    const middle: []const u8 = if (list_shape) "" else "\" as ";
     const between: []const u8 = " operand of \"";
     const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + s.len + middle.len + position.len + between.len + op_sym.len + suffix.len);
+    const body_len: u32 = if (list_shape) 0 else s.len;
+    const total: u32 = @intCast(prefix.len + body_len + middle.len + position.len + between.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
     if (buf_addr == 0) {
         stubs.raise("non-numeric operand");
@@ -1300,7 +1395,7 @@ fn raise_non_numeric(o: i32, op_sym: []const u8, position: []const u8) void {
         buf[off] = c;
         off += 1;
     }
-    if (s.len > 0) {
+    if (!list_shape and s.len > 0) {
         const sp: [*]const u8 = @ptrFromInt(s.ptr);
         for (0..s.len) |i| {
             buf[off] = sp[i];
@@ -1399,13 +1494,17 @@ fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
     if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
     const s = obj.obj_ensure_string(o);
     const ieee_kw = is_ieee_keyword_string(o);
-    const prefix: []const u8 = if (ieee_kw)
+    const list_shape = !ieee_kw and obj_is_list_shape(o);
+    const prefix: []const u8 = if (list_shape)
+        "cannot use a list as operand of \""
+    else if (ieee_kw)
         "cannot use non-numeric floating-point value \""
     else
         "cannot use non-numeric string \"";
-    const middle: []const u8 = "\" as operand of \"";
+    const middle: []const u8 = if (list_shape) "" else "\" as operand of \"";
     const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + s.len + middle.len + op_sym.len + suffix.len);
+    const body_len: u32 = if (list_shape) 0 else s.len;
+    const total: u32 = @intCast(prefix.len + body_len + middle.len + op_sym.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
     if (buf_addr == 0) {
         stubs.raise("non-numeric operand");
@@ -1417,7 +1516,7 @@ fn raise_non_numeric_unary(o: i32, op_sym: []const u8) void {
         buf[off] = c;
         off += 1;
     }
-    if (s.len > 0) {
+    if (!list_shape and s.len > 0) {
         const sp: [*]const u8 = @ptrFromInt(s.ptr);
         for (0..s.len) |i| {
             buf[off] = sp[i];
