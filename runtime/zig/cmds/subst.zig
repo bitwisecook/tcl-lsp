@@ -122,7 +122,7 @@ fn eval_expr(words: []const i32) result_mod.InterpResult {
     const expr_eval = @import("../interp/tcl_expr_eval.zig");
     if (words.len == 2) {
         const es = obj_ensure_string(words[1]);
-        return result_mod.from_globals(expr_eval.eval(es.ptr, es.len));
+        return result_mod.from_globals(expr_eval.eval_top(es.ptr, es.len));
     }
     var total: u32 = 0;
     var wi: u32 = 1;
@@ -153,7 +153,7 @@ fn eval_expr(words: []const i32) result_mod.InterpResult {
             off += 1;
         }
     }
-    const r = expr_eval.eval(buf, total);
+    const r = expr_eval.eval_top(buf, total);
     obj_mod.free_sized(buf, total);
     return result_mod.from_globals(r);
 }

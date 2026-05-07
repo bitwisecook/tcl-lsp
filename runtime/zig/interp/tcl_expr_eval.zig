@@ -202,6 +202,35 @@ pub fn eval(ptr: u32, len: u32) i32 {
     return parse_ternary(&s);
 }
 
+/// Top-level expression evaluator entry — runs ``eval`` and then
+/// shimmers the result toward its canonical numeric form when the
+/// source was a single token (var read, quoted string, braced
+/// literal).  Distinct from :func:`eval` because nested ``eval``
+/// invocations (cond / branch / sub-expression) must NOT canonicalise
+/// — comparison and string-op operands need their original string
+/// repr (``$v1 < "0x12"`` falls back to string compare which sees
+/// ``"0x12"``, not the canonicalised ``18``; expr-8.29).
+pub fn eval_top(ptr: u32, len: u32) i32 {
+    if (len == 0) return obj_new_int(0);
+    var s = State{ .src = @ptrFromInt(ptr), .len = len, .pos = 0 };
+    skip_ws(&s);
+    const result = parse_ternary(&s);
+    skip_ws(&s);
+    if (s.pos == s.len and result != 0 and !obj.is_immediate(result)) {
+        const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
+        if (tag != obj.TYPE_INT and tag != obj.TYPE_FLOAT and tag != obj.TYPE_BIGNUM) {
+            const rs = obj.obj_ensure_string(result);
+            if (rs.len > 0) {
+                if (try_canonicalise_string(rs.ptr, rs.len)) |canon| {
+                    obj.tcl_obj_release(result);
+                    return canon;
+                }
+            }
+        }
+    }
+    return result;
+}
+
 fn parse_ternary(s: *State) i32 {
     const cond = parse_or(s);
     skip_ws(s);
@@ -723,30 +752,7 @@ fn parse_var(s: *State) i32 {
     const slice_ptr = @intFromPtr(s.src) + start;
     const slice_len = s.pos - start;
     const subst = @import("../parse/tcl_subst.zig");
-    const result = subst.subst_flagged(ptr_as_u32(slice_ptr), slice_len, true, false, false);
-    // Tcl 9 ``expr`` shimmers a variable operand to its canonical
-    // numeric form when the value's *full* string repr parses as a
-    // Tcl integer or float — so ``set a 0o00123 ; expr {$a}`` returns
-    // ``83``, not ``"0o00123"`` (compExpr-1.4).  Skip already-numeric
-    // tagged operands so a TYPE_FLOAT obj keeps its float-ness.  The
-    // base-prefix path (``0x`` / ``0o`` / ``0b``) requires every digit
-    // after the prefix to be valid for that base — partial parses
-    // (``0o289`` ➜ trailing ``89`` ignored) would mis-canonicalise an
-    // invalid octal as ``2`` and let ``$x+1`` return ``3`` instead of
-    // raising ``cannot use non-numeric string …`` (expr-old-36.2).
-    if (result != 0 and !obj.is_immediate(result)) {
-        const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
-        if (tag != obj.TYPE_INT and tag != obj.TYPE_FLOAT and tag != obj.TYPE_BIGNUM) {
-            const rs = obj.obj_ensure_string(result);
-            if (rs.len > 0) {
-                if (try_canonicalise_string(rs.ptr, rs.len)) |canon| {
-                    obj.tcl_obj_release(result);
-                    return canon;
-                }
-            }
-        }
-    }
-    return result;
+    return subst.subst_flagged(ptr_as_u32(slice_ptr), slice_len, true, false, false);
 }
 
 /// Try to convert *s* to a canonical numeric obj, returning ``null``
@@ -957,6 +963,55 @@ fn parse_braced(s: *State) i32 {
         }
         if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
             return obj.obj_new_float(fv);
+        }
+        // Inner contains line continuations (``\<newline>``) — Tcl 9
+        // expr-braced operands collapse those to whitespace before
+        // parsing the inner numeric token (compExpr-2.5).  Stamp out
+        // a scratch copy with the continuation removed and retry
+        // ``try_parse_int`` / ``try_parse_float`` against the cleaned
+        // bytes.  Skip the copy when no backslash-newline is present
+        // — the common case (no continuation) keeps the original
+        // hot-path trim-free.
+        var has_cont: bool = false;
+        var ci: u32 = 0;
+        while (ci + 1 < slen) : (ci += 1) {
+            if (src[ci] == '\\' and src[ci + 1] == '\n') {
+                has_cont = true;
+                break;
+            }
+        }
+        if (has_cont) {
+            const buf_addr = obj.alloc(slen);
+            if (buf_addr != 0) {
+                const buf: [*]u8 = @ptrFromInt(buf_addr);
+                var bi: u32 = 0;
+                var di: u32 = 0;
+                while (bi < slen) : (bi += 1) {
+                    if (bi + 1 < slen and src[bi] == '\\' and src[bi + 1] == '\n') {
+                        // Replace ``\<newline>[whitespace*]`` with a single
+                        // space — matches ``Tcl_Backslash`` behaviour.
+                        buf[di] = ' ';
+                        di += 1;
+                        bi += 1; // outer for loop also advances
+                        // Skip subsequent whitespace per Tcl's line-
+                        // continuation semantics.
+                        while (bi + 1 < slen and (src[bi + 1] == ' ' or src[bi + 1] == '\t')) bi += 1;
+                        continue;
+                    }
+                    buf[di] = src[bi];
+                    di += 1;
+                }
+                const cleaned_ptr: u32 = buf_addr;
+                if (obj.try_parse_int(cleaned_ptr, di)) |iv| {
+                    obj.free_sized(buf_addr, slen);
+                    return obj_new_int(iv);
+                }
+                if (obj.try_parse_float(cleaned_ptr, di)) |fv| {
+                    obj.free_sized(buf_addr, slen);
+                    return obj.obj_new_float(fv);
+                }
+                obj.free_sized(buf_addr, slen);
+            }
         }
     }
     return obj_new_string(ptr_as_i32(inner_ptr), len_as_i32(inner_len));
