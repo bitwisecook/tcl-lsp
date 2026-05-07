@@ -38,9 +38,16 @@ def _emit_lappend(
     # would print the stale value.  ``_emit_var_write_obj`` does the
     # global mirror itself, so routing through it keeps writes and
     # reads consistent.
+    # ``global``-declared names must also use the var path so the
+    # global table stays the single source of truth — a callee proc
+    # that also declares ``global`` and mutates the same name would
+    # leave this proc's WASM-local mirror stale.  Mirrors the
+    # equivalent fix in append_.py / set_.py.
     at_top_level = not emitter._is_proc
+    is_global = var_name in emitter._globals
     use_var_path = (
         at_top_level
+        or is_global
         or var_name in emitter._aliases
         or array_ref is not None
         or (array_ref is None and "(" in var_name and var_name.split("(")[0] in emitter._aliases)

@@ -475,42 +475,26 @@ def _patch_tcltest_source(src: str) -> str:
 
 
 def _patch_hello_world_procs(script: str) -> str:
-    """Replace the ``hello_world`` / ``12days`` stress-test procs with
-    no-ops before bundling the test file.
+    """Replace the ``12days`` / ``do_twelve_days`` stress-test procs
+    with no-ops before bundling the test file.
 
-    Both ``compExpr-old.test`` and ``expr-old.test`` ship a
-    ``hello_world`` Hello World proc (``put_hello_char`` + a deeply
-    nested ``for`` loop with hundreds of ``[expr {...}]`` /
-    ``[incr ...]`` substitutions) and a ``12days`` proc with similarly
-    pathological recursion.  Both are pre-bignum stress tests for the
-    expression compiler — they're only referenced by the ``-1.1``
-    sanity tests, not by any of the bignum-relevant cases.
+    ``hello_world`` and ``put_hello_char`` previously needed the same
+    workaround but now run real after the global-mirror staleness fix
+    (``global``-declared names inside a proc consult the global table
+    on every read instead of trusting the WASM-local mirror, which
+    callees mutate via the global table — see set_.py / lappend_.py /
+    append_.py / _variables.py).
 
-    The original blocker was a refcount leak in the AOT emitter:
-    every binary / unary / call / cmp helper invocation on an
-    ``[expr {...}]`` substitution allocated a fresh TclObj that the
-    receiving op consumed without release, so each pass through
-    ``hello_world``'s expression chain leaked dozens of objs.  The
-    leak overran the wasi-libc ``BrkAllocator`` u32 brk pointer
-    after a few thousand calls and panicked with ``integer
-    overflow`` before the bundle reached its tcltest summary.  That
-    leak is now plugged via the ``_emit_expr_obj_arith_*`` /
-    ``_emit_expr_obj_cmp_binary`` / ``_emit_expr_unbox_arith_binary``
-    helpers in :mod:`core.compiler.codegen.wasm._emitter._expressions`
-    — they retain-borrowed-then-release each operand and release the
-    helper's return obj after it's unboxed.
-
-    What still keeps the workaround in place is a separate codegen
-    bug exposed once the proc actually runs: ``hello_world`` uses
-    deeply nested ``expr {a?b:c?d:e?...:[set v ...]}`` ternaries to
-    set up state on each loop iteration, and a non-short-circuiting
-    branch tries to read ``$h1`` / ``$ll`` before the side-effecting
-    initialisation has run, hitting ``var_unset_error`` and tripping
-    the runtime ``@trap``.  Tracked separately from the leak; the
-    workaround stays until the ternary short-circuit issue is
-    resolved.  Mirrors :func:`tests.test_vm_expr_test._patch_hello_world_procs`.
+    ``12days`` remains stubbed: the recursion eventually reaches a
+    branch that runs ``[scan [string index $c 0] %c x; set x]`` with
+    ``$c`` empty, and the eval-fallback path raises ``can't read "x":
+    no such variable``.  Reference Tcl 9 produces 376 chars in
+    ``$xxx``, so the recursion path differs subtly between the two —
+    likely a string-range / ternary-arity disagreement that needs
+    its own investigation.  Triaged separately from the expr suite
+    parity work.
     """
-    for proc_name in ("put_hello_char", "hello_world", "12days", "do_twelve_days"):
+    for proc_name in ("12days", "do_twelve_days"):
         start_marker = f"proc {proc_name} "
         idx = script.find(start_marker)
         if idx < 0:
