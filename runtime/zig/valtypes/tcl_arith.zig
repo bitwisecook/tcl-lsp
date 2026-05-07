@@ -1344,20 +1344,26 @@ fn is_ieee_keyword_string(o: i32) bool {
     return std.mem.eql(u8, lc, "nan") or std.mem.eql(u8, lc, "inf") or std.mem.eql(u8, lc, "infinity");
 }
 
-/// True iff *o*'s string repr is shaped like a Tcl list — contains
-/// at least one un-escaped space / tab, or is a brace-quoted block.
-/// Used to switch error wording from ``cannot use non-numeric
-/// string "X"`` to ``cannot use a list`` (expr-11.14 / 11.16).
+/// True iff *o*'s string repr is shaped like a Tcl list — at least
+/// two whitespace-separated tokens (so leading / trailing whitespace
+/// alone doesn't qualify; ``"0o99 "`` stays a non-numeric string,
+/// not a list).  Used to switch error wording from ``cannot use
+/// non-numeric string "X"`` to ``cannot use a list`` (expr-11.14 /
+/// 11.16).
 fn obj_is_list_shape(o: i32) bool {
     if (o == 0) return false;
     const s = obj.obj_ensure_string(o);
     if (s.len == 0) return false;
     const sp: [*]const u8 = @ptrFromInt(s.ptr);
-    for (0..s.len) |i| {
-        const c = sp[i];
-        if (c == ' ' or c == '\t') return true;
-    }
-    return false;
+    // Skip leading whitespace, find first non-ws token, find any
+    // intra-token whitespace, then a second token.  If we don't see
+    // two tokens separated by whitespace, the string isn't a list.
+    var i: u32 = 0;
+    while (i < s.len and (sp[i] == ' ' or sp[i] == '\t' or sp[i] == '\n')) i += 1;
+    while (i < s.len and sp[i] != ' ' and sp[i] != '\t' and sp[i] != '\n') i += 1;
+    while (i < s.len and (sp[i] == ' ' or sp[i] == '\t' or sp[i] == '\n')) i += 1;
+    if (i >= s.len) return false;
+    return true;
 }
 
 /// Build ``cannot use non-numeric string "X" as <position>
