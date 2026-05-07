@@ -98,6 +98,7 @@ mod string_;
 mod subst_;
 mod switch_;
 mod tailcall_;
+mod tcl_unsupported_corotype;
 mod tell_;
 mod throw_;
 mod time;
@@ -221,6 +222,7 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
         subst_::spec(),
         switch_::spec(),
         tailcall_::spec(),
+        tcl_unsupported_corotype::spec(),
         tell_::spec(),
         throw_::spec(),
         time::spec(),
