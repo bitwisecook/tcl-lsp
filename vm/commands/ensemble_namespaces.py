@@ -56,9 +56,19 @@ if TYPE_CHECKING:
 # and dispatched back through the bare ensemble (``<ns> <sub> …``).
 
 _ARRAY_SUBCMDS = (
-    "anymore", "default", "donesearch", "exists", "for", "get",
-    "names", "nextelement", "set", "size", "startsearch",
-    "statistics", "unset",
+    "anymore",
+    "default",
+    "donesearch",
+    "exists",
+    "for",
+    "get",
+    "names",
+    "nextelement",
+    "set",
+    "size",
+    "startsearch",
+    "statistics",
+    "unset",
 )
 
 _BINARY_SUBCMDS = ("format", "scan", "encode", "decode")
@@ -66,10 +76,27 @@ _BINARY_ENCODE_SUBCMDS = ("hex", "uuencode", "base64")
 _BINARY_DECODE_SUBCMDS = ("hex", "uuencode", "base64")
 
 _CHAN_SUBCMDS = (
-    "blocked", "close", "configure", "copy", "create", "eof",
-    "event", "flush", "gets", "isbinary", "names", "pending",
-    "pipe", "pop", "postevent", "push", "puts", "read", "seek",
-    "tell", "truncate",
+    "blocked",
+    "close",
+    "configure",
+    "copy",
+    "create",
+    "eof",
+    "event",
+    "flush",
+    "gets",
+    "isbinary",
+    "names",
+    "pending",
+    "pipe",
+    "pop",
+    "postevent",
+    "push",
+    "puts",
+    "read",
+    "seek",
+    "tell",
+    "truncate",
 )
 
 # Includes the user-facing commands plus the C-internal helpers, so
@@ -78,46 +105,145 @@ _CHAN_SUBCMDS = (
 # ``clock`` ensemble, which produces the standard "bad subcommand"
 # error.
 _CLOCK_SUBCMDS = (
-    "add", "catch", "clicks", "ConvertLocalToUTC", "format",
-    "GetDateFields", "GetJulianDayFromEraYearMonthDay",
-    "GetJulianDayFromEraYearWeekDay", "getenv", "microseconds",
-    "milliseconds", "scan", "seconds",
+    "add",
+    "catch",
+    "clicks",
+    "ConvertLocalToUTC",
+    "format",
+    "GetDateFields",
+    "GetJulianDayFromEraYearMonthDay",
+    "GetJulianDayFromEraYearWeekDay",
+    "getenv",
+    "microseconds",
+    "milliseconds",
+    "scan",
+    "seconds",
 )
 
 _DICT_SUBCMDS = (
-    "append", "create", "exists", "filter", "for", "get", "getdef",
-    "getwithdefault", "incr", "info", "keys", "lappend", "map",
-    "merge", "remove", "replace", "set", "size", "unset", "update",
-    "values", "with",
+    "append",
+    "create",
+    "exists",
+    "filter",
+    "for",
+    "get",
+    "getdef",
+    "getwithdefault",
+    "incr",
+    "info",
+    "keys",
+    "lappend",
+    "map",
+    "merge",
+    "remove",
+    "replace",
+    "set",
+    "size",
+    "unset",
+    "update",
+    "values",
+    "with",
 )
 
 _ENCODING_SUBCMDS = (
-    "convertfrom", "convertto", "dirs", "names", "profiles",
-    "system", "user",
+    "convertfrom",
+    "convertto",
+    "dirs",
+    "names",
+    "profiles",
+    "system",
+    "user",
 )
 
 _FILE_SUBCMDS = (
-    "atime", "attributes", "channels", "copy", "delete", "dirname",
-    "executable", "exists", "extension", "home", "isdirectory",
-    "isfile", "join", "link", "lstat", "mtime", "mkdir",
-    "nativename", "normalize", "owned", "pathtype", "readable",
-    "readlink", "rename", "rootname", "separator", "size", "split",
-    "stat", "system", "tail", "tempdir", "tempfile", "tildeexpand",
-    "type", "volumes", "writable",
+    "atime",
+    "attributes",
+    "channels",
+    "copy",
+    "delete",
+    "dirname",
+    "executable",
+    "exists",
+    "extension",
+    "home",
+    "isdirectory",
+    "isfile",
+    "join",
+    "link",
+    "lstat",
+    "mtime",
+    "mkdir",
+    "nativename",
+    "normalize",
+    "owned",
+    "pathtype",
+    "readable",
+    "readlink",
+    "rename",
+    "rootname",
+    "separator",
+    "size",
+    "split",
+    "stat",
+    "system",
+    "tail",
+    "tempdir",
+    "tempfile",
+    "tildeexpand",
+    "type",
+    "volumes",
+    "writable",
 )
 
 _INFO_SUBCMDS = (
-    "args", "body", "cmdcount", "cmdtype", "commands", "complete",
-    "constant", "consts", "coroutine", "default", "errorstack",
-    "exists", "frame", "functions", "globals", "hostname", "level",
-    "library", "loaded", "locals", "nameofexecutable", "patchlevel",
-    "procs", "script", "sharedlibextension", "tclversion", "vars",
+    "args",
+    "body",
+    "cmdcount",
+    "cmdtype",
+    "commands",
+    "complete",
+    "constant",
+    "consts",
+    "coroutine",
+    "default",
+    "errorstack",
+    "exists",
+    "frame",
+    "functions",
+    "globals",
+    "hostname",
+    "level",
+    "library",
+    "loaded",
+    "locals",
+    "nameofexecutable",
+    "patchlevel",
+    "procs",
+    "script",
+    "sharedlibextension",
+    "tclversion",
+    "vars",
 )
 
 _NAMESPACE_SUBCMDS = (
-    "children", "code", "current", "delete", "ensemble", "eval",
-    "exists", "export", "forget", "import", "inscope", "origin",
-    "parent", "path", "qualifiers", "tail", "unknown", "upvar",
+    "children",
+    "code",
+    "current",
+    "delete",
+    "ensemble",
+    "eval",
+    "exists",
+    "export",
+    "forget",
+    "import",
+    "inscope",
+    "origin",
+    "parent",
+    "path",
+    "qualifiers",
+    "tail",
+    "unknown",
+    "upvar",
     "which",
 )
 
@@ -126,21 +252,59 @@ _PREFIX_SUBCMDS = ("all", "longest", "match")
 _PROCESS_SUBCMDS = ("autopurge", "list", "purge", "status")
 
 _STRING_SUBCMDS = (
-    "cat", "compare", "equal", "first", "index", "insert", "is",
-    "last", "length", "map", "match", "range", "repeat", "replace",
-    "reverse", "tolower", "totitle", "toupper", "trim", "trimleft",
-    "trimright", "wordend", "wordstart",
+    "cat",
+    "compare",
+    "equal",
+    "first",
+    "index",
+    "insert",
+    "is",
+    "last",
+    "length",
+    "map",
+    "match",
+    "range",
+    "repeat",
+    "replace",
+    "reverse",
+    "tolower",
+    "totitle",
+    "toupper",
+    "trim",
+    "trimleft",
+    "trimright",
+    "wordend",
+    "wordstart",
 )
 
 _ZLIB_SUBCMDS = (
-    "adler32", "compress", "crc32", "decompress", "deflate",
-    "gunzip", "gzip", "inflate", "push", "stream",
+    "adler32",
+    "compress",
+    "crc32",
+    "decompress",
+    "deflate",
+    "gunzip",
+    "gzip",
+    "inflate",
+    "push",
+    "stream",
 )
 
 _ZIPFS_SUBCMDS = (
-    "canonical", "exists", "find", "info", "list", "lmkimg",
-    "lmkzip", "mkimg", "mkkey", "mkzip", "mount", "mountdata",
-    "root", "unmount",
+    "canonical",
+    "exists",
+    "find",
+    "info",
+    "list",
+    "lmkimg",
+    "lmkzip",
+    "mkimg",
+    "mkkey",
+    "mkzip",
+    "mount",
+    "mountdata",
+    "root",
+    "unmount",
 )
 
 # (namespace, bare-ensemble, subcommand-tuple) — every entry produces
@@ -176,21 +340,48 @@ _SUB_ENSEMBLE_NAMESPACES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ..
 # method body.  The Info{Object,Class} ensembles are introspection
 # helpers reached via ``info object`` / ``info class``.
 _OO_HELPERS_SUBCMDS = (
-    "callback", "classvariable", "link", "mymethod", "next",
-    "nextto", "self",
+    "callback",
+    "classvariable",
+    "link",
+    "mymethod",
+    "next",
+    "nextto",
+    "self",
 )
 
 _OO_INFO_OBJECT_SUBCMDS = (
-    "call", "class", "creationid", "definition", "filters",
-    "forward", "isa", "methods", "methodtype", "mixins",
-    "namespace", "properties", "variables", "vars",
+    "call",
+    "class",
+    "creationid",
+    "definition",
+    "filters",
+    "forward",
+    "isa",
+    "methods",
+    "methodtype",
+    "mixins",
+    "namespace",
+    "properties",
+    "variables",
+    "vars",
 )
 
 _OO_INFO_CLASS_SUBCMDS = (
-    "call", "constructor", "definition", "definitionnamespace",
-    "destructor", "filters", "forward", "instances", "methods",
-    "methodtype", "mixins", "properties", "subclasses",
-    "superclasses", "variables",
+    "call",
+    "constructor",
+    "definition",
+    "definitionnamespace",
+    "destructor",
+    "filters",
+    "forward",
+    "instances",
+    "methods",
+    "methodtype",
+    "mixins",
+    "properties",
+    "subclasses",
+    "superclasses",
+    "variables",
 )
 
 
@@ -253,9 +444,7 @@ def _bgerror_default(interp: "TclInterp", args: list[str]) -> TclResult:
     message + errorInfo and return empty.
     """
     if not args:
-        raise TclError(
-            'wrong # args: should be "::tcl::Bgerror message returnOptions"'
-        )
+        raise TclError('wrong # args: should be "::tcl::Bgerror message returnOptions"')
     import sys
 
     message = args[0]
@@ -370,9 +559,7 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
             interp,
             qualname,
             subcmds,
-            lambda sub, _pb=parent_bare, _ps=parent_sub: _make_sub_alias(
-                _pb, _ps, sub
-            ),
+            lambda sub, _pb=parent_bare, _ps=parent_sub: _make_sub_alias(_pb, _ps, sub),
         )
 
     # OO helpers + Info{Object,Class}.  ``::oo`` is already created
@@ -396,17 +583,11 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
         lambda sub: _make_oo_info_alias("class", sub),
     )
     ensure_namespace(interp.root_namespace, "::oo::configuresupport")
-    ensure_namespace(
-        interp.root_namespace, "::oo::configuresupport::objectinternal"
-    )
-    ensure_namespace(
-        interp.root_namespace, "::oo::configuresupport::classinternal"
-    )
+    ensure_namespace(interp.root_namespace, "::oo::configuresupport::objectinternal")
+    ensure_namespace(interp.root_namespace, "::oo::configuresupport::classinternal")
 
     # ``::tcl::unsupported`` — singleton commands.
-    unsupported_ns = ensure_namespace(
-        interp.root_namespace, "::tcl::unsupported"
-    )
+    unsupported_ns = ensure_namespace(interp.root_namespace, "::tcl::unsupported")
     unsupported_cmds = {
         "representation": _bcc_shape_unsupported("representation"),
         "disassemble": _bcc_shape_unsupported("disassemble"),
@@ -421,15 +602,9 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
 
     # init.tcl pokes ``::tcl::unsupported::clock::configure -init-complete``
     # immediately after wiring up the user-facing ``clock`` ensemble.
-    unsupported_clock_ns = ensure_namespace(
-        interp.root_namespace, "::tcl::unsupported::clock"
-    )
-    unsupported_clock_ns.register_command(
-        "configure", _unsupported_clock_configure
-    )
-    interp._runtime_commands[
-        "::tcl::unsupported::clock::configure"
-    ] = _unsupported_clock_configure
+    unsupported_clock_ns = ensure_namespace(interp.root_namespace, "::tcl::unsupported::clock")
+    unsupported_clock_ns.register_command("configure", _unsupported_clock_configure)
+    interp._runtime_commands["::tcl::unsupported::clock::configure"] = _unsupported_clock_configure
 
     # ``::tcl::Bgerror`` and ``::tcl::build-info`` — singleton commands
     # at ``::tcl`` level, not inside a sub-namespace.  ``build-info`` is
@@ -457,8 +632,6 @@ def _oo_helpers_stub(sub: str):
         bare = interp.lookup_command(sub)
         if bare is not None:
             return bare(interp, args)
-        raise TclError(
-            f'invalid command name "{sub}": only valid inside a method'
-        )
+        raise TclError(f'invalid command name "{sub}": only valid inside a method')
 
     return handler
