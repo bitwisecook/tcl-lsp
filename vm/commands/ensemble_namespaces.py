@@ -29,6 +29,16 @@ the ``zipfs`` ensemble (``tclZipfs.c``), and the OO tables in
 
 Mathfunc and mathop are *not* handled here — they are owned by
 ``math_cmds.py`` and the runtime/Zig backends respectively.
+
+bcc-shape probes — ``::tcl::unsupported::representation``,
+``disassemble``, ``getbytecode``, ``assemble`` — describe the C
+interpreter's ``Tcl_Obj`` layout and bytecode listing.  Our WASM
+target compiles to an unrelated instruction stream, so faking their
+output would mislead pattern-matching tests.  We register the names
+(matching C ``info commands`` introspection) but the handlers raise a
+clear "not implemented on WASM" error; tests that exercise them are
+categorised under the ``skip`` bucket in
+``tests/baselines/tcl9-tcltest/categories/<stem>.toml`` and never run.
 """
 
 from __future__ import annotations
@@ -272,59 +282,50 @@ def _bgerror_default(interp: "TclInterp", args: list[str]) -> TclResult:
     return TclResult(value="")
 
 
-def _unsupported_representation(interp: "TclInterp", args: list[str]) -> TclResult:
-    """``::tcl::unsupported::representation value``.
+def _bcc_shape_unsupported(cmd: str):
+    """Build a handler that rejects bcc-bytecode-shape introspection.
 
-    C Tcl returns a string describing the internal Tcl_Obj
-    representation, e.g. ``value is a list with a refcount of 2,
-    object pointer at 0x…, internal representation 0x… …``.  Our VM
-    works on string values so a faithful reproduction isn't possible
-    — return a deterministic placeholder that contains "value is" so
-    pattern-matching tests recognise the format.
+    ``::tcl::unsupported::representation``, ``disassemble``, and
+    ``getbytecode`` are bcc-internal probes — they describe the C
+    interpreter's ``Tcl_Obj`` layout and bytecode listing.  Our WASM
+    target compiles to an unrelated instruction stream, so any
+    response we produce would either lie about C-Tcl internals or
+    be parsed as garbage by callers expecting the bcc format.
+
+    Tests that depend on these commands are categorised under the
+    ``skip`` bucket in
+    ``tests/baselines/tcl9-tcltest/categories/<stem>.toml`` (see
+    that directory's README) — the harness injects
+    ``tcltest::configure -skip`` so the offending IDs never run.
+    Outside that path, callers that probe via
+    ``[info commands ::tcl::unsupported::representation]`` still see
+    the command exist (matching C), and direct invocation produces
+    the honest error below rather than a fabricated string.
     """
-    if len(args) != 1:
-        raise TclError('wrong # args: should be "representation value"')
-    value = args[0]
-    return TclResult(
-        value=(
-            f"value is a string with a refcount of 1, "
-            f'object pointer at 0x0, no internal representation'
-            f" (length {len(value)})"
-        )
-    )
 
-
-def _unsupported_disassemble(interp: "TclInterp", args: list[str]) -> TclResult:
-    """``::tcl::unsupported::disassemble``.
-
-    A real disassembler is out of scope here — return an empty
-    bytecode listing rather than failing, so tests that probe for
-    the command's existence pass without needing a full impl.
-    """
-    if not args:
+    def handler(interp: "TclInterp", args: list[str]) -> TclResult:
         raise TclError(
-            'wrong # args: should be "disassemble type ?args?"'
+            f"::tcl::unsupported::{cmd} is not implemented on the WASM "
+            "target: it inspects C-bcc Tcl_Obj/bytecode shape that this "
+            "runtime does not produce"
         )
-    return TclResult(value="")
 
-
-def _unsupported_getbytecode(interp: "TclInterp", args: list[str]) -> TclResult:
-    """``::tcl::unsupported::getbytecode`` — stub returning empty dict."""
-    if not args:
-        raise TclError(
-            'wrong # args: should be "getbytecode type ?args?"'
-        )
-    return TclResult(value="")
+    return handler
 
 
 def _unsupported_assemble(interp: "TclInterp", args: list[str]) -> TclResult:
-    """``::tcl::unsupported::assemble`` — bytecode assembler stub.
+    """``::tcl::unsupported::assemble`` — accepts bcc bytecode source.
 
-    A real implementation would parse and assemble bytecode source.
-    We're not there yet; raise a recognisable error so callers can
-    detect the gap (mirrors C behaviour for malformed input).
+    Same reasoning as :func:`_bcc_shape_unsupported`: the assembler
+    parses C bcc instruction mnemonics that our codegen does not
+    emit.  ``assemble.test`` is currently marked ``trap_allowed`` at
+    the stem level (see ``categories/assemble.toml``).
     """
-    raise TclError("bytecode assembler not implemented")
+    raise TclError(
+        "::tcl::unsupported::assemble is not implemented on the WASM "
+        "target: it produces C-bcc bytecode that this runtime does not "
+        "execute"
+    )
 
 
 def _unsupported_loadIcu(interp: "TclInterp", args: list[str]) -> TclResult:
@@ -336,7 +337,8 @@ def _unsupported_clock_configure(interp: "TclInterp", args: list[str]) -> TclRes
     """``::tcl::unsupported::clock::configure`` — accept ``-init-complete``.
 
     init.tcl invokes this with ``-init-complete`` once the ``clock``
-    ensemble has been wired up.  Other flags are no-ops here.
+    ensemble has been wired up.  Other flags are no-ops here — we
+    have no per-interp clock state to configure.
     """
     return TclResult(value="")
 
@@ -406,9 +408,9 @@ def setup_ensemble_namespaces(interp: "TclInterp") -> None:
         interp.root_namespace, "::tcl::unsupported"
     )
     unsupported_cmds = {
-        "representation": _unsupported_representation,
-        "disassemble": _unsupported_disassemble,
-        "getbytecode": _unsupported_getbytecode,
+        "representation": _bcc_shape_unsupported("representation"),
+        "disassemble": _bcc_shape_unsupported("disassemble"),
+        "getbytecode": _bcc_shape_unsupported("getbytecode"),
         "assemble": _unsupported_assemble,
         "loadIcu": _unsupported_loadIcu,
     }
