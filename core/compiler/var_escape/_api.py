@@ -39,6 +39,8 @@ def _cfg_result_to_summary(result: CfgEscapeResult) -> ProcEscapeSummary:
         direct_callees=frozenset(result.direct_callees),
         has_fallback=result.has_fallback,
         has_call_fallback=result.has_call_fallback,
+        barriers=result.barriers,
+        tag_reasons=dict(result.tag_reasons),
         ssa_tags=dict(result.ssa_tags),
     )
 
