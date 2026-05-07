@@ -492,9 +492,7 @@ def _handle_upvar(call: IRCall, state: _EscapeState) -> None:
     for idx in upvar_local_declaration_indices("upvar", args):
         state.escape(
             args[idx],
-            EscapeReason(
-                kind=EscapeReasonKind.UPVAR_SOURCE, detail=f"upvar bind {args[idx]}"
-            ),
+            EscapeReason(kind=EscapeReasonKind.UPVAR_SOURCE, detail=f"upvar bind {args[idx]}"),
         )
 
     # Determine pair-start offset and whether the target frame is the
@@ -564,9 +562,7 @@ def _handle_info(call: IRCall, state: _EscapeState) -> None:
         # ``info exists name`` reads the name by string lookup — escape it.
         state.escape(
             target,
-            EscapeReason(
-                kind=EscapeReasonKind.INFO_EXISTS, detail=f"info exists {target}"
-            ),
+            EscapeReason(kind=EscapeReasonKind.INFO_EXISTS, detail=f"info exists {target}"),
         )
         return
     if is_safe_info_subcommand(sub):
@@ -778,9 +774,7 @@ def _handle_eval(barrier: IRBarrier, state: _EscapeState) -> None:
 
         sub_module = lower_to_ir(body)
     except Exception:  # noqa: BLE001 — any lowering failure → pessimistic
-        state.mark_pessimistic(
-            Barrier(BarrierKind.EVAL, detail="eval body lowering failure")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body lowering failure"))
         return
     _escape_every_name_touched(sub_module.top_level.statements, state)
 
@@ -809,24 +803,18 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
     )
     if not is_level_literal:
         # No explicit level ⇒ defaults to 1 (caller frame) — pessimistic.
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail="uplevel (default level 1)")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel (default level 1)"))
         state.record_unbounded_upvar()
         return
     # Only level #0 / 0 is safe (body runs in global scope, our locals
     # aren't visible). Any other literal level touches a non-global frame.
     if first not in ("#0", "0"):
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail=f"uplevel {first}")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail=f"uplevel {first}"))
         state.record_unbounded_upvar()
         return
     body_parts = args[1:]
     if not body_parts:
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail="uplevel #0 (no body)")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 (no body)"))
         state.record_unbounded_upvar()
         return
     body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
@@ -834,9 +822,7 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
         # Even #0 with a dynamic body is pessimistic — it could redefine
         # globals that shadow our names, which is safe — but the body
         # might also reference our locals via arg-subst; safer to spill.
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail="uplevel #0 $body (dynamic)")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 $body (dynamic)"))
 
 
 def _synthesise_eval_barrier(stmt) -> IRBarrier:
@@ -930,9 +916,7 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
     # ``{*}``-expansion in an unknown call defeats argument-index-based
     # analysis (we can't tell where the name arg landed).
     if _has_expand_word(call) and bare_cmd not in ("list", "concat"):
-        state.mark_pessimistic(
-            Barrier(BarrierKind.EXPAND, detail=f"{{*}} in {bare_cmd}")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.EXPAND, detail=f"{{*}} in {bare_cmd}"))
         return
 
     if canonical == "::upvar":
@@ -1007,9 +991,7 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
                 break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
-        state.mark_pessimistic(
-            Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value"))
         return
     for n in names:
         state.escape(

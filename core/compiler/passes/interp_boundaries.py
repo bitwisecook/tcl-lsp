@@ -121,9 +121,7 @@ def _transform_stmt(stmt: IRStatement) -> tuple[IRStatement, bool]:
                 new_clauses.append(_r(clause, body=new_body))
             else:
                 new_clauses.append(clause)
-        new_else = (
-            _transform_script(stmt.else_body) if stmt.else_body is not None else None
-        )
+        new_else = _transform_script(stmt.else_body) if stmt.else_body is not None else None
         if new_else is not stmt.else_body:
             changed = True
         if not changed:
@@ -137,11 +135,7 @@ def _transform_stmt(stmt: IRStatement) -> tuple[IRStatement, bool]:
         new_init = _transform_script(stmt.init)
         new_next = _transform_script(stmt.next)
         new_body = _transform_script(stmt.body)
-        if (
-            new_init is stmt.init
-            and new_next is stmt.next
-            and new_body is stmt.body
-        ):
+        if new_init is stmt.init and new_next is stmt.next and new_body is stmt.body:
             return stmt, False
         from dataclasses import replace
 
@@ -180,9 +174,7 @@ def _transform_stmt(stmt: IRStatement) -> tuple[IRStatement, bool]:
             else:
                 new_arms.append(arm)
         new_default = (
-            _transform_script(stmt.default_body)
-            if stmt.default_body is not None
-            else None
+            _transform_script(stmt.default_body) if stmt.default_body is not None else None
         )
         if new_default is not stmt.default_body:
             changed = True
@@ -204,9 +196,7 @@ def _transform_stmt(stmt: IRStatement) -> tuple[IRStatement, bool]:
     if isinstance(stmt, IRTry):
         new_body = _transform_script(stmt.body)
         new_finally = (
-            _transform_script(stmt.finally_body)
-            if stmt.finally_body is not None
-            else None
+            _transform_script(stmt.finally_body) if stmt.finally_body is not None else None
         )
         new_handlers = []
         changed = new_body is not stmt.body or new_finally is not stmt.finally_body

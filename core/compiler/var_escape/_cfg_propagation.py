@@ -273,9 +273,7 @@ def _apply_value_scan(value: str, state: _CfgState, defs: dict[str, int]) -> Non
                 break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
-        state.mark_pessimistic(
-            Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value"))
         return
     for n in names:
         state.escape(
@@ -404,9 +402,7 @@ def _handle_info(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
             return
         target = args[1]
         if _is_dynamic_token(target):
-            state.mark_pessimistic(
-                Barrier(BarrierKind.INFO, detail="info exists $dynamic")
-            )
+            state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info exists $dynamic"))
             return
         state.escape(
             target,
@@ -539,9 +535,7 @@ def _handle_eval(
 
         refs = VarReferenceScanner().scan_script(body)
     except Exception:  # noqa: BLE001
-        state.mark_pessimistic(
-            Barrier(BarrierKind.EVAL, detail="eval body parse failure")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body parse failure"))
         return
     for ref in refs:
         state.escape(
@@ -557,9 +551,7 @@ def _handle_eval(
 
         sub_module = lower_to_ir(body)
     except Exception:  # noqa: BLE001
-        state.mark_pessimistic(
-            Barrier(BarrierKind.EVAL, detail="eval body lowering failure")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body lowering failure"))
         return
     _escape_every_name_touched_tree(sub_module.top_level.statements, state, defs)
 
@@ -580,9 +572,7 @@ def _handle_uplevel(
     )
     if not is_level_literal:
         # Dynamic level — body could write anywhere up the frame stack.
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail="uplevel $level (dynamic)")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel $level (dynamic)"))
         state.record_unbounded_upvar()
         return
     if first not in ("#0", "0"):
@@ -592,16 +582,12 @@ def _handle_uplevel(
         # [list ::set $vname value]``: the uplevel writes
         # caller-side names that callers (e.g. OptNormalizeOne) read
         # via ``$varname`` afterwards.)
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail=f"uplevel {first}")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail=f"uplevel {first}"))
         state.record_unbounded_upvar()
         return
     body_parts = args[1:]
     if not body_parts:
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail="uplevel #0 (no body)")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 (no body)"))
         state.record_unbounded_upvar()
         return
     body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
@@ -609,9 +595,7 @@ def _handle_uplevel(
         # ``uplevel #0 $body`` — body content is unknown, may touch
         # any global.  Globals don't need ``upvar_source_names``
         # (they're handled by global storage), so just go pessimistic.
-        state.mark_pessimistic(
-            Barrier(BarrierKind.UPVAR, detail="uplevel #0 $body (dynamic)")
-        )
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 $body (dynamic)"))
 
 
 def _synthesise_uplevel_barrier(stmt) -> IRBarrier:

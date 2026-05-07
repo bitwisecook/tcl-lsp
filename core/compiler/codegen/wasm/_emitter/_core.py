@@ -156,9 +156,7 @@ class _WasmEmitterBase:
         # mode it prevents is silent corruption of variable state.
         # ``TCLLSP_DISABLE_VAR_CONTRACT=1`` bypasses it for emergency
         # forensics if a regression hits the gate.
-        self._var_write_contract_check: bool = not os.environ.get(
-            "TCLLSP_DISABLE_VAR_CONTRACT"
-        )
+        self._var_write_contract_check: bool = not os.environ.get("TCLLSP_DISABLE_VAR_CONTRACT")
         # Lazy scratch slot for the retain/release wrap.  Allocated on
         # first use of ``_emit_owned_local_write`` and reused for
         # every wrapped write in this proc.

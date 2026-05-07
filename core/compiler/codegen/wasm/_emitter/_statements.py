@@ -233,9 +233,7 @@ class _WasmEmitterStmtMixin(_Base):
         # to the interpreter, so the sync becomes part of the IR
         # rather than a method call codegen has to remember.
         if isinstance(stmt, IRInterpBoundary):
-            vars_observed = (
-                set(stmt.vars_observed) if stmt.vars_observed is not None else None
-            )
+            vars_observed = set(stmt.vars_observed) if stmt.vars_observed is not None else None
             self._emit_interp_boundary(stmt.kind, vars_observed=vars_observed)
             return
         match stmt:
