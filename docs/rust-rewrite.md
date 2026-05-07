@@ -854,7 +854,7 @@ touchpoint:
 - **Out of scope** — runtime/Zig, WASM AOT, vscode, release,
   pure-doc.  No Rust mirror exists; record and skip.
 - **In scope, low-touch** — registry table edits, single-file
-  bugfixes in a passa already ported to Rust.  Add a row to
+  bugfixes in a pass already ported to Rust.  Add a row to
   **Outstanding** with the source commit + the Rust file(s) to
   update.
 - **In scope, structural** — new pass, new IR variant, new
