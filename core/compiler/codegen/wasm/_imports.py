@@ -260,6 +260,15 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # ``tcl_expr_unordered(a, b)`` — returns 1 if either operand is a
+    # NaN value (TYPE_FLOAT NaN or ``"NaN"`` string).  Used by the
+    # comparison codegen to short-circuit IEEE-754 unordered results.
+    "tcl_expr_unordered": (
+        "tcl",
+        "tcl_expr_unordered",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Canonicalise an obj via the expression parser — single-token
     # ``expr {$var}`` semantics.  Returns the canonical numeric obj
     # when the string parses as a Tcl integer / hex / octal / binary /

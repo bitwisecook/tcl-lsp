@@ -1344,7 +1344,51 @@ fn check_numeric_binary(a: i32, b: i32, op_sym: []const u8) bool {
         raise_non_numeric(b, op_sym, "right");
         return false;
     }
+    // ``NaN`` operands round-trip through ``obj_is_numeric`` as
+    // ``TYPE_FLOAT`` (a recognised numeric tag) but reference Tcl 9
+    // refuses them in arithmetic operators with the surface
+    // ``cannot use non-numeric floating-point value "NaN" as
+    // <position> operand of "<op>"`` (expr-22.1 / 22.7).  Detect
+    // the NaN case here so each helper doesn't have to repeat the
+    // check.
+    if (is_nan_operand(a)) {
+        raise_nan_operand(op_sym, "left");
+        return false;
+    }
+    if (is_nan_operand(b)) {
+        raise_nan_operand(op_sym, "right");
+        return false;
+    }
     return true;
+}
+
+fn is_nan_operand(o: i32) bool {
+    if (o == 0 or obj.is_immediate(o)) return false;
+    const tag = obj.obj_type(o);
+    if (tag != TYPE_FLOAT) return false;
+    const fv: f64 = @bitCast(obj.read_i64(@as(u32, @bitCast(o)) + obj.OBJ_INT_CACHE));
+    return std.math.isNan(fv);
+}
+
+fn raise_nan_operand(op_sym: []const u8, position: []const u8) void {
+    if (@import("../interp/tcl_result.zig").snapshot(0).code == .ERROR) return;
+    const prefix: []const u8 = "cannot use non-numeric floating-point value \"NaN\" as ";
+    const middle: []const u8 = " operand of \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + position.len + middle.len + op_sym.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        stubs.raise("cannot use non-numeric floating-point value \"NaN\"");
+        return;
+    }
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    @memcpy(buf[prefix.len..][0..position.len], position);
+    @memcpy(buf[prefix.len + position.len ..][0..middle.len], middle);
+    @memcpy(buf[prefix.len + position.len + middle.len ..][0..op_sym.len], op_sym);
+    @memcpy(buf[prefix.len + position.len + middle.len + op_sym.len ..][0..suffix.len], suffix);
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    @import("../interp/tcl_catch.zig").tcl_cmd_error(msg);
 }
 
 /// Build ``cannot use non-numeric string "X" as operand of "<op>"``
