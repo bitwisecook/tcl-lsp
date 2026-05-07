@@ -48,12 +48,19 @@ from ._propagation import (
     _CMD_SUBST_HEAD_RE,
     _FRAMELESS_RUNTIME_COMMANDS,
     _NAME_FIRST_COMMANDS,
+    _array_element_array_name,
     _is_dynamic_name,
     _is_dynamic_token,
     _normalise_cmd_subst_head,
     _scan_value_for_info_hazards,
 )
-from ._types import EscapeTag
+from ._types import (
+    Barrier,
+    BarrierKind,
+    EscapeReason,
+    EscapeReasonKind,
+    EscapeTag,
+)
 
 
 @dataclass(slots=True)
@@ -74,6 +81,8 @@ class CfgEscapeResult:
     has_fallback: bool = False
     has_call_fallback: bool = False
     known_names: set[str] = field(default_factory=set)
+    barriers: tuple[Barrier, ...] = ()
+    tag_reasons: dict[str, tuple[EscapeReason, ...]] = field(default_factory=dict)
 
 
 class _CfgState:
@@ -94,6 +103,8 @@ class _CfgState:
         "has_call_fallback",
         "literal_assigns",
         "_ssa_for_name",
+        "barriers",
+        "tag_reasons",
     )
 
     def __init__(self, known_names: Iterable[str]) -> None:
@@ -105,6 +116,8 @@ class _CfgState:
         self.direct_callees: set[str] = set()
         self.has_fallback: bool = False
         self.has_call_fallback: bool = False
+        self.barriers: list[Barrier] = []
+        self.tag_reasons: dict[str, list[EscapeReason]] = {}
         # Maps a var name to the literal it was last assigned, for the
         # cheap single-writer alias inference. ``None`` once invalidated.
         self.literal_assigns: dict[str, str | None] = {}
@@ -137,7 +150,12 @@ class _CfgState:
             if version > self._ssa_for_name.get(name, 0):
                 self._ssa_for_name[name] = version
 
-    def escape(self, name: str, defs: dict[str, int] | None = None) -> None:
+    def escape(
+        self,
+        name: str,
+        defs: dict[str, int] | None = None,
+        reason: EscapeReason | None = None,
+    ) -> None:
         """Mark ``name``'s current SSA version as FRAME."""
         if not name or _is_dynamic_name(name):
             return
@@ -145,17 +163,28 @@ class _CfgState:
         self.ssa_tags[(name, version)] = EscapeTag.FRAME
         self.known_names.add(name)
         self._ssa_for_name.setdefault(name, version)
+        if reason is not None:
+            self.tag_reasons.setdefault(name, []).append(reason)
 
-    def escape_all_known(self, defs: dict[str, int] | None = None) -> None:
+    def escape_all_known(
+        self,
+        defs: dict[str, int] | None = None,
+        reason: EscapeReason | None = None,
+    ) -> None:
         """Mark every known proc-local name as FRAME at its current version."""
+        if reason is None:
+            reason = EscapeReason(kind=EscapeReasonKind.ESCAPE_ALL_KNOWN)
         for name in list(self.known_names):
             if _is_dynamic_name(name):
                 continue
             version = self._version_for(name, defs or {})
             self.ssa_tags[(name, version)] = EscapeTag.FRAME
+            self.tag_reasons.setdefault(name, []).append(reason)
 
-    def mark_pessimistic(self) -> None:
+    def mark_pessimistic(self, barrier: Barrier | None = None) -> None:
         self.dynamic_barrier = True
+        if barrier is not None:
+            self.barriers.append(barrier)
 
     def record_upvar_source(self, src: str) -> None:
         if src:
@@ -244,10 +273,14 @@ def _apply_value_scan(value: str, state: _CfgState, defs: dict[str, int]) -> Non
                 break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value"))
         return
     for n in names:
-        state.escape(n, defs)
+        state.escape(
+            n,
+            defs,
+            EscapeReason(kind=EscapeReasonKind.INFO_EXISTS, detail=f"info exists {n}"),
+        )
 
 
 def _apply_expr_scan(expr: object, state: _CfgState, defs: dict[str, int]) -> None:
@@ -282,11 +315,18 @@ def _handle_upvar(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
         # source so the interprocedural pass forces every caller to
         # spill its locals.  See ``_propagation._handle_upvar`` for the
         # full rationale (opt.test OptTreeVars).
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="upvar $level"))
         state.record_unbounded_upvar()
         return
     for idx in upvar_local_declaration_indices("upvar", args):
-        state.escape(args[idx], defs)
+        state.escape(
+            args[idx],
+            defs,
+            EscapeReason(
+                kind=EscapeReasonKind.UPVAR_SOURCE,
+                detail=f"upvar bind {args[idx]}",
+            ),
+        )
 
     if is_level_literal:
         level_literal = head
@@ -306,12 +346,26 @@ def _handle_upvar(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
 
 def _handle_global(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
     for idx in global_declaration_indices(call.args):
-        state.escape(call.args[idx], defs)
+        state.escape(
+            call.args[idx],
+            defs,
+            EscapeReason(
+                kind=EscapeReasonKind.UPVAR_SOURCE,
+                detail=f"global {call.args[idx]}",
+            ),
+        )
 
 
 def _handle_variable(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
     for idx in variable_declaration_indices(call.args):
-        state.escape(call.args[idx], defs)
+        state.escape(
+            call.args[idx],
+            defs,
+            EscapeReason(
+                kind=EscapeReasonKind.UPVAR_SOURCE,
+                detail=f"variable {call.args[idx]}",
+            ),
+        )
 
 
 def _handle_namespace_call(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
@@ -321,33 +375,44 @@ def _handle_namespace_call(call: IRCall, state: _CfgState, defs: dict[str, int])
     sub = args[0]
     if sub == "upvar":
         for idx in upvar_local_declaration_indices("namespace", args):
-            state.escape(args[idx], defs)
+            state.escape(
+                args[idx],
+                defs,
+                EscapeReason(
+                    kind=EscapeReasonKind.UPVAR_SOURCE,
+                    detail=f"namespace upvar bind {args[idx]}",
+                ),
+            )
 
 
 def _handle_info(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
     args = call.args
     if not args:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info (no subcommand)"))
         return
     sub = args[0]
     if _is_dynamic_token(sub):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info $dynamic"))
         return
     if is_frame_inspecting_info_subcommand(sub):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail=f"info {sub}"))
         return
     if sub == "exists":
         if len(args) < 2:
             return
         target = args[1]
         if _is_dynamic_token(target):
-            state.mark_pessimistic()
+            state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info exists $dynamic"))
             return
-        state.escape(target, defs)
+        state.escape(
+            target,
+            defs,
+            EscapeReason(kind=EscapeReasonKind.INFO_EXISTS, detail=f"info exists {target}"),
+        )
         return
     if is_safe_info_subcommand(sub):
         return
-    state.mark_pessimistic()
+    state.mark_pessimistic(Barrier(BarrierKind.INFO, detail=f"info {sub} (unclassified)"))
 
 
 def _handle_dynamic_name_first(
@@ -362,9 +427,35 @@ def _handle_dynamic_name_first(
     if _is_dynamic_name(name):
         literal = state.resolve_literal(name)
         if literal is not None:
-            state.escape(literal, defs)
-        else:
-            state.escape_all_known(defs)
+            state.escape(
+                literal,
+                defs,
+                EscapeReason(
+                    kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                    detail=f"{call.command} {name} → {literal}",
+                ),
+            )
+            return
+        arr = _array_element_array_name(name)
+        if arr is not None:
+            # See ``_propagation._handle_dynamic_name_first`` for the
+            # rationale: array-element refs only touch the array name.
+            state.escape(
+                arr,
+                defs,
+                EscapeReason(
+                    kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                    detail=f"{call.command} {arr}(...)",
+                ),
+            )
+            return
+        state.escape_all_known(
+            defs,
+            EscapeReason(
+                kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                detail=f"{call.command} {name}",
+            ),
+        )
 
 
 def _escape_every_name_touched_tree(
@@ -384,9 +475,18 @@ def _escape_every_name_touched_tree(
             return
         if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
             if not stmt.name or _is_dynamic_name(stmt.name):
-                state.mark_pessimistic()
+                state.mark_pessimistic(
+                    Barrier(BarrierKind.DYN_NAME, detail="dynamic name in eval body")
+                )
                 return
-            state.escape(stmt.name, defs)
+            state.escape(
+                stmt.name,
+                defs,
+                EscapeReason(
+                    kind=EscapeReasonKind.EVAL_REFERENCE,
+                    detail=f"assigned in eval body: {stmt.name}",
+                ),
+            )
             if isinstance(stmt, (IRAssignConst, IRAssignValue)):
                 _apply_value_scan(stmt.value, state, defs)
             elif isinstance(stmt, IRAssignExpr):
@@ -396,7 +496,14 @@ def _escape_every_name_touched_tree(
         elif isinstance(stmt, IRCall):
             for n in (*stmt.defs, *stmt.reads):
                 if n and not _is_dynamic_token(n):
-                    state.escape(n, defs)
+                    state.escape(
+                        n,
+                        defs,
+                        EscapeReason(
+                            kind=EscapeReasonKind.EVAL_REFERENCE,
+                            detail=f"referenced in eval body: {n}",
+                        ),
+                    )
             _handle_call(stmt, state, defs)
         elif isinstance(stmt, IRBarrier):
             _handle_barrier(stmt, state, defs)
@@ -417,27 +524,34 @@ def _handle_eval(
 ) -> None:
     args = barrier.args
     if not args:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval (no body)"))
         return
     body = args[-1] if len(args) == 1 else " ".join(args)
     if _is_dynamic_token(body):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval $body (dynamic)"))
         return
     try:
         from ..var_refs import VarReferenceScanner
 
         refs = VarReferenceScanner().scan_script(body)
     except Exception:  # noqa: BLE001
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body parse failure"))
         return
     for ref in refs:
-        state.escape(ref, defs)
+        state.escape(
+            ref,
+            defs,
+            EscapeReason(
+                kind=EscapeReasonKind.EVAL_REFERENCE,
+                detail=f"$ref in eval body: {ref}",
+            ),
+        )
     try:
         from ..lowering import lower_to_ir
 
         sub_module = lower_to_ir(body)
     except Exception:  # noqa: BLE001
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body lowering failure"))
         return
     _escape_every_name_touched_tree(sub_module.top_level.statements, state, defs)
 
@@ -449,7 +563,7 @@ def _handle_uplevel(
 ) -> None:
     args = barrier.args
     if not args:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel (no args)"))
         state.record_unbounded_upvar()
         return
     first = args[0]
@@ -458,7 +572,7 @@ def _handle_uplevel(
     )
     if not is_level_literal:
         # Dynamic level — body could write anywhere up the frame stack.
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel $level (dynamic)"))
         state.record_unbounded_upvar()
         return
     if first not in ("#0", "0"):
@@ -468,12 +582,12 @@ def _handle_uplevel(
         # [list ::set $vname value]``: the uplevel writes
         # caller-side names that callers (e.g. OptNormalizeOne) read
         # via ``$varname`` afterwards.)
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail=f"uplevel {first}"))
         state.record_unbounded_upvar()
         return
     body_parts = args[1:]
     if not body_parts:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 (no body)"))
         state.record_unbounded_upvar()
         return
     body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
@@ -481,7 +595,7 @@ def _handle_uplevel(
         # ``uplevel #0 $body`` — body content is unknown, may touch
         # any global.  Globals don't need ``upvar_source_names``
         # (they're handled by global storage), so just go pessimistic.
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 $body (dynamic)"))
 
 
 def _synthesise_uplevel_barrier(stmt) -> IRBarrier:
@@ -536,7 +650,9 @@ def _handle_barrier(
     elif cmd == "::uplevel":
         _handle_uplevel(barrier, state, defs)
     else:
-        state.mark_pessimistic()
+        state.mark_pessimistic(
+            Barrier(BarrierKind.UNKNOWN, detail=f"barrier: {cmd or barrier.command!r}")
+        )
 
 
 def _handle_call(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
@@ -549,7 +665,7 @@ def _handle_call(call: IRCall, state: _CfgState, defs: dict[str, int]) -> None:
             state.record_call_fallback()
 
     if _has_expand_word(call) and bare not in ("list", "concat"):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EXPAND, detail=f"{{*}} in {bare}"))
         return
 
     if cmd == "::upvar":
@@ -597,9 +713,22 @@ def _handle_statement(
         if _is_dynamic_name(stmt.name):
             literal = state.resolve_literal(stmt.name)
             if literal is not None:
-                state.escape(literal, defs)
+                state.escape(
+                    literal,
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                        detail=f"set {stmt.name} → {literal}",
+                    ),
+                )
             else:
-                state.escape_all_known(defs)
+                state.escape_all_known(
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                        detail=f"set {stmt.name} ...",
+                    ),
+                )
         else:
             state.note_literal_assign(stmt.name, stmt.value)
         _apply_value_scan(stmt.value, state, defs)
@@ -607,9 +736,22 @@ def _handle_statement(
         if _is_dynamic_name(stmt.name):
             literal = state.resolve_literal(stmt.name)
             if literal is not None:
-                state.escape(literal, defs)
+                state.escape(
+                    literal,
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                        detail=f"set {stmt.name} → {literal}",
+                    ),
+                )
             else:
-                state.escape_all_known(defs)
+                state.escape_all_known(
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                        detail=f"set {stmt.name} ...",
+                    ),
+                )
         else:
             if stmt.value and not _is_dynamic_token(stmt.value):
                 state.note_literal_assign(stmt.name, stmt.value)
@@ -620,9 +762,22 @@ def _handle_statement(
         if _is_dynamic_name(stmt.name):
             literal = state.resolve_literal(stmt.name)
             if literal is not None:
-                state.escape(literal, defs)
+                state.escape(
+                    literal,
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                        detail=f"set-expr {stmt.name} → {literal}",
+                    ),
+                )
             else:
-                state.escape_all_known(defs)
+                state.escape_all_known(
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                        detail=f"set-expr {stmt.name} ...",
+                    ),
+                )
         else:
             state.invalidate_literal(stmt.name)
         _apply_expr_scan(stmt.expr, state, defs)
@@ -630,9 +785,22 @@ def _handle_statement(
         if _is_dynamic_name(stmt.name):
             literal = state.resolve_literal(stmt.name)
             if literal is not None:
-                state.escape(literal, defs)
+                state.escape(
+                    literal,
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                        detail=f"incr {stmt.name} → {literal}",
+                    ),
+                )
             else:
-                state.escape_all_known(defs)
+                state.escape_all_known(
+                    defs,
+                    EscapeReason(
+                        kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                        detail=f"incr {stmt.name}",
+                    ),
+                )
         else:
             state.invalidate_literal(stmt.name)
         if stmt.amount:
@@ -736,4 +904,6 @@ def analyse_cfg_function(
         has_fallback=state.has_fallback,
         has_call_fallback=state.has_call_fallback,
         known_names=state.known_names,
+        barriers=tuple(state.barriers),
+        tag_reasons={k: tuple(v) for k, v in state.tag_reasons.items()},
     )

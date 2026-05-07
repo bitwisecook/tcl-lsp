@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    from ...analysis.semantic_model import Range
 
 
 class EscapeTag(Enum):
@@ -26,6 +29,115 @@ def join(a: EscapeTag, b: EscapeTag) -> EscapeTag:
     if a is EscapeTag.FRAME or b is EscapeTag.FRAME:
         return EscapeTag.FRAME
     return EscapeTag.LOCAL
+
+
+class BarrierKind(Enum):
+    """Why the analysis fell back to the dynamic-barrier path.
+
+    Each kind names a distinct *reason* so codegen, the LSP, and the
+    compiler explorer can narrow / explain rather than treat every
+    pessimistic-frame proc as opaque.
+
+    ``INFO`` — frame-inspecting ``info`` subcommand (``info level``,
+    ``info frame``, ``info vars``, ``info locals``, ``info coroutine``,
+    ``info errorstack``), or an unknown / dynamic ``info`` subcommand.
+
+    ``EVAL`` — ``eval``/``source``/``subst`` with a body the analysis
+    can't statically scan (dynamic body, parse failure, lowering
+    failure).
+
+    ``UPVAR`` — ``upvar`` with a dynamic level or unbounded source,
+    or a non-#0 ``uplevel`` whose body could touch caller-frame names.
+
+    ``DYN_NAME`` — assignment / increment / unset whose first arg is
+    a dynamic name the analysis can't resolve to a literal target
+    (``set $varname value`` etc.) — the fallback escapes every known
+    proc-local.
+
+    ``EXPAND`` — ``{*}``-word expansion in an unknown command call,
+    where argument-index analysis can't tell where the name landed.
+
+    ``UNKNOWN`` — any other barrier shape we don't yet classify
+    (catch-all so the field stays exhaustive).
+    """
+
+    INFO = "info"
+    EVAL = "eval"
+    UPVAR = "upvar"
+    DYN_NAME = "dyn_name"
+    EXPAND = "expand"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class Barrier:
+    """A single barrier trigger recorded by the analysis.
+
+    ``kind`` identifies the category (see :class:`BarrierKind`).
+    ``detail`` is a short human-readable explanation, intended to be
+    surfaced verbatim in compiler-explorer hovers and LSP hints
+    (e.g. ``"info level"``, ``"eval $body (dynamic)"``,
+    ``"set $varname value"``).  ``range`` is the source span of the
+    triggering construct when the analysis pass had it available — None
+    when the barrier was synthesised from an inferred / nested IR shape.
+    """
+
+    kind: BarrierKind
+    detail: str = ""
+    range: "Range | None" = None
+
+
+class EscapeReasonKind(Enum):
+    """Why a specific variable was tagged ``FRAME``.
+
+    Per-name companion to :class:`BarrierKind`.  A barrier is a
+    proc-level fact ("this proc went pessimistic"); an escape reason
+    is a per-variable fact ("this var is FRAME because …") — they
+    overlap (a barrier *implies* every-known-var is FRAME) but the
+    finer split lets the LSP / compiler explorer answer "why is
+    ``x`` FRAME?" precisely.
+
+    ``BARRIER`` — proc went pessimistic; the var is FRAME by virtue of
+    being in the proc.  Pair with the proc's :class:`Barrier` for
+    detail.
+
+    ``INFO_EXISTS`` — ``[info exists <name>]`` references this var by
+    literal name.  The interpreter resolves the lookup against the
+    runtime frame, so the var must live there.
+
+    ``UPVAR_SOURCE`` — this name is the *source* of an ``upvar``
+    declaration in this proc.  Caller-side aliasing requires the
+    name to be in the runtime frame.
+
+    ``CALLEE_UPVAR`` — interprocedural: a callee upvars this name
+    from our frame, so we have to spill it.
+
+    ``EVAL_REFERENCE`` — an ``eval``/``source``/``subst`` body
+    references this name (``$<name>`` or ``set <name> ...``).
+
+    ``DYN_NAME_RESOLVED`` — a dynamic-name command (``set $v ...``)
+    resolved to this literal target via in-body literal analysis.
+
+    ``ESCAPE_ALL_KNOWN`` — fallback path spilled every known
+    proc-local because no narrower escape set could be proved.
+    """
+
+    BARRIER = "barrier"
+    INFO_EXISTS = "info_exists"
+    UPVAR_SOURCE = "upvar_source"
+    CALLEE_UPVAR = "callee_upvar"
+    EVAL_REFERENCE = "eval_reference"
+    DYN_NAME_RESOLVED = "dyn_name_resolved"
+    ESCAPE_ALL_KNOWN = "escape_all_known"
+
+
+@dataclass(frozen=True, slots=True)
+class EscapeReason:
+    """A single per-variable escape reason recorded by the analysis."""
+
+    kind: EscapeReasonKind
+    detail: str = ""
+    range: "Range | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +180,21 @@ class ProcEscapeSummary:
     unbounded_upvar_source: bool = False
     direct_callees: frozenset[str] = frozenset()
     has_fallback: bool = False
+    # Each barrier carries its kind + detail + source range so callers
+    # (codegen, compiler explorer, LSP) can narrow / explain rather
+    # than treat every pessimistic-frame proc as opaque.  Always
+    # consistent with ``dynamic_barrier``: the latter is True iff
+    # ``barriers`` is non-empty.  Empty for procs the analysis proved
+    # frame-elidable.
+    barriers: tuple[Barrier, ...] = ()
+    # Per-variable escape reasons.  ``tag_reasons[name]`` lists every
+    # trigger that contributed to ``tags[name] == FRAME``.  Empty
+    # tuple (or missing key) means the analysis didn't record a
+    # specific reason — typically because the var stayed LOCAL or
+    # because a barrier-induced escape is implied by ``barriers``
+    # rather than explicit per-name (``BARRIER`` reasons are usually
+    # synthesised on demand by ``reasons_for(name)``).
+    tag_reasons: dict[str, tuple[EscapeReason, ...]] = field(default_factory=dict)
     # S3.4: True when the proc is "pure leaf" — no dynamic_barrier,
     # no frame_needed, no has_fallback, no global mutation, no
     # upvar/uplevel/info, and every direct callee is itself
@@ -113,6 +240,56 @@ class ProcEscapeSummary:
     def is_frame(self, name: str) -> bool:
         """Shorthand: does ``name`` need to live in the runtime frame?"""
         return self.tag(name) is EscapeTag.FRAME
+
+    def reasons_for(self, name: str) -> tuple[EscapeReason, ...]:
+        """Return the per-variable escape reasons for ``name``.
+
+        When the proc went pessimistic (``dynamic_barrier=True``) and
+        no specific per-name reason was recorded, synthesise one
+        ``BARRIER`` reason per proc-level :class:`Barrier` so callers
+        can answer "why is ``x`` FRAME?" with structured detail
+        instead of "because everything is."
+
+        When the var is ``LOCAL`` returns an empty tuple — the var
+        is not in the frame; no reason to surface.
+        """
+        if not self.is_frame(name):
+            return ()
+        explicit = self.tag_reasons.get(name, ())
+        if explicit:
+            return explicit
+        if self.dynamic_barrier:
+            # Synthesise from proc-level barriers so the LSP / explorer
+            # has structured detail to surface even when nothing
+            # specific was recorded for this var.
+            return tuple(
+                EscapeReason(kind=EscapeReasonKind.BARRIER, detail=b.detail, range=b.range)
+                for b in self.barriers
+            ) or (EscapeReason(kind=EscapeReasonKind.BARRIER),)
+        return ()
+
+    @property
+    def wants_frame(self) -> bool:
+        """Single source of truth for "this proc needs a runtime frame".
+
+        Combines every analysis-known reason a proc body can't run with
+        the frame elided:
+
+        * ``frame_needed`` — at least one var is FRAME (escapes to a
+          callee's ``upvar`` source, or the dynamic barrier flagged
+          everything FRAME).
+        * ``has_fallback`` — a statically resolvable command falls
+          through to the eval fallback, which resolves names against
+          the runtime frame.
+
+        Codegen should consult this property instead of recomposing
+        the same condition at each call site.  The property does NOT
+        include codegen-time scans (e.g. ``info level`` references
+        the analysis missed) — those are layered on top of this gate
+        by the emitter's top-level ``wants_frame`` resolver until the
+        analysis itself catches every hazard.
+        """
+        return self.frame_needed or self.has_fallback
 
     # -- PR #237 review: split predicates for separate proofs ---------
     #
@@ -224,15 +401,28 @@ class ProcEscapeSummary:
         Used by the interprocedural pass to fold callee-induced
         escapes (names a callee uses as ``upvar`` sources) into a
         caller's summary without mutating the originally computed
-        structure.
+        structure.  Each added name is annotated with a
+        ``CALLEE_UPVAR`` reason so downstream consumers can surface
+        "this var is FRAME because a callee upvars it" rather than
+        an unattributed FRAME tag.
         """
         new_tags = dict(self.tags)
+        new_reasons = {k: v for k, v in self.tag_reasons.items()}
+        callee_reason = EscapeReason(kind=EscapeReasonKind.CALLEE_UPVAR)
         for name in extra_escaped:
             new_tags[name] = EscapeTag.FRAME
+            existing = new_reasons.get(name, ())
+            if not any(r.kind is EscapeReasonKind.CALLEE_UPVAR for r in existing):
+                new_reasons[name] = existing + (callee_reason,)
         new_pessimistic = self.dynamic_barrier or pessimistic
         new_frame_needed = new_pessimistic or any(
             tag is EscapeTag.FRAME for tag in new_tags.values()
         )
+        new_barriers = self.barriers
+        if pessimistic and not self.dynamic_barrier:
+            new_barriers = self.barriers + (
+                Barrier(kind=BarrierKind.UNKNOWN, detail="interprocedural"),
+            )
         # pure_leaf is invalidated by any added escape — once a var
         # spills to FRAME the proc is no longer purely-local.
         new_pure_leaf = self.pure_leaf and not extra_escaped and not new_pessimistic
@@ -240,6 +430,8 @@ class ProcEscapeSummary:
             tags=new_tags,
             dynamic_barrier=new_pessimistic,
             frame_needed=new_frame_needed,
+            barriers=new_barriers,
+            tag_reasons=new_reasons,
             upvar_source_names=self.upvar_source_names,
             unbounded_upvar_source=self.unbounded_upvar_source,
             direct_callees=self.direct_callees,
@@ -264,6 +456,8 @@ class ProcEscapeSummary:
             direct_callees=self.direct_callees,
             has_fallback=self.has_fallback,
             has_call_fallback=self.has_call_fallback,
+            barriers=self.barriers,
+            tag_reasons={k: v for k, v in self.tag_reasons.items()},
             ssa_tags=dict(self.ssa_tags),
             pure_leaf=self.pure_leaf,
             local_slot_indices=dict(slot_indices),

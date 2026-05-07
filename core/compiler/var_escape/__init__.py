@@ -14,9 +14,20 @@ from __future__ import annotations
 
 from ._api import TOP_LEVEL_QNAME, analyse_var_escape
 from ._interprocedural import solve_interprocedural_escape
-from ._types import EscapeTag, ProcEscapeSummary
+from ._types import (
+    Barrier,
+    BarrierKind,
+    EscapeReason,
+    EscapeReasonKind,
+    EscapeTag,
+    ProcEscapeSummary,
+)
 
 __all__ = [
+    "Barrier",
+    "BarrierKind",
+    "EscapeReason",
+    "EscapeReasonKind",
     "EscapeTag",
     "ProcEscapeSummary",
     "TOP_LEVEL_QNAME",

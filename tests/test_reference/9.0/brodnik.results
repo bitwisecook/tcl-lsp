@@ -1,0 +1,10 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     brodnik.test
+DATE     2026-05-06T21:17:44Z
+---
+---
+TOTAL   0
+PASSED  0
+SKIPPED 0
+FAILED  0

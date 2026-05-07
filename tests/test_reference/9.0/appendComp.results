@@ -1,0 +1,58 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     appendComp.test
+DATE     2026-05-06T21:17:43Z
+---
+PASS appendComp-1.1
+PASS appendComp-1.2
+PASS appendComp-1.3
+PASS appendComp-10.1
+PASS appendComp-10.2
+PASS appendComp-10.3
+PASS appendComp-10.4
+PASS appendComp-2.1
+PASS appendComp-3.1
+PASS appendComp-3.2
+PASS appendComp-3.3
+PASS appendComp-4.1
+PASS appendComp-4.10
+PASS appendComp-4.11
+PASS appendComp-4.12
+PASS appendComp-4.13
+PASS appendComp-4.14
+PASS appendComp-4.15
+PASS appendComp-4.16
+PASS appendComp-4.17
+PASS appendComp-4.18
+PASS appendComp-4.19
+PASS appendComp-4.2
+PASS appendComp-4.20
+PASS appendComp-4.3
+PASS appendComp-4.4
+PASS appendComp-4.5
+PASS appendComp-4.6
+PASS appendComp-4.7
+PASS appendComp-4.8
+PASS appendComp-4.9
+PASS appendComp-5.1
+PASS appendComp-6.1
+PASS appendComp-6.2
+PASS appendComp-7.1
+PASS appendComp-7.5
+PASS appendComp-7.8
+PASS appendComp-7.9
+PASS appendComp-8.1
+PASS appendComp-9.0
+PASS appendComp-9.1
+PASS appendComp-9.2
+PASS appendComp-9.3
+SKIP appendComp-7.2 bug_3057639
+SKIP appendComp-7.3 bug_3057639
+SKIP appendComp-7.4 bug_3057639
+SKIP appendComp-7.6 bug_3057639
+SKIP appendComp-7.7 bug_3057639
+---
+TOTAL   48
+PASSED  43
+SKIPPED 5
+FAILED  0

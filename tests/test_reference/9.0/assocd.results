@@ -1,0 +1,21 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     assocd.test
+DATE     2026-05-06T21:17:44Z
+---
+SKIP assocd-1.1 testsetassocdata
+SKIP assocd-1.2 testsetassocdata
+SKIP assocd-1.3 testsetassocdata
+SKIP assocd-1.4 testsetassocdata
+SKIP assocd-2.1 testgetassocdata
+SKIP assocd-2.2 testgetassocdata
+SKIP assocd-2.3 testgetassocdata
+SKIP assocd-2.4 testgetassocdata
+SKIP assocd-3.1 testdelassocdata
+SKIP assocd-3.2 testdelassocdata
+SKIP assocd-3.3 testdelassocdata
+---
+TOTAL   11
+PASSED  0
+SKIPPED 11
+FAILED  0

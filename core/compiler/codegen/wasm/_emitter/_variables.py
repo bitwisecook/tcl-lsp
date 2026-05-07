@@ -763,7 +763,7 @@ class _WasmEmitterVarMixin(_Base):
             self._emit_i32_const(len(encoded))
             self._emit_call(ns_set_idx)
             self._emit_local_set(ns_saved_local)
-        self._emit_frame_sync()
+        self._emit_interp_boundary("eval")
         self._emit_call(eval_idx)
         if drop_result:
             self._emit(WasmOp.DROP)
@@ -820,7 +820,12 @@ class _WasmEmitterVarMixin(_Base):
             return False
         return summary.is_frame(name)
 
-    def _iter_sync_locals(self, vars_used: set[str] | None = None) -> "list[tuple[str, int]]":
+    def _iter_sync_locals(
+        self,
+        vars_used: set[str] | None = None,
+        *,
+        boundary_kind: str | None = None,
+    ) -> "list[tuple[str, int]]":
         """Return the ``(name, local_idx)`` pairs that should take part
         in a frame sync / readback at the current emit site, sorted by
         name for deterministic WASM output across Python-dict iteration
@@ -830,6 +835,22 @@ class _WasmEmitterVarMixin(_Base):
         interpreter call could observe.  ``None`` means "unknown — sync
         every Tcl local".  An empty set also means the caller
         explicitly knows nothing is referenced (no sync needed).
+
+        *boundary_kind* (``"eval"`` / ``"call"`` / ``"dispatch"`` /
+        ``"info"``) drives per-kind narrowing using the proc's
+        :class:`Barrier` / :class:`EscapeReason` taxonomy.  When the
+        analysis recorded enough structure to prove a var doesn't
+        need this *specific* boundary's sync, it's skipped:
+
+        * ``"eval"`` with a body scan (``vars_used`` supplied) — only
+          the scanned references need sync.
+        * ``"info"`` — when every barrier reason is ``INFO_EXISTS`` on
+          known literals, sync only those literals (the proc went
+          pessimistic but only a narrow set of names is reachable
+          via the info subcommand).
+        * ``"call"`` / ``"dispatch"`` — conservative full sync today;
+          the kind is plumbed so a follow-on can wire callee-summary
+          or argv-scan narrowing without changing call sites.
 
         When a per-proc var-escape summary is available, the caller
         passes ``vars_used`` (the fallback's statically known reference
@@ -848,6 +869,43 @@ class _WasmEmitterVarMixin(_Base):
             summary is not None and not summary.dynamic_barrier and vars_used is not None
         )
 
+        # Per-kind narrowing: when the proc is pessimistic but every
+        # recorded barrier is INFO with INFO_EXISTS reasons on known
+        # literals, narrow to those literal targets.  Only fires when
+        # the boundary is "info"-shaped and the caller didn't already
+        # provide a vars_used set.
+        info_narrow: set[str] | None = None
+        if (
+            vars_used is None
+            and boundary_kind == "info"
+            and summary is not None
+            and summary.dynamic_barrier
+            and summary.barriers
+        ):
+            from ....var_escape import BarrierKind, EscapeReasonKind
+
+            if all(b.kind is BarrierKind.INFO for b in summary.barriers):
+                # Collect every literal target named by an INFO_EXISTS
+                # reason across the proc's tag_reasons.  If every
+                # tag-reason set we walk yields a literal, we have a
+                # bounded sync set.  Otherwise leave info_narrow as
+                # None (fall back to full sync).
+                literals: set[str] = set()
+                bounded = True
+                for var_name, reasons in summary.tag_reasons.items():
+                    for r in reasons:
+                        if r.kind is EscapeReasonKind.INFO_EXISTS:
+                            literals.add(var_name)
+                            break
+                    else:
+                        # No INFO_EXISTS reason for this var — it's
+                        # FRAME for some other (non-info) trigger.
+                        # Conservative: don't narrow.
+                        bounded = False
+                        break
+                if bounded and literals:
+                    info_narrow = literals
+
         pairs: list[tuple[str, int]] = []
         for name, idx in self._tcl_var_locals.items():
             if name in self._aliases:
@@ -858,6 +916,8 @@ class _WasmEmitterVarMixin(_Base):
                 continue
             if vars_used is not None and name not in vars_used:
                 continue
+            if info_narrow is not None and name not in info_narrow:
+                continue
             if narrow_to_frame and summary is not None and not summary.is_frame(name):
                 # Analysis proved this var cannot be observed by name
                 # from the interpreter — no sync needed.
@@ -866,7 +926,43 @@ class _WasmEmitterVarMixin(_Base):
         pairs.sort(key=lambda p: p[0])
         return pairs
 
-    def _emit_frame_sync(self, vars_used: set[str] | None = None) -> None:
+    def _emit_interp_boundary(
+        self,
+        kind: str,
+        *,
+        vars_observed: set[str] | None = None,
+    ) -> None:
+        """Single entry point for "we're about to hand control to the interpreter".
+
+        Replaces direct ``_emit_frame_sync()`` calls scattered across
+        codegen with a named call site that records *why* the boundary
+        exists (``"call"``, ``"eval"``, ``"dispatch"``, ``"info"``).
+        Centralising here ensures every interpreter handoff goes through
+        the same gate — adding a new boundary site without sync is no
+        longer possible by accident, and per-kind narrowing has one
+        place to grow.
+
+        ``kind`` drives per-barrier-kind narrowing in
+        :meth:`_iter_sync_locals` via the ``boundary_kind`` parameter.
+        Today's narrowing rules:
+
+        * ``"eval"`` with ``vars_observed`` — sync only those names.
+        * ``"eval"`` without ``vars_observed`` (dynamic body) — sync
+          every Tcl-visible local.
+        * ``"call"`` / ``"dispatch"`` — conservative full sync until
+          callee-summary / argv-scan plumbing lets us narrow.
+
+        ``vars_observed`` is forwarded to ``_emit_frame_sync`` as
+        ``vars_used`` — see that method for the narrowing contract.
+        """
+        self._emit_frame_sync(vars_used=vars_observed, boundary_kind=kind)
+
+    def _emit_frame_sync(
+        self,
+        vars_used: set[str] | None = None,
+        *,
+        boundary_kind: str | None = None,
+    ) -> None:
         """Mirror proc-locals into the call frame before the Zig
         interpreter takes control (e.g. at a ``tcl_eval`` call site).
 
@@ -903,7 +999,7 @@ class _WasmEmitterVarMixin(_Base):
             lset_idx = self._shared_imports.get("tcl_local_set")
         if lset_idx is None:
             return
-        for name, idx in self._iter_sync_locals(vars_used):
+        for name, idx in self._iter_sync_locals(vars_used, boundary_kind=boundary_kind):
             # Emit: if (local != 0) { tcl_local_set_silent(name_obj, local) }
             # Skips zero-initialised locals that were never assigned so they
             # don't create spurious frame entries.

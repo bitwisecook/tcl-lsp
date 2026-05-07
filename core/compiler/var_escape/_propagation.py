@@ -43,7 +43,14 @@ from ._info_subcommands import (
     is_frame_inspecting_info_subcommand,
     is_safe_info_subcommand,
 )
-from ._types import EscapeTag, ProcEscapeSummary
+from ._types import (
+    Barrier,
+    BarrierKind,
+    EscapeReason,
+    EscapeReasonKind,
+    EscapeTag,
+    ProcEscapeSummary,
+)
 
 # Commands whose first arg is the variable name (read/write/modify).
 # Used to detect dynamic-name forms like ``set $n value`` — these must
@@ -131,6 +138,34 @@ def _is_dynamic_name(name: str) -> bool:
     return _is_dynamic_token(name)
 
 
+def _array_element_array_name(name: str) -> str | None:
+    """If ``name`` is an array-element ref (``arr(...)``) where the array
+    name is a plain literal identifier, return that literal array name.
+
+    ``set arr($k) v`` / ``unset arr($k)`` / ``incr arr($k)`` only touches
+    the *array* by name — the index is dynamic but doesn't widen the
+    proc's escape set beyond ``arr``.  Without this narrowing every such
+    call falls into :func:`_handle_dynamic_name_first`'s fallback
+    (``escape_all_known``) and forces the whole proc onto the slow
+    frame path.
+
+    Returns ``None`` for plain scalars, fully-dynamic names (``$x(y)``),
+    and ``::``-qualified arrays (those route through the global table
+    and don't need proc-local escape tracking).
+    """
+    if not name or "(" not in name or not name.endswith(")"):
+        return None
+    if name.startswith("$") or name.startswith("[") or name.startswith("::"):
+        return None
+    open_paren = name.find("(")
+    if open_paren <= 0:
+        return None
+    arr = name[:open_paren]
+    if "$" in arr or "[" in arr or "{" in arr or "}" in arr:
+        return None
+    return arr
+
+
 # Match ``[info <subcmd> ...]`` command substitutions embedded in value
 # strings. Used to detect frame-inspecting ``info`` calls that the lowering
 # stuffed inside an ``IRAssignValue`` value rather than surfacing as a
@@ -186,11 +221,18 @@ class _EscapeState:
         "has_fallback",
         "has_call_fallback",
         "literal_assigns",
+        "barriers",
+        "tag_reasons",
     )
 
     def __init__(self, known_names: Iterable[str]) -> None:
         self.tags: dict[str, EscapeTag] = {}
         self.dynamic_barrier: bool = False
+        # Proc-level barrier records — populated by ``mark_pessimistic``.
+        self.barriers: list[Barrier] = []
+        # Per-variable escape reason records — populated by
+        # ``escape`` / ``escape_all_known``.
+        self.tag_reasons: dict[str, list[EscapeReason]] = {}
         # Names the compiler already knows about (params, assigns, upvars).
         # Used by the "spill all" branch of alias inference to target only
         # real proc-locals rather than every string that looks name-ish.
@@ -227,19 +269,42 @@ class _EscapeState:
         # literal when one writer was observed.
         self.literal_assigns: dict[str, str | None] = {}
 
-    def escape(self, name: str) -> None:
-        """Mark ``name`` as needing frame storage."""
+    def escape(self, name: str, reason: EscapeReason | None = None) -> None:
+        """Mark ``name`` as needing frame storage.
+
+        *reason* is optional (callers that haven't been migrated to the
+        reason-tracking API still work) but strongly preferred — it
+        lets the LSP / compiler explorer answer "why is this var
+        FRAME?" precisely.
+        """
         self.tags[name] = EscapeTag.FRAME
         self.known_names.add(name)
+        if reason is not None:
+            self.tag_reasons.setdefault(name, []).append(reason)
 
-    def escape_all_known(self) -> None:
-        """Spill every known proc-local name (not proc-pessimistic)."""
+    def escape_all_known(self, reason: EscapeReason | None = None) -> None:
+        """Spill every known proc-local name (not proc-pessimistic).
+
+        Each spilled name gets the same *reason* — typically
+        ``ESCAPE_ALL_KNOWN`` for the dynamic-name fallback.
+        """
+        if reason is None:
+            reason = EscapeReason(kind=EscapeReasonKind.ESCAPE_ALL_KNOWN)
         for n in self.known_names:
             self.tags[n] = EscapeTag.FRAME
+            self.tag_reasons.setdefault(n, []).append(reason)
 
-    def mark_pessimistic(self) -> None:
-        """Mark the whole proc as needing a dynamic-barrier fallback."""
+    def mark_pessimistic(self, barrier: Barrier | None = None) -> None:
+        """Mark the whole proc as needing a dynamic-barrier fallback.
+
+        *barrier* is optional for compatibility with un-migrated
+        callers but every known site passes one — :attr:`barriers`
+        keeps the per-trigger detail (kind, source range, free-form
+        explanation) for downstream consumers.
+        """
         self.dynamic_barrier = True
+        if barrier is not None:
+            self.barriers.append(barrier)
 
     def record_upvar_source(self, src: str) -> None:
         """Record a literal caller-frame name this proc accesses via ``upvar``."""
@@ -421,11 +486,14 @@ def _handle_upvar(call: IRCall, state: _EscapeState) -> None:
         # TreeVars's write to the runtime frame's ``x`` slot via
         # ``var`` never made it back to the WASM mirror, and ``$x``
         # in Caller still read 1.  See opt.test (OptTreeVars).
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="upvar $level"))
         state.record_unbounded_upvar()
         return
     for idx in upvar_local_declaration_indices("upvar", args):
-        state.escape(args[idx])
+        state.escape(
+            args[idx],
+            EscapeReason(kind=EscapeReasonKind.UPVAR_SOURCE, detail=f"upvar bind {args[idx]}"),
+        )
 
     # Determine pair-start offset and whether the target frame is the
     # caller (any non-``#0`` level) so we can collect source names.
@@ -475,29 +543,32 @@ def _handle_info(call: IRCall, state: _EscapeState) -> None:
     args = call.args
     if not args:
         # ``info`` with no subcommand: usage error at runtime — be safe.
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info (no subcommand)"))
         return
     sub = args[0]
     if _is_dynamic_token(sub):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info $dynamic"))
         return
     if is_frame_inspecting_info_subcommand(sub):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail=f"info {sub}"))
         return
     if sub == "exists":
         if len(args) < 2:
             return
         target = args[1]
         if _is_dynamic_token(target):
-            state.mark_pessimistic()
+            state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="info exists $dynamic"))
             return
         # ``info exists name`` reads the name by string lookup — escape it.
-        state.escape(target)
+        state.escape(
+            target,
+            EscapeReason(kind=EscapeReasonKind.INFO_EXISTS, detail=f"info exists {target}"),
+        )
         return
     if is_safe_info_subcommand(sub):
         return
     # Unknown subcommand — be conservative.
-    state.mark_pessimistic()
+    state.mark_pessimistic(Barrier(BarrierKind.INFO, detail=f"info {sub} (unclassified)"))
 
 
 def _handle_dynamic_name_first(call: IRCall, state: _EscapeState) -> None:
@@ -520,9 +591,38 @@ def _handle_dynamic_name_first(call: IRCall, state: _EscapeState) -> None:
     if _is_dynamic_name(name):
         literal = state.resolve_literal(name)
         if literal is not None:
-            state.escape(literal)
-        else:
-            state.escape_all_known()
+            state.escape(
+                literal,
+                EscapeReason(
+                    kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                    detail=f"{call.command} {name} → {literal}",
+                ),
+            )
+            return
+        arr = _array_element_array_name(name)
+        if arr is not None:
+            # ``unset arr($k)`` / ``set arr($k) v`` / ``incr arr($k)`` —
+            # only the array name escapes; the dynamic index doesn't
+            # widen the touched-by-name set.  Without this narrowing,
+            # the fallback below would spill every proc-local and
+            # force the proc onto ``escape_all_known`` (and from there
+            # often into the dynamic-barrier slow path), regressing
+            # the foreach-loop-var visibility for any body that
+            # mutates an array element by computed index.
+            state.escape(
+                arr,
+                EscapeReason(
+                    kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                    detail=f"{call.command} {arr}(...)",
+                ),
+            )
+            return
+        state.escape_all_known(
+            EscapeReason(
+                kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                detail=f"{call.command} {name}",
+            )
+        )
 
 
 def _escape_every_name_touched(
@@ -540,9 +640,17 @@ def _escape_every_name_touched(
             return
         if isinstance(stmt, (IRAssignConst, IRAssignValue, IRAssignExpr, IRIncr)):
             if not stmt.name or _is_dynamic_token(stmt.name):
-                state.mark_pessimistic()
+                state.mark_pessimistic(
+                    Barrier(BarrierKind.DYN_NAME, detail="dynamic name in eval body")
+                )
                 return
-            state.escape(stmt.name)
+            state.escape(
+                stmt.name,
+                EscapeReason(
+                    kind=EscapeReasonKind.EVAL_REFERENCE,
+                    detail=f"assigned in eval body: {stmt.name}",
+                ),
+            )
             # Still walk any embedded value hazards.
             if isinstance(stmt, (IRAssignConst, IRAssignValue)):
                 _apply_value_scan(stmt.value, state)
@@ -640,27 +748,33 @@ def _handle_eval(barrier: IRBarrier, state: _EscapeState) -> None:
     args = barrier.args
     if not args:
         # ``eval`` with no arg: usage error — be safe.
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval (no body)"))
         return
     body = args[-1] if len(args) == 1 else " ".join(args)
     if _is_dynamic_token(body):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval $body (dynamic)"))
         return
     # Cheap scan first — any ``$var`` reference escapes that name.
     try:
         refs = VarReferenceScanner().scan_script(body)
     except Exception:  # noqa: BLE001 — any parse failure → pessimistic
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body parse failure"))
         return
     for ref in refs:
-        state.escape(ref)
+        state.escape(
+            ref,
+            EscapeReason(
+                kind=EscapeReasonKind.EVAL_REFERENCE,
+                detail=f"$ref in eval body: {ref}",
+            ),
+        )
     # Recurse into the literal body and escape every name it touches.
     try:
         from ..lowering import lower_to_ir  # local import to avoid cycle
 
         sub_module = lower_to_ir(body)
     except Exception:  # noqa: BLE001 — any lowering failure → pessimistic
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EVAL, detail="eval body lowering failure"))
         return
     _escape_every_name_touched(sub_module.top_level.statements, state)
 
@@ -679,7 +793,7 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
     """
     args = barrier.args
     if not args:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel (no args)"))
         state.record_unbounded_upvar()
         return
     # Determine whether the first arg is a level specifier.
@@ -689,18 +803,18 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
     )
     if not is_level_literal:
         # No explicit level ⇒ defaults to 1 (caller frame) — pessimistic.
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel (default level 1)"))
         state.record_unbounded_upvar()
         return
     # Only level #0 / 0 is safe (body runs in global scope, our locals
     # aren't visible). Any other literal level touches a non-global frame.
     if first not in ("#0", "0"):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail=f"uplevel {first}"))
         state.record_unbounded_upvar()
         return
     body_parts = args[1:]
     if not body_parts:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 (no body)"))
         state.record_unbounded_upvar()
         return
     body = body_parts[-1] if len(body_parts) == 1 else " ".join(body_parts)
@@ -708,7 +822,7 @@ def _handle_uplevel(barrier: IRBarrier, state: _EscapeState) -> None:
         # Even #0 with a dynamic body is pessimistic — it could redefine
         # globals that shadow our names, which is safe — but the body
         # might also reference our locals via arg-subst; safer to spill.
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.UPVAR, detail="uplevel #0 $body (dynamic)"))
 
 
 def _synthesise_eval_barrier(stmt) -> IRBarrier:
@@ -763,7 +877,9 @@ def _handle_barrier(barrier: IRBarrier, state: _EscapeState) -> None:
         _handle_uplevel(barrier, state)
     else:
         # Any other barrier (subst, trace, catch reraise, ...) — be safe.
-        state.mark_pessimistic()
+        state.mark_pessimistic(
+            Barrier(BarrierKind.UNKNOWN, detail=f"barrier: {cmd or barrier.command!r}")
+        )
 
 
 def _handle_call(call: IRCall, state: _EscapeState) -> None:
@@ -800,7 +916,7 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
     # ``{*}``-expansion in an unknown call defeats argument-index-based
     # analysis (we can't tell where the name arg landed).
     if _has_expand_word(call) and bare_cmd not in ("list", "concat"):
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.EXPAND, detail=f"{{*}} in {bare_cmd}"))
         return
 
     if canonical == "::upvar":
@@ -875,10 +991,13 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
                 break
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
-        state.mark_pessimistic()
+        state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value"))
         return
     for n in names:
-        state.escape(n)
+        state.escape(
+            n,
+            EscapeReason(kind=EscapeReasonKind.INFO_EXISTS, detail=f"info exists {n}"),
+        )
 
 
 def _apply_expr_scan(expr: ExprNode | None, state: _EscapeState) -> None:
@@ -914,9 +1033,20 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             if _is_dynamic_name(stmt.name):
                 literal = state.resolve_literal(stmt.name)
                 if literal is not None:
-                    state.escape(literal)
+                    state.escape(
+                        literal,
+                        EscapeReason(
+                            kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                            detail=f"set {stmt.name} → {literal}",
+                        ),
+                    )
                 else:
-                    state.escape_all_known()
+                    state.escape_all_known(
+                        EscapeReason(
+                            kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                            detail=f"set {stmt.name} ...",
+                        )
+                    )
             else:
                 state.note_literal_assign(stmt.name, stmt.value)
             _apply_value_scan(stmt.value, state)
@@ -924,9 +1054,20 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             if _is_dynamic_name(stmt.name):
                 literal = state.resolve_literal(stmt.name)
                 if literal is not None:
-                    state.escape(literal)
+                    state.escape(
+                        literal,
+                        EscapeReason(
+                            kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                            detail=f"set {stmt.name} → {literal}",
+                        ),
+                    )
                 else:
-                    state.escape_all_known()
+                    state.escape_all_known(
+                        EscapeReason(
+                            kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                            detail=f"set {stmt.name} ...",
+                        )
+                    )
             else:
                 # A plain-literal value (no ``$var`` / ``[cmd]``) is
                 # still trusted as an alias literal for the single-
@@ -941,9 +1082,20 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             if _is_dynamic_name(stmt.name):
                 literal = state.resolve_literal(stmt.name)
                 if literal is not None:
-                    state.escape(literal)
+                    state.escape(
+                        literal,
+                        EscapeReason(
+                            kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                            detail=f"set-expr {stmt.name} → {literal}",
+                        ),
+                    )
                 else:
-                    state.escape_all_known()
+                    state.escape_all_known(
+                        EscapeReason(
+                            kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                            detail=f"set-expr {stmt.name} ...",
+                        )
+                    )
             else:
                 state.invalidate_literal(stmt.name)
             _apply_expr_scan(stmt.expr, state)
@@ -951,9 +1103,20 @@ def _walk(stmts: tuple[IRStatement, ...], state: _EscapeState) -> None:
             if _is_dynamic_name(stmt.name):
                 literal = state.resolve_literal(stmt.name)
                 if literal is not None:
-                    state.escape(literal)
+                    state.escape(
+                        literal,
+                        EscapeReason(
+                            kind=EscapeReasonKind.DYN_NAME_RESOLVED,
+                            detail=f"incr {stmt.name} → {literal}",
+                        ),
+                    )
                 else:
-                    state.escape_all_known()
+                    state.escape_all_known(
+                        EscapeReason(
+                            kind=EscapeReasonKind.ESCAPE_ALL_KNOWN,
+                            detail=f"incr {stmt.name}",
+                        )
+                    )
             else:
                 state.invalidate_literal(stmt.name)
             if stmt.amount:
@@ -1049,5 +1212,7 @@ def analyse_script(
         # resolves to a compiled proc.
         has_fallback=state.has_fallback,
         has_call_fallback=state.has_call_fallback,
+        barriers=tuple(state.barriers),
+        tag_reasons={k: tuple(v) for k, v in state.tag_reasons.items()},
         pure_leaf=pure_leaf,
     )

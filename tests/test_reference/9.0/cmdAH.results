@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     cmdAH.test
-DATE     2026-03-03T12:54:06Z
+DATE     2026-05-06T21:17:36Z
 ---
 PASS cmdAH-0.1
 PASS cmdAH-0.2
@@ -70,7 +70,6 @@ PASS cmdAH-24.4
 PASS cmdAH-24.5
 PASS cmdAH-24.7
 PASS cmdAH-24.8
-PASS cmdAH-24.9
 PASS cmdAH-25.1
 PASS cmdAH-25.2.1
 PASS cmdAH-25.3
@@ -17004,8 +17003,10 @@ SKIP cmdAH-9.51 testsetplatform
 SKIP cmdAH-9.6 testsetplatform
 SKIP cmdAH-9.8 testsetplatform
 SKIP cmdAH-9.9 testsetplatform
+FAIL cmdAH-24.9
+FAIL cmdAH-24.9 Tcl_FileObjCmd: mtime touch with non-ascii chars
 ---
-TOTAL   17001
-PASSED  16823
+TOTAL   17002
+PASSED  16822
 SKIPPED 178
-FAILED  0
+FAILED  2

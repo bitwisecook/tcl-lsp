@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
 from .....analysis.semantic_model import Range
@@ -144,6 +145,18 @@ class _WasmEmitterBase:
         # made so the body emitters can decide whether to wrap each
         # write with retain/release.
         self._wants_frame: bool = False
+        # Codegen-time invariant: ``_emit_local_set`` / ``_emit_local_tee``
+        # raises if a direct WASM ``local.set`` is emitted for a
+        # non-pessimistic FRAME-tagged Tcl variable.  The frame is
+        # the authoritative storage for such a name; bypassing
+        # ``_emit_var_write_obj`` desyncs the WASM-local mirror from
+        # the frame and surfaces as ``can't read "<name>": no such
+        # variable`` at runtime (the parseExpr-trap bug class).
+        # Always-on — the check is O(1) per write and the failure
+        # mode it prevents is silent corruption of variable state.
+        # ``TCLLSP_DISABLE_VAR_CONTRACT=1`` bypasses it for emergency
+        # forensics if a regression hits the gate.
+        self._var_write_contract_check: bool = not os.environ.get("TCLLSP_DISABLE_VAR_CONTRACT")
         # Lazy scratch slot for the retain/release wrap.  Allocated on
         # first use of ``_emit_owned_local_write`` and reused for
         # every wrapped write in this proc.
@@ -426,13 +439,120 @@ class _WasmEmitterBase:
         self._emit(WasmOp.LOCAL_GET, _leb128_unsigned(idx))
 
     def _emit_local_set(self, idx: int) -> None:
+        self._assert_var_write_contract(idx, "local.set")
         self._emit(WasmOp.LOCAL_SET, _leb128_unsigned(idx))
 
     def _emit_local_tee(self, idx: int) -> None:
+        self._assert_var_write_contract(idx, "local.tee")
         self._emit(WasmOp.LOCAL_TEE, _leb128_unsigned(idx))
+
+    def _assert_var_write_contract(self, idx: int, op: str) -> None:
+        """Catch direct ``local.set`` / ``local.tee`` writes that bypass
+        the FRAME-routing contract for Tcl-visible variables.
+
+        For a Tcl name with a non-pessimistic FRAME tag the runtime frame
+        is the authoritative storage.  ``_emit_var_write_obj`` routes
+        such writes through ``tcl_local_set`` / ``tcl_frame_local_set_at``
+        and never falls through to a plain ``local.set``.  Any direct
+        ``local.set idx`` where ``idx`` resolves to such a name is a
+        codegen bug — reads through ``tcl_local_get_or_error`` will
+        miss the WASM-local-only write and trap with ``can't read
+        "<name>": no such variable`` (or worse, return the previous
+        iteration's value).
+
+        The check is per-write and O(1).  Always-on — see the
+        ``_var_write_contract_check`` comment in ``__init__`` for the
+        rationale and the emergency-bypass env var.
+        """
+        if not self._var_write_contract_check:
+            return
+        if not self._is_proc:
+            # Top-level (``::top``).  ``_emit_var_write_obj_impl``'s
+            # non-proc branch intentionally mirrors every write to a
+            # WASM-local after ``tcl_global_set``, so a raw
+            # ``local.set`` here is part of the helper, not a bypass.
+            return
+        if idx >= len(self._local_names):
+            return
+        name = self._local_names[idx]
+        if not name or name.startswith("_"):
+            return
+        summary = self._escape_summary
+        if summary is None or summary.dynamic_barrier:
+            return
+        if not summary.is_frame(name):
+            return
+        if name in self._params:
+            # Param prologue legitimately mirrors the incoming arg
+            # into the WASM-local before a separate frame_local_set_at
+            # publishes it to the frame.  Allowed.
+            return
+        if name in self._globals:
+            # ``global x`` declarations pre-load the global value
+            # into a WASM-local mirror for fast in-proc reads.
+            # Real writes route through ``tcl_global_set`` (in
+            # ``_emit_var_write_obj_impl``'s alias branch); the
+            # mirror itself is a read cache.
+            return
+        if name in self._aliases:
+            # Aliases (``upvar`` / ``variable``) maintain a
+            # WASM-local that stores the *target* name (not the
+            # value) — see ``_register_global_alias`` /
+            # ``_register_frame_var_alias``.  The actual var-set
+            # routes through ``tcl_global_set`` /
+            # ``tcl_local_set`` against that target.
+            return
+        raise AssertionError(
+            f"var-write contract: direct {op} to slot {idx} ({name!r}) "
+            f"in proc {self._proc_qname!r} bypasses FRAME routing — "
+            f"this var is non-pessimistic FRAME-tagged and must go "
+            f"through _emit_var_write_obj"
+        )
 
     def _emit_call(self, func_idx: int) -> None:
         self._emit(WasmOp.CALL, _leb128_unsigned(func_idx))
+
+    def _proc_wants_frame(self) -> bool:
+        """Single decision point for "this proc body needs a runtime frame".
+
+        Combines:
+
+        * Feasibility — top-level scripts (``self._is_proc=False``) and
+          modules that don't import ``tcl_frame_push`` / ``tcl_local_set``
+          / ``tcl_frame_pop`` can never push a frame, so the answer is
+          False regardless of analysis.
+        * Analysis result — :attr:`ProcEscapeSummary.wants_frame`
+          (frame_needed or has_fallback) is the canonical "yes" signal.
+          When no summary is available, fall back to "yes" — pushing a
+          frame is always safe; eliding is the optimisation.
+        * Codegen-time backstop — :meth:`_body_references_info_level`
+          catches ``info level`` / ``info frame`` usages the analysis
+          missed (today's analysis covers IRCall + IRReturn-value but
+          not every compound IR node).  Drop this fallback once the
+          escape pass walks every IR shape that can carry a bracketed
+          info subst.
+
+        Honours the ``self._frame_elision`` opt-in: when False, every
+        proc gets a frame (used by debug builds / regression bisects).
+        """
+        if not self._is_proc:
+            return False
+        if "tcl_frame_push" not in self._shared_imports:
+            return False
+        if "tcl_local_set" not in self._shared_imports:
+            return False
+        if "tcl_frame_pop" not in self._shared_imports:
+            return False
+        if not self._frame_elision:
+            return True
+        summary = self._escape_summary
+        if summary is None:
+            return True
+        if summary.wants_frame:
+            return True
+        if self._body_references_info_level():
+            return True
+        return False
 
     # -- S2.2: refcount-disciplined owned-slot write --------------------
 
@@ -783,37 +903,7 @@ class _WasmEmitterBase:
         # ``$varName`` against the compiled proc's locals) see the
         # param values via ``var_resolve``.  ``::top`` isn't a
         # proc — it runs in global scope and doesn't get a frame.
-        wants_frame = (
-            self._is_proc
-            and "tcl_frame_push" in self._shared_imports
-            and "tcl_local_set" in self._shared_imports
-            and "tcl_frame_pop" in self._shared_imports
-        )
-        # Escape-aware frame elision: a proc the analysis proved has
-        # no FRAME vars and no interpreter fallback path doesn't need
-        # a runtime frame at all.  Skip frame_push / param mirrors /
-        # frame_pop entirely in that case.  Falls back to "push the
-        # frame" whenever the analysis is missing or indefinite.
-        #
-        # Elision is also disabled when the proc's body references
-        # ``info level`` — the runtime's ``info_level`` reads the
-        # frame stack, so without a push the caller's frame would
-        # answer the callee's query.  A more aggressive ("does any
-        # proc reachable from here use info level?") transitive
-        # check would let more procs elide, but computing it
-        # inside the emitter requires a whole-module pass; the
-        # per-proc check is a reasonable trade-off until a
-        # profiler justifies more work.
-        summary = self._escape_summary
-        if (
-            wants_frame
-            and self._frame_elision
-            and summary is not None
-            and not summary.frame_needed
-            and not summary.has_fallback
-            and not self._body_references_info_level()
-        ):
-            wants_frame = False
+        wants_frame = self._proc_wants_frame()
         # Publish the elision decision so the body emitters
         # (``_emit_local_set_owned``, S2.3 onwards) know whether to
         # wrap owned-slot writes with retain/release.  When a frame

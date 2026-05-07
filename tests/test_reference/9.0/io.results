@@ -1,0 +1,895 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     io.test
+DATE     2026-05-06T21:18:00Z
+---
+PASS io-1.6
+PASS io-1.7
+PASS io-1.8
+PASS io-1.9
+PASS io-10.2
+PASS io-10.3
+PASS io-10.4
+PASS io-10.5
+PASS io-11.1
+PASS io-11.2
+PASS io-11.3
+PASS io-11.4
+PASS io-12.1
+PASS io-12.10
+PASS io-12.11
+PASS io-12.2
+PASS io-12.3
+PASS io-12.5
+PASS io-12.6
+PASS io-12.7
+PASS io-12.8
+PASS io-12.9
+PASS io-13.1
+PASS io-13.10
+PASS io-13.11
+PASS io-13.12
+PASS io-13.13
+PASS io-13.14
+PASS io-13.2
+PASS io-13.3
+PASS io-13.4
+PASS io-13.5
+PASS io-13.8
+PASS io-13.8.1
+PASS io-13.8.2
+PASS io-13.8.3
+PASS io-13.9
+PASS io-14.2
+PASS io-14.3
+PASS io-14.4
+PASS io-14.5
+PASS io-14.6
+PASS io-14.7
+PASS io-14.8
+PASS io-14.9
+PASS io-19.1
+PASS io-19.2
+PASS io-19.3
+PASS io-2.1
+PASS io-2.2
+PASS io-2.3
+PASS io-2.4
+PASS io-20.1
+PASS io-20.3
+PASS io-20.5
+PASS io-26.1
+PASS io-27.1
+PASS io-27.2
+PASS io-27.3
+PASS io-27.4
+PASS io-27.5
+PASS io-27.6
+PASS io-28.2
+PASS io-28.6
+PASS io-28.7
+PASS io-29.1
+PASS io-29.10
+PASS io-29.11
+PASS io-29.12
+PASS io-29.13
+PASS io-29.14
+PASS io-29.15
+PASS io-29.16
+PASS io-29.17
+PASS io-29.18
+PASS io-29.19
+PASS io-29.2
+PASS io-29.20
+PASS io-29.21
+PASS io-29.22
+PASS io-29.23
+PASS io-29.24
+PASS io-29.25
+PASS io-29.27
+PASS io-29.28
+PASS io-29.29
+PASS io-29.3
+PASS io-29.30
+PASS io-29.31
+PASS io-29.32
+PASS io-29.33
+PASS io-29.33b
+PASS io-29.34
+PASS io-29.35
+PASS io-29.36.1
+PASS io-29.36.2
+PASS io-29.9
+PASS io-3.1
+PASS io-3.2
+PASS io-3.3
+PASS io-3.4
+PASS io-3.5
+PASS io-3.6
+PASS io-3.7
+PASS io-3.8
+PASS io-3.9
+PASS io-30.1
+PASS io-30.10
+PASS io-30.11
+PASS io-30.12
+PASS io-30.13
+PASS io-30.14
+PASS io-30.15
+PASS io-30.16
+PASS io-30.18
+PASS io-30.19
+PASS io-30.2
+PASS io-30.20
+PASS io-30.21
+PASS io-30.22
+PASS io-30.23
+PASS io-30.24
+PASS io-30.25
+PASS io-30.26
+PASS io-30.27
+PASS io-30.28
+PASS io-30.3
+PASS io-30.4
+PASS io-30.5
+PASS io-30.6
+PASS io-30.7
+PASS io-30.8
+PASS io-30.9
+PASS io-31.1
+PASS io-31.10
+PASS io-31.11
+PASS io-31.12
+PASS io-31.13
+PASS io-31.14
+PASS io-31.15
+PASS io-31.16
+PASS io-31.17
+PASS io-31.18
+PASS io-31.19
+PASS io-31.2
+PASS io-31.20
+PASS io-31.21
+PASS io-31.22
+PASS io-31.23
+PASS io-31.24
+PASS io-31.25
+PASS io-31.26
+PASS io-31.27
+PASS io-31.28
+PASS io-31.29
+PASS io-31.3
+PASS io-31.30
+PASS io-31.31
+PASS io-31.32
+PASS io-31.4
+PASS io-31.5
+PASS io-31.6
+PASS io-31.7
+PASS io-31.8
+PASS io-31.9
+PASS io-32.1
+PASS io-32.10
+PASS io-32.11
+PASS io-32.11.1
+PASS io-32.11.2
+PASS io-32.12
+PASS io-32.13
+PASS io-32.14
+PASS io-32.15
+PASS io-32.16
+PASS io-32.2
+PASS io-32.3
+PASS io-32.4
+PASS io-32.5
+PASS io-32.6
+PASS io-32.7
+PASS io-32.8
+PASS io-32.9
+PASS io-33.1
+PASS io-33.10
+PASS io-33.11
+PASS io-33.12
+PASS io-33.13
+PASS io-33.2
+PASS io-33.3
+PASS io-33.4
+PASS io-33.5
+PASS io-33.6
+PASS io-33.7
+PASS io-33.8
+PASS io-33.9
+PASS io-34.1
+PASS io-34.10
+PASS io-34.11
+PASS io-34.12
+PASS io-34.13
+PASS io-34.14
+PASS io-34.15
+PASS io-34.16
+PASS io-34.17
+PASS io-34.18
+PASS io-34.19
+PASS io-34.2
+PASS io-34.20
+PASS io-34.3
+PASS io-34.4
+PASS io-34.5
+PASS io-34.6
+PASS io-34.7
+PASS io-34.8
+PASS io-34.9
+PASS io-35.1
+PASS io-35.10
+PASS io-35.11
+PASS io-35.12
+PASS io-35.13
+PASS io-35.14
+PASS io-35.15
+PASS io-35.16
+PASS io-35.17
+PASS io-35.18
+PASS io-35.18a
+PASS io-35.18b
+PASS io-35.18c
+PASS io-35.19
+PASS io-35.2
+PASS io-35.20
+PASS io-35.3
+PASS io-35.4
+PASS io-35.5
+PASS io-35.6
+PASS io-35.7
+PASS io-35.8
+PASS io-35.9
+PASS io-36.1
+PASS io-36.1.1
+PASS io-36.2
+PASS io-36.3
+PASS io-36.4
+PASS io-36.5
+PASS io-36.6
+PASS io-38.1
+PASS io-38.2
+PASS io-38.3
+PASS io-39.1
+PASS io-39.10
+PASS io-39.11
+PASS io-39.12
+PASS io-39.13
+PASS io-39.14
+PASS io-39.15
+PASS io-39.16
+PASS io-39.16a
+PASS io-39.17
+PASS io-39.18
+PASS io-39.19
+PASS io-39.2
+PASS io-39.20
+PASS io-39.21
+PASS io-39.22
+PASS io-39.22a
+PASS io-39.23
+PASS io-39.24
+PASS io-39.3
+PASS io-39.4
+PASS io-39.5
+PASS io-39.6
+PASS io-39.7
+PASS io-39.8
+PASS io-39.9
+PASS io-4.1
+PASS io-4.2
+PASS io-4.3
+PASS io-4.4
+PASS io-4.5
+PASS io-40.1
+PASS io-40.10
+PASS io-40.11
+PASS io-40.12
+PASS io-40.13
+PASS io-40.14
+PASS io-40.15
+PASS io-40.17
+PASS io-40.2
+PASS io-40.3
+PASS io-40.4
+PASS io-40.5
+PASS io-40.6
+PASS io-40.7
+PASS io-40.8
+PASS io-41.1
+PASS io-41.2
+PASS io-41.3
+PASS io-41.4
+PASS io-41.5
+PASS io-42.1
+PASS io-42.2
+PASS io-42.3
+PASS io-43.1
+PASS io-43.2
+PASS io-44.1
+PASS io-44.2
+PASS io-44.3
+PASS io-44.4
+PASS io-44.5
+PASS io-44.6
+PASS io-44.7
+PASS io-45.1
+PASS io-45.2
+PASS io-45.3
+PASS io-48.1
+PASS io-48.10
+PASS io-48.11
+PASS io-48.12
+PASS io-48.13
+PASS io-48.14
+PASS io-48.15
+PASS io-48.2
+PASS io-48.3
+PASS io-48.4
+PASS io-48.5
+PASS io-48.6
+PASS io-48.7
+PASS io-48.8
+PASS io-48.9
+PASS io-49.1
+PASS io-49.2
+PASS io-49.3
+PASS io-49.4
+PASS io-49.5
+PASS io-5.1
+PASS io-5.2
+PASS io-5.3
+PASS io-5.4
+PASS io-5.5
+PASS io-51.1
+PASS io-52.1
+PASS io-52.10
+PASS io-52.11
+PASS io-52.12
+PASS io-52.13
+PASS io-52.14
+PASS io-52.14.1
+PASS io-52.14.2
+PASS io-52.15
+PASS io-52.16
+PASS io-52.17
+PASS io-52.18
+PASS io-52.19
+PASS io-52.2
+PASS io-52.20
+PASS io-52.20.2
+PASS io-52.21
+PASS io-52.22
+PASS io-52.22.1
+PASS io-52.23
+PASS io-52.24
+PASS io-52.3
+PASS io-52.4
+PASS io-52.4.1
+PASS io-52.5
+PASS io-52.5a
+PASS io-52.5b
+PASS io-52.6
+PASS io-52.7
+PASS io-52.8
+PASS io-52.9
+PASS io-53.1
+PASS io-53.10
+PASS io-53.11
+PASS io-53.12.0
+PASS io-53.12.1
+PASS io-53.13
+PASS io-53.14
+PASS io-53.15
+PASS io-53.16
+PASS io-53.17
+PASS io-53.2
+PASS io-53.3
+PASS io-53.4
+PASS io-53.4.1
+PASS io-53.5
+PASS io-53.6
+PASS io-53.7
+PASS io-53.8
+PASS io-53.8a
+PASS io-53.8b
+PASS io-53.9
+PASS io-54.1
+PASS io-54.2
+PASS io-55.1
+PASS io-57.1
+PASS io-57.2
+PASS io-58.1
+PASS io-6.1
+PASS io-6.10
+PASS io-6.11
+PASS io-6.12
+PASS io-6.13
+PASS io-6.14
+PASS io-6.15
+PASS io-6.16
+PASS io-6.17
+PASS io-6.18
+PASS io-6.19
+PASS io-6.20
+PASS io-6.21
+PASS io-6.22
+PASS io-6.23
+PASS io-6.24
+PASS io-6.25
+PASS io-6.26
+PASS io-6.27
+PASS io-6.28
+PASS io-6.29
+PASS io-6.3
+PASS io-6.33
+PASS io-6.34
+PASS io-6.35
+PASS io-6.36
+PASS io-6.37
+PASS io-6.38
+PASS io-6.39
+PASS io-6.4
+PASS io-6.40
+PASS io-6.41
+PASS io-6.42
+PASS io-6.5
+PASS io-6.51
+PASS io-6.53
+PASS io-6.54
+PASS io-6.55
+PASS io-6.56
+PASS io-6.6
+PASS io-6.7
+PASS io-6.8
+PASS io-6.9
+PASS io-61.1
+PASS io-7.1
+PASS io-7.2
+PASS io-7.4
+PASS io-73.1
+PASS io-73.2
+PASS io-73.3
+PASS io-73.4
+PASS io-73.5
+PASS io-75.1
+PASS io-75.10
+PASS io-75.11
+PASS io-75.12
+PASS io-75.13
+PASS io-75.14
+PASS io-75.15
+PASS io-75.2
+PASS io-75.3
+PASS io-75.4
+PASS io-75.5
+PASS io-75.6
+PASS io-75.6.1
+PASS io-75.6.2
+PASS io-75.6.3
+PASS io-75.6.4
+PASS io-75.7
+PASS io-75.8
+PASS io-75.8.eoflater
+PASS io-75.9
+PASS io-77.1
+PASS io-77.2
+PASS io-8.4
+PASS io-bug-73bb42fb-1
+PASS io-bug-73bb43fb-2
+PASS io-bug-73bb43fb-3
+PASS io-bug-73bb43fb-4
+PASS io-strict-multibyte-eof
+SKIP io-1.10 perf
+SKIP io-1.11 perf
+SKIP io-1.12 perf
+SKIP io-1.5 emptyTest
+SKIP io-10.1 emptyTest
+SKIP io-12.4 testchannel
+SKIP io-13.6 testchannel
+SKIP io-13.7 testchannel
+SKIP io-14.1 testchannel
+SKIP io-15.1 emptyTest
+SKIP io-16.1 emptyTest
+SKIP io-17.1 testchannel
+SKIP io-17.2 testchannel
+SKIP io-17.3 testchannel
+SKIP io-18.1 testchannel
+SKIP io-18.2 testchannel
+SKIP io-18.3 testchannel
+SKIP io-19.4 testchannel
+SKIP io-2.5 perf
+SKIP io-2.6 perf
+SKIP io-2.7 perf
+SKIP io-20.2 win
+SKIP io-21.1 emptyTest
+SKIP io-22.1 emptyTest
+SKIP io-23.1 testchannel
+SKIP io-24.1 testchannel
+SKIP io-25.1 testchannel
+SKIP io-25.2 testchannel
+SKIP io-28.1 testchannel
+SKIP io-28.3 nonPortable
+SKIP io-28.4 testchannel
+SKIP io-28.5 testchannel
+SKIP io-29.4 testchannel
+SKIP io-29.5 testchannel
+SKIP io-29.6 testchannel
+SKIP io-29.7 testchannel
+SKIP io-29.8 testchannel
+SKIP io-30.17 win
+SKIP io-34.21 extensive
+SKIP io-37.1 testchannel
+SKIP io-37.2 testchannel
+SKIP io-40.16 makeFileInHome
+SKIP io-40.9 nonPortable
+SKIP io-46.1 testfevent
+SKIP io-46.2 testfevent
+SKIP io-46.3 testfevent
+SKIP io-47.1 testfevent
+SKIP io-47.2 testfevent
+SKIP io-47.3 testfevent
+SKIP io-47.4 testfevent
+SKIP io-47.5 testfevent
+SKIP io-47.6 testfevent
+SKIP io-50.1 testchannelevent
+SKIP io-50.2 testchannelevent
+SKIP io-50.3 testchannelevent
+SKIP io-50.4 testchannelevent
+SKIP io-50.5 testchannelevent
+SKIP io-50.6 testchannelevent
+SKIP io-56.1 testchannelevent
+SKIP io-59.1 testmainthread
+SKIP io-6.2 emptyTest
+SKIP io-6.30 testchannel
+SKIP io-6.31 testchannel
+SKIP io-6.32 testchannel
+SKIP io-6.43 testchannel
+SKIP io-6.44 testchannel
+SKIP io-6.45 testchannel
+SKIP io-6.46 testchannel
+SKIP io-6.47 testchannel
+SKIP io-6.48 testchannel
+SKIP io-6.49 testchannel
+SKIP io-6.50 testchannel
+SKIP io-6.52 testchannel
+SKIP io-60.1 testbytestring
+SKIP io-7.3 testchannel
+SKIP io-70.0 testchannel
+SKIP io-70.1 testchannel
+SKIP io-71.0 testchannel
+SKIP io-71.1 testchannel
+SKIP io-71.10 testchannel
+SKIP io-71.11 testchannel
+SKIP io-71.12 testchannel
+SKIP io-71.13 testchannel
+SKIP io-71.14 testchannel
+SKIP io-71.15 testchannel
+SKIP io-71.16 testchannel
+SKIP io-71.17 testchannel
+SKIP io-71.18 testchannel
+SKIP io-71.19 testchannel
+SKIP io-71.2 testchannel
+SKIP io-71.20 testchannel
+SKIP io-71.21 testchannel
+SKIP io-71.22 testchannel
+SKIP io-71.23 testchannel
+SKIP io-71.24 testchannel
+SKIP io-71.25 testchannel
+SKIP io-71.26 testchannel
+SKIP io-71.27 testchannel
+SKIP io-71.28 testchannel
+SKIP io-71.29 testchannel
+SKIP io-71.3 testchannel
+SKIP io-71.30 testchannel
+SKIP io-71.31 testchannel
+SKIP io-71.32 testchannel
+SKIP io-71.33 testchannel
+SKIP io-71.34 testchannel
+SKIP io-71.35 testchannel
+SKIP io-71.36 testchannel
+SKIP io-71.37 testchannel
+SKIP io-71.38 testchannel
+SKIP io-71.39 testchannel
+SKIP io-71.4 testchannel
+SKIP io-71.40 testchannel
+SKIP io-71.41 testchannel
+SKIP io-71.42 testchannel
+SKIP io-71.43 testchannel
+SKIP io-71.44 testchannel
+SKIP io-71.45 testchannel
+SKIP io-71.46 testchannel
+SKIP io-71.47 testchannel
+SKIP io-71.48 testchannel
+SKIP io-71.49 testchannel
+SKIP io-71.5 testchannel
+SKIP io-71.50 testchannel
+SKIP io-71.51 testchannel
+SKIP io-71.52 testchannel
+SKIP io-71.53 testchannel
+SKIP io-71.54 testchannel
+SKIP io-71.55 testchannel
+SKIP io-71.56 testchannel
+SKIP io-71.57 testchannel
+SKIP io-71.58 testchannel
+SKIP io-71.59 testchannel
+SKIP io-71.6 testchannel
+SKIP io-71.60 testchannel
+SKIP io-71.61 testchannel
+SKIP io-71.62 testchannel
+SKIP io-71.63 testchannel
+SKIP io-71.64 testchannel
+SKIP io-71.65 testchannel
+SKIP io-71.66 testchannel
+SKIP io-71.67 testchannel
+SKIP io-71.68 testchannel
+SKIP io-71.69 testchannel
+SKIP io-71.7 testchannel
+SKIP io-71.70 testchannel
+SKIP io-71.71 testchannel
+SKIP io-71.72 testchannel
+SKIP io-71.73 testchannel
+SKIP io-71.74 testchannel
+SKIP io-71.75 testchannel
+SKIP io-71.76 testchannel
+SKIP io-71.77 testchannel
+SKIP io-71.78 testchannel
+SKIP io-71.79 testchannel
+SKIP io-71.8 testchannel
+SKIP io-71.80 testchannel
+SKIP io-71.81 testchannel
+SKIP io-71.82 testchannel
+SKIP io-71.83 testchannel
+SKIP io-71.84 testchannel
+SKIP io-71.85 testchannel
+SKIP io-71.86 testchannel
+SKIP io-71.87 testchannel
+SKIP io-71.88 testchannel
+SKIP io-71.89 testchannel
+SKIP io-71.9 testchannel
+SKIP io-71.90 testchannel
+SKIP io-71.91 testchannel
+SKIP io-71.92 testchannel
+SKIP io-71.93 testchannel
+SKIP io-71.94 testchannel
+SKIP io-71.95 testchannel
+SKIP io-71.96 testchannel
+SKIP io-71.97 testchannel
+SKIP io-71.98 testchannel
+SKIP io-71.99 testchannel
+SKIP io-71.a0 testchannel
+SKIP io-71.a1 testchannel
+SKIP io-71.a2 testchannel
+SKIP io-71.a3 testchannel
+SKIP io-71.a4 testchannel
+SKIP io-71.a5 testchannel
+SKIP io-71.a6 testchannel
+SKIP io-71.a7 testchannel
+SKIP io-71.a8 testchannel
+SKIP io-71.a9 testchannel
+SKIP io-71.b0 testchannel
+SKIP io-71.b1 testchannel
+SKIP io-71.b2 testchannel
+SKIP io-71.b3 testchannel
+SKIP io-71.b4 testchannel
+SKIP io-71.b5 testchannel
+SKIP io-71.b6 testchannel
+SKIP io-71.b7 testchannel
+SKIP io-71.b8 testchannel
+SKIP io-71.b9 testchannel
+SKIP io-71.c0 testchannel
+SKIP io-71.c1 testchannel
+SKIP io-71.c2 testchannel
+SKIP io-71.c3 testchannel
+SKIP io-71.c4 testchannel
+SKIP io-71.c5 testchannel
+SKIP io-71.c6 testchannel
+SKIP io-71.c7 testchannel
+SKIP io-71.c8 testchannel
+SKIP io-71.c9 testchannel
+SKIP io-71.d0 testchannel
+SKIP io-71.d1 testchannel
+SKIP io-71.d2 testchannel
+SKIP io-71.d3 testchannel
+SKIP io-71.d4 testchannel
+SKIP io-71.d5 testchannel
+SKIP io-71.d6 testchannel
+SKIP io-71.d7 testchannel
+SKIP io-71.d8 testchannel
+SKIP io-71.d9 testchannel
+SKIP io-71.e0 testchannel
+SKIP io-71.e1 testchannel
+SKIP io-71.e2 testchannel
+SKIP io-71.e3 testchannel
+SKIP io-71.e4 testchannel
+SKIP io-71.e5 testchannel
+SKIP io-71.e6 testchannel
+SKIP io-71.e7 testchannel
+SKIP io-71.e8 testchannel
+SKIP io-71.e9 testchannel
+SKIP io-71.f0 testchannel
+SKIP io-71.f1 testchannel
+SKIP io-71.f2 testchannel
+SKIP io-71.f3 testchannel
+SKIP io-72.0 testchannel
+SKIP io-72.1 testchannel
+SKIP io-72.10 testchannel
+SKIP io-72.11 testchannel
+SKIP io-72.12 testchannel
+SKIP io-72.13 testchannel
+SKIP io-72.14 testchannel
+SKIP io-72.15 testchannel
+SKIP io-72.16 testchannel
+SKIP io-72.17 testchannel
+SKIP io-72.18 testchannel
+SKIP io-72.19 testchannel
+SKIP io-72.2 testchannel
+SKIP io-72.20 testchannel
+SKIP io-72.21 testchannel
+SKIP io-72.22 testchannel
+SKIP io-72.23 testchannel
+SKIP io-72.24 testchannel
+SKIP io-72.25 testchannel
+SKIP io-72.26 testchannel
+SKIP io-72.27 testchannel
+SKIP io-72.28 testchannel
+SKIP io-72.29 testchannel
+SKIP io-72.3 testchannel
+SKIP io-72.30 testchannel
+SKIP io-72.31 testchannel
+SKIP io-72.32 testchannel
+SKIP io-72.33 testchannel
+SKIP io-72.34 testchannel
+SKIP io-72.35 testchannel
+SKIP io-72.36 testchannel
+SKIP io-72.37 testchannel
+SKIP io-72.38 testchannel
+SKIP io-72.39 testchannel
+SKIP io-72.4 testchannel
+SKIP io-72.40 testchannel
+SKIP io-72.41 testchannel
+SKIP io-72.42 testchannel
+SKIP io-72.43 testchannel
+SKIP io-72.44 testchannel
+SKIP io-72.45 testchannel
+SKIP io-72.46 testchannel
+SKIP io-72.47 testchannel
+SKIP io-72.48 testchannel
+SKIP io-72.49 testchannel
+SKIP io-72.5 testchannel
+SKIP io-72.50 testchannel
+SKIP io-72.51 testchannel
+SKIP io-72.52 testchannel
+SKIP io-72.53 testchannel
+SKIP io-72.54 testchannel
+SKIP io-72.55 testchannel
+SKIP io-72.56 testchannel
+SKIP io-72.57 testchannel
+SKIP io-72.58 testchannel
+SKIP io-72.59 testchannel
+SKIP io-72.6 testchannel
+SKIP io-72.60 testchannel
+SKIP io-72.61 testchannel
+SKIP io-72.62 testchannel
+SKIP io-72.63 testchannel
+SKIP io-72.64 testchannel
+SKIP io-72.65 testchannel
+SKIP io-72.66 testchannel
+SKIP io-72.67 testchannel
+SKIP io-72.68 testchannel
+SKIP io-72.69 testchannel
+SKIP io-72.7 testchannel
+SKIP io-72.70 testchannel
+SKIP io-72.71 testchannel
+SKIP io-72.72 testchannel
+SKIP io-72.73 testchannel
+SKIP io-72.74 testchannel
+SKIP io-72.75 testchannel
+SKIP io-72.76 testchannel
+SKIP io-72.77 testchannel
+SKIP io-72.78 testchannel
+SKIP io-72.79 testchannel
+SKIP io-72.8 testchannel
+SKIP io-72.80 testchannel
+SKIP io-72.81 testchannel
+SKIP io-72.82 testchannel
+SKIP io-72.83 testchannel
+SKIP io-72.84 testchannel
+SKIP io-72.85 testchannel
+SKIP io-72.86 testchannel
+SKIP io-72.87 testchannel
+SKIP io-72.88 testchannel
+SKIP io-72.89 testchannel
+SKIP io-72.9 testchannel
+SKIP io-72.90 testchannel
+SKIP io-72.91 testchannel
+SKIP io-72.92 testchannel
+SKIP io-72.93 testchannel
+SKIP io-72.94 testchannel
+SKIP io-72.95 testchannel
+SKIP io-72.96 testchannel
+SKIP io-72.97 testchannel
+SKIP io-72.98 testchannel
+SKIP io-72.99 testchannel
+SKIP io-72.a0 testchannel
+SKIP io-72.a1 testchannel
+SKIP io-72.a2 testchannel
+SKIP io-72.a3 testchannel
+SKIP io-72.a4 testchannel
+SKIP io-72.a5 testchannel
+SKIP io-72.a6 testchannel
+SKIP io-72.a7 testchannel
+SKIP io-72.a8 testchannel
+SKIP io-72.a9 testchannel
+SKIP io-72.b0 testchannel
+SKIP io-72.b1 testchannel
+SKIP io-72.b2 testchannel
+SKIP io-72.b3 testchannel
+SKIP io-72.b4 testchannel
+SKIP io-72.b5 testchannel
+SKIP io-72.b6 testchannel
+SKIP io-72.b7 testchannel
+SKIP io-72.b8 testchannel
+SKIP io-72.b9 testchannel
+SKIP io-72.c0 testchannel
+SKIP io-72.c1 testchannel
+SKIP io-72.c2 testchannel
+SKIP io-72.c3 testchannel
+SKIP io-72.c4 testchannel
+SKIP io-72.c5 testchannel
+SKIP io-72.c6 testchannel
+SKIP io-72.c7 testchannel
+SKIP io-72.c8 testchannel
+SKIP io-72.c9 testchannel
+SKIP io-72.d0 testchannel
+SKIP io-72.d1 testchannel
+SKIP io-72.d2 testchannel
+SKIP io-72.d3 testchannel
+SKIP io-72.d4 testchannel
+SKIP io-72.d5 testchannel
+SKIP io-72.d6 testchannel
+SKIP io-72.d7 testchannel
+SKIP io-72.d8 testchannel
+SKIP io-72.d9 testchannel
+SKIP io-72.e0 testchannel
+SKIP io-72.e1 testchannel
+SKIP io-72.e2 testchannel
+SKIP io-72.e3 testchannel
+SKIP io-72.e4 testchannel
+SKIP io-72.e5 testchannel
+SKIP io-72.e6 testchannel
+SKIP io-72.e7 testchannel
+SKIP io-72.e8 testchannel
+SKIP io-72.e9 testchannel
+SKIP io-72.f0 testchannel
+SKIP io-72.f1 testchannel
+SKIP io-72.f2 testchannel
+SKIP io-72.f3 testchannel
+SKIP io-74.1 testobj
+SKIP io-76.0 testchannel
+SKIP io-76.1 testchannel
+SKIP io-76.10 testchannel
+SKIP io-76.2 testchannel
+SKIP io-76.3 testchannel
+SKIP io-76.4 testchannel
+SKIP io-76.5 testchannel
+SKIP io-76.6 testchannel
+SKIP io-76.7 testchannel
+SKIP io-76.8 testchannel
+SKIP io-76.9 testchannel
+SKIP io-8.1 testchannel
+SKIP io-8.2 testchannel
+SKIP io-8.3 testchannel
+SKIP io-8.5 testchannel
+SKIP io-8.6 testchannel
+SKIP io-8.7 testchannel
+SKIP io-9.1 emptyTest
+FAIL io-29.26
+FAIL io-29.26 Tcl_Flush, Tcl_Write on bidirectional pipelines
+---
+TOTAL   885
+PASSED  479
+SKIPPED 404
+FAILED  2
