@@ -104,15 +104,14 @@ def extract_signatures(source: str) -> AnalysisResult:
     at DEBUG) so a binding regression cannot silently degrade
     workspace indexing.
     """
-    if _rust_extract is not None and rust_shim_enabled(
-        "TCL_LSP_RUST_SIGNATURE_SCAN", default=True
-    ):
+    if rust_shim_enabled("TCL_LSP_RUST_SIGNATURE_SCAN", default=True):
         try:
             raw = _rust_extract(source)
         except Exception:  # pragma: no cover — defensive fallback
             log.debug("rust signature_scan_extract raised; falling back to Python", exc_info=True)
         else:
-            return _materialise_rust_signatures(source, raw)
+            if raw is not None:
+                return _materialise_rust_signatures(source, raw)
     return _extract_signatures_python(source)
 
 

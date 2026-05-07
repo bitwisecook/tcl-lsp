@@ -273,3 +273,19 @@ def test_dispatcher_rust_exception_falls_back_to_python(monkeypatch, caplog) -> 
     result = extract_signatures("proc foo {} {}")
     # Python path produced the proc — fallback worked.
     assert "::foo" in result.all_procs
+
+
+def test_dispatcher_falls_back_when_binding_returns_none(monkeypatch) -> None:
+    """When the ``tcl_lsp_rust`` wheel is not installed,
+    ``_rust_extract`` returns ``None`` (no exception) — the
+    dispatcher must treat that as "binding unavailable" and fall
+    through to Python rather than feeding ``None`` to the
+    materialiser. Regresses the P1 review finding on PR #352:
+    previously the always-True ``_rust_extract is not None`` gate
+    let the None return reach
+    ``_materialise_rust_signatures(source, None)`` which crashed."""
+    monkeypatch.delenv("TCL_LSP_RUST_SIGNATURE_SCAN", raising=False)
+    monkeypatch.setattr(signature_scan_module, "_rust_extract", lambda _src: None)
+    result = extract_signatures("proc foo {} {}")
+    # Python path produced the proc — fallback worked.
+    assert "::foo" in result.all_procs
