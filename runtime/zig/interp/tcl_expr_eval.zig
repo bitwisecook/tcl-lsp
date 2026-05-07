@@ -166,6 +166,17 @@ fn skip_ws(s: *State) void {
         const c = s.src[s.pos];
         if (c == ' ' or c == '\t' or c == '\n' or c == '\r') {
             s.pos += 1;
+        } else if (c == '#') {
+            // TIP 582: ``#`` starts a line comment that runs to the
+            // next newline (or end of input).  Skipping the comment
+            // here lets ``expr {1 # comment\n + 2}`` and the
+            // ``max(1,# comment\n2)`` family of cases parse cleanly
+            // without modifying every parse_* call site.  The
+            // comment terminator is the literal ``\n`` byte; ``\r``
+            // alone doesn't end the comment because Tcl's source
+            // line-end is the newline byte.
+            while (s.pos < s.len and s.src[s.pos] != '\n') s.pos += 1;
+            // Loop iteration will pick up the trailing whitespace.
         } else break;
     }
 }
