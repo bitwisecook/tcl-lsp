@@ -226,6 +226,16 @@ class TclInterp:
 
             setup_tcltest(self)
 
+        # Mirror C Tcl's ``Tcl_CreateInterp``: pre-populate the
+        # ``::tcl::*`` and ``::oo::*`` ensemble implementation
+        # namespaces (string, dict, info, namespace, …) so that
+        # ``info commands ::tcl::dict::*``, ``namespace exists
+        # ::tcl::string``, and ``namespace import ::tcl::mathop::*``
+        # behave the same way they do under tclsh.
+        from .commands.ensemble_namespaces import setup_ensemble_namespaces
+
+        setup_ensemble_namespaces(self)
+
         if source_init:
             self._source_init_tcl()
 
@@ -237,15 +247,10 @@ class TclInterp:
         if not os.path.exists(init_tcl):
             return  # Gracefully degrade if not found
 
-        # Pre-create namespaces that init.tcl expects to exist
-        from .scope import ensure_namespace
-
-        # ::tcl::clock — needed by the clock ensemble setup
-        ensure_namespace(self.root_namespace, "::tcl::clock")
-
-        # ::tcl::unsupported::clock::configure — called by init.tcl
-        unsup_ns = ensure_namespace(self.root_namespace, "::tcl::unsupported::clock")
-        unsup_ns.register_command("configure", lambda interp, args: TclResult())
+        # ``::tcl::clock`` and ``::tcl::unsupported::clock::configure``
+        # — both used by init.tcl when wiring the ``clock`` ensemble —
+        # are now pre-populated by ``setup_ensemble_namespaces`` in
+        # ``__init__``.
 
         old_script = self.script_file
         self.script_file = init_tcl
