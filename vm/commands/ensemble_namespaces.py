@@ -4,8 +4,13 @@ C Tcl 9.0 ``Tcl_CreateInterp`` populates a fixed set of implementation
 namespaces (``::tcl::string``, ``::tcl::dict``, ``::tcl::info``, …) with
 one command per ensemble subcommand (``::tcl::string::length``, etc.).
 Tests that use ``info commands ::tcl::string::*``, ``namespace exists
-::tcl::dict``, or ``namespace import ::tcl::mathop::*`` depend on those
+::tcl::dict``, or ``namespace import ::tcl::string::*`` depend on those
 namespaces being present from the moment the interp comes up.
+
+(The math namespaces ``::tcl::mathfunc`` and ``::tcl::mathop`` are
+populated separately — see ``math_cmds.py`` and the runtime/Zig
+backends — so any motivating ``namespace import ::tcl::mathop::*`` use
+case is covered there, not here.)
 
 The bytecode interpreter already re-dispatches qualified ensemble names
 through ``_FQ_ENSEMBLE_RE`` in ``interp.py`` (``::tcl::dict::get`` →
@@ -445,8 +450,12 @@ def _bgerror_default(interp: "TclInterp", args: list[str]) -> TclResult:
     back to this and writes the error message and stack trace to
     stderr.  Our minimal version preserves the behaviour: print the
     message + errorInfo and return empty.
+
+    Signature matches C: exactly two positional arguments, ``message``
+    and ``returnOptions`` — the latter is the ``catch -returnOptions``
+    dict from which we pull ``-errorinfo``.
     """
-    if not args:
+    if len(args) != 2:
         raise TclError('wrong # args: should be "::tcl::Bgerror message returnOptions"')
     import sys
 
@@ -455,17 +464,16 @@ def _bgerror_default(interp: "TclInterp", args: list[str]) -> TclResult:
     # uses it to extract -errorinfo.  We pull the same key when
     # present, otherwise fall back to interp's errorInfo.
     error_info = ""
-    if len(args) > 1:
-        from ..machine import _split_list
+    from ..machine import _split_list
 
-        try:
-            opts = _split_list(args[1])
-            for i in range(0, len(opts) - 1, 2):
-                if opts[i] == "-errorinfo":
-                    error_info = opts[i + 1]
-                    break
-        except TclError:
-            pass
+    try:
+        opts = _split_list(args[1])
+        for i in range(0, len(opts) - 1, 2):
+            if opts[i] == "-errorinfo":
+                error_info = opts[i + 1]
+                break
+    except TclError:
+        pass
     if not error_info:
         error_info = interp.global_frame.get_var("errorInfo", default="")
     sys.stderr.write(f"{message}\n")

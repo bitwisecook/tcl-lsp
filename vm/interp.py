@@ -230,8 +230,10 @@ class TclInterp:
         # ``::tcl::*`` and ``::oo::*`` ensemble implementation
         # namespaces (string, dict, info, namespace, …) so that
         # ``info commands ::tcl::dict::*``, ``namespace exists
-        # ::tcl::string``, and ``namespace import ::tcl::mathop::*``
-        # behave the same way they do under tclsh.
+        # ::tcl::string``, and ``namespace import ::tcl::string::*``
+        # behave the same way they do under tclsh.  ``::tcl::mathfunc``
+        # / ``::tcl::mathop`` are populated separately by
+        # ``math_cmds.py`` and the runtime/Zig backends.
         from .commands.ensemble_namespaces import setup_ensemble_namespaces
 
         setup_ensemble_namespaces(self)
