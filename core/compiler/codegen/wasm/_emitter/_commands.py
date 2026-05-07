@@ -39,6 +39,7 @@ class _WasmEmitterCmdMixin(_Base):
         def _emit_diag_site(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterVarMixin
         def _emit_frame_sync(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_interp_boundary(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_frame_readback(self, *a: Any, **kw: Any) -> Any: ...
 
     def _runtime_prep(
@@ -233,7 +234,7 @@ class _WasmEmitterCmdMixin(_Base):
             # value.
             for _def_var in defs:
                 self._intern_local(_def_var)
-            self._emit_frame_sync()
+            self._emit_interp_boundary("call")
         self._emit_call(func_idx)
         if needs_frame_bridge:
             # Stash the call's result before the readback rebinds

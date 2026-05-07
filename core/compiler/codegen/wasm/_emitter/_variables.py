@@ -763,7 +763,7 @@ class _WasmEmitterVarMixin(_Base):
             self._emit_i32_const(len(encoded))
             self._emit_call(ns_set_idx)
             self._emit_local_set(ns_saved_local)
-        self._emit_frame_sync()
+        self._emit_interp_boundary("eval")
         self._emit_call(eval_idx)
         if drop_result:
             self._emit(WasmOp.DROP)
@@ -865,6 +865,39 @@ class _WasmEmitterVarMixin(_Base):
             pairs.append((name, idx))
         pairs.sort(key=lambda p: p[0])
         return pairs
+
+    def _emit_interp_boundary(
+        self,
+        kind: str,
+        *,
+        vars_observed: set[str] | None = None,
+    ) -> None:
+        """Single entry point for "we're about to hand control to the interpreter".
+
+        Replaces direct ``_emit_frame_sync()`` calls scattered across
+        codegen with a named call site that records *why* the boundary
+        exists (``"call"``, ``"eval"``, ``"dispatch"``, ``"info"``).
+        Centralising here ensures every interpreter handoff goes through
+        the same gate — adding a new boundary site without sync is no
+        longer possible by accident, and per-kind narrowing in the
+        future has one place to grow.
+
+        ``kind`` is informational today (kept for telemetry/debug
+        diffing) but is the hook the per-barrier narrowing logic
+        from the BarrierKind taxonomy will consume next: e.g. an
+        ``"eval"`` boundary with a known ``vars_observed`` script-scan
+        skips the sync of names the body provably doesn't reference.
+
+        ``vars_observed`` is forwarded to ``_emit_frame_sync`` as
+        ``vars_used`` — see that method for the narrowing contract.
+        """
+        # Today this is a thin wrapper; the per-kind narrowing lives
+        # in ``_iter_sync_locals``'s ``vars_used`` parameter and the
+        # ``ProcEscapeSummary.barriers`` taxonomy is recorded but not
+        # yet consumed.  Wiring kind→narrow rules is the natural
+        # follow-on once a target boundary site has narrower vars
+        # to feed in.
+        self._emit_frame_sync(vars_used=vars_observed)
 
     def _emit_frame_sync(self, vars_used: set[str] | None = None) -> None:
         """Mirror proc-locals into the call frame before the Zig
