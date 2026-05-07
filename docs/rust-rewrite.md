@@ -968,12 +968,25 @@ ARCH0–ARCH9 have all landed.  The C* aggregate row is also
 closed (2026-05-07 close-out): every shimmer / interprocedural /
 optimiser / connection-scope sub-item is landed, and the three
 remaining C-prefixed ports (C45-uri-split, C44-irules-flow, C43)
-are now first-class rows in their own right (priorities 4 / 5 /
-6 above) rather than aggregate-row hidden work.  After those, the
-next prioritised work is the analyser-followup family
-(`C41-default-on-followups-*`, priorities 2 / 3) followed by
-per-feature LSP server ports (`S*`) building on the
-`tcl-lsp-server` bootstrap.
+are now first-class rows in their own right.  Reading the
+priority queue:
+
+* **Priority 1** (`SYNC-MAY26`) — the smallest-and-most-urgent
+  set of independently-shippable sync sub-chunks.
+* **Priorities 2 / 3** (`C41-default-on-followups-postpass` /
+  `-structural`) — tracked here, but each row's chunk-log entry
+  notes the work closes with the `S*` LSP-server port.  No direct
+  work is pending today; the rows persist as the audit trail for
+  the post-#241 dispatch removal.
+* **Priorities 4 / 5 / 6** (`C45-uri-split`, `C44-irules-flow`,
+  `C43`) — the three remaining C-prefixed ports promoted out of
+  the C* aggregate row by the close-out audit.  These are the
+  next pickup-able C-family ports.
+* **Priority 7** (clippy Chunk D, `too_many_lines`) — mechanical
+  hygiene continuing the cleanup from PRs #340 / #342 / #350.
+
+After the queue drains, per-feature LSP server ports (`S*`) build
+on the `tcl-lsp-server` bootstrap.
 
 ## Chunk log
 
