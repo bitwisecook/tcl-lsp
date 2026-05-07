@@ -36,6 +36,7 @@ from .._ir import (
     WasmOp,
     _decode_leb128_signed,
 )
+from .._ownership import Ownership
 from ._statements import _escape_dquote
 
 
@@ -55,6 +56,7 @@ class _WasmEmitterOptMixin(_Base):
         def _emit_namespace_eval_bridge(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_read_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_read_obj_lenient(self, *a: Any, **kw: Any) -> Any: ...
+        def _emit_var_write_obj(self, *a: Any, **kw: Any) -> Any: ...
         def _emit_var_write_obj_keep(self, *a: Any, **kw: Any) -> Any: ...
         # From _WasmEmitterValuesMixin
         def _emit_value(self, *a: Any, **kw: Any) -> Any: ...
@@ -637,7 +639,6 @@ class _WasmEmitterOptMixin(_Base):
 
         llength_idx = self._shared_imports.get("tcl_list_length")
         lindex_idx = self._shared_imports.get("tcl_list_index")
-        global_set_idx = self._shared_imports.get("tcl_global_set")
 
         counter = self._add_extra_local("_foreach_i")
         limit = self._add_extra_local("_foreach_n")
@@ -701,10 +702,20 @@ class _WasmEmitterOptMixin(_Base):
         # For each iterator, bind its variables from list[counter*gsize + slot].
         # Past-end indices return empty-string TclObjs from the runtime,
         # matching reference Tcl's ``foreach {a b} {1 2 3}`` semantics.
+        # Route through ``_emit_var_write_obj`` (matching the non-CFG
+        # path in ``_control_flow.py::_emit_foreach``) so FRAME-tagged
+        # loop vars land in the runtime frame, not just a WASM local.
+        # A bypass to plain ``local.set`` here makes ``foreach k L { ...
+        # unset arr($k) ... }`` (and any other body that triggers
+        # ``escape_all_known``) write the loop var to a WASM local while
+        # the body's reads go through ``tcl_local_get_or_error`` — they
+        # never meet, and the read raises ``can't read "<v>": no such
+        # variable``.  The non-proc top-level case picks up the
+        # ``tcl_global_set`` mirror inside ``_emit_var_write_obj`` so
+        # eval-fallbacks see the binding too.
         for ll, (_, group_vars) in zip(list_locals, iterators):
             gsize = max(len(group_vars), 1)
             for slot, var_name in enumerate(group_vars):
-                var_local = self._intern_local(var_name)
                 if lindex_idx is not None:
                     self._emit_local_get(ll)
                     # element index = counter * gsize + slot
@@ -724,14 +735,7 @@ class _WasmEmitterOptMixin(_Base):
                         self._emit_i64_const(slot)
                         self._emit(WasmOp.I64_ADD)
                     self._emit_box_int()
-                self._emit_local_set(var_local)
-                # At top level also publish via tcl_global_set so
-                # eval-fallbacks in the body can read the variable.
-                if not self._is_proc and global_set_idx is not None:
-                    self._emit_obj_literal(var_name)
-                    self._emit_local_get(var_local)
-                    self._emit_call(global_set_idx)
-                    self._emit(WasmOp.DROP)
+                self._emit_var_write_obj(var_name, source=Ownership.OWNED)
 
         # Wrap body in block for break/continue
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]))  # continue target

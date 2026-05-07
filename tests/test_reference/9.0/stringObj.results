@@ -1,0 +1,91 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     stringObj.test
+DATE     2026-05-06T21:17:22Z
+---
+SKIP stringObj-1.1 testobj
+SKIP stringObj-10.1 testobj
+SKIP stringObj-10.2 testobj
+SKIP stringObj-10.3 testobj
+SKIP stringObj-10.4 testobj
+SKIP stringObj-11.1 testobj
+SKIP stringObj-12.1 testobj
+SKIP stringObj-12.2 testobj
+SKIP stringObj-12.3 testobj
+SKIP stringObj-12.4 testobj
+SKIP stringObj-12.5 testobj
+SKIP stringObj-12.6 testobj
+SKIP stringObj-13.1 testobj
+SKIP stringObj-13.2 testobj
+SKIP stringObj-13.3 testobj
+SKIP stringObj-13.4 testobj
+SKIP stringObj-13.5 testobj
+SKIP stringObj-13.6 testobj
+SKIP stringObj-13.7 testobj
+SKIP stringObj-13.8 testobj
+SKIP stringObj-14.1 testobj
+SKIP stringObj-15.1 testobj
+SKIP stringObj-15.2 testobj
+SKIP stringObj-15.3 testobj
+SKIP stringObj-15.4 testobj
+SKIP stringObj-15.5 testobj
+SKIP stringObj-15.6 testobj
+SKIP stringObj-15.7 testobj
+SKIP stringObj-15.8 testobj
+SKIP stringObj-16.0 testobj
+SKIP stringObj-16.1 testobj
+SKIP stringObj-16.10 testobj
+SKIP stringObj-16.11 testobj
+SKIP stringObj-16.12 testobj
+SKIP stringObj-16.2 testobj
+SKIP stringObj-16.3 testobj
+SKIP stringObj-16.4 testobj
+SKIP stringObj-16.5 testobj
+SKIP stringObj-16.6 testobj
+SKIP stringObj-16.7 testobj
+SKIP stringObj-16.8 testobj
+SKIP stringObj-16.9 testobj
+SKIP stringObj-2.1 testobj
+SKIP stringObj-3.1 testobj
+SKIP stringObj-3.2 testobj
+SKIP stringObj-4.1 testobj
+SKIP stringObj-4.2 testobj
+SKIP stringObj-4.3 testobj
+SKIP stringObj-4.4 testobj
+SKIP stringObj-5.1 testobj
+SKIP stringObj-5.2 testobj
+SKIP stringObj-5.3 testobj
+SKIP stringObj-6.1 testobj
+SKIP stringObj-6.2 testobj
+SKIP stringObj-6.3 testobj
+SKIP stringObj-6.4 testobj
+SKIP stringObj-6.5 testobj
+SKIP stringObj-6.6 testobj
+SKIP stringObj-6.7 testobj
+SKIP stringObj-6.8 testobj
+SKIP stringObj-6.9 testobj
+SKIP stringObj-7.1 testobj
+SKIP stringObj-7.2 testobj
+SKIP stringObj-7.3 testobj
+SKIP stringObj-7.4 testobj
+SKIP stringObj-8.1 testobj
+SKIP stringObj-8.2 testobj
+SKIP stringObj-8.3 testobj
+SKIP stringObj-8.4 testobj
+SKIP stringObj-8.5 testobj
+SKIP stringObj-9.1 testobj
+SKIP stringObj-9.10 testobj
+SKIP stringObj-9.11 testobj
+SKIP stringObj-9.2 testobj
+SKIP stringObj-9.3 testobj
+SKIP stringObj-9.4 testobj
+SKIP stringObj-9.5 testobj
+SKIP stringObj-9.6 testobj
+SKIP stringObj-9.7 testobj
+SKIP stringObj-9.8 testobj
+SKIP stringObj-9.9 testobj
+---
+TOTAL   81
+PASSED  0
+SKIPPED 81
+FAILED  0

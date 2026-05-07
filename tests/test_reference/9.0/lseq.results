@@ -1,7 +1,7 @@
-TCLSH    /opt/homebrew/bin/tclsh9.0
+TCLSH    /usr/bin/tclsh9.0
 VERSION  9.0.3
 FILE     lseq.test
-DATE     2026-03-03T12:54:03Z
+DATE     2026-05-06T21:17:22Z
 ---
 PASS lseq-1.1
 PASS lseq-1.10
@@ -127,6 +127,7 @@ PASS lseq-bug-452b103a74-2
 PASS lseq-bug-452b103a74-3
 PASS lseq-bug-452b103a74-4
 PASS lseq-bug-452b103a74-5
+PASS lseq-bug-54329e39c7
 PASS lseq-bug-578b7e273c03-1
 PASS lseq-bug-578b7e273c03-2
 PASS lseq-bug-7d3101bf28-0
@@ -136,9 +137,8 @@ PASS lseq-bug-f4a4bd7f1070-1
 PASS lseq-convertToList
 SKIP lseq-4.12.32 has32BitLengths
 SKIP lseq-4.4.32 has32BitLengths
-SKIP lseq-bug-54329e39c7 hasMemUsage
 ---
 TOTAL   134
-PASSED  131
-SKIPPED 3
+PASSED  132
+SKIPPED 2
 FAILED  0

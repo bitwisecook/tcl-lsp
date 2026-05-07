@@ -1,0 +1,167 @@
+TCLSH    /usr/bin/tclsh9.0
+VERSION  9.0.3
+FILE     execute.test
+DATE     2026-05-06T21:17:35Z
+---
+PASS execute-1.1
+PASS execute-1.2
+PASS execute-1.3
+PASS execute-10.1
+PASS execute-10.2
+PASS execute-10.3
+PASS execute-11.1
+PASS execute-11.2
+PASS execute-11.3
+PASS execute-12.1
+PASS execute-12.2
+PASS execute-12.3
+PASS execute-12.4
+PASS execute-2.1
+PASS execute-2.2
+PASS execute-4.1
+PASS execute-4.2
+PASS execute-4.3
+PASS execute-5.1
+PASS execute-6.1
+PASS execute-6.10
+PASS execute-6.12
+PASS execute-6.13
+PASS execute-6.14
+PASS execute-6.15
+PASS execute-6.16
+PASS execute-6.17
+PASS execute-6.18
+PASS execute-6.2
+PASS execute-6.3
+PASS execute-6.4
+PASS execute-6.5
+PASS execute-6.6
+PASS execute-6.7
+PASS execute-6.8
+PASS execute-6.9
+PASS execute-7.0
+PASS execute-7.1
+PASS execute-7.10
+PASS execute-7.11
+PASS execute-7.12
+PASS execute-7.13
+PASS execute-7.14
+PASS execute-7.15
+PASS execute-7.16
+PASS execute-7.17
+PASS execute-7.18
+PASS execute-7.19
+PASS execute-7.2
+PASS execute-7.20
+PASS execute-7.21
+PASS execute-7.22
+PASS execute-7.23
+PASS execute-7.24
+PASS execute-7.25
+PASS execute-7.26
+PASS execute-7.27
+PASS execute-7.28
+PASS execute-7.29
+PASS execute-7.3
+PASS execute-7.30
+PASS execute-7.31
+PASS execute-7.32
+PASS execute-7.33
+PASS execute-7.34
+PASS execute-7.4
+PASS execute-7.5
+PASS execute-7.6
+PASS execute-7.7
+PASS execute-7.8
+PASS execute-7.9
+PASS execute-8.1
+PASS execute-8.2
+PASS execute-8.3
+PASS execute-8.4
+PASS execute-8.5
+PASS execute-8.6
+PASS execute-8.7
+PASS execute-9.1
+SKIP execute-3.1 testobj
+SKIP execute-3.10 testobj
+SKIP execute-3.11 testobj
+SKIP execute-3.12 testobj
+SKIP execute-3.13 testobj
+SKIP execute-3.14 testobj
+SKIP execute-3.15 testobj
+SKIP execute-3.16 testobj
+SKIP execute-3.17 testobj
+SKIP execute-3.18 testobj
+SKIP execute-3.19 testobj
+SKIP execute-3.2 testobj
+SKIP execute-3.20 testobj
+SKIP execute-3.21 testobj
+SKIP execute-3.22 testobj
+SKIP execute-3.23 testobj
+SKIP execute-3.24 testobj
+SKIP execute-3.25 testobj
+SKIP execute-3.26 testobj
+SKIP execute-3.27 testobj
+SKIP execute-3.28 testobj
+SKIP execute-3.29 testobj
+SKIP execute-3.3 testobj
+SKIP execute-3.30 testobj
+SKIP execute-3.31 testobj
+SKIP execute-3.32 testobj
+SKIP execute-3.33 testobj
+SKIP execute-3.34 testobj
+SKIP execute-3.35 testobj
+SKIP execute-3.36 testobj
+SKIP execute-3.37 testobj
+SKIP execute-3.38 testobj
+SKIP execute-3.39 testobj
+SKIP execute-3.4 testobj
+SKIP execute-3.40 testobj
+SKIP execute-3.41 testobj
+SKIP execute-3.42 testobj
+SKIP execute-3.43 testobj
+SKIP execute-3.44 testobj
+SKIP execute-3.45 testobj
+SKIP execute-3.46 testobj
+SKIP execute-3.47 testobj
+SKIP execute-3.48 testobj
+SKIP execute-3.49 testobj
+SKIP execute-3.5 testobj
+SKIP execute-3.50 testobj
+SKIP execute-3.51 testobj
+SKIP execute-3.52 testobj
+SKIP execute-3.53 testobj
+SKIP execute-3.54 testobj
+SKIP execute-3.55 testobj
+SKIP execute-3.56 testobj
+SKIP execute-3.57 testobj
+SKIP execute-3.58 testobj
+SKIP execute-3.59 testobj
+SKIP execute-3.6 testobj
+SKIP execute-3.60 testobj
+SKIP execute-3.61 testobj
+SKIP execute-3.62 testobj
+SKIP execute-3.63 testobj
+SKIP execute-3.64 testobj
+SKIP execute-3.65 testobj
+SKIP execute-3.66 testobj
+SKIP execute-3.67 testobj
+SKIP execute-3.68 testobj
+SKIP execute-3.69 testobj
+SKIP execute-3.7 testobj
+SKIP execute-3.70 testobj
+SKIP execute-3.71 testobj
+SKIP execute-3.72 testobj
+SKIP execute-3.73 testobj
+SKIP execute-3.74 testobj
+SKIP execute-3.75 testobj
+SKIP execute-3.76 testobj
+SKIP execute-3.77 testobj
+SKIP execute-3.8 testobj
+SKIP execute-3.9 testobj
+SKIP execute-6.11 testexprlongobj
+---
+TOTAL   157
+PASSED  79
+SKIPPED 78
+FAILED  0
