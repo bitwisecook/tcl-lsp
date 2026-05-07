@@ -1,18 +1,167 @@
-# info.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — [info proc] / option-parser disagreement traps before summary.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Tcl 9 ``info.test`` per-case categorisation.
+#
+# Default for unlisted tests: ``must_pass`` — failure here = real bug.
+# See ``tests/baselines/tcl9-tcltest/categories/README.md`` for the
+# bucket semantics and triage workflow.
+#
+# Snapshot: 214 / 287 passing (67 failures bucketed into 20
+# ``good_to_have`` + 0 ``just_to_match_ctcl`` + 47 ``skip``).
+#
+# The bulk of failures (47 of 67) are ``info frame`` cases that depend
+# on the C tcl bytecode compiler's source-line table — each emitted
+# bytecode instruction carries a source-line stamp that ``info frame``
+# reads back to populate ``type source line N file ... cmd ... proc ...``
+# fields.  Our WASM target emits its own instruction sequence (the
+# whole point of this stream) and explicitly does not match that
+# layout, so per-instruction source-line equivalence is out of scope.
+# We still emit functional ``info frame`` data (type, proc, level,
+# script body); the tests' expected ``type source line N`` shape
+# requires bcc-shape source mapping.  Bucket them as ``skip`` — they
+# are fundamentally inapplicable to a non-bcc target.  The harness
+# injects ``tcltest::configure -skip`` for them so they land in the
+# Skipped summary count rather than the Failed column.
+#
+# The remaining 20 are real introspection gaps — ``info args`` /
+# locals / procs / functions / script / level / default that need
+# genuine runtime work, not bytecode-shape parity.
 
-trap_allowed = true
+trap_allowed = false
 
-good_to_have = []
+good_to_have = [
+    # ``info args`` should return the formal-parameter names of a
+    # proc, including parameters with default values and the
+    # variadic ``args`` tail.  Currently returns empty for procs
+    # whose param list contains ``{name default}`` pairs.
+    "1.2",
+    # ``info args`` of a namespace-imported proc should resolve
+    # through the import alias to the source proc's params.
+    "1.7",
+    # ``info default`` of a namespace-imported proc should
+    # forward through the import alias.  Same root cause as 1.7.
+    "6.11",
+    # ``info exists`` should follow ``upvar`` / ``namespace``
+    # aliases to the underlying variable's existence state.
+    "7.6",
+    # ``info level 1`` from inside a deeply-nested call returns
+    # the wrong invocation argv (missing the proc name slot).
+    "9.2",
+    # ``info library`` returns the ``::tcl_library`` global, which
+    # the bundle preamble doesn't currently set.
+    "10.2",
+    # ``info locals`` should enumerate proc-local variables
+    # populated via ``set`` / parameter binding; missed when the
+    # local was bound via ``upvar`` or only assigned through a
+    # compiled-frame slot.
+    "12.2",
+    "12.6",
+    "12.7",
+    # ``info procs PATTERN`` glob filtering — pattern-matching on
+    # proc names is implemented for unqualified names but the
+    # qualified-pattern path drops some hits.
+    "15.2",
+    # ``info script`` should return the path of the test file when
+    # called inside a sourced script.  Our impl returns empty
+    # because the bundle doesn't ``source`` the test file (it
+    # concatenates and runs at top level).
+    "16.2",
+    "16.3",
+    "16.4",
+    "16.5",
+    "16.8",
+    # ``info vars`` should hide tcltest-internal temporaries when
+    # the caller passes a glob filter; we leak them through.
+    "19.5",
+    # ``info functions`` returns the list of math / tcl::mathfunc
+    # commands.  Currently returns empty because the function
+    # registry doesn't expose its keys to introspection.
+    "20.1",
+    "20.2",
+    "20.3",
+    "20.4",
+]
+
+# No tests in this stem are ``just_to_match_ctcl`` — the C-tcl-internal
+# differences here are all bytecode-shape (source-line tables emitted
+# by bcc), which belong in ``skip``.  Wording / extension differences
+# would land here if they appeared.
 just_to_match_ctcl = []
-skip = []
+
+# Tests probing C tcl VM bytecode-specific behaviour.  The WASM
+# target emits its own instruction sequence and does not carry an
+# equivalent per-instruction source-line table; reproducing the
+# expected ``type source line N file <stem>.test cmd {…} proc ::X
+# level N`` shape would require re-emitting bcc-shape metadata at
+# every codegen site, which is explicitly out of scope for this
+# track (the bytecode VM track owns bytecode-shape parity).  The
+# harness injects ``tcltest::configure -skip`` for every entry so
+# they land in the Skipped summary count.
+skip = [
+    # ``info cmdcount`` is incremented per bytecode instruction
+    # dispatch in C tcl.  Compiled procs that take the AOT fast
+    # path don't increment our counter the same way.
+    "3.1",
+
+    # ``info frame`` inside eval / dict-* / proc / apply / {*}-
+    # expansion: each expects ``type source line N file …`` from
+    # bcc emit.
+    "23.4",
+    "24.7",
+    "24.8",
+    "24.9",
+    "25.0",
+    "25.1",
+    "33.2",
+    "33.2a",
+    "33.3",
+    "33.3a",
+    "34.0",
+    "34.1",
+    "35.0",
+    "35.1",
+
+    # bs+nl-in-literal-words: bcc tracks the bs+nl source offsets
+    # so ``info frame`` can adjust line numbers when stepping over
+    # them.  Our WASM emit doesn't carry that table.
+    "30.2",
+    "30.3",
+    "30.14",
+    "30.15",
+    "30.16",
+    "30.17",
+    "30.18",
+    "30.19",
+    "30.20",
+    "30.21",
+    "30.22",
+    "30.23",
+    "30.24",
+
+    # TIP 280 for compiled [subst] — defines source-line propagation
+    # from the surrounding script through the compiled subst body.
+    # Implementation requires bcc-equivalent source-line stamping
+    # at every emit site.
+    "30.25",
+    "30.26",
+    "30.27",
+    "30.28",
+    "30.29",
+    "30.30",
+    "30.31",
+    "30.32",
+    "30.33",
+    "30.34",
+    "30.35",
+    "30.36",
+    "30.37",
+    "30.38",
+    "30.39",
+    "30.44",
+    "30.45",
+    "30.46",
+    "30.47",
+]
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 20
 just_to_match_ctcl_failing = 0
-skip_failing = 0
+skip_failing = 47

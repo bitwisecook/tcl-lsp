@@ -88,7 +88,14 @@ def _capture_vars_for(cmd: str, args: tuple[str, ...]) -> list[str]:
 
 
 def _hook_regexp(emitter, args, defs, context):
-    if _has_options_or_capture_vars(args):
+    # Route through ``eval_regexp_cmd`` whenever options / capture
+    # vars are present OR the arg count is too low for the fast
+    # path's strict ``regexp PAT STR`` signature.  The fast path
+    # silently returns 0 for malformed calls; the eval path raises
+    # Tcl 9's ``wrong # args: should be "regexp ?-option ...?
+    # exp string ..."`` so regexp.test 6.1 / 6.2 see the correct
+    # error wording.
+    if _has_options_or_capture_vars(args) or len(args) < 2:
         # Pre-intern any capture-var names so the proc's frame readback
         # after eval-fallback reloads them into the wasm-local cache.
         # Without this, ``regexp -indices PAT STR all`` inside a compiled
@@ -107,7 +114,9 @@ def _hook_regexp(emitter, args, defs, context):
 
 
 def _hook_regsub(emitter, args, defs, context):
-    if _has_options_or_capture_vars(args):
+    # As above: route to eval-path on too-few / too-many args so the
+    # ``wrong # args`` wording reaches the user (regexp.test 11.1-11.4).
+    if _has_options_or_capture_vars(args) or len(args) < 3 or len(args) > 4:
         for vname in _capture_vars_for("regsub", args):
             emitter._intern_local(vname)
         emitter._emit_eval_fallback("regsub", args)

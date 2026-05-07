@@ -222,7 +222,7 @@ test "tcl_cmd_regexp — malformed pattern raises compile error" {
     const msg = fixture.with_catch(&BadPatternCtx.body);
     try testing.expect(msg != null);
     try testing.expectEqualStrings(
-        "regexp: couldn't compile regular expression pattern",
+        "cannot compile regular expression pattern: brackets [] not balanced",
         msg.?,
     );
 }
@@ -238,7 +238,7 @@ test "tcl_cmd_regexp — unbalanced paren raises compile error" {
     const msg = fixture.with_catch(&BadParenCtx.body);
     try testing.expect(msg != null);
     try testing.expectEqualStrings(
-        "regexp: couldn't compile regular expression pattern",
+        "cannot compile regular expression pattern: parentheses () not balanced",
         msg.?,
     );
 }
@@ -254,7 +254,7 @@ test "do_regsub — malformed pattern raises with regsub prefix" {
     const msg = fixture.with_catch(&RegsubBadPatternCtx.body);
     try testing.expect(msg != null);
     try testing.expectEqualStrings(
-        "regsub: couldn't compile regular expression pattern",
+        "cannot compile regular expression pattern: brackets [] not balanced",
         msg.?,
     );
 }

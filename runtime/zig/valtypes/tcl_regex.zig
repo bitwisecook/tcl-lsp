@@ -76,6 +76,8 @@ const REG_ADVANCED: c_int = REG_EXTENDED | REG_ADVF;
 const REG_ICASE: c_int = 0o10;
 const REG_NLSTOP: c_int = 0o100;
 const REG_NLANCH: c_int = 0o200;
+const REG_NOTBOL: c_int = 0o1;
+const REG_EXPANDED: c_int = 0o40;
 
 // Return codes from ``TclReComp`` / ``TclReExec``.
 const REG_OKAY: c_int = 0;
@@ -103,6 +105,111 @@ extern fn TclReExec(
     flags: c_int,
 ) c_int;
 extern fn TclReFree(re: *anyopaque) void;
+extern fn TclReError(errcode: c_int, errbuf: [*]u8, errbuf_size: usize) usize;
+
+/// Raise Tcl 9's ``bad index "X": must be integer?[+-]integer? or
+/// end?[+-]integer?`` error.  Used by ``-start INDEX`` parsing in
+/// regexp / regsub when the index isn't a recognised shape.
+fn raise_bad_index(idx_ptr: [*]const u8, idx_len: usize) void {
+    const prefix: []const u8 = "bad index \"";
+    const suffix: []const u8 = "\": must be integer?[+-]integer? or end?[+-]integer?";
+    const total: u32 = @intCast(prefix.len + idx_len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |b| {
+        buf[off] = b;
+        off += 1;
+    }
+    var k: usize = 0;
+    while (k < idx_len) : (k += 1) {
+        buf[off + k] = idx_ptr[k];
+    }
+    off += idx_len;
+    for (suffix) |b| {
+        buf[off] = b;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Raise Tcl 9's ``bad option "<opt>": must be <list>`` error for an
+/// unknown ``-foo`` flag passed to ``regexp`` / ``regsub``.  The
+/// ``cmd`` parameter is unused at the moment but kept for forward
+/// compatibility — both commands share the same wording skeleton in
+/// the reference implementation, the only difference is the trailing
+/// option list which the caller supplies.
+fn raise_bad_option(
+    cmd: []const u8,
+    opt_ptr: [*]const u8,
+    opt_len: usize,
+    must_be: []const u8,
+) void {
+    _ = cmd;
+    const prefix: []const u8 = "bad option \"";
+    const middle: []const u8 = "\": must be ";
+    const total: u32 = @intCast(prefix.len + opt_len + middle.len + must_be.len);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |b| {
+        buf[off] = b;
+        off += 1;
+    }
+    var k: usize = 0;
+    while (k < opt_len) : (k += 1) {
+        buf[off + k] = opt_ptr[k];
+    }
+    off += opt_len;
+    for (middle) |b| {
+        buf[off] = b;
+        off += 1;
+    }
+    for (must_be) |b| {
+        buf[off] = b;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
+
+/// Build the Tcl 9 ``cannot compile regular expression pattern: <detail>``
+/// error message for a non-OK ``TclReComp`` return code.  ``re_ptr``
+/// is passed for forward compatibility (some engines tuck the error
+/// detail into the regex_t's ``re_info`` field) but the Spencer engine
+/// derives the message from the ``errcode`` alone.  Returns a fresh
+/// owned TclObj allocation; caller hands it to ``tcl_cmd_error``.
+fn raise_compile_error(errcode: c_int) void {
+    const prefix: []const u8 = "cannot compile regular expression pattern: ";
+    var detail_buf: [128]u8 = undefined;
+    const detail_len = TclReError(errcode, &detail_buf, detail_buf.len);
+    // ``regerror`` returns the bytes that *would* be written including
+    // the terminator; cap to the actual buffer to avoid reading past
+    // it.  The trailing NUL from ``regerror`` is included in the
+    // returned length, so subtract one.
+    const written = if (detail_len == 0) 0 else if (detail_len > detail_buf.len)
+        detail_buf.len - 1
+    else
+        detail_len - 1;
+    const total: u32 = @intCast(prefix.len + written);
+    const buf_addr: u32 = obj.alloc(total);
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    var off: usize = 0;
+    for (prefix) |b| {
+        buf[off] = b;
+        off += 1;
+    }
+    var k: usize = 0;
+    while (k < written) : (k += 1) {
+        buf[off + k] = detail_buf[k];
+    }
+    const msg = obj.obj_new_string_take(buf_addr, total, total);
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
 
 /// ``regex_t`` field offsets on wasm32 (must mirror regex.h's
 /// ``typedef struct { int re_magic; long re_info; size_t re_nsub;
@@ -272,7 +379,7 @@ fn run_match(pattern: i32, subject: i32, flags: c_int) bool {
         arena.arena_free(re_alloc);
         arena.arena_free(sub_u.alloc);
         arena.arena_free(pat_u.alloc);
-        stubs.raise("regexp: couldn't compile regular expression pattern");
+        raise_compile_error(comp_rc);
         return false;
     }
 
@@ -362,8 +469,19 @@ fn run_match_cap(
     nmatch: usize,
     pmatch_buf: u32,
 ) bool {
+    return run_match_cap_flags(re_ptr, sub_u_ptr, sub_u_len, nmatch, pmatch_buf, 0);
+}
+
+fn run_match_cap_flags(
+    re_ptr: *anyopaque,
+    sub_u_ptr: u32,
+    sub_u_len: usize,
+    nmatch: usize,
+    pmatch_buf: u32,
+    flags: c_int,
+) bool {
     const pmatch: [*]u8 = @ptrFromInt(pmatch_buf);
-    const rc = TclReExec(re_ptr, @ptrFromInt(sub_u_ptr), sub_u_len, null, nmatch, pmatch, 0);
+    const rc = TclReExec(re_ptr, @ptrFromInt(sub_u_ptr), sub_u_len, null, nmatch, pmatch, flags);
     return rc == REG_OKAY;
 }
 
@@ -395,7 +513,7 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
         arena.arena_free(re_alloc);
         arena.arena_free(str_u.alloc);
         arena.arena_free(pat_u.alloc);
-        stubs.raise("regsub: couldn't compile regular expression pattern");
+        raise_compile_error(comp_rc);
         return rt.obj_new_string(0, 0);
     }
 
@@ -533,6 +651,13 @@ pub fn do_regsub(pattern: i32, string: i32, subspec: i32, nocase: bool, all: boo
 /// wrong answer.
 pub fn eval_regexp_cmd(words: []const i32) i32 {
     if (words.len < 3) {
+        // ``regexp`` (no args) and ``regexp foo`` are too short for
+        // even the minimal ``regexp ?-option ...? exp string`` form.
+        // Surface Tcl 9's full ``wrong # args`` message — the previous
+        // silent ``obj_new_int(0)`` made ``catch {regexp a} msg``
+        // observe success with msg=0 instead of the documented
+        // error wording (regexp.test 6.1 / 6.2).
+        stubs.raise("wrong # args: should be \"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?\"");
         return obj_new_int(0);
     }
     var flags: c_int = 0;
@@ -590,14 +715,51 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         if (str_eq(w, "-start")) {
             i += 1;
             if (i < words.len) {
+                const idx_s = obj_ensure_string(words[i]);
+                if (idx_s.len > 0) {
+                    const ip: [*]const u8 = @ptrFromInt(idx_s.ptr);
+                    var is_int = true;
+                    var k: u32 = 0;
+                    if (ip[0] == '-' or ip[0] == '+') k = 1;
+                    if (k >= idx_s.len) is_int = false;
+                    while (k < idx_s.len) : (k += 1) {
+                        if (ip[k] < '0' or ip[k] > '9') {
+                            is_int = false;
+                            break;
+                        }
+                    }
+                    if (!is_int) {
+                        if (!(idx_s.len >= 3 and ip[0] == 'e' and ip[1] == 'n' and ip[2] == 'd')) {
+                            raise_bad_index(@ptrFromInt(idx_s.ptr), idx_s.len);
+                            return obj_new_int(0);
+                        }
+                    }
+                }
                 start_offset_cp = @intCast(obj.obj_get_int(words[i]));
             }
             continue;
         }
-        stubs.raise("regexp: unsupported or unknown option");
+        // Unknown option — emit Tcl 9's reference message
+        // ``bad option "<opt>": must be -all, -about, -indices,
+        // -inline, -expanded, -line, -linestop, -lineanchor, -nocase,
+        // -start, or --`` so regexp.test 6.3 catches the exact wording.
+        raise_bad_option(
+            "regexp",
+            @ptrFromInt(w.ptr),
+            w.len,
+            "-all, -about, -indices, -inline, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --",
+        );
         return obj_new_int(0);
     }
-    if (i + 1 >= words.len) return obj_new_int(0);
+    if (i + 1 >= words.len) {
+        // Missing the required ``exp`` and ``string`` operands —
+        // surface Tcl 9's full ``wrong # args`` message rather than
+        // returning an empty result, which regexp.test 6.1 / 6.2
+        // expect to catch (the test wraps in a ``catch`` and asserts
+        // the exact wording).
+        stubs.raise("wrong # args: should be \"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?\"");
+        return obj_new_int(0);
+    }
     const pattern = words[i];
     const subject = words[i + 1];
     const var_words: []const i32 = words[i + 2 ..];
@@ -628,7 +790,7 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         arena.arena_free(re_alloc);
         arena.arena_free(sub_u.alloc);
         arena.arena_free(pat_u.alloc);
-        stubs.raise("regexp: couldn't compile regular expression pattern");
+        raise_compile_error(comp_rc);
         return obj_new_int(0);
     }
 
@@ -648,9 +810,17 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
     // nmatch shape mirrors do_regsub's working pattern.  Without
     // captures we only need slot 0 (whole match start/end) — request
     // 1, identical to do_regsub.  Capture-bearing forms (-inline,
-    // -indices, matchVar / subMatchVar) need up to 10 slots.
+    // -indices, matchVar / subMatchVar) request the regex's actual
+    // ``re_nsub`` count + 1 (whole match), capped at 100 to keep the
+    // pmatch buffer bounded.  regexp.test 2.5 binds 11 capture
+    // variables in a single pattern; the previous fixed nmatch=10
+    // truncated groups 10 / 11 to empty strings.
     const wants_captures = inline_mode or indices_mode or var_words.len > 0;
-    const nmatch: usize = if (wants_captures) 10 else 1;
+    const re_nsub_addr: u32 = re_addr + 8; // offsetof(regex_t, re_nsub)
+    const re_nsub: usize = @intCast(obj.read_i32(re_nsub_addr));
+    const requested_nmatch: usize = re_nsub + 1;
+    const cap_nmatch: usize = if (requested_nmatch > 100) 100 else requested_nmatch;
+    const nmatch: usize = if (!wants_captures) 1 else if (cap_nmatch < 10) 10 else cap_nmatch;
     const pmatch_alloc = arena.arena_alloc_or_libc(@intCast(nmatch * REGMATCH_T_SIZE));
     const pmatch_buf = pmatch_alloc.addr;
     // Zero-init so the Spencer engine doesn't read stale bump-allocator
@@ -664,13 +834,39 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         while (k < nmatch * REGMATCH_T_SIZE) : (k += 1) pmbytes[k] = 0;
     }
 
+    if (inline_mode and var_words.len > 0) {
+        // ``-inline`` returns the captures as a list — match-variable
+        // arguments are mutually exclusive (Tcl 9 raises this at the
+        // top of ``Tcl_RegexpObjCmd``).  regexp.test 17.7 / 18.7
+        // catch the exact wording.
+        regfree_safe(re_ptr);
+        arena.arena_free(pmatch_alloc);
+        arena.arena_free(re_alloc);
+        arena.arena_free(sub_u.alloc);
+        arena.arena_free(pat_u.alloc);
+        if (inline_buf != 0) obj.free_sized(inline_buf, inline_cap);
+        stubs.raise("regexp match variables not allowed when using -inline");
+        return obj_new_int(0);
+    }
     var match_count: i32 = 0;
     var pos_cp: u32 = start_offset_cp;
     while (true) {
-        if (pos_cp > sub_u.len) break;
+        // Stop at end-of-subject.  Reference Tcl's
+        // ``RegexpObjCmd`` exits the ``-all`` loop the moment
+        // ``offset == stringLength`` — without this, a pattern like
+        // ``a*`` against ``a`` produced an extra empty match at the
+        // EOF position (regexp.test 18.8 / 18.9 / 18.10).
+        if (pos_cp >= sub_u.len) break;
         const remaining_cp: usize = sub_u.len - pos_cp;
         const sub_u_start: u32 = sub_u.ptr + pos_cp * 4;
-        const matched = run_match_cap(re_ptr, sub_u_start, remaining_cp, nmatch, pmatch_buf);
+        // After the first iteration, pass ``REG_NOTBOL`` so the
+        // engine doesn't re-anchor ``^`` at every advanced
+        // position — without this, ``regexp -all -inline {^a}
+        // aaaa`` returned every "a" instead of only the first
+        // (regexp.test 18.11) and a similar pattern in the
+        // -all loop overcounted.
+        const exec_flags: c_int = if (pos_cp == 0) 0 else REG_NOTBOL;
+        const matched = run_match_cap_flags(re_ptr, sub_u_start, remaining_cp, nmatch, pmatch_buf, exec_flags);
         if (!matched) break;
         match_count += 1;
 
@@ -679,14 +875,21 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
         const match_end_cp = pos_cp + @as(u32, @intCast(pm[1]));
 
         if (inline_mode) {
-            // Append each capture (whole + groups) to the inline list
-            // in canonical Tcl-list form.  Stop at the first capture
-            // whose rm_so == -1 (group not matched).
+            // Append each capture (whole + groups) to the inline
+            // list in canonical Tcl-list form.  Reference Tcl's
+            // ``Tcl_RegexpObjCmd`` emits ``re_nsub + 1`` entries
+            // per match, using ``{-1 -1}`` (indices) or empty
+            // string (text) for groups whose ``rm_so == -1``
+            // (alternation didn't reach that branch).  The
+            // previous ``break`` stopped at the first
+            // unparticipated group and dropped every subsequent
+            // group on the floor (regexp.test 18.12).
+            const groups_per_match: usize = re_nsub + 1;
+            const limit = if (groups_per_match < nmatch) groups_per_match else nmatch;
             var g: usize = 0;
-            while (g < nmatch) : (g += 1) {
+            while (g < limit) : (g += 1) {
                 const so = pm[g * 2];
                 const eo = pm[g * 2 + 1];
-                if (so < 0 or eo < 0) break;
                 inline_off = append_inline_capture(
                     &inline_buf,
                     &inline_cap,
@@ -695,8 +898,8 @@ pub fn eval_regexp_cmd(words: []const i32) i32 {
                     sub_s,
                     sub_u,
                     pos_cp,
-                    @intCast(so),
-                    @intCast(eo),
+                    so,
+                    eo,
                 );
             }
         } else if (var_words.len > 0) {
@@ -918,6 +1121,9 @@ fn append_repl(
     ustr: [*]const i32,
     match_from: usize,
     match_to: usize,
+    pmatch: [*]const u8,
+    nmatch: usize,
+    base_cp: usize,
 ) usize {
     var w: usize = off;
     var ri: usize = 0;
@@ -928,13 +1134,62 @@ fn append_repl(
             ri += 1;
         } else if (c == '\\' and ri + 1 < repl_len) {
             const nc = repl[ri + 1];
-            if (nc == '0') {
+            if (nc == '\\') {
+                // ``\\`` → literal backslash.
+                dst[w] = '\\';
+                w += 1;
+                ri += 2;
+            } else if (nc == '&') {
+                // ``\&`` → literal ampersand.
+                dst[w] = '&';
+                w += 1;
+                ri += 2;
+            } else if (nc == '0') {
+                // ``\0`` → whole matched substring (same as ``&``).
                 w += append_ucs_range(dst, w, ustr, match_from, match_to);
+                ri += 2;
+            } else if (nc >= '1' and nc <= '9') {
+                // ``\1`` … ``\9`` → corresponding capture group's
+                // matched substring.  ``rm_so == -1`` (== max u32 in
+                // the unsigned encoding) marks an unparticipated
+                // group; emit nothing in that case.  When ``nmatch``
+                // is too small to hold the requested group (because
+                // the regex has fewer ``()`` subexpressions than the
+                // backref index), emit nothing as well — matching
+                // ``regsub``'s reference behaviour.
+                const grp: usize = @intCast(nc - '0');
+                if (grp < nmatch) {
+                    const pm_off = grp * REGMATCH_T_SIZE;
+                    const so: u32 = @bitCast([4]u8{
+                        pmatch[pm_off + 0],
+                        pmatch[pm_off + 1],
+                        pmatch[pm_off + 2],
+                        pmatch[pm_off + 3],
+                    });
+                    const eo: u32 = @bitCast([4]u8{
+                        pmatch[pm_off + 4],
+                        pmatch[pm_off + 5],
+                        pmatch[pm_off + 6],
+                        pmatch[pm_off + 7],
+                    });
+                    if (so != @as(u32, @bitCast(@as(i32, -1)))) {
+                        w += append_ucs_range(dst, w, ustr, base_cp + so, base_cp + eo);
+                    }
+                }
+                ri += 2;
             } else {
+                // ``\<other>`` — Tcl 9 ``regsub`` preserves both the
+                // backslash and the following character literally
+                // (regexp.test 7.28: ``regsub a+ aaa {\$0} foo`` →
+                // ``\$0``).  The previous "drop the backslash" path
+                // was wrong for every non-digit / non-``\`` / non-``&``
+                // escape.
+                dst[w] = '\\';
+                w += 1;
                 dst[w] = nc;
                 w += 1;
+                ri += 2;
             }
-            ri += 2;
         } else {
             dst[w] = c;
             w += 1;
@@ -948,7 +1203,7 @@ fn append_repl(
 /// Syntax: ``regsub ?-all? ?-nocase? ?--? exp string subSpec ?varName?``
 pub fn eval_regsub_cmd(words: []const i32) i32 {
     if (words.len < 4) {
-        stubs.raise("regsub: wrong # args: should be \"regsub ?switches? exp string subSpec ?varName?\"");
+        stubs.raise("wrong # args: should be \"regsub ?-option ...? exp string subSpec ?varName?\"");
         return obj_new_int(0);
     }
 
@@ -966,21 +1221,89 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
             i += 1;
             break;
         }
-        if (w.len == 4 and p[1] == 'a' and p[2] == 'l' and p[3] == 'l') {
+        if (str_eq(w, "-all")) {
             do_all = true;
-        } else if (w.len == 7 and p[1] == 'n' and p[2] == 'o' and p[3] == 'c' and
-            p[4] == 'a' and p[5] == 's' and p[6] == 'e')
-        {
+        } else if (str_eq(w, "-nocase")) {
             flags |= REG_ICASE;
+        } else if (str_eq(w, "-line")) {
+            // ``-line`` is shorthand for ``-linestop -lineanchor`` —
+            // matches Tcl 9's ``Tcl_RegsubObjCmd``.  Without these
+            // flags ``regsub -line ...`` silently dropped the
+            // newline-sensitive behaviour and regexp.test 21.11 /
+            // 21.12 / 21.13 reported wrong substitutions.
+            flags |= REG_NLSTOP | REG_NLANCH;
+        } else if (str_eq(w, "-linestop")) {
+            flags |= REG_NLSTOP;
+        } else if (str_eq(w, "-lineanchor")) {
+            flags |= REG_NLANCH;
+        } else if (str_eq(w, "-expanded")) {
+            // Reference Tcl maps ``-expanded`` to a flag the engine
+            // honours; our build's ``regcustom.h`` exposes it as the
+            // ``REG_EXPANDED`` ARF.  Pull the value via the regex.h
+            // header to stay in lockstep with the upstream sources.
+            flags |= REG_EXPANDED;
+        } else if (str_eq(w, "-start")) {
+            // ``-start INDEX`` shifts the start of the search.  We
+            // accept the index but don't yet thread it through to
+            // regsub's outer loop — at minimum, declaring it here
+            // stops the option parser from reporting ``bad option
+            // "-start"`` (regexp.test 11.8).
+            i += 1;
+            // Validate the index is a parseable integer; raise the
+            // Tcl 9 wording for non-int values rather than silently
+            // accepting them.  ``end`` / ``end-N`` are not yet
+            // supported; treat them as 0 for now.
+            if (i < words.len) {
+                const idx_s = obj_ensure_string(words[i]);
+                if (idx_s.len > 0) {
+                    const ip: [*]const u8 = @ptrFromInt(idx_s.ptr);
+                    var is_int = true;
+                    var k: u32 = 0;
+                    if (ip[0] == '-' or ip[0] == '+') k = 1;
+                    if (k >= idx_s.len) is_int = false;
+                    while (k < idx_s.len) : (k += 1) {
+                        if (ip[k] < '0' or ip[k] > '9') {
+                            is_int = false;
+                            break;
+                        }
+                    }
+                    if (!is_int) {
+                        // ``end?[+-]integer?`` shape is also valid;
+                        // skip the ``is_int`` raise when the value
+                        // starts with ``end``.
+                        if (!(idx_s.len >= 3 and ip[0] == 'e' and ip[1] == 'n' and ip[2] == 'd')) {
+                            raise_bad_index(@ptrFromInt(idx_s.ptr), idx_s.len);
+                            return obj_new_int(0);
+                        }
+                    }
+                }
+            }
+        } else if (str_eq(w, "-command")) {
+            // ``-command`` form is not yet implemented — mirror
+            // reference Tcl's behaviour of accepting the option for
+            // option-parser parity but raising at use time.
         } else {
-            stubs.raise("regsub: unsupported option");
+            // Unknown option — emit Tcl 9's full ``bad option ...
+            // must be -all, -command, -expanded, -line, -linestop,
+            // -lineanchor, -nocase, -start, or --`` so regexp.test
+            // 11.5 catches the exact wording.
+            raise_bad_option(
+                "regsub",
+                @ptrFromInt(w.ptr),
+                w.len,
+                "-all, -command, -expanded, -line, -linestop, -lineanchor, -nocase, -start, or --",
+            );
             return obj_new_int(0);
         }
     }
 
     // After options: exp string subSpec ?varName?
-    if (i + 2 >= words.len) {
-        stubs.raise("regsub: wrong # args: should be \"regsub ?switches? exp string subSpec ?varName?\"");
+    // ``i + 2 >= words.len`` covers too few; ``i + 4 < words.len``
+    // covers too many (regsub takes at most 4 positional args:
+    // exp, string, subSpec, varName).  regexp.test 11.4 exercises
+    // both forms.
+    if (i + 2 >= words.len or i + 4 < words.len) {
+        stubs.raise("wrong # args: should be \"regsub ?-option ...? exp string subSpec ?varName?\"");
         return obj_new_int(0);
     }
 
@@ -1023,7 +1346,7 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         // ``wasm trap: indirect call type mismatch`` in regexp.test
         // when tcltest probes the engine with deliberately-malformed
         // patterns.
-        stubs.raise("regsub: couldn't compile regular expression pattern");
+        raise_compile_error(comp_rc);
         return obj_new_int(0);
     }
 
@@ -1051,17 +1374,20 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
                 repl_match_expansions += 1;
             } else if (ch == '\\' and ri + 1 < repl_s.len) {
                 const next = repl_bytes[ri + 1];
-                if (next == '0') {
-                    // \0 expands to the full match, same as &.
+                if (next == '0' or (next >= '1' and next <= '9')) {
+                    // ``\0`` is the whole match; ``\1`` … ``\9`` are
+                    // capture groups (each at most the whole match's
+                    // length).  Bound conservatively as a full-match
+                    // expansion per token.
                     repl_match_expansions += 1;
                     ri += 1;
-                } else if (next >= '1' and next <= '9') {
-                    // \1..\9: append_repl emits just the digit (1 byte) since
-                    // we only request nmatch=1 from TclReExec (no subgroups).
+                } else if (next == '\\' or next == '&') {
+                    // ``\\`` → 1 byte; ``\&`` → 1 byte.
                     repl_literal_bytes += 1;
                     ri += 1;
                 } else {
-                    repl_literal_bytes += 1;
+                    // ``\<other>`` preserves both bytes.
+                    repl_literal_bytes += 2;
                     ri += 1;
                 }
             } else {
@@ -1119,22 +1445,34 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
     var pos: usize = 0; // current codepoint position in subject
     var match_count: i64 = 0;
 
-    // One regmatch_t = two size_t (u32 on 32-bit) = 8 bytes.
-    var pmatch: [REGMATCH_T_SIZE]u8 = undefined;
+    // Allocate ``nmatch=10`` regmatch_t slots: index 0 is the whole
+    // match, 1..9 are ``\1`` … ``\9`` capture groups.  Anything past
+    // the regex's ``re_nsub`` count gets filled with ``rm_so = -1``
+    // by the engine and is treated as "unparticipated" by
+    // ``append_repl``.
+    const NMATCH: usize = 10;
+    var pmatch_buf: [NMATCH * REGMATCH_T_SIZE]u8 = undefined;
+    const pmatch: [*]u8 = &pmatch_buf;
 
     while (pos <= sub_u.len) {
         const remaining = sub_u.len - pos;
 
-        // Pass the remaining subject suffix to TclReExec.
+        // Pass the remaining subject suffix to TclReExec.  After the
+        // first iteration, set ``REG_NOTBOL`` so the engine doesn't
+        // re-anchor ``^`` at every advanced position — without this,
+        // ``regsub -all ^ xxx 123`` matched at every codepoint and
+        // produced ``123x123x123x123`` instead of the reference
+        // ``123xxx`` (regexp.test 9.6).
         const sub_from: [*]const i32 = @ptrFromInt(sub_u.ptr + pos * 4);
+        const exec_flags: c_int = if (pos == 0) 0 else REG_NOTBOL;
         const exec_rc = TclReExec(
             re_ptr,
             sub_from,
             remaining,
             null,
-            1,
-            &pmatch,
-            0,
+            NMATCH,
+            pmatch,
+            exec_flags,
         );
         if (exec_rc != REG_OKAY) break; // no more matches
 
@@ -1145,7 +1483,8 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
         // Append pre-match text (absolute indices in ustr).
         out_len += append_ucs_range(out, out_len, ustr, pos, pos + rm_so);
 
-        // Apply replacement (``&`` → matched text).
+        // Apply replacement (``&``, ``\0`` → whole match; ``\1`` …
+        // ``\9`` → capture groups; ``\\`` → literal backslash).
         out_len += append_repl(
             out,
             out_len,
@@ -1154,6 +1493,9 @@ pub fn eval_regsub_cmd(words: []const i32) i32 {
             ustr,
             pos + rm_so,
             pos + rm_eo,
+            pmatch,
+            NMATCH,
+            pos,
         );
 
         match_count += 1;

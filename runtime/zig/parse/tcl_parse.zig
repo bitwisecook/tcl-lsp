@@ -272,8 +272,14 @@ pub fn parse_command(
             // ``cmd {*}$args``).
             p = skip_space(src, p, len);
             if (p >= len or src[p] == '\n' or src[p] == ';') {
-                // bare {*} with nothing following — treat as empty expansion
-                word_ptrs[count] = 0;
+                // bare {*} with nothing following — treat as empty expansion.
+                // Anchor to a real byte inside the source span so downstream
+                // ``ParseCommand`` doesn't u32-underflow when computing
+                // ``word_ptrs[i] - @intFromPtr(src)`` for the empty word's
+                // start offset.  ``p - 1`` points at the closing ``}`` of
+                // the ``{*}`` marker (always valid because ``p >= 3`` after
+                // consuming the three-byte prefix).
+                word_ptrs[count] = @intFromPtr(src) + (p - 1);
                 word_lens[count] = 0;
                 word_braced[count] = false;
                 word_expand[count] = true;

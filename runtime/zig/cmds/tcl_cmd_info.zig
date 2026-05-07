@@ -968,6 +968,17 @@ fn scan_builtin_table(ctx: *CmdWalkCtx) void {
 fn walk_qualified(target_ns: u32, ctx: *CmdWalkCtx) void {
     if (target_ns == 0) return;
     scan_ns_cmd_table(target_ns, ctx);
+    // Builtins (``apply``, ``puts``, ``string``, …) live in a
+    // static table outside any namespace's ``cmd_table`` but are
+    // resolution-attached to the root namespace.  Without this
+    // pass, ``info commands ::apply`` came back empty and
+    // apply.test bailed out at its early ``if {[info commands
+    // ::apply] eq {}} { return }`` guard, producing no tcltest
+    // summary at all.  Mirrors the same opt-in in
+    // :func:`walk_unqualified_path` for ``commands``-kind walks.
+    if (ctx.kind == .commands and target_ns == tcl_ns.ns_root()) {
+        scan_builtin_table(ctx);
+    }
 }
 
 /// Produce a TclObj list of matching FQNs, space-separated.
@@ -1257,12 +1268,197 @@ pub fn info_vars(pattern: i32) i32 {
         return obj_new_string(@bitCast(merge_buf), @bitCast(off));
     }
 
-    // Unqualified pattern or no pattern — scan current frame locals.
-    // For simplicity, scanning frame internals isn't yet implemented;
-    // return an empty list so callers get a well-typed result rather
-    // than an error.  The qualified path above covers the primary use
-    // case (``info vars ::ns::pattern``).
-    return obj_new_string(0, 0);
+    // Unqualified pattern or no pattern.  Inside a proc frame, scan
+    // the frame's hash table and collect every bucket whose stored
+    // value is non-zero (Tcl semantics: ``unset`` leaves the slot's
+    // bucket alive but with value 0; ``info vars`` should filter
+    // those out so ``proc p1 {} { upvar 1 a x; unset x; info vars }``
+    // matches the caller's surviving locals — see upvar-3.1 / 3.2).
+    // Outside a proc frame, fall back to the global namespace's
+    // scalar var_table.
+    if (frames.frame_depth != 0) {
+        return frame_locals_names_matching(pat_ptr, pat_len, has_pattern);
+    }
+    return root_namespace_names_matching(pat_ptr, pat_len, has_pattern);
+}
+
+/// Collector state for :func:`frame_locals_visit_current` —
+/// accumulates name spans into a per-call list buffer.  The two-pass
+/// shape (size pass + emit pass) keeps the output buffer right-sized
+/// without resorting to a growable allocation; the visit predicate is
+/// the same in both passes.
+const FrameNamesCtx = struct {
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    // First pass: tally byte count + name count.
+    total_bytes: u32 = 0,
+    count: u32 = 0,
+    // Second pass: write into ``buf`` at ``off``.
+    buf: u32 = 0,
+    off: u32 = 0,
+    written: u32 = 0,
+};
+
+var g_names_ctx: FrameNamesCtx = .{ .pat_ptr = 0, .pat_len = 0, .has_pattern = false };
+
+fn frame_names_should_count(name_ptr: u32, name_len: u32, value: i32) bool {
+    // Skip ``unset``-cleared slots: a bucket whose value is 0 is the
+    // ``unset`` marker (the bucket header stays so ``frame_pop``'s
+    // mark-dirty bookkeeping can clear it later).  Aliases need their
+    // target probed — an upvar to an unset variable shouldn't appear
+    // in ``info vars`` either.
+    if (value == 0) return false;
+    if (value < 0) {
+        // ALIAS_GLOBAL or ALIAS_EXT — surface only when the alias
+        // chain terminates in an existing variable AND the local
+        // alias name matches the requested glob pattern.  Skipping
+        // the pattern check here would make ``info vars foo*`` emit
+        // every live alias regardless of name (Codex P2 review).
+        if (!frames.frame_alias_target_exists(value, name_ptr, name_len)) return false;
+        if (g_names_ctx.has_pattern) {
+            return tcl_string.glob_match(g_names_ctx.pat_ptr, g_names_ctx.pat_len, name_ptr, name_len);
+        }
+        return true;
+    }
+    if (g_names_ctx.has_pattern) {
+        return tcl_string.glob_match(g_names_ctx.pat_ptr, g_names_ctx.pat_len, name_ptr, name_len);
+    }
+    return true;
+}
+
+fn frame_names_visit_size(_: u32, name_ptr: u32, name_len: u32, value: i32) callconv(.c) void {
+    if (!frame_names_should_count(name_ptr, name_len, value)) return;
+    if (g_names_ctx.has_pattern and value >= 0) {
+        // size-pass already filtered via has_pattern; nothing extra
+    }
+    if (g_names_ctx.count > 0) g_names_ctx.total_bytes += 1; // separator
+    g_names_ctx.total_bytes += name_len;
+    g_names_ctx.count += 1;
+}
+
+fn frame_names_visit_emit(_: u32, name_ptr: u32, name_len: u32, value: i32) callconv(.c) void {
+    if (!frame_names_should_count(name_ptr, name_len, value)) return;
+    if (g_names_ctx.written > 0) {
+        const dp: [*]u8 = @ptrFromInt(g_names_ctx.buf + g_names_ctx.off);
+        dp[0] = ' ';
+        g_names_ctx.off += 1;
+    }
+    memcpy(g_names_ctx.buf + g_names_ctx.off, name_ptr, name_len);
+    g_names_ctx.off += name_len;
+    g_names_ctx.written += 1;
+}
+
+fn frame_locals_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) i32 {
+    g_names_ctx = .{ .pat_ptr = pat_ptr, .pat_len = pat_len, .has_pattern = has_pattern };
+    frames.frame_locals_visit_current(0, &frame_names_visit_size);
+    if (g_names_ctx.count == 0) return obj_new_string(0, 0);
+    const total = g_names_ctx.total_bytes;
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
+    g_names_ctx.buf = buf;
+    g_names_ctx.off = 0;
+    g_names_ctx.written = 0;
+    frames.frame_locals_visit_current(0, &frame_names_visit_emit);
+    return obj.obj_new_string_take(buf, total, total);
+}
+
+/// Decide whether a top-level Var record represents an existing
+/// variable for ``info vars`` purposes.  Scalars with a non-zero
+/// stored value count; arrays (``VAR_ARRAY`` flag set) count too —
+/// ``var_get_scalar`` returns 0 for arrays by design, so the prior
+/// "var_val == 0 → skip" rule silently dropped every array name
+/// from the top-level scan (Codex P2 review).  Follows ``VAR_LINK``
+/// to the terminal record so a global aliased to another global is
+/// reported when its target exists.
+fn root_var_exists(var_addr: u32) bool {
+    if (var_addr == 0) return false;
+    const v: *const tcl_ns.Var = @ptrFromInt(var_addr);
+    if ((v.flags & tcl_ns.VAR_LINK) != 0) {
+        // ``var_get_scalar`` walks the link chain; for the terminal
+        // we still need to distinguish array-vs-scalar, so resolve
+        // the chain ourselves and re-probe.
+        const terminal = tcl_ns.var_resolve_link(var_addr);
+        if (terminal == 0) return false;
+        return root_var_exists(terminal);
+    }
+    if ((v.flags & tcl_ns.VAR_ARRAY) != 0) return v.value != 0;
+    return tcl_ns.var_get_scalar(var_addr) != 0;
+}
+
+/// Top-level fallback for ``info vars`` when no proc frame is active —
+/// merge scalar globals from the root namespace's ``var_table`` with
+/// top-level (un-namespaced) array names from the array directory.
+/// Mirrors the qualified branch above but without the ``::`` prefix,
+/// since the top-level scope is the root namespace itself.  Arrays
+/// live in :mod:`tcl_array`'s directory rather than the var_table, so
+/// a var-table-only scan would silently drop ``array set arr {...}``
+/// entries (Codex P2 review).
+fn root_namespace_names_matching(pat_ptr: u32, pat_len: u32, has_pattern: bool) i32 {
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+
+    // Pull the top-level array names through the directory iterator
+    // — already glob-matched and ``::__local::*``-filtered.
+    const arr_list = tcl_array.array_top_level_names_matching(pat_ptr, pat_len);
+    const arr_s = obj_ensure_string(arr_list);
+
+    const root = tcl_ns.ns_root();
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
+
+    // Size pass over the scalar half so we can right-size the output
+    // buffer up front; the merge loop appends without further alloc.
+    var scalar_total: u32 = 0;
+    var scalar_count: u32 = 0;
+    if (ns.var_table.buf != 0) {
+        var i: u32 = 0;
+        while (i < ns.var_table.cap) : (i += 1) {
+            const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (!root_var_exists(var_addr)) continue;
+            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+            if (scalar_count > 0) scalar_total += 1;
+            scalar_total += name_len;
+            scalar_count += 1;
+        }
+    }
+
+    if (arr_s.len == 0 and scalar_count == 0) return obj_new_string(0, 0);
+    if (scalar_count == 0) return arr_list;
+
+    const arr_sep: u32 = if (arr_s.len > 0) @as(u32, 1) else @as(u32, 0);
+    const merge_total: u32 = arr_s.len + arr_sep + scalar_total;
+    const buf = alloc(merge_total);
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    if (arr_s.len > 0) {
+        memcpy(buf, arr_s.ptr, arr_s.len);
+        off = arr_s.len;
+    }
+    var written: u32 = if (arr_s.len > 0) 1 else 0;
+    if (ns.var_table.buf != 0) {
+        var i: u32 = 0;
+        while (i < ns.var_table.cap) : (i += 1) {
+            const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+            const name_ptr: u32 = @bitCast(read_i32(bucket));
+            if (name_ptr == 0) continue;
+            const name_len: u32 = @bitCast(read_i32(bucket + 4));
+            const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+            if (!root_var_exists(var_addr)) continue;
+            if (has_pattern and !tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+            if (written > 0) {
+                const dp: [*]u8 = @ptrFromInt(buf + off);
+                dp[0] = ' ';
+                off += 1;
+            }
+            memcpy(buf + off, name_ptr, name_len);
+            off += name_len;
+            written += 1;
+        }
+    }
+    return obj.obj_new_string_take(buf, merge_total, merge_total);
 }
 
 // -- Dispatch --------------------------------------------------------------
@@ -1299,6 +1495,19 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
         // in practice for tcltest's info-3.x cases.
         const interp = @import("../interp/tcl_interp.zig");
         return obj_new_int(interp.cmd_count);
+    }
+    if (str_eq(sp, sub.len, "coroutine")) {
+        // ``info coroutine`` returns the FQN of the currently
+        // executing coroutine, or the empty string outside a
+        // coroutine context.  coroutine.test 11.1 feeds this
+        // into ``::tcl::unsupported::corotype``; previously the
+        // missing branch returned empty and corotype raised
+        // ``can only get coroutine type of a coroutine``.
+        const coro_mod = @import("../sched/tcl_coro.zig");
+        if (coro_mod.current_coro_name()) |span| {
+            return obj.obj_new_string_copy(span.ptr, span.len);
+        }
+        return obj_new_string(0, 0);
     }
     return obj_new_string(0, 0);
 }

@@ -409,6 +409,20 @@ def _define_call_compiled_proc(
         mem = memory_box[0]
         if inst is None or mem is None:
             raise RuntimeError("call_compiled_proc: tcl_instance or memory not yet wired")
+        # wasmtime hands us i32 values as Python *signed* ints, so a
+        # heap-grown WASM address whose high bit is set arrives as a
+        # negative number.  Re-mask to the matching unsigned u32 so
+        # the slice arithmetic below indexes the linear-memory buffer
+        # correctly.  Without this, a long-running session whose
+        # heap crosses the 2 GiB boundary produces negative offsets
+        # and ``data_ptr[neg:neg+L]`` reads from the *end* of the
+        # buffer — typically past the live region — yielding a
+        # missing-proc lookup or out-of-bounds slice.  trace.test's
+        # cumulative trace re-entry was the trigger.
+        if name_ptr < 0:
+            name_ptr &= 0xFFFFFFFF
+        if argv_ptr < 0:
+            argv_ptr &= 0xFFFFFFFF
         raw = bytes(mem.data_ptr(store)[name_ptr : name_ptr + name_len])
         pname = raw.decode("utf-8", errors="replace")
         func = inst.exports(store).get(pname)

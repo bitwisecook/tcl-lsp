@@ -7,6 +7,7 @@ const rt = @import("../tcl_runtime.zig");
 const frames = @import("../interp/tcl_frames.zig");
 const interp = @import("../interp/tcl_interp.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
+const list_parse = @import("../valtypes/tcl_list_parse.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 
 const obj_ensure_string = rt.obj_ensure_string;
@@ -326,6 +327,9 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
 
     const dict = words[3];
     const sd = obj_ensure_string(dict);
+    // Empty / odd-length dict is a no-op (or empty result).  The
+    // ``count_elements`` check is cheap (single linear scan) and lets
+    // us bail before the cursor walk on obviously malformed input.
     const n = rt.list_count_elements(sd.ptr, sd.len);
     if (n <= 0 or (n & 1) != 0) {
         return if (collect) rt.dict_create() else 0;
@@ -333,10 +337,19 @@ fn eval_dict_iter(words: []const i32, collect: bool) i32 {
 
     const body = obj_ensure_string(words[4]);
     var collected: i32 = if (collect) rt.dict_create() else 0;
-    var idx: i64 = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+    // Walk the dict's string-shape list with a single forward cursor.
+    // The previous implementation called ``list_element_at(idx)`` per
+    // element, which restarts the parse from offset 0 each time —
+    // O(n²) in the dict size and the source of dict-24.24/24.25's
+    // multi-minute hang on a 100k-element ``dict map``.  We already
+    // validated that ``n`` is even and positive; iterate that many
+    // pairs explicitly so an empty braced element ``{}`` (which yields
+    // ``len == 0`` from the cursor) doesn't terminate the loop early.
+    var cur: list_parse.Cursor = .{ .pos = 0 };
+    var pairs_left: i64 = @divTrunc(n, 2);
+    while (pairs_left > 0) : (pairs_left -= 1) {
+        const k = list_parse.cursor_next(sd.ptr, sd.len, &cur);
+        const v = list_parse.cursor_next(sd.ptr, sd.len, &cur);
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         _ = frames.var_set(kvar, key_obj);
@@ -380,16 +393,22 @@ fn eval_dict_with(words: []const i32) i32 {
         cur = rt.dict_get(cur, words[ki]);
     }
 
-    // Snapshot keys and bind each as a same-named local.
+    // Snapshot keys and bind each as a same-named local.  Use a
+    // single forward cursor walk (O(n)) instead of indexed
+    // ``list_element_at`` lookups (O(n²) — restarts the parse from
+    // offset 0 on every call).
     const sd = obj_ensure_string(cur);
     const n = rt.list_count_elements(sd.ptr, sd.len);
-    var idx: i64 = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
-        const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
-        const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
-        _ = frames.var_set(key_obj, val_obj);
+    {
+        var lc: list_parse.Cursor = .{ .pos = 0 };
+        var pairs: i64 = @divTrunc(n, 2);
+        while (pairs > 0) : (pairs -= 1) {
+            const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            const v = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
+            const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
+            _ = frames.var_set(key_obj, val_obj);
+        }
     }
 
     _ = interp.eval_script(body.ptr, body.len);
@@ -397,13 +416,19 @@ fn eval_dict_with(words: []const i32) i32 {
 
     // Write back each key from the (potentially modified) locals.
     var sub = cur;
-    idx = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
-        const new_val = frames.var_resolve(key_obj);
-        if (new_val != 0) {
-            sub = rt.dict_set(sub, key_obj, new_val);
+    {
+        var lc: list_parse.Cursor = .{ .pos = 0 };
+        var pairs: i64 = @divTrunc(n, 2);
+        while (pairs > 0) : (pairs -= 1) {
+            const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            // Skip the value element — only the key feeds the
+            // ``var_resolve`` lookup.
+            _ = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+            const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
+            const new_val = frames.var_resolve(key_obj);
+            if (new_val != 0) {
+                sub = rt.dict_set(sub, key_obj, new_val);
+            }
         }
     }
 
@@ -438,24 +463,17 @@ fn eval_dict_with(words: []const i32) i32 {
 }
 
 /// ``dict filter DICT FILTERTYPE ARG ?ARG ...?`` — filter the dict
-/// by FILTERTYPE.  Supports ``key PATTERN ?PATTERN ...?`` and
+/// by FILTERTYPE.  Supports ``key PATTERN ?PATTERN ...?``,
 /// ``value PATTERN ?PATTERN ...?`` (glob match against any
-/// supplied pattern).  The ``script`` form is not yet implemented;
-/// raise an explicit error rather than silently returning the input
-/// so a script that depends on the script-form filter doesn't
-/// silently produce wrong results (Copilot/Codex review).  Mirrors
-/// ``tclDictObj.c::DictFilterCmd`` for the pattern forms.
+/// supplied pattern), and ``script {keyVar valueVar} body``.
+/// Mirrors ``tclDictObj.c::DictFilterCmd``.
 fn eval_dict_filter(words: []const i32) i32 {
     const ft = obj_ensure_string(words[3]);
     const fp: [*]const u8 = @ptrFromInt(ft.ptr);
     const filter_keys = str_eq(fp, ft.len, "key");
     const filter_values = str_eq(fp, ft.len, "value");
     const filter_script = str_eq(fp, ft.len, "script");
-    if (filter_script) {
-        const stubs = @import("../stubs/tcl_stubs.zig");
-        stubs.unsupported_sub("dict filter", "script");
-        return 0;
-    }
+    if (filter_script) return eval_dict_filter_script(words);
     if (!filter_keys and !filter_values) {
         const stubs = @import("../stubs/tcl_stubs.zig");
         stubs.raise("bad filterType: must be key, script, or value");
@@ -466,10 +484,11 @@ fn eval_dict_filter(words: []const i32) i32 {
     const sd = obj_ensure_string(words[2]);
     const n = rt.list_count_elements(sd.ptr, sd.len);
     var result: i32 = rt.dict_create();
-    var idx: i64 = 0;
-    while (idx + 1 < n) : (idx += 2) {
-        const k = rt.list_element_at(sd.ptr, sd.len, idx);
-        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+    var lc: list_parse.Cursor = .{ .pos = 0 };
+    var pairs: i64 = @divTrunc(n, 2);
+    while (pairs > 0) : (pairs -= 1) {
+        const k = list_parse.cursor_next(sd.ptr, sd.len, &lc);
+        const v = list_parse.cursor_next(sd.ptr, sd.len, &lc);
         const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
         const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
         const candidate: i32 = if (filter_keys) key_obj else val_obj;
@@ -483,6 +502,67 @@ fn eval_dict_filter(words: []const i32) i32 {
         }
         if (match) {
             result = rt.dict_set(result, key_obj, val_obj);
+        }
+    }
+    return result;
+}
+
+/// ``dict filter DICT script {keyVar valueVar} body`` — filter the
+/// dict by evaluating ``body`` for each (key, value) pair with the
+/// pair bound to ``keyVar`` / ``valueVar`` in the caller's frame.
+/// Pairs whose body returns a true boolean are included in the
+/// result.  Mirrors ``tclDictObj.c::DictFilterCmd`` (FILTER_SCRIPT
+/// branch).  Flow control: TCL_BREAK terminates the loop, TCL_CONTINUE
+/// skips the current pair, TCL_ERROR / TCL_RETURN propagate.
+fn eval_dict_filter_script(words: []const i32) i32 {
+    if (words.len != 6) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"dict filter dictionary script {keyVarName valueVarName} filterScript\"");
+        return 0;
+    }
+    const varlist = obj_ensure_string(words[4]);
+    const n_vars = rt.list_count_elements(varlist.ptr, varlist.len);
+    if (n_vars != 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("must have exactly two variable names");
+        return 0;
+    }
+    const kelem = rt.list_element_at(varlist.ptr, varlist.len, 0);
+    const velem = rt.list_element_at(varlist.ptr, varlist.len, 1);
+    const kvar = obj.obj_new_string_copy(varlist.ptr + kelem.start, kelem.len);
+    const vvar = obj.obj_new_string_copy(varlist.ptr + velem.start, velem.len);
+
+    const sd = obj_ensure_string(words[2]);
+    const n = rt.list_count_elements(sd.ptr, sd.len);
+    if (n <= 0 or (n & 1) != 0) return rt.dict_create();
+
+    const body = obj_ensure_string(words[5]);
+    var result: i32 = rt.dict_create();
+    var idx: i64 = 0;
+    while (idx + 1 < n) : (idx += 2) {
+        const k = rt.list_element_at(sd.ptr, sd.len, idx);
+        const v = rt.list_element_at(sd.ptr, sd.len, idx + 1);
+        const key_obj = obj.obj_new_string_copy(sd.ptr + k.start, k.len);
+        const val_obj = obj.obj_new_string_copy(sd.ptr + v.start, v.len);
+        _ = frames.var_set(kvar, key_obj);
+        _ = frames.var_set(vvar, val_obj);
+        const body_result = interp.eval_script(body.ptr, body.len);
+        const ir = result_mod.snapshot(body_result);
+        switch (ir.code) {
+            .OK => {
+                if (rt.obj_get_int(body_result) != 0) {
+                    result = rt.dict_set(result, key_obj, val_obj);
+                }
+            },
+            .ERROR, .RETURN => return 0,
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE => {
+                result_mod.consume(.CONTINUE);
+                continue;
+            },
         }
     }
     return result;

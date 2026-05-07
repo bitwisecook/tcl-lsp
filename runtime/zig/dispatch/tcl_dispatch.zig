@@ -117,8 +117,17 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     // index 1.  ``given`` = number of supplied call arguments.
     const given: u32 = if (words.len == 0) 0 else @intCast(words.len - 1);
 
-    // Compiled-fn arity we have to satisfy.
-    const n_params: u32 = @intCast(procs.proc_get_n_params(bucket));
+    // Compiled-fn arity we have to satisfy.  ``proc_get_n_params`` /
+    // ``proc_get_n_required`` read i32 fields from the Command record;
+    // if the bucket has been corrupted (e.g. by an over-aggressive
+    // free under cascaded trace re-entry — Stream 1 trace.test) those
+    // reads can return negative values, which an ``@intCast`` to u32
+    // would convert to a panic in ReleaseSafe.  Treat negatives as
+    // "no arity constraint" rather than aborting the whole module so
+    // the surrounding ``catch`` (or the trace-handler boundary) can
+    // surface the actual proc-call problem.
+    const np_raw = procs.proc_get_n_params(bucket);
+    const n_params: u32 = if (np_raw <= 0) 0 else @intCast(np_raw);
     const has_args_tail: bool = procs.proc_get_args_tail(bucket) != 0;
 
     // Arity check: if the caller supplied fewer arguments than the
@@ -126,7 +135,8 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
     // "wrong # args" before calling the compiled WASM function.
     // This mirrors what the Tcl interpreter does for interpreted procs
     // and lets ``catch {proc_missing_required_arg}`` return 1.
-    const n_required: u32 = @intCast(procs.proc_get_n_required(bucket));
+    const nr_raw = procs.proc_get_n_required(bucket);
+    const n_required: u32 = if (nr_raw <= 0) 0 else @intCast(nr_raw);
     if (n_required > 0 and given < n_required) {
         const catch_mod = @import("../interp/tcl_catch.zig");
         // name_ptr / name_len are raw bytes (not a TclObj).
@@ -200,11 +210,19 @@ pub fn dispatch(bucket: i32, words: []const i32) i32 {
             }
         }
     }
+    // ``@bitCast`` not ``@intCast`` so a heap-grown ``argv_buf`` past
+    // the 2 GiB high-bit boundary doesn't panic the whole module on
+    // narrowing — the host-side ``env::call_compiled_proc`` reads
+    // ``argv_ptr`` as an i32 and bitcasts back to a u32 address, so
+    // the bit pattern round-trips unchanged.  Stream 1: trace.test's
+    // cumulative trace re-entry pushed the heap past the boundary
+    // before reaching the test summary, blowing up here on what was
+    // an otherwise benign proc dispatch.
     return call_compiled_proc(
         name_ptr,
         name_len,
-        @intCast(argv_buf),
-        @intCast(argc),
+        @bitCast(argv_buf),
+        @bitCast(argc),
     );
 }
 

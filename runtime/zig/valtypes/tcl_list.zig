@@ -67,7 +67,14 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // ``is_immediate`` guard (PR #237 review): tagged immediates would
     // ``@intCast`` to a low integer and the rc/tag/cap reads would
     // dereference wasm data-segment bytes — junk values or a trap.
-    if (sc.len > 0 and current != 0 and !obj.is_immediate(current)) {
+    // ``current > 0`` guards against the bucket-encoded ALIAS_GLOBAL
+    // (-1) and ALIAS_EXT (< -1) sentinels that sometimes leak into
+    // this argument when a trace fires through an upvar/global alias
+    // (Stream 1: trace.test panics in tcl_cmd_lappend during a
+    // cascaded read trace re-entry).  ``@intCast(i32 -> u32)`` panics
+    // in ReleaseSafe on a negative input; we want to fall through to
+    // the canonical-rebuild path instead.
+    if (sc.len > 0 and current > 0 and !obj.is_immediate(current)) {
         const addr: u32 = @intCast(current);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);

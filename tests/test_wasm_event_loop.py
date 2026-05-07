@@ -154,17 +154,20 @@ class TestCoroutine:
         # ``[name]`` call surfaces ``invalid command name`` instead of
         # silently returning empty (and so the fixed MAX_COROS table
         # frees the slot for reuse).
+        #
+        # Tcl 9 ``Tcl_CoroutineObjCmd`` runs the body once before
+        # the ``coroutine`` command returns — a body that completes
+        # without yielding has its result returned directly and the
+        # command name is auto-removed.  Print that initial result
+        # and confirm the command is gone with a follow-up
+        # ``catch {c}``.
         out = _run_for_stdout(
-            "coroutine c apply {{} {return done}}\n"
-            "puts [c]\n"
+            "puts [coroutine c apply {{} {return done}}]\n"
             "set rc [catch {c} msg]\n"
             "puts $rc\n"
             "puts $msg\n"
         )
         lines = out.splitlines()
-        # First [c]: runs the body to completion, body returns "done".
-        # Second [c]: command no longer exists → catch yields rc != 0
-        # with an "invalid command name" message.
         assert lines[0] == "done"
         assert lines[1] == "1"
         assert "invalid command name" in lines[2] or "c" in lines[2]
@@ -183,8 +186,11 @@ class TestCoroutine:
         # Avoid bodies that complete naturally past the last yield
         # — that path is not yet handled cleanly under asyncify and
         # is tracked as Stage 2.6 (see ``sched/tcl_coro.zig``).
+        # Tcl 9 semantics: ``coroutine c body`` runs the body once
+        # eagerly and returns the first yield value; the user's
+        # ``[c]`` calls resume the body from each subsequent yield.
         out = _run_for_stdout(
-            "coroutine c apply {{} { yield A; yield B; yield C }}\nputs [c]\nputs [c]\nputs [c]\n"
+            "puts [coroutine c apply {{} { yield A; yield B; yield C }}]\nputs [c]\nputs [c]\n"
         )
         lines = out.splitlines()
         assert lines[:3] == ["A", "B", "C"]
