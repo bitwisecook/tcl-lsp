@@ -311,6 +311,13 @@ def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
         "wide": "tcl_math_wide",
         "isqrt": "tcl_math_isqrt",
         "bool": "tcl_math_bool",
+        "isfinite": "tcl_math_isfinite",
+        "isinf": "tcl_math_isinf",
+        "isnan": "tcl_math_isnan",
+        "isnormal": "tcl_math_isnormal",
+        "issubnormal": "tcl_math_issubnormal",
+        "fpclassify": "tcl_math_fpclassify",
+        "isunordered": "tcl_math_isunordered",
     }
 
     def _walk(n: object) -> None:

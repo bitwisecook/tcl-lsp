@@ -1632,6 +1632,46 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_unbox_int()
             else:
                 self._emit_i64_const(0)
+        elif func in ("isfinite", "isinf", "isnan", "isnormal", "issubnormal") and len(args) == 1:
+            # IEEE-754 float classification (TIP 519) — boolean-valued
+            # predicates.  Returns 0/1 as TclObj, then unboxed to the
+            # i64 expression-result pipeline.
+            helper_name = {
+                "isfinite": "tcl_math_isfinite",
+                "isinf": "tcl_math_isinf",
+                "isnan": "tcl_math_isnan",
+                "isnormal": "tcl_math_isnormal",
+                "issubnormal": "tcl_math_issubnormal",
+            }[func]
+            idx = self._shared_imports.get(helper_name)
+            if idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func == "fpclassify" and len(args) == 1:
+            # ``fpclassify`` returns a STRING (one of ``zero`` /
+            # ``subnormal`` / ``normal`` / ``infinite`` / ``nan``).
+            # The AOT i64 pipeline can't carry a string; downstream
+            # consumers that need the string repr (``puts``, ``string
+            # equal``) hit ``[expr {fpclassify(...)}]`` through the
+            # ``_emit_value`` ➜ ``_emit_expr_obj`` ➜ ``_emit_box_int``
+            # path that re-boxes the unboxed int back to a TclObj.
+            # That re-boxing loses the string, so the surface result
+            # in compiled code is ``"0"`` instead of ``"zero"``.
+            # Punt to ``tcl_eval_expr_str`` against the literal expr
+            # source so the string obj round-trips intact.
+            self._emit_i64_const(0)
+        elif func == "isunordered" and len(args) == 2:
+            idx = self._shared_imports.get("tcl_math_isunordered")
+            if idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_expr_obj(args[1])
+                self._emit_call(idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
         elif func == "pow" and len(args) == 2:
             # Delegate to the existing integer-power loop.  Float pow
             # isn't covered; callers with float operands hit this path

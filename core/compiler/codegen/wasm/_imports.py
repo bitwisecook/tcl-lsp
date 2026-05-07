@@ -234,6 +234,32 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # ``bool(x)`` — coerce to Tcl boolean accepting keyword forms
     # (``yes`` / ``no`` / ``true`` / ``false`` / ``on`` / ``off``).
     "tcl_math_bool": ("tcl", "tcl_math_bool", [ValType.I32], [ValType.I32]),
+    # IEEE-754 float classification (TIP 519).  Each predicate takes
+    # one operand and returns 0 / 1; ``fpclassify`` returns the
+    # classification name as a string (``zero``/``subnormal``/...);
+    # ``isunordered`` takes two operands.
+    "tcl_math_isfinite": ("tcl", "tcl_math_isfinite", [ValType.I32], [ValType.I32]),
+    "tcl_math_isinf": ("tcl", "tcl_math_isinf", [ValType.I32], [ValType.I32]),
+    "tcl_math_isnan": ("tcl", "tcl_math_isnan", [ValType.I32], [ValType.I32]),
+    "tcl_math_isnormal": ("tcl", "tcl_math_isnormal", [ValType.I32], [ValType.I32]),
+    "tcl_math_issubnormal": (
+        "tcl",
+        "tcl_math_issubnormal",
+        [ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_math_fpclassify": (
+        "tcl",
+        "tcl_math_fpclassify",
+        [ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_math_isunordered": (
+        "tcl",
+        "tcl_math_isunordered",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Canonicalise an obj via the expression parser — single-token
     # ``expr {$var}`` semantics.  Returns the canonical numeric obj
     # when the string parses as a Tcl integer / hex / octal / binary /

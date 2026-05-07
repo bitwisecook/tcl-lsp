@@ -1370,9 +1370,16 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "tanh")) return arith.tcl_math_tanh(args[0]);
         if (std.mem.eql(u8, name, "floor")) return arith.tcl_math_floor(args[0]);
         if (std.mem.eql(u8, name, "ceil")) return arith.tcl_math_ceil(args[0]);
+        if (std.mem.eql(u8, name, "isfinite")) return arith.tcl_math_isfinite(args[0]);
+        if (std.mem.eql(u8, name, "isinf")) return arith.tcl_math_isinf(args[0]);
+        if (std.mem.eql(u8, name, "isnan")) return arith.tcl_math_isnan(args[0]);
+        if (std.mem.eql(u8, name, "isnormal")) return arith.tcl_math_isnormal(args[0]);
+        if (std.mem.eql(u8, name, "issubnormal")) return arith.tcl_math_issubnormal(args[0]);
+        if (std.mem.eql(u8, name, "fpclassify")) return arith.tcl_math_fpclassify(args[0]);
     }
     if (args.len == 2) {
         if (std.mem.eql(u8, name, "pow")) return arith.tcl_arith_pow(args[0], args[1]);
+        if (std.mem.eql(u8, name, "isunordered")) return arith.tcl_math_isunordered(args[0], args[1]);
         if (std.mem.eql(u8, name, "atan2")) return arith.tcl_math_atan2(args[0], args[1]);
         if (std.mem.eql(u8, name, "fmod")) return arith.tcl_math_fmod(args[0], args[1]);
         if (std.mem.eql(u8, name, "hypot")) return arith.tcl_math_hypot(args[0], args[1]);

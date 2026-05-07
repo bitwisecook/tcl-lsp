@@ -747,6 +747,80 @@ fn prng() *std.Random.DefaultPrng {
     return &g_prng;
 }
 
+// IEEE-754 float classification helpers — TIP 519 / Tcl 9.0
+// added ``isfinite`` / ``isinf`` / ``isnan`` / ``isnormal`` /
+// ``issubnormal`` / ``isunordered`` math functions and a separate
+// ``fpclassify`` command.  All take a number-shaped operand and
+// return a 0/1 boolean (``isunordered`` takes two operands).
+
+fn float_value_or_int(o: i32) f64 {
+    // Return the float view of *o* — the existing ``obj_get_float``
+    // does this conversion already, but it returns 0 for null and
+    // sets the error path for non-numeric strings.  We want the
+    // bare cast so the predicate functions can answer correctly.
+    if (is_float(o)) return obj.obj_get_float(o);
+    return obj.obj_get_float(o);
+}
+
+pub export fn tcl_math_isfinite(a: i32) i32 {
+    const f = float_value_or_int(a);
+    return obj.obj_new_int(if (std.math.isFinite(f)) 1 else 0);
+}
+
+pub export fn tcl_math_isinf(a: i32) i32 {
+    const f = float_value_or_int(a);
+    return obj.obj_new_int(if (std.math.isInf(f)) 1 else 0);
+}
+
+pub export fn tcl_math_isnan(a: i32) i32 {
+    const f = float_value_or_int(a);
+    return obj.obj_new_int(if (std.math.isNan(f)) 1 else 0);
+}
+
+pub export fn tcl_math_isnormal(a: i32) i32 {
+    const f = float_value_or_int(a);
+    return obj.obj_new_int(if (std.math.isNormal(f)) 1 else 0);
+}
+
+pub export fn tcl_math_issubnormal(a: i32) i32 {
+    const f = float_value_or_int(a);
+    // Subnormal: finite, non-zero, and the absolute value is below
+    // the smallest normal positive double (2^-1022).
+    const abs_f = @abs(f);
+    const min_normal: f64 = std.math.floatMin(f64);
+    const is_sub = std.math.isFinite(f) and f != 0.0 and abs_f < min_normal;
+    return obj.obj_new_int(if (is_sub) 1 else 0);
+}
+
+pub export fn tcl_math_isunordered(a: i32, b: i32) i32 {
+    const af = float_value_or_int(a);
+    const bf = float_value_or_int(b);
+    return obj.obj_new_int(if (std.math.isNan(af) or std.math.isNan(bf)) 1 else 0);
+}
+
+/// fpclassify(x) — returns the IEEE-754 classification name as a
+/// string: ``"zero"`` / ``"subnormal"`` / ``"normal"`` / ``"infinite"``
+/// / ``"nan"``.  Reference Tcl 9 exposes this via the
+/// ``::tcl::mathfunc::fpclassify`` namespace command but the math-
+/// function path is also legitimate (TIP 519) — we route the math-
+/// function dispatch to this helper so ``expr {fpclassify($v)}`` works
+/// even though the test bundle's main usage is the ``fpclassify``
+/// command form.
+pub export fn tcl_math_fpclassify(a: i32) i32 {
+    const f = float_value_or_int(a);
+    const lit: []const u8 = if (std.math.isNan(f))
+        "nan"
+    else if (std.math.isInf(f))
+        "infinite"
+    else if (f == 0.0)
+        "zero"
+    else if (@abs(f) < std.math.floatMin(f64))
+        "subnormal"
+    else
+        "normal";
+    return obj.obj_new_string_copy(@intFromPtr(lit.ptr), @intCast(lit.len));
+}
+
 /// rand() — uniform random float in ``[0.0, 1.0)``.  The PRNG is
 /// auto-seeded on first call; explicit reseed is via :func:`tcl_math_srand`.
 pub export fn tcl_math_rand() i32 {

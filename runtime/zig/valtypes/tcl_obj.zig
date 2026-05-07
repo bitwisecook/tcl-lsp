@@ -785,6 +785,14 @@ pub fn try_parse_bool(ptr: u32, len: u32) ?i64 {
 
 const std_eq = chars.slice_eq;
 
+fn slice_eq_local(a: []const u8, b: []const u8) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |ca, cb| {
+        if (ca != cb) return false;
+    }
+    return true;
+}
+
 pub fn try_parse_int(ptr: u32, len: u32) ?i64 {
     if (len == 0) return null;
     const src: [*]const u8 = @ptrFromInt(ptr);
@@ -838,8 +846,37 @@ pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
     while (i < len and is_space(src[i])) i += 1;
     if (i >= len) return null;
     const start = i;
-    if (src[i] == '-' or src[i] == '+') i += 1;
+    var negative = false;
+    if (src[i] == '-' or src[i] == '+') {
+        negative = src[i] == '-';
+        i += 1;
+    }
     if (i >= len) return null;
+    // Tcl 9 ``Inf`` / ``Infinity`` / ``NaN`` literals (case-insensitive).
+    // Without this, ``set x NaN ; expr {isnan($x)}`` returned 0 because
+    // ``obj_get_float`` fell back to ``0.0`` for the unparsed string.
+    const tail_len = len - i;
+    if (tail_len == 3 or tail_len == 8) {
+        var buf: [9]u8 = undefined;
+        var k: u32 = 0;
+        while (k < tail_len and i + k < len) : (k += 1) {
+            const c = src[i + k];
+            buf[k] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+        }
+        // Trailing whitespace allowed.
+        var j: u32 = i + tail_len;
+        while (j < len and is_space(src[j])) j += 1;
+        if (j == len) {
+            const lc = buf[0..tail_len];
+            if (slice_eq_local(lc, "nan")) return std.math.nan(f64);
+            if (slice_eq_local(lc, "inf")) {
+                return if (negative) -std.math.inf(f64) else std.math.inf(f64);
+            }
+            if (slice_eq_local(lc, "infinity")) {
+                return if (negative) -std.math.inf(f64) else std.math.inf(f64);
+            }
+        }
+    }
     var has_dot = false;
     var has_exp = false;
     var has_digit = false;
