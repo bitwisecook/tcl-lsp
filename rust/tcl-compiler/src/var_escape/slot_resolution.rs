@@ -168,6 +168,23 @@ fn walk_statements<'a>(script: &'a Script, out: &mut Vec<&'a Statement>) {
 fn stmt_disables_slots(stmt: &Statement, ineligible_names: &mut HashSet<String>) -> bool {
     match stmt {
         Statement::Barrier { .. } => true,
+        // Dynamic-name writes via the `Assign*` / `Incr` variants
+        // would target any local at runtime; we can't know which
+        // one and indexed storage can't satisfy the by-name lookup
+        // the runtime would perform.  Disable the whole proc.
+        // Mirrors the spirit of the Python pass's ``::set $name v``
+        // handling (Codex review on PR #374); the Rust IR lowering
+        // can preserve dynamic names on these variants directly,
+        // unlike Python which always routes them through an
+        // ``IRCall ::set``.
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. }
+            if name.is_empty() || is_dynamic_value(name) =>
+        {
+            true
+        }
         Statement::Call { command, args, .. } => {
             if is_dynamic_value(command) {
                 return true;
@@ -586,6 +603,56 @@ mod tests {
         for i in LOCALS_ARRAY_CAP..(LOCALS_ARRAY_CAP + 5) {
             assert!(!slots.contains_key(&format!("v{i}")));
         }
+    }
+
+    #[test]
+    fn dynamic_assign_value_name_disables_whole_proc() {
+        // Lowering may produce ``Statement::AssignValue { name:
+        // "$varname", .. }`` directly when the source ``set
+        // $varname v`` doesn't get re-routed through an ``IRCall``.
+        // Without this guard the slot map could include locals
+        // that the dynamic write may target at runtime — Codex
+        // review on PR #374.
+        let s = ProcEscapeSummary::default();
+        let body = script_with(vec![
+            assign_const("x", "1"),
+            Statement::AssignValue {
+                span: Span::new(0, 0),
+                name: "$varname".into(),
+                value: "v".into(),
+                value_needs_backsubst: false,
+                tokens: None,
+            },
+        ]);
+        let slots = assign_local_slots(&body, &s, &[]);
+        assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn dynamic_incr_name_disables_whole_proc() {
+        // Same shape via the ``Incr`` variant.
+        let s = ProcEscapeSummary::default();
+        let body = script_with(vec![
+            assign_const("x", "1"),
+            Statement::Incr {
+                span: Span::new(0, 0),
+                name: "$varname".into(),
+                amount: None,
+                safe_on_uninit: false,
+            },
+        ]);
+        let slots = assign_local_slots(&body, &s, &[]);
+        assert!(slots.is_empty());
+    }
+
+    #[test]
+    fn empty_assign_name_disables_whole_proc() {
+        // Defensive: an empty name (lowering pathology) is also
+        // dynamic-by-effect — disable.
+        let s = ProcEscapeSummary::default();
+        let body = script_with(vec![assign_const("", "1")]);
+        let slots = assign_local_slots(&body, &s, &[]);
+        assert!(slots.is_empty());
     }
 
     #[test]
