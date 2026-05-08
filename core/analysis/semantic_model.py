@@ -83,6 +83,9 @@ class VarDef:
     definition_range: Range
     references: list[Range] = field(default_factory=list)
     warn_if_unused: bool = False
+    # Element names observed for array variables, e.g. ``set arr(foo) 1`` /
+    # ``puts $arr(bar)`` populate ``{"foo", "bar"}``.  Empty for scalar vars.
+    array_indices: set[str] = field(default_factory=set)
 
 
 # Procedure parameter
@@ -195,7 +198,13 @@ class Scope:
             parent=parent,
             body_range=self.body_range,  # frozen — shared reference
             variables={
-                k: VarDef(v.name, v.definition_range, list(v.references), v.warn_if_unused)
+                k: VarDef(
+                    v.name,
+                    v.definition_range,
+                    list(v.references),
+                    v.warn_if_unused,
+                    set(v.array_indices),
+                )
                 for k, v in self.variables.items()
             },
             procs={
@@ -530,7 +539,13 @@ class AnalysisResult:
             for k, v in self.all_procs.items()
         }
         new_vars = {
-            k: VarDef(v.name, v.definition_range, v.references[:], v.warn_if_unused)
+            k: VarDef(
+                v.name,
+                v.definition_range,
+                v.references[:],
+                v.warn_if_unused,
+                set(v.array_indices),
+            )
             for k, v in self.all_variables.items()
         }
         return AnalysisResult(

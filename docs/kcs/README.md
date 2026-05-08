@@ -76,6 +76,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-tcl-corner-cases.md](kcs-tcl-corner-cases.md)
+  — empirical reference of Tcl 9.0.3 variable-handling behaviour
+  with a machine-runnable probe set in `tests/data/tcl_probes_full.tcl`.
 
 ## Tcl 9 correctness
 
