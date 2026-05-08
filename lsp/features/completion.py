@@ -38,12 +38,29 @@ def _var_needs_braces(name: str) -> bool:
     return not _BARE_VAR_NAME_RE.match(name)
 
 
+def _root_global_scope(scope: Scope) -> Scope:
+    """Walk to the root of the lexical tree (always the global scope)."""
+    s = scope
+    while s.parent is not None:
+        s = s.parent
+    return s
+
+
 def _collect_vars_from_scope(scope: Scope) -> list[str]:
-    """Collect variable names from scope and ancestors."""
+    """Collect variable names from scope and ancestors.
+
+    A ``Scope(kind="uplevel")`` short-circuits the lexical-parent walk
+    and redirects to the global scope -- modelling Tcl's runtime
+    behaviour where ``uplevel #0`` body lookups happen in the global
+    frame, skipping the calling proc's locals."""
     names: list[str] = []
     current: Scope | None = scope
     while current is not None:
         names.extend(current.variables.keys())
+        if current.kind == "uplevel":
+            global_scope = _root_global_scope(current)
+            names.extend(global_scope.variables.keys())
+            break
         current = current.parent
     return sorted(set(names))
 
@@ -63,10 +80,18 @@ def _qualified_var_name(scope: Scope, var_name: str) -> str:
 def _lexical_namespace_chain(scope: Scope) -> set[str]:
     """Return the names of every namespace/global scope in the lexical
     chain from ``scope`` up to the root.  Used to skip cross-namespace
-    candidates that are already covered by the bare-name parent walk."""
+    candidates that are already covered by the bare-name parent walk.
+
+    Inside an ``uplevel #0`` body the runtime namespace chain is just
+    ``{"::"}`` regardless of where the body appears lexically -- so the
+    surrounding namespace's vars must show up as cross-namespace
+    qualified candidates rather than be hidden as "in chain"."""
     chain: set[str] = set()
     current: Scope | None = scope
     while current is not None:
+        if current.kind == "uplevel":
+            chain.add("::")
+            return chain
         if current.kind in ("namespace", "global"):
             chain.add(current.name)
         current = current.parent
@@ -319,22 +344,31 @@ def get_completions(
             and dollar_col + 1 < line_len
             and line_text_for_var[dollar_col + 1] == "{"
         )
-        # Scan forward from the cursor through any remaining var-name chars
-        # and consume an existing closing ``}`` (for the brace form), so the
-        # edit replaces the whole reference -- avoiding leftover suffix text
-        # like ``$nameeting`` from ``$gre|eting`` or duplicated braces from
-        # ``${gre|}``.
+        # Scan forward from the cursor to the end of the existing var
+        # reference so the edit replaces the whole token (avoiding
+        # leftover suffix text like ``$nameeting`` from ``$gre|eting``
+        # or duplicated braces from ``${gre|}``).
+        #
+        # In brace form (``${...}``), Tcl's lexer accepts ANY character
+        # up to the closing ``}`` -- including ``-``, spaces, dots --
+        # so the forward scan must mirror that and consume everything
+        # until ``}``.  In bare form, only alnum / ``_`` / ``::`` are
+        # valid var-name chars.
         end_col = cursor_col
-        while end_col < line_len:
-            ch = line_text_for_var[end_col]
-            if ch.isalnum() or ch == "_":
+        if has_open_brace:
+            while end_col < line_len and line_text_for_var[end_col] != "}":
                 end_col += 1
-            elif ch == ":" and end_col + 1 < line_len and line_text_for_var[end_col + 1] == ":":
-                end_col += 2
-            else:
-                break
-        if has_open_brace and end_col < line_len and line_text_for_var[end_col] == "}":
-            end_col += 1
+            if end_col < line_len and line_text_for_var[end_col] == "}":
+                end_col += 1
+        else:
+            while end_col < line_len:
+                ch = line_text_for_var[end_col]
+                if ch.isalnum() or ch == "_":
+                    end_col += 1
+                elif ch == ":" and end_col + 1 < line_len and line_text_for_var[end_col + 1] == ":":
+                    end_col += 2
+                else:
+                    break
         var_edit_range: types.Range | None = None
         if dollar_col >= 0:
             var_edit_range = types.Range(

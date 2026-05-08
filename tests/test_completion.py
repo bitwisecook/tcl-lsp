@@ -183,6 +183,24 @@ class TestVariableCompletion:
         assert item.text_edit.range.end.character == 16
         assert item.text_edit.new_text == "${greeting}"
 
+    def test_dollar_text_edit_brace_midword_with_hyphenated_name(self):
+        """``${foo|-bar}`` -- the brace form accepts any chars except
+        ``}``, so the forward scan must consume the whole ``${foo-bar}``
+        token (not stop at the ``-``).  Otherwise the TextEdit leaves
+        ``-bar}`` in the buffer after acceptance."""
+        source = 'set "foo-bar" 1\nputs ${foo-bar}'
+        # Cursor right after ``${foo`` on line 1 (col 10).
+        items = get_completions(source, 1, 10)
+        by_label = {i.label: i for i in items}
+        assert "$foo-bar" in by_label
+        item = by_label["$foo-bar"]
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        # Range must cover the entire ``${foo-bar}`` (col 5..15).
+        assert item.text_edit.range.start.character == 5
+        assert item.text_edit.range.end.character == 15
+        assert item.text_edit.new_text == "${foo-bar}"
+
     def test_dollar_auto_braces_var_name_with_hyphen(self):
         """A name with a ``-`` cannot live in bare ``$name`` form, so the
         completion must promote to ``${name}`` even if the user only typed
@@ -390,6 +408,32 @@ class TestVariableCompletion:
         labels = [i.label for i in items]
         assert "$name" in labels
         assert "$age" in labels
+
+    def test_dollar_completion_uplevel_zero_survives_analysis_copy(self):
+        """The ``uplevel #0`` synthetic scope must round-trip through
+        ``AnalysisResult.copy_for_snapshot`` -- the scope tree is copied
+        recursively and the parent pointer is rewritten to the new
+        lexical parent, so the redirect-to-global behaviour can't depend
+        on a parent pointer that points outside the local subtree."""
+        from core.analysis import analyse
+
+        source = textwrap.dedent("""\
+            set ::globalvar 9
+            proc p {} {
+                set local_var 1
+                uplevel #0 {
+                    set inside_var 99
+                    puts $
+                }
+            }
+        """)
+        original = analyse(source)
+        snapshot = original.copy_for_snapshot()
+        items = get_completions(source, 5, 18, analysis=snapshot)
+        labels = [i.label for i in items]
+        assert "$inside_var" in labels
+        assert "$::globalvar" in labels
+        assert "$local_var" not in labels
 
     def test_dollar_completion_uplevel_zero_uses_global_scope(self):
         """``uplevel #0 { body }`` runs body in the global frame -- the

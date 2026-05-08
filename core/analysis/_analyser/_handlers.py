@@ -276,18 +276,19 @@ class _AnalyserHandlersMixin(_Base):
         scope: Scope,
     ) -> bool:
         """``uplevel ?level? body ?body ...?`` runs the body in another
-        stack frame.  We can model ``uplevel #0`` (absolute global frame)
-        by analysing the body in a synthetic scope whose lexical parent
-        in the tree is ``scope`` (so ``find_scope_at_line`` descends into
-        it) but whose ``parent`` reference is the global scope (so
-        variable lookup chains skip the calling proc's locals -- those
-        aren't reachable from the global frame at runtime).  Other levels
-        depend on the dynamic caller and aren't resolvable statically."""
+        stack frame.  For ``uplevel #0`` we model the body with a
+        ``Scope(kind="uplevel")`` that is a regular child of the
+        lexical containing scope (so ``find_scope_at_line`` descends
+        normally and ``Scope._copy_tree`` round-trips the parent
+        pointer correctly).  The "look up vars in the global frame
+        instead of the proc's locals" semantics is implemented by
+        the completion-side helpers special-casing ``kind=="uplevel"``
+        when they walk the parent chain.  Other levels depend on the
+        dynamic caller and aren't resolvable statically."""
         if cmd_name != "uplevel" or not args or not arg_tokens:
             return False
         if args[0] != "#0":
             return False
-        global_scope = self.result.global_scope
         for i in range(1, len(args)):
             if i >= len(arg_tokens):
                 continue
@@ -295,7 +296,7 @@ class _AnalyserHandlersMixin(_Base):
             synthetic = Scope(
                 kind="uplevel",
                 name="<uplevel#0>",
-                parent=global_scope,
+                parent=scope,
                 body_range=range_from_token(body_tok),
             )
             scope.children.append(synthetic)
