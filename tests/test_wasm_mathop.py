@@ -268,3 +268,43 @@ puts [namespace exists ::tcl::mathop_BOGUS]
 """
     )
     assert out == "1\n0"
+
+
+def test_namespace_import_mathop_partial_glob() -> None:
+    """The trailing simple-name component of an import spec is matched
+    by the standard Tcl ``string match`` glob — ``m*`` brings in
+    ``min``/``max`` only, not the rest of the ensemble."""
+    out = _run(
+        """
+namespace eval ::partial {
+    namespace import ::tcl::mathop::m*
+}
+puts [lsort [info commands ::partial::*]]
+puts [::partial::min 5 2 7]
+puts [::partial::max 5 2 7]
+"""
+    )
+    # ``info commands`` returns simple names from the queried ns.
+    assert out == "max min\n2\n7"
+
+
+def test_namespace_import_after_explicit_namespace_eval() -> None:
+    """A user that has already opened the source namespace explicitly
+    (``namespace eval ::tcl::mathop {}``) without populating it must
+    still see the BUILTINS forwards when they later import — the
+    materialiser fires unconditionally so the import isn't silently
+    a no-op against an empty cmd_table."""
+    out = _run(
+        """
+# Pre-create the ns the user-visible way (empty body).  Without
+# unconditional materialisation, the import below would walk an
+# empty cmd_table and bring nothing across.
+namespace eval ::tcl::mathop {}
+namespace eval ::dst {
+    namespace import ::tcl::mathop::*
+}
+puts [::dst::+ 1 2 3]
+puts [::dst::== 1 1 1]
+"""
+    )
+    assert out == "6\n1"
