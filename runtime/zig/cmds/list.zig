@@ -677,7 +677,17 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
             if (cnt <= 0) return result_mod.from_globals(obj_new_string(0, 0));
             if (idx + 1 < words.len) step_val = rt.obj_get_int(words[idx + 1]);
             if (step_val == 0) return result_mod.from_globals(obj_new_string(0, 0));
-            end_val = start_val + (cnt - 1) * step_val;
+            // (cnt - 1) * step can overflow when cnt or step were
+            // clamped from out-of-range floats (e.g. ``1e50``).
+            // Bail to an empty list rather than panicking on
+            // i64-overflow safety checks.
+            const cnt_m1 = @subWithOverflow(cnt, 1);
+            if (cnt_m1[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+            const prod = @mulWithOverflow(cnt_m1[0], step_val);
+            if (prod[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+            const sum = @addWithOverflow(start_val, prod[0]);
+            if (sum[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+            end_val = sum[0];
             have_step = true;
         } else {
             end_val = rt.obj_get_int(words[idx]);
@@ -713,8 +723,17 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
     // of hanging the test runner.  The cap is conservative — well
     // above any realistic production lseq — but small enough that
     // a runaway terminates in <100ms.
+    //
+    // Use overflow-safe subtraction: when start/end are at the i64
+    // extremes (e.g. clamped from ``1e50``) the unguarded ``end - start``
+    // would itself trip the integer-overflow safety panic.
     const max_count: i64 = 16 * 1024 * 1024; // 16 M elements
-    const span: i64 = if (step_val > 0) end_val - start_val else start_val - end_val;
+    const span_res = if (step_val > 0)
+        @subWithOverflow(end_val, start_val)
+    else
+        @subWithOverflow(start_val, end_val);
+    if (span_res[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+    const span: i64 = span_res[0];
     if (span < 0 or @divTrunc(span, if (step_val > 0) step_val else -step_val) > max_count) {
         return result_mod.from_globals(obj_new_string(0, 0));
     }
@@ -722,9 +741,22 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
     var acc: i32 = obj_new_string(0, 0);
     var i: i64 = start_val;
     if (step_val > 0) {
-        while (i <= end_val) : (i += step_val) acc = rt.tcl_list(acc, obj_new_int(i));
+        while (i <= end_val) {
+            acc = rt.tcl_list(acc, obj_new_int(i));
+            // Stop before the increment overflows — this can happen
+            // when ``end_val`` is at i64_max (clamped from a float)
+            // and the loop emits the final element.
+            const next = @addWithOverflow(i, step_val);
+            if (next[1] != 0) break;
+            i = next[0];
+        }
     } else {
-        while (i >= end_val) : (i += step_val) acc = rt.tcl_list(acc, obj_new_int(i));
+        while (i >= end_val) {
+            acc = rt.tcl_list(acc, obj_new_int(i));
+            const next = @addWithOverflow(i, step_val);
+            if (next[1] != 0) break;
+            i = next[0];
+        }
     }
     return result_mod.from_globals(acc);
 }
