@@ -42,7 +42,7 @@ class TestSubstNonAsciiAfterDollar:
     def test_subst_dollar_dot_dollar(self) -> None:
         # ``$.`` and ``$$`` mirror parse-12.18: the dollar is literal
         # whenever the next byte does not start an identifier.
-        stdout, _ = _run('puts [subst {$.$$}]\n')
+        stdout, _ = _run("puts [subst {$.$$}]\n")
         assert stdout.strip() == "$.$$"
 
 
@@ -54,11 +54,7 @@ class TestStringSubcommandUnderArity:
     """
 
     def test_string_index_no_args(self) -> None:
-        src = (
-            "catch {string index} b\n"
-            "puts $b\n"
-            'puts [info exists ::errorInfo]\n'
-        )
+        src = "catch {string index} b\nputs $b\nputs [info exists ::errorInfo]\n"
         stdout, _ = _run(src)
         lines = stdout.splitlines()
         assert lines[0] == 'wrong # args: should be "string index string charIndex"'
@@ -73,12 +69,7 @@ class TestStringSubcommandUnderArity:
         # silently returned the empty string with no ``::errorInfo``
         # update — error-1.3 / 1.6 / 1.7 then could not match the
         # expected error trace.
-        src = (
-            "catch {string index} b\n"
-            "puts $b\n"
-            "puts [info exists ::errorInfo]\n"
-            "puts $::errorInfo\n"
-        )
+        src = "catch {string index} b\nputs $b\nputs [info exists ::errorInfo]\nputs $::errorInfo\n"
         stdout, _ = _run(src)
         lines = stdout.splitlines()
         assert lines[0] == 'wrong # args: should be "string index string charIndex"'
@@ -121,16 +112,11 @@ class TestTcltestInternalsBootstrap:
     """
 
     def test_double_quoted_empty_eq(self) -> None:
-        stdout, _ = _run(
-            'puts [expr {[namespace which -command ::nope] eq ""}]\n'
-        )
+        stdout, _ = _run('puts [expr {[namespace which -command ::nope] eq ""}]\n')
         assert stdout.strip() == "1"
 
     def test_double_quoted_literal_eq(self) -> None:
-        stdout, _ = _run(
-            "set x abc\n"
-            'puts [expr {$x eq "abc"}]\n'
-        )
+        stdout, _ = _run('set x abc\nputs [expr {$x eq "abc"}]\n')
         assert stdout.strip() == "1"
 
 
