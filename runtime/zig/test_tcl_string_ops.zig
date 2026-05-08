@@ -219,6 +219,36 @@ test "string_replace — substitute range with new bytes" {
     );
 }
 
+// ---- insert ---------------------------------------------------------
+
+test "string_insert — start, middle, end (integer indices)" {
+    try testing.expectEqualStrings("_0123", bytes(str.string_insert(s("0123"), i(0), s("_"))));
+    try testing.expectEqualStrings("01_23", bytes(str.string_insert(s("0123"), i(2), s("_"))));
+    try testing.expectEqualStrings("0123_", bytes(str.string_insert(s("0123"), i(4), s("_"))));
+}
+
+test "string_insert — end / end-N (insertion-point semantics)" {
+    // ``end`` resolves to ``length`` (one past last char), unlike
+    // ``string index`` where ``end`` is ``length-1``.  Matches
+    // ``StringInsertCmd`` in upstream ``tclCmdMZ.c``.
+    try testing.expectEqualStrings("0123_", bytes(str.string_insert(s("0123"), s("end"), s("_"))));
+    try testing.expectEqualStrings("01_23", bytes(str.string_insert(s("0123"), s("end-2"), s("_"))));
+    try testing.expectEqualStrings("_0123", bytes(str.string_insert(s("0123"), s("end-4"), s("_"))));
+}
+
+test "string_insert — clamps out-of-range indices" {
+    // Negative indices clamp to 0 (prepend).
+    try testing.expectEqualStrings("_0123", bytes(str.string_insert(s("0123"), i(-1), s("_"))));
+    // Indices past the end clamp to length (append).
+    try testing.expectEqualStrings("0123_", bytes(str.string_insert(s("0123"), i(5), s("_"))));
+}
+
+test "string_insert — empty operands" {
+    try testing.expectEqualStrings("_", bytes(str.string_insert(s(""), i(0), s("_"))));
+    try testing.expectEqualStrings("0123", bytes(str.string_insert(s("0123"), i(0), s(""))));
+    try testing.expectEqualStrings("", bytes(str.string_insert(s(""), i(0), s(""))));
+}
+
 // ---- string_is_* predicates ----------------------------------------
 
 test "string_is_integer" {

@@ -688,6 +688,28 @@ fn eval_command(words: []const i32) i32 {
             // ensemble form by synthesising a ``words[]`` slice
             // with the subcommand spliced in.
             if (try_ensemble_rewrite(cmd_s, words)) |result| return result;
+        } else if (cmd_s.len >= 5 and cmd_p[0] == 't' and cmd_p[1] == 'c' and
+            cmd_p[2] == 'l' and cmd_p[3] == ':' and cmd_p[4] == ':')
+        {
+            // Relative-qualified ``tcl::ENSEMBLE::SUBCMD`` from the
+            // global namespace — Tcl resolves this to
+            // ``::tcl::ENSEMBLE::SUBCMD``.  Upstream string-31.x and
+            // string-24.x test bodies invoke ``tcl::string::insert``
+            // / ``tcl::string::reverse`` directly, which would
+            // otherwise miss the FQ rewrite above.  Re-dispatch via
+            // the same ensemble route.
+            //
+            // Restricted to the root namespace: ``namespace eval ::foo
+            // { tcl::string::reverse $s }`` should resolve relative
+            // to ``::foo`` first (``::foo::tcl::string::reverse``)
+            // per Tcl's name-resolution rules, so the fallback only
+            // fires when the caller is at ``::``.  ``current_ns``
+            // is zero-or-root in both the uninitialised and explicit
+            // root cases (see :fn:`tcl_ns.ns_current`).
+            const cur = tcl_ns.current_ns;
+            if (cur == 0 or cur == tcl_ns.ns_root()) {
+                if (try_ensemble_rewrite_relative(cmd_s, words)) |result| return result;
+            }
         }
     }
 
@@ -734,6 +756,48 @@ fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
     // Build a synthesised words[] with the ensemble at [0], subcmd at
     // [1], and the caller's args[1..] at [2..].  Use the bump
     // allocator — the slice lives only for the handler call.
+    const total: u32 = @as(u32, @intCast(words.len)) + 1;
+    const buf = obj_mod.alloc(total * 4);
+    const slot: [*]i32 = @ptrFromInt(buf);
+    slot[0] = obj_mod.obj_new_string(@bitCast(ens_ptr), @bitCast(ens_len));
+    slot[1] = obj_mod.obj_new_string(@bitCast(sub_ptr), @bitCast(sub_len));
+    var k: u32 = 1;
+    while (k < words.len) : (k += 1) {
+        slot[k + 1] = words[k];
+    }
+    return handler(slot[0..total]).value;
+}
+
+/// Same as :fn:`try_ensemble_rewrite` but for the relative-qualified
+/// form ``tcl::ENSEMBLE::SUBCMD`` (no leading ``::``).  Tcl resolves
+/// such a name from the global namespace as if it were
+/// ``::tcl::ENSEMBLE::SUBCMD``; this helper is the runtime hook so
+/// upstream tests that invoke ``tcl::string::insert`` /
+/// ``tcl::string::reverse`` directly land on the same dispatch path
+/// as the ``::``-prefixed form.
+fn try_ensemble_rewrite_relative(cmd_s: anytype, words: []const i32) ?i32 {
+    if (cmd_s.len < 9) return null; // ``tcl::X::Y`` is 9 minimum
+    const p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+    const prefix = "tcl::";
+    inline for (prefix, 0..) |c, i| {
+        if (p[i] != c) return null;
+    }
+    var i: u32 = prefix.len;
+    var ens_end: u32 = 0;
+    while (i + 1 < cmd_s.len) : (i += 1) {
+        if (p[i] == ':' and p[i + 1] == ':') {
+            ens_end = i;
+            break;
+        }
+    }
+    if (ens_end == 0 or ens_end + 2 >= cmd_s.len) return null;
+    const ens_ptr = cmd_s.ptr + prefix.len;
+    const ens_len: u32 = ens_end - prefix.len;
+    const sub_ptr = cmd_s.ptr + ens_end + 2;
+    const sub_len: u32 = cmd_s.len - ens_end - 2;
+
+    const handler = cmd_table.lookup(ens_ptr, ens_len) orelse return null;
+
     const total: u32 = @as(u32, @intCast(words.len)) + 1;
     const buf = obj_mod.alloc(total * 4);
     const slot: [*]i32 = @ptrFromInt(buf);

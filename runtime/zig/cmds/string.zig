@@ -125,6 +125,12 @@ const sub_arity_table: []const SubArityRule = &.{
         .message = "wrong # args: should be \"string replace string first last ?string?\"",
     },
     .{
+        .name = "insert",
+        .min_words = 5,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string insert string index insertString\"",
+    },
+    .{
         .name = "match",
         .min_words = 4,
         .max_words = 5,
@@ -352,6 +358,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "reverse")) return result_mod.from_globals(rt.string_reverse(words[2]));
     if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
+    if (str_eq(sp, sub.len, "insert") and words.len >= 5) return result_mod.from_globals(rt.string_insert(words[2], words[3], words[4]));
     if (str_eq(sp, sub.len, "is")) {
         // ``string is class ?-strict? ?-failindex var? str``
         // Find the class name (words[2]) and the final string arg.
