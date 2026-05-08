@@ -272,15 +272,17 @@ impl Analyser {
                 .suppressed_lines
                 .insert(-1, file_codes.iter().cloned().collect());
         }
-        // ``# noqa[: CODE,...]`` directives are attached to the
-        // *command following* the comment (matching Python's
-        // ``_core.py`` lines 285-303).  The dispatch loop below
-        // reads ``cmd.preceding_comment`` and attributes the
-        // codes to the command's line range; no top-level
-        // line-based scan here, because a comment line on its
-        // own doesn't carry a target line range — the line-based
-        // shape would mis-attribute to the comment's own line
-        // and miss the actual command being suppressed.
+        // Pre-scan for next-line ``# noqa`` suppressions (issue
+        // #306, Python ``b66f8f9d`` / ``ceb190fc``).  Handles
+        // orphaned noqa at the tail of a brace body and noqa
+        // before a comment line that itself generates a
+        // diagnostic.  Merges into ``suppressed_lines`` alongside
+        // the command-attached ``apply_preceding_noqa`` pass that
+        // runs per segmented command in the dispatch loop below.
+        merge_noqa_line_suppressions(
+            &mut self.result.suppressed_lines,
+            super::utils::parse_noqa_line_suppressions(source),
+        );
         // Inline ``# tcl-lsp: stub …`` block scan.
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.result.stub_commands = stub_cmds;
@@ -423,9 +425,26 @@ impl Analyser {
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
-        for code in super::utils::parse_file_suppression(source) {
-            self.disabled_diagnostics.insert(code);
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
         }
+        if !file_codes.is_empty() {
+            // Mirror ``analyse``'s ``result.suppressed_lines[-1]``
+            // sentinel so downstream consumers see file-wide
+            // ``# tcl-lsp: disable=`` directives via the same
+            // surface regardless of which entry point dispatched
+            // the analyse (Copilot review on PR #371).
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
+        }
+        // Next-line ``# noqa`` pre-scan — see ``analyse`` for
+        // rationale (issue #306).
+        merge_noqa_line_suppressions(
+            &mut self.result.suppressed_lines,
+            super::utils::parse_noqa_line_suppressions(source),
+        );
 
         // Build + stash the dialect-aware registry so
         // ``process_command`` 's body-iteration loop has access
@@ -491,9 +510,24 @@ impl Analyser {
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
-        for code in super::utils::parse_file_suppression(source) {
-            self.disabled_diagnostics.insert(code);
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
         }
+        if !file_codes.is_empty() {
+            // ``-1`` sentinel parity with ``analyse`` — see the
+            // matching block in ``analyse_chunked`` (Copilot
+            // review on PR #371).
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
+        }
+        // Next-line ``# noqa`` pre-scan — see ``analyse`` for
+        // rationale (issue #306).
+        merge_noqa_line_suppressions(
+            &mut self.result.suppressed_lines,
+            super::utils::parse_noqa_line_suppressions(source),
+        );
 
         // Same registry + line-index prelude as
         // ``analyse_chunked`` — see that doc-comment.  Without
@@ -661,6 +695,22 @@ pub(super) fn line_at_offset(line_offsets: &[usize], offset: usize) -> i32 {
     i32::try_from(line_offsets.partition_point(|&p| p < offset)).unwrap_or(i32::MAX)
 }
 
+/// Merge a set of ``# noqa``-derived line suppressions into the
+/// analyser's ``suppressed_lines`` map.
+///
+/// Mirrors the inline-merge block Python writes in
+/// ``Analyser.analyse`` / ``analyse_chunked`` / ``analyse_commands``
+/// after each call to ``parse_noqa_line_suppressions``.  Used by all
+/// three Rust entry points so the merge logic stays in one place.
+pub(super) fn merge_noqa_line_suppressions(
+    suppressed_lines: &mut std::collections::HashMap<i32, std::collections::HashSet<String>>,
+    line_codes: std::collections::HashMap<i32, std::collections::HashSet<String>>,
+) {
+    for (line, codes) in line_codes {
+        suppressed_lines.entry(line).or_default().extend(codes);
+    }
+}
+
 impl Default for Analyser {
     fn default() -> Self {
         Self::new()
@@ -746,6 +796,44 @@ mod tests {
         let _ = a.analyse("# tcl-lsp: disable=W210,W211\nproc foo {} {}\n", "tcl");
         assert!(a.disabled_diagnostics.contains("W210"));
         assert!(a.disabled_diagnostics.contains("W211"));
+    }
+
+    #[test]
+    fn analyse_threads_next_line_noqa_into_suppressed_lines() {
+        // A ``# noqa`` comment on its own line must seed
+        // ``suppressed_lines`` for the *following* line via the
+        // ``parse_noqa_line_suppressions`` pre-scan.  Mirrors the
+        // Python merge block in ``_core.py`` post commit
+        // ``ceb190fc`` (issue #306).  Line 0 carries the ``# noqa``
+        // directive so line 1 should be in the map.
+        let mut a = Analyser::new();
+        let r = a.analyse("# noqa\nset x 1\n", "tcl");
+        let codes = r.suppressed_lines.get(&1).expect("line 1 entry");
+        assert!(codes.contains("*"));
+    }
+
+    #[test]
+    fn analyse_chunked_threads_next_line_noqa_into_suppressed_lines() {
+        // Same wiring through ``analyse_chunked`` — the LSP's
+        // primary incremental entry point.
+        use crate::segmenter::SegmentedCommand;
+        let mut a = Analyser::new();
+        let cmds: Vec<Vec<SegmentedCommand>> = vec![Vec::new()];
+        let (r, _) = a.analyse_chunked("# noqa: W210\nset x 1\n", cmds, "tcl");
+        let codes = r.suppressed_lines.get(&1).expect("line 1 entry");
+        assert!(codes.contains("W210"));
+    }
+
+    #[test]
+    fn analyse_commands_threads_next_line_noqa_into_suppressed_lines() {
+        // Same wiring through ``analyse_commands`` — the snapshot-
+        // restore entry point.
+        use crate::segmenter::SegmentedCommand;
+        let mut a = Analyser::new();
+        let cmds: Vec<SegmentedCommand> = Vec::new();
+        let r = a.analyse_commands("# noqa: W210\nset x 1\n", &cmds, "tcl", true);
+        let codes = r.suppressed_lines.get(&1).expect("line 1 entry");
+        assert!(codes.contains("W210"));
     }
 
     #[test]
@@ -2292,5 +2380,39 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("namespace import ::foo::bar\n", "tcl");
         assert!(r.namespace_imports.iter().all(|i| !i.conjectured));
+    }
+
+    #[test]
+    fn analyse_chunked_seeds_file_suppression_minus_one_sentinel() {
+        // ``analyse`` populates ``result.suppressed_lines[-1]`` with
+        // the file-level ``# tcl-lsp: disable=`` set; verify
+        // ``analyse_chunked`` does the same so consumers see the
+        // file-wide directives via the same surface regardless of
+        // which entry point dispatched (Copilot review on PR #371).
+        use crate::segmenter::SegmentedCommand;
+        let mut a = Analyser::new();
+        let cmds: Vec<Vec<SegmentedCommand>> = vec![Vec::new()];
+        let (r, _) = a.analyse_chunked("# tcl-lsp: disable=W210,W211\nset x 1\n", cmds, "tcl");
+        let codes = r.suppressed_lines.get(&-1).expect("-1 sentinel");
+        assert!(codes.contains("W210"));
+        assert!(codes.contains("W211"));
+    }
+
+    #[test]
+    fn analyse_commands_seeds_file_suppression_minus_one_sentinel() {
+        // Same parity assertion through ``analyse_commands`` — the
+        // snapshot-restore entry point.
+        use crate::segmenter::SegmentedCommand;
+        let mut a = Analyser::new();
+        let cmds: Vec<SegmentedCommand> = Vec::new();
+        let r = a.analyse_commands(
+            "# tcl-lsp: disable=W210,W211\nset x 1\n",
+            &cmds,
+            "tcl",
+            true,
+        );
+        let codes = r.suppressed_lines.get(&-1).expect("-1 sentinel");
+        assert!(codes.contains("W210"));
+        assert!(codes.contains("W211"));
     }
 }

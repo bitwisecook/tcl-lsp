@@ -63,6 +63,78 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
     codes
 }
 
+/// Scan *source* for ``# noqa`` comment lines and record next-line
+/// suppressions.
+///
+/// Mirrors the `parse_noqa_line_suppressions` helper added to
+/// `core/analysis/_analyser/_utils.py` upstream by commit
+/// ``b66f8f9d`` (issue #306) plus its `_core.py` wiring at commit
+/// ``ceb190fc``.  The `rust` branch's Python tree predates both
+/// commits, so the pre-fix Python lacks both the helper and the
+/// merge block — the references here are to the upstream commits,
+/// not the checked-in Python file.
+///
+/// For each ``# noqa`` / ``# noqa: CODE,…`` comment on line *N*
+/// (0-based), records the suppression codes against line *N+1*.
+/// This covers two cases the command-attached
+/// `apply_preceding_noqa` mechanism cannot reach:
+///
+/// * A ``# noqa`` comment at the tail of a brace body (orphaned —
+///   no following command in that scope), where the diagnostic
+///   fires on the immediately following ``} elseif …`` or similar
+///   line.
+/// * A ``# noqa`` comment placed immediately before another comment
+///   line that itself generates a diagnostic (e.g. W115 on a
+///   ``\\``-continued comment).
+///
+/// The scan is additive — callers are expected to merge the
+/// returned map into ``result.suppressed_lines`` alongside the
+/// existing command-level (`apply_preceding_noqa`) and file-level
+/// (`parse_file_suppression`) passes.
+///
+/// Bare ``# noqa`` (no ``: CODE`` list) is recorded with the `"*"`
+/// sentinel that the suppression filter treats as "every code"
+/// (matches the ``_NOQA_ALL`` constant in Python).
+#[must_use]
+pub fn parse_noqa_line_suppressions(
+    source: &str,
+) -> std::collections::HashMap<i32, HashSet<String>> {
+    let mut result: std::collections::HashMap<i32, HashSet<String>> =
+        std::collections::HashMap::new();
+    for (idx, line) in source.split('\n').enumerate() {
+        let stripped = line.trim();
+        if !stripped.starts_with('#') {
+            continue;
+        }
+        let lower = stripped.to_ascii_lowercase();
+        let Some(noqa_pos) = lower.find("noqa") else {
+            continue;
+        };
+        let rest = stripped[noqa_pos + 4..].trim();
+        let codes: HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':') {
+            let parsed: HashSet<String> = after_colon
+                .split([',', ' ', '\t', '\r', '\n'])
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect();
+            if parsed.is_empty() {
+                std::iter::once("*".to_string()).collect()
+            } else {
+                parsed
+            }
+        } else {
+            std::iter::once("*".to_string()).collect()
+        };
+        let next_line = i32::try_from(idx).unwrap_or(i32::MAX).saturating_add(1);
+        result
+            .entry(next_line)
+            .or_default()
+            .extend(codes.into_iter());
+    }
+    result
+}
+
 /// Scan `source` for inline ``# tcl-lsp: stub <name> ...``
 /// declarations bounded by ``# tcl-lsp: stubs-begin`` /
 /// ``# tcl-lsp: stubs-end`` markers, returning the set of
@@ -695,6 +767,93 @@ mod tests {
         let src = "# Just a comment\nproc foo {} {}\n";
         let codes = parse_file_suppression(src);
         assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_records_next_line_for_bare_noqa() {
+        // Line 0: ``# noqa`` → suppression keyed on line 1 (the next).
+        let src = "# noqa\nset x 1\n";
+        let map = parse_noqa_line_suppressions(src);
+        let codes = map.get(&1).expect("line 1 entry");
+        assert!(codes.contains("*"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_records_specific_codes() {
+        let src = "# noqa: W210, W211\nset x 1\n";
+        let map = parse_noqa_line_suppressions(src);
+        let codes = map.get(&1).expect("line 1 entry");
+        assert!(codes.contains("W210"));
+        assert!(codes.contains("W211"));
+        assert!(!codes.contains("*"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_orphaned_at_brace_tail() {
+        // A ``# noqa`` at the tail of a brace body has no following
+        // command in that scope; it suppresses the line that follows
+        // physically (often a ``} elseif {…}`` header).  Issue #306
+        // case 1.
+        let src = "if {1} {\n    set x 1\n    # noqa\n} elseif {2} {\n    set y 2\n}\n";
+        let map = parse_noqa_line_suppressions(src);
+        // ``# noqa`` is on line 2 (0-based) — suppression keyed on
+        // line 3 (the ``} elseif …`` header).
+        let codes = map.get(&3).expect("line 3 entry");
+        assert!(codes.contains("*"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_before_comment_line() {
+        // ``# noqa`` immediately before another comment line that
+        // generates a diagnostic (e.g. W115 on a backslash-continued
+        // comment).  Issue #306 case 2.
+        let src = "# noqa: W115\n# trailing \\\nset x 1\n";
+        let map = parse_noqa_line_suppressions(src);
+        // ``# noqa`` is line 0 → suppresses line 1 (the W115-bearing
+        // comment).  The diagnostic-bearing comment also has its own
+        // entry registered for the ``# noqa`` shape — the helper
+        // records ``# trailing \`` as carrying no noqa (no ``noqa``
+        // substring), so only line 1 is in the map.
+        let codes = map.get(&1).expect("line 1 entry");
+        assert!(codes.contains("W115"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_unions_codes_when_multiple_noqa_target_same_line() {
+        // Two consecutive noqa comments — the second's next-line is
+        // line 2 (set x 1).  The first's next-line is line 1 (the
+        // second noqa comment).  Both noqa comments carry their own
+        // entries.  Verify line 2 sees only the second noqa's codes;
+        // line 1 sees only the first noqa's codes.
+        let src = "# noqa: W210\n# noqa: W211\nset x 1\n";
+        let map = parse_noqa_line_suppressions(src);
+        assert!(map.get(&1).expect("line 1").contains("W210"));
+        let line2 = map.get(&2).expect("line 2");
+        assert!(line2.contains("W211"));
+        assert!(!line2.contains("W210"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_skips_non_comment_lines() {
+        // The implementation skips any line that isn't ``#``-prefixed
+        // after ``trim()`` (so comments only — code lines, blank
+        // lines, and lines whose ``noqa`` substring sits inside a
+        // Tcl string never seed the map).  Verify line 0 (``set x
+        // "noqa"``) does not produce a line-1 entry: the only entry
+        // comes from the ``# noqa`` on line 1, which seeds line 2.
+        let src = "set x \"noqa\"\n# noqa\nset y 1\n";
+        let map = parse_noqa_line_suppressions(src);
+        assert!(!map.contains_key(&0));
+        assert!(!map.contains_key(&1));
+        // ``# noqa`` on line 1 → suppresses line 2.
+        assert!(map.get(&2).expect("line 2 entry").contains("*"));
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_empty_for_no_directives() {
+        let src = "set x 1\nset y 2\n";
+        let map = parse_noqa_line_suppressions(src);
+        assert!(map.is_empty());
     }
 
     #[test]
