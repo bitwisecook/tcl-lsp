@@ -958,12 +958,14 @@ class _WasmEmitterVarMixin(_Base):
     def _is_frame_only_var(self, name: str) -> bool:
         """True when the escape analysis says ``name`` must live in the runtime frame.
 
-        Only returns True for non-pessimistic procs where analysis
-        specifically proved the var escapes.  Pessimistic procs
-        (``dynamic_barrier=True``) keep today's WASM-local-with-sync
-        behaviour — routing every var through the frame primitives
-        would be a much larger change and the sync path is already
-        correct for that case.
+        Returns True for non-pessimistic procs where analysis
+        specifically proved the var escapes, and ALSO for procs that
+        installed a variable trace on a name (``trace add variable
+        NAME …``).  The trace path is what flips dynamic_barrier=True
+        for many procs, but pessimism without the trace doesn't
+        require frame routing — only trace-having procs need every
+        write to fire ``fire_local_trace`` via ``tcl_local_set``,
+        because the WASM-local-with-sync path doesn't notify traces.
 
         Vars already handled by other routing mechanisms are excluded:
         ``::``-qualified globals go through ``tcl_global_*``;
@@ -973,7 +975,7 @@ class _WasmEmitterVarMixin(_Base):
         circuited by the frame-only branch.
         """
         summary = self._escape_summary
-        if summary is None or summary.dynamic_barrier:
+        if summary is None:
             return False
         if not self._is_proc:
             return False
@@ -983,7 +985,74 @@ class _WasmEmitterVarMixin(_Base):
             return False
         if name.startswith("::"):
             return False
+        if summary.dynamic_barrier:
+            # Pessimistic proc: route through ``tcl_local_set`` only
+            # when the body installed a variable trace whose target
+            # could be this name.  The trace is the only correctness
+            # reason to give up the WASM-local-with-sync hot path —
+            # without it, plain ``set name v`` doesn't need to
+            # broadcast and the per-eval-boundary sync is already
+            # enough.
+            return self._proc_has_var_trace_target(name)
         return summary.is_frame(name)
+
+    def _proc_has_var_trace_target(self, name: str) -> bool:
+        """True when the current proc body contains ``trace add
+        variable NAME …`` (or ``trace remove variable NAME …`` etc.)
+        whose target literal matches *name*.
+
+        Lazily computed on first query and cached on the emitter.
+        Walks every statement in every CFG block looking for an
+        ``IRBarrier`` whose canonical command is ``::trace`` and
+        whose argv shape is ``add|remove|info variable <NAME> …``.
+        Pessimistic over-set: a dynamic name in the trace targeting
+        forces every name to route through ``tcl_local_set``
+        (returns True for any *name*) so the caller stays correct
+        even when the analysis can't pin the target.
+        """
+        cached = self._var_trace_target_set_cache
+        if cached is not None:
+            literal_set, dynamic = cached
+            if dynamic:
+                return True
+            return name in literal_set
+
+        from ....ir import IRBarrier as _IRBarrier
+
+        literal_set: set[str] = set()
+        dynamic = False
+
+        for block in self._cfg.blocks.values():
+            for stmt in block.statements:
+                if not isinstance(stmt, _IRBarrier):
+                    continue
+                cmd = stmt.canonical_command or stmt.command
+                if cmd != "::trace":
+                    continue
+                args = stmt.args
+                if not args:
+                    continue
+                sub = args[0]
+                target: str | None = None
+                if sub in ("add", "remove", "info") and len(args) >= 3:
+                    kind = args[1]
+                    if kind == "variable":
+                        target = args[2]
+                elif sub in ("variable", "vdelete", "vinfo") and len(args) >= 2:
+                    # Legacy positional form: ``trace variable NAME
+                    # OPS CMD`` (or ``trace vdelete``/``vinfo``).
+                    target = args[1]
+                if target is None:
+                    continue
+                if "$" in target or "[" in target or not target:
+                    dynamic = True
+                else:
+                    literal_set.add(target)
+
+        self._var_trace_target_set_cache = (literal_set, dynamic)
+        if dynamic:
+            return True
+        return name in literal_set
 
     def _iter_sync_locals(
         self,

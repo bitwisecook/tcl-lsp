@@ -95,6 +95,55 @@ catch { set _ $arr(missing) }
         assert result == b"array"
 
 
+class TestVarTraceProcLocalFires:
+    """A ``trace add variable NAME …`` registered inside a proc must
+    fire on every subsequent write to NAME from the same proc body —
+    even when escape analysis flagged the proc as pessimistic
+    (``dynamic_barrier=True``) and the codegen would otherwise route
+    the write through the WASM-local-with-sync hot path.
+
+    Pinned regression: pessimistic procs used to write proc-locals
+    via plain ``local.set`` to a WASM-local slot without firing
+    ``fire_local_trace`` — so a body like ``proc p {} { trace add
+    variable x write cb ; set x 42 }`` silently never invoked
+    ``cb``.  The codegen now detects ``IRBarrier(::trace)`` against
+    a literal name in the body and forces frame-routed
+    ``tcl_local_set`` for matching writes, which DOES fire the
+    frame-local trace list.
+    """
+
+    def test_write_trace_on_proc_local_scalar_fires(self):
+        result = _run_and_read_global(
+            """\
+set ::seen "untouched"
+proc cb {n n2 op} { set ::seen "$n $op" }
+proc p {} {
+    trace add variable x write cb
+    set x 42
+}
+p
+""",
+            "::seen",
+        )
+        assert result == b"x write"
+
+    def test_unset_trace_on_proc_local_fires(self):
+        result = _run_and_read_global(
+            """\
+set ::seen "untouched"
+proc cb {n n2 op} { set ::seen "$n $op" }
+proc p {} {
+    set x 1
+    trace add variable x unset cb
+    unset x
+}
+p
+""",
+            "::seen",
+        )
+        assert result == b"x unset"
+
+
 class TestExtAliasResolutionRobustness:
     """An ``upvar`` / ``variable`` alias whose descriptor outlives the
     matching frame must not fault the wasm engine on subsequent

@@ -169,6 +169,12 @@ class _WasmEmitterBase:
         # i32s, bloating the WASM binary and pushing more
         # ``_var_check_<n>`` slots through the linker.
         self._var_unset_check_scratch: int | None = None
+        # Lazy cache for :meth:`_proc_has_var_trace_target` — a
+        # ``(literal_target_set, dynamic_target_seen)`` pair
+        # populated on first query.  ``None`` = not yet computed.
+        # The cache is per-emitter (per-proc), so the body walk
+        # runs at most once per compilation unit.
+        self._var_trace_target_set_cache: tuple[set[str], bool] | None = None
         # S5.1 — set of slot indices that have been written at least
         # once during this emitter's body emission.  At the first
         # write (slot not yet in the set) the prior value is provably
