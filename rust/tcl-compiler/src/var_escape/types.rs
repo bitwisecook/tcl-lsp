@@ -313,9 +313,17 @@ pub struct ProcEscapeSummary {
 
 impl ProcEscapeSummary {
     /// True if the whole-proc dynamic-barrier marker is set.
+    ///
+    /// Returns `true` when either the [`EscapeFlags::DYNAMIC_BARRIER`]
+    /// flag is set explicitly *or* the [`Self::barriers`] vector is
+    /// non-empty.  Treating populated `barriers` as pessimistic
+    /// enforces the documented invariant in code rather than
+    /// relying on every future population path to remember to set
+    /// the flag alongside pushing a barrier (Copilot review on
+    /// PR #377).
     #[must_use]
     pub fn dynamic_barrier(&self) -> bool {
-        self.flags.dynamic_barrier()
+        self.flags.dynamic_barrier() || !self.barriers.is_empty()
     }
 
     /// True if the upvar-source set can't be statically enumerated.
@@ -647,6 +655,27 @@ mod tests {
 
         let r2 = EscapeReason::with_detail(EscapeReasonKind::EvalReference, "eval body refs x");
         assert_eq!(r2.detail, "eval body refs x");
+    }
+
+    #[test]
+    fn non_empty_barriers_imply_dynamic_barrier_even_without_flag() {
+        // Pinned invariant from Copilot review on PR #377: a future
+        // population path that pushes to ``barriers`` without also
+        // setting the ``DYNAMIC_BARRIER`` flag must still cause
+        // ``tag()`` / ``is_frame()`` / ``reasons_for()`` to treat
+        // the proc as pessimistic.  Today ``dynamic_barrier()``
+        // checks both — so this test catches any regression that
+        // re-narrows it to flag-only.
+        let s = ProcEscapeSummary {
+            barriers: vec![Barrier::with_detail(BarrierKind::Eval, "eval $body")],
+            ..Default::default()
+        };
+        assert!(s.dynamic_barrier());
+        assert!(s.is_frame("any_var"));
+        let rs = s.reasons_for("any_var");
+        assert_eq!(rs.len(), 1);
+        assert_eq!(rs[0].kind, EscapeReasonKind::Barrier);
+        assert_eq!(rs[0].detail, "eval $body");
     }
 
     #[test]
