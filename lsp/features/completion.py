@@ -252,16 +252,34 @@ def get_completions(
         # VS Code's word-based replacement deletes the typed ``$`` (issue #357).
         var_lines = lines if lines is not None else source.split("\n")
         line_text_for_var = var_lines[line] if line < len(var_lines) else ""
-        dollar_col = character - 1
+        # Clamp the cursor to [0, line_len] -- LSP allows clients to report
+        # positions past EOL, and the rest of this block indexes line_text.
+        line_len = len(line_text_for_var)
+        cursor_col = max(0, min(character, line_len))
+        dollar_col = cursor_col - 1
         while dollar_col >= 0 and line_text_for_var[dollar_col] != "$":
             dollar_col -= 1
         has_open_brace = (
             dollar_col >= 0
-            and dollar_col + 1 < len(line_text_for_var)
+            and dollar_col + 1 < line_len
             and line_text_for_var[dollar_col + 1] == "{"
         )
-        has_close_brace = character < len(line_text_for_var) and line_text_for_var[character] == "}"
-        end_col = character + 1 if (has_open_brace and has_close_brace) else character
+        # Scan forward from the cursor through any remaining var-name chars
+        # and consume an existing closing ``}`` (for the brace form), so the
+        # edit replaces the whole reference -- avoiding leftover suffix text
+        # like ``$nameeting`` from ``$gre|eting`` or duplicated braces from
+        # ``${gre|}``.
+        end_col = cursor_col
+        while end_col < line_len:
+            ch = line_text_for_var[end_col]
+            if ch.isalnum() or ch == "_":
+                end_col += 1
+            elif ch == ":" and end_col + 1 < line_len and line_text_for_var[end_col + 1] == ":":
+                end_col += 2
+            else:
+                break
+        if has_open_brace and end_col < line_len and line_text_for_var[end_col] == "}":
+            end_col += 1
         var_edit_range: types.Range | None = None
         if dollar_col >= 0:
             var_edit_range = types.Range(

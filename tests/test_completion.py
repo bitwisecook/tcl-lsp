@@ -126,6 +126,68 @@ class TestVariableCompletion:
         assert item.text_edit.range.end.character == 10
         assert item.text_edit.new_text == "${greeting}"
 
+    def test_dollar_text_edit_brace_form_consumes_existing_close(self):
+        """``${gre|}`` -- existing ``}`` is consumed so we don't double it."""
+        source = "set greeting hello\nputs ${gre}"
+        # Cursor between 'gre' and '}'.
+        items = get_completions(source, 1, 10)
+        by_label = {i.label: i for i in items}
+        item = by_label["$greeting"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 5
+        # Edit should subsume the trailing '}' (col 10..11) along with '${gre'.
+        assert item.text_edit.range.end.character == 11
+        assert item.text_edit.new_text == "${greeting}"
+
+    def test_dollar_text_edit_brace_form_empty_with_close(self):
+        """``${|}`` (empty inside braces) should fill in ``${name}``."""
+        source = "set greeting hello\nputs ${}"
+        # Cursor between '{' and '}'.
+        items = get_completions(source, 1, 7)
+        by_label = {i.label: i for i in items}
+        item = by_label["$greeting"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 5
+        assert item.text_edit.range.end.character == 8
+        assert item.text_edit.new_text == "${greeting}"
+
+    def test_dollar_text_edit_midword_replaces_full_token(self):
+        """``$gre|eting`` -- midword completion must replace the whole token,
+        not leave ``eting`` behind."""
+        source = "set greeting hello\nputs $greeting"
+        # Cursor between 'gre' and 'eting' on line 1.
+        items = get_completions(source, 1, 9)
+        by_label = {i.label: i for i in items}
+        item = by_label["$greeting"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 5
+        # Should extend forward past 'eting' to col 14 (end of '$greeting').
+        assert item.text_edit.range.end.character == 14
+        assert item.text_edit.new_text == "$greeting"
+
+    def test_dollar_text_edit_midword_brace_form_replaces_full_token(self):
+        """``${gre|eting}`` -- midword completion in brace form must replace
+        the whole ``${greeting}`` reference."""
+        source = "set greeting hello\nputs ${greeting}"
+        # Cursor between 'gre' and 'eting' on line 1.
+        items = get_completions(source, 1, 10)
+        by_label = {i.label: i for i in items}
+        item = by_label["$greeting"]
+        assert item.text_edit is not None
+        assert item.text_edit.range.start.character == 5
+        # Should extend forward past 'eting}' to col 16.
+        assert item.text_edit.range.end.character == 16
+        assert item.text_edit.new_text == "${greeting}"
+
+    def test_dollar_completion_tolerates_cursor_past_eol(self):
+        """LSP clients may send positions past EOL; the provider must not
+        crash with IndexError."""
+        source = "set greeting hello\nputs $"
+        # Cursor at column 100, well past the end of the line.
+        items = get_completions(source, 1, 100)
+        labels = [i.label for i in items]
+        assert "$greeting" in labels
+
 
 class TestSubcommandCompletion:
     def test_string_subcommands(self):
