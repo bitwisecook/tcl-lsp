@@ -260,7 +260,8 @@ test-tcl9-wasm-core: $(UV_STAMP) ## Run the Tcl 9 core slice WASM regression gat
 refresh-tcl9-wasm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-wasm/ from the current WASM runtime (use after a confirmed runtime/codegen fix)
 	@echo "==> Refreshing Tcl 9 core slice WASM baseline"
 	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_wasm_core.py --refresh-baseline
+	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_wasm_core.py \
+		--refresh-baseline --workers 4 --timeout 240 --run-timeout 180
 
 check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites against the baseline (issue #276)
 	@echo "==> Running Tcl 9 I/O tcltest suites (chan / chanio / io / ioCmd) against baseline"

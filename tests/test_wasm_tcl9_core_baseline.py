@@ -11,9 +11,13 @@ Runs the focused harness (``scripts/run_tcl9_wasm_core.py``) and asserts
 that no stem regresses against the committed baseline at
 ``tests/baselines/tcl9-tcltest-wasm/summary.json``.
 
-The full sweep takes 3-5 minutes wall-clock with 4 workers, so this
-test is marked ``slow`` and gated behind the ``RUN_WASM_TCL9_CORE``
-environment variable.  CI does not run it on every PR;
+The full sweep takes 3-5 minutes wall-clock when the gate's pinned
+worker count and per-stem timeout are honoured (see ``_GATE_WORKERS``
+and ``_GATE_PER_STEM_TIMEOUT_S`` below — the gate passes both to the
+harness explicitly so the script's own interactive defaults cannot
+shift the runtime out from under the ceiling).  This test is marked
+``slow`` and gated behind the ``RUN_WASM_TCL9_CORE`` environment
+variable.  CI does not run it on every PR;
 ``make test-tcl9-wasm-core`` runs it explicitly.
 
 Hand-off rules for fixing failures live in

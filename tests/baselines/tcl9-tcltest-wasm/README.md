@@ -3,10 +3,13 @@
 This directory captures the result of running the upstream **C Tcl 9.0.3**
 core test slice through the **Zig WASM runtime** (`runtime/zig/` driven
 by `core/compiler/codegen/wasm/`).  Each stem's `.test` file is
-bundled with the unmodified upstream `tcltest.tcl`, compiled to WASM,
-executed under `wasmtime`, and the resulting tcltest summary is
-recorded as a regression floor.  This is the durable hand-off for
-whoever picks up the per-bucket fix work the harness identified.
+bundled with the upstream `tcltest.tcl` (kept **unmodified on disk** —
+see `_patch_tcltest_source` in `tests/external/run_tcl9_tests.py` for
+the small, documented set of in-memory rewrites the bundler applies
+during build), compiled to WASM, executed under `wasmtime`, and the
+resulting tcltest summary is recorded as a regression floor.  This is
+the durable hand-off for whoever picks up the per-bucket fix work the
+harness identified.
 
 ## Scope — read this first
 
@@ -37,7 +40,7 @@ What this work is *not*:
   [`tcl9-tcltest/`](../tcl9-tcltest/README.md).  That directory holds
   the curated, multi-bucket triage TOMLs consumed by
   `tests/external/run_tcl9_tests.py`.  This `-wasm` slice is the
-  64-stem **core semantics** subset wired into a single regression
+  68-stem **core semantics** subset wired into a single regression
   floor; the wider `tcl9-tcltest/` slice keeps doing its own job.
 - A signal about the Python VM.  Fixes landed in `vm/` will not
   move this baseline.
@@ -110,7 +113,7 @@ contract can never silently drift away from upstream.
 | Path | Purpose | Lifecycle |
 |---|---|---|
 | `summary.json` | Per-stem pass/fail floor.  Single source of truth for the regression gate. | Committed.  Refresh with `--refresh-baseline`. |
-| `categories/<stem>.toml` | Per-stem classification.  Mirrors the existing WASM-side schema (`good_to_have`, `just_to_match_ctcl`, `skip`, `[baseline]`, `[failing]`).  Supports manual triage of individual test IDs into `W9-internal` / `W9-cosmetic` / `W10-environment` buckets. | Committed.  Auto-generated for new stems; never overwritten if already present. |
+| `categories/<stem>.toml` | Per-stem classification.  Mirrors the existing WASM-side schema (`good_to_have`, `just_to_match_ctcl`, `skip`, `[baseline]`, `[failing]`).  Supports manual triage of individual test IDs into `W9-internal` / `W9-cosmetic` / `W10-environment` buckets. | Committed.  Auto-generated for new stems; existing TOMLs are preserved on a normal run.  **`--refresh-baseline` deletes every TOML in `categories/` and regenerates it from scratch** — manual triage in `good_to_have` / `just_to_match_ctcl` / `skip` is wiped, so review the diff after a refresh and re-apply curated entries by hand if the run was meant only to bump the summary floor. |
 | `README.md` | This file. | Committed; static — does not get rewritten by the harness. |
 
 The matching ephemeral artefacts (regenerated each run, **not committed**):
@@ -150,16 +153,25 @@ position in the alphabet.
 
 ```bash
 # Regression gate — fails if any stem regresses against summary.json.
-# Default ~3.5 min wall-clock with 4 workers + 240 s/stem timeout.
+# The pytest gate pins workers=4 + 240 s/stem timeout (~3.5 min on a
+# typical 4-core developer laptop) so its wall-clock ceiling and the
+# subprocess invocation cannot drift apart; see the constants at the
+# top of tests/test_wasm_tcl9_core_baseline.py.
 make test-tcl9-wasm-core
 
 # Refresh the baseline after a confirmed runtime/codegen fix.  Never
 # do this to "match what the run says now" — only after a focused
 # pytest under tests/test_wasm_*.py demonstrates the underlying
-# contract is fixed.
+# contract is fixed.  The make target invokes the harness with the
+# same workers/timeout knobs the gate uses, so refreshing and gating
+# observe the same envelope.
 make refresh-tcl9-wasm-core-baseline
 
-# Drive the harness directly for a subset of stems while triaging:
+# Drive the harness directly for a subset of stems while triaging.
+# Direct CLI defaults are tuned for interactive use (workers=min(2,
+# cpu_count), --timeout 180, --run-timeout 120) and differ from the
+# gate's pinned knobs — pass --workers / --timeout explicitly when
+# you want gate-equivalent behaviour.
 uv run --extra dev python scripts/run_tcl9_wasm_core.py --stems list lseq mathop --workers 1 --no-baseline
 ```
 
