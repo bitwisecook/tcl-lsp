@@ -216,6 +216,86 @@ class TestVariableCompletion:
                 f"${{{cand[1:]}}}",
             )
 
+    def test_dollar_cross_namespace_offers_qualified_name(self):
+        """Vars in another namespace are offered fully qualified, e.g.
+        ``$::other::baz`` from inside ``::myns``."""
+        source = textwrap.dedent("""\
+            namespace eval ::other {
+                variable baz 3
+            }
+            namespace eval ::myns {
+                puts $
+            }
+        """)
+        # Cursor right after the '$' on the ``puts`` line.
+        items = get_completions(source, 4, 10)
+        labels = [i.label for i in items]
+        assert "$::other::baz" in labels
+        item = next(i for i in items if i.label == "$::other::baz")
+        # Cross-namespace use must always be fully qualified.
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        assert item.text_edit.new_text == "$::other::baz"
+
+    def test_dollar_same_namespace_uses_bare_minimal_form(self):
+        """A var in the cursor's own namespace is offered bare (the
+        minimal valid form), not as ``$::myns::foo``."""
+        source = textwrap.dedent("""\
+            namespace eval ::myns {
+                variable foo 1
+                puts $
+            }
+        """)
+        items = get_completions(source, 2, 10)
+        labels = [i.label for i in items]
+        assert "$foo" in labels
+        # Should not also offer the qualified form -- the bare form is
+        # already the minimal valid substitution.
+        assert "$::myns::foo" not in labels
+
+    def test_dollar_global_var_from_namespace_offers_qualified(self):
+        """Globals declared at the top level appear as ``$::globalvar``
+        when the cursor is inside a different namespace."""
+        source = textwrap.dedent("""\
+            set ::globalvar 9
+            namespace eval ::myns {
+                puts $
+            }
+        """)
+        items = get_completions(source, 2, 10)
+        labels = [i.label for i in items]
+        assert "$::globalvar" in labels
+
+    def test_dollar_partial_filters_cross_namespace(self):
+        """Typing ``$::ot`` filters cross-namespace candidates by qualified
+        prefix and excludes vars in the current namespace."""
+        source = textwrap.dedent("""\
+            namespace eval ::other {
+                variable baz 3
+            }
+            namespace eval ::myns {
+                variable foo 1
+                puts $::ot
+            }
+        """)
+        items = get_completions(source, 5, 14)
+        labels = [i.label for i in items]
+        assert "$::other::baz" in labels
+        assert "$foo" not in labels  # Filtered: doesn't start with ``::ot``.
+
+    def test_dollar_completion_offers_upvar_alias(self):
+        """``upvar 1 caller_var alias`` registers ``alias`` as a local so
+        completion offers ``$alias`` even before any ``set alias ...``."""
+        source = textwrap.dedent("""\
+            proc inner {var} {
+                upvar 1 $var alias
+                puts $
+            }
+        """)
+        items = get_completions(source, 2, 10)
+        labels = [i.label for i in items]
+        assert "$alias" in labels
+
     def test_dollar_completion_tolerates_cursor_past_eol(self):
         """LSP clients may send positions past EOL; the provider must not
         crash with IndexError."""

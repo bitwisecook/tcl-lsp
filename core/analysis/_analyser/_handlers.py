@@ -222,6 +222,29 @@ class _AnalyserHandlersMixin(_Base):
         if cmd_name == "incr" and args and arg_tokens:
             self._define_var(args[0], arg_tokens[0], scope, warn_if_unused=True)
 
+    def _handle_upvar_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> None:
+        """Register the local-alias names from ``upvar`` so they show up in
+        completion / hover / references even when the proc only reads them.
+
+        ``upvar ?level? otherVar myVar ?otherVar myVar ...?`` -- the level
+        is optional; when present it makes the arg count odd.  Each pair
+        after the (optional) level binds ``myVar`` (the local alias) to
+        ``otherVar`` (in another stack frame)."""
+        if cmd_name != "upvar" or not args or not arg_tokens:
+            return
+        # If arg count is odd, the first arg is ``?level?``; pairs follow.
+        pair_start = 1 if len(args) % 2 == 1 else 0
+        i = pair_start + 1  # myVar position within the first pair
+        while i < len(args) and i < len(arg_tokens):
+            self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
+            i += 2
+
     def _handle_interp_alias(self, cmd_name: str, args: list[str]) -> None:
         """Detect ``interp alias {} srcToken {} targetCmd ?arg ...?``.
 

@@ -48,6 +48,49 @@ def _collect_vars_from_scope(scope: Scope) -> list[str]:
     return sorted(set(names))
 
 
+def _qualified_var_name(scope: Scope, var_name: str) -> str:
+    """Build the fully-qualified ``::ns::var`` form for a var stored in
+    a namespace or global scope.  Vars whose recorded name already starts
+    with ``::`` (e.g. ``set ::globalvar`` registered at the global scope)
+    are returned unchanged."""
+    if var_name.startswith("::"):
+        return var_name
+    if scope.kind == "global":
+        return f"::{var_name}"
+    return f"{scope.name}::{var_name}"
+
+
+def _lexical_namespace_chain(scope: Scope) -> set[str]:
+    """Return the names of every namespace/global scope in the lexical
+    chain from ``scope`` up to the root.  Used to skip cross-namespace
+    candidates that are already covered by the bare-name parent walk."""
+    chain: set[str] = set()
+    current: Scope | None = scope
+    while current is not None:
+        if current.kind in ("namespace", "global"):
+            chain.add(current.name)
+        current = current.parent
+    return chain
+
+
+def _collect_cross_namespace_vars(global_scope: Scope, lexical_chain: set[str]) -> list[str]:
+    """Walk the scope tree and return fully-qualified namespace/global
+    variable names whose enclosing namespace is *not* in the cursor's
+    lexical chain.  Proc locals are excluded -- they aren't reachable
+    from outside their proc."""
+    out: list[str] = []
+
+    def visit(scope: Scope) -> None:
+        if scope.kind in ("namespace", "global") and scope.name not in lexical_chain:
+            for vname in scope.variables:
+                out.append(_qualified_var_name(scope, vname))
+        for child in scope.children:
+            visit(child)
+
+    visit(global_scope)
+    return sorted(set(out))
+
+
 def _usage_bucket(count: int) -> int:
     """Return a sort bucket (lower is better) for usage frequency."""
     if count >= 50:
@@ -321,12 +364,27 @@ def get_completions(
             if partial and not name.startswith(partial.lstrip("{")):
                 continue
             items.append(_make_var_item(name))
+        # Cross-namespace candidates -- vars in *other* namespaces, offered
+        # in their fully-qualified ``::ns::var`` form so the inserted text
+        # is always a valid Tcl substitution.  (Vars in the cursor's own
+        # namespace chain are already covered above as bare names, which
+        # is the minimal valid form -- we don't duplicate them here.)
+        existing = {item.label for item in items}
+        chain = _lexical_namespace_chain(scope)
+        for qname in _collect_cross_namespace_vars(analysis.global_scope, chain):
+            label = f"${qname}"
+            if label in existing:
+                continue
+            if partial and not qname.startswith(partial.lstrip("{")):
+                continue
+            items.append(_make_var_item(qname, detail="namespace variable"))
+            existing.add(label)
         # Cross-file RULE_INIT variables
         if workspace_rule_init_vars:
-            existing = {item.label for item in items}
+            existing_labels = {item.label for item in items}
             for name in workspace_rule_init_vars:
                 label = f"${name}"
-                if label in existing:
+                if label in existing_labels:
                     continue
                 if partial and not name.startswith(partial.lstrip("{")):
                     continue
