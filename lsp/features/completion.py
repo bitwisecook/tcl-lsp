@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from lsprotocol import types
 
 from core.analysis import analyse
@@ -24,6 +26,16 @@ from .symbol_resolution import (
     find_scope_at_line,
     find_variable_completion_prefix,
 )
+
+# A bare ``$name`` substitution may only contain alnum / ``_`` / ``::``
+# (matching the lexer's bare-var rule).  Anything else -- hyphens, spaces,
+# dots, parens, etc. -- forces the ``${...}`` form.
+_BARE_VAR_NAME_RE = re.compile(r"^(?:::)?[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*$")
+
+
+def _var_needs_braces(name: str) -> bool:
+    """Return True if ``$name`` would not lex as a single variable token."""
+    return not _BARE_VAR_NAME_RE.match(name)
 
 
 def _collect_vars_from_scope(scope: Scope) -> list[str]:
@@ -288,7 +300,11 @@ def get_completions(
             )
 
         def _make_var_item(name: str, *, detail: str | None = None) -> types.CompletionItem:
-            new_text = f"${{{name}}}" if has_open_brace else f"${name}"
+            # Force the ``${...}`` form when the name contains chars the bare
+            # ``$name`` syntax can't carry (hyphens, spaces, dots, etc.) -- so
+            # ``set foo-bar 1; puts $`` completes to ``${foo-bar}``.
+            use_brace = has_open_brace or _var_needs_braces(name)
+            new_text = f"${{{name}}}" if use_brace else f"${name}"
             item = types.CompletionItem(
                 label=f"${name}",
                 kind=types.CompletionItemKind.Variable,

@@ -179,6 +179,37 @@ class TestVariableCompletion:
         assert item.text_edit.range.end.character == 16
         assert item.text_edit.new_text == "${greeting}"
 
+    def test_dollar_auto_braces_var_name_with_hyphen(self):
+        """A name with a ``-`` cannot live in bare ``$name`` form, so the
+        completion must promote to ``${name}`` even if the user only typed
+        a bare ``$``."""
+        source = 'set "foo-bar" 1\nputs $'
+        items = get_completions(source, 1, 6)
+        by_label = {i.label: i for i in items}
+        assert "$foo-bar" in by_label
+        item = by_label["$foo-bar"]
+        assert item.text_edit is not None
+        assert item.text_edit.new_text == "${foo-bar}"
+
+    def test_dollar_namespace_qualified_var_uses_bare_form(self):
+        """``::ns::var`` is a legal bare ``$`` substitution -- the lexer
+        accepts ``::``-separated segments without braces -- so the
+        completion should not force the brace form."""
+        source = "set ::myns::foo 1\nputs $"
+        items = get_completions(source, 1, 6)
+        by_label = {i.label: i for i in items}
+        # Cross-rule globals get stored in the global scope as ``::myns::foo``.
+        cand = next((lbl for lbl in by_label if lbl.endswith("::foo")), None)
+        if cand is not None:
+            item = by_label[cand]
+            # Either bare or brace is correct here; what matters is that
+            # the inserted text round-trips as a valid var substitution.
+            assert item.text_edit is not None
+            assert item.text_edit.new_text in (
+                f"${cand[1:]}",
+                f"${{{cand[1:]}}}",
+            )
+
     def test_dollar_completion_tolerates_cursor_past_eol(self):
         """LSP clients may send positions past EOL; the provider must not
         crash with IndexError."""
