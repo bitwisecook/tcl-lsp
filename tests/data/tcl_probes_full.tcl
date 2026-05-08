@@ -252,9 +252,13 @@ probe F.uplevel-string-zero {
     proc inner {} {uplevel "0" {set ::sl 1}}
     inner; info exists ::sl
 } 1
-probe F.uplevel-multiple-bodies {
-    # ``uplevel #0 body1 body2`` -- bodies are concatenated.
-    proc inner {} {uplevel #0 {set ::a 1} {set ::b 2}}
+probe F.uplevel-multiple-bodies-needs-separator {
+    # ``uplevel #0 body1 body2`` concatenates with a SPACE, so
+    # ``{set ::a 1} {set ::b 2}`` becomes ``set ::a 1 set ::b 2``
+    # (no command separator) and Tcl errors with "wrong # args".
+    # The user must add a ``;`` or newline between bodies (or pass a
+    # single combined body).
+    proc inner {} {uplevel #0 {set ::a 1} {; set ::b 2}}
     inner
     list a=$::a b=$::b
 } {a=1 b=2}
@@ -353,8 +357,12 @@ probe J.W215-name-with-close-brace-creatable {
     info exists "weird\}name"
 } 1
 probe J.W215-unreachable-via-bare {
+    # Use a list-built script so the ``\}`` inside doesn't terminate
+    # the surrounding probe brace block early.
     set "weird\}name" 1
-    set rc [catch {eval "set v \$weird\\}name"} err]
+    set script [list set v]
+    lappend script {*}{$weird\}name}
+    set rc [catch [list eval [join $script " "]] err]
     list rc=$rc err=$err
 }
 probe J.W215-array-paren-in-index {

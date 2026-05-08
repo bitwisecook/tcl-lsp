@@ -376,17 +376,36 @@ def get_completions(
         # leftover suffix text like ``$nameeting`` from ``$gre|eting``
         # or duplicated braces from ``${gre|}``).
         #
-        # In brace form (``${...}``), Tcl's lexer accepts ANY character
-        # up to the closing ``}`` -- including ``-``, spaces, dots --
-        # so the forward scan must mirror that and consume everything
-        # until ``}``.  In bare form, only alnum / ``_`` / ``::`` are
-        # valid var-name chars.
+        # In brace form (``${...}``), the forward scan must mirror the
+        # lexer's ``Tcl_ParseVarName`` rule (which itself mirrors Tcl
+        # 9.0.3's ``tclParse.c``): inner ``{...}`` are tracked with a
+        # brace-depth counter and ``\X`` consumes 2 chars (so ``\}``
+        # does NOT close).  A naive scan-to-first-``}`` would end the
+        # TextEdit too early on a name like ``${a{b}c}`` or ``${a\}b}``
+        # and leave ``c}`` / ``b}`` in the buffer after the user
+        # accepts the completion.  In bare form, only alnum / ``_`` /
+        # ``::`` are valid var-name chars.
         end_col = cursor_col
         if has_open_brace:
-            while end_col < line_len and line_text_for_var[end_col] != "}":
-                end_col += 1
-            if end_col < line_len and line_text_for_var[end_col] == "}":
-                end_col += 1
+            brace_depth = 0
+            while end_col < line_len:
+                ch = line_text_for_var[end_col]
+                if ch == "}" and brace_depth == 0:
+                    end_col += 1  # consume the closing ``}``
+                    break
+                if ch == "{":
+                    brace_depth += 1
+                    end_col += 1
+                elif ch == "}":
+                    brace_depth -= 1
+                    end_col += 1
+                elif ch == "\\":
+                    # Consume the backslash and (if any) the next char.
+                    end_col += 1
+                    if end_col < line_len:
+                        end_col += 1
+                else:
+                    end_col += 1
         else:
             while end_col < line_len:
                 ch = line_text_for_var[end_col]

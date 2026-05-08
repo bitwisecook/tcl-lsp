@@ -22,7 +22,7 @@ from ...common.naming import (
 )
 from ...common.ranges import position_from_relative, range_from_token
 from ...parsing.substitution import backslash_subst as _backslash_subst
-from ...parsing.tokens import Token
+from ...parsing.tokens import Token, TokenType
 from ..semantic_model import (
     Diagnostic,
     Range,
@@ -246,10 +246,22 @@ class _AnalyserScopeMixin(_Base):
             # so e.g. ``set "back\\\\slash" 1`` produces var ``back\slash``
             # at runtime even though our scope key is ``back\\\\slash``.
             # W215's reachability check must use the runtime name.
-            runtime_name = _backslash_subst(base_name) if "\\" in base_name else base_name
-            runtime_element = (
-                _backslash_subst(element) if element is not None and "\\" in element else element
-            )
+            #
+            # IMPORTANT: backslash substitution is suppressed inside
+            # *braced* command words.  Tcl preserves every byte verbatim
+            # in ``{...}`` -- so ``set {a\}b} 1`` creates the runtime
+            # var ``a\}b`` (4 chars including the literal backslash) and
+            # ``set "a\}b" 1`` creates ``a}b`` (3 chars, ``\}`` -> ``}``).
+            # ``Token.type == STR`` flags a braced literal; ``in_quote``
+            # flags an arg lifted from inside double quotes.  Bare and
+            # quoted words both go through backslash subst at command
+            # parsing; braced words don't.
+            apply_backslash_subst = "\\" in base_name and tok.type is not TokenType.STR
+            runtime_name = _backslash_subst(base_name) if apply_backslash_subst else base_name
+            if element is not None and "\\" in element and tok.type is not TokenType.STR:
+                runtime_element: str | None = _backslash_subst(element)
+            else:
+                runtime_element = element
             if not is_brace_substitutable(runtime_name):
                 # Identify the worst offending feature for the message.
                 if "}" in runtime_name:
