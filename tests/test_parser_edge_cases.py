@@ -171,11 +171,20 @@ class TestBracedVarSpecialChars:
         assert toks[0].type == TokenType.VAR
         assert toks[0].text == "$"
 
-    def test_braced_var_backslash(self):
-        """``${\\\\}``: variable name is ``\\``."""
-        toks = lex("${\\}")
+    def test_braced_var_backslash_escape(self):
+        """``${\\}`` -- the lexer treats ``\\X`` as a 2-char escape (per
+        Tcl 9.0.3 ``Tcl_ParseVarName``: a backslash consumes the next
+        char into the name).  So the source ``${\\}`` reads ``\\}`` as
+        the name and runs out of input -- Tcl emits a missing-close-brace
+        warning, leaving the brace form unclosed.  See
+        :doc:`/docs/kcs/kcs-tcl-corner-cases` §"Variable substitution
+        — brace ``${name}``"."""
+        toks, warnings = lex_with_warnings("${\\}")
         assert toks[0].type == TokenType.VAR
-        assert toks[0].text == "\\"
+        # The backslash + ``}`` are both consumed as part of the name;
+        # there is no closing ``}`` left, so a warning is recorded.
+        assert toks[0].text == "\\}"
+        assert any("close-brace" in msg for _pos, msg in warnings)
 
     def test_braced_var_space(self):
         """``${ }``: variable name is a single space."""
@@ -208,27 +217,42 @@ class TestBracedVarSpecialChars:
         assert toks[0].text == "a\nb"
 
     def test_braced_var_open_brace_unclosed(self):
-        """``${{}``: ``{`` starts the name; closing ``}`` matches the
-        ``${`` opening, so the var name is ``{``.  Wait — actually this
-        is ambiguous.  In C Tcl, ``${{}`` is an error (missing ``}``)
-        because the inner ``{`` prevents the ``}`` from closing.
-        Actually no: C Tcl's ``Tcl_ParseVarName`` scans for the first
-        ``}`` — braces are NOT nested inside ``${}`` — so ``${{}``
-        has name ``{`` and the parser consumes it.  But our lexer
-        also scans for first ``}`` so this should be ``{``."""
+        """``${{}`` -- per Tcl 9.0.3 ``Tcl_ParseVarName``, inner ``{...}``
+        increments brace depth and only ``}`` at depth 0 closes the
+        var-name span.  So the inner ``{`` opens depth 1, the ``}``
+        closes back to depth 0, and the form runs out of input
+        without ever reaching the closing ``}`` of the ``${...}`` --
+        Tcl emits a missing-close-brace warning.  Name = ``{}``."""
         toks, warnings = lex_with_warnings("${{}")
-        # ``${`` starts, first ``{`` is part of name, ``}`` closes.
         assert toks[0].type == TokenType.VAR
-        assert toks[0].text == "{"
+        assert toks[0].text == "{}"
+        assert any("close-brace" in msg for _pos, msg in warnings)
 
     def test_braced_var_nested_braces(self):
-        """``${a{b}c}``: braces inside are literal — name is ``a{b}c``
-        because ``${...}`` scans for the first unescaped ``}``.
-        Actually, first ``}`` at position 5 closes.  Name = ``a{b``."""
+        """``${a{b}c}`` -- per Tcl 9.0.3 ``Tcl_ParseVarName``, the inner
+        ``{b}`` is balanced (depth 0 -> 1 -> 0), so the trailing ``c``
+        is part of the name and the final ``}`` closes the span.
+        Name = ``a{b}c``."""
         toks = lex("${a{b}c}")
-        # First } closes the ${...} — C Tcl gets name "a{b", then "c}" is text.
         assert toks[0].type == TokenType.VAR
-        assert toks[0].text == "a{b"
+        assert toks[0].text == "a{b}c"
+
+    def test_braced_var_escaped_close_brace(self):
+        """``${a\\}b}`` -- the ``\\}`` sequence consumes 2 chars (per
+        Tcl 9.0.3 ``Tcl_ParseVarName``); the inner ``}`` does NOT close
+        the var-name span.  Name = ``a\\}b`` (4 chars including the
+        literal backslash)."""
+        toks = lex("${a\\}b}")
+        assert toks[0].type == TokenType.VAR
+        assert toks[0].text == "a\\}b"
+
+    def test_braced_var_escaped_backslash_pair(self):
+        """``${a\\\\b}`` -- two backslashes in source are ``\\\\``,
+        which is one ``\\X`` escape consuming both backslashes.  Name
+        is the raw 4-char ``a\\\\b``."""
+        toks = lex("${a\\\\b}")
+        assert toks[0].type == TokenType.VAR
+        assert toks[0].text == "a\\\\b"
 
     def test_braced_var_with_equals_and_colons(self):
         """``${foo::bar=baz}``: all of ``::`` and ``=`` are part of name."""

@@ -40,6 +40,8 @@
 | W212 | variable | Variable substitution where name expected (`set $x`, `incr $x`, `info exists $x`, etc.). | ✓ |
 | W213 | variable | Variable may not exist — use `unset -nocomplain` to suppress the error. | ✓ |
 | W214 | variable | Unused proc parameter — argument is declared but never read in the procedure body. | ✓ |
+| W215 | variable | Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it). | ✓ |
+| W216 | variable | Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index. | ✓ |
 | W220 | variable | Dead store — variable set but overwritten before use. | ✓ |
 | W101 | security | `eval` with string concatenation — code injection risk. | ✓ |
 | W102 | security | `subst` on variable input — code injection risk. | ✓ |
