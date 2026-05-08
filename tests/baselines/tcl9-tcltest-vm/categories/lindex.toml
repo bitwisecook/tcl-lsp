@@ -1,0 +1,20 @@
+# lindex.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '14 of 84 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 84
+observed_passed = 33
+observed_failed = 14
+observed_skipped = 37
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lindex-3.9", "lindex-10.1", "lindex-10.3", "lindex-10.4", "lindex-12.8", "lindex-12.10", "lindex-14.3", "lindex-15.3", "lindex-16.4", "lindex-16.5", "lindex-16.6", "lindex-16.7", "lindex-17.0", "lindex-18.0"]

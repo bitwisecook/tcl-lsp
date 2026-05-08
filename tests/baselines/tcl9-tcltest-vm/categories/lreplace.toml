@@ -1,0 +1,20 @@
+# lreplace.test — auto-generated baseline.
+# bucket = 'B8-missing-command'
+# reason = 'invalid command: catch {lreplace {} -2 -2} m'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 59
+observed_passed = 58
+observed_failed = 1
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lreplace-1.25"]

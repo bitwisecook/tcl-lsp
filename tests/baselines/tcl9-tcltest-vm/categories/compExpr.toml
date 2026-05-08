@@ -1,0 +1,20 @@
+# compExpr.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '6 of 82 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 82
+observed_passed = 74
+observed_failed = 6
+observed_skipped = 2
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["compExpr-2.5", "compExpr-2.10", "compExpr-8.1", "compExpr-8.2", "compExpr-8.3", "compExpr-8.4"]

@@ -1,0 +1,20 @@
+# if.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '20 of 73 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 73
+observed_passed = 53
+observed_failed = 20
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["if-1.3", "if-1.13", "if-1.17", "if-2.2", "if-2.3", "if-2.4", "if-3.2", "if-5.3", "if-5.10", "if-5.17", "if-6.2", "if-6.4", "if-7.2", "if-7.4", "if-10.1", "if-10.2", "if-10.3", "if-10.4", "if-10.5", "if-10.6"]

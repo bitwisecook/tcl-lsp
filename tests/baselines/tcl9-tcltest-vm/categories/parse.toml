@@ -1,0 +1,20 @@
+# parse.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '3 of 271 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 271
+observed_passed = 87
+observed_failed = 3
+observed_skipped = 181
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["parse-8.12", "parse-15.53", "parse-15.54"]

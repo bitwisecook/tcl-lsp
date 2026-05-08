@@ -1,0 +1,20 @@
+# proc-old.test — auto-generated baseline.
+# bucket = 'B0-host-exception'
+# reason = 'ValueError leak: -14 is not a valid ReturnCode'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 62
+observed_passed = 57
+observed_failed = 4
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["proc-old-3.7", "proc-old-3.9", "proc-old-5.11", "proc-old-5.16"]
