@@ -1826,6 +1826,113 @@ class TestStringOperationsExtended:
         )
         assert result == "hello_world"
 
+    def test_string_insert_start(self):
+        """string insert at index 0 prepends."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 0 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "_0123"
+
+    def test_string_insert_middle(self):
+        """string insert at a middle index splits the target."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 2 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "01_23"
+
+    def test_string_insert_end_integer(self):
+        """string insert at integer length appends."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 4 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123_"
+
+    def test_string_insert_end_keyword(self):
+        """``string insert`` treats ``end`` as length (one past last
+        char), unlike ``string index``.  string-31.6."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" end "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123_"
+
+    def test_string_insert_end_minus(self):
+        """``string insert s end-N _`` resolves to position ``len-N``.
+        string-31.5."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" end-2 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "01_23"
+
+    def test_string_insert_negative_index_clamps_to_zero(self):
+        """Negative indices clamp to 0 (prepend).  string-31.10."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" -1 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "_0123"
+
+    def test_string_insert_index_past_end_clamps_to_length(self):
+        """Indices past the end clamp to length (append).
+        string-31.11."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 5 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123_"
+
+    def test_string_insert_empty_target(self):
+        """Inserting into an empty string returns the insert string.
+        string-31.7."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "" 0 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "_"
+
+    def test_string_insert_empty_insert(self):
+        """Inserting an empty string is a no-op.  string-31.8."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { string insert "0123" 0 "" }\n',
+            "f",
+            (),
+        )
+        assert result == "0123"
+
+    def test_tcl_string_insert_relative_qualified(self):
+        """``tcl::string::insert`` (no leading ``::``) resolves to the
+        ensemble dispatch.  Upstream string-31.* tests use this form;
+        without the relative-FQ fallback in the eval-command path they
+        all fail with ``unknown command``."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { tcl::string::insert "0123" 2 "_" }\n',
+            "f",
+            (),
+        )
+        assert result == "01_23"
+
+    def test_tcl_string_reverse_relative_qualified(self):
+        """``tcl::string::reverse`` from the global namespace resolves
+        like ``::tcl::string::reverse``.  string-24.x guard."""
+        result = _compile_and_run_proc_string(
+            'proc f {} { tcl::string::reverse "abc" }\n',
+            "f",
+            (),
+        )
+        assert result == "cba"
+
     def test_string_is_integer_true(self):
         """string is integer returns 1 for a valid integer."""
         result = _compile_and_run(
