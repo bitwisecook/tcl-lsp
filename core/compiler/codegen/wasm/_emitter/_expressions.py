@@ -37,6 +37,30 @@ from .._ir import (
 from ._ops import _BINOP_WASM
 
 
+def _resolve_expr_var_text(name: str, text: str) -> str:
+    """Surface the array-element form a downstream
+    ``_emit_var_read_obj`` / ``_parse_array_ref`` pair can act on.
+
+    The expression lexer's ``$arr(key)`` shape parses to a VARIABLE
+    token whose ``text`` includes the parenthesised key.  The
+    canonical ``name`` field strips the suffix down to the base
+    ``arr``, so a naive ``_emit_var_read_obj(name)`` would lose the
+    key and route the read through the scalar lookup of ``arr``.
+
+    ``$arr(k)`` and ``${arr(k)}`` both reach this helper; both must
+    return ``arr(k)`` so the downstream array-ref parser sees the
+    suffix.  When ``text`` carries no ``(`` (plain scalar /
+    ``${name}``) the canonical ``name`` is returned unchanged.
+    """
+    if "(" not in text:
+        return name
+    if text.startswith("${") and text.endswith("}"):
+        return text[2:-1]
+    if text.endswith(")"):
+        return text[1:] if text.startswith("$") else text
+    return name
+
+
 class _WasmEmitterExprMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterVarMixin
@@ -82,15 +106,12 @@ class _WasmEmitterExprMixin(_Base):
                 # For array refs (``$a(key)``) the parser reports only the
                 # base name; the ``text`` field carries the full token
                 # including the ``(key)`` suffix, which _emit_var_read_obj
-                # re-parses via _parse_array_ref.
-                resolved = name
-                if "(" in text and text.endswith(")"):
-                    # Drop the leading ``$``/``${`` so _parse_array_ref
-                    # sees ``name(key)``.
-                    bare = text[1:] if text.startswith("$") else text
-                    if bare.startswith("{") and bare.endswith("}"):
-                        bare = bare[1:-1]
-                    resolved = bare
+                # re-parses via _parse_array_ref.  Both the bare
+                # ``$a(key)`` form (text ends with ``)``) and the braced
+                # ``${a(key)}`` form (text ends with ``}``) need to land
+                # on the same ``a(key)`` resolved name; otherwise the
+                # braced form drops to the base scalar lookup of ``a``.
+                resolved = _resolve_expr_var_text(name, text)
                 self._emit_var_read_obj(resolved)
                 self._emit_unbox_int()
             case ExprBinary(op=op, left=left, right=right):
@@ -389,13 +410,10 @@ class _WasmEmitterExprMixin(_Base):
         """
         match node:
             case ExprVar(name=name, text=text):
-                # Read variable as TclObj directly (no unbox).
-                resolved = name
-                if "(" in text and text.endswith(")"):
-                    bare = text[1:] if text.startswith("$") else text
-                    if bare.startswith("{") and bare.endswith("}"):
-                        bare = bare[1:-1]
-                    resolved = bare
+                # Read variable as TclObj directly (no unbox).  See the
+                # twin arm in :meth:`_emit_expr` for why both ``)`` and
+                # ``}`` endings count as array-ref shapes.
+                resolved = _resolve_expr_var_text(name, text)
                 self._emit_var_read_obj(resolved)
             case ExprLiteral(text=value):
                 # Emit TclObj literal.
