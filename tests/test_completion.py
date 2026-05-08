@@ -134,6 +134,7 @@ class TestVariableCompletion:
         by_label = {i.label: i for i in items}
         item = by_label["$greeting"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 5
         # Edit should subsume the trailing '}' (col 10..11) along with '${gre'.
         assert item.text_edit.range.end.character == 11
@@ -147,6 +148,7 @@ class TestVariableCompletion:
         by_label = {i.label: i for i in items}
         item = by_label["$greeting"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 5
         assert item.text_edit.range.end.character == 8
         assert item.text_edit.new_text == "${greeting}"
@@ -160,6 +162,7 @@ class TestVariableCompletion:
         by_label = {i.label: i for i in items}
         item = by_label["$greeting"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 5
         # Should extend forward past 'eting' to col 14 (end of '$greeting').
         assert item.text_edit.range.end.character == 14
@@ -174,6 +177,7 @@ class TestVariableCompletion:
         by_label = {i.label: i for i in items}
         item = by_label["$greeting"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.range.start.character == 5
         # Should extend forward past 'eting}' to col 16.
         assert item.text_edit.range.end.character == 16
@@ -189,6 +193,7 @@ class TestVariableCompletion:
         assert "$foo-bar" in by_label
         item = by_label["$foo-bar"]
         assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
         assert item.text_edit.new_text == "${foo-bar}"
 
     def test_dollar_namespace_qualified_var_uses_bare_form(self):
@@ -205,6 +210,7 @@ class TestVariableCompletion:
             # Either bare or brace is correct here; what matters is that
             # the inserted text round-trips as a valid var substitution.
             assert item.text_edit is not None
+            assert isinstance(item.text_edit, TextEdit)
             assert item.text_edit.new_text in (
                 f"${cand[1:]}",
                 f"${{{cand[1:]}}}",
