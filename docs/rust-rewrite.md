@@ -1158,6 +1158,7 @@ on the `tcl-lsp-server` bootstrap.
 | **ARCH8** | **Bootstrap `tcl-lsp-server` with the folding provider.** Stand up `rust/tcl-lsp-server/` as a `tower-lsp` binary linking `tcl-lsp-core`, `tcl-compiler`, and `tcl-registry`.  Wire folding ranges end-to-end so the crate boundary has two real consumers. | landed |
 | **ARCH9** | **`tcl-lsp-py` public binding crate.** Freeze the public Python API in `rust/tcl-lsp-py/`; convert `tcl-lsp-rust` to a re-export shim so existing wheel consumers keep working for one release cycle, then retire `tcl-lsp-rust` in a follow-up. | landed |
 | **S-document-symbols** | **Wire the document-symbol provider end-to-end in `tcl-lsp-server`.** First feature port on top of the ARCH8 bootstrap. The pure provider already lived in `tcl-lsp-core::document_symbols::document_symbols(source, dialect)` (PR #232); this chunk advertises `documentSymbolProvider` in `initialize`, implements `LanguageServer::document_symbol` to call into the core provider for the matching cached `Backend` document, and lifts the core `DocumentSymbol` / `LineRange` / `SymbolKind` shapes onto `tower_lsp::lsp_types`. Adds `tests/document_symbols_smoke.rs` (in-memory `LspService` smoke that drives `initialize` → `didOpen` → `documentSymbol` and asserts the `Function`-kind `demo` symbol comes back), plus two `lib.rs` unit tests pinning the kind-mapping exhaustiveness and the children-empty → `None` lift behaviour. | landed |
+| **S-folding-extend** | **Close the `lsp/features/folding.py` parity gap by porting `_normalise_overlaps` into `tcl-lsp-core::folding`.** ARCH8 left overlap-normalisation in the Python dispatcher with a comment that the algorithm "would need to move to Rust when the LSP server stops going through Python"; the Rust LSP server (`tcl-lsp-server`) calls `tcl_lsp_core::folding::folding_ranges` directly and so wasn't running the post-pass. This chunk lifts the algorithm into a public `normalise_overlaps(ranges) -> Vec<FoldingRange>` in `tcl-lsp-core::folding`, applies it as the final step of `folding_ranges()`, and pins the contract with four new unit tests (shared-boundary trim, dedup-after-trim, idempotence, empty-input smoke) — the first two mirror `test_folding.py::test_normalise_overlaps_*` 1:1. The pass is idempotent so the Python dispatcher's existing `_normalise_overlaps` over the `PyO3`-binding output stays harmless for the legacy path, keeping every existing pytest fixture green while the Rust server now gets a properly disjoint/nested fold tree without a Python round-trip. | landed |
 | **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
 | **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
 | **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  Three independent Rust crates: `tcl-formatter`, `tcl-minifier`, `tcl-help-kcs` (KCS DB).  Test parity via the matching `test_formatter.py` / `test_minifier.py` / `test_docstring.py` / `test_kcs_db.py` (~470 cases) ported to cargo. | planned |
@@ -3425,3 +3426,22 @@ contributor doesn't have to re-discover the design.
 
 **Cross-reference:** `lsp/server.py::on_hover` (Python source
 of truth) and the three commits above for the design rationale.
+
+## S-progress
+
+Resume note for the next S-* session:
+
+* **In flight:** `S-folding-extend` (claude/S-folding-extend-normalise) —
+  PR opened against `rust`, ports `_normalise_overlaps` from
+  `lsp/features/folding.py` into `tcl-lsp-core::folding` and applies
+  it as the final step of `folding_ranges()`. Closes the only
+  remaining parity gap between the Python folding provider and the
+  Rust `tcl-lsp-server` folding wiring landed in ARCH8.
+* **Last PR opened:** `S-folding-extend` (this chunk).
+* **Next chunk planned:** `S-hover` per the SYNC11 sub-plan above
+  (30 ms debounce, `(uri, version, line, char)` LRU 256,
+  `tokio::task::spawn_blocking` offload, `Ok(None)` on cache miss,
+  `[timing] hover …` debug logs). Pure provider already lives in
+  `tcl-lsp-core::hover`; chunk shape is "wire it end-to-end" plus
+  the SYNC11 cache/debounce shaping.
+* **Blocked:** nothing right now.
