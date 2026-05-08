@@ -1079,7 +1079,104 @@ impl<'r> Lowerer<'r> {
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     let mut lowerer = Lowerer::new(registry);
     lowerer.lower(source);
-    lowerer.module
+    let mut module = lowerer.module;
+    populate_trace_facts(&mut module);
+    module
+}
+
+/// SYNC9: post-lower scan for `trace add execution NAME enter|leave …`
+/// that populates `Module::traced_commands` / `has_dynamic_trace`.
+///
+/// Runs over the top-level script + every procedure body.  Literal
+/// command names land in `traced_commands` (`::`-stripped to match
+/// the canonical key); non-literal targets (`$cmd`, `[expr ...]`,
+/// command substitutions) flip `has_dynamic_trace` so GVN treats
+/// every call as potentially traced.
+///
+/// Mirrors Python's IR-builder pass added by `8a6f4d58` (closes `#251`).
+fn populate_trace_facts(module: &mut Module) {
+    let top_level = module.top_level.clone();
+    walk_for_trace(&top_level, module);
+    let proc_bodies: Vec<Script> = module
+        .procedures
+        .values()
+        .map(|p| p.body.clone())
+        .collect();
+    for body in &proc_bodies {
+        walk_for_trace(body, module);
+    }
+}
+
+fn walk_for_trace(script: &Script, module: &mut Module) {
+    use crate::ir::Statement;
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+                if command == "trace"
+                    && args.len() >= 4
+                    && args[0] == "add"
+                    && args[1] == "execution"
+                {
+                    let target = &args[2];
+                    if is_literal_trace_target(target) {
+                        let canonical = target.trim_start_matches("::").to_string();
+                        if !canonical.is_empty() {
+                            module.traced_commands.insert(canonical);
+                        }
+                    } else {
+                        module.has_dynamic_trace = true;
+                    }
+                }
+            }
+            Statement::If { clauses, else_body, .. } => {
+                for c in clauses {
+                    walk_for_trace(&c.body, module);
+                }
+                if let Some(e) = else_body {
+                    walk_for_trace(e, module);
+                }
+            }
+            Statement::For { init, next, body, .. } => {
+                walk_for_trace(init, module);
+                walk_for_trace(next, module);
+                walk_for_trace(body, module);
+            }
+            Statement::While { body, .. }
+            | Statement::Foreach { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::Block { body, .. }
+            | Statement::UpFrame { body, .. } => walk_for_trace(body, module),
+            Statement::Switch { arms, default_body, .. } => {
+                for arm in arms {
+                    if let Some(b) = &arm.body {
+                        walk_for_trace(b, module);
+                    }
+                }
+                if let Some(b) = default_body {
+                    walk_for_trace(b, module);
+                }
+            }
+            Statement::Try { body, handlers, finally_body, .. } => {
+                walk_for_trace(body, module);
+                for h in handlers {
+                    walk_for_trace(&h.body, module);
+                }
+                if let Some(f) = finally_body {
+                    walk_for_trace(f, module);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn is_literal_trace_target(s: &str) -> bool {
+    !s.is_empty()
+        && !s.contains('$')
+        && !s.contains('[')
+        && !s.contains('{')
+        && !s.contains('"')
+        && !s.contains(' ')
 }
 
 #[cfg(test)]
@@ -1653,5 +1750,51 @@ mod tests {
                 "expected UpFrame inside catch body, got {body:?}",
             );
         }
+    }
+
+    // -- SYNC9: trace add execution module-fact population -----------
+
+    #[test]
+    fn trace_add_execution_literal_recorded() {
+        let m = lower_to_ir("trace add execution foo enter handler", &reg());
+        assert!(m.traced_commands.contains("foo"));
+        assert!(!m.has_dynamic_trace);
+    }
+
+    #[test]
+    fn trace_add_execution_dynamic_widens() {
+        let m = lower_to_ir("trace add execution $cmd enter handler", &reg());
+        assert!(m.has_dynamic_trace);
+        assert!(m.traced_commands.is_empty());
+    }
+
+    #[test]
+    fn trace_add_execution_qualified_canonicalised() {
+        let m = lower_to_ir("trace add execution ::ns::foo enter h", &reg());
+        // Stripped of leading ``::`` so the GVN gate's
+        // `command.trim_start_matches("::")` lookup hits.
+        assert!(m.traced_commands.contains("ns::foo"));
+    }
+
+    #[test]
+    fn trace_add_variable_does_not_record_execution_trace() {
+        // `trace add variable` is a separate channel — should not
+        // populate `traced_commands` (those are command traces only).
+        let m = lower_to_ir("trace add variable x write h", &reg());
+        assert!(m.traced_commands.is_empty());
+        assert!(!m.has_dynamic_trace);
+    }
+
+    #[test]
+    fn trace_add_execution_inside_proc_recorded() {
+        let m = lower_to_ir(
+            "proc init {} { trace add execution foo enter h }",
+            &reg(),
+        );
+        assert!(
+            m.traced_commands.contains("foo"),
+            "traced_commands={:?}",
+            m.traced_commands,
+        );
     }
 }

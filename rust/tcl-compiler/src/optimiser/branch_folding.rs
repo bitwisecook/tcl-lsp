@@ -383,6 +383,8 @@ mod tests {
                 redefined_procedures: std::collections::HashSet::new(),
                 namespace_imports: Vec::new(),
                 namespace_exports: Vec::new(),
+                traced_commands: std::collections::BTreeSet::new(),
+                has_dynamic_trace: false,
             },
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),

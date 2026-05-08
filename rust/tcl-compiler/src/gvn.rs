@@ -603,6 +603,37 @@ pub fn is_pure_command(
     effect.pure
 }
 
+/// SYNC8: trace-aware purity gate.
+///
+/// Same purity classification as [`is_pure_command`] but additionally
+/// returns `false` for any command targeted by an active execution
+/// trace (`trace add execution NAME enter|leave HANDLER`) AND for
+/// every command when [`Module::has_dynamic_trace`] is set.  Mirrors
+/// `core/compiler/gvn.py:151-158`.
+///
+/// Calls to a command with an active execution trace are never pure
+/// because the trace body composes side-effects in (issue `#251`).
+/// GVN, partial-redundancy, and loop-invariant passes thread the
+/// module's trace facts through this gate so optimisations don't
+/// silently delete a second invocation that the trace re-armed.
+#[must_use]
+pub fn is_pure_command_with_traces(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    dialect: Option<&str>,
+    traced_commands: &std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+) -> bool {
+    if has_dynamic_trace {
+        return false;
+    }
+    if traced_commands.contains(command.trim_start_matches("::")) {
+        return false;
+    }
+    is_pure_command(registry, command, args, dialect)
+}
+
 /// Return `true` if a redundant use of `command` is worth
 /// flagging. Built-ins marked `CSE_CANDIDATE` qualify; user-proc
 /// redundancy (interprocedural) is deferred.
@@ -1701,6 +1732,83 @@ mod tests {
             "set",
             &["x".into(), "1".into()],
             None
+        ));
+    }
+
+    /// SYNC8: a pure command (`expr`) gates to non-pure once its
+    /// canonical name appears in `traced_commands`.
+    #[test]
+    fn is_pure_command_with_traces_traced_command_not_pure() {
+        let registry = CommandRegistry::build_default();
+        let mut traced = std::collections::BTreeSet::new();
+        traced.insert("foo".to_string());
+        // `foo` is unknown to the registry but in the trace set —
+        // never pure.
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "foo",
+            &["arg".into()],
+            None,
+            &traced,
+            false,
+        ));
+    }
+
+    /// SYNC8: `has_dynamic_trace=true` widens the gate to *every*
+    /// command (even ones the registry marks PURE).
+    #[test]
+    fn is_pure_command_with_traces_dynamic_trace_inhibits_all() {
+        let registry = CommandRegistry::build_default();
+        let traced = std::collections::BTreeSet::new();
+        // `expr` is PURE per the registry, but `has_dynamic_trace=true`
+        // means any call could have a trace registered at runtime.
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "expr",
+            &["{1 + 2}".into()],
+            None,
+            &traced,
+            true,
+        ));
+    }
+
+    /// SYNC8: regression — untraced pure commands stay pure.
+    #[test]
+    fn is_pure_command_with_traces_untraced_command_still_pure() {
+        let registry = CommandRegistry::build_default();
+        let traced = std::collections::BTreeSet::new();
+        assert!(is_pure_command_with_traces(
+            &registry,
+            "expr",
+            &["{1 + 2}".into()],
+            None,
+            &traced,
+            false,
+        ));
+    }
+
+    /// SYNC8: `::ns::foo` and `ns::foo` look up identically in the
+    /// trace set (mirrors `populate_trace_facts`'s `::`-strip).
+    #[test]
+    fn is_pure_command_with_traces_qualified_name_canonicalised() {
+        let registry = CommandRegistry::build_default();
+        let mut traced = std::collections::BTreeSet::new();
+        traced.insert("ns::foo".to_string());
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "::ns::foo",
+            &[],
+            None,
+            &traced,
+            false,
+        ));
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "ns::foo",
+            &[],
+            None,
+            &traced,
+            false,
         ));
     }
 

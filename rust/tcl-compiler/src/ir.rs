@@ -617,6 +617,19 @@ pub struct Module {
     /// `::foo` actually exports. Mirrors Python's
     /// `IRModule.namespace_exports` (main commit `2f5cb008`).
     pub namespace_exports: Vec<(String, String)>,
+    /// SYNC9: literal command names that have an execution trace
+    /// registered (`trace add execution NAME enter|leave HANDLER`).
+    /// GVN consults this set to gate purity (a traced call is
+    /// never pure because the trace handler composes side effects
+    /// in).  Mirrors Python's `IRModule.traced_commands` field
+    /// added by `8a6f4d58` (closes `#251`).
+    pub traced_commands: std::collections::BTreeSet<String>,
+    /// SYNC9: `true` when a `trace add execution` was seen with a
+    /// non-literal command target (`trace add execution $cmd ...`).
+    /// Forces GVN / partial-redundancy / loop-invariant passes to
+    /// treat *every* call as potentially traced.  Mirrors Python's
+    /// `IRModule.has_dynamic_trace`.
+    pub has_dynamic_trace: bool,
 }
 
 /// Extract the event name from a `::when::` qualified name.
