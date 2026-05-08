@@ -339,39 +339,58 @@ pub export fn list_tail(list: i32, start: i32) i32 {
 }
 
 // Exported: list sort — simple insertion sort on string comparison.
+//
+// Each entry in the working buffer stores the element's source ptr,
+// length and ``braced`` flag (12 bytes per slot).  The comparison key
+// is the unwrapped element content (matching Tcl's ``lsort`` which
+// orders by the element value, not the surrounding braces); the
+// emitted output re-adds braces when the source word was braced so
+// list-of-lists structure round-trips through ``foreach`` / ``llength``
+// instead of flattening (issue surfaced by ``tcltest`` storing
+// compound constraint names like ``"testexprparser && !ieeeFloatingPoint"``
+// as array keys, then iterating ``[lsort [array names skippedBecause]]``).
 pub export fn tcl_cmd_list_sort(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
     const n: u32 = @intCast(n_i64);
-    const arr_buf = alloc(n * 8);
+    const arr_buf = alloc(n * 12);
+    if (arr_buf == 0) return obj_new_string(0, 0);
     var idx: u32 = 0;
     while (idx < n) : (idx += 1) {
         const elem = list_element_at(s.ptr, s.len, @intCast(idx));
-        write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
-        write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
+        write_i32(arr_buf + idx * 12, @intCast(s.ptr + elem.start));
+        write_i32(arr_buf + idx * 12 + 4, @intCast(elem.len));
+        write_i32(arr_buf + idx * 12 + 8, if (elem.braced) 1 else 0);
     }
     var i: u32 = 1;
     while (i < n) : (i += 1) {
-        const key_ptr: u32 = @intCast(read_i32(arr_buf + i * 8));
-        const key_len: u32 = @intCast(read_i32(arr_buf + i * 8 + 4));
+        const key_ptr: u32 = @intCast(read_i32(arr_buf + i * 12));
+        const key_len: u32 = @intCast(read_i32(arr_buf + i * 12 + 4));
+        const key_braced: i32 = read_i32(arr_buf + i * 12 + 8);
         var j: i32 = @as(i32, @intCast(i)) - 1;
         while (j >= 0) {
             const j_u: u32 = @intCast(j);
-            const cmp_ptr: u32 = @intCast(read_i32(arr_buf + j_u * 8));
-            const cmp_len: u32 = @intCast(read_i32(arr_buf + j_u * 8 + 4));
+            const cmp_ptr: u32 = @intCast(read_i32(arr_buf + j_u * 12));
+            const cmp_len: u32 = @intCast(read_i32(arr_buf + j_u * 12 + 4));
+            const cmp_braced: i32 = read_i32(arr_buf + j_u * 12 + 8);
             if (str_cmp(cmp_ptr, cmp_len, key_ptr, key_len) > 0) {
-                write_i32(arr_buf + (j_u + 1) * 8, @intCast(cmp_ptr));
-                write_i32(arr_buf + (j_u + 1) * 8 + 4, @intCast(cmp_len));
+                write_i32(arr_buf + (j_u + 1) * 12, @intCast(cmp_ptr));
+                write_i32(arr_buf + (j_u + 1) * 12 + 4, @intCast(cmp_len));
+                write_i32(arr_buf + (j_u + 1) * 12 + 8, cmp_braced);
                 j -= 1;
             } else break;
         }
         const ins: u32 = @intCast(j + 1);
-        write_i32(arr_buf + ins * 8, @intCast(key_ptr));
-        write_i32(arr_buf + ins * 8 + 4, @intCast(key_len));
+        write_i32(arr_buf + ins * 12, @intCast(key_ptr));
+        write_i32(arr_buf + ins * 12 + 4, @intCast(key_len));
+        write_i32(arr_buf + ins * 12 + 8, key_braced);
     }
+    // Worst-case output: every element gains 2 bytes of braces, plus
+    // one separator space per element after the first.
     var result_len: u32 = 0;
-    const result_buf = alloc(s.len + n);
+    const result_buf = alloc(s.len + n * 3 + 4);
+    if (result_buf == 0) return obj_new_string(0, 0);
     idx = 0;
     while (idx < n) : (idx += 1) {
         if (idx > 0) {
@@ -379,10 +398,24 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
             d[0] = ' ';
             result_len += 1;
         }
-        const e_ptr: u32 = @intCast(read_i32(arr_buf + idx * 8));
-        const e_len: u32 = @intCast(read_i32(arr_buf + idx * 8 + 4));
-        memcpy(result_buf + result_len, e_ptr, e_len);
-        result_len += e_len;
+        const e_ptr: u32 = @intCast(read_i32(arr_buf + idx * 12));
+        const e_len: u32 = @intCast(read_i32(arr_buf + idx * 12 + 4));
+        const e_braced: bool = read_i32(arr_buf + idx * 12 + 8) != 0;
+        if (e_braced) {
+            const dl: [*]u8 = @ptrFromInt(result_buf + result_len);
+            dl[0] = '{';
+            result_len += 1;
+            if (e_len > 0) {
+                memcpy(result_buf + result_len, e_ptr, e_len);
+                result_len += e_len;
+            }
+            const dr: [*]u8 = @ptrFromInt(result_buf + result_len);
+            dr[0] = '}';
+            result_len += 1;
+        } else if (e_len > 0) {
+            memcpy(result_buf + result_len, e_ptr, e_len);
+            result_len += e_len;
+        }
     }
     return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
 }

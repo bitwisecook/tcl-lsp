@@ -106,6 +106,25 @@ test "tcl_cmd_list_sort — duplicates preserved (stable enough for equal keys)"
     try testing.expectEqualStrings("a a b b c", bytes(list.tcl_cmd_list_sort(s("c a b a b"))));
 }
 
+test "tcl_cmd_list_sort — braced elements with internal whitespace preserve grouping" {
+    // tcltest stores compound constraint names like
+    // ``"testexprparser && !ieeeFloatingPoint"`` as array keys; the
+    // ``[lsort [array names ...]]`` over those keys must keep each
+    // element a single list element.  Without re-bracing the sorted
+    // output, ``foreach`` over the result iterates 7 fragments instead
+    // of 3 and ``[info exists arr($constraint)]`` then traps.
+    try testing.expectEqualStrings(
+        "{a b c} {d e f}",
+        bytes(list.tcl_cmd_list_sort(s("{d e f} {a b c}"))),
+    );
+    try testing.expectEqualStrings(
+        "testexprparser {testexprparser && !ieeeFloatingPoint} {testexprparser && ieeeFloatingPoint}",
+        bytes(list.tcl_cmd_list_sort(s(
+            "{testexprparser && !ieeeFloatingPoint} testexprparser {testexprparser && ieeeFloatingPoint}",
+        ))),
+    );
+}
+
 // ---- search / contains ---------------------------------------------
 
 test "tcl_cmd_list_search — exact match returns index" {

@@ -1086,6 +1086,7 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
 /// returns every key.
 pub export fn array_names(arr: i32, pattern: i32) i32 {
     const str_mod = @import("tcl_string.zig");
+    const lq = @import("tcl_list_quote.zig");
     var pat_ptr: u32 = 0;
     var pat_len: u32 = 0;
     const use_filter = blk: {
@@ -1099,12 +1100,15 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
     if (t == 0) return obj_new_string(0, 0);
     const cap = ar_cap(t);
 
-    // Two-pass build: size, then assemble.  Phase 1 routes proc-local
-    // arrays through the same directory under ``::__local::*`` keys,
-    // so a single pass over the per-array element table covers every
-    // scope uniformly.  Raw byte concat (no list-element quoting)
-    // matches Tcl's ``lsort``-style output for elements that contain
-    // unescaped quotes or commas.
+    // Two-pass build: size, then assemble.  Each key is emitted via
+    // ``list_elem_quote_nth`` so keys containing whitespace, braces,
+    // backslashes or other list metacharacters round-trip through
+    // ``lsort`` / ``foreach`` as a single element.  Without quoting,
+    // a key like ``"testexprparser && !ieeeFloatingPoint"`` (added
+    // by ``::tcltest::AddToSkippedBecause`` for compound constraints)
+    // collapses into 4 list elements when callers pass the result
+    // through any list-aware command — and ``cleanupTests`` then
+    // traps with ``can't read "skippedBecause(!ieeeFloatingPoint)"``.
     var total: u32 = 0;
     var nonempty: u32 = 0;
     var i: u32 = 0;
@@ -1121,12 +1125,16 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
             // entry across both passes.
             if (!str_mod.glob_match(pat_ptr, pat_len, ep, el)) continue;
         }
-        total += el;
+        // Worst-case quoted length: ``2 * len + 2`` (matches
+        // ``list_elem_quote_nth``); plus one separator space per
+        // element after the first.
+        total += el * 2 + 2;
         if (nonempty > 0) total += 1;
         nonempty += 1;
     }
     if (nonempty == 0) return obj_new_string(0, 0);
     const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
     var off: u32 = 0;
     var written: u32 = 0;
     i = 0;
@@ -1137,10 +1145,6 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
         const ep: u32 = @bitCast(raw);
         const el: u32 = @bitCast(read_i32(bucket + 4));
         if (use_filter) {
-            // Match the raw key bytes via ``glob_match`` directly
-            // rather than allocating a TclObj per probe — the
-            // earlier ``string_match`` path leaked one key obj per
-            // entry across both passes.
             if (!str_mod.glob_match(pat_ptr, pat_len, ep, el)) continue;
         }
         if (written > 0) {
@@ -1148,11 +1152,10 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
             d[0] = ' ';
             off += 1;
         }
-        memcpy(buf + off, ep, el);
-        off += el;
+        off = lq.list_elem_quote_nth(buf, off, ep, el);
         written += 1;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(off));
+    return obj.obj_new_string_take(buf, off, total);
 }
 
 /// Scan the array directory for names matching the glob pattern
