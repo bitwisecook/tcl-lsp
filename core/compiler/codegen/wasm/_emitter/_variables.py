@@ -20,6 +20,48 @@ from .._parsing import (
 )
 
 
+def _is_dynamic_var_name(name: str) -> bool:
+    """True when *name* is a variable reference whose **identity** is
+    only known at runtime.
+
+    A name like ``$x`` / ``${x}`` / ``::$x`` / ``[cmd]`` cannot be
+    collapsed to a literal storage key — the runtime must evaluate the
+    substitution to obtain the actual variable name and then dispatch
+    through ``tcl_var_set`` / ``tcl_var_resolve``.
+
+    Array-element references (``arr(key)``) where only the *key* is
+    dynamic are **not** considered dynamic here — the array name
+    itself is a static literal, and the existing array-write path
+    already emits the key via ``_emit_value`` and routes through
+    ``tcl_array_set`` / ``tcl_array_get``.  The caller's
+    ``_parse_array_ref`` branch keeps that fast path intact; we only
+    flip dynamic for whole-scalar interpolations and for ``$arr(key)``
+    forms where the *array name* portion has a substitution.
+
+    Mirrors :func:`core.compiler.var_escape._propagation._is_dynamic_token`
+    on the scalar / array-base portion so the emitter and the
+    analyser agree on which names are dynamic.
+    """
+    if not name:
+        return True
+    if "$" not in name and "[" not in name:
+        return False
+    if name.endswith(")") and "(" in name:
+        # ``arr(key)`` — only the *array name* (the prefix up to the
+        # first ``(``) determines whether the variable identity is
+        # dynamic; the key is always evaluated via ``_emit_value`` by
+        # the array-element write/read path.
+        i = 0
+        while i < len(name) and name[i] != "(":
+            if name[i] == "\\" and i + 1 < len(name):
+                i += 2
+                continue
+            i += 1
+        prefix = name[:i]
+        return "$" in prefix or "[" in prefix
+    return True
+
+
 class _WasmEmitterVarMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterValuesMixin
@@ -94,6 +136,88 @@ class _WasmEmitterVarMixin(_Base):
         self._emit_local_get(tmp)
         return True
 
+    def _emit_dynamic_var_read(self, name_token: str) -> None:
+        """Read a variable whose name contains a runtime substitution.
+
+        *name_token* is the raw IR name token (e.g. ``${tracevar}``,
+        ``::${n}``, ``[gen_name]``).  :meth:`_emit_value` evaluates the
+        token to produce the actual variable name as a TclObj on the
+        stack; ``tcl_var_resolve`` then dispatches to the right
+        storage (``::``-qualified globals, array elements, frame-local
+        / alias chase, proc-local fallback) in a single call.  An
+        unset value (null TclObj handle) is converted into the standard
+        ``can't read "<name>": no such variable`` error using the
+        substituted name (matching reference Tcl's wording — the
+        message reports the resolved name, not the source-level
+        ``$x`` token).
+        """
+        vres_idx = self._shared_imports.get("tcl_var_resolve")
+        unset_err_idx = self._shared_imports.get("tcl_var_unset_error")
+        if vres_idx is None:
+            # Runtime missing — degrade to a literal lookup.  The static
+            # path will surface the unsubstituted token and likely fail,
+            # but that's better than dropping the read.
+            self._emit_obj_literal(name_token)
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
+            if gget_idx is not None:
+                self._emit_call(gget_idx)
+            return
+        # Stash the substituted name in a scratch local so the
+        # unset-error path can re-push it without re-evaluating
+        # (which would re-execute any side effects in the name token).
+        name_tmp = self._add_extra_local(prefix="_dynvar_name", val_type=ValType.I32)
+        self._emit_value(name_token)
+        self._emit_local_set(name_tmp)
+        self._emit_local_get(name_tmp)
+        self._emit_call(vres_idx)
+        if unset_err_idx is None:
+            return
+        if self._var_unset_check_scratch is None:
+            self._var_unset_check_scratch = self._add_extra_local(
+                prefix="_var_check", val_type=ValType.I32
+            )
+        val_tmp = self._var_unset_check_scratch
+        self._emit_local_tee(val_tmp)
+        self._emit(WasmOp.I32_EQZ)
+        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+        self._emit_local_get(name_tmp)
+        self._emit_call(unset_err_idx)
+        self._emit(WasmOp.END)
+        self._emit_local_get(val_tmp)
+
+    def _emit_dynamic_var_write(
+        self,
+        name_token: str,
+        *,
+        keep_on_stack: bool,
+    ) -> None:
+        """Write a variable whose name contains a runtime substitution.
+
+        Stack on entry: ``[value]``.  *name_token* is evaluated via
+        :meth:`_emit_value` to produce the actual variable name as a
+        TclObj, then ``tcl_var_set(name, value)`` lands the write
+        through the unified runtime path (handles ``::``-qualified
+        globals, array elements, alias chasing, and proc-local
+        fallback).  Stack on exit: ``[value]`` if *keep_on_stack*
+        else empty.
+        """
+        vset_idx = self._shared_imports.get("tcl_var_set")
+        if vset_idx is None:
+            # Runtime missing — preserve the value (or drop) but skip
+            # the write.  ``tcl_var_set`` is a core import so this
+            # branch should be unreachable in practice; degrading
+            # quietly matches the rest of the emitter.
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        val_tmp = self._add_extra_local(prefix="_dynvar_val", val_type=ValType.I32)
+        self._emit_local_set(val_tmp)
+        self._emit_value(name_token)
+        self._emit_local_get(val_tmp)
+        self._emit_call(vset_idx)
+        if not keep_on_stack:
+            self._emit(WasmOp.DROP)
+
     def _emit_var_read_obj(self, name: str) -> None:
         """Push the current TclObj value of local Tcl variable *name* on the stack.
 
@@ -120,6 +244,14 @@ class _WasmEmitterVarMixin(_Base):
         eval-fallback / the ``global`` command's pre-load of a possibly-
         uninitialised slot.
         """
+        if _is_dynamic_var_name(name):
+            # ``set $name`` / ``$::$ns::$x`` — the storage key is only
+            # known at runtime.  Materialise the substituted name via
+            # ``_emit_value`` and dispatch through ``tcl_var_resolve``
+            # (handles ``::``-qualified globals, array elements, alias
+            # chasing, and proc-local fallback in one entry point).
+            self._emit_dynamic_var_read(name)
+            return
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             self._emit_array_element_read(*array_ref)
@@ -343,6 +475,17 @@ class _WasmEmitterVarMixin(_Base):
         frame-only / proc-local) mirrors :meth:`_emit_var_read_obj`
         exactly; only the missing-variable branch differs.
         """
+        if _is_dynamic_var_name(name):
+            # ``lappend $varname x`` / ``incr ::$n`` — read through
+            # ``tcl_var_resolve`` with the substituted name and let a
+            # null result (unset variable) flow through; downstream
+            # handlers (``tcl_cmd_lappend`` / ``tcl_incr``) treat null
+            # as the empty / zero starting value.
+            vres_idx = self._shared_imports.get("tcl_var_resolve")
+            if vres_idx is not None:
+                self._emit_value(name)
+                self._emit_call(vres_idx)
+                return
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             # Array element reads return 0 (null TclObj) for missing
@@ -434,6 +577,12 @@ class _WasmEmitterVarMixin(_Base):
         keep_on_stack: bool,
         source: Ownership | None = None,
     ) -> None:
+        if _is_dynamic_var_name(name):
+            # The storage key is only known at runtime — route through
+            # ``tcl_var_set`` with a substituted name TclObj.  See
+            # :meth:`_emit_dynamic_var_write` for the contract.
+            self._emit_dynamic_var_write(name, keep_on_stack=keep_on_stack)
+            return
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             self._emit_array_element_write(array_ref[0], array_ref[1], keep_on_stack=keep_on_stack)

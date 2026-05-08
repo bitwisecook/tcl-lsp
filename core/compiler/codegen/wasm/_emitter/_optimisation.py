@@ -38,6 +38,7 @@ from .._ir import (
 )
 from .._ownership import Ownership
 from ._statements import _escape_dquote
+from ._variables import _is_dynamic_var_name
 
 
 class _WasmEmitterOptMixin(_Base):
@@ -1028,7 +1029,10 @@ class _WasmEmitterOptMixin(_Base):
                         except ValueError:
                             self._emit_value(last.amount)
                     self._emit_call(incr_idx)
-                    if last.name in self._aliases:
+                    if last.name in self._aliases or _is_dynamic_var_name(last.name):
+                        # Dynamic names route through ``_emit_var_write_obj_keep``
+                        # which dispatches via ``tcl_var_set`` with the
+                        # substituted name; see :meth:`_emit_dynamic_var_write`.
                         self._emit_var_write_obj_keep(last.name)
                     else:
                         idx = self._intern_local(last.name)
@@ -1046,7 +1050,7 @@ class _WasmEmitterOptMixin(_Base):
                         self._emit_unbox_int()
                         self._emit(WasmOp.I64_ADD)
                         self._emit_box_int()
-                        if last.name in self._aliases:
+                        if last.name in self._aliases or _is_dynamic_var_name(last.name):
                             self._emit_var_write_obj_keep(last.name)
                         else:
                             idx = self._intern_local(last.name)
@@ -1056,7 +1060,7 @@ class _WasmEmitterOptMixin(_Base):
                 self._emit_i64_const(amt)
                 self._emit(WasmOp.I64_ADD)
                 self._emit_box_int()
-                if last.name in self._aliases:
+                if last.name in self._aliases or _is_dynamic_var_name(last.name):
                     self._emit_var_write_obj_keep(last.name)
                 else:
                     idx = self._intern_local(last.name)

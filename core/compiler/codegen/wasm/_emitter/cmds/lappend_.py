@@ -11,6 +11,7 @@ from __future__ import annotations
 from ......commands.registry import REGISTRY, EmitContext
 from ..._ownership import Ownership
 from ..._parsing import _parse_array_ref
+from .._variables import _is_dynamic_var_name
 
 
 def _emit_lappend(
@@ -51,6 +52,7 @@ def _emit_lappend(
         or var_name in emitter._aliases
         or array_ref is not None
         or (array_ref is None and "(" in var_name and var_name.split("(")[0] in emitter._aliases)
+        or _is_dynamic_var_name(var_name)
     )
     keep_last = context is EmitContext.VALUE
     last_index = len(args) - 1

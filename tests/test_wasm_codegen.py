@@ -428,6 +428,14 @@ def test_no_cmd_imports_for_pure_math():
         # reads at least one variable.
         "global_get_or_error",
         "var_unset_error",
+        # Dynamic-name var path — ``set $x v`` / ``append ::$n v``.
+        # Always imported because any name token containing a ``$``
+        # / ``[`` substitution is dispatched through the unified
+        # runtime resolver after the codegen materialises the
+        # substituted name with ``tcl_append``.
+        "var_resolve",
+        "var_set",
+        "tcl_cmd_append",
     }
 
 
