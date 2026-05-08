@@ -994,6 +994,7 @@ mod tests {
             reads_own_defs: true,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         assert_eq!(defs_of(&stmt), vec!["list"]);
     }
@@ -1009,6 +1010,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         assert!(defs_of(&stmt).is_empty());
     }

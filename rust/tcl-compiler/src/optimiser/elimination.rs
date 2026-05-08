@@ -358,6 +358,7 @@ fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
 /// function's own CFG extent now that the segmenter emits
 /// absolute spans for proc bodies — so false-positive
 /// suppression across proc boundaries no longer applies.
+#[allow(clippy::too_many_lines, clippy::many_single_char_names)]
 pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
     // Absolute spans now cover the function's own source range.
     // Union every statement span plus every terminator span
@@ -436,6 +437,74 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
                 out.insert(name.to_owned());
             }
         }
+    }
+    // Also recognise ``[set varname]`` (the 1-arg read form) as a
+    // variable read.  Without this, DCE saw 0 reads on ``varname``
+    // and incorrectly deleted writes inside nested bodies (catch /
+    // foreach / while) even when the outer scope read them via the
+    // ``[set varname]`` substitution.  Mirrors upstream commit
+    // ``342d4c7a`` (PR #331).
+    let mut j = 0;
+    let bs = slice.as_bytes();
+    while j < bs.len() {
+        if bs[j] != b'[' {
+            j += 1;
+            continue;
+        }
+        let open = j;
+        let mut k = j + 1;
+        // Skip whitespace after `[`.
+        while k < bs.len() && (bs[k] == b' ' || bs[k] == b'\t') {
+            k += 1;
+        }
+        // Match `set` or `::set` followed by whitespace.
+        if slice[k..].starts_with("::") {
+            k += 2;
+        }
+        if !slice[k..].starts_with("set") {
+            j = open + 1;
+            continue;
+        }
+        let after_set = k + 3;
+        if after_set >= bs.len() || !(bs[after_set] == b' ' || bs[after_set] == b'\t') {
+            j = open + 1;
+            continue;
+        }
+        let mut m = after_set;
+        while m < bs.len() && (bs[m] == b' ' || bs[m] == b'\t') {
+            m += 1;
+        }
+        // Capture identifier up to the next whitespace or `]`.
+        let name_start = m;
+        while m < bs.len() {
+            let b = bs[m];
+            if b.is_ascii_alphanumeric() || b == b'_' {
+                m += 1;
+            } else if b == b':' && m + 1 < bs.len() && bs[m + 1] == b':' {
+                m += 2;
+            } else {
+                break;
+            }
+        }
+        if m == name_start {
+            j = open + 1;
+            continue;
+        }
+        // Skip trailing whitespace.
+        let mut n = m;
+        while n < bs.len() && (bs[n] == b' ' || bs[n] == b'\t') {
+            n += 1;
+        }
+        // Only the 1-arg read form (`[set NAME ]`) — anything other
+        // than `]` here means the 2-arg write form.
+        if n < bs.len() && bs[n] == b']' {
+            if let Ok(name) = std::str::from_utf8(&bs[name_start..m]) {
+                if !name.is_empty() {
+                    out.insert(name.to_owned());
+                }
+            }
+        }
+        j = m;
     }
     out
 }
@@ -641,6 +710,38 @@ mod tests {
         assert!(
             opts.iter().all(|o| o.code != "O109" && o.code != "O126"),
             "used var should not be flagged, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn collect_textual_var_references_detects_set_one_arg_read() {
+        // ``[set varname]`` (1-arg form) is a variable read; without
+        // it, DCE saw 0 reads on ``varname`` and incorrectly deleted
+        // the write.  Mirrors upstream commit ``342d4c7a`` (PR #331).
+        let opts = run_pass("proc ::f {} { set x 1; set y [set x]; return $y }");
+        // ``x`` is read via ``[set x]`` so neither O109 nor O126
+        // should fire on the ``set x 1`` line.
+        let bad: Vec<_> = opts
+            .iter()
+            .filter(|o| (o.code == "O109" || o.code == "O126") && o.message.contains('x'))
+            .collect();
+        assert!(
+            bad.is_empty(),
+            "[set x] should count as a read for x; got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn collect_textual_var_references_detects_qualified_set_read() {
+        // ``[::set varname]`` form should also count.
+        let opts = run_pass("proc ::f {} { set x 1; set y [::set x]; return $y }");
+        let bad: Vec<_> = opts
+            .iter()
+            .filter(|o| (o.code == "O109" || o.code == "O126") && o.message.contains('x'))
+            .collect();
+        assert!(
+            bad.is_empty(),
+            "[::set x] should count as a read for x; got {opts:?}",
         );
     }
 

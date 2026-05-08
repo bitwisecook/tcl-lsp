@@ -46,6 +46,7 @@ impl CfgBuilder {
                     reads_own_defs: false,
                     safe_on_uninit: false,
                     tokens: None,
+                    foreach_groups: None,
                 });
             }
 
@@ -108,6 +109,7 @@ impl CfgBuilder {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             });
         }
         let init_tail = self.lower_script(init, block_name)?;
@@ -143,6 +145,7 @@ impl CfgBuilder {
                     reads_own_defs: false,
                     safe_on_uninit: false,
                     tokens: None,
+                    foreach_groups: None,
                 });
         }
         if let Some(step_tail) = self.lower_script(next, &step_block) {
@@ -219,8 +222,14 @@ impl CfgBuilder {
 
         self.ensure_goto(block_name, &header, Some(*span));
 
-        // Collect all iteration variable names.
+        // Collect all iteration variable names.  The ``defs``
+        // vector is a flattened concatenation of every iterator
+        // group's vars; ``foreach_groups`` records the size of
+        // each group so the codegen can reconstruct the original
+        // ``var-list`` ↔ ``list-arg`` pairing.  Mirrors upstream
+        // commit ``342d4c7a`` (PR #331).
         let all_vars: Vec<String> = iterators.iter().flat_map(|it| it.vars.clone()).collect();
+        let group_sizes: Vec<usize> = iterators.iter().map(|it| it.vars.len()).collect();
         let list_args: Vec<String> = iterators.iter().map(|it| it.list_arg.clone()).collect();
 
         let fe_cmd = match (*is_dict_iteration, *is_lmap) {
@@ -240,6 +249,7 @@ impl CfgBuilder {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: Some(group_sizes),
         });
 
         // Opaque condition: non-deterministic branch.
@@ -434,6 +444,7 @@ impl CfgBuilder {
                         reads_own_defs: false,
                         safe_on_uninit: false,
                         tokens: None,
+                        foreach_groups: None,
                     });
             }
 
@@ -645,6 +656,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             }])),
             finally_span: Some(Span::new(18, 36)),
             raw_args: vec![],

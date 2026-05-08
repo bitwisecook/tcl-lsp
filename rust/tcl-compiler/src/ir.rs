@@ -219,6 +219,16 @@ pub enum Statement {
         safe_on_uninit: bool,
         /// Command tokens for downstream analysis.
         tokens: Option<CommandTokens>,
+        /// Per-iterator-group sizes for synthetic `foreach` /
+        /// `lmap` / `dict for` / `dict map` header calls produced
+        /// by the CFG builder.  ``Some([n0, n1, …])`` encodes that
+        /// `defs` is a flattened concatenation of `n0` + `n1` + …
+        /// vars per iterator group, so the codegen can reconstruct
+        /// the original `var-list` ↔ `list-arg` pairing.  ``None``
+        /// for every other call shape.  Mirrors Python's
+        /// `IRCall.foreach_groups` field added by upstream commit
+        /// ``342d4c7a`` (PR #331).
+        foreach_groups: Option<Vec<usize>>,
     },
 
     /// Return statement: `return ?value?`.
@@ -656,6 +666,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         assert_eq!(stmt.span(), Span::new(5, 20));
     }
@@ -722,6 +733,7 @@ mod tests {
                     reads_own_defs: false,
                     safe_on_uninit: false,
                     tokens: None,
+                    foreach_groups: None,
                 }]),
                 body_span: Span::new(5, 16),
             }],
@@ -831,6 +843,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             }]),
             params_raw: "name".into(),
             body_source: Some("puts \"Hello $name\"".into()),

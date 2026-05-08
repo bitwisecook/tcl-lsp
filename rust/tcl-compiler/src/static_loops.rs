@@ -496,6 +496,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         }]);
         assert!(
             summarise_static_for(&init, &cond, &next_script, &body, &StaticEnv::new(), 1000)

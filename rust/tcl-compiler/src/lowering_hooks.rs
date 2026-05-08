@@ -242,6 +242,7 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         reads_own_defs: true,
         safe_on_uninit: false,
         tokens: cmd.tokens.clone(),
+        foreach_groups: None,
     })
 }
 
@@ -273,6 +274,7 @@ fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
         reads_own_defs: !nocomplain,
         safe_on_uninit: false,
         tokens: cmd.tokens.clone(),
+        foreach_groups: None,
     }
 }
 
@@ -296,6 +298,7 @@ fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         reads_own_defs: false,
         safe_on_uninit: false,
         tokens: cmd.tokens.clone(),
+        foreach_groups: None,
     })
 }
 
@@ -317,6 +320,7 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
         reads_own_defs: false,
         safe_on_uninit: false,
         tokens: cmd.tokens.clone(),
+        foreach_groups: None,
     }
 }
 
@@ -347,6 +351,7 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
         reads_own_defs: false,
         safe_on_uninit: false,
         tokens: cmd.tokens.clone(),
+        foreach_groups: None,
     })
 }
 
@@ -368,6 +373,7 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
         reads_own_defs: false,
         safe_on_uninit: false,
         tokens: cmd.tokens.clone(),
+        foreach_groups: None,
     }
 }
 
