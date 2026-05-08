@@ -112,6 +112,7 @@ fn call_generates_invoke() {
         reads_own_defs: false,
         safe_on_uninit: false,
         tokens: None,
+        foreach_groups: None,
     }]);
     let registry = CommandRegistry::build_default();
     let asm = codegen_function(&cfg, &[], false, &registry);
@@ -375,6 +376,7 @@ fn foreach_emits_native_opcodes() {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         });
     cfg.blocks.get_mut("foreach_header_1").unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Raw {
@@ -461,6 +463,7 @@ fn complex_foreach_body_emits_step_at_end() {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         });
     cfg.blocks.get_mut("foreach_header_1").unwrap().terminator = Some(Terminator::Branch {
         condition: ExprNode::Raw {
@@ -498,6 +501,7 @@ fn complex_foreach_body_emits_step_at_end() {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         });
     cfg.blocks.get_mut("if_then_1").unwrap().terminator = Some(Terminator::Goto {
         target: "foreach_header_1".into(),

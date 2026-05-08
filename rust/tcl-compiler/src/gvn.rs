@@ -1683,6 +1683,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         }
     }
 
@@ -1791,6 +1792,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         }
     }
 
@@ -1908,6 +1910,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         });
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
@@ -2052,6 +2055,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             },
             uses: HashMap::new(),
             defs: HashMap::new(),
@@ -2190,6 +2194,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         cfg.blocks
             .get_mut("body")
@@ -2312,6 +2317,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             });
         cfg.blocks.get_mut("tt").unwrap().terminator = Some(Terminator::Goto {
             target: "join".into(),
@@ -2334,6 +2340,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             });
         cfg.blocks.get_mut("join").unwrap().terminator = Some(Terminator::Return {
             value: None,
@@ -2370,6 +2377,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             },
             uses: uses_x.clone(),
             defs: Map::new(),
@@ -2386,6 +2394,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             },
             uses: uses_x,
             defs: Map::new(),
@@ -2540,6 +2549,7 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             }],
         )]);
         let result = find_pure_procs(&registry, &m, None);
@@ -2558,6 +2568,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         let call_a = Statement::Call {
             span: Span::new(0, 0),
@@ -2568,6 +2579,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         let m = module_with_procs(vec![("::a", vec![call_b]), ("::b", vec![call_a])]);
         let result = find_pure_procs(&registry, &m, None);
@@ -2594,6 +2606,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         let m = module_with_procs(vec![
             ("::tainted", vec![barrier]),

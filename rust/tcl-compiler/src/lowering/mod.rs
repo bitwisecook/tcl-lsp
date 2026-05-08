@@ -730,6 +730,7 @@ impl<'r> Lowerer<'r> {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: Some(Self::cmd_tokens(seg)),
+            foreach_groups: None,
         }
     }
 
@@ -798,6 +799,7 @@ impl<'r> Lowerer<'r> {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: Some(Self::cmd_tokens(seg)),
+            foreach_groups: None,
         }
     }
 
@@ -1049,6 +1051,7 @@ impl<'r> Lowerer<'r> {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(Self::cmd_tokens(seg)),
+                foreach_groups: None,
             };
         }
 
@@ -1061,6 +1064,7 @@ impl<'r> Lowerer<'r> {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: Some(Self::cmd_tokens(seg)),
+            foreach_groups: None,
         }
     }
 }

@@ -444,6 +444,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -465,6 +466,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
@@ -523,6 +525,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         };
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);

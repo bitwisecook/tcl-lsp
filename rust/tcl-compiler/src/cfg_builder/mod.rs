@@ -273,6 +273,7 @@ impl CfgBuilder {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             });
             return current.to_owned();
         }
@@ -320,6 +321,7 @@ impl CfgBuilder {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: tokens.clone(),
+            foreach_groups: None,
         });
     }
 
@@ -365,6 +367,7 @@ impl CfgBuilder {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
+                foreach_groups: None,
             });
             return current.to_owned();
         }
@@ -412,7 +415,7 @@ fn dedup_preserve_order(v: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{IfClause, Script};
+    use crate::ir::{ForeachIterator, IfClause, Script};
     use tcl_lexer::Span;
 
     #[test]
@@ -537,6 +540,56 @@ mod tests {
                 command, defs, ..
             } if command == "catch" && !defs.is_empty()
         )));
+    }
+
+    #[test]
+    fn foreach_synthetic_call_records_iterator_group_sizes() {
+        // ``foreach {a b} L1 c L2 { … }`` has two iterator groups
+        // — the first binds two vars, the second binds one.  The
+        // synthesised header `Statement::Call` must record the
+        // group sizes via ``foreach_groups`` so codegen can
+        // reconstruct the original pairing (mirrors upstream
+        // commit ``342d4c7a`` / PR #331).
+        let body = Script::from_statements(vec![Statement::AssignConst {
+            span: Span::new(0, 0),
+            name: "x".into(),
+            value: "1".into(),
+        }]);
+        let script = Script::from_statements(vec![Statement::Foreach {
+            span: Span::new(0, 0),
+            iterators: vec![
+                ForeachIterator {
+                    vars: vec!["a".into(), "b".into()],
+                    list_arg: "L1".into(),
+                },
+                ForeachIterator {
+                    vars: vec!["c".into()],
+                    list_arg: "L2".into(),
+                },
+            ],
+            body,
+            body_span: Span::new(0, 0),
+            is_lmap: false,
+            raw_args: vec![],
+            is_dict_iteration: false,
+        }]);
+        let func = build_cfg_function("::test", &script, true);
+        let mut found_groups: Option<Vec<usize>> = None;
+        for block in func.blocks.values() {
+            for stmt in &block.statements {
+                if let Statement::Call {
+                    command,
+                    foreach_groups,
+                    ..
+                } = stmt
+                {
+                    if command == "foreach" {
+                        found_groups = foreach_groups.clone();
+                    }
+                }
+            }
+        }
+        assert_eq!(found_groups, Some(vec![2, 1]));
     }
 
     #[test]

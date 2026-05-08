@@ -82,7 +82,11 @@ pub type Env = HashMap<String, EnvValue>;
 
 /// Maximum exponent for integer `**` — guards against pathological
 /// inputs like `2 ** 999_999_999`.
-const MAX_EXPONENT: i64 = 10_000;
+///
+/// Mirrors C Tcl's `INST_EXPON` limit (`exponent < 2^28`).  Set to
+/// `(1 << 28) - 1` by upstream commit ``342d4c7a`` (PR #331);
+/// previously a tighter `10_000` cap that diverged from C Tcl.
+const MAX_EXPONENT: i64 = (1 << 28) - 1;
 
 // ---------------------------------------------------------------------------
 // Public API

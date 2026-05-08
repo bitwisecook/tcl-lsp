@@ -738,6 +738,7 @@ mod tests {
             reads_own_defs: false,
             safe_on_uninit: false,
             tokens: None,
+            foreach_groups: None,
         }
     }
 

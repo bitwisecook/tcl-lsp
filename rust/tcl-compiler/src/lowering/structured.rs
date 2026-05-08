@@ -324,7 +324,18 @@ impl Lowerer<'_> {
         if args.is_empty() {
             return Self::barrier(seg, "malformed catch");
         }
-        if arg_tokens.is_empty() || !arg_single.first().copied().unwrap_or(false) {
+        // Body must be a single brace-literal (`Str` kind) token to
+        // compile statically.  Variable references (`$cmd`) and
+        // bracket commands (`[expr ...]`) are single-token but
+        // non-`Str` and must fall through to the runtime
+        // `eval_catch`, which calls `eval_script` on the substituted
+        // value.  Without the kind check, ``catch $cmd res`` would
+        // be compiled as "call the proc named by ``$cmd``" — wrong.
+        // Mirrors upstream commit ``342d4c7a`` (PR #331).
+        if arg_tokens.is_empty()
+            || !arg_single.first().copied().unwrap_or(false)
+            || arg_tokens[0].kind != TokenType::Str
+        {
             return Self::barrier(seg, "catch with dynamic body");
         }
 
@@ -593,6 +604,7 @@ impl Lowerer<'_> {
                     reads_own_defs: true,
                     safe_on_uninit: false,
                     tokens: Some(Self::cmd_tokens(seg)),
+                    foreach_groups: None,
                 }
             }
 
@@ -613,6 +625,7 @@ impl Lowerer<'_> {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(Self::cmd_tokens(seg)),
+                foreach_groups: None,
             },
         }
     }
@@ -721,6 +734,31 @@ mod tests {
         } else {
             panic!("expected Catch");
         }
+    }
+
+    #[test]
+    fn catch_dollar_var_body_falls_through_to_barrier() {
+        // ``catch $cmd res`` has a single VAR token body, not a
+        // brace-literal `Str` token.  The lowering must treat it
+        // as a dynamic body and emit a Barrier so the runtime
+        // ``eval_catch`` evaluates the substituted value (Mirrors
+        // upstream commit ``342d4c7a`` / PR #331).
+        let m = lower_to_ir("catch $cmd res", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "catch with dynamic body"
+        ));
+    }
+
+    #[test]
+    fn catch_bracket_command_body_falls_through_to_barrier() {
+        // ``catch [build] res`` — single-token but command-subst,
+        // not brace-literal.  Must hit the Barrier path.
+        let m = lower_to_ir("catch [build] res", &reg());
+        assert!(matches!(
+            &m.top_level.statements[0],
+            Statement::Barrier { reason, .. } if reason == "catch with dynamic body"
+        ));
     }
 
     #[test]
