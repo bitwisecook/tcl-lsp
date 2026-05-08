@@ -15,7 +15,9 @@ use std::collections::HashMap;
 
 use crate::ssa::Version;
 use crate::var_escape::cfg_propagation::state::CfgState;
-use crate::var_escape::helpers::{is_dynamic_name, is_dynamic_token, is_name_first_command};
+use crate::var_escape::helpers::{
+    is_dynamic_name, is_dynamic_token, is_dynamic_upvar_level, is_name_first_command,
+};
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
@@ -34,8 +36,12 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
     let is_level_literal = (!head_no_dash.is_empty()
         && head_no_dash.chars().all(|c| c.is_ascii_digit()))
         || (head.starts_with('#') && head[1..].chars().all(|c| c.is_ascii_digit()));
-    if head.starts_with('$') && !is_level_literal {
+    if !is_level_literal && is_dynamic_upvar_level(head) {
+        // Dynamic level — pessimistic. See the matching block in
+        // [`super::super::handlers::handle_upvar`] for the
+        // unbounded-upvar rationale (Copilot review on PR #325).
         state.mark_pessimistic();
+        state.record_unbounded_upvar();
         return;
     }
     for idx in upvar_local_declaration_indices("upvar", args) {
@@ -205,6 +211,52 @@ mod tests {
         let mut s = CfgState::default();
         handle_upvar(&args_of(&["$lvl", "src", "dst"]), &mut s, &HashMap::new());
         assert!(s.dynamic_barrier());
+        // Dynamic-level path also flags the unbounded-upvar source.
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_command_substitution_level_marks_pessimistic() {
+        let mut s = CfgState::default();
+        handle_upvar(
+            &args_of(&["[expr {$n}]", "src", "dst"]),
+            &mut s,
+            &HashMap::new(),
+        );
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_quoted_substituted_level_marks_pessimistic() {
+        let mut s = CfgState::default();
+        handle_upvar(
+            &args_of(&["\"#${n}\"", "src", "dst"]),
+            &mut s,
+            &HashMap::new(),
+        );
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_namespaced_dollar_level_marks_pessimistic() {
+        let mut s = CfgState::default();
+        handle_upvar(
+            &args_of(&["$::ns::level", "src", "dst"]),
+            &mut s,
+            &HashMap::new(),
+        );
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_hash_substituted_level_marks_pessimistic() {
+        let mut s = CfgState::default();
+        handle_upvar(&args_of(&["#$n", "src", "dst"]), &mut s, &HashMap::new());
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
     }
 
     #[test]
