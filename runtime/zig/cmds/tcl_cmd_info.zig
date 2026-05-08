@@ -1031,11 +1031,20 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
                 // ``::tcl::mathfunc::*``, …) aren't represented in
                 // the namespace tree until something pokes them, so
                 // a fresh ``info commands ::tcl::mathop::*`` would
-                // come back empty.  Materialise lazily.
-                if (qualified_target == 0 and ctx.kind == .commands) {
+                // come back empty.  Materialise unconditionally
+                // (not gated on ``qualified_target == 0``): the user
+                // may already have created the ns with
+                // ``namespace eval ::tcl::mathop {}``, in which case
+                // the resolver would return non-zero but the
+                // ``cmd_table`` would still be empty.  ``materialise``
+                // is idempotent on already-populated forwards and
+                // a no-op for non-BUILTINS prefixes, so the override
+                // only fires when there's something useful to
+                // populate.
+                if (ctx.kind == .commands) {
                     const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
                     // Reconstruct the namespace prefix: everything
-                    // up to (and including the second-to-last) ``::``
+                    // up to (and not including) the last ``::``
                     // before the trailing simple pattern.
                     var last_sep: i32 = -1;
                     var k: u32 = 0;
@@ -1047,7 +1056,8 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
                     }
                     if (last_sep > 0) {
                         const prefix_len: u32 = @intCast(last_sep);
-                        qualified_target = builtin_ns.materialise(p.ptr, prefix_len);
+                        const materialised = builtin_ns.materialise(p.ptr, prefix_len);
+                        if (materialised != 0) qualified_target = materialised;
                     }
                 }
             }

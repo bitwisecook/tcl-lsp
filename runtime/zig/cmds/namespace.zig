@@ -256,6 +256,12 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 var li: i64 = 0;
                 while (li < count) : (li += 1) {
                     const elt = obj_mod.list_element_at(ls.ptr, ls.len, li);
+                    // ``element_at`` returns ``start`` as a byte
+                    // *offset* into ``ls.ptr``, not an absolute
+                    // address — same convention as the dict / inspect
+                    // call sites.  Compute the absolute address before
+                    // handing the bytes to anything that derefs.
+                    const elt_ptr: u32 = ls.ptr + elt.start;
                     // Materialise BUILTIN-tier namespaces first so a
                     // bare ``namespace path ::tcl::mathop`` finds the
                     // populated ns regardless of whether anything
@@ -264,9 +270,9 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     // non-BUILTINS prefixes).  Mirrors the same hook
                     // in ``namespace import``.
                     const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
-                    var resolved: u32 = builtin_ns.materialise(elt.start, elt.len);
+                    var resolved: u32 = builtin_ns.materialise(elt_ptr, elt.len);
                     if (resolved == 0) {
-                        const r = tcl_ns.ns_resolve_qualified(tcl_ns.ns_current(), elt.start, elt.len);
+                        const r = tcl_ns.ns_resolve_qualified(tcl_ns.ns_current(), elt_ptr, elt.len);
                         resolved = r.target_ns;
                         if (r.simple_len > 0 and r.target_ns != 0) {
                             const child = tcl_ns.ns_lookup(r.target_ns, r.simple_ptr, r.simple_len);

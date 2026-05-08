@@ -12,7 +12,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm, _try_compile_and_run  # noqa: E402
+from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm  # noqa: E402
 
 
 def _run(source: str) -> str:
@@ -286,6 +286,112 @@ puts [::partial::max 5 2 7]
     )
     # ``info commands`` returns simple names from the queried ns.
     assert out == "max min\n2\n7"
+
+
+def test_namespace_path_through_eval_materialises_mathop() -> None:
+    """When ``namespace path`` is dispatched at runtime (e.g. via
+    ``eval``), the path-setter hook in ``cmds/namespace.zig``
+    materialises the target.  The bare top-level form is currently
+    elided by codegen as a no-op, so this test goes through ``eval``
+    to exercise the runtime path that the hook actually owns."""
+    out = _run(
+        """
+puts [namespace exists ::tcl::mathop]
+eval namespace path ::tcl::mathop
+puts [namespace exists ::tcl::mathop]
+"""
+    )
+    # 0 (cold) → 1 (after path).
+    assert out == "0\n1"
+
+
+def test_info_commands_after_explicit_namespace_eval() -> None:
+    """If the user has pre-created the BUILTIN namespace explicitly
+    (``namespace eval ::tcl::mathop {}``) without populating it,
+    ``info commands ::tcl::mathop::*`` must still enumerate the
+    operators — verifies the unconditional materialise hook in
+    ``tcl_cmd_info.zig`` (was previously gated on
+    ``qualified_target == 0``)."""
+    out = _run(
+        """
+namespace eval ::tcl::mathop {}
+puts [llength [info commands ::tcl::mathop::*]]
+"""
+    )
+    assert out == "32"
+
+
+def test_mathfunc_namespace_materialises_too() -> None:
+    """The helper isn't mathop-specific.  ``::tcl::mathfunc``'s
+    BUILTIN entries (``::tcl::mathfunc::sin`` etc.) must also
+    materialise on demand."""
+    out = _run(
+        """
+puts [namespace exists ::tcl::mathfunc]
+puts [llength [info commands ::tcl::mathfunc::*]]
+puts [namespace exists ::tcl::mathfunc]
+"""
+    )
+    # Cold ``namespace exists`` returns 0; ``info commands`` triggers
+    # materialise; subsequent ``namespace exists`` is 1.  The exact
+    # count of mathfunc entries is registry-dependent, so just
+    # require "more than zero".
+    parts = out.split("\n")
+    assert parts[0] == "0", f"::tcl::mathfunc must not pre-exist before lookup: got {parts[0]!r}"
+    assert int(parts[1]) > 0, (
+        f"info commands ::tcl::mathfunc::* must enumerate after materialise: got {parts[1]!r}"
+    )
+    assert parts[2] == "1", f"::tcl::mathfunc must exist after materialise: got {parts[2]!r}"
+
+
+def test_materialise_idempotent_across_two_destinations() -> None:
+    """Importing the same source ensemble into two different
+    destinations must succeed for both — verifies that
+    ``materialise``'s "skip slots already populated as forwards"
+    path is a true no-op the second time around (no clobber, no
+    error)."""
+    out = _run(
+        """
+namespace eval ::a {
+    namespace import ::tcl::mathop::*
+}
+namespace eval ::b {
+    namespace import ::tcl::mathop::*
+}
+puts [::a::+ 1 2 3]
+puts [::b::+ 10 20 30]
+"""
+    )
+    assert out == "6\n60"
+
+
+def test_materialise_from_non_root_ns_does_not_pollute_tree() -> None:
+    """``register_builtin_forward`` resolves non-``::``-prefixed
+    names relative to ``ns_current()``.  ``cmds/tcl_mathop.zig``
+    registers each operator under both fully-qualified
+    (``::tcl::mathop::+``) and half-qualified (``tcl::mathop::+``)
+    spellings.  Without the ``::``-prefix filter in ``materialise``,
+    invoking the helper while ``ns_current`` is non-root would walk
+    the half-qualified names through the relative resolver and
+    create ``::caller::tcl::mathop::+`` etc., leaving the real
+    ``::tcl::mathop`` empty and polluting the caller's subtree.
+    Verify both halves: the canonical ns is populated, and no
+    ``tcl`` child appears under the caller's ns."""
+    out = _run(
+        """
+namespace eval ::caller {
+    # Force materialisation from inside ::caller — info commands
+    # is the cheapest reachable hook.
+    set _ [info commands ::tcl::mathop::*]
+    puts [namespace exists ::caller::tcl::mathop]
+    puts [namespace exists ::caller::tcl]
+    puts [namespace exists ::tcl::mathop]
+}
+"""
+    )
+    # No phantom ``::caller::tcl::mathop`` (or even ``::caller::tcl``);
+    # the canonical ``::tcl::mathop`` is the only target.
+    assert out == "0\n0\n1"
 
 
 def test_namespace_import_after_explicit_namespace_eval() -> None:

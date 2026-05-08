@@ -26,20 +26,32 @@
 // implicitly populates the parent namespace.  Our static BUILTINS
 // table doesn't go through that path, so we materialise on demand.
 
-const reg = @import("tcl_cmd_registry.zig");
 const cmd_table = @import("tcl_cmd_table.zig");
 const tcl_ns = @import("../interp/tcl_ns.zig");
 const procs = @import("../interp/tcl_procs.zig");
 const obj = @import("../valtypes/tcl_obj.zig");
 
+// Static ``*`` byte stamped into newly-materialised namespaces'
+// export pattern lists.  ``ns_export`` heap-copies the bytes, so the
+// pointer just needs to live somewhere stable in linear memory; the
+// constant data segment is the natural home.  Avoids the wasted
+// ``alloc(1)`` per materialised namespace that the bump allocator
+// would otherwise leak (it can't free).
+const STAR_BYTE: [1]u8 = .{'*'};
+
 /// True iff at least one BUILTIN entry's name is ``<prefix>::<simple>``
-/// — i.e. the prefix is a real namespace from the BUILTINS table's
-/// point of view.  Cheap O(N) over the ~few-hundred-entry BUILTINS
-/// slice.
+/// AND fully-qualified (``::``-prefixed) — i.e. the prefix is a real
+/// namespace from the BUILTINS table's point of view.  The
+/// fully-qualified filter mirrors what ``materialise`` actually
+/// registers; without it, a prefix that only matched the
+/// half-qualified BUILTIN spellings would produce an empty
+/// materialised namespace.  Cheap O(N) over the ~few-hundred-entry
+/// BUILTINS slice.
 pub fn has_builtin_namespace(prefix_ptr: u32, prefix_len: u32) bool {
     if (prefix_len == 0) return false;
     const prefix: [*]const u8 = @ptrFromInt(prefix_ptr);
     for (cmd_table.entries()) |e| {
+        if (e.name.len < 2 or e.name[0] != ':' or e.name[1] != ':') continue;
         if (entry_is_under_prefix(e.name, prefix, prefix_len)) return true;
     }
     return false;
@@ -64,6 +76,17 @@ pub fn materialise(prefix_ptr: u32, prefix_len: u32) u32 {
     const prefix: [*]const u8 = @ptrFromInt(prefix_ptr);
     for (cmd_table.entries()) |e| {
         if (!entry_is_under_prefix(e.name, prefix, prefix_len)) continue;
+        // Only register entries whose name is fully-qualified
+        // (``::``-prefixed).  ``cmds/tcl_mathop.zig`` also lists a
+        // half-qualified spelling (``tcl::mathop::+``) for the
+        // ``namespace eval ::tcl`` callers; passing that to
+        // ``register_builtin_forward`` would resolve relative to
+        // ``ns_current()`` and create the wrong tree (e.g.
+        // ``::caller::tcl::mathop::+`` when called from inside a
+        // non-root namespace).  Skipping the half-qualified shape
+        // means we register each operator exactly once, anchored
+        // at root via the ``::``-prefixed name.
+        if (e.name.len < 2 or e.name[0] != ':' or e.name[1] != ':') continue;
         const simple_off = prefix_len + 2;
         if (entry_has_deeper_separator(e.name, simple_off)) continue;
         // Skip if some other path (a user proc, an alias, …) has
@@ -96,10 +119,7 @@ pub fn materialise(prefix_ptr: u32, prefix_len: u32) u32 {
     // and the existing pattern set already covers ``*``.
     const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
     if (ns.export_pattern_count == 0) {
-        const star = obj.alloc(1);
-        const star_p: [*]u8 = @ptrFromInt(star);
-        star_p[0] = '*';
-        tcl_ns.ns_export(ns_addr, star, 1);
+        tcl_ns.ns_export(ns_addr, @intFromPtr(&STAR_BYTE[0]), 1);
     }
 
     return ns_addr;
