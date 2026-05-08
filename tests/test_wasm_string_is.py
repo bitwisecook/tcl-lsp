@@ -73,9 +73,7 @@ def test_string_is_ambiguous_class() -> None:
 
 
 def test_string_is_failindex_dict_odd() -> None:
-    out = _run(
-        "set x {}; puts [string is dict -failindex x {a b c}]; puts $x"
-    )
+    out = _run("set x {}; puts [string is dict -failindex x {a b c}]; puts $x")
     lines = out.strip().splitlines()
     assert lines[0] == "0"
     assert lines[1] == "-1"
