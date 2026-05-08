@@ -414,3 +414,134 @@ puts [::dst::== 1 1 1]
 """
     )
     assert out == "6\n1"
+
+
+# -- Large-shift contract (mirrors tclExecute.c INST_LSHIFT / INST_RSHIFT) --
+#
+# Tcl 9 caps shift counts at INT_MAX (2^31 - 1).  ``[<< 1 (INT_MAX+1)]``
+# would otherwise demand a 2^31-bit bignum, which we can't materialise
+# in finite time, so the runtime must reject the count *before* calling
+# into ``Managed.shiftLeft`` / ``Managed.shiftRight``.  Pre-fix the
+# ``mathop.test`` slice (specifically ``mathop-24.5``) hung the WASM
+# bundle for the full 180 s watchdog window.
+#
+# These contracts pin both:
+#   - left-shift count > INT_MAX → "integer value too large to represent"
+#   - right-shift count > INT_MAX → 0 / -1 per operand sign
+#   - bignum-shaped count is treated identically to a count > INT_MAX
+
+
+def test_mathop_lshift_count_above_int_max_errors() -> None:
+    """``[<< 1 2147483648]`` (INT_MAX + 1) must raise
+    ``integer value too large to represent`` rather than allocate a
+    2-billion-bit bignum and hang the runtime."""
+    out = _run(
+        """
+if {[catch {::tcl::mathop::<< 1 2147483648} msg]} {
+    puts $msg
+} else {
+    puts "no-error"
+}
+"""
+    )
+    assert out == "integer value too large to represent"
+
+
+def test_mathop_lshift_count_far_above_int_max_errors() -> None:
+    """Same contract for a count that exceeds 2^32 — proves the cap is
+    INT_MAX, not the i32 wraparound boundary."""
+    out = _run(
+        """
+if {[catch {::tcl::mathop::<< 1 4294967296} msg]} {
+    puts $msg
+}
+"""
+    )
+    assert out == "integer value too large to represent"
+
+
+def test_mathop_lshift_count_bignum_errors() -> None:
+    """A shift count that's a positive bignum (well past i64) must also
+    surface as ``integer value too large to represent`` — without
+    silently truncating to the low-64 bits and accepting the shift."""
+    out = _run(
+        """
+set big 12135435435354435435342423948763867876
+if {[catch {::tcl::mathop::<< 1 $big} msg]} {
+    puts $msg
+}
+"""
+    )
+    assert out == "integer value too large to represent"
+
+
+def test_mathop_lshift_negative_bignum_count_errors() -> None:
+    """A negative shift count (even when expressed as a bignum) keeps
+    the ``negative shift argument`` error wording."""
+    out = _run(
+        """
+set big -12135435435354435435342423948763867876
+if {[catch {::tcl::mathop::<< 1 $big} msg]} {
+    puts $msg
+}
+"""
+    )
+    assert out == "negative shift argument"
+
+
+def test_mathop_lshift_count_at_int_max_succeeds() -> None:
+    """The boundary itself (count == INT_MAX) is still legal; only
+    counts strictly greater than INT_MAX are rejected.  We use a
+    zero operand so the result is trivially 0 and we don't actually
+    materialise a 2^31-bit value."""
+    out = _run("puts [::tcl::mathop::<< 0 2147483647]")
+    assert out == "0"
+
+
+def test_mathop_rshift_count_above_int_max_returns_zero() -> None:
+    """``[>> $positive INT_MAX+1]`` collapses to 0 rather than feeding
+    an absurd shift count to ``Managed.shiftRight``."""
+    out = _run("puts [::tcl::mathop::>> 12345 2147483648]")
+    assert out == "0"
+
+
+def test_mathop_rshift_count_above_int_max_negative_operand_returns_minus_one() -> None:
+    """Mirror of the above for arithmetic-shift sign extension."""
+    out = _run("puts [::tcl::mathop::>> -12345 2147483648]")
+    assert out == "-1"
+
+
+def test_mathop_rshift_bignum_operand_count_above_int_max() -> None:
+    """A bignum operand right-shifted by > INT_MAX still inspects the
+    operand's true sign, not the truncated low-64 bits — so a large
+    *positive* bignum collapses to 0 and a large *negative* bignum
+    collapses to -1."""
+    out = _run(
+        """
+set big      12135435435354435435342423948763867876
+set wide                             12345678912345
+puts [::tcl::mathop::>> $big $wide]
+puts [::tcl::mathop::>> -$big $wide]
+"""
+    )
+    assert out == "0\n-1"
+
+
+def test_expr_lshift_count_above_int_max_errors() -> None:
+    """The same cap applies inside ``expr`` — ``tcl_arith_lshift``
+    shares the contract with ``::tcl::mathop::<<``."""
+    out = _run(
+        """
+if {[catch {expr {1 << 2147483648}} msg]} {
+    puts $msg
+}
+"""
+    )
+    assert out == "integer value too large to represent"
+
+
+def test_expr_rshift_count_above_int_max_collapses() -> None:
+    """``expr {12345 >> (INT_MAX+1)}`` collapses to 0; the negative
+    operand counterpart collapses to -1."""
+    assert _run("puts [expr {12345 >> 2147483648}]") == "0"
+    assert _run("puts [expr {-12345 >> 2147483648}]") == "-1"
