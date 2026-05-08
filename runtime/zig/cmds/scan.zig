@@ -285,8 +285,17 @@ fn eval_scan(words: []const i32) result_mod.InterpResult {
             continue;
         }
 
-        // All other specifiers consume input.
-        si = skip_space(src, ss.len, si);
+        // ``%c`` is unique among the consuming specs — it reads the
+        // NEXT character without skipping leading whitespace, matching
+        // reference Tcl's ``CharConvert`` (tclScan.c).  All other
+        // specifiers skip whitespace before parsing.  Without this
+        // exemption ``scan " " %c x`` would skip the space, hit
+        // end-of-input, and leave ``x`` unset (12days's
+        // ``[scan [string index $c 0] %c x; set x]`` recursion fed it
+        // a single-space char and tripped ``can't read "x"``).
+        if (spec != 'c') {
+            si = skip_space(src, ss.len, si);
+        }
         if (si >= ss.len) break;
 
         if (spec == 'c') {

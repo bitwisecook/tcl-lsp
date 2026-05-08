@@ -115,6 +115,11 @@ _UNARY_MAP: dict[str, UnaryOp] = {
 }
 
 # Binding power for prefix unary operators (higher than any binary op).
+# Tcl 9 binds unary ``-`` / ``+`` / ``~`` / ``!`` tighter than ``**``
+# (per the operator-precedence table in the ``expr`` man page).
+# So ``-2**10`` parses as ``(-2)**10 = 1024``, not ``-(2**10)``;
+# tests like expr-23.20 (``-1**2 = 1``) and expr-23.49 (``-2**N``
+# matches ``1<<N`` for even N) rely on this scoping.
 _UNARY_BP = 24
 
 

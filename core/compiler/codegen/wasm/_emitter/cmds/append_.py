@@ -38,9 +38,17 @@ def _emit_append(
     # _variables.py Phase 4.5 finalisation).  A bare ``local_set`` at
     # top level would update the WASM local but leave the global
     # stale, so subsequent ``$var`` reads see the pre-append value.
+    #
+    # ``global``-declared names inside a proc also need the var path
+    # so the append's writeback reaches the global table.  Without
+    # this branch, ``proc f {} { global a ; append a x }`` only
+    # updated the WASM-local mirror; the global stayed at its
+    # pre-append value (the bug ``hello_world`` exposed).
     at_top_level = not emitter._is_proc
+    is_global = var_name in emitter._globals
     use_var_path = (
         at_top_level
+        or is_global
         or var_name in emitter._aliases
         or array_ref is not None
         or (array_ref is None and "(" in var_name and var_name.split("(")[0] in emitter._aliases)

@@ -166,6 +166,17 @@ fn skip_ws(s: *State) void {
         const c = s.src[s.pos];
         if (c == ' ' or c == '\t' or c == '\n' or c == '\r') {
             s.pos += 1;
+        } else if (c == '#') {
+            // TIP 582: ``#`` starts a line comment that runs to the
+            // next newline (or end of input).  Skipping the comment
+            // here lets ``expr {1 # comment\n + 2}`` and the
+            // ``max(1,# comment\n2)`` family of cases parse cleanly
+            // without modifying every parse_* call site.  The
+            // comment terminator is the literal ``\n`` byte; ``\r``
+            // alone doesn't end the comment because Tcl's source
+            // line-end is the newline byte.
+            while (s.pos < s.len and s.src[s.pos] != '\n') s.pos += 1;
+            // Loop iteration will pick up the trailing whitespace.
         } else break;
     }
 }
@@ -200,6 +211,53 @@ pub fn eval(ptr: u32, len: u32) i32 {
     var s = State{ .src = @ptrFromInt(ptr), .len = len, .pos = 0 };
     skip_ws(&s);
     return parse_ternary(&s);
+}
+
+/// Top-level expression evaluator entry — runs ``eval`` and then
+/// shimmers the result toward its canonical numeric form when the
+/// source was a single token (var read, quoted string, braced
+/// literal).  Distinct from :func:`eval` because nested ``eval``
+/// invocations (cond / branch / sub-expression) must NOT canonicalise
+/// — comparison and string-op operands need their original string
+/// repr (``$v1 < "0x12"`` falls back to string compare which sees
+/// ``"0x12"``, not the canonicalised ``18``; expr-8.29).
+pub fn eval_top(ptr: u32, len: u32) i32 {
+    if (len == 0) return obj_new_int(0);
+    var s = State{ .src = @ptrFromInt(ptr), .len = len, .pos = 0 };
+    skip_ws(&s);
+    const result = parse_ternary(&s);
+    skip_ws(&s);
+    // Reject ``NaN`` as the whole-expression result — reference Tcl 9
+    // emits ``domain error: argument not in valid range`` for
+    // ``expr nan`` (expr-old-36.7).  We let nested operands carry
+    // NaN through (so ``isnan(NaN)`` / ``isunordered(NaN, $v)``
+    // work) and only check at this top-level entry.
+    if (result != 0 and !obj.is_immediate(result)) {
+        const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
+        if (tag == obj.TYPE_FLOAT) {
+            const fv: f64 = @bitCast(obj.read_i64(@as(u32, @bitCast(result)) + obj.OBJ_INT_CACHE));
+            if (std.math.isNan(fv)) {
+                @import("../stubs/tcl_stubs.zig").raise(
+                    "domain error: argument not in valid range",
+                );
+                obj.tcl_obj_release(result);
+                return obj_new_int(0);
+            }
+        }
+    }
+    if (s.pos == s.len and result != 0 and !obj.is_immediate(result)) {
+        const tag = obj.read_i32(@as(u32, @bitCast(result)) + obj.OBJ_TYPE_TAG);
+        if (tag != obj.TYPE_INT and tag != obj.TYPE_FLOAT and tag != obj.TYPE_BIGNUM) {
+            const rs = obj.obj_ensure_string(result);
+            if (rs.len > 0) {
+                if (try_canonicalise_string(rs.ptr, rs.len)) |canon| {
+                    obj.tcl_obj_release(result);
+                    return canon;
+                }
+            }
+        }
+    }
+    return result;
 }
 
 fn parse_ternary(s: *State) i32 {
@@ -726,6 +784,57 @@ fn parse_var(s: *State) i32 {
     return subst.subst_flagged(ptr_as_u32(slice_ptr), slice_len, true, false, false);
 }
 
+/// Try to convert *s* to a canonical numeric obj, returning ``null``
+/// when the string isn't a valid Tcl integer / hex / octal / binary /
+/// float literal in its entirety.  Distinct from the expression
+/// evaluator's eager parser (which would consume ``0o289`` as ``0o2``
+/// and silently drop the trailing ``89``).
+fn try_canonicalise_string(ptr: u32, len: u32) ?i32 {
+    if (len == 0) return null;
+    const src: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i < len and obj.is_space(src[i])) i += 1;
+    if (i >= len) return null;
+    const sign_start = i;
+    if (src[i] == '+' or src[i] == '-') i += 1;
+    if (i >= len) return null;
+    // Base prefix?
+    if (i + 1 < len and src[i] == '0' and (src[i + 1] == 'x' or src[i + 1] == 'X' or
+        src[i + 1] == 'o' or src[i + 1] == 'O' or src[i + 1] == 'b' or src[i + 1] == 'B'))
+    {
+        const base_char = src[i + 1];
+        const digit_start = i + 2;
+        var j = digit_start;
+        while (j < len and !obj.is_space(src[j])) : (j += 1) {
+            const ch = src[j];
+            const ok = switch (base_char) {
+                'x', 'X' => (ch >= '0' and ch <= '9') or (ch >= 'a' and ch <= 'f') or (ch >= 'A' and ch <= 'F'),
+                'o', 'O' => ch >= '0' and ch <= '7',
+                'b', 'B' => ch == '0' or ch == '1',
+                else => unreachable,
+            };
+            if (!ok) return null;
+        }
+        if (j == digit_start) return null;
+        // Trailing whitespace allowed.
+        var k = j;
+        while (k < len and obj.is_space(src[k])) k += 1;
+        if (k != len) return null;
+        // Re-use eval() now that we know the string is fully valid:
+        // it handles bignum overflow and emits the canonical decimal
+        // form.  ``sign_start`` covers the optional ``+``/``-`` prefix.
+        const slice_ptr: u32 = @intCast(@intFromPtr(src) + sign_start);
+        const slice_len: u32 = j - sign_start;
+        return eval(slice_ptr, slice_len);
+    }
+    // Plain decimal int form (covers leading zeros like ``0005`` per
+    // Tcl 9 — which canonicalises to ``5`` decimal, not octal).
+    if (obj.try_parse_int(ptr, len)) |iv| return obj_new_int(iv);
+    // Floating point.
+    if (obj.try_parse_float(ptr, len)) |fv| return obj.obj_new_float(fv);
+    return null;
+}
+
 fn parse_cmd_subst(s: *State) i32 {
     // ``[cmd ...]`` — find the matching close bracket, evaluate
     // the inner script via ``tcl_eval``, return its result obj.
@@ -884,6 +993,55 @@ fn parse_braced(s: *State) i32 {
         if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
             return obj.obj_new_float(fv);
         }
+        // Inner contains line continuations (``\<newline>``) — Tcl 9
+        // expr-braced operands collapse those to whitespace before
+        // parsing the inner numeric token (compExpr-2.5).  Stamp out
+        // a scratch copy with the continuation removed and retry
+        // ``try_parse_int`` / ``try_parse_float`` against the cleaned
+        // bytes.  Skip the copy when no backslash-newline is present
+        // — the common case (no continuation) keeps the original
+        // hot-path trim-free.
+        var has_cont: bool = false;
+        var ci: u32 = 0;
+        while (ci + 1 < slen) : (ci += 1) {
+            if (src[ci] == '\\' and src[ci + 1] == '\n') {
+                has_cont = true;
+                break;
+            }
+        }
+        if (has_cont) {
+            const buf_addr = obj.alloc(slen);
+            if (buf_addr != 0) {
+                const buf: [*]u8 = @ptrFromInt(buf_addr);
+                var bi: u32 = 0;
+                var di: u32 = 0;
+                while (bi < slen) : (bi += 1) {
+                    if (bi + 1 < slen and src[bi] == '\\' and src[bi + 1] == '\n') {
+                        // Replace ``\<newline>[whitespace*]`` with a single
+                        // space — matches ``Tcl_Backslash`` behaviour.
+                        buf[di] = ' ';
+                        di += 1;
+                        bi += 1; // outer for loop also advances
+                        // Skip subsequent whitespace per Tcl's line-
+                        // continuation semantics.
+                        while (bi + 1 < slen and (src[bi + 1] == ' ' or src[bi + 1] == '\t')) bi += 1;
+                        continue;
+                    }
+                    buf[di] = src[bi];
+                    di += 1;
+                }
+                const cleaned_ptr: u32 = buf_addr;
+                if (obj.try_parse_int(cleaned_ptr, di)) |iv| {
+                    obj.free_sized(buf_addr, slen);
+                    return obj_new_int(iv);
+                }
+                if (obj.try_parse_float(cleaned_ptr, di)) |fv| {
+                    obj.free_sized(buf_addr, slen);
+                    return obj.obj_new_float(fv);
+                }
+                obj.free_sized(buf_addr, slen);
+            }
+        }
     }
     return obj_new_string(ptr_as_i32(inner_ptr), len_as_i32(inner_len));
 }
@@ -1010,7 +1168,13 @@ fn finalize_num(s: *State, start: u32) i32 {
                 }
                 v = a[0];
             }
-            if (ok) return obj_new_int(@intCast(v));
+            // ``@intCast(v)`` panics under Zig safety checks when ``v``
+            // exceeds ``i64`` max, so the i64-bounds check here is
+            // load-bearing — without it, ``0o7777777777777777777777`` and
+            // friends trap rather than falling through to the bignum path.
+            if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
+                return obj_new_int(@intCast(v));
+            }
         } else if (c == 'b' or c == 'B') {
             var v: u64 = 0;
             var i: u32 = 2;
@@ -1028,7 +1192,11 @@ fn finalize_num(s: *State, start: u32) i32 {
                 }
                 v = m[0] + @as(u64, ch - '0');
             }
-            if (ok) return obj_new_int(@intCast(v));
+            // Same i64-bounds gate as the hex path — guard against
+            // ``@intCast`` panicking for values >= 2^63.
+            if (ok and v <= @as(u64, @intCast(@as(i64, 9223372036854775807)))) {
+                return obj_new_int(@intCast(v));
+            }
         }
     }
     if (obj.try_parse_int(@bitCast(sptr), @bitCast(slen))) |iv| {
@@ -1037,8 +1205,17 @@ fn finalize_num(s: *State, start: u32) i32 {
     if (obj.try_parse_float(@bitCast(sptr), @bitCast(slen))) |fv| {
         return obj.obj_new_float(fv);
     }
-    // Bignum / unparseable — fall back to the source bytes so
-    // the caller sees the original spelling.
+    // Bignum path — base-prefixed integer literals that overflow i64
+    // (``0b1[64 zeros]`` = 2^64, ``0xff…ff`` past 16 digits) and plain
+    // decimal literals beyond i64 / i128 range get the full Managed
+    // parser, which collapses to the canonical decimal string repr.
+    // Without this, ``expr-43.11`` returned ``0b11…1`` (the source
+    // bytes) instead of ``18446744073709551615``.
+    const bn = @import("../valtypes/tcl_bignum.zig");
+    if (bn.alloc_from_string(@bitCast(sptr), @bitCast(slen))) |m| {
+        return obj.obj_new_bignum_take(m);
+    }
+    // Truly unparseable — fall back to the source bytes.
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(slen));
 }
 
@@ -1104,20 +1281,37 @@ fn parse_func_or_word(s: *State) i32 {
     // for identifying the operand class but we no longer use its
     // numeric form for the bare-keyword case.
     if (s.skip) return obj_new_int(0);
-    // Tcl 9 ``expr nan`` (bareword) raises ``domain error: argument
-    // not in valid range`` — expr-old-36.7.  ``inf`` / ``infinity``
-    // are valid float keywords (``expr Inf`` round-trips cleanly),
-    // but ``NaN`` has no defined value in numeric expressions.  Match
-    // the surface text reference Tcl emits via ``TclParseNumber`` →
-    // ``ExprIeeeFromObj``.
+    // Tcl 9 ``NaN`` (case-insensitive) is a valid float keyword in
+    // expr — it produces a NaN-valued ``TYPE_FLOAT`` operand.
+    // Arithmetic operators that reject non-finite operands raise
+    // their own diagnostic (``cannot use non-numeric floating-point
+    // value …``), so we shouldn't pre-emptively block parsing here.
+    // ``isunordered(NaN, $v)`` and ``isnan(NaN)`` both depend on the
+    // bareword returning a real NaN.
     if (is_nan_keyword(name)) {
-        @import("../stubs/tcl_stubs.zig").raise(
-            "domain error: argument not in valid range",
-        );
-        return obj_new_int(0);
+        return obj.obj_new_float(std.math.nan(f64));
+    }
+    // ``Inf`` / ``Infinity`` are likewise valid float keywords.  The
+    // expression-level numeric path picks them up via
+    // ``try_parse_float`` once the bareword reaches the operator
+    // dispatch, but eagerly returning a TYPE_FLOAT here means
+    // ``isfinite(Inf)`` / ``isnan(Inf)`` get a real numeric operand
+    // rather than a TYPE_STRING ``"Inf"`` they'd have to re-parse.
+    if (is_inf_keyword(name)) {
+        return obj.obj_new_float(std.math.inf(f64));
     }
     const sptr = @intFromPtr(s.src) + start;
     return obj_new_string(ptr_as_i32(sptr), len_as_i32(name_len));
+}
+
+fn is_inf_keyword(name: []const u8) bool {
+    if (name.len != 3 and name.len != 8) return false;
+    var buf: [8]u8 = undefined;
+    for (0..name.len) |i| {
+        const c = name[i];
+        buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    return std.mem.eql(u8, buf[0..name.len], "inf") or std.mem.eql(u8, buf[0..name.len], "infinity");
 }
 
 fn is_nan_keyword(name: []const u8) bool {
@@ -1139,6 +1333,51 @@ fn parse_bool_keyword(name: []const u8) ?i64 {
 }
 
 fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
+    // Variable-arity math functions — checked before the per-arity
+    // chains so e.g. ``min(1)`` and ``max(1,2,3,4)`` both reach the
+    // same handler.  Reference Tcl allows the empty form (``min()`` →
+    // Inf, ``max()`` → -Inf) so the harness's deg-test cases that
+    // exercise zero-arg dispatch don't trap.
+    // Zero-arity ``rand()`` — uniform float in [0, 1).
+    if (std.mem.eql(u8, name, "rand")) {
+        if (args.len != 0) return raise_too_many_args(name);
+        return arith.tcl_math_rand();
+    }
+    if (std.mem.eql(u8, name, "srand")) {
+        if (args.len != 1) {
+            if (args.len > 1) return raise_too_many_args(name);
+            return raise_too_few_args(name);
+        }
+        return arith.tcl_math_srand(args[0]);
+    }
+    if (std.mem.eql(u8, name, "min")) {
+        if (args.len == 0) return obj.obj_new_float(std.math.inf(f64));
+        var best = args[0];
+        obj.tcl_obj_retain(best);
+        var i: usize = 1;
+        while (i < args.len) : (i += 1) {
+            if (arith.compare_for_minmax(args[i], best) < 0) {
+                obj.tcl_obj_release(best);
+                best = args[i];
+                obj.tcl_obj_retain(best);
+            }
+        }
+        return best;
+    }
+    if (std.mem.eql(u8, name, "max")) {
+        if (args.len == 0) return obj.obj_new_float(-std.math.inf(f64));
+        var best = args[0];
+        obj.tcl_obj_retain(best);
+        var i: usize = 1;
+        while (i < args.len) : (i += 1) {
+            if (arith.compare_for_minmax(args[i], best) > 0) {
+                obj.tcl_obj_release(best);
+                best = args[i];
+                obj.tcl_obj_retain(best);
+            }
+        }
+        return best;
+    }
     if (args.len == 1) {
         if (std.mem.eql(u8, name, "int") or std.mem.eql(u8, name, "entier"))
             return arith.tcl_math_int(args[0]);
@@ -1152,6 +1391,8 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "log")) return arith.tcl_math_log(args[0]);
         if (std.mem.eql(u8, name, "log10")) return arith.tcl_math_log10(args[0]);
         if (std.mem.eql(u8, name, "sqrt")) return arith.tcl_math_sqrt(args[0]);
+        if (std.mem.eql(u8, name, "isqrt")) return arith.tcl_math_isqrt(args[0]);
+        if (std.mem.eql(u8, name, "bool")) return arith.tcl_math_bool(args[0]);
         if (std.mem.eql(u8, name, "exp")) return arith.tcl_math_exp(args[0]);
         if (std.mem.eql(u8, name, "sin")) return arith.tcl_math_sin(args[0]);
         if (std.mem.eql(u8, name, "cos")) return arith.tcl_math_cos(args[0]);
@@ -1164,14 +1405,93 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (std.mem.eql(u8, name, "tanh")) return arith.tcl_math_tanh(args[0]);
         if (std.mem.eql(u8, name, "floor")) return arith.tcl_math_floor(args[0]);
         if (std.mem.eql(u8, name, "ceil")) return arith.tcl_math_ceil(args[0]);
+        if (std.mem.eql(u8, name, "isfinite")) return arith.tcl_math_isfinite(args[0]);
+        if (std.mem.eql(u8, name, "isinf")) return arith.tcl_math_isinf(args[0]);
+        if (std.mem.eql(u8, name, "isnan")) return arith.tcl_math_isnan(args[0]);
+        if (std.mem.eql(u8, name, "isnormal")) return arith.tcl_math_isnormal(args[0]);
+        if (std.mem.eql(u8, name, "issubnormal")) return arith.tcl_math_issubnormal(args[0]);
+        if (std.mem.eql(u8, name, "fpclassify")) return arith.tcl_math_fpclassify(args[0]);
     }
     if (args.len == 2) {
         if (std.mem.eql(u8, name, "pow")) return arith.tcl_arith_pow(args[0], args[1]);
+        if (std.mem.eql(u8, name, "isunordered")) return arith.tcl_math_isunordered(args[0], args[1]);
         if (std.mem.eql(u8, name, "atan2")) return arith.tcl_math_atan2(args[0], args[1]);
         if (std.mem.eql(u8, name, "fmod")) return arith.tcl_math_fmod(args[0], args[1]);
         if (std.mem.eql(u8, name, "hypot")) return arith.tcl_math_hypot(args[0], args[1]);
     }
+    // Reference Tcl 9 raises a specific surface diagnostic for unknown
+    // function names (expr-50.x) and arg-count mismatches on known
+    // functions (expr-47.1).  Falling through silently as
+    // ``obj_new_int(0)`` would mask user errors.
+    if (std.mem.eql(u8, name, "isqrt") or std.mem.eql(u8, name, "bool") or
+        std.mem.eql(u8, name, "abs") or std.mem.eql(u8, name, "fabs") or
+        std.mem.eql(u8, name, "int") or std.mem.eql(u8, name, "entier") or
+        std.mem.eql(u8, name, "wide") or std.mem.eql(u8, name, "double") or
+        std.mem.eql(u8, name, "float") or std.mem.eql(u8, name, "round") or
+        std.mem.eql(u8, name, "log") or std.mem.eql(u8, name, "log10") or
+        std.mem.eql(u8, name, "sqrt") or std.mem.eql(u8, name, "exp") or
+        std.mem.eql(u8, name, "sin") or std.mem.eql(u8, name, "cos") or
+        std.mem.eql(u8, name, "tan") or std.mem.eql(u8, name, "asin") or
+        std.mem.eql(u8, name, "acos") or std.mem.eql(u8, name, "atan") or
+        std.mem.eql(u8, name, "sinh") or std.mem.eql(u8, name, "cosh") or
+        std.mem.eql(u8, name, "tanh") or std.mem.eql(u8, name, "floor") or
+        std.mem.eql(u8, name, "ceil"))
+    {
+        if (args.len > 1) return raise_too_many_args(name);
+        if (args.len < 1) return raise_too_few_args(name);
+    }
+    if (std.mem.eql(u8, name, "pow") or std.mem.eql(u8, name, "atan2") or
+        std.mem.eql(u8, name, "fmod") or std.mem.eql(u8, name, "hypot"))
+    {
+        if (args.len > 2) return raise_too_many_args(name);
+        if (args.len < 2) return raise_too_few_args(name);
+    }
+    return raise_unknown_func(name);
+}
+
+fn raise_math_func_error(prefix: []const u8, name: []const u8, fallback: []const u8) i32 {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
+    const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        // OOM on the formatted-message buffer — fall back to the
+        // static prefix so the diagnostic still surfaces instead of
+        // writing through a null pointer.
+        stubs.raise(fallback);
+        return obj_new_int(0);
+    }
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    @memcpy(buf[prefix.len .. prefix.len + name.len], name);
+    @memcpy(buf[prefix.len + name.len ..][0..suffix.len], suffix);
+    stubs.raise(buf[0..total]);
+    obj.free_sized(buf_addr, total);
     return obj_new_int(0);
+}
+
+fn raise_too_many_args(name: []const u8) i32 {
+    return raise_math_func_error(
+        "too many arguments for math function \"",
+        name,
+        "too many arguments for math function",
+    );
+}
+
+fn raise_too_few_args(name: []const u8) i32 {
+    return raise_math_func_error(
+        "too few arguments for math function \"",
+        name,
+        "too few arguments for math function",
+    );
+}
+
+fn raise_unknown_func(name: []const u8) i32 {
+    return raise_math_func_error(
+        "unknown math function \"",
+        name,
+        "unknown math function",
+    );
 }
 
 fn truthy(o: i32) bool {

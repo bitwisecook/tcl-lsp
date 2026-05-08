@@ -3,8 +3,10 @@
 # bucket definitions.  Unlisted IDs default to ``must_pass`` —
 # anything new from upstream fails closed.
 #
-# Snapshot: 429/461 passing; 27 skipped (constraint-gated tcl::test
-# extensions); 5 categorised below.
+# Snapshot: 431/461 passing; 27 skipped (constraint-gated tcl::test
+# extensions); 3 categorised below.  Was 429/461 before the bignum-
+# canonicalisation pass that landed ``expr-old-32.53`` and
+# ``expr-old-36.16``.
 
 # Real semantic feature gaps tracked but non-gating.
 good_to_have = [
@@ -26,20 +28,11 @@ just_to_match_ctcl = [
                   #   Park-Miller.  Behaviour (rand returns float
                   #   in (0,1), srand returns int) is correct;
                   #   only the exact seed→sequence mapping differs.
-  "32.53",        # expr-old-32.53: expr {srand((1<<31)-1) > 0} —
-                  #   same root cause as 32.50; the boolean return
-                  #   depends on the seed-mapping detail.
   "34.3",         # expr-old-34.3: hypot("a b", 2.0) — we raise
                   #   `expected floating-point number but got "a b"`,
                   #   reference Tcl's TclParseNumber detects list-
                   #   shape input and shortens to `... but got a list`.
                   #   Functionally equivalent diagnostic.
-  "36.16",        # expr-old-36.16: `[expr 0xff…ff]` (152-bit hex)
-                  #   vs `expr {$x+1}` — both compute 2^152.  The
-                  #   diff is the string repr of the bignum result
-                  #   (we always emit decimal canonical, reference
-                  #   Tcl preserves source-spelling hex).  Display
-                  #   detail; the underlying arithmetic agrees.
 ]
 
 # No bytecode-internal probes in this stem.
@@ -48,5 +41,5 @@ skip = []
 [baseline]
 # Snapshot at triage time.  good_to_have_failing must not grow.
 good_to_have_failing = 1
-just_to_match_ctcl_failing = 4
+just_to_match_ctcl_failing = 2
 skip_failing = 0

@@ -676,7 +676,21 @@ class _WasmEmitterCtrlMixin(_Base):
                 if self._optimise:
                     self._const_map.pop(name, None)
             case IRAssignExpr(name=name, expr=expr):
+                from ....expr_ast import ExprVar
+
                 self._emit_expr_obj(expr)
+                # Tcl 9 ``expr $v`` semantics: substitute ``$v`` then
+                # re-parse the result as an expression.  When the
+                # expression IR is a single ``ExprVar``, the AOT path
+                # only emits the var read — but the var's value may
+                # itself be an expression like ``"1e308**1e10"`` that
+                # needs runtime evaluation.  Route through the
+                # canonicalise helper which calls ``eval_top`` on the
+                # value's string repr when it parses as an expression.
+                if isinstance(expr, ExprVar):
+                    canon_idx = self._shared_imports.get("tcl_expr_canonicalise")
+                    if canon_idx is not None:
+                        self._emit_call(canon_idx)
                 self._emit_var_write_obj_keep(name)
                 if self._optimise:
                     self._const_map.pop(name, None)

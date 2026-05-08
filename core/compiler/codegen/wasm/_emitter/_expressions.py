@@ -668,6 +668,34 @@ class _WasmEmitterExprMixin(_Base):
             self._emit_i64_const(0)
             return
 
+        # Multi-command body (``[cmd1; cmd2]``) — ``_split_command_subst``
+        # only parses one command and would drag the second command's
+        # words into the first command's argv.  Split at top-level
+        # command separators and compile each command's bracketed
+        # form in sequence: every command except the last produces a
+        # discarded result, and the final command's value (unboxed to
+        # i64 for expr context) stays on the stack as the cmd-sub's
+        # result.  Compiling inline keeps recursive proc calls
+        # compiled and avoids the per-recursion eval-fallback parser
+        # re-entry that would otherwise exhaust the runtime allocator
+        # on deeply-nested expressions like 12days's
+        # ``[expr {…};expr {…};expr {…}]``.
+        from ._values import _contains_command_separator as _has_sep
+        from ._values import _split_top_level_commands as _split_cmds
+
+        if _has_sep(cmd_text):
+            sub_cmds = _split_cmds(cmd_text)
+            if not sub_cmds:
+                self._emit_i64_const(0)
+                return
+            for sub in sub_cmds[:-1]:
+                self._emit_command_subst("[" + sub + "]")
+                # ``_emit_command_subst`` always leaves an i64 on the
+                # stack — drop it for every command except the last.
+                self._emit(WasmOp.DROP)
+            self._emit_command_subst("[" + sub_cmds[-1] + "]")
+            return
+
         # Simple split — handles most Tcl command forms.
         # For nested brackets, we rely on the expression parser having
         # already extracted the outermost command boundary.
@@ -866,6 +894,27 @@ class _WasmEmitterExprMixin(_Base):
                 self._emit_eval_fallback(cmd_name, cmd_args, script_override=cmd_text)
                 self._emit_unbox_int()
                 return
+
+        # Registered WASM emitter — consult the registry before the
+        # generic runtime-import fast path so ``append`` / ``lappend``
+        # / similar mutators dispatch through their proper var-handling
+        # hooks rather than the bare runtime helper (which would treat
+        # the variable name as a value and silently lose the mutation).
+        # Mirrors the same dispatch in ``_emit_command_subst_value``.
+        from .....commands.registry import REGISTRY as _REGISTRY
+        from .....commands.registry import EmitContext as _EmitContext
+
+        prev_tokens = getattr(self, "_current_call_tokens", None)
+        self._current_call_tokens = None
+        try:
+            hook = _REGISTRY.get_wasm_hook(cmd_name)
+            if hook is not None and hook(self, tuple(cmd_args), (), _EmitContext.VALUE):
+                # Hook left an i32 TclObj on the stack — unbox to i64
+                # for expression context.
+                self._emit_unbox_int()
+                return
+        finally:
+            self._current_call_tokens = prev_tokens
 
         # Runtime command — returns i32 TclObj, unbox to i64
         rimp = runtime_import_for(cmd_name)
@@ -1123,8 +1172,18 @@ class _WasmEmitterExprMixin(_Base):
             if wasm_op in self._I32_RESULT_OPS:
                 self._emit(WasmOp.I64_EXTEND_I32_S)
         elif op == BinOp.POW:
-            # Exponentiation — emit as a runtime call or loop
-            self._emit_power(left, right)
+            # Exponentiation — route through the bignum-aware
+            # ``tcl_arith_pow`` runtime helper when available so
+            # ``2**63``, ``2**64`` etc. promote to bignum instead
+            # of wrapping in i64.  Fall back to the inline
+            # ``_emit_power`` integer loop for older runtime builds
+            # that don't export the helper.
+            func_idx = self._shared_imports.get("tcl_arith_pow")
+            if func_idx is not None:
+                self._emit_expr_obj_arith_binary(func_idx, left, right)
+                self._emit_unbox_int()
+            else:
+                self._emit_power(left, right)
         elif op in (BinOp.AND, BinOp.OR):
             self._emit_logical(op, left, right)
         elif op in (BinOp.STR_EQ, BinOp.STR_EQUALS):
@@ -1609,11 +1668,69 @@ class _WasmEmitterExprMixin(_Base):
             else:
                 self._emit_i64_const(0)
         elif func == "bool" and len(args) == 1:
-            # bool(x) == x != 0
-            self._emit_expr(args[0])
+            # bool(x) — Tcl 9 accepts the boolean keyword forms (``yes`` /
+            # ``no`` / ``true`` / ``false`` / ``on`` / ``off`` and their
+            # single-letter prefixes), so route through the runtime
+            # helper rather than the inline ``x != 0`` shortcut which
+            # only works for numeric operands.  See expr-31.x.
+            bool_idx = self._shared_imports.get("tcl_math_bool")
+            if bool_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(bool_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_expr(args[0])
+                self._emit_i64_const(0)
+                self._emit(WasmOp.I64_NE)
+                self._emit(WasmOp.I64_EXTEND_I32_S)
+        elif func == "isqrt" and len(args) == 1:
+            isqrt_idx = self._shared_imports.get("tcl_math_isqrt")
+            if isqrt_idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(isqrt_idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func in ("isfinite", "isinf", "isnan", "isnormal", "issubnormal") and len(args) == 1:
+            # IEEE-754 float classification (TIP 519) — boolean-valued
+            # predicates.  Returns 0/1 as TclObj, then unboxed to the
+            # i64 expression-result pipeline.
+            helper_name = {
+                "isfinite": "tcl_math_isfinite",
+                "isinf": "tcl_math_isinf",
+                "isnan": "tcl_math_isnan",
+                "isnormal": "tcl_math_isnormal",
+                "issubnormal": "tcl_math_issubnormal",
+            }[func]
+            idx = self._shared_imports.get(helper_name)
+            if idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_call(idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
+        elif func == "fpclassify" and len(args) == 1:
+            # ``fpclassify`` returns a STRING (one of ``zero`` /
+            # ``subnormal`` / ``normal`` / ``infinite`` / ``nan``).
+            # The AOT i64 pipeline can't carry a string; downstream
+            # consumers that need the string repr (``puts``, ``string
+            # equal``) hit ``[expr {fpclassify(...)}]`` through the
+            # ``_emit_value`` ➜ ``_emit_expr_obj`` ➜ ``_emit_box_int``
+            # path that re-boxes the unboxed int back to a TclObj.
+            # That re-boxing loses the string, so the surface result
+            # in compiled code is ``"0"`` instead of ``"zero"``.
+            # Punt to ``tcl_eval_expr_str`` against the literal expr
+            # source so the string obj round-trips intact.
             self._emit_i64_const(0)
-            self._emit(WasmOp.I64_NE)
-            self._emit(WasmOp.I64_EXTEND_I32_S)
+        elif func == "isunordered" and len(args) == 2:
+            idx = self._shared_imports.get("tcl_math_isunordered")
+            if idx is not None:
+                self._emit_expr_obj(args[0])
+                self._emit_expr_obj(args[1])
+                self._emit_call(idx)
+                self._emit_unbox_int()
+            else:
+                self._emit_i64_const(0)
         elif func == "pow" and len(args) == 2:
             # Delegate to the existing integer-power loop.  Float pow
             # isn't covered; callers with float operands hit this path

@@ -34,9 +34,17 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
         # at top level — see _variables.py Phase 4.5 finalisation).
         # A bare ``local.tee`` would update only the WASM local while
         # leaving globals stale.
+        #
+        # ``global``-declared names inside a proc also need the var
+        # path so reads consult the global table (the WASM-local
+        # mirror goes stale whenever a callee modifies the global
+        # through its own ``global`` declaration — see the symmetric
+        # branch in :meth:`_emit_var_read_obj`).
         at_top_level = not emitter._is_proc
+        is_global = var in emitter._globals
         use_var_path = (
             at_top_level
+            or is_global
             or var in emitter._aliases
             or array_base_aliased
             or array_ref is not None
@@ -96,9 +104,13 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         )
         # Top-level vars must use the var path so the global mirror is
         # kept consistent with reads (see set fast-path comment above).
+        # ``global``-declared names need the var path too so the
+        # global is the single source of truth.
         at_top_level = not emitter._is_proc
+        is_global = var in emitter._globals
         if (
             at_top_level
+            or is_global
             or var in emitter._aliases
             or base in emitter._aliases
             or array_ref is not None

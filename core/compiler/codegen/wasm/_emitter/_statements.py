@@ -253,7 +253,17 @@ class _WasmEmitterStmtMixin(_Base):
                         self._const_map.pop(name, None)
 
             case IRAssignExpr(name=name, expr=expr):
+                from ....expr_ast import ExprVar as _ExprVar
+
                 self._emit_expr_obj(expr)
+                # Tcl 9 ``set r [expr $v]`` semantics: substitute ``$v``
+                # then re-parse its string repr as an expression.
+                # Mirror the same canonicalisation the control-flow
+                # emitter applies to the var-only RHS shape.
+                if isinstance(expr, _ExprVar):
+                    canon_idx = self._shared_imports.get("tcl_expr_canonicalise")
+                    if canon_idx is not None:
+                        self._emit_call(canon_idx)
                 # ``_emit_expr_obj`` allocates a fresh boxed result
                 # in every code path → OWNED.  S2.3 migration.
                 self._emit_var_write_obj(name, source=Ownership.OWNED)
