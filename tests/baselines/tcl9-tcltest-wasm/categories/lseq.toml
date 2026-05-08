@@ -1,0 +1,24 @@
+# lseq.test — auto-generated WASM baseline.
+# bucket = 'W0-runtime-error'
+# reason = 'error while executing at wasm backtrace:'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lseq-1.7", "lseq-1.8", "lseq-1.9", "lseq-1.12", "lseq-1.23", "lseq-1.24", "lseq-1.25", "lseq-1.26"]
+
+[crash]
+type = "Trap"
+msg = "error while executing at wasm backtrace:"

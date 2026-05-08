@@ -1,0 +1,20 @@
+# util.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '54 of 462 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 462
+observed_passed = 256
+observed_failed = 54
+observed_skipped = 152
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["util-3.6", "util-4.1", "util-4.2", "util-4.3", "util-5.1", "util-5.2", "util-5.3", "util-5.4", "util-5.5", "util-5.7", "util-5.8", "util-5.9", "util-5.11", "util-5.12", "util-5.13", "util-5.16", "util-5.17", "util-5.19", "util-5.21", "util-5.23", "util-5.25", "util-5.26", "util-5.27", "util-5.31", "util-5.32", "util-5.33", "util-5.36", "util-5.37", "util-5.38", "util-5.41", "util-5.43", "util-5.44", "util-5.45", "util-5.46", "util-5.48", "util-5.49", "util-5.51", "util-8.1", "util-9.1.3", "util-9.1.4", "util-9.1.5", "util-9.6", "util-9.8", "util-9.11", "util-9.12", "util-9.13", "util-9.15", "util-9.16", "util-9.17", "util-9.18", "util-9.48", "util-9.54", "util-9.57", "util-9.59"]

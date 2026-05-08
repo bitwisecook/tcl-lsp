@@ -1,0 +1,24 @@
+# for.test — auto-generated WASM baseline.
+# bucket = 'W0-timeout'
+# reason = 'exceeded wall-clock — likely infinite loop or hang'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["for-1.1", "for-1.3", "for-1.6", "for-1.7", "for-3.6", "for-6.1", "for-6.2", "for-6.3", "for-6.4", "for-6.5"]
+
+[crash]
+type = "Timeout"
+msg = "WASM watchdog interrupt at run_timeout_s=180s"
