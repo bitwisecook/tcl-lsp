@@ -360,215 +360,554 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
     if (str_eq(sp, sub.len, "insert") and words.len >= 5) return result_mod.from_globals(rt.string_insert(words[2], words[3], words[4]));
     if (str_eq(sp, sub.len, "is")) {
-        // ``string is class ?-strict? ?-failindex var? str``
-        // Find the class name (words[2]) and the final string arg.
-        // Skip any -strict / -failindex flags and their args.
-        if (words.len < 4) return result_mod.from_globals(obj_new_int(1)); // empty string: non-strict default is 1
-        const cls = obj_ensure_string(words[2]);
-        const clsp: [*]const u8 = @ptrFromInt(cls.ptr);
-        var str_idx: u32 = 3;
-        while (str_idx + 1 < words.len) {
-            const a = obj_ensure_string(words[str_idx]);
-            const ap: [*]const u8 = @ptrFromInt(a.ptr);
-            if (a.len > 0 and ap[0] == '-') {
-                // -strict: no extra arg; -failindex: consumes next arg
-                if (str_eq(ap, a.len, "-failindex")) str_idx += 1;
-                str_idx += 1;
-            } else break;
-        }
-        if (str_idx >= words.len) return result_mod.from_globals(obj_new_int(1));
-        const sv = obj_ensure_string(words[str_idx]);
-        if (sv.len == 0) {
-            // non-strict: empty is 1 for all; strict: 0
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        const svp: [*]const u8 = @ptrFromInt(sv.ptr);
-        if (str_eq(clsp, cls.len, "print")) {
-            // printable: 0x20-0x7E ASCII, or any multibyte UTF-8
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) continue; // multibyte UTF-8 — treat as printable
-                if (b < 0x20 or b == 0x7F) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "alpha")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) {
-                    i += 1;
-                    continue;
-                }
-                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z'))) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "digit")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                if (svp[i] < '0' or svp[i] > '9') return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "alnum")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) {
-                    i += 1;
-                    continue;
-                }
-                if (!((b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or (b >= '0' and b <= '9'))) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "space") or str_eq(clsp, cls.len, "whitespace")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b != ' ' and b != '\t' and b != '\n' and b != '\r' and b != 0x0C and b != 0x0B) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        // ``integer`` and ``wideinteger`` accept the same set of
-        // string forms: optional whitespace, optional sign, then
-        // either a decimal run or a ``0x``-prefixed hex run.  In Tcl
-        // 9 with bignum support the magnitude is unbounded, so the
-        // inline path doesn't need to bound-check — any all-digit
-        // (or hex-digit) run after the prefix passes.
-        if (str_eq(clsp, cls.len, "integer") or str_eq(clsp, cls.len, "wideinteger")) {
-            var i: u32 = 0;
-            while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
-            if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
-            if (i < sv.len and svp[i] == '0' and i + 1 < sv.len and (svp[i + 1] == 'x' or svp[i + 1] == 'X')) {
-                i += 2;
-                if (i >= sv.len) return result_mod.from_globals(obj_new_int(0));
-                while (i < sv.len) : (i += 1) {
-                    const b = svp[i];
-                    if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return result_mod.from_globals(obj_new_int(0));
-                }
-                return result_mod.from_globals(obj_new_int(1));
-            }
-            if (i >= sv.len) return result_mod.from_globals(obj_new_int(0));
-            while (i < sv.len) : (i += 1) {
-                if (svp[i] < '0' or svp[i] > '9') return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "boolean")) {
-            if (str_eq(svp, sv.len, "1") or str_eq(svp, sv.len, "0") or
-                str_eq(svp, sv.len, "true") or str_eq(svp, sv.len, "false") or
-                str_eq(svp, sv.len, "yes") or str_eq(svp, sv.len, "no") or
-                str_eq(svp, sv.len, "on") or str_eq(svp, sv.len, "off") or
-                str_eq(svp, sv.len, "True") or str_eq(svp, sv.len, "False") or
-                str_eq(svp, sv.len, "TRUE") or str_eq(svp, sv.len, "FALSE")) return result_mod.from_globals(obj_new_int(1));
-            return result_mod.from_globals(obj_new_int(0));
-        }
-        if (str_eq(clsp, cls.len, "ascii")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                if (svp[i] > 0x7F) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "control")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) return result_mod.from_globals(obj_new_int(0));
-                if (b >= 0x20 and b != 0x7F) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "graph")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) {
-                    i += 1;
-                    continue;
-                }
-                if (b <= 0x20 or b == 0x7F) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "lower")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) {
-                    i += 1;
-                    continue;
-                }
-                if (b < 'a' or b > 'z') return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "upper")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) {
-                    i += 1;
-                    continue;
-                }
-                if (b < 'A' or b > 'Z') return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "punct")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (b >= 0x80) {
-                    i += 1;
-                    continue;
-                }
-                const is_punct = (b >= '!' and b <= '/') or (b >= ':' and b <= '@') or
-                    (b >= '[' and b <= '`') or (b >= '{' and b <= '~');
-                if (!is_punct) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "xdigit")) {
-            var i: u32 = 0;
-            while (i < sv.len) : (i += 1) {
-                const b = svp[i];
-                if (!((b >= '0' and b <= '9') or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F'))) return result_mod.from_globals(obj_new_int(0));
-            }
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        if (str_eq(clsp, cls.len, "double") or str_eq(clsp, cls.len, "float")) {
-            // Very basic: try to parse as number with optional decimal/exponent
-            var i: u32 = 0;
-            while (i < sv.len and (svp[i] == ' ' or svp[i] == '\t')) i += 1;
-            if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
-            var has_digit = false;
-            while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') {
-                i += 1;
-                has_digit = true;
-            }
-            if (i < sv.len and svp[i] == '.') {
-                i += 1;
-                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') {
-                    i += 1;
-                    has_digit = true;
-                }
-            }
-            if (!has_digit) return result_mod.from_globals(obj_new_int(0));
-            if (i < sv.len and (svp[i] == 'e' or svp[i] == 'E')) {
-                i += 1;
-                if (i < sv.len and (svp[i] == '+' or svp[i] == '-')) i += 1;
-                if (i >= sv.len or svp[i] < '0' or svp[i] > '9') return result_mod.from_globals(obj_new_int(0));
-                while (i < sv.len and svp[i] >= '0' and svp[i] <= '9') i += 1;
-            }
-            if (i != sv.len) return result_mod.from_globals(obj_new_int(0));
-            return result_mod.from_globals(obj_new_int(1));
-        }
-        // Unknown class — return 0
-        return result_mod.from_globals(obj_new_int(0));
+        return eval_string_is(words);
     }
     return result_mod.from_globals(0);
+}
+
+// ``string is`` class names — must be sorted alphabetically.  Used
+// for prefix-disambiguation (string-6.6) and the canonical ``bad
+// class`` / ``ambiguous class`` wording (string-6.5).
+const IS_CLASSES: []const []const u8 = &.{
+    "alnum",       "alpha",     "ascii", "control",  "boolean", "dict",
+    "digit",       "double",    "entier", "false",   "graph",   "integer",
+    "list",        "lower",     "print",  "punct",   "space",   "true",
+    "upper",       "wideinteger", "wordchar", "xdigit",
+};
+
+/// Match the candidate class name against the canonical class list
+/// using Tcl's "unique-prefix" rule.  Returns the canonical name on
+/// match, ``null`` on bad / ambiguous class — in those cases the
+/// caller has already raised the matching diagnostic.
+fn resolve_is_class(name: []const u8) ?[]const u8 {
+    var match: ?[]const u8 = null;
+    var ambiguous = false;
+    for (IS_CLASSES) |c| {
+        if (name.len > c.len) continue;
+        var ok = true;
+        for (0..name.len) |k| {
+            if (name[k] != c[k]) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) continue;
+        if (name.len == c.len) {
+            return c;
+        }
+        if (match == null) {
+            match = c;
+        } else {
+            ambiguous = true;
+        }
+    }
+    if (ambiguous) {
+        raise_class_error(name, "ambiguous class");
+        return null;
+    }
+    if (match) |m| return m;
+    raise_class_error(name, "bad class");
+    return null;
+}
+
+fn raise_class_error(name: []const u8, kind: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const suffix = "\": must be alnum, alpha, ascii, control, boolean, dict, digit, double, entier, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, or xdigit";
+    const total: u32 = @intCast(kind.len + 2 + name.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: usize = 0;
+    for (kind) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    dst[off] = ' ';
+    off += 1;
+    dst[off] = '"';
+    off += 1;
+    for (name) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
+fn eval_string_is(words: []const i32) result_mod.InterpResult {
+    // Arity contract: ``string is class ?-strict? ?-failindex var? str``.
+    // ``words[0] = string``, ``words[1] = is``, ``words[2] = class``.
+    // The trailing argument is the candidate string; everything in
+    // between must match the documented flag set.
+    if (words.len < 4) {
+        raise_string_wrong_args(
+            "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
+        );
+        return result_mod.from_globals(obj_new_int(1));
+    }
+    const cls_arg = obj_ensure_string(words[2]);
+    // ``obj_ensure_string`` can return ``ptr=0`` for an empty string
+    // / null obj handle.  Treat the empty class name as a bad class.
+    if (cls_arg.ptr == 0 or cls_arg.len == 0) {
+        raise_class_error("", "bad class");
+        return result_mod.from_globals(obj_new_int(0));
+    }
+    const cls_slice: []const u8 = (@as([*]const u8, @ptrFromInt(cls_arg.ptr)))[0..cls_arg.len];
+    const class_name = resolve_is_class(cls_slice) orelse return result_mod.from_globals(obj_new_int(0));
+
+    var strict = false;
+    var failindex_var: i32 = 0;
+    var i: u32 = 3;
+    while (i + 1 < words.len) {
+        const a = obj_ensure_string(words[i]);
+        const ap: [*]const u8 = @ptrFromInt(a.ptr);
+        if (a.len == 0 or ap[0] != '-') break;
+        if (str_eq(ap, a.len, "-strict")) {
+            strict = true;
+            i += 1;
+            continue;
+        }
+        if (str_eq(ap, a.len, "-failindex")) {
+            if (i + 1 >= words.len) {
+                raise_string_wrong_args(
+                    "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
+                );
+                return result_mod.from_globals(obj_new_int(0));
+            }
+            failindex_var = words[i + 1];
+            i += 2;
+            continue;
+        }
+        // Unknown flag — same error wording as upstream Tcl 9 (the
+        // class-prefix is substituted in for the canonical 'class').
+        raise_string_is_args(class_name);
+        return result_mod.from_globals(obj_new_int(0));
+    }
+    if (i + 1 != words.len) {
+        // Either zero or more than one trailing arg — bad arity.
+        raise_string_is_args(class_name);
+        return result_mod.from_globals(obj_new_int(0));
+    }
+    const sv = obj_ensure_string(words[i]);
+
+    // Empty input: non-strict accepts every class as 1.  Strict
+    // rejects.  ``-failindex`` set to -1 in either case (no failing
+    // character to point at).
+    if (sv.len == 0 or sv.ptr == 0) {
+        const result_value: i32 = if (strict) 0 else 1;
+        if (failindex_var != 0 and result_value == 0) {
+            store_failindex(failindex_var, -1);
+        }
+        return result_mod.from_globals(obj_new_int(result_value));
+    }
+    const svp: [*]const u8 = @ptrFromInt(sv.ptr);
+
+    // Per-class checks.  Each branch returns the (truth, fail-index)
+    // pair; ``fail_index`` is < 0 when the class accepts the input.
+    var fail_index: i64 = -1;
+    var ok: bool = false;
+    if (slice_eq(class_name.ptr, @intCast(class_name.len),"alnum")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isAlnum);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"alpha")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isAlpha);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"ascii")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isAscii);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"control")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isControl);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"digit")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isDigit);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"graph")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isGraph);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"lower")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isLower);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"print")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isPrint);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"punct")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isPunct);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"space")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isSpace);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"upper")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isUpper);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"wordchar")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isWordchar);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"xdigit")) {
+        ok = check_class_byte(svp, sv.len, &fail_index, isXdigit);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"boolean")) {
+        ok = check_boolean(svp, sv.len);
+        if (!ok) fail_index = 0;
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"true")) {
+        ok = check_boolean_value(svp, sv.len, true);
+        if (!ok) fail_index = 0;
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"false")) {
+        ok = check_boolean_value(svp, sv.len, false);
+        if (!ok) fail_index = 0;
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"integer") or
+        slice_eq(class_name.ptr, @intCast(class_name.len),"wideinteger") or
+        slice_eq(class_name.ptr, @intCast(class_name.len),"entier"))
+    {
+        ok = check_integer(svp, sv.len, &fail_index);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"double")) {
+        ok = check_double(svp, sv.len, &fail_index);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"list")) {
+        ok = check_list(sv.ptr, sv.len, &fail_index);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"dict")) {
+        ok = check_dict(sv.ptr, sv.len, &fail_index);
+    } else {
+        ok = false;
+    }
+
+    const result_value: i32 = if (ok) 1 else 0;
+    if (!ok and failindex_var != 0) {
+        store_failindex(failindex_var, fail_index);
+    }
+    return result_mod.from_globals(obj_new_int(result_value));
+}
+
+fn raise_string_is_args(class_name: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix = "wrong # args: should be \"string is ";
+    const suffix = " ?-strict? ?-failindex var? str\"";
+    const total: u32 = @intCast(prefix.len + class_name.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: usize = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (class_name) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
+fn store_failindex(var_obj: i32, idx: i64) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const frames_mod = @import("../interp/tcl_frames.zig");
+    const idx_obj = obj_mod.obj_new_int(idx);
+    _ = frames_mod.var_set(var_obj, idx_obj);
+}
+
+const ByteCheck = *const fn (b: u8) bool;
+
+fn check_class_byte(ptr: [*]const u8, len: u32, fail: *i64, pred: ByteCheck) bool {
+    var ci: u32 = 0; // character (codepoint) index
+    var bi: u32 = 0; // byte index
+    while (bi < len) {
+        const b = ptr[bi];
+        if (b < 0x80) {
+            if (!pred(b)) {
+                fail.* = ci;
+                return false;
+            }
+            bi += 1;
+        } else {
+            // Multi-byte UTF-8 sequence — we approximate by treating
+            // it as a generic character which passes alpha/wordchar/
+            // print/graph but fails ascii/digit/space etc.  Predicate
+            // returns ``false`` for byte ``b >= 0x80`` for restrictive
+            // classes, which is the right answer for them.
+            const cont = utf8_cont_len(b);
+            if (!pred(b)) {
+                fail.* = ci;
+                return false;
+            }
+            bi += 1 + cont;
+        }
+        ci += 1;
+    }
+    return true;
+}
+
+fn utf8_cont_len(b: u8) u32 {
+    if ((b & 0xE0) == 0xC0) return 1;
+    if ((b & 0xF0) == 0xE0) return 2;
+    if ((b & 0xF8) == 0xF0) return 3;
+    return 0;
+}
+
+fn isAlnum(b: u8) bool {
+    return isAlpha(b) or isDigit(b);
+}
+fn isAlpha(b: u8) bool {
+    return (b >= 'a' and b <= 'z') or (b >= 'A' and b <= 'Z') or b >= 0x80;
+}
+fn isAscii(b: u8) bool {
+    return b <= 0x7F;
+}
+fn isControl(b: u8) bool {
+    return b < 0x20 or b == 0x7F;
+}
+fn isDigit(b: u8) bool {
+    return b >= '0' and b <= '9';
+}
+fn isGraph(b: u8) bool {
+    if (b >= 0x80) return true;
+    return b > 0x20 and b != 0x7F;
+}
+fn isLower(b: u8) bool {
+    return b >= 'a' and b <= 'z';
+}
+fn isPrint(b: u8) bool {
+    if (b >= 0x80) return true;
+    return b >= 0x20 and b != 0x7F;
+}
+fn isPunct(b: u8) bool {
+    if (b >= 0x80) return false;
+    return (b >= '!' and b <= '/') or (b >= ':' and b <= '@') or
+        (b >= '[' and b <= '`') or (b >= '{' and b <= '~');
+}
+fn isSpace(b: u8) bool {
+    return b == ' ' or b == '\t' or b == '\n' or b == '\r' or b == 0x0B or b == 0x0C;
+}
+fn isUpper(b: u8) bool {
+    return b >= 'A' and b <= 'Z';
+}
+fn isWordchar(b: u8) bool {
+    if (b >= 0x80) return true;
+    return isAlnum(b) or b == '_';
+}
+fn isXdigit(b: u8) bool {
+    return isDigit(b) or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F');
+}
+
+fn slice_eq(ptr: [*]const u8, len: u32, lit: []const u8) bool {
+    if (len != lit.len) return false;
+    for (0..len) |k| {
+        if (ptr[k] != lit[k]) return false;
+    }
+    return true;
+}
+
+fn check_boolean(ptr: [*]const u8, len: u32) bool {
+    return check_boolean_value(ptr, len, true) or check_boolean_value(ptr, len, false);
+}
+
+fn check_boolean_value(ptr: [*]const u8, len: u32, want_true: bool) bool {
+    // Tcl 9 accepts case-insensitive prefixes of the eight canonical
+    // names; we recognise the full forms which covers the bulk of
+    // tcltest usage.
+    const literals_true = [_][]const u8{ "1", "true", "yes", "on" };
+    const literals_false = [_][]const u8{ "0", "false", "no", "off" };
+    const list = if (want_true) &literals_true else &literals_false;
+    for (list) |lit| {
+        if (icmp(ptr, len, lit)) return true;
+    }
+    return false;
+}
+
+fn icmp(ptr: [*]const u8, len: u32, lit: []const u8) bool {
+    if (len != lit.len) return false;
+    for (0..len) |k| {
+        const a = ptr[k];
+        const al: u8 = if (a >= 'A' and a <= 'Z') a + 32 else a;
+        const b = lit[k];
+        const bl: u8 = if (b >= 'A' and b <= 'Z') b + 32 else b;
+        if (al != bl) return false;
+    }
+    return true;
+}
+
+fn check_integer(ptr: [*]const u8, len: u32, fail: *i64) bool {
+    var i: u32 = 0;
+    // Leading whitespace is allowed and not counted in the fail
+    // index pointing at the first invalid character.
+    while (i < len and isSpace(ptr[i])) i += 1;
+    const start = i;
+    if (i < len and (ptr[i] == '+' or ptr[i] == '-')) i += 1;
+    if (i < len and ptr[i] == '0' and i + 1 < len and (ptr[i + 1] == 'x' or ptr[i + 1] == 'X')) {
+        i += 2;
+        if (i >= len) {
+            fail.* = i - 1;
+            return false;
+        }
+        while (i < len) : (i += 1) {
+            if (!isXdigit(ptr[i])) {
+                fail.* = i;
+                return false;
+            }
+        }
+    } else if (i < len and ptr[i] == '0' and i + 1 < len and (ptr[i + 1] == 'b' or ptr[i + 1] == 'B')) {
+        i += 2;
+        if (i >= len) {
+            fail.* = i - 1;
+            return false;
+        }
+        while (i < len) : (i += 1) {
+            if (ptr[i] != '0' and ptr[i] != '1') {
+                fail.* = i;
+                return false;
+            }
+        }
+    } else if (i < len and ptr[i] == '0' and i + 1 < len and (ptr[i + 1] == 'o' or ptr[i + 1] == 'O')) {
+        i += 2;
+        if (i >= len) {
+            fail.* = i - 1;
+            return false;
+        }
+        while (i < len) : (i += 1) {
+            if (ptr[i] < '0' or ptr[i] > '7') {
+                fail.* = i;
+                return false;
+            }
+        }
+    } else {
+        if (i >= len) {
+            fail.* = if (start < len) @intCast(start) else 0;
+            return false;
+        }
+        while (i < len) : (i += 1) {
+            if (!isDigit(ptr[i])) {
+                fail.* = i;
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+fn check_double(ptr: [*]const u8, len: u32, fail: *i64) bool {
+    var i: u32 = 0;
+    while (i < len and isSpace(ptr[i])) i += 1;
+    if (i < len and (ptr[i] == '+' or ptr[i] == '-')) i += 1;
+    var has_digit = false;
+    while (i < len and isDigit(ptr[i])) {
+        i += 1;
+        has_digit = true;
+    }
+    if (i < len and ptr[i] == '.') {
+        i += 1;
+        while (i < len and isDigit(ptr[i])) {
+            i += 1;
+            has_digit = true;
+        }
+    }
+    if (!has_digit) {
+        fail.* = i;
+        return false;
+    }
+    if (i < len and (ptr[i] == 'e' or ptr[i] == 'E')) {
+        i += 1;
+        if (i < len and (ptr[i] == '+' or ptr[i] == '-')) i += 1;
+        if (i >= len or !isDigit(ptr[i])) {
+            fail.* = i;
+            return false;
+        }
+        while (i < len and isDigit(ptr[i])) i += 1;
+    }
+    if (i != len) {
+        fail.* = i;
+        return false;
+    }
+    return true;
+}
+
+/// ``string is list`` — accepts any string the list parser can
+/// tokenise.  Sets ``fail`` to the byte index of the first parse
+/// error (open brace without close, brace not followed by space).
+fn check_list(ptr: u32, len: u32, fail: *i64) bool {
+    if (len == 0) return true;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    // Track the character index of each element start so failure
+    // reports point at the element rather than the byte where the
+    // parser noticed the problem (string-32.10/.11/.13/.14).
+    var i: u32 = 0;
+    while (i < len) {
+        while (i < len and list_parse_is_space(sp[i])) i += 1;
+        if (i >= len) break;
+        const elem_start_byte = i;
+        if (sp[i] == '{') {
+            i += 1;
+            var depth: u32 = 1;
+            while (i < len and depth > 0) {
+                if (sp[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (sp[i] == '{') depth += 1 else if (sp[i] == '}') depth -= 1;
+                i += 1;
+            }
+            if (depth > 0) {
+                fail.* = byte_to_char_idx(sp, len, elem_start_byte);
+                return false;
+            }
+            // Brace must be followed by whitespace or end.
+            if (i < len and !list_parse_is_space(sp[i])) {
+                fail.* = byte_to_char_idx(sp, len, elem_start_byte);
+                return false;
+            }
+        } else if (sp[i] == '"') {
+            i += 1;
+            while (i < len) {
+                if (sp[i] == '\\' and i + 1 < len) {
+                    i += 2;
+                    continue;
+                }
+                if (sp[i] == '"') {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+        } else {
+            while (i < len and !list_parse_is_space(sp[i])) {
+                if (sp[i] == '\\' and i + 1 < len) i += 2 else i += 1;
+            }
+        }
+    }
+    return true;
+}
+
+/// Convert a byte offset within a UTF-8 buffer to its 0-based
+/// character (code-point) index.  Continuation bytes don't advance
+/// the count.
+fn byte_to_char_idx(ptr: [*]const u8, len: u32, byte_off: u32) i64 {
+    var i: u32 = 0;
+    var ci: i64 = 0;
+    while (i < len and i < byte_off) : (i += 1) {
+        if ((ptr[i] & 0xC0) != 0x80) ci += 1;
+    }
+    return ci;
+}
+
+fn list_parse_is_space(b: u8) bool {
+    return b == ' ' or b == '\t' or b == '\n' or b == '\r' or b == 0x0B or b == 0x0C;
+}
+
+/// ``string is dict`` — must parse as a list and have an even number
+/// of elements.  ``fail`` is set to the parse offset on tokenisation
+/// error or ``-1`` when the parse succeeds but the element count is
+/// odd (matches Tcl 9 — see test string-32.9a → ``-1``).
+fn check_dict(ptr: u32, len: u32, fail: *i64) bool {
+    var parse_fail: i64 = -1;
+    if (!check_list(ptr, len, &parse_fail)) {
+        fail.* = parse_fail;
+        return false;
+    }
+    const list_parse = @import("../valtypes/tcl_list_parse.zig");
+    const n = list_parse.count_elements(ptr, len);
+    if (@mod(n, 2) != 0) {
+        fail.* = -1;
+        return false;
+    }
+    return true;
 }

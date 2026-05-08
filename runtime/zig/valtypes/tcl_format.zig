@@ -12,19 +12,18 @@
 // This module handles:
 //   %d        decimal integer
 //   %s        string
-//   %c        character from int (0..127)
+//   %c        character from int (full Unicode code point, encoded UTF-8)
 //   %x %X     hex integer (lower/upper case)
 //   %o        octal integer
-//   %f %e %g  float — STRING-PASSTHROUGH ONLY.  The runtime has no
-//             float TclObj type, so the arg's original text is
-//             copied verbatim with width padding; precision and
-//             conversion variant are IGNORED.  Sufficient for
-//             ``format %3.1f 5.1`` where the input is already in
-//             the desired form, but NOT for real rounding / %g
-//             trailing-zero trimming / scientific conversion.
+//   %u        unsigned decimal integer (32-bit wrap)
+//   %b        binary integer
+//   %f %e %g  float
 //   %%        literal percent
 //
 // Supports ``-`` (left-align), ``0`` (zero-pad), ``+`` (sign),
+// `` `` (space-before-positive), ``#`` (alternate form: ``0x`` / ``0X``
+// / ``0o`` / ``0b`` / ``0d`` prefixes for hex / octal / binary /
+// decimal, and forced trailing ``.`` for ``%#.0f``),
 // width and precision for integer + string formats.  The
 // implementation takes ``(fmt, arg1_obj, arg2_obj, arg3_obj)`` —
 // up to three args — matching the codegen's dispatch.  Extra
@@ -144,13 +143,15 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         var left_align = false;
         var zero_pad = false;
         var show_sign = false;
+        var space_sign = false;
+        var alt_form = false;
         while (i < fs.len) : (i += 1) {
             switch (fp[i]) {
                 '-' => left_align = true,
                 '+' => show_sign = true,
                 '0' => zero_pad = true,
-                ' ' => {},
-                '#' => {},
+                ' ' => space_sign = true,
+                '#' => alt_form = true,
                 else => break,
             }
         }
@@ -194,11 +195,15 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             }
         }
         if (i >= fs.len) break;
-        // Skip C-style length modifiers (l, ll, h, hh, L, j, z, t, q).
-        // Reference Tcl reads all integers as i64, so modifiers are no-ops.
+        // C-style length modifiers (l, ll, h, hh, L, j, z, t, q).
+        // Reference Tcl 9 reads all integers as wide so most are no-ops,
+        // but ``h`` / ``hh`` truncate to short / signed-char before
+        // formatting (test format-10.x).
+        var h_mod: u8 = 0;
         while (i < fs.len) : (i += 1) {
             switch (fp[i]) {
-                'l', 'h', 'L', 'j', 'z', 't', 'q' => {},
+                'h' => h_mod += 1,
+                'l', 'L', 'j', 'z', 't', 'q' => {},
                 else => break,
             }
         }
@@ -224,8 +229,11 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             left_align,
             zero_pad,
             show_sign,
+            space_sign,
+            alt_form,
             width,
             precision,
+            h_mod,
         );
     }
 
@@ -246,61 +254,129 @@ fn emit_conversion(
     left_align: bool,
     zero_pad: bool,
     show_sign: bool,
+    space_sign: bool,
+    alt_form: bool,
     width: u32,
     precision: i32,
+    h_mod: u8,
 ) u32 {
     switch (conv) {
-        'd', 'i' => return emit_int(out, off, cap, arg, left_align, zero_pad, show_sign, width, 10, false),
-        'x' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, width, 16, false),
-        'X' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, width, 16, true),
-        'o' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, width, 8, false),
-        's' => return emit_str(out, off, cap, arg, left_align, width, precision),
-        'c' => {
-            if (arg == 0) return off;
-            const n = obj_get_int(arg);
-            if (n < 0 or n > 127) return off; // ASCII-only for now
-            out[off] = @intCast(n);
-            return off + 1;
-        },
-        'f', 'e', 'g', 'E', 'G' => return emit_float(out, off, cap, arg, width, precision, conv),
+        'd', 'i' => return emit_int(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, 10, false, false, h_mod),
+        'u' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 10, false, true, h_mod),
+        'x' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, false, true, h_mod),
+        'X' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 16, true, true, h_mod),
+        'o' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 8, false, true, h_mod),
+        'b' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, alt_form, width, precision, 2, false, true, h_mod),
+        // ``%p`` / ``%zd`` / ``%td`` — pointer / size_t / ptrdiff_t.
+        // Tcl 9 renders ``%p`` as ``0x`` + lowercase hex of the wide
+        // value; ``%zd`` / ``%td`` are decimal aliases.
+        'p' => return emit_int(out, off, cap, arg, left_align, zero_pad, false, false, true, width, precision, 16, false, true, 0),
+        's' => return emit_str(out, off, cap, arg, left_align, zero_pad, width, precision),
+        'c' => return emit_char(out, off, cap, arg, left_align, zero_pad, width),
+        'f', 'e', 'g', 'E', 'G', 'F' => return emit_float(out, off, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, conv),
         else => {
-            // Unknown conversion — raise so the caller sees a clear
-            // error instead of silently dropping data.
-            var name_buf: [3]u8 = .{ '%', 0, 0 };
-            name_buf[1] = conv;
-            stubs.unsupported_sub("format", name_buf[0..2]);
+            // Unknown conversion — raise the Tcl 9 wording.
+            raise_bad_specifier(conv);
             return off;
         },
     }
 }
 
+fn raise_bad_specifier(conv: u8) void {
+    // Reference Tcl 9 wording: ``bad field specifier "X"`` (test
+    // format-8.20).  Build the message inline so we can ship the
+    // exact byte that triggered the error.
+    var buf: [40]u8 = undefined;
+    const prefix = "bad field specifier \"";
+    var n: usize = 0;
+    for (prefix) |c| {
+        buf[n] = c;
+        n += 1;
+    }
+    buf[n] = conv;
+    n += 1;
+    buf[n] = '"';
+    n += 1;
+    stubs.raise(buf[0..n]);
+}
+
+/// Alternate-form prefix for the requested base.  Returns ``"0x"`` /
+/// ``"0X"`` / ``"0o"`` / ``"0b"`` / ``"0d"`` per Tcl 9 — note Tcl
+/// uses ``0o`` (not bare leading zero) for octal and emits ``0d`` for
+/// decimal under ``%#d``.  Empty when the alt-form is a no-op (zero
+/// value, or no flag set).
+fn alt_prefix(base: u8, alt_form: bool, value_is_zero: bool, upper: bool) []const u8 {
+    if (!alt_form) return "";
+    return switch (base) {
+        16 => if (value_is_zero) "" else if (upper) "0X" else "0x",
+        8 => if (value_is_zero) "" else "0o",
+        2 => if (value_is_zero) "" else "0b",
+        10 => if (value_is_zero) "" else "0d",
+        else => "",
+    };
+}
+
 fn emit_int(
     out: [*]u8,
     off_in: u32,
-    _: u32,
+    cap: u32,
     arg: i32,
     left_align: bool,
     zero_pad: bool,
     show_sign: bool,
+    space_sign: bool,
+    alt_form: bool,
     width: u32,
+    precision: i32,
     base: u8,
     upper: bool,
+    unsigned_conv: bool,
+    h_mod: u8,
 ) u32 {
     var off = off_in;
     // Bignum-aware path: when the operand exceeds i64, render via
     // ``Managed.toString`` in the requested base so ``format "%d"
     // [expr {1<<200}]`` produces the full 61-digit value rather
     // than the truncated low-64-bits view (which renders to ``0``
-    // for any large power of two).
-    if (arg != 0 and obj.obj_type(arg) == obj.TYPE_BIGNUM) {
-        return emit_int_bignum(out, off_in, arg, left_align, zero_pad, show_sign, width, base, upper);
+    // for any large power of two).  ``%h*`` truncates to short
+    // first, so a bignum operand passed through ``%hd`` falls
+    // back to the i64 path below.
+    if (h_mod == 0 and arg != 0 and obj.obj_type(arg) == obj.TYPE_BIGNUM) {
+        return emit_int_bignum(out, off_in, cap, arg, left_align, zero_pad, show_sign, space_sign, alt_form, width, precision, base, upper, unsigned_conv);
     }
     var n: i64 = 0;
     if (arg != 0) n = obj_get_int(arg);
-    var digits: [32]u8 = undefined;
+    // ``h`` / ``hh`` length modifiers — truncate to short / signed
+    // char (sign-extended) before formatting.  ``%hd 0xffff`` →
+    // ``-1``, ``%hx 0x10fff`` → ``fff``, ``%hu 0x100000000`` → ``0``.
+    if (h_mod == 1) {
+        if (unsigned_conv) {
+            n = @as(i64, @intCast(@as(u16, @truncate(@as(u64, @bitCast(n))))));
+        } else {
+            n = @as(i64, @as(i16, @bitCast(@as(u16, @truncate(@as(u64, @bitCast(n)))))));
+        }
+    } else if (h_mod >= 2) {
+        if (unsigned_conv) {
+            n = @as(i64, @intCast(@as(u8, @truncate(@as(u64, @bitCast(n))))));
+        } else {
+            n = @as(i64, @as(i8, @bitCast(@as(u8, @truncate(@as(u64, @bitCast(n)))))));
+        }
+    }
+    var digits: [80]u8 = undefined;
     var dlen: u32 = 0;
-    const negative = n < 0;
-    var u: u64 = if (negative) @intCast(-n) else @intCast(n);
+    var negative = n < 0;
+    // For unsigned conversions (``%u`` / ``%x`` / ``%o`` / ``%b``),
+    // Tcl 9 truncates the value to its 32-bit two's-complement form
+    // and renders it as an unsigned 32-bit integer — ``format "%x"
+    // -12`` → ``fffffff4``, ``format "%u" -12`` → ``4294967284``.
+    var u: u64 = undefined;
+    if (unsigned_conv) {
+        const masked: u32 = @bitCast(@as(i32, @truncate(n)));
+        u = @as(u64, masked);
+        negative = false;
+    } else {
+        u = if (negative) @intCast(-n) else @intCast(n);
+    }
     if (u == 0) {
         digits[dlen] = '0';
         dlen += 1;
@@ -315,30 +391,63 @@ fn emit_int(
             dlen += 1;
         }
     }
-    var prefix_len: u32 = 0;
-    if (negative) prefix_len = 1 else if (show_sign) prefix_len = 1;
-    const total: u32 = prefix_len + dlen;
+    // Honour an explicit precision on integer conversions: pad with
+    // leading zeros up to ``precision`` digits.  ``precision == 0``
+    // with value ``0`` yields the empty digit string per C99.
+    var min_digits: u32 = dlen;
+    var explicit_precision = false;
+    if (precision >= 0) {
+        explicit_precision = true;
+        const p: u32 = @intCast(precision);
+        if (p > min_digits) min_digits = p;
+        if (precision == 0 and dlen == 1 and digits[0] == '0') {
+            dlen = 0;
+            min_digits = 0;
+        }
+    }
+    const value_is_zero = dlen == 0 or (dlen == 1 and digits[0] == '0');
+    const prefix = alt_prefix(base, alt_form, value_is_zero, upper);
+    var sign_ch: u8 = 0;
+    if (negative) {
+        sign_ch = '-';
+    } else if (show_sign) {
+        sign_ch = '+';
+    } else if (space_sign) {
+        sign_ch = ' ';
+    }
+    const sign_len: u32 = if (sign_ch == 0) 0 else 1;
+    const prefix_total: u32 = sign_len + @as(u32, @intCast(prefix.len));
+    const total: u32 = prefix_total + min_digits;
     const pad: u32 = if (width > total) width - total else 0;
-    if (!left_align and !zero_pad) {
+    // Explicit precision suppresses the ``0`` flag (matches C / Tcl).
+    const use_zero_pad = zero_pad and !left_align and !explicit_precision;
+    if (!left_align and !use_zero_pad) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = ' ';
             off += 1;
         }
     }
-    if (negative) {
-        out[off] = '-';
-        off += 1;
-    } else if (show_sign) {
-        out[off] = '+';
+    if (sign_ch != 0) {
+        out[off] = sign_ch;
         off += 1;
     }
-    if (!left_align and zero_pad) {
+    for (prefix) |pc| {
+        out[off] = pc;
+        off += 1;
+    }
+    if (use_zero_pad) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = '0';
             off += 1;
         }
+    }
+    // Precision zero-padding (between sign/prefix and the digits).
+    var zp: u32 = 0;
+    while (zp + dlen < min_digits) : (zp += 1) {
+        out[off] = '0';
+        off += 1;
     }
     // digits are stored reversed
     var j: u32 = dlen;
@@ -364,13 +473,18 @@ fn emit_int(
 fn emit_int_bignum(
     out: [*]u8,
     off_in: u32,
+    _: u32,
     arg: i32,
     left_align: bool,
     zero_pad: bool,
     show_sign: bool,
+    space_sign: bool,
+    alt_form: bool,
     width: u32,
+    precision: i32,
     base: u8,
     upper: bool,
+    unsigned_conv: bool,
 ) u32 {
     var off = off_in;
     const m = obj.obj_get_bignum_managed(arg) orelse return off;
@@ -392,32 +506,62 @@ fn emit_int_bignum(
         negative = true;
         digits = digits[1..];
     }
+    // ``%llu -1`` and friends: an unsigned conversion never accepts a
+    // negative bignum.  Match Tcl 9's "unsigned bignum format is
+    // invalid" wording.
+    if (unsigned_conv and negative) {
+        stubs.raise("unsigned bignum format is invalid");
+        return off;
+    }
 
-    var prefix_len: u32 = 0;
-    if (negative) prefix_len = 1 else if (show_sign) prefix_len = 1;
     const dlen: u32 = @intCast(digits.len);
-    const total: u32 = prefix_len + dlen;
+    var min_digits: u32 = dlen;
+    var explicit_precision = false;
+    if (precision >= 0) {
+        explicit_precision = true;
+        const p: u32 = @intCast(precision);
+        if (p > min_digits) min_digits = p;
+    }
+    const value_is_zero = dlen == 0 or (dlen == 1 and digits[0] == '0');
+    const prefix = alt_prefix(base, alt_form, value_is_zero, upper);
+    var sign_ch: u8 = 0;
+    if (negative) {
+        sign_ch = '-';
+    } else if (show_sign) {
+        sign_ch = '+';
+    } else if (space_sign) {
+        sign_ch = ' ';
+    }
+    const sign_len: u32 = if (sign_ch == 0) 0 else 1;
+    const total: u32 = sign_len + @as(u32, @intCast(prefix.len)) + min_digits;
     const pad: u32 = if (width > total) width - total else 0;
-    if (!left_align and !zero_pad) {
+    const use_zero_pad = zero_pad and !left_align and !explicit_precision;
+    if (!left_align and !use_zero_pad) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = ' ';
             off += 1;
         }
     }
-    if (negative) {
-        out[off] = '-';
-        off += 1;
-    } else if (show_sign) {
-        out[off] = '+';
+    if (sign_ch != 0) {
+        out[off] = sign_ch;
         off += 1;
     }
-    if (!left_align and zero_pad) {
+    for (prefix) |pc| {
+        out[off] = pc;
+        off += 1;
+    }
+    if (use_zero_pad) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = '0';
             off += 1;
         }
+    }
+    var zp: u32 = 0;
+    while (zp + dlen < min_digits) : (zp += 1) {
+        out[off] = '0';
+        off += 1;
     }
     for (digits) |c| {
         out[off] = c;
@@ -439,6 +583,7 @@ fn emit_str(
     _: u32,
     arg: i32,
     left_align: bool,
+    zero_pad: bool,
     width: u32,
     precision: i32,
 ) u32 {
@@ -449,15 +594,29 @@ fn emit_str(
         const s = obj_ensure_string(arg);
         slen = s.len;
         sptr = s.ptr;
-        if (precision >= 0 and @as(u32, @intCast(precision)) < slen) {
-            slen = @intCast(precision);
+        // Width / precision in ``%s`` are character-counts, not byte-
+        // counts.  Walk the buffer one UTF-8 sequence at a time so
+        // ``%.5s`` against ``abc﻿d`` (4 chars + "FEFF" 3-byte
+        // sequence + "d") slices on character boundaries.
+        if (precision >= 0) {
+            const p: u32 = @intCast(precision);
+            slen = utf8_byte_prefix(sptr, slen, p);
         }
     }
-    const pad: u32 = if (width > slen) width - slen else 0;
+    // ``char_count`` is the number of code-points actually written —
+    // ``slen`` has been truncated to ``precision`` chars above, so
+    // the count of multi-byte starts in the truncated buffer is the
+    // right denominator for the width-padding arithmetic.  Using
+    // ``precision`` directly produced wrong padding when the string
+    // was shorter than the requested precision (test format-15.1
+    // ``%05s a``).
+    const char_count = utf8_char_count(sptr, slen);
+    const pad_count = if (width > char_count) width - char_count else 0;
+    const pad_byte: u8 = if (zero_pad and !left_align) '0' else ' ';
     if (!left_align) {
         var k: u32 = 0;
-        while (k < pad) : (k += 1) {
-            out[off] = ' ';
+        while (k < pad_count) : (k += 1) {
+            out[off] = pad_byte;
             off += 1;
         }
     }
@@ -471,7 +630,109 @@ fn emit_str(
     }
     if (left_align) {
         var k: u32 = 0;
+        while (k < pad_count) : (k += 1) {
+            out[off] = ' ';
+            off += 1;
+        }
+    }
+    return off;
+}
+
+/// Count the number of UTF-8 code points in *len* bytes starting at
+/// *ptr*.  Continuation bytes (10xxxxxx) are skipped.  Used for
+/// width / precision arithmetic in ``%s``.
+fn utf8_char_count(ptr: u32, len: u32) u32 {
+    if (len == 0) return 0;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var n: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        if ((sp[i] & 0xC0) != 0x80) n += 1;
+    }
+    return n;
+}
+
+/// Return the byte-offset of the *max_chars*-th UTF-8 code point
+/// boundary within ``len`` bytes at *ptr*.  Returns *len* if the
+/// buffer holds fewer than *max_chars* code points.
+fn utf8_byte_prefix(ptr: u32, len: u32, max_chars: u32) u32 {
+    if (max_chars == 0) return 0;
+    if (len == 0) return 0;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var seen: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        if ((sp[i] & 0xC0) != 0x80) {
+            if (seen == max_chars) return i;
+            seen += 1;
+        }
+    }
+    return len;
+}
+
+/// ``%c`` — encode a Unicode code-point as UTF-8 (Tcl 9 emits four-
+/// byte sequences for the supplementary planes and uses the lone
+/// surrogate range too).  Accepts negative / out-of-range values by
+/// truncating to the low 21 bits and falling back to U+FFFD when the
+/// resulting value is non-Unicode.
+fn emit_char(
+    out: [*]u8,
+    off_in: u32,
+    _: u32,
+    arg: i32,
+    left_align: bool,
+    zero_pad: bool,
+    width: u32,
+) u32 {
+    var off = off_in;
+    var n: i64 = 0;
+    if (arg != 0) n = obj_get_int(arg);
+    // Tcl 9 truncates to the low 21 bits before encoding, so values
+    // beyond U+10FFFF map back into the BMP / supplementary range.
+    const masked: u32 = @as(u32, @bitCast(@as(i32, @truncate(n)))) & 0x1FFFFF;
+    var cp: u32 = masked;
+    // Code points above U+10FFFF round to U+FFFD (the replacement
+    // character) — matches Tcl's TCL_COMBINE handling.
+    if (cp > 0x10FFFF) cp = 0xFFFD;
+    var seq: [4]u8 = undefined;
+    var seq_len: u32 = 0;
+    if (cp < 0x80) {
+        seq[0] = @intCast(cp);
+        seq_len = 1;
+    } else if (cp < 0x800) {
+        seq[0] = @intCast(0xC0 | (cp >> 6));
+        seq[1] = @intCast(0x80 | (cp & 0x3F));
+        seq_len = 2;
+    } else if (cp < 0x10000) {
+        seq[0] = @intCast(0xE0 | (cp >> 12));
+        seq[1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        seq[2] = @intCast(0x80 | (cp & 0x3F));
+        seq_len = 3;
+    } else {
+        seq[0] = @intCast(0xF0 | (cp >> 18));
+        seq[1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+        seq[2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        seq[3] = @intCast(0x80 | (cp & 0x3F));
+        seq_len = 4;
+    }
+    // ``%c`` width counts characters — exactly one code point.
+    const pad: u32 = if (width > 1) width - 1 else 0;
+    const pad_byte: u8 = if (zero_pad and !left_align) '0' else ' ';
+    if (!left_align) {
+        var k: u32 = 0;
         while (k < pad) : (k += 1) {
+            out[off] = pad_byte;
+            off += 1;
+        }
+    }
+    var k: u32 = 0;
+    while (k < seq_len) : (k += 1) {
+        out[off] = seq[k];
+        off += 1;
+    }
+    if (left_align) {
+        var p: u32 = 0;
+        while (p < pad) : (p += 1) {
             out[off] = ' ';
             off += 1;
         }
@@ -565,6 +826,11 @@ fn emit_float(
     off_in: u32,
     _: u32,
     arg: i32,
+    left_align: bool,
+    zero_pad: bool,
+    show_sign: bool,
+    space_sign: bool,
+    alt_form: bool,
     width: u32,
     precision: i32,
     conv: u8,
@@ -573,24 +839,105 @@ fn emit_float(
     if (arg == 0) return off;
     const fval = obj.obj_get_float(arg);
     const prec: usize = if (precision >= 0) @intCast(precision) else 6;
-    var tmp_buf: [64]u8 = undefined;
-    const slen: u32 = switch (conv) {
+    var tmp_buf: [128]u8 = undefined;
+    var slen: u32 = switch (conv) {
         'e', 'E' => fmt_float_e(&tmp_buf, fval, prec, conv == 'E'),
         'g', 'G' => fmt_float_g(&tmp_buf, fval, prec, conv == 'G'),
         else => @intCast(fmt_float_decimal(&tmp_buf, fval, prec)),
     };
-    const pad: u32 = if (width > slen) width - slen else 0;
-    var k: u32 = 0;
-    while (k < pad) : (k += 1) {
-        out[off] = ' ';
-        off += 1;
+    if (slen == 0) return off;
+    // Sign handling — Zig's stdlib already emits ``-`` for negatives.
+    // Replace ``+``/`` `` requests by inserting at offset 0 when the
+    // mantissa starts with a digit.
+    const negative = tmp_buf[0] == '-';
+    if (!negative and (show_sign or space_sign)) {
+        // shift right by 1 and prepend
+        var k: u32 = slen;
+        while (k > 0) : (k -= 1) tmp_buf[k] = tmp_buf[k - 1];
+        tmp_buf[0] = if (show_sign) '+' else ' ';
+        slen += 1;
     }
-    k = 0;
-    while (k < slen) : (k += 1) {
-        out[off] = tmp_buf[k];
-        off += 1;
+    // ``#`` flag for ``%f`` / ``%e`` / ``%g``: force a decimal point
+    // even when the precision elides one.  For ``%g`` it also disables
+    // trailing-zero trimming — currently fmt_float_g always trims, so
+    // for ``%#g`` we re-render as ``%f`` / ``%e`` with explicit prec.
+    if (alt_form and (conv == 'f' or conv == 'F') and !mantissa_has_dot(tmp_buf[0..slen])) {
+        tmp_buf[slen] = '.';
+        slen += 1;
+    }
+    if (alt_form and (conv == 'e' or conv == 'E')) {
+        // Insert ``.`` before the ``e`` if absent.
+        var e_idx: u32 = 0;
+        while (e_idx < slen and tmp_buf[e_idx] != 'e' and tmp_buf[e_idx] != 'E') : (e_idx += 1) {}
+        if (e_idx < slen) {
+            // Check for an existing ``.`` before the exponent.
+            var has_dot = false;
+            var k: u32 = 0;
+            while (k < e_idx) : (k += 1) {
+                if (tmp_buf[k] == '.') {
+                    has_dot = true;
+                    break;
+                }
+            }
+            if (!has_dot) {
+                // Shift exponent right by one and insert ``.``.
+                var src: u32 = slen;
+                while (src > e_idx) : (src -= 1) tmp_buf[src] = tmp_buf[src - 1];
+                tmp_buf[e_idx] = '.';
+                slen += 1;
+            }
+        }
+    }
+    const pad: u32 = if (width > slen) width - slen else 0;
+    const use_zero_pad = zero_pad and !left_align;
+    if (!left_align and !use_zero_pad) {
+        var k: u32 = 0;
+        while (k < pad) : (k += 1) {
+            out[off] = ' ';
+            off += 1;
+        }
+    }
+    if (use_zero_pad) {
+        // Sign / sign-space stays leftmost; zero-pad sits between
+        // sign and the leading mantissa digit.
+        var src: u32 = 0;
+        if (slen > 0 and (tmp_buf[0] == '-' or tmp_buf[0] == '+' or tmp_buf[0] == ' ')) {
+            out[off] = tmp_buf[0];
+            off += 1;
+            src = 1;
+        }
+        var k: u32 = 0;
+        while (k < pad) : (k += 1) {
+            out[off] = '0';
+            off += 1;
+        }
+        while (src < slen) : (src += 1) {
+            out[off] = tmp_buf[src];
+            off += 1;
+        }
+    } else {
+        var k: u32 = 0;
+        while (k < slen) : (k += 1) {
+            out[off] = tmp_buf[k];
+            off += 1;
+        }
+    }
+    if (left_align) {
+        var k: u32 = 0;
+        while (k < pad) : (k += 1) {
+            out[off] = ' ';
+            off += 1;
+        }
     }
     return off;
+}
+
+fn mantissa_has_dot(s: []const u8) bool {
+    for (s) |c| {
+        if (c == '.') return true;
+        if (c == 'e' or c == 'E') return false;
+    }
+    return false;
 }
 
 /// ``%e`` / ``%E`` — scientific notation with *prec* digits after
