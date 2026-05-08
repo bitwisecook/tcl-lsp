@@ -238,6 +238,78 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "which")) {
             return result_mod.from_globals(interp_impl.eval_namespace_which(words));
         }
+        if (str_eq(@ptrFromInt(sub.ptr), sub.len, "origin")) {
+            // ``namespace origin CMD`` — return the FQN of the
+            // original command CMD refers to.  For an imported
+            // redirect (``CMD_IMPORTED``) walk the chain to its
+            // ultimate source and return that command's stored FQN;
+            // otherwise return CMD's own FQN unchanged.  Reference
+            // Tcl 9 raises ``invalid command name "X"`` when the
+            // lookup misses; tcltest's ``Eval`` proc relies on
+            // that error rather than the silent-empty return —
+            // ``[list namespace import [namespace origin
+            // Replace::puts]]`` builds ``namespace import {}``
+            // (empty pattern) and traps with ``empty import
+            // pattern`` if the inner ``[namespace origin ...]``
+            // returned an empty string.
+            if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
+            const name_obj = obj_ensure_string(words[2]);
+            if (name_obj.len == 0) return result_mod.from_globals(obj_new_string(0, 0));
+            const cxt = tcl_ns.ns_current();
+            var cmd = tcl_ns.ns_find_command(cxt, name_obj.ptr, name_obj.len);
+            if (cmd == 0) {
+                // Mirror ``Tcl_NamespaceOriginCmd``: missing command
+                // raises ``invalid command name "<name>"``.  Use the
+                // catch_mod helper so an outer ``catch`` (e.g.
+                // tcltest's per-test wrapper) absorbs it.
+                const catch_mod = @import("../interp/tcl_catch.zig");
+                const prefix: []const u8 = "invalid command name \"";
+                const suffix: []const u8 = "\"";
+                const total_len: u32 = @as(u32, @intCast(prefix.len)) + name_obj.len + @as(u32, @intCast(suffix.len));
+                const buf2 = alloc(total_len);
+                if (buf2 == 0) {
+                    catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+                    return result_mod.from_globals(0);
+                }
+                const dst: [*]u8 = @ptrFromInt(buf2);
+                var off: u32 = 0;
+                for (prefix) |b| {
+                    dst[off] = b;
+                    off += 1;
+                }
+                const np: [*]const u8 = @ptrFromInt(name_obj.ptr);
+                for (0..name_obj.len) |k| {
+                    dst[off] = np[k];
+                    off += 1;
+                }
+                for (suffix) |b| {
+                    dst[off] = b;
+                    off += 1;
+                }
+                const msg = obj_mod.obj_new_string_take(buf2, total_len, total_len);
+                catch_mod.tcl_cmd_error(msg);
+                return result_mod.from_globals(0);
+            }
+            // Walk the import chain.  Each redirect's
+            // ``ImportedCmdData.real_cmd`` points at the next stage;
+            // the final source has ``CMD_IMPORTED`` clear.  Bound
+            // the walk to a sane depth to defang a malformed cycle
+            // (shouldn't happen in well-formed state, but be
+            // defensive — the walker is on the dispatch hot path
+            // every time tcltest assembles a Replace::puts wrapper).
+            const procs_const = tcl_ns.tcl_procs_constants;
+            var depth: u32 = 0;
+            while (depth < 64) : (depth += 1) {
+                const flags: u32 = @bitCast(obj_mod.read_i32(cmd + procs_const.OFF_FLAGS));
+                if ((flags & procs_const.CMD_IMPORTED) == 0) break;
+                const desc: u32 = @bitCast(obj_mod.read_i32(cmd + procs_const.OFF_PARAMS_OBJ));
+                if (desc == 0) break;
+                const real_cmd: u32 = @bitCast(obj_mod.read_i32(desc));
+                if (real_cmd == 0 or real_cmd == cmd) break;
+                cmd = real_cmd;
+            }
+            return result_mod.from_globals(interp_impl.command_fqn_obj(cmd));
+        }
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "current")) {
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
             return result_mod.from_globals(obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len)));
