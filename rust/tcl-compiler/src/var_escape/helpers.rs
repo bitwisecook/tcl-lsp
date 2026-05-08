@@ -88,6 +88,32 @@ pub fn is_dynamic_token(arg: &str) -> bool {
     arg.starts_with('$') || arg.starts_with('[') || arg.contains('$') || arg.contains('[')
 }
 
+/// True if *head* is the level argument of `upvar` and is
+/// potentially dynamic at runtime.
+///
+/// Mirrors the dynamic-level predicate in
+/// `core/compiler/var_escape/_propagation.py::_handle_upvar` as of
+/// upstream commit ``6c7a7c42`` (Copilot review on PR #325 widened
+/// the original `$var`-only gate).  Any non-literal head shape —
+/// `$var`, `[cmd]`, double-quoted `"..."` containing `$` or `[`, or
+/// `#`-absolute forms with embedded substitution like `"#${n}"` /
+/// `"#[expr ...]"` — must trigger the pessimistic-spill path.
+/// Recognising only `$var` let `upvar [expr {$n}] ...` /
+/// `upvar "#${n}" ...` / `upvar $::ns::level ...` callsites bypass
+/// the pessimism, leaving caller-side mirrors stale after an alias
+/// write through the dynamic level.
+///
+/// The caller is expected to have already excluded literal-integer
+/// and `#N` forms via [`crate::var_scoping::looks_like_level`]; this
+/// helper only classifies the dynamic shape.
+#[must_use]
+pub fn is_dynamic_upvar_level(head: &str) -> bool {
+    head.starts_with('$')
+        || head.starts_with('[')
+        || (head.starts_with('"') && (head.contains('$') || head.contains('[')))
+        || (head.starts_with('#') && (head.contains('$') || head.contains('[')))
+}
+
 /// True if *name* is an empty or interpolated variable name.
 ///
 /// Lowering preserves dynamic names as e.g. `${user_var}` literal
@@ -237,6 +263,31 @@ mod tests {
         assert!(is_dynamic_token("foo[cmd]"));
         assert!(!is_dynamic_token("foo"));
         assert!(!is_dynamic_token(""));
+    }
+
+    #[test]
+    fn dynamic_upvar_level_recognises_all_substitution_shapes() {
+        // ``$var`` and ``${var}``.
+        assert!(is_dynamic_upvar_level("$lvl"));
+        assert!(is_dynamic_upvar_level("${lvl}"));
+        assert!(is_dynamic_upvar_level("$::ns::level"));
+        // ``[cmd subst]``.
+        assert!(is_dynamic_upvar_level("[expr {$n}]"));
+        assert!(is_dynamic_upvar_level("[foo]"));
+        // Double-quoted strings carrying ``$`` / ``[``.
+        assert!(is_dynamic_upvar_level("\"#${n}\""));
+        assert!(is_dynamic_upvar_level("\"[expr {$n}]\""));
+        // ``#``-absolute forms with embedded substitution.
+        assert!(is_dynamic_upvar_level("#$n"));
+        assert!(is_dynamic_upvar_level("#${n}"));
+        assert!(is_dynamic_upvar_level("#[foo]"));
+        // Non-substituted shapes — not flagged here. Callers gate
+        // literal integers / ``#N`` separately via
+        // ``is_level_literal``.
+        assert!(!is_dynamic_upvar_level("1"));
+        assert!(!is_dynamic_upvar_level("#0"));
+        assert!(!is_dynamic_upvar_level("\"plain\""));
+        assert!(!is_dynamic_upvar_level(""));
     }
 
     #[test]

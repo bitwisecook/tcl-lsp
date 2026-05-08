@@ -6,13 +6,14 @@
 //! `core/compiler/var_escape/_propagation.py`.
 
 use crate::ir::CommandTokens;
-use crate::var_escape::helpers::{is_dynamic_token, is_name_first_command};
+use crate::var_escape::helpers::{is_dynamic_token, is_dynamic_upvar_level, is_name_first_command};
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
 use crate::var_escape::state::EscapeState;
 use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
+    global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
+    variable_declaration_indices,
 };
 
 /// True if any word in *tokens* is `{*}`-expanded.
@@ -32,13 +33,21 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
         return;
     }
     let head = &args[0];
-    let head_no_dash = head.trim_start_matches('-');
-    let is_level_literal = (!head_no_dash.is_empty()
-        && head_no_dash.chars().all(|c| c.is_ascii_digit()))
-        || (head.starts_with('#') && head[1..].chars().all(|c| c.is_ascii_digit()));
-    if head.starts_with('$') && !is_level_literal {
-        // Dynamic level — pessimistic.
+    let is_level_literal = looks_like_level(head);
+    if !is_level_literal && is_dynamic_upvar_level(head) {
+        // Dynamic level — pessimistic. Also flag the unbounded-
+        // upvar source so the interprocedural pass forces every
+        // caller to spill its locals: a dynamic level can resolve
+        // to any caller frame and the source-name pairs that
+        // follow may name any of the caller's vars. Without this,
+        // a callsite like ``upvar $level $vname var; set var 99``
+        // leaves the caller's WASM-local mirror stale because the
+        // alias write back into the runtime frame's slot never
+        // reaches the mirror. Mirrors the matching block in
+        // ``core/compiler/var_escape/_propagation.py`` as of
+        // upstream commit ``6c7a7c42``.
         state.mark_pessimistic();
+        state.record_unbounded_upvar();
         return;
     }
     for idx in upvar_local_declaration_indices("upvar", args) {
@@ -195,6 +204,41 @@ mod tests {
         let mut s = EscapeState::default();
         handle_upvar(&args_of(&["$lvl", "src", "dst"]), &mut s);
         assert!(s.dynamic_barrier());
+        // Dynamic-level path also flags the unbounded-upvar source
+        // for the interprocedural pass.
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_command_substitution_level_marks_pessimistic() {
+        let mut s = EscapeState::default();
+        handle_upvar(&args_of(&["[expr {$n}]", "src", "dst"]), &mut s);
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_quoted_substituted_level_marks_pessimistic() {
+        let mut s = EscapeState::default();
+        handle_upvar(&args_of(&["\"#${n}\"", "src", "dst"]), &mut s);
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_namespaced_dollar_level_marks_pessimistic() {
+        let mut s = EscapeState::default();
+        handle_upvar(&args_of(&["$::ns::level", "src", "dst"]), &mut s);
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
+    }
+
+    #[test]
+    fn upvar_hash_substituted_level_marks_pessimistic() {
+        let mut s = EscapeState::default();
+        handle_upvar(&args_of(&["#$n", "src", "dst"]), &mut s);
+        assert!(s.dynamic_barrier());
+        assert!(s.unbounded_upvar_source());
     }
 
     #[test]
