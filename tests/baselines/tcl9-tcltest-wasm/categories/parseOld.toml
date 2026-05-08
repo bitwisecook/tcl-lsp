@@ -17,4 +17,4 @@ observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["parseOld-1.2", "parseOld-5.8", "parseOld-5.9", "parseOld-5.11", "parseOld-5.13", "parseOld-5.14", "parseOld-7.4", "parseOld-7.5", "parseOld-10.1", "parseOld-10.2", "parseOld-10.3", "parseOld-10.4", "parseOld-10.14", "parseOld-12.3"]
+ids = ["parseOld-1.2", "parseOld-5.8", "parseOld-5.9", "parseOld-5.12", "parseOld-5.13", "parseOld-5.14", "parseOld-7.4", "parseOld-7.5", "parseOld-10.1", "parseOld-10.2", "parseOld-10.3", "parseOld-10.4", "parseOld-10.14", "parseOld-12.3"]

@@ -1,7 +1,7 @@
 # parse.test — auto-generated WASM baseline.
-# bucket = 'W0-runtime-error'
-# reason = 'tcl trap: site=233 can\'t read "": no such variable'
-trap_allowed = true
+# bucket = 'W-mixed-fail'
+# reason = '2 of 271 failed'
+trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
 skip = []
@@ -10,15 +10,11 @@ skip = []
 good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
-observed_total = 0
-observed_passed = 0
-observed_failed = 0
-observed_skipped = 0
+observed_total = 271
+observed_passed = 100
+observed_failed = 2
+observed_skipped = 169
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["parse-8.12"]
-
-[crash]
-type = "Trap"
-msg = "tcl trap: site=233 can't read \"\": no such variable"
+ids = ["parse-8.12", "parse-18.11"]

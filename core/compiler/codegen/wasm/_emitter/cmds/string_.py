@@ -6,6 +6,7 @@ from ......commands.registry import REGISTRY, EmitContext
 from ..._imports import (
     _STRING_IS_IMPORT,
     import_signature,
+    subcommand_min_arity_for,
     subcommand_runtime_import_for,
 )
 from ..._ir import WasmOp
@@ -76,6 +77,18 @@ def _emit_string(
             sri = subcommand_runtime_import_for("string", subcmd)
             if sri is not None and sri.import_key in emitter._shared_imports:
                 sub_args = args[1:]
+                # Under-arity literal calls (``string index`` with no
+                # operand, ``string range`` with one, …) must fall
+                # through to the eval-fallback.  The static path zero-
+                # pads missing slots — ``tcl_string_index(0,0)`` then
+                # silently returns the empty string and an enclosing
+                # ``catch`` never sees the wrong-args error that the
+                # runtime dispatcher would have raised.  Triggered by
+                # error-1.3 / 1.6 / 1.7 / cmdAH-1.4 / 1.5 / list-1.x.
+                min_arity = subcommand_min_arity_for("string", subcmd)
+                if min_arity is not None and len(sub_args) < min_arity:
+                    emitter._emit_eval_fallback("string", args)
+                    return True
                 # Option-bearing forms (``string map -nocase``,
                 # ``string match -nocase``, ``string compare -nocase``)
                 # have more sub-args than the fixed-param runtime import
@@ -164,6 +177,20 @@ def _emit_string(
     sri = subcommand_runtime_import_for("string", subcmd)
     if sri is not None and sri.import_key in emitter._shared_imports:
         sub_args = args[1:]
+        # Same arity short-circuit as the value-context path above:
+        # under-arity literal calls must surface the runtime
+        # dispatcher's wrong-args wording, not silently resolve to
+        # the zero-padded fast path.  See note on the value-context
+        # branch for the failing tests this unblocks.
+        min_arity = subcommand_min_arity_for("string", subcmd)
+        if min_arity is not None and len(sub_args) < min_arity:
+            emitter._emit_eval_fallback("string", args)
+            if defs:
+                def_idx = emitter._intern_local(defs[0])
+                emitter._emit_local_set(def_idx)
+            else:
+                emitter._emit(WasmOp.DROP)
+            return True
         # Same option detection as the value-context path above —
         # ``string map -nocase ...`` etc. need eval-fallback so the
         # runtime dispatcher parses the option bytes correctly.
