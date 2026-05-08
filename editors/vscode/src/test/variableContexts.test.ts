@@ -353,6 +353,55 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
     );
   });
 
+  test("W216 fires on `${arr}(foo)` (parsed as scalar+literal)", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const w216 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W216";
+    });
+    assert.ok(w216.length >= 2, `Expected >=2 W216 diagnostics, got ${w216.length}`);
+    const messages = w216.map((d) => d.message);
+    assert.ok(
+      messages.some((m) => m.includes("scalar") && m.includes("literal")),
+      `Expected the ${"${arr}(foo)"} message, got: ${messages.join(" / ")}`,
+    );
+    assert.ok(
+      messages.some((m) => m.includes("does not substitute")),
+      `Expected the ${"${arr($foo)}"} message, got: ${messages.join(" / ")}`,
+    );
+  });
+
+  test("W216 quick fix offers the bare-form replacement", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    // Pick the ``${arr}(name)`` (pattern 1) diagnostic specifically.
+    const w216 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W216" && d.message.includes("scalar");
+    });
+    assert.ok(w216, "Expected a ${arr}(foo) W216 diagnostic in fixture");
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      docUri,
+      w216.range,
+    )) as vscode.CodeAction[];
+    const w216Fix = actions.find(
+      (a) =>
+        a.kind !== undefined &&
+        a.kind.value === vscode.CodeActionKind.QuickFix.value &&
+        ((typeof a.title === "string" && a.title.includes("$arr(name)")) ||
+          (a.edit !== undefined &&
+            [...a.edit.entries()].some(([, edits]) =>
+              edits.some((e) => e.newText === "$arr(name)"),
+            ))),
+    );
+    assert.ok(
+      w216Fix,
+      `Expected a W216 quick-fix offering $arr(name); got titles: ${actions.map((a) => a.title).join(" / ")}`,
+    );
+  });
+
   test("W215 has Warning severity", async () => {
     await activate(docUri);
     const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });

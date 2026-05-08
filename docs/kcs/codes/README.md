@@ -104,6 +104,7 @@ in the pages; Phase 7 cross-links.
 - [W213 — variable may not exist](kcs-diagnostic-w213-variable-may-not-exist.md)
 - [W214 — unused proc parameter](kcs-diagnostic-w214-unused-proc-parameter.md)
 - [W215 — variable name unreachable via $-substitution](kcs-diagnostic-w215-variable-name-unreachable-via-substitution.md)
+- [W216 — broken brace-form array element reference](kcs-diagnostic-w216-broken-brace-array-element-reference.md)
 - [W220 — dead store](kcs-diagnostic-w220-dead-store.md)
 
 ## Shimmer (S-codes)

@@ -86,3 +86,9 @@ namespace eval ::ctxtests {
 set "weird}name" 1                                    ;# W215 on '}'
 set "arr(weird)stuff)" 2                               ;# W215 on ')'
 
+# W216 fixture: broken brace-form array-element references.
+set arr(name) hello
+set foo bar
+set indirect [puts ${arr}(name)]                       ;# W216 -- ${arr}(foo)
+set indirect2 [puts ${arr($foo)}]                      ;# W216 -- ${arr($foo)}
+

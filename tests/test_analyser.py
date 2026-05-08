@@ -2479,6 +2479,49 @@ class TestCanonicalisationMatrix:
         assert len(w215) == 1, f"expected one W215, got {len(w215)}"
         assert "array element index contains ')'" in w215[0].message
 
+    def test_w216_brace_then_paren_pattern(self):
+        # ``${arr}(foo)`` parses as scalar ``${arr}`` + literal ``(foo)``.
+        # W216 flags it and the quick fix swaps to ``$arr(foo)``.
+        source = "set arr(name) hello\nputs ${arr}(name)"
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes
+        assert w216[0].fixes[0].new_text == "$arr(name)"
+
+    def test_w216_brace_array_with_dollar_index(self):
+        # ``${arr($foo)}`` does NOT substitute ``$foo`` (Tcl(n) docs).
+        # W216 flags it; the fix uses bare ``$arr($foo)`` which does
+        # substitute the index at runtime.
+        source = "set foo bar\nputs ${arr($foo)}"
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes[0].new_text == "$arr($foo)"
+
+    def test_w216_funny_name_falls_back_to_set_indirection(self):
+        # When the array name has chars the bare form can't carry (here
+        # a space), the fix uses ``[set "name(idx)"]`` -- substitution
+        # still works in ``set``'s argument.
+        source = 'set "funny name" 1\nputs ${funny name($foo)}'
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes[0].new_text == '[set "funny name($foo)"]'
+
+    def test_w216_does_not_fire_on_correct_forms(self):
+        # ``${arr(name)}`` (literal index) and ``$arr($foo)`` (bare with
+        # substitution) are both correct -- no W216.
+        for src in [
+            "puts ${arr(name)}",
+            "puts $arr($foo)",
+            "puts ${arr}",
+            "set foo bar\nputs $arr($foo)",
+        ]:
+            result = analyse(src)
+            w216 = [d for d in result.diagnostics if d.code == "W216"]
+            assert w216 == [], f"unexpected W216 for {src!r}: {[d.message for d in w216]}"
+
     def test_w215_does_not_fire_on_normal_names(self):
         # Sanity: hyphenated / colon-qualified names are reachable via
         # ``${...}`` / bare $; only ``}`` and array ``)`` are flagged.
