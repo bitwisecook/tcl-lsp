@@ -429,6 +429,9 @@ impl Lowerer<'_> {
     // ── switch ────────────────────────────────────────────────────
 
     /// Lower `switch ?options? subject pattern body ...`.
+    // Sequential `switch` lowering: option parsing, list-form
+    // unpacking, body recursion, and case-list build all share
+    // local arena state.
     #[allow(clippy::too_many_lines)]
     pub(super) fn lower_switch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();

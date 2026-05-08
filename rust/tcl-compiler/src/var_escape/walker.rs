@@ -264,6 +264,7 @@ fn is_eval_block(tokens: Option<&crate::ir::CommandTokens>) -> bool {
 /// declares. Used for literal `eval` / `uplevel #0` bodies — the
 /// body runs through the interpreter which resolves names against
 /// the frame, so any name it touches must be visible there.
+// Long match dispatcher over Statement variants in the var_escape walker.
 #[allow(clippy::too_many_lines)]
 pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeState) {
     for stmt in stmts {
@@ -395,6 +396,7 @@ pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeS
 }
 
 /// Walk *stmts* with the standard escape-rule transfer functions.
+// Long match dispatcher over Statement variants in the var_escape walker.
 #[allow(clippy::too_many_lines)]
 fn walk(stmts: &[Statement], state: &mut EscapeState) {
     for stmt in stmts {

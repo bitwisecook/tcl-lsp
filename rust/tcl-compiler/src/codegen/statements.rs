@@ -78,6 +78,7 @@ impl CodegenCtx<'_> {
     }
 
     /// Dispatch a statement to the appropriate emission handler.
+    // Long match dispatcher over Statement variants.
     #[allow(clippy::too_many_lines)]
     pub fn emit_stmt(&mut self, stmt: &Statement, used_generic_invoke: &mut bool) {
         match stmt {

@@ -17,11 +17,7 @@
 //! - **C26d** — `find_redundancies` driver that walks the
 //!   dominator tree and reports full/partial redundancies.
 
-#![allow(
-    clippy::implicit_hasher,
-    clippy::format_push_string,
-    clippy::too_many_lines
-)]
+#![allow(clippy::implicit_hasher, clippy::format_push_string)]
 
 use std::collections::HashMap;
 
@@ -1275,6 +1271,8 @@ fn transfer_occurrence_keys(
 ///
 /// Matches the Python `gvn.py::_find_partial_redundancies`
 /// pipeline on a per-function basis.
+// Long match dispatcher over IR opcodes.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn find_partial_redundancies(
     registry: &CommandRegistry,
@@ -2279,6 +2277,8 @@ mod tests {
 
     // -- C26e3: partial-redundancy detection --
 
+    // Long match dispatcher over IR opcodes.
+    #[allow(clippy::too_many_lines)]
     #[test]
     fn find_partial_redundancies_if_diamond() {
         // Diamond:

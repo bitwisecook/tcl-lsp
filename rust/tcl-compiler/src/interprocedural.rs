@@ -582,6 +582,7 @@ fn scan_script(
     }
 }
 
+// Long match dispatcher over Statement variants.
 #[allow(clippy::too_many_lines)]
 fn scan_statement(
     stmt: &crate::ir::Statement,

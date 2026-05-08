@@ -31,8 +31,6 @@
 //! `Ok`. This keeps the test green on stripped-down sandboxes while
 //! still running under `make prep-pr`.
 
-#![allow(clippy::too_many_lines)]
-
 use std::fmt::Write as _;
 use std::fs;
 use std::io::Write;

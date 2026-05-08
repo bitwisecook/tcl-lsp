@@ -1024,8 +1024,11 @@ mod xml__subscribe;
 use crate::spec::CommandSpec;
 
 /// Return all iRules command specifications.
-#[must_use]
+// Flat declarative `vec![spec(), spec(), ...]` over the ~1000
+// per-command modules — splitting by category adds ceremony
+// without improving readability.
 #[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn irules_command_specs() -> Vec<CommandSpec> {
     vec![
         aaa__acct_result::spec(),

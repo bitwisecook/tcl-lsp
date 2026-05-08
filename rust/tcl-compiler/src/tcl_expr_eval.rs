@@ -174,6 +174,7 @@ fn eval_call(function: &str, args: &[ExprNode], env: &Env) -> Option<TclValue> {
     dispatch_math(&name, &vals)
 }
 
+// Long match dispatcher over math operators.
 #[allow(clippy::too_many_lines)]
 fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
     // Helpers for common argument shapes.
@@ -420,7 +421,6 @@ fn eval_binary(op: BinOp, left: &ExprNode, right: &ExprNode, env: &Env) -> Optio
     apply_binary(op, lv, rv)
 }
 
-#[allow(clippy::too_many_lines)]
 fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
     match op {
         // Arithmetic.

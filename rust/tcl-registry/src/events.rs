@@ -4,6 +4,14 @@
 //! layer, connection side, required profiles, flow properties,
 //! and canonical firing order.
 
+// `event_props_table`, `master_order`, and `flow_chains` are
+// large flat declarative arrays of `EventProps` / `&str` /
+// `(&str, &[&str])` literals (one entry per iRules event) —
+// splitting them into per-protocol helpers adds ceremony without
+// improving readability and breaks the "one table per concept"
+// structure.
+#![allow(clippy::too_many_lines)]
+
 use std::collections::{HashMap, HashSet};
 
 /// Per-event protocol stack properties.
@@ -244,7 +252,6 @@ impl EventRegistry {
 
 // AUTO-GENERATED from Python namespace_data.py — do not edit manually
 
-#[allow(clippy::too_many_lines)]
 fn event_props_table() -> Vec<(&'static str, EventProps)> {
     vec![
         (
@@ -1912,7 +1919,6 @@ fn event_props_table() -> Vec<(&'static str, EventProps)> {
     ]
 }
 
-#[allow(clippy::too_many_lines)]
 fn master_order() -> Vec<OrderEntry> {
     vec![
         OrderEntry {
@@ -2283,7 +2289,6 @@ fn per_request() -> HashSet<&'static str> {
     .collect()
 }
 
-#[allow(clippy::too_many_lines)]
 fn flow_chains() -> Vec<FlowChain> {
     vec![
         FlowChain {

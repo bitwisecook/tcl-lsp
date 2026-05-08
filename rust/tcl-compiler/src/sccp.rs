@@ -16,7 +16,7 @@
 //! Ported from `core/compiler/core_analyses.py::_sccp` and the
 //! surrounding lattice-join helpers.
 
-#![allow(clippy::implicit_hasher, clippy::too_many_lines)]
+#![allow(clippy::implicit_hasher)]
 
 use std::collections::{HashMap, HashSet};
 
@@ -220,6 +220,8 @@ pub struct SccpResult {
 /// - Branch decisions are resolved via [`evaluate_branch`] below,
 ///   which consults the lattice environment and then the C22
 ///   evaluator.
+// Long match dispatcher over IR opcodes.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn sccp(
     cfg: &CfgFunction,

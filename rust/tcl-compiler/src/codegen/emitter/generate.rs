@@ -4,7 +4,7 @@
 //! delegates per-block work to handlers. Runs peephole passes and
 //! the layout pass to produce the final [`FunctionAsm`].
 
-#![allow(clippy::too_many_lines, clippy::if_not_else, dead_code)]
+#![allow(clippy::if_not_else, dead_code)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -82,6 +82,8 @@ impl GenerateState {
 /// (`try_list_expand_concat`, inline list with `break`/`continue`,
 /// `try_format_fold`), differential test harness, and registry-backed
 /// codegen hooks.
+// Sequential codegen pipeline; phases share emitter state.
+#[allow(clippy::too_many_lines)]
 pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
     use super::loop_blocks::{detect_complex_foreach, detect_foreach, ComplexForeach, ForeachInfo};
 

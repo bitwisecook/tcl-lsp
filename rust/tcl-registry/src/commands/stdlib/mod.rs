@@ -231,8 +231,10 @@ mod testwrongnumargs;
 use crate::spec::CommandSpec;
 
 /// Return all `stdlib` command specifications.
-#[must_use]
+// Flat declarative `vec![spec(), ...]` — splitting hurts
+// readability for a one-shot table.
 #[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn stdlib_command_specs() -> Vec<CommandSpec> {
     vec![
         gettimes::spec(),

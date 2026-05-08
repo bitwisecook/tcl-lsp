@@ -3,6 +3,13 @@
 //! Static data tables describing the 57 profile types, 87 protocol
 //! command namespaces, and stack modification commands.
 
+// `profile_specs` and `protocol_namespace_specs` are large flat
+// declarative arrays of `ProfileSpec` / `ProtocolNamespaceSpec`
+// literals (one entry per F5 profile / protocol namespace) —
+// splitting them by category adds ceremony without improving
+// readability.
+#![allow(clippy::too_many_lines)]
+
 use std::collections::HashMap;
 
 /// Metadata for an F5 profile type.
@@ -123,7 +130,6 @@ impl ProfileRegistry {
 
 // AUTO-GENERATED from Python namespace_data.py — do not edit manually
 
-#[allow(clippy::too_many_lines)]
 fn profile_specs() -> Vec<ProfileSpec> {
     vec![
         ProfileSpec {
@@ -665,7 +671,6 @@ fn profile_specs() -> Vec<ProfileSpec> {
     ]
 }
 
-#[allow(clippy::too_many_lines)]
 fn protocol_namespace_specs() -> Vec<ProtocolNamespaceSpec> {
     vec![
         ProtocolNamespaceSpec {

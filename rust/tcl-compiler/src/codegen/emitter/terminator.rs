@@ -4,7 +4,6 @@
 //! each [`Terminator`] variant (goto / branch / return).
 
 #![allow(
-    clippy::too_many_lines,
     clippy::similar_names,
     clippy::match_same_arms,
     clippy::cast_possible_truncation,

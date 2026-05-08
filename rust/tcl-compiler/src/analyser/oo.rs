@@ -2,7 +2,6 @@
     clippy::doc_markdown,
     clippy::similar_names,
     clippy::unused_self,
-    clippy::too_many_lines,
     clippy::match_same_arms
 )]
 
@@ -311,6 +310,8 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
 ///
 /// `texts` and `argv` are parallel: `texts[0]` / `argv[0]` is
 /// the subcommand name (``superclass`` / ``method`` / etc.).
+// Long match dispatcher over OO command/subcommand shapes.
+#[allow(clippy::too_many_lines)]
 fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDef) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;

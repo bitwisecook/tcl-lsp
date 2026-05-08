@@ -198,6 +198,7 @@ impl CodegenCtx<'_> {
     /// Handles literal amounts (immediate or pushed), and variable
     /// amounts (load + incr).  For non-proc contexts, falls back to
     /// `invokeStk` when the amount is large or complex.
+    // Long match dispatcher over value-emit forms.
     #[allow(clippy::too_many_lines)]
     pub fn emit_incr(&mut self, name: &str, amount: Option<&str>) {
         if self.is_proc && !is_qualified(name) {
