@@ -106,13 +106,15 @@ test "tcl_cmd_list_sort — duplicates preserved (stable enough for equal keys)"
     try testing.expectEqualStrings("a a b b c", bytes(list.tcl_cmd_list_sort(s("c a b a b"))));
 }
 
-test "tcl_cmd_list_sort — braced elements with internal whitespace preserve grouping" {
+test "tcl_cmd_list_sort — canonical output preserves grouping when value needs braces" {
     // tcltest stores compound constraint names like
     // ``"testexprparser && !ieeeFloatingPoint"`` as array keys; the
     // ``[lsort [array names ...]]`` over those keys must keep each
-    // element a single list element.  Without re-bracing the sorted
-    // output, ``foreach`` over the result iterates 7 fragments instead
-    // of 3 and ``[info exists arr($constraint)]`` then traps.
+    // element a single list element.  Canonical re-quoting preserves
+    // braces when the value contains list metacharacters (space, ``$``,
+    // ``[``, …) — without it ``foreach`` over the result iterates 7
+    // fragments instead of 3 and ``[info exists arr($constraint)]``
+    // traps.
     try testing.expectEqualStrings(
         "{a b c} {d e f}",
         bytes(list.tcl_cmd_list_sort(s("{d e f} {a b c}"))),
@@ -123,6 +125,15 @@ test "tcl_cmd_list_sort — braced elements with internal whitespace preserve gr
             "{testexprparser && !ieeeFloatingPoint} testexprparser {testexprparser && ieeeFloatingPoint}",
         ))),
     );
+}
+
+test "tcl_cmd_list_sort — canonical output strips redundant braces" {
+    // Values that don't need quoting must not be re-braced just because
+    // the source spelled them braced — Codex review on PR #360 flagged
+    // ``lsort {{abc} d}`` producing ``{abc} d`` instead of the canonical
+    // ``abc d``, breaking byte-for-byte comparisons against tclsh.
+    try testing.expectEqualStrings("abc d", bytes(list.tcl_cmd_list_sort(s("{abc} d"))));
+    try testing.expectEqualStrings("d xyz", bytes(list.tcl_cmd_list_sort(s("{xyz} {d}"))));
 }
 
 // ---- search / contains ---------------------------------------------

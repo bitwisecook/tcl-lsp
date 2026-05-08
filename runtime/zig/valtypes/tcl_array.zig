@@ -1151,8 +1151,17 @@ pub export fn array_names(arr: i32, pattern: i32) i32 {
             const d: [*]u8 = @ptrFromInt(buf + off);
             d[0] = ' ';
             off += 1;
+            off = lq.list_elem_quote_nth(buf, off, ep, el);
+        } else {
+            // First element keeps the leading-``#`` quoting rule so a
+            // key starting with ``#`` round-trips through ``eval`` /
+            // canonical-list contexts without the rest of the list
+            // being parsed as a comment.  Subsequent elements pass
+            // ``FLAG_DONT_QUOTE_HASH`` (via ``list_elem_quote_nth``)
+            // because they can never sit at the script start.  Mirrors
+            // ``UpdateStringOfList`` in upstream Tcl.
+            off = lq.list_elem_quote(buf, off, ep, el);
         }
-        off = lq.list_elem_quote_nth(buf, off, ep, el);
         written += 1;
     }
     return obj.obj_new_string_take(buf, off, total);
