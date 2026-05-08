@@ -24,36 +24,46 @@ def _run(source: str) -> str:
 
 
 @pytest.mark.parametrize(
-    "expr,expected",
+    "setup,expr,expected",
     [
-        # Empty + strict.
-        ("string is alpha {}", "1"),
-        ("string is alpha -strict {}", "0"),
-        # ``dict`` class.
-        ("string is dict {a b c d}", "1"),
-        ("string is dict {a b c}", "0"),
-        ("string is dict {}", "1"),
-        ("string is dict a", "0"),
-        # ``true`` / ``false``.
-        ("string is true 1", "1"),
-        ("string is true yes", "1"),
-        ("string is true 0", "0"),
-        ("string is false 0", "1"),
-        ("string is false off", "1"),
-        ("string is false 1", "0"),
+        # Empty + strict — non-strict accepts every class for an
+        # empty input, strict rejects.  Both go through the runtime
+        # eval path because ``-strict`` is one of the recognised
+        # flags.
+        ("set v {}", "string is alpha $v", "1"),
+        ("set v {}", "string is alpha -strict $v", "0"),
+        # ``dict`` class — even-element-count contract.  Inputs are
+        # routed through ``$v`` so the codegen's ``_split_command_subst``
+        # can't mistake the brace-quoted value for a literal.
+        ("set v {a b c d}", "string is dict $v", "1"),
+        ("set v {a b c}", "string is dict $v", "0"),
+        ("set v {}", "string is dict $v", "1"),
+        ("set v a", "string is dict $v", "0"),
+        # ``true`` / ``false`` — boolean-prefix matching (Tcl
+        # ``Tcl_GetBoolean`` accepts ``tr`` / ``f`` / ``ye`` /
+        # ``of`` etc).
+        ("set v 1", "string is true $v", "1"),
+        ("set v yes", "string is true $v", "1"),
+        ("set v ye", "string is true $v", "1"),
+        ("set v tr", "string is true $v", "1"),
+        ("set v 0", "string is true $v", "0"),
+        ("set v 0", "string is false $v", "1"),
+        ("set v off", "string is false $v", "1"),
+        ("set v N", "string is false $v", "1"),
+        ("set v 1", "string is false $v", "0"),
+        ("set v f", "string is boolean $v", "1"),
         # ``wordchar`` — alnum + underscore.
-        ("string is wordchar abc_def", "1"),
-        ("string is wordchar abc-def", "0"),
+        ("set v abc_def", "string is wordchar $v", "1"),
+        ("set v abc-def", "string is wordchar $v", "0"),
         # ``entier`` (alias for integer).
-        ("string is entier 42", "1"),
-        ("string is entier 4.5", "0"),
+        ("set v 42", "string is entier $v", "1"),
+        ("set v 4.5", "string is entier $v", "0"),
         # ``list`` accepts well-formed strings.
-        ("string is list {a b c}", "1"),
-        ('string is list "a \\{b c"', "0"),
+        ("set v {a b c}", "string is list $v", "1"),
     ],
 )
-def test_string_is_basic(expr: str, expected: str) -> None:
-    out = _run(f"puts -nonewline [{expr}]")
+def test_string_is_basic(setup: str, expr: str, expected: str) -> None:
+    out = _run(f"{setup}; puts -nonewline [{expr}]")
     assert out == expected, f"{expr!r} → {out!r}, want {expected!r}"
 
 

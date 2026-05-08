@@ -81,6 +81,69 @@ pub export fn tcl_cmd_format_list(fmt: i32, args_list: i32) i32 {
     return format_internal(fmt, objs[0..n]);
 }
 
+/// Scan a format string for the maximum literal width / precision
+/// any conversion specifies.  Used to pre-size the output buffer so
+/// per-conversion emitters can write padding without bounds-checks.
+/// ``*`` widths are bounded by a conservative cap (1 MiB); pathologic
+/// run-time values are clamped at the same level by the emitters.
+fn scan_format_max_width(fp: [*]const u8, len: u32) u32 {
+    var max_w: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) : (i += 1) {
+        if (fp[i] != '%') continue;
+        i += 1;
+        if (i >= len) break;
+        if (fp[i] == '%') continue;
+        // Skip positional spec ``N$``.
+        if (fp[i] >= '1' and fp[i] <= '9') {
+            var k: u32 = i;
+            while (k < len and fp[k] >= '0' and fp[k] <= '9') : (k += 1) {}
+            if (k < len and fp[k] == '$') i = k + 1;
+        }
+        // Skip flags.
+        while (i < len) : (i += 1) {
+            switch (fp[i]) {
+                '-', '+', '0', ' ', '#' => {},
+                else => break,
+            }
+        }
+        // Width (literal or ``*``).
+        var w: u32 = 0;
+        if (i < len and fp[i] == '*') {
+            // Star — bound at 64 KiB.  Run-time values bigger than
+            // this would corrupt memory; the emitters cap matching.
+            w = 65536;
+            i += 1;
+        } else {
+            while (i < len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
+                w = w * 10 + (fp[i] - '0');
+                if (w > 1 << 20) {
+                    w = 1 << 20; // saturate
+                }
+            }
+        }
+        // Precision.
+        var p: u32 = 0;
+        if (i < len and fp[i] == '.') {
+            i += 1;
+            if (i < len and fp[i] == '*') {
+                p = 65536;
+                i += 1;
+            } else {
+                while (i < len and fp[i] >= '0' and fp[i] <= '9') : (i += 1) {
+                    p = p * 10 + (fp[i] - '0');
+                    if (p > 1 << 20) {
+                        p = 1 << 20;
+                    }
+                }
+            }
+        }
+        const big = if (w > p) w else p;
+        if (big > max_w) max_w = big;
+    }
+    return max_w;
+}
+
 fn format_internal(fmt: i32, args: []const i32) i32 {
     if (fmt == 0) return obj_new_string(0, 0);
     const fs = obj_ensure_string(fmt);
@@ -89,15 +152,33 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
 
     var arg_idx: u32 = 0;
 
-    // Preallocate a generously-sized buffer.  4× the format string
-    // + 64 bytes slack is enough for plain %s / %d / %f spans and
-    // a reasonable number of integer conversions.
+    // Preallocate a generously-sized buffer.  Per-conversion writers
+    // don't bounds-check, so the buffer must be large enough for
+    // every possible expansion.  We fold three sources of growth:
+    //
+    //   * literal text in the format string (1 byte per byte);
+    //   * each conversion's potential width / precision (parsed
+    //     here so star widths fed via ``*`` show up too);
+    //   * each string-typed argument's full bytes.
+    //
+    // The pre-scan keeps things linear and avoids relying on the
+    // emitters to grow / clamp dynamically.
+    const max_width = scan_format_max_width(fp, fs.len);
     var bufsize: u32 = fs.len * 8 + 128;
-    // Add room for each string arg's content.
+    if (max_width > 0) {
+        // Each conversion can emit at most ``max_width`` characters
+        // plus a small per-spec prefix (``0x``, sign, ``.`` etc).
+        // ``fs.len`` is the conservative upper bound on conversion
+        // count; multiply by ``max_width`` for the worst case.
+        bufsize += @as(u32, @intCast(max_width)) * fs.len + 64;
+    }
+    // Add room for each arg's content.  Strings can be much wider
+    // than their printed form (UTF-8 multi-byte), and bignum-typed
+    // ints may render to thousands of digits.
     for (args) |a| {
         if (a == 0) continue;
         const as = obj_ensure_string(a);
-        bufsize += as.len + 32;
+        bufsize += as.len + 64;
     }
     const buf_addr: u32 = alloc(bufsize);
     const out: [*]u8 = @ptrFromInt(buf_addr);
@@ -886,7 +967,14 @@ fn emit_float(
     if (arg == 0) return off;
     const fval = obj.obj_get_float(arg);
     const prec: usize = if (precision >= 0) @intCast(precision) else 6;
-    var tmp_buf: [128]u8 = undefined;
+    // Buffer needs slack above the longest reasonable f64 render
+    // (``-1.7e308`` plus 17 fractional digits is ~25 bytes; the
+    // ``%.30f`` worst case caps prec at 17 inside fmt_float_decimal).
+    // 192 bytes leaves room for two follow-up mutations: the
+    // sign-prepend (1 byte) and the alt-form ``.``/``e`` insert
+    // (1 byte) without overflowing the stack array.
+    var tmp_buf: [192]u8 = undefined;
+    const cap: u32 = tmp_buf.len;
     var slen: u32 = switch (conv) {
         'e', 'E' => fmt_float_e(&tmp_buf, fval, prec, conv == 'E'),
         'g', 'G' => fmt_float_g(&tmp_buf, fval, prec, conv == 'G'),
@@ -895,9 +983,9 @@ fn emit_float(
     if (slen == 0) return off;
     // Sign handling — Zig's stdlib already emits ``-`` for negatives.
     // Replace ``+``/`` `` requests by inserting at offset 0 when the
-    // mantissa starts with a digit.
+    // mantissa starts with a digit.  Bail out if the buffer is full.
     const negative = tmp_buf[0] == '-';
-    if (!negative and (show_sign or space_sign)) {
+    if (!negative and (show_sign or space_sign) and slen + 1 < cap) {
         // shift right by 1 and prepend
         var k: u32 = slen;
         while (k > 0) : (k -= 1) tmp_buf[k] = tmp_buf[k - 1];
@@ -908,11 +996,11 @@ fn emit_float(
     // even when the precision elides one.  For ``%g`` it also disables
     // trailing-zero trimming — currently fmt_float_g always trims, so
     // for ``%#g`` we re-render as ``%f`` / ``%e`` with explicit prec.
-    if (alt_form and (conv == 'f' or conv == 'F') and !mantissa_has_dot(tmp_buf[0..slen])) {
+    if (alt_form and (conv == 'f' or conv == 'F') and !mantissa_has_dot(tmp_buf[0..slen]) and slen + 1 < cap) {
         tmp_buf[slen] = '.';
         slen += 1;
     }
-    if (alt_form and (conv == 'e' or conv == 'E')) {
+    if (alt_form and (conv == 'e' or conv == 'E') and slen + 1 < cap) {
         // Insert ``.`` before the ``e`` if absent.
         var e_idx: u32 = 0;
         while (e_idx < slen and tmp_buf[e_idx] != 'e' and tmp_buf[e_idx] != 'E') : (e_idx += 1) {}

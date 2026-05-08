@@ -365,9 +365,15 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(0);
 }
 
-// ``string is`` class names — must be sorted alphabetically.  Used
-// for prefix-disambiguation (string-6.6) and the canonical ``bad
-// class`` / ``ambiguous class`` wording (string-6.5).
+// ``string is`` class names in the canonical order Tcl 9 uses for
+// the ``bad class`` / ``ambiguous class`` error wording (test
+// string-6.5 / 6.6).  This is *not* alphabetical — it groups
+// related classes (e.g. ``boolean`` between the character and
+// digit groups; ``true`` / ``false`` between numeric and case
+// classes).  Order is significant because (a) the unique-prefix
+// matcher in ``resolve_is_class`` uses it to detect ambiguity and
+// (b) the suffix in ``raise_class_error`` quotes the same list
+// verbatim.
 const IS_CLASSES: []const []const u8 = &.{
     "alnum",       "alpha",     "ascii", "control",  "boolean", "dict",
     "digit",       "double",    "entier", "false",   "graph",   "integer",
@@ -451,7 +457,11 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
         raise_string_wrong_args(
             "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
         );
-        return result_mod.from_globals(obj_new_int(1));
+        // Match the rest of the error paths in this file — returning 0
+        // (false) keeps the result consistent with the standard error
+        // sentinel even if the caller's snapshot somehow drops the
+        // error flag.
+        return result_mod.from_globals(obj_new_int(0));
     }
     const cls_arg = obj_ensure_string(words[2]);
     // ``obj_ensure_string`` can return ``ptr=0`` for an empty string
@@ -703,16 +713,34 @@ fn check_boolean(ptr: [*]const u8, len: u32) bool {
 }
 
 fn check_boolean_value(ptr: [*]const u8, len: u32, want_true: bool) bool {
-    // Tcl 9 accepts case-insensitive prefixes of the eight canonical
-    // names; we recognise the full forms which covers the bulk of
-    // tcltest usage.
-    const literals_true = [_][]const u8{ "1", "true", "yes", "on" };
-    const literals_false = [_][]const u8{ "0", "false", "no", "off" };
-    const list = if (want_true) &literals_true else &literals_false;
-    for (list) |lit| {
-        if (icmp(ptr, len, lit)) return true;
+    // Tcl ``Tcl_GetBoolean`` accepts non-empty case-insensitive
+    // *prefixes* of the canonical literals — ``f`` / ``fa`` / ``fal``
+    // are all valid for "false", and ``string is false N`` /
+    // ``string is boolean f`` show up in the upstream test suite
+    // (string-6.21 / 6.42).  ``1`` and ``0`` are the digit literals
+    // and only match exactly.
+    if (len == 0) return false;
+    if (want_true) {
+        if (len == 1 and ptr[0] == '1') return true;
+        return iprefix(ptr, len, "true") or iprefix(ptr, len, "yes") or iprefix(ptr, len, "on");
     }
-    return false;
+    if (len == 1 and ptr[0] == '0') return true;
+    return iprefix(ptr, len, "false") or iprefix(ptr, len, "no") or iprefix(ptr, len, "off");
+}
+
+/// Case-insensitive prefix match: returns true when ``lit`` starts
+/// with the buffer's bytes (length ``len``).  Used by the Tcl
+/// boolean prefix-acceptance rule above.
+fn iprefix(ptr: [*]const u8, len: u32, lit: []const u8) bool {
+    if (len == 0 or len > lit.len) return false;
+    for (0..len) |k| {
+        const a = ptr[k];
+        const al: u8 = if (a >= 'A' and a <= 'Z') a + 32 else a;
+        const b = lit[k];
+        const bl: u8 = if (b >= 'A' and b <= 'Z') b + 32 else b;
+        if (al != bl) return false;
+    }
+    return true;
 }
 
 fn icmp(ptr: [*]const u8, len: u32, lit: []const u8) bool {
@@ -740,46 +768,56 @@ fn check_integer(ptr: [*]const u8, len: u32, fail: *i64) bool {
             fail.* = i - 1;
             return false;
         }
-        while (i < len) : (i += 1) {
-            if (!isXdigit(ptr[i])) {
-                fail.* = i;
-                return false;
-            }
+        while (i < len and isXdigit(ptr[i])) : (i += 1) {}
+        const after = i;
+        while (i < len and isSpace(ptr[i])) i += 1;
+        if (i != len) {
+            fail.* = after;
+            return false;
         }
+        return true;
     } else if (i < len and ptr[i] == '0' and i + 1 < len and (ptr[i + 1] == 'b' or ptr[i + 1] == 'B')) {
         i += 2;
         if (i >= len) {
             fail.* = i - 1;
             return false;
         }
-        while (i < len) : (i += 1) {
-            if (ptr[i] != '0' and ptr[i] != '1') {
-                fail.* = i;
-                return false;
-            }
+        while (i < len and (ptr[i] == '0' or ptr[i] == '1')) : (i += 1) {}
+        const after = i;
+        while (i < len and isSpace(ptr[i])) i += 1;
+        if (i != len) {
+            fail.* = after;
+            return false;
         }
+        return true;
     } else if (i < len and ptr[i] == '0' and i + 1 < len and (ptr[i + 1] == 'o' or ptr[i + 1] == 'O')) {
         i += 2;
         if (i >= len) {
             fail.* = i - 1;
             return false;
         }
-        while (i < len) : (i += 1) {
-            if (ptr[i] < '0' or ptr[i] > '7') {
-                fail.* = i;
-                return false;
-            }
+        while (i < len and ptr[i] >= '0' and ptr[i] <= '7') : (i += 1) {}
+        const after = i;
+        while (i < len and isSpace(ptr[i])) i += 1;
+        if (i != len) {
+            fail.* = after;
+            return false;
         }
+        return true;
     } else {
         if (i >= len) {
             fail.* = if (start < len) @intCast(start) else 0;
             return false;
         }
-        while (i < len) : (i += 1) {
-            if (!isDigit(ptr[i])) {
-                fail.* = i;
-                return false;
-            }
+        while (i < len and isDigit(ptr[i])) : (i += 1) {}
+        // Trailing whitespace is allowed by Tcl integer parsing
+        // (``tcl_bignum.parse_i128`` strips both ends).  Anything
+        // else after the digits is a parse failure.
+        const after_digits = i;
+        while (i < len and isSpace(ptr[i])) i += 1;
+        if (i != len) {
+            fail.* = after_digits;
+            return false;
         }
     }
     return true;
@@ -814,8 +852,13 @@ fn check_double(ptr: [*]const u8, len: u32, fail: *i64) bool {
         }
         while (i < len and isDigit(ptr[i])) i += 1;
     }
+    // Trailing whitespace is permitted (matches Tcl's ``Tcl_GetDouble``
+    // surroundings handling); anything else points at the offending
+    // byte via ``fail``.
+    const after_number = i;
+    while (i < len and isSpace(ptr[i])) i += 1;
     if (i != len) {
-        fail.* = i;
+        fail.* = after_number;
         return false;
     }
     return true;
@@ -857,6 +900,7 @@ fn check_list(ptr: u32, len: u32, fail: *i64) bool {
             }
         } else if (sp[i] == '"') {
             i += 1;
+            var closed = false;
             while (i < len) {
                 if (sp[i] == '\\' and i + 1 < len) {
                     i += 2;
@@ -864,9 +908,24 @@ fn check_list(ptr: u32, len: u32, fail: *i64) bool {
                 }
                 if (sp[i] == '"') {
                     i += 1;
+                    closed = true;
                     break;
                 }
                 i += 1;
+            }
+            if (!closed) {
+                // ``"abc`` — unterminated quoted element.  Tcl's list
+                // parser raises ``unmatched open quote in list``;
+                // ``string is list`` reports that as a parse failure
+                // pointing at the opening quote.
+                fail.* = byte_to_char_idx(sp, len, elem_start_byte);
+                return false;
+            }
+            // After a closed quote the next byte must be whitespace
+            // or end (mirrors the brace branch's check).
+            if (i < len and !list_parse_is_space(sp[i])) {
+                fail.* = byte_to_char_idx(sp, len, elem_start_byte);
+                return false;
             }
         } else {
             while (i < len and !list_parse_is_space(sp[i])) {

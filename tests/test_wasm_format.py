@@ -31,7 +31,9 @@ def _run(source: str) -> str:
     [
         # ``#`` flag — alternate-form prefixes.
         ("%#x", ["255"], "0xff"),
-        ("%#X", ["255"], "0XFF"),
+        # Tcl 9 emits the lower-case ``0x`` prefix even for ``%#X``
+        # (digits only switch case) — see test format-1.2.
+        ("%#X", ["255"], "0xFF"),
         ("%#o", ["8"], "0o10"),
         ("%#b", ["5"], "0b101"),
         ("%#d", ["5"], "0d5"),
