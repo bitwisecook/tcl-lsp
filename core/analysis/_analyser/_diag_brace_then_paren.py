@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+from ...common.naming import is_bare_var_name
 from ...parsing.tokens import SourcePosition, Token, TokenType
 from ..semantic_model import CodeFix, Diagnostic, Range, Severity
 
@@ -67,30 +68,18 @@ def _offset_to_position(source: str, offset: int) -> SourcePosition:
     return SourcePosition(line=line, character=char, offset=offset)
 
 
-def _name_is_bare_compatible(name: str) -> bool:
-    """Mirror the lexer's bare-var rule (alnum / ``_`` / ``::``)."""
-    if not name:
-        return False
-    s = name[2:] if name.startswith("::") else name
-    if not s:
-        return False
-    for segment in s.split("::"):
-        if not segment:
-            return False
-        for ch in segment:
-            if not (ch.isalnum() or ch == "_"):
-                return False
-    return True
-
-
 def _build_replacement(name: str, inner: str) -> str:
     """Render the safe replacement for an array element reference.
 
     Bare ``$name(idx)`` is the only ``$``-form that substitutes ``$``
     inside the index, so prefer it when ``name`` allows it.  Otherwise
     fall back to ``[set "name(idx)"]`` -- the command-parser substitutes
-    ``$``-vars in ``set``'s argument, so indirection keeps working."""
-    if _name_is_bare_compatible(name):
+    ``$``-vars in ``set``'s argument, so indirection keeps working.
+
+    The bare-vs-fallback decision uses :func:`is_bare_var_name`
+    (centralised in ``core.common.naming``) so the completion path
+    and this diagnostic pass cannot drift from the lexer rule."""
+    if is_bare_var_name(name):
         return f"${name}({inner})"
     return f'[set "{name}({inner})"]'
 
@@ -161,8 +150,10 @@ class _AnalyserDiagBraceThenParenMixin(_Base):
                     corrected = _build_replacement(name, inner)
                     start_pos = t1.start  # already at the leading ``$``
                     # Token end is the last char of the name+(idx) text;
-                    # the closing ``}`` sits at end.offset + 1.
-                    end_pos = _offset_to_position(source, t1.end.offset + 2)
+                    # the closing ``}`` sits at end.offset + 1.  The
+                    # analysis Range.end is *inclusive*, so point at
+                    # the ``}`` itself.
+                    end_pos = _offset_to_position(source, t1.end.offset + 1)
                     full_range = Range(start=start_pos, end=end_pos)
                     self.result.diagnostics.append(
                         Diagnostic(
@@ -202,7 +193,8 @@ class _AnalyserDiagBraceThenParenMixin(_Base):
             inner = source[paren_start + 1 : paren_end]
             corrected = _build_replacement(t1.text, inner)
             start_pos = t1.start  # already at the leading ``$``
-            end_pos = _offset_to_position(source, paren_end + 1)
+            # Range.end is inclusive -- point at the ``)`` itself.
+            end_pos = _offset_to_position(source, paren_end)
             full_range = Range(start=start_pos, end=end_pos)
             self.result.diagnostics.append(
                 Diagnostic(

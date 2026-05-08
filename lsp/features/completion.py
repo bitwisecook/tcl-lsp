@@ -13,6 +13,7 @@ from core.commands.registry.runtime import (
     SubcommandSig,
 )
 from core.common.dialect import active_dialect
+from core.common.naming import is_bare_var_name
 from core.formatting.config import FormatterConfig, IndentStyle
 from core.formatting.docstring import format_docstring
 
@@ -29,22 +30,10 @@ from .symbol_resolution import (
 def _var_needs_braces(name: str) -> bool:
     """Return True if ``$name`` would not lex as a single variable token.
 
-    Mirrors the lexer's bare-var rule (``ch.isalnum() or ch == "_"`` plus
-    ``::`` namespace separators), including its Unicode-awareness -- an
-    ASCII-only regex would force the ``${...}`` form unnecessarily for
-    non-ASCII names that the lexer accepts in bare form."""
-    if not name:
-        return True
-    s = name[2:] if name.startswith("::") else name
-    if not s:
-        return True
-    for segment in s.split("::"):
-        if not segment:
-            return True
-        for ch in segment:
-            if not (ch.isalnum() or ch == "_"):
-                return True
-    return False
+    Inverse of :func:`core.common.naming.is_bare_var_name` -- centralising
+    the bare-vs-brace decision in one helper so the completion path and
+    the W216 analyser pass can never drift from the lexer rule."""
+    return not is_bare_var_name(name)
 
 
 def _var_is_substitutable(name: str) -> bool:

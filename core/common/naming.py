@@ -32,6 +32,33 @@ RawCommandText = NewType("RawCommandText", str)
 source-fidelity passes (formatter, refactor)."""
 
 
+def is_bare_var_name(name: str) -> bool:
+    """Return True when ``$name`` would lex as a single bare variable token.
+
+    Mirrors ``core.parsing.lexer._parse_var``'s bare-form rule: a name is
+    one or more ``::``-separated segments, each consisting of Unicode
+    alnum or ``_`` characters.  An optional leading ``::`` is allowed.
+
+    Used to decide between the bare ``$name`` and brace ``${name}`` forms
+    in completion / quick fixes -- and as the inverse of "needs braces".
+    Centralised here so both the completion provider and the W216
+    analyser pass derive their decision from a single source of truth
+    rather than independent regexes that may drift from the lexer rule.
+    """
+    if not name:
+        return False
+    s = name[2:] if name.startswith("::") else name
+    if not s:
+        return False
+    for segment in s.split("::"):
+        if not segment:
+            return False
+        for ch in segment:
+            if not (ch.isalnum() or ch == "_"):
+                return False
+    return True
+
+
 def normalise_var_name(name: str) -> str:
     """Normalise Tcl variable forms to their base name."""
     base = name
