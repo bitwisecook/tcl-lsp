@@ -1,0 +1,20 @@
+# format.test — auto-generated baseline.
+# bucket = 'B0-host-exception'
+# reason = "ValueError leak: invalid literal for int() with base 0: 'x'"
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 92
+observed_passed = 85
+observed_failed = 6
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["format-1.12", "format-1.13", "format-1.14", "format-1.15", "format-2.14", "format-2.15"]

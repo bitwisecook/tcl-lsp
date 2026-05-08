@@ -1,0 +1,20 @@
+# lseq.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '132 of 134 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 134
+observed_passed = 0
+observed_failed = 132
+observed_skipped = 2
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lseq-1.1", "lseq-1.2", "lseq-1.3", "lseq-1.4", "lseq-1.5", "lseq-1.6", "lseq-1.7", "lseq-1.8", "lseq-1.9", "lseq-1.10", "lseq-1.11", "lseq-1.12", "lseq-1.13", "lseq-1.14", "lseq-1.15", "lseq-1.16", "lseq-1.16.2", "lseq-1.17", "lseq-1.18", "lseq-1.19", "lseq-1.20", "lseq-1.21", "lseq-1.22", "lseq-1.23", "lseq-1.24", "lseq-1.25", "lseq-1.26", "lseq-1.27", "lseq-2.2", "lseq-2.3", "lseq-2.4", "lseq-2.5", "lseq-2.6", "lseq-2.7", "lseq-2.8", "lseq-2.9", "lseq-2.10", "lseq-2.11", "lseq-2.12", "lseq-2.13", "lseq-2.14", "lseq-2.15", "lseq-2.16", "lseq-2.17", "lseq-2.18", "lseq-2.19", "lseq-2.20", "lseq-3.0", "lseq-3.1", "lseq-3.2", "lseq-3.3", "lseq-3.4", "lseq-3.5", "lseq-3.6", "lseq-3.6b", "lseq-3.7", "lseq-3.8", "lseq-3.9", "lseq-3.10", "lseq-3.11", "lseq-3.12", "lseq-3.13", "lseq-3.14", "lseq-3.15", "lseq-3.16", "lseq-3.17", "lseq-3.18", "lseq-3.19", "lseq-3.20", "lseq-3.21", "lseq-3.22", "lseq-3.23", "lseq-3.24", "lseq-3.25", "lseq-3.26", "lseq-3.27", "lseq-3.28", "lseq-3.29", "lseq-3.30", "lseq-3.31", "lseq-3.32", "lseq-3.33", "lseq-3.34", "lseq-3.35", "lseq-3.36", "lseq-4.1", "lseq-4.2", "lseq-4.3", "lseq-4.4", "lseq-4.5", "lseq-4.6", "lseq-4.7", "lseq-4.8", "lseq-4.9", "lseq-4.10", "lseq-4.11", "lseq-4.12", "lseq-4.13", "lseq-4.14", "lseq-4.15", "lseq-4.16", "lseq-4.17", "lseq-4.18", "lseq-4.19", "lseq-4.20", "lseq-4.21.1", "lseq-4.21.2", "lseq-4.21.3", "lseq-4.21.4", "lseq-4.21.5", "lseq-4.21.6", "lseq-4.21.6-lran", "lseq-4.21.6-lrev", "lseq-4.21.7", "lseq-4.21.7-lran", "lseq-4.21.7-lrev", "lseq-convertToList", "lseq-bug-54329e39c7", "lseq-bug-578b7e273c03-1", "lseq-bug-578b7e273c03-2", "lseq-bug-f4a4bd7f1070-1", "lseq-bug-7d3101bf28-0", "lseq-bug-7d3101bf28-1", "lseq-bug-7d3101bf28-2", "lseq-bug-452b103a74-0", "lseq-bug-452b103a74-1", "lseq-bug-452b103a74-2", "lseq-bug-452b103a74-3", "lseq-bug-452b103a74-4", "lseq-bug-452b103a74-5", "lseq-bug-0ee626dfb2-0", "lseq-bug-0ee626dfb2-1"]

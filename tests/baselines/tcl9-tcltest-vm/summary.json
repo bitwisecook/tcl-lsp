@@ -1,0 +1,618 @@
+{
+  "generated_at": "2026-05-08T08:18:36Z",
+  "schema_version": 1,
+  "stems": {
+    "append": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 17,
+      "passed_min": 32,
+      "skipped": 3,
+      "total": 52
+    },
+    "apply": {
+      "bucket": "B7-no-tests",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "basic": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 14,
+      "passed_min": 50,
+      "skipped": 82,
+      "total": 146
+    },
+    "cmdAH": {
+      "bucket": "B0-tcl-error",
+      "crash_type": "TclError",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "cmdIL": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 95,
+      "passed_min": 67,
+      "skipped": 6,
+      "total": 168
+    },
+    "cmdInfo": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 12,
+      "total": 12
+    },
+    "cmdMZ": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 2,
+      "passed_min": 8,
+      "skipped": 1,
+      "total": 12
+    },
+    "compExpr": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 6,
+      "passed_min": 74,
+      "skipped": 2,
+      "total": 82
+    },
+    "compExpr-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 9,
+      "passed_min": 174,
+      "skipped": 1,
+      "total": 184
+    },
+    "compile": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 81,
+      "passed_min": 56,
+      "skipped": 34,
+      "total": 171
+    },
+    "concat": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 9,
+      "skipped": 0,
+      "total": 9
+    },
+    "error": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 21,
+      "passed_min": 43,
+      "skipped": 0,
+      "total": 65
+    },
+    "eval": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 11,
+      "skipped": 0,
+      "total": 12
+    },
+    "execute": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 29,
+      "passed_min": 51,
+      "skipped": 77,
+      "total": 157
+    },
+    "expr": {
+      "bucket": "B0-timeout",
+      "crash_type": "Timeout",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "expr-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 3,
+      "passed_min": 445,
+      "skipped": 13,
+      "total": 461
+    },
+    "for": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 12,
+      "passed_min": 52,
+      "skipped": 24,
+      "total": 88
+    },
+    "for-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 7,
+      "skipped": 0,
+      "total": 9
+    },
+    "foreach": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 8,
+      "passed_min": 35,
+      "skipped": 0,
+      "total": 43
+    },
+    "format": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 6,
+      "passed_min": 85,
+      "skipped": 0,
+      "total": 92
+    },
+    "if": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 20,
+      "passed_min": 53,
+      "skipped": 0,
+      "total": 73
+    },
+    "if-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 6,
+      "passed_min": 27,
+      "skipped": 0,
+      "total": 33
+    },
+    "incr": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 7,
+      "passed_min": 62,
+      "skipped": 0,
+      "total": 69
+    },
+    "incr-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 4,
+      "passed_min": 10,
+      "skipped": 0,
+      "total": 14
+    },
+    "info": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 10,
+      "passed_min": 48,
+      "skipped": 0,
+      "total": 59
+    },
+    "join": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 3,
+      "passed_min": 7,
+      "skipped": 0,
+      "total": 10
+    },
+    "lindex": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 14,
+      "passed_min": 33,
+      "skipped": 37,
+      "total": 84
+    },
+    "linsert": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 4,
+      "passed_min": 24,
+      "skipped": 0,
+      "total": 28
+    },
+    "list": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 20,
+      "passed_min": 58,
+      "skipped": 0,
+      "total": 78
+    },
+    "llength": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 6,
+      "skipped": 0,
+      "total": 6
+    },
+    "lmap": {
+      "bucket": "B0-timeout",
+      "crash_type": "Timeout",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "lpop": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 5,
+      "passed_min": 12,
+      "skipped": 2,
+      "total": 19
+    },
+    "lrange": {
+      "bucket": "B8-missing-command",
+      "crash_type": "TclError",
+      "crashed": true,
+      "failed_max": 10,
+      "passed_min": 26,
+      "skipped": 2,
+      "total": 38
+    },
+    "lrepeat": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 9,
+      "skipped": 1,
+      "total": 12
+    },
+    "lreplace": {
+      "bucket": "B8-missing-command",
+      "crash_type": "TclError",
+      "crashed": true,
+      "failed_max": 1,
+      "passed_min": 58,
+      "skipped": 0,
+      "total": 59
+    },
+    "lsearch": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 112,
+      "passed_min": 53,
+      "skipped": 0,
+      "total": 165
+    },
+    "lseq": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 132,
+      "passed_min": 0,
+      "skipped": 2,
+      "total": 134
+    },
+    "lset": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 89,
+      "total": 89
+    },
+    "lsetComp": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 10,
+      "passed_min": 9,
+      "skipped": 0,
+      "total": 19
+    },
+    "mathop": {
+      "bucket": "B0-tcl-error",
+      "crash_type": "TclError",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "misc": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 1,
+      "skipped": 299,
+      "total": 301
+    },
+    "namespace": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 140,
+      "passed_min": 171,
+      "skipped": 3,
+      "total": 314
+    },
+    "namespace-old": {
+      "bucket": "B0-tcl-error",
+      "crash_type": "TclError",
+      "crashed": true,
+      "failed_max": 32,
+      "passed_min": 77,
+      "skipped": 0,
+      "total": 109
+    },
+    "parse": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 3,
+      "passed_min": 87,
+      "skipped": 181,
+      "total": 271
+    },
+    "parseExpr": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 61,
+      "passed_min": 6,
+      "skipped": 219,
+      "total": 286
+    },
+    "parseOld": {
+      "bucket": "clean",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 0,
+      "passed_min": 158,
+      "skipped": 0,
+      "total": 158
+    },
+    "proc": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 8,
+      "passed_min": 14,
+      "skipped": 9,
+      "total": 32
+    },
+    "proc-old": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 4,
+      "passed_min": 57,
+      "skipped": 0,
+      "total": 62
+    },
+    "regexp": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 48,
+      "passed_min": 204,
+      "skipped": 5,
+      "total": 257
+    },
+    "regexpComp": {
+      "bucket": "B0-tcl-error",
+      "crash_type": "TclError",
+      "crashed": true,
+      "failed_max": 20,
+      "passed_min": 121,
+      "skipped": 1,
+      "total": 142
+    },
+    "rename": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 5,
+      "passed_min": 6,
+      "skipped": 8,
+      "total": 19
+    },
+    "result": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 3,
+      "passed_min": 1,
+      "skipped": 22,
+      "total": 26
+    },
+    "scan": {
+      "bucket": "B0-host-exception",
+      "crash_type": "ValueError",
+      "crashed": true,
+      "failed_max": 44,
+      "passed_min": 25,
+      "skipped": 0,
+      "total": 70
+    },
+    "set": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 6,
+      "passed_min": 57,
+      "skipped": 1,
+      "total": 64
+    },
+    "set-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 8,
+      "passed_min": 145,
+      "skipped": 0,
+      "total": 153
+    },
+    "split": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 5,
+      "passed_min": 13,
+      "skipped": 0,
+      "total": 18
+    },
+    "string": {
+      "bucket": "B0-timeout",
+      "crash_type": "Timeout",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "subst": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 24,
+      "passed_min": 38,
+      "skipped": 1,
+      "total": 63
+    },
+    "switch": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 44,
+      "passed_min": 69,
+      "skipped": 0,
+      "total": 113
+    },
+    "trace": {
+      "bucket": "B0-timeout",
+      "crash_type": "Timeout",
+      "crashed": true,
+      "failed_max": 0,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    "unknown": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 6,
+      "skipped": 0,
+      "total": 7
+    },
+    "uplevel": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 55,
+      "skipped": 0,
+      "total": 57
+    },
+    "upvar": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 17,
+      "passed_min": 45,
+      "skipped": 8,
+      "total": 70
+    },
+    "util": {
+      "bucket": "B0-bootstrap",
+      "crash_type": "error",
+      "crashed": true,
+      "failed_max": 59,
+      "passed_min": 96,
+      "skipped": 12,
+      "total": 168
+    },
+    "var": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 98,
+      "passed_min": 100,
+      "skipped": 21,
+      "total": 219
+    },
+    "while": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 4,
+      "passed_min": 42,
+      "skipped": 0,
+      "total": 46
+    },
+    "while-old": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 13,
+      "skipped": 0,
+      "total": 15
+    },
+    "word": {
+      "bucket": "B-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 55,
+      "passed_min": 0,
+      "skipped": 0,
+      "total": 55
+    }
+  }
+}

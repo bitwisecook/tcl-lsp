@@ -36,11 +36,21 @@ def main() -> None:
         action="store_true",
         help="enable optimisation passes",
     )
+    parser.add_argument(
+        "--enable-test-support",
+        action="store_true",
+        help="register C-Tcl testN commands (testexprlong/-double/-string …) "
+        "and load real tcltest — only needed when running .test files",
+    )
 
     # Use parse_known_args so extra arguments pass through to the
     # Tcl script (available via $argc / $argv).
     args, script_args = parser.parse_known_args()
     interp = TclInterp(optimise=args.optimise, source_init=True)
+    if args.enable_test_support:
+        from .commands.test_support_cmds import setup_test_support
+
+        setup_test_support(interp)
 
     # Disassemble mode
     if args.disassemble:

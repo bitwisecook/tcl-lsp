@@ -1,0 +1,20 @@
+# lsearch.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '112 of 165 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 165
+observed_passed = 53
+observed_failed = 112
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["lsearch-2.6", "lsearch-2.10", "lsearch-3.1", "lsearch-3.2", "lsearch-3.3", "lsearch-3.4", "lsearch-3.6", "lsearch-3.7", "lsearch-4.2", "lsearch-8.1", "lsearch-8.2", "lsearch-8.3", "lsearch-8.4", "lsearch-10.1", "lsearch-10.2", "lsearch-10.3", "lsearch-10.4", "lsearch-10.5", "lsearch-10.6", "lsearch-10.7", "lsearch-10.8", "lsearch-10.9", "lsearch-10.10", "lsearch-12.2", "lsearch-14.5", "lsearch-14.6", "lsearch-14.7", "lsearch-14.8", "lsearch-15.1", "lsearch-17.1", "lsearch-17.2", "lsearch-17.3", "lsearch-17.4", "lsearch-17.5", "lsearch-17.6", "lsearch-17.7", "lsearch-17.8", "lsearch-17.9", "lsearch-17.10", "lsearch-17.11", "lsearch-17.12", "lsearch-17.13", "lsearch-17.14", "lsearch-17.15", "lsearch-17.16", "lsearch-18.1", "lsearch-18.2", "lsearch-18.3", "lsearch-18.4", "lsearch-18.5", "lsearch-19.1", "lsearch-19.2", "lsearch-19.3", "lsearch-19.4", "lsearch-19.5", "lsearch-19.6", "lsearch-19.7", "lsearch-19.8", "lsearch-20.1", "lsearch-20.2", "lsearch-20.3", "lsearch-22.1", "lsearch-22.2", "lsearch-22.3", "lsearch-22.4", "lsearch-22.5", "lsearch-23.1", "lsearch-23.2", "lsearch-23.3", "lsearch-23.4", "lsearch-23.5", "lsearch-24.1", "lsearch-24.2", "lsearch-24.3", "lsearch-24.4", "lsearch-24.5", "lsearch-24.6", "lsearch-24.7", "lsearch-24.8", "lsearch-24.9", "lsearch-24.10", "lsearch-24.11", "lsearch-25.1", "lsearch-25.2", "lsearch-25.3", "lsearch-25.4", "lsearch-25.5", "lsearch-25.6", "lsearch-26.1", "lsearch-26.2", "lsearch-26.3", "lsearch-26.4", "lsearch-26.5", "lsearch-26.6", "lsearch-27.1", "lsearch-27.2", "lsearch-27.3", "lsearch-27.4", "lsearch-27.5", "lsearch-27.6", "lsearch-27.7", "lsearch-27.8", "lsearch-28.1", "lsearch-28.2", "lsearch-28.3", "lsearch-28.4", "lsearch-28.5", "lsearch-28.6", "lsearch-28.7", "lsearch-28.8", "lsearch-28.9", "lsearch-28.10"]

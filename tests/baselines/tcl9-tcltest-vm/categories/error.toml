@@ -1,0 +1,20 @@
+# error.test — auto-generated baseline.
+# bucket = 'B0-host-exception'
+# reason = 'ValueError leak: 123456 is not a valid ReturnCode'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 65
+observed_passed = 43
+observed_failed = 21
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["error-1.6", "error-1.7", "error-2.3", "error-2.6", "error-3.1", "error-4.2", "error-4.3", "error-4.5", "error-4.6", "error-4.7", "error-4.8", "error-5.1", "error-5.2", "error-6.10", "error-7.1", "error-8.8", "error-8.9", "error-8.10", "error-8.11", "error-9.6", "error-10.7"]

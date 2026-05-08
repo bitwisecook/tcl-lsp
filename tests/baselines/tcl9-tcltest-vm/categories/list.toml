@@ -1,0 +1,20 @@
+# list.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '20 of 78 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 78
+observed_passed = 58
+observed_failed = 20
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["list-1.4", "list-1.5", "list-1.9", "list-1.10", "list-1.11", "list-1.12", "list-1.15", "list-1.16", "list-1.17", "list-1.18", "list-1.19", "list-1.20", "list-1.21", "list-1.25", "list-1.26", "list-1.27", "list-1.30", "list-3.1", "list-4.2", "list-4.3"]

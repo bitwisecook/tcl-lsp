@@ -1,0 +1,20 @@
+# parseExpr.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '61 of 286 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 286
+observed_passed = 6
+observed_failed = 61
+observed_skipped = 219
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["parseExpr-21.1", "parseExpr-21.2", "parseExpr-21.3", "parseExpr-21.4", "parseExpr-21.5", "parseExpr-21.6", "parseExpr-21.9", "parseExpr-21.10", "parseExpr-21.11", "parseExpr-21.12", "parseExpr-21.13", "parseExpr-21.14", "parseExpr-21.15", "parseExpr-21.16", "parseExpr-21.17", "parseExpr-21.18", "parseExpr-21.19", "parseExpr-21.20", "parseExpr-21.21", "parseExpr-21.22", "parseExpr-21.23", "parseExpr-21.24", "parseExpr-21.25", "parseExpr-21.26", "parseExpr-21.27", "parseExpr-21.28", "parseExpr-21.29", "parseExpr-21.30", "parseExpr-21.31", "parseExpr-21.32", "parseExpr-21.33", "parseExpr-21.34", "parseExpr-21.35", "parseExpr-21.36", "parseExpr-21.37", "parseExpr-21.38", "parseExpr-21.39", "parseExpr-21.40", "parseExpr-21.41", "parseExpr-21.42", "parseExpr-21.43", "parseExpr-21.44", "parseExpr-21.45", "parseExpr-21.46", "parseExpr-21.47", "parseExpr-21.48", "parseExpr-21.49", "parseExpr-21.50", "parseExpr-21.51", "parseExpr-21.52", "parseExpr-21.53", "parseExpr-21.54", "parseExpr-21.55", "parseExpr-21.56", "parseExpr-21.57", "parseExpr-21.58", "parseExpr-21.59", "parseExpr-21.60", "parseExpr-21.61", "parseExpr-21.62", "parseExpr-21.63"]

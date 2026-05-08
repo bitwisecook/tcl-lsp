@@ -1,0 +1,20 @@
+# set-old.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '8 of 153 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 153
+observed_passed = 145
+observed_failed = 8
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["set-old-8.38.2", "set-old-8.38.3", "set-old-8.38.5", "set-old-8.38.6", "set-old-8.38.7", "set-old-8.49", "set-old-8.56", "set-old-9.10"]
