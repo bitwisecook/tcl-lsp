@@ -162,12 +162,8 @@ B9_INTERNAL_HINTS = (
 )
 
 
-SUMMARY_RE = re.compile(
-    r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)"
-)
-SUMMARY_FALLBACK_RE = re.compile(
-    r"Total.?(\d+).?Passed.?(\d+).?Skipped.?(\d+).?Failed.?(\d+)"
-)
+SUMMARY_RE = re.compile(r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)")
+SUMMARY_FALLBACK_RE = re.compile(r"Total.?(\d+).?Passed.?(\d+).?Skipped.?(\d+).?Failed.?(\d+)")
 INVALID_CMD_RE = re.compile(r'invalid command name "([^"]+)"')
 FAILED_TEST_LINE_RE = re.compile(r"==== ([\S]+) FAILED")
 
@@ -246,8 +242,14 @@ def _run_stem_in_child(stem: str, conn) -> None:
 
     interp = _INTERP
     if interp is None:  # pragma: no cover — parent never booted
-        conn.send({"stem": stem, "crashed": True, "crash_type": "NoInterp",
-                   "crash_msg": "parent did not boot interp before forking"})
+        conn.send(
+            {
+                "stem": stem,
+                "crashed": True,
+                "crash_type": "NoInterp",
+                "crash_msg": "parent did not boot interp before forking",
+            }
+        )
         conn.close()
         return
 
@@ -285,18 +287,9 @@ def _run_stem_in_child(stem: str, conn) -> None:
     try:
         os.chdir(sandbox.name)
         try:
-            interp.eval(
-                "set ::tcltest::testsDirectory "
-                + _tcl_quote(str(TESTS_DIR))
-            )
-            interp.eval(
-                "set ::tcltest::temporaryDirectory "
-                + _tcl_quote(sandbox.name)
-            )
-            interp.eval(
-                "set ::tcltest::workingDirectory "
-                + _tcl_quote(sandbox.name)
-            )
+            interp.eval("set ::tcltest::testsDirectory " + _tcl_quote(str(TESTS_DIR)))
+            interp.eval("set ::tcltest::temporaryDirectory " + _tcl_quote(sandbox.name))
+            interp.eval("set ::tcltest::workingDirectory " + _tcl_quote(sandbox.name))
         except Exception:
             pass
         interp.global_frame.set_var("argv0", str(path))
@@ -400,6 +393,7 @@ def _parse_summary(out: str) -> dict[str, int] | None:
 
 # Driver: parent boots once, forks one child per stem (Linux fork — children
 # inherit init.tcl + tcltest.tcl in memory via copy-on-write).
+
 
 def run_sweep(
     stems: list[str],
@@ -515,7 +509,8 @@ def run_sweep(
             sr = StemResult(**payload)  # type: ignore[arg-type]
             results[stem] = sr
             status = (
-                "CRASH" if sr.crashed
+                "CRASH"
+                if sr.crashed
                 else f"{sr.passed:>4}/{sr.total:<4} (F{sr.failed} S{sr.skipped})"
             )
             print(f"    {sr.stem:<14} {status}  {sr.duration_s:5.1f}s")
@@ -527,6 +522,7 @@ def run_sweep(
 
 
 # Categorisation
+
 
 def _is_b9_internal(failed_id: str, msg: str) -> bool:
     text = f"{failed_id} {msg}".lower()
@@ -556,7 +552,10 @@ def _categorise(sr: StemResult) -> tuple[str, str]:
             return ("B0-child-died", f"child process died — {sr.crash_msg}")
         if sr.missing_commands:
             return ("B8-missing-command", f"invalid command: {sr.missing_commands[0]}")
-        if "package require" in sr.crash_msg.lower() or "can't find package" in sr.crash_msg.lower():
+        if (
+            "package require" in sr.crash_msg.lower()
+            or "can't find package" in sr.crash_msg.lower()
+        ):
             return ("B0-bootstrap", f"package: {sr.crash_msg}")
         if sr.crash_type == "TclError":
             # A genuine TclError that escaped the test file's catches —
@@ -576,6 +575,7 @@ def _categorise(sr: StemResult) -> tuple[str, str]:
 
 
 # Output writers
+
 
 def write_json_report(results: list[StemResult]) -> None:
     OUT_REPORT.parent.mkdir(parents=True, exist_ok=True)
@@ -619,8 +619,12 @@ def write_dossier(results: list[StemResult]) -> None:
     lines.append("## Summary\n")
     lines.append(f"- Stems run: **{summary['stems']}**")
     lines.append(f"- Clean (all pass / skip): **{summary['stems_clean']}**")
-    lines.append(f"- Partial fail (file completed, some tests failed): **{summary['stems_partial']}**")
-    lines.append(f"- Crashed (escaped exception, no tcltest summary): **{summary['stems_crashed']}**")
+    lines.append(
+        f"- Partial fail (file completed, some tests failed): **{summary['stems_partial']}**"
+    )
+    lines.append(
+        f"- Crashed (escaped exception, no tcltest summary): **{summary['stems_crashed']}**"
+    )
     lines.append(
         f"- Tests: total **{summary['tests_total']}**, "
         f"passed **{summary['tests_passed']}** "
@@ -654,9 +658,7 @@ def write_dossier(results: list[StemResult]) -> None:
                     f"{r.failed} F before crash) — `{r.crash_msg}`"
                 )
                 if r.missing_commands:
-                    lines.append(
-                        f"    - missing command(s): `{', '.join(r.missing_commands)}`"
-                    )
+                    lines.append(f"    - missing command(s): `{', '.join(r.missing_commands)}`")
             lines.append("")
 
     # Per-stem table
@@ -707,7 +709,7 @@ def write_dossier(results: list[StemResult]) -> None:
         "| `B6-introspection` | `info` subcommands, `cmdAH/IL/MZ`, `apply`, `rename`. | medium |\n"
         "| `B7-framework` | `tcltest` itself / its glue commands "
         "(`fconfigure`, `interp create -safe`, `makeFile`, `viewFile`, `outputChannel`). | very high |\n"
-        "| `B8-missing-command` | Whole file dies on `invalid command name \"X\"`. | very high |\n"
+        '| `B8-missing-command` | Whole file dies on `invalid command name "X"`. | very high |\n'
         "| `B9-cosmetic` | Cosmetic error wording / list-quoting / frame counts that "
         "round-trip identically but differ byte-for-byte. **Do not fix.** | none |\n"
         "| `B9-internal` | Bytecode / object-internal / `info frame` / `info cmdcount` / "
@@ -975,6 +977,7 @@ def _toml_list(items: list[str]) -> str:
 
 
 # CLI
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])

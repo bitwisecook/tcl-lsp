@@ -37,8 +37,7 @@ GATE_ENV_VAR = "RUN_VM_TCL9_CORE"
 pytestmark = pytest.mark.skipif(
     not os.environ.get(GATE_ENV_VAR),
     reason=(
-        f"Set {GATE_ENV_VAR}=1 to run the full Tcl 9 core slice "
-        "(takes 3-5 minutes wall-clock)."
+        f"Set {GATE_ENV_VAR}=1 to run the full Tcl 9 core slice (takes 3-5 minutes wall-clock)."
     ),
 )
 
@@ -106,14 +105,10 @@ def test_no_stem_regresses_against_baseline() -> None:
         # Pass-count regressions
         passed_min = int(base.get("passed_min", 0))
         if row["passed"] < passed_min:
-            regressions.append(
-                f"{stem}: passed {row['passed']} < baseline floor {passed_min}"
-            )
+            regressions.append(f"{stem}: passed {row['passed']} < baseline floor {passed_min}")
         failed_max = int(base.get("failed_max", 0))
         if row["failed"] > failed_max:
-            regressions.append(
-                f"{stem}: failed {row['failed']} > baseline ceiling {failed_max}"
-            )
+            regressions.append(f"{stem}: failed {row['failed']} > baseline ceiling {failed_max}")
 
     for stem in rows:
         if stem not in base_stems:
@@ -124,8 +119,7 @@ def test_no_stem_regresses_against_baseline() -> None:
         msgs.append("Regressions:\n  " + "\n  ".join(regressions))
     if new_unknown:
         msgs.append(
-            "New stems with no baseline (run `--refresh-baseline`):\n  "
-            + "\n  ".join(new_unknown)
+            "New stems with no baseline (run `--refresh-baseline`):\n  " + "\n  ".join(new_unknown)
         )
 
     if msgs:
