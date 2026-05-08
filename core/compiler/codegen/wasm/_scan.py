@@ -339,7 +339,15 @@ def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
                 # registers ``tcl_array_get`` / ``tcl_global_get``.
                 if name.startswith("::"):
                     needed.add("tcl_global_get")
-                if "(" in text and text.endswith(")"):
+                # Detect array refs in both the bare ``$arr(k)`` form
+                # (text ends with ``)``) and the braced ``${arr(k)}``
+                # form the lowerer emits for array reads inside
+                # interpolated strings (text ends with ``}``).  Either
+                # routes through ``_emit_var_read_obj`` →
+                # ``_parse_array_ref`` and needs ``tcl_array_get``.
+                if "(" in text and (
+                    text.endswith(")") or (text.startswith("${") and text.endswith("}"))
+                ):
                     needed.add("tcl_array_get")
             case ExprBinary(op=op, left=left, right=right):
                 if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):

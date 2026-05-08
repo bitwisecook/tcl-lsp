@@ -787,20 +787,15 @@ fn parse_var(s: *State) i32 {
         // array-lookup path.  Truncating the slice at ``$arr`` would
         // route the lookup through ``var_resolve`` as if the user
         // wrote ``$arr`` standalone, which then traps with
-        // ``can't read "arr": no such variable`` on any qualified or
-        // unqualified array — including the bundle-preamble's
-        // ``$::tcl_platform(pointerSize)`` reads at the top of every
-        // upstream ``.test`` file.  Mirrors the array-form branch in
-        // ``subst_flagged_full`` (parse/tcl_subst.zig).
+        // ``can't read "arr": no such variable``.  Mirrors the
+        // array-form branch in ``subst_flagged_full``
+        // (parse/tcl_subst.zig): scan to the first ``)`` with no
+        // escape handling — both end-positions must agree so the
+        // recursive substitution of the index span sees the same
+        // bytes the expression parser advanced over.
         if (s.pos < s.len and s.src[s.pos] == '(') {
             s.pos += 1;
-            while (s.pos < s.len and s.src[s.pos] != ')') {
-                if (s.src[s.pos] == '\\' and s.pos + 1 < s.len) {
-                    s.pos += 2;
-                } else {
-                    s.pos += 1;
-                }
-            }
+            while (s.pos < s.len and s.src[s.pos] != ')') s.pos += 1;
             if (s.pos < s.len) s.pos += 1; // consume ')'
         }
     }

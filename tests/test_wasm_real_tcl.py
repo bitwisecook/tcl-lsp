@@ -1888,6 +1888,21 @@ return [main]
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "0\n"
 
+    def test_braced_array_read_inside_expr_subst(self):
+        """``${arr(idx)}`` (braced form) inside a ``[expr {…}]`` cmd-
+        substitution.  The expression lexer wraps everything between
+        ``${`` and ``}`` into a single VARIABLE token whose ``text``
+        ends with ``}`` — distinct from the bare ``$arr(idx)`` shape
+        whose text ends with ``)``.  The expr-body import scanner has
+        to recognise both endings so ``tcl_array_get`` reaches the
+        module imports for either form; otherwise the fallback
+        ``i32.const 0`` path raises ``can't read "arr(idx)": no such
+        variable`` at runtime.
+        """
+        wasm, _ = _compile_tcl_with_diag("set ::myarr(x) 7\nputs [expr {${::myarr(x)} + 1}]\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "8\n"
+
     def test_qualified_array_read_in_runtime_expr_eval(self):
         """``$::arr(key)`` inside an expression evaluated by the
         runtime interpreter (eval-fallback path).
