@@ -335,6 +335,66 @@ def wasm_link(
         A ``WasmModule`` containing all procedures and top-level code
         from the main file and all transitively sourced files.
     """
+    merged = _link_to_ir(main_source, search_paths=search_paths, max_depth=max_depth)
+    cfg = build_cfg(merged)
+    return wasm_codegen_module(cfg, merged, optimise=optimise)
+
+
+def wasm_link_bundled(
+    main_source: str | Path,
+    *,
+    search_paths: tuple[str | Path, ...] = (),
+    optimise: bool = False,
+    max_depth: int = 10,
+    runtime_path: Path | None = None,
+) -> bytes:
+    """Compile a Tcl source file to a single bundled ``.wasm`` binary.
+
+    Mirrors :func:`wasm_link` but folds the pre-built runtime into one
+    self-contained WASM module via Binaryen ``wasm-merge``.  When the
+    user's program does ``package require <ext>`` for one of the
+    extensions registered in :mod:`.wasm.extensions`, the extension's
+    runtime variant is bundled instead of the lean default — see
+    :func:`extensions.runtime_path_for`.  The resulting bytes
+    instantiate without host-side import re-exporting.
+
+    Args:
+        main_source: Path to the main Tcl source file.
+        search_paths: Additional directories to search for sourced files.
+        optimise: Enable WASM optimisation passes.
+        max_depth: Maximum recursion depth for ``source`` resolution.
+        runtime_path: Override the runtime path; default picks the
+            variant matching the user's ``package require`` extensions.
+
+    Returns:
+        Raw bytes of the bundled WASM module.
+    """
+    # Lazy imports keep the un-bundled path (``wasm_link``) free of any
+    # dependency on Binaryen or the extension manifest.
+    from .wasm._bundle import bundle_wasm  # noqa: PLC0415
+    from .wasm.extensions import runtime_path_for  # noqa: PLC0415
+
+    merged_ir = _link_to_ir(main_source, search_paths=search_paths, max_depth=max_depth)
+    cfg = build_cfg(merged_ir)
+    user_module = wasm_codegen_module(cfg, merged_ir, optimise=optimise)
+
+    chosen_runtime = runtime_path if runtime_path is not None else runtime_path_for(merged_ir)
+    return bundle_wasm(user_module.to_bytes(), runtime_path=chosen_runtime)
+
+
+def _link_to_ir(
+    main_source: str | Path,
+    *,
+    search_paths: tuple[str | Path, ...] = (),
+    max_depth: int = 10,
+) -> IRModule:
+    """Resolve ``source`` and ``package require``, return merged IR.
+
+    Shared between :func:`wasm_link` (returns a ``WasmModule``) and
+    :func:`wasm_link_bundled` (returns merged WASM bytes).  The IR
+    is also what :func:`wasm.extensions.find_required_extensions`
+    walks to decide which extensions to bundle.
+    """
     main_path = Path(main_source).resolve()
     if not main_path.is_file():
         msg = f"Main source file not found: {main_path}"
@@ -372,7 +432,4 @@ def wasm_link(
                 _resolve_recursive(pkg_path.resolve(), depth + 1)
 
     _resolve_recursive(main_path, 0)
-
-    merged = merge_ir_modules(*modules)
-    cfg = build_cfg(merged)
-    return wasm_codegen_module(cfg, merged, optimise=optimise)
+    return merge_ir_modules(*modules)

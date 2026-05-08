@@ -38,6 +38,12 @@ pub fn build(b: *std.Build) void {
     const build_options = b.addOptions();
     build_options.addOption(bool, "leak_check", leak_check);
     build_options.addOption(bool, "asyncify", asyncify);
+    // Default lean runtime — tcltest is OFF here.  The companion
+    // ``tcl_runtime_with_tcltest`` build below addOption()s it ON.
+    // ``dispatch/tcl_cmd_table.zig`` ``inline if``s on this flag to
+    // splice the tcltest cmd_*.zig BUILTINS slice in or out at
+    // comptime.
+    build_options.addOption(bool, "with_tcltest", false);
 
     // Fetch Tcl 9.0.3's regex engine sources on demand (idempotent
     // via a stamp file; see scripts/fetch_tcl_regex.sh).  Running
@@ -134,60 +140,79 @@ pub fn build(b: *std.Build) void {
     exe.entry = .disabled;
     exe.wasi_exec_model = .reactor;
 
+    // -----------------------------------------------------------------
+    // ``tcl_runtime_with_tcltest.wasm`` — the runtime with the Tcl 9
+    // tcltest C-tier ``test*`` commands compiled in.  Built as a
+    // sibling artifact so the post-codegen bundler at
+    // ``core/compiler/codegen/wasm/_bundle.py`` can pick it over the
+    // lean ``tcl_runtime.wasm`` whenever the user's program does
+    // ``package require Tcltest``.  Programs that don't get the lean
+    // runtime — tcltest never enters their bundle.
+    //
+    // Two-variant builds (this exe + the lean ``tcl_runtime`` above)
+    // is the pragmatic alternative to a separately-merged extension
+    // WASM: the latter would need shared memory + careful data
+    // placement to round-trip pointers cleanly with the runtime, and
+    // hits a wasm-merge multi-memory issue today.  The two-variant
+    // model produces the same end-result (a single bundled binary
+    // with tcltest only when needed) at the cost of one extra Zig
+    // compile per variant.  See
+    // ``docs/design/compiler/wasm-extensions.md`` for the contract.
+    //
+    // The ``with_tcltest`` flag is wired through ``build_options`` so
+    // ``dispatch/tcl_cmd_table.zig`` can ``inline if`` the tcltest
+    // ``BUILTINS`` slice in or out at comptime.
+    // -----------------------------------------------------------------
+    const tcltest_options = b.addOptions();
+    tcltest_options.addOption(bool, "leak_check", leak_check);
+    tcltest_options.addOption(bool, "asyncify", asyncify);
+    tcltest_options.addOption(bool, "with_tcltest", true);
+    const tcltest_module = b.createModule(.{
+        .root_source_file = b.path("tcl_runtime.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    tcltest_module.addOptions("build_options", tcltest_options);
+    tcltest_module.addIncludePath(b.path("regex_include"));
+    tcltest_module.addIncludePath(b.path("vendor/tcl-regex"));
+    tcltest_module.addCSourceFiles(.{
+        .root = b.path("vendor/tcl-regex"),
+        .files = &.{
+            "regcomp.c",
+            "regexec.c",
+            "regfree.c",
+            "regerror.c",
+        },
+        .flags = c_flags,
+    });
+    tcltest_module.addCSourceFile(.{
+        .file = b.path("regex_include/tcl_reg_shim.c"),
+        .flags = c_flags,
+    });
+    const tcltest_exe = b.addExecutable(.{
+        .name = "tcl_runtime_with_tcltest",
+        .root_module = tcltest_module,
+    });
+    tcltest_exe.rdynamic = true;
+    tcltest_exe.entry = .disabled;
+    tcltest_exe.wasi_exec_model = .reactor;
+    tcltest_exe.step.dependOn(&fetch_regex.step);
+
     if (asyncify) {
-        // Run wasm-opt --asyncify on the linker output and install
-        // the result as ``zig-out/bin/tcl_runtime.wasm``.  DWARF
-        // sections trip the asyncify pass on Zig 0.16 debug builds
-        // (TODO: DW_LNE_define_file), so strip them first.
-        // ``--enable-bulk-memory`` matches the linker's feature set
-        // (Zig stdlib uses ``memory.fill``).
-        const wasm_opt = b.findProgram(
-            &.{"wasm-opt"},
-            &.{ "/opt/binaryen/bin", "/usr/local/bin", "/usr/bin" },
-        ) catch @panic("wasm-opt (binaryen) not found; install for -Dasyncify=true builds");
-        const post = b.addSystemCommand(&.{
-            wasm_opt,
-            "--strip-dwarf",
-            "--enable-bulk-memory",
-            "--asyncify",
-            // Exclude ``tcl_coro_drive`` from instrumentation so
-            // the unwind triggered by ``yield`` stops at the
-            // coroutine driver instead of propagating all the way
-            // to the host.  The driver inspects
-            // ``asyncify_get_state()`` after ``eval_script``
-            // returns and reports SUSPENDED to its caller
-            // (``eval_proc_call_bucket``).  Resume calls
-            // ``asyncify_start_rewind`` then re-enters
-            // ``eval_script``, which fast-forwards through the
-            // saved frames back to the yield site.  Internal Zig
-            // name (``file.module.func`` mangled form) — wasm-opt's
-            // removelist matches on the names section, not on
-            // export names.
-            "--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive",
-            // Treat ``env.coro_yield_unwind`` as an unwinding
-            // import so callers wrap the call with the standard
-            // ``state==UNWINDING ⇒ save+br`` epilogue.  This is
-            // the host-trampolined boundary ``signal_yield`` uses
-            // to dispatch yield/resume — see the doc comment on
-            // ``coro_yield_unwind`` in ``sched/tcl_asyncify.zig``
-            // and the trampoline in the test harness.  Routing
-            // through an instrumented import call site (instead of
-            // a direct ``asyncify_start_unwind`` call from
-            // ``signal_yield``) avoids the multi-yield rewind loop
-            // tracked as issue #282 — the rewind dispatches into
-            // ``coro_yield_unwind`` once, the host calls
-            // ``stop_rewind`` to flip state to NORMAL, and the
-            // body resumes past the original ``yield`` to the next.
-            "--pass-arg=asyncify-imports@env.coro_yield_unwind",
-        });
-        post.addArtifactArg(exe);
-        post.addArg("-o");
-        const out = post.addOutputFileArg("tcl_runtime.wasm");
-        b.getInstallStep().dependOn(&post.step);
-        const install = b.addInstallFileWithDir(out, .bin, "tcl_runtime.wasm");
-        b.getInstallStep().dependOn(&install.step);
+        // Both the lean and tcltest-enabled runtimes need the
+        // ``wasm-opt --asyncify`` post-pass when ``-Dasyncify=true`` —
+        // the rewrite is what turns ``env.asyncify_*`` imports into
+        // real stack-saving primitives, and a build that skips it
+        // for one variant produces a binary that fails to instantiate
+        // (or silently breaks yield/rewind) when the bundler picks
+        // that variant.  See the long-form rationale in the
+        // ``if (asyncify)`` block below for the lean exe.
+        installAsyncify(b, exe, "tcl_runtime");
+        installAsyncify(b, tcltest_exe, "tcl_runtime_with_tcltest");
     } else {
         b.installArtifact(exe);
+        b.installArtifact(tcltest_exe);
     }
 
     // ---------------------------------------------------------------
@@ -243,6 +268,17 @@ pub fn build(b: *std.Build) void {
     // visibly dominates ``zig build test`` wall-clock.  A shared
     // library compiles them once and the link step into each test
     // is cheap.
+    // Tests build with ``with_tcltest = true`` so the
+    // ``runtime/zig/tcltest/`` modules participate in the BUILTINS
+    // slice and tests under ``test_tcltest_*.zig`` can drive the
+    // ported handlers directly.  The lean (no-tcltest) BUILTINS shape
+    // is covered by the Python bundler smoke tests in
+    // ``tests/test_wasm_bundle.py`` instead.
+    const test_options = b.addOptions();
+    test_options.addOption(bool, "leak_check", leak_check);
+    test_options.addOption(bool, "asyncify", asyncify);
+    test_options.addOption(bool, "with_tcltest", true);
+
     const test_regex_lib_module = b.createModule(.{
         .target = test_target,
         .optimize = optimize,
@@ -290,7 +326,9 @@ pub fn build(b: *std.Build) void {
         // in or the import resolves to "no module named
         // build_options" and compilation fails — leak_check stays
         // false in tests, matching the production default.
-        t_module.addOptions("build_options", build_options);
+        // ``with_tcltest`` is true for the test target so the
+        // tcltest cmd modules are part of BUILTINS.
+        t_module.addOptions("build_options", test_options);
         t_module.linkLibrary(test_regex_lib);
         const t_exe = b.addTest(.{
             .name = testNameFromPath(b, file),
@@ -368,6 +406,66 @@ fn collectTestFiles(b: *std.Build) ![][]const u8 {
 /// path.  ``valtypes/test_tcl_bs.zig`` → ``valtypes-tcl_bs`` so the
 /// build summary is readable and Zig 0.16's
 /// "looks-like-a-file-path" name validator stays happy.
+/// Run wasm-opt --asyncify on the linker output of *exe* and install
+/// the result as ``zig-out/bin/<install_name>.wasm``.  DWARF sections
+/// trip the asyncify pass on Zig 0.16 debug builds
+/// (TODO: DW_LNE_define_file), so strip them first.
+/// ``--enable-bulk-memory`` matches the linker's feature set
+/// (Zig stdlib uses ``memory.fill``).
+///
+/// Both runtime variants (lean ``tcl_runtime`` and the
+/// ``tcl_runtime_with_tcltest`` extension build) need this rewrite
+/// when ``-Dasyncify=true`` — it's what turns ``env.asyncify_*``
+/// imports into real stack-saving primitives, and a binary that
+/// skips it fails to instantiate or silently breaks yield/rewind
+/// when the bundler picks that variant for a coroutine workload.
+fn installAsyncify(b: *std.Build, exe: *std.Build.Step.Compile, comptime install_name: []const u8) void {
+    const wasm_opt = b.findProgram(
+        &.{"wasm-opt"},
+        &.{ "/opt/binaryen/bin", "/usr/local/bin", "/usr/bin" },
+    ) catch @panic("wasm-opt (binaryen) not found; install for -Dasyncify=true builds");
+    const post = b.addSystemCommand(&.{
+        wasm_opt,
+        "--strip-dwarf",
+        "--enable-bulk-memory",
+        "--asyncify",
+        // Exclude ``tcl_coro_drive`` from instrumentation so the
+        // unwind triggered by ``yield`` stops at the coroutine
+        // driver instead of propagating all the way to the host.
+        // The driver inspects ``asyncify_get_state()`` after
+        // ``eval_script`` returns and reports SUSPENDED to its
+        // caller (``eval_proc_call_bucket``).  Resume calls
+        // ``asyncify_start_rewind`` then re-enters ``eval_script``,
+        // which fast-forwards through the saved frames back to the
+        // yield site.  Internal Zig name (``file.module.func``
+        // mangled form) — wasm-opt's removelist matches on the
+        // names section, not on export names.
+        "--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive",
+        // Treat ``env.coro_yield_unwind`` as an unwinding import so
+        // callers wrap the call with the standard
+        // ``state==UNWINDING ⇒ save+br`` epilogue.  This is the
+        // host-trampolined boundary ``signal_yield`` uses to
+        // dispatch yield/resume — see the doc comment on
+        // ``coro_yield_unwind`` in ``sched/tcl_asyncify.zig`` and
+        // the trampoline in the test harness.  Routing through an
+        // instrumented import call site (instead of a direct
+        // ``asyncify_start_unwind`` call from ``signal_yield``)
+        // avoids the multi-yield rewind loop tracked as issue
+        // #282 — the rewind dispatches into ``coro_yield_unwind``
+        // once, the host calls ``stop_rewind`` to flip state to
+        // NORMAL, and the body resumes past the original ``yield``
+        // to the next.
+        "--pass-arg=asyncify-imports@env.coro_yield_unwind",
+    });
+    post.addArtifactArg(exe);
+    post.addArg("-o");
+    const out_name = install_name ++ ".wasm";
+    const out = post.addOutputFileArg(out_name);
+    b.getInstallStep().dependOn(&post.step);
+    const install = b.addInstallFileWithDir(out, .bin, out_name);
+    b.getInstallStep().dependOn(&install.step);
+}
+
 fn testNameFromPath(b: *std.Build, file: []const u8) []const u8 {
     const without_ext = if (std.mem.endsWith(u8, file, ".zig"))
         file[0 .. file.len - ".zig".len]

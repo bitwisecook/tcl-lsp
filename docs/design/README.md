@@ -95,6 +95,17 @@ ownership matrices.
   (per-Var TraceList + fire hooks on every mutator), and an
   effort estimate for closing it.
 
+## Optional WASM extensions
+
+- [compiler/wasm-extensions.md](compiler/wasm-extensions.md) —
+  contract for shipping optional runtime features the user's
+  program requests via ``package require``. Build-flag variant
+  runtimes today; deferred Stage 2 plan for separately-merged
+  extension WASMs. Includes the file layout for the in-tree
+  ``runtime/zig/tcltest/`` port (every ~107 upstream tcltest
+  command registered, PORTABLE/PARTIAL ones implemented and
+  NOT-PORTABLE ones stubbed with explicit error messages).
+
 ## Compiler staircase (S0–S6)
 
 The phased plan to drive the Tcl-WASM AOT compiler from "frames
