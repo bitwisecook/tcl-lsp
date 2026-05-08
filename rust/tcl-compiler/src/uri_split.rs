@@ -44,6 +44,21 @@ const MAX_TRACE_DEPTH: u32 = 12;
 /// Characters that indicate a query-string delimiter when literal.
 const QUERY_CHARS: &[char] = &['?', '&'];
 
+/// True for the bare built-in `split` and its fully-qualified `::split`
+/// form; both denote the same Tcl built-in. Code may write either form
+/// — the SSA / IR layer preserves the surface text — so detection
+/// helpers must accept both to avoid false negatives like
+/// `set parts [::split $uri "?"]`.
+fn is_split_cmd(cmd: &str) -> bool {
+    matches!(cmd, "split" | "::split")
+}
+
+/// True for the bare `string` ensemble and its fully-qualified
+/// `::string` form. Same rationale as [`is_split_cmd`].
+fn is_string_cmd(cmd: &str) -> bool {
+    matches!(cmd, "string" | "::string")
+}
+
 // ---------------------------------------------------------------------------
 // URI family discovery
 // ---------------------------------------------------------------------------
@@ -639,7 +654,7 @@ fn check_expr_command(
 ) -> Option<ExprHit> {
     let (cmd_name, cmd_args) = parse_command_substitution(text)?;
 
-    if cmd_name == "string" && !cmd_args.is_empty() {
+    if is_string_cmd(&cmd_name) && !cmd_args.is_empty() {
         let sub = cmd_args[0].as_str();
         if sub == "match" {
             let mut remaining: &[String] = &cmd_args[1..];
@@ -665,7 +680,7 @@ fn check_expr_command(
         }
     }
 
-    if cmd_name == "split" && cmd_args.len() >= 2 {
+    if is_split_cmd(&cmd_name) && cmd_args.len() >= 2 {
         let sep = strip_tcl_quotes(&cmd_args[1]).to_owned();
         if sep.chars().any(|c| QUERY_CHARS.contains(&c)) {
             let input_arg = strip_tcl_quotes(&cmd_args[0]).to_owned();
@@ -741,7 +756,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
 ) -> Option<(String, Option<String>)> {
     match stmt {
-        Statement::Call { command, args, .. } if command == "split" || command == "::split" => {
+        Statement::Call { command, args, .. } if is_split_cmd(command) => {
             if args.len() < 2 {
                 return None;
             }
@@ -751,7 +766,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
             let (cmd, args) = parse_command_substitution(value)?;
-            if cmd != "split" {
+            if !is_split_cmd(&cmd) {
                 return None;
             }
             if args.len() < 2 {
@@ -777,7 +792,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
         uses: &HashMap<String, Version>,
         sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ) -> Option<(&'static str, Option<String>, String)> {
-        if cmd != "string" || args.is_empty() {
+        if !is_string_cmd(cmd) || args.is_empty() {
             return None;
         }
         let sub = args[0].as_str();
@@ -1081,6 +1096,34 @@ set parts [split $uri "?"]"#,
         assert_eq!(ws[0].code, "IRULE3103");
         assert!(ws[0].message.contains("HTTP::path"));
         assert!(ws[0].message.contains("HTTP::query"));
+    }
+
+    /// Regression for the AssignValue-side namespace-qualified-split
+    /// gap that Codex flagged on PR #366: `[::split …]` inside a `set`
+    /// must fire IRULE3103 the same way `[split …]` does. The Call
+    /// branch already accepted both forms; the `AssignValue` branch
+    /// wrongly required the bare name.
+    #[test]
+    fn split_namespace_qualified_in_command_substitution_fires() {
+        let ws = warnings_for(
+            r#"set uri [HTTP::uri]
+set parts [::split $uri "?"]"#,
+        );
+        assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
+        assert_eq!(ws[0].code, "IRULE3103");
+    }
+
+    /// Sibling regression: `[::string match …]` inside a `set` must
+    /// also fire. Same gap shape as the split case.
+    #[test]
+    fn string_match_namespace_qualified_in_command_substitution_fires() {
+        let ws = warnings_for(
+            r#"set uri [HTTP::uri]
+set m [::string match "/api/*" $uri]"#,
+        );
+        assert_eq!(ws.len(), 1, "expected one IRULE3103, got {ws:?}");
+        assert_eq!(ws[0].code, "IRULE3103");
+        assert!(ws[0].message.contains("HTTP::path"));
     }
 
     #[test]
