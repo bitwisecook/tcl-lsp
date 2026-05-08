@@ -886,6 +886,14 @@ pub export fn tcl_eval_expr_str(src_ptr: i32, src_len: i32) i32 {
 /// also re-parse — Tcl substitutes ``$a`` first, then ``expr``
 /// evaluates the resulting source as a fresh expression.  Strings
 /// that don't parse as expressions return verbatim.
+///
+/// Ownership: this helper is **non-consuming** — the input *o*
+/// keeps its existing refcount.  The return is a fresh +1 owned
+/// handle on every path (we retain *o* when returning it verbatim,
+/// matching the freshly-allocated parsed obj on the canonicalised
+/// path).  Callers who handed in a borrowed reference (e.g. an
+/// ``ExprVar`` read from a variable's slot) can safely treat the
+/// result as OWNED without corrupting the source slot's refcount.
 pub export fn tcl_expr_canonicalise(o: i32) i32 {
     const obj_mod = @import("valtypes/tcl_obj.zig");
     if (o == 0) return 0;
@@ -894,10 +902,14 @@ pub export fn tcl_expr_canonicalise(o: i32) i32 {
     const tag = obj_mod.read_i32(handle + obj_mod.OBJ_TYPE_TAG);
     // Already-numeric tags are canonical.
     if (tag == obj_mod.TYPE_INT or tag == obj_mod.TYPE_FLOAT or tag == obj_mod.TYPE_BIGNUM) {
+        obj_mod.tcl_obj_retain(o);
         return o;
     }
     const s = obj_mod.obj_ensure_string(o);
-    if (s.len == 0) return o;
+    if (s.len == 0) {
+        obj_mod.tcl_obj_retain(o);
+        return o;
+    }
     // Route through ``eval_top`` which re-parses the string as a full
     // expression — handles bare numeric literals, base-prefix forms,
     // and compound sub-expressions like ``"1e308**1e10"``.
@@ -916,18 +928,21 @@ pub export fn tcl_expr_canonicalise(o: i32) i32 {
         // expression).
         result_mod.consume(.ERROR);
         if (parsed != 0) obj_mod.tcl_obj_release(parsed);
+        obj_mod.tcl_obj_retain(o);
         return o;
     }
-    if (parsed == 0) return o;
+    if (parsed == 0) {
+        obj_mod.tcl_obj_retain(o);
+        return o;
+    }
     if (obj_mod.is_immediate(parsed)) {
-        obj_mod.tcl_obj_release(o);
         return parsed;
     }
     const ptag = obj_mod.read_i32(@as(u32, @bitCast(parsed)) + obj_mod.OBJ_TYPE_TAG);
     if (ptag == obj_mod.TYPE_INT or ptag == obj_mod.TYPE_FLOAT or ptag == obj_mod.TYPE_BIGNUM) {
-        obj_mod.tcl_obj_release(o);
         return parsed;
     }
     obj_mod.tcl_obj_release(parsed);
+    obj_mod.tcl_obj_retain(o);
     return o;
 }

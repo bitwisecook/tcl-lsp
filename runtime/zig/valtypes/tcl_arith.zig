@@ -1017,6 +1017,13 @@ fn raise_expected_boolean(o: i32) void {
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + s.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        // OOM on the formatted-buffer alloc — fall back to the
+        // static prefix so we still surface a "expected boolean"
+        // diagnostic instead of writing through a null pointer.
+        stubs.raise("expected boolean value");
+        return;
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     @memcpy(buf[0..prefix.len], prefix);
     if (s.len > 0) {

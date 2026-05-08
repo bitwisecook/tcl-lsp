@@ -14,25 +14,45 @@ const obj = @import("../valtypes/tcl_obj.zig");
 const stubs = @import("../stubs/tcl_stubs.zig");
 const arith = @import("../valtypes/tcl_arith.zig");
 
-/// Generic single-arg math function command.  *args[0]* is the
-/// command name (``::tcl::mathfunc::abs`` etc.); *args[1]* is the
-/// numeric operand.  The handler dispatches by stripping the
-/// ``::tcl::mathfunc::`` prefix and routing to the matching helper.
+/// Generic math function command.  *args[0]* is the command name
+/// (``::tcl::mathfunc::abs`` etc.); the remaining args are the
+/// numeric operands.  Some functions are 0-arg (``rand``), most
+/// are 1-arg, a few (``pow`` / ``atan2`` / …) are 2-arg.  The
+/// handler dispatches by stripping the ``::tcl::mathfunc::``
+/// prefix and routing to the matching helper.
 fn eval_mathfunc(words: []const i32) result_mod.InterpResult {
-    if (words.len < 2) {
+    // Always need at least the command name in argv[0].
+    if (words.len < 1) {
         stubs.raise("wrong # args");
         return result_mod.from_globals(0);
     }
+    const prefix = "::tcl::mathfunc::";
     const cmd_str = obj.obj_ensure_string(words[0]);
     const cmd: [*]const u8 = @ptrFromInt(cmd_str.ptr);
-    // Strip the ``::tcl::mathfunc::`` prefix (17 bytes:
-    // ``::`` + ``tcl`` + ``::`` + ``mathfunc`` + ``::``).
-    const prefix_len: u32 = 17;
-    if (cmd_str.len <= prefix_len) {
+    // Strip the prefix.  ``prefix.len`` is computed from the literal
+    // so the count can never drift out of sync with the bytes (was
+    // hand-counted as 17 — the right answer, but easy to mis-count).
+    if (cmd_str.len <= prefix.len) {
         stubs.raise("invalid mathfunc invocation");
         return result_mod.from_globals(0);
     }
-    const name = cmd[prefix_len..cmd_str.len];
+    const cmd_slice = cmd[0..cmd_str.len];
+    if (!std.mem.startsWith(u8, cmd_slice, prefix)) {
+        stubs.raise("invalid mathfunc invocation");
+        return result_mod.from_globals(0);
+    }
+    const name = cmd_slice[prefix.len..];
+
+    // 0-arg dispatch — only ``rand`` qualifies.  Registered with
+    // ``arity_min=0, arity_max=0`` so the runtime arity check has
+    // already rejected any spurious args before we get here.
+    if (words.len == 1) {
+        if (std.mem.eql(u8, name, "rand")) {
+            return result_mod.from_globals(arith.tcl_math_rand());
+        }
+        stubs.raise("wrong # args");
+        return result_mod.from_globals(0);
+    }
 
     // Single-arg dispatch.
     if (words.len == 2) {
@@ -72,11 +92,6 @@ fn eval_mathfunc(words: []const i32) result_mod.InterpResult {
         if (std.mem.eql(u8, name, "isnormal")) return result_mod.from_globals(arith.tcl_math_isnormal(words[1]));
         if (std.mem.eql(u8, name, "issubnormal")) return result_mod.from_globals(arith.tcl_math_issubnormal(words[1]));
         if (std.mem.eql(u8, name, "fpclassify")) return result_mod.from_globals(arith.tcl_math_fpclassify(words[1]));
-        if (std.mem.eql(u8, name, "rand")) {
-            // rand() takes no arg in expr but the namespace command
-            // form accepts a discarded argument.  Just call rand.
-            return result_mod.from_globals(arith.tcl_math_rand());
-        }
         if (std.mem.eql(u8, name, "srand")) return result_mod.from_globals(arith.tcl_math_srand(words[1]));
     }
     if (words.len == 3) {
@@ -85,9 +100,6 @@ fn eval_mathfunc(words: []const i32) result_mod.InterpResult {
         if (std.mem.eql(u8, name, "fmod")) return result_mod.from_globals(arith.tcl_math_fmod(words[1], words[2]));
         if (std.mem.eql(u8, name, "hypot")) return result_mod.from_globals(arith.tcl_math_hypot(words[1], words[2]));
         if (std.mem.eql(u8, name, "isunordered")) return result_mod.from_globals(arith.tcl_math_isunordered(words[1], words[2]));
-    }
-    if (words.len == 1 and std.mem.eql(u8, name, "rand")) {
-        return result_mod.from_globals(arith.tcl_math_rand());
     }
     // Unknown function name or wrong arity.
     stubs.raise("invalid math function call");

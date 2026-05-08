@@ -1449,12 +1449,18 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
     return raise_unknown_func(name);
 }
 
-fn raise_too_many_args(name: []const u8) i32 {
+fn raise_math_func_error(prefix: []const u8, name: []const u8, fallback: []const u8) i32 {
     const stubs = @import("../stubs/tcl_stubs.zig");
-    const prefix: []const u8 = "too many arguments for math function \"";
     const suffix: []const u8 = "\"";
     const total: u32 = @intCast(prefix.len + name.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
+    if (buf_addr == 0) {
+        // OOM on the formatted-message buffer — fall back to the
+        // static prefix so the diagnostic still surfaces instead of
+        // writing through a null pointer.
+        stubs.raise(fallback);
+        return obj_new_int(0);
+    }
     const buf: [*]u8 = @ptrFromInt(buf_addr);
     @memcpy(buf[0..prefix.len], prefix);
     @memcpy(buf[prefix.len .. prefix.len + name.len], name);
@@ -1462,36 +1468,30 @@ fn raise_too_many_args(name: []const u8) i32 {
     stubs.raise(buf[0..total]);
     obj.free_sized(buf_addr, total);
     return obj_new_int(0);
+}
+
+fn raise_too_many_args(name: []const u8) i32 {
+    return raise_math_func_error(
+        "too many arguments for math function \"",
+        name,
+        "too many arguments for math function",
+    );
 }
 
 fn raise_too_few_args(name: []const u8) i32 {
-    const stubs = @import("../stubs/tcl_stubs.zig");
-    const prefix: []const u8 = "too few arguments for math function \"";
-    const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
-    const buf_addr: u32 = obj.alloc(total);
-    const buf: [*]u8 = @ptrFromInt(buf_addr);
-    @memcpy(buf[0..prefix.len], prefix);
-    @memcpy(buf[prefix.len .. prefix.len + name.len], name);
-    @memcpy(buf[prefix.len + name.len ..][0..suffix.len], suffix);
-    stubs.raise(buf[0..total]);
-    obj.free_sized(buf_addr, total);
-    return obj_new_int(0);
+    return raise_math_func_error(
+        "too few arguments for math function \"",
+        name,
+        "too few arguments for math function",
+    );
 }
 
 fn raise_unknown_func(name: []const u8) i32 {
-    const stubs = @import("../stubs/tcl_stubs.zig");
-    const prefix: []const u8 = "unknown math function \"";
-    const suffix: []const u8 = "\"";
-    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
-    const buf_addr: u32 = obj.alloc(total);
-    const buf: [*]u8 = @ptrFromInt(buf_addr);
-    @memcpy(buf[0..prefix.len], prefix);
-    @memcpy(buf[prefix.len .. prefix.len + name.len], name);
-    @memcpy(buf[prefix.len + name.len ..][0..suffix.len], suffix);
-    stubs.raise(buf[0..total]);
-    obj.free_sized(buf_addr, total);
-    return obj_new_int(0);
+    return raise_math_func_error(
+        "unknown math function \"",
+        name,
+        "unknown math function",
+    );
 }
 
 fn truthy(o: i32) bool {

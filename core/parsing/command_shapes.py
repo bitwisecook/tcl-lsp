@@ -47,19 +47,20 @@ def extract_single_expr_argument(
         if tok is None:
             break
         if tok.type is TokenType.EOL:
-            # ``;`` / ``\n`` ends a command.  If anything follows, the
-            # body holds multiple commands — bail out so the caller
-            # routes through the generic eval-fallback path.
+            # ``;`` / ``\n`` ends a command.  Set the marker — only a
+            # subsequent **word** token (skipping trailing
+            # whitespace / comments) means we have a real second
+            # command to bail out for.
             saw_eol = True
+            prev_type = tok.type
+            continue
+        if tok.type in (TokenType.SEP, TokenType.COMMENT):
             prev_type = tok.type
             continue
         if saw_eol:
             # Real word AFTER the first command ended → this is a
             # multi-command body, not a single ``expr ARG``.
             return None
-        if tok.type in (TokenType.SEP, TokenType.COMMENT):
-            prev_type = tok.type
-            continue
 
         piece = _word_piece(tok)
         if prev_type in (TokenType.SEP, TokenType.EOL):
