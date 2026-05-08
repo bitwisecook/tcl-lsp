@@ -15,6 +15,7 @@
 // automatically.
 
 const reg = @import("tcl_cmd_registry.zig");
+const build_options = @import("build_options");
 
 const string_cmd = @import("../cmds/string.zig");
 const array_cmd = @import("../cmds/array.zig");
@@ -48,6 +49,21 @@ const exit_cmd = @import("../cmds/exit.zig");
 const mathop_cmd = @import("../cmds/tcl_mathop.zig");
 const mathfunc_cmd = @import("../cmds/tcl_mathfunc.zig");
 
+// ``tcltest_cmds`` is the namespace bag for the Tcl 9 tcltest C-tier
+// ``test*`` commands ported under ``runtime/zig/tcltest/``.  When
+// ``build_options.with_tcltest`` is false (the lean ``tcl_runtime``
+// build), the import resolves to an empty placeholder via the
+// :data:`tcltest_registrations` constant below — the cmd_*.zig
+// modules are never reached.  The flag is the build-time
+// link-optionality gate documented in
+// ``docs/design/compiler/wasm-extensions.md``.
+const tcltest_cmd_obj = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_obj.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+
 const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration} ++
     [_]reg.CmdEntry{array_cmd.registration} ++
     [_]reg.CmdEntry{dict_cmd.registration} ++
@@ -78,11 +94,13 @@ const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration
     exec_cmd.registrations ++
     exit_cmd.registrations ++
     mathop_cmd.registrations ++
-    mathfunc_cmd.registrations);
+    mathfunc_cmd.registrations ++
+    tcltest_cmd_obj.registrations);
 
-/// Look up a command by name.  Returns the handler function pointer on
-/// hit, null on miss.  Called from ``tcl_interp.zig:eval_command``
-/// after the proc-registry fast path.
+/// Look up a command by name in the static :data:`BUILTINS` slice.
+/// Returns the handler function pointer on hit, null on miss.  Called
+/// from ``tcl_interp.zig:eval_command`` after the proc-registry fast
+/// path.
 pub fn lookup(name_ptr: u32, name_len: u32) ?reg.HandlerFn {
     return reg.lookup(BUILTINS, name_ptr, name_len);
 }

@@ -38,6 +38,12 @@ pub fn build(b: *std.Build) void {
     const build_options = b.addOptions();
     build_options.addOption(bool, "leak_check", leak_check);
     build_options.addOption(bool, "asyncify", asyncify);
+    // Default lean runtime — tcltest is OFF here.  The companion
+    // ``tcl_runtime_with_tcltest`` build below addOption()s it ON.
+    // ``dispatch/tcl_cmd_table.zig`` ``inline if``s on this flag to
+    // splice the tcltest cmd_*.zig BUILTINS slice in or out at
+    // comptime.
+    build_options.addOption(bool, "with_tcltest", false);
 
     // Fetch Tcl 9.0.3's regex engine sources on demand (idempotent
     // via a stamp file; see scripts/fetch_tcl_regex.sh).  Running
@@ -133,6 +139,66 @@ pub fn build(b: *std.Build) void {
     exe.rdynamic = true;
     exe.entry = .disabled;
     exe.wasi_exec_model = .reactor;
+
+    // -----------------------------------------------------------------
+    // ``tcl_runtime_with_tcltest.wasm`` — the runtime with the Tcl 9
+    // tcltest C-tier ``test*`` commands compiled in.  Built as a
+    // sibling artifact so the post-codegen bundler at
+    // ``core/compiler/codegen/wasm/_bundle.py`` can pick it over the
+    // lean ``tcl_runtime.wasm`` whenever the user's program does
+    // ``package require Tcltest``.  Programs that don't get the lean
+    // runtime — tcltest never enters their bundle.
+    //
+    // Two-variant builds (this exe + the lean ``tcl_runtime`` above)
+    // is the pragmatic alternative to a separately-merged extension
+    // WASM: the latter would need shared memory + careful data
+    // placement to round-trip pointers cleanly with the runtime, and
+    // hits a wasm-merge multi-memory issue today.  The two-variant
+    // model produces the same end-result (a single bundled binary
+    // with tcltest only when needed) at the cost of one extra Zig
+    // compile per variant.  See
+    // ``docs/design/compiler/wasm-extensions.md`` for the contract.
+    //
+    // The ``with_tcltest`` flag is wired through ``build_options`` so
+    // ``dispatch/tcl_cmd_table.zig`` can ``inline if`` the tcltest
+    // ``BUILTINS`` slice in or out at comptime.
+    // -----------------------------------------------------------------
+    const tcltest_options = b.addOptions();
+    tcltest_options.addOption(bool, "leak_check", leak_check);
+    tcltest_options.addOption(bool, "asyncify", asyncify);
+    tcltest_options.addOption(bool, "with_tcltest", true);
+    const tcltest_module = b.createModule(.{
+        .root_source_file = b.path("tcl_runtime.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    tcltest_module.addOptions("build_options", tcltest_options);
+    tcltest_module.addIncludePath(b.path("regex_include"));
+    tcltest_module.addIncludePath(b.path("vendor/tcl-regex"));
+    tcltest_module.addCSourceFiles(.{
+        .root = b.path("vendor/tcl-regex"),
+        .files = &.{
+            "regcomp.c",
+            "regexec.c",
+            "regfree.c",
+            "regerror.c",
+        },
+        .flags = c_flags,
+    });
+    tcltest_module.addCSourceFile(.{
+        .file = b.path("regex_include/tcl_reg_shim.c"),
+        .flags = c_flags,
+    });
+    const tcltest_exe = b.addExecutable(.{
+        .name = "tcl_runtime_with_tcltest",
+        .root_module = tcltest_module,
+    });
+    tcltest_exe.rdynamic = true;
+    tcltest_exe.entry = .disabled;
+    tcltest_exe.wasi_exec_model = .reactor;
+    tcltest_exe.step.dependOn(&fetch_regex.step);
+    b.installArtifact(tcltest_exe);
 
     if (asyncify) {
         // Run wasm-opt --asyncify on the linker output and install
@@ -243,6 +309,17 @@ pub fn build(b: *std.Build) void {
     // visibly dominates ``zig build test`` wall-clock.  A shared
     // library compiles them once and the link step into each test
     // is cheap.
+    // Tests build with ``with_tcltest = true`` so the
+    // ``runtime/zig/tcltest/`` modules participate in the BUILTINS
+    // slice and tests under ``test_tcltest_*.zig`` can drive the
+    // ported handlers directly.  The lean (no-tcltest) BUILTINS shape
+    // is covered by the Python bundler smoke tests in
+    // ``tests/test_wasm_bundle.py`` instead.
+    const test_options = b.addOptions();
+    test_options.addOption(bool, "leak_check", leak_check);
+    test_options.addOption(bool, "asyncify", asyncify);
+    test_options.addOption(bool, "with_tcltest", true);
+
     const test_regex_lib_module = b.createModule(.{
         .target = test_target,
         .optimize = optimize,
@@ -290,7 +367,9 @@ pub fn build(b: *std.Build) void {
         // in or the import resolves to "no module named
         // build_options" and compilation fails — leak_check stays
         // false in tests, matching the production default.
-        t_module.addOptions("build_options", build_options);
+        // ``with_tcltest`` is true for the test target so the
+        // tcltest cmd modules are part of BUILTINS.
+        t_module.addOptions("build_options", test_options);
         t_module.linkLibrary(test_regex_lib);
         const t_exe = b.addTest(.{
             .name = testNameFromPath(b, file),

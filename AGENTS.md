@@ -42,6 +42,7 @@ here is ready before Claude starts taking instructions — **no manual
 | rsync, xz-utils  | distro        | `/usr/bin/`                     | `rsync`, `xz`             |
 | Zig              | 0.16.0        | `/opt/zig-0.16.0/`              | `/usr/local/bin/zig`      |
 | Wasmtime         | v43.0.1       | `/opt/wasmtime-43.0.1/`         | `/usr/local/bin/wasmtime` |
+| Binaryen         | v123          | `/opt/binaryen-123/`            | `/usr/local/bin/wasm-merge`, `/usr/local/bin/wasm-opt` |
 | rustup + Rust    | stable 1.95.0 | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
 | Tcl 8.4 source   | 8.4.20        | `tmp/tcl8.4.20/`                | —                         |
 | Tcl 8.5 source   | 8.5.19        | `tmp/tcl8.5.19/`                | —                         |
@@ -64,7 +65,7 @@ Notes on the fetched sources:
 
 To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)
-(`ZIG_VERSION`, `WASMTIME_VERSION`, `RUST_VERSION`, `TCLLIB_TAG` /
+(`ZIG_VERSION`, `WASMTIME_VERSION`, `BINARYEN_VERSION`, `RUST_VERSION`, `TCLLIB_TAG` /
 `TCLLIB_VERSION`) and, for Tcl, the version/tag maps in
 [`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`](.claude/skills/fetch-tcl-source/fetch_tcl_source.sh).
 For Zig, refresh `expected_sha` in the hook to match the new x86_64-linux
@@ -207,6 +208,25 @@ alongside the change.  Common reasons:
 The diff against the baseline should tell a clean improvement story
 — if the snapshot introduces regressions (worse statuses, new
 orphans, new mismatches), the change is almost certainly incorrect.
+
+## Optional WASM extensions
+
+The compiler can ship *optional* runtime features the user's program
+requests via `package require`.  Today this is implemented as
+runtime variants — `zig build` produces both `tcl_runtime.wasm`
+(lean) and `tcl_runtime_with_<extname>.wasm` (with the extension's
+commands compiled into BUILTINS).  The bundler in
+:func:`core.compiler.codegen.wasm_link.wasm_link_bundled` picks the
+right variant based on the `package require` calls it finds in the
+merged IR, then `wasm-merge`s it with the user-code module to
+produce a single bundled `.wasm`.
+
+The first extension is **Tcltest**, porting the Tcl 9 `tcltest`
+C-tier `test*` commands to `runtime/zig/tcltest/`.  See
+[`docs/design/compiler/wasm-extensions.md`](docs/design/compiler/wasm-extensions.md)
+for the contract and
+[`docs/design/compiler/wasm-extensions-tcltest.md`](docs/design/compiler/wasm-extensions-tcltest.md)
+for the per-command triage matrix.
 
 ## Workflow requirements
 

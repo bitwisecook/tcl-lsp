@@ -23,12 +23,14 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 # Pinned toolchain versions. Bump these when new stable releases land.
 ZIG_VERSION="0.16.0"
 WASMTIME_VERSION="43.0.1"
+BINARYEN_VERSION="123"
 RUST_VERSION="1.95.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
 
 ZIG_PREFIX="/opt/zig-${ZIG_VERSION}"
 WASMTIME_PREFIX="/opt/wasmtime-${WASMTIME_VERSION}"
+BINARYEN_PREFIX="/opt/binaryen-${BINARYEN_VERSION}"
 
 # ---------------------------------------------------------------------------
 # 1. System packages (apt).
@@ -242,6 +244,65 @@ install_wasmtime() {
 }
 
 # ---------------------------------------------------------------------------
+# 4b. Binaryen — provides ``wasm-merge`` (post-codegen bundler that fuses
+#     runtime + user code + optional extensions into a single .wasm) and
+#     ``wasm-opt`` (asyncify post-pass for the coroutine build).  Skipped
+#     when both binaries already point at the pinned prefix.
+# ---------------------------------------------------------------------------
+install_binaryen() {
+    if [ -x "${BINARYEN_PREFIX}/bin/wasm-merge" ] \
+       && [ -L /usr/local/bin/wasm-merge ] \
+       && [ "$(readlink -f /usr/local/bin/wasm-merge)" = "${BINARYEN_PREFIX}/bin/wasm-merge" ]; then
+        echo "session-start: binaryen v${BINARYEN_VERSION} already installed"
+        return 0
+    fi
+
+    case "$ARCH" in
+        x86_64)  local bin_arch="x86_64-linux" ;;
+        aarch64) local bin_arch="aarch64-linux" ;;
+        *) echo "session-start: unsupported arch for binaryen: $ARCH" >&2; return 1 ;;
+    esac
+
+    local tarball="binaryen-version_${BINARYEN_VERSION}-${bin_arch}.tar.gz"
+    local url="https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/${tarball}"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    echo "session-start: fetching binaryen v${BINARYEN_VERSION}"
+    if ! fetch_with_retry "$url" "${tmpdir}/${tarball}"; then
+        echo "session-start: failed to download binaryen v${BINARYEN_VERSION}" >&2
+        return 1
+    fi
+
+    # Binaryen releases do not publish SHA-256 sidecars; pin alongside
+    # the version like wasmtime above.  Re-compute when bumping
+    # BINARYEN_VERSION.
+    local expected_sha=""
+    case "$bin_arch" in
+        x86_64-linux)
+            expected_sha="e959f2170af4c20c552e9de3a0253704d6a9d2766e8fdb88e4d6ac4bae9388fe" ;;
+        aarch64-linux)
+            expected_sha="" ;; # fill on first aarch64 cold-start
+    esac
+    if [ -n "$expected_sha" ]; then
+        local actual_sha
+        actual_sha="$(sha256sum "${tmpdir}/${tarball}" | awk '{print $1}')"
+        if [ "$actual_sha" != "$expected_sha" ]; then
+            echo "session-start: binaryen sha256 mismatch (expected $expected_sha, got $actual_sha)" >&2
+            return 1
+        fi
+    fi
+
+    rm -rf "$BINARYEN_PREFIX"
+    mkdir -p "$BINARYEN_PREFIX"
+    tar -xzf "${tmpdir}/${tarball}" -C "$BINARYEN_PREFIX" --strip-components=1
+    ln -sfn "${BINARYEN_PREFIX}/bin/wasm-merge" /usr/local/bin/wasm-merge
+    ln -sfn "${BINARYEN_PREFIX}/bin/wasm-opt"   /usr/local/bin/wasm-opt
+    echo "session-start: binaryen $(${BINARYEN_PREFIX}/bin/wasm-merge --version | head -n1) installed at ${BINARYEN_PREFIX}"
+}
+
+# ---------------------------------------------------------------------------
 # 5. Tcl source trees (8.4, 8.5, 8.6, 9.0) — delegate to the existing skill.
 #    Idempotent: skips versions already fetched into tmp/.
 # ---------------------------------------------------------------------------
@@ -406,6 +467,7 @@ install_rust() {
 
 install_zig
 install_wasmtime
+install_binaryen
 install_rust
 install_tcl_sources
 install_tcllib
