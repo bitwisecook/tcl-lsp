@@ -889,9 +889,10 @@ against `origin/main`@`a76977a2`, `origin/rust`@`43d6ae5e`;
 previous anchor was `015288cf` / `9c779b31`.
 
 `main` carries 111 commits past the last rust-side rebase point.
-The five non-runtime commits added since the previous audit
-anchor (`015288cf` / #356) were each triaged out-of-scope for
-the Rust analyser crate; recorded here so future sweeps don't
+The ten PRs added since the previous audit anchor (`015288cf` /
+#356) — runtime, test-harness, WASM-emitter, LSP-server, and
+Python-VM changes — were each triaged out-of-scope for the Rust
+analyser crate; recorded here so future sweeps don't
 re-investigate:
 
 - `#358` pre-populate `::tcl::*` / `::oo::*` runtime namespaces
@@ -959,9 +960,10 @@ Triage:
   per the open-backlog convention; the only row that survives
   is `SYNC-JUN-CFG-uplevel-literal-set` (open, blocked on the
   `_UpvarInfo` prerequisite below).  The current audit
-  (`015288cf` → `a76977a2`, +5 non-runtime commits) surfaced
+  (`015288cf` → `a76977a2`, +10 PRs enumerated above) surfaced
   zero new in-scope work items — every new commit lives in
-  the Zig WASM runtime, the WASM emitter, or the LSP server.
+  the Zig WASM runtime, the WASM emitter, the LSP server, or
+  the Python differential VM.
   The two new rows below (`SYNC-JUN-CFG-upvar-info`,
   `SYNC-JUN-FRAME356-population`) carry deferred work split
   out of the May-8 sweep, not new sync gaps.
