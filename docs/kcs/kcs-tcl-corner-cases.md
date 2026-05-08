@@ -190,35 +190,33 @@ set "weird}name" 42
 
 A subtle source of mismatches: how many backslashes survive into the runtime variable name depends on which quoting form encloses the `set` argument.
 
-| Source | Runtime var name (hex) | Why |
-|---|---|---|
-| `set "back\slash" 1` | `backslash` (9 bytes, no `\`) | quoted-arg parsing drops `\` for unknown escapes |
-| `set "back\\slash" 1` | `back\slash` (10 bytes, 1 `\`) | `\\` → `\`, then `\s` → ... wait no, actually `\\` consumed first, then `slash` is plain |
-| `set "back\\\slash" 1` | `back\slash` (10 bytes, 1 `\`) | `\\\s` parses as `\\` then `\s`: `\` + `s` = `\s` literal? No: `\\` → `\` (1 byte), then `\s` → `s` (drop `\`).  Final: `back\s slash` -- wait test says 10 bytes total = `back\slash` |
-| `set {back\slash} 1` | `back\slash` (10 bytes, 1 `\`) | braces preserve literally |
-| `set {back\\\slash} 1` | `back\\\slash` (12 bytes, 3 `\`) | braces preserve literally -- 3 in, 3 out |
+Quoted-arg parsing applies backslash substitution **left-to-right**, scanning each `\X` sequence in order.  `\\` consumes both backslashes and produces one literal `\`; `\X` for an unknown escape consumes both characters and drops the backslash, leaving just `X`.  Braced args bypass substitution entirely -- every byte between `{` and `}` is preserved verbatim (other than balanced inner braces, which the parser tracks with depth counting).
 
-**Key takeaway:** `"..."` applies backslash subst (drops `\` before unknown chars, collapses `\\` to `\`).  `{...}` preserves every byte literally.  Three backslashes in a quoted arg collapse to **one**; three backslashes in a braced arg stay as **three**.
+| Source | Runtime var name | Hex | Why |
+|---|---|---|---|
+| `set "backslash" 1` | `backslash` (9 bytes) | `62 61 63 6b 73 6c 61 73 68` | no backslashes to substitute |
+| `set "back\slash" 1` | `backslash` (9 bytes) | `62 61 63 6b 73 6c 61 73 68` | `\s` is unknown -> drops `\`, keeps `s` |
+| `set "back\\slash" 1` | `back\slash` (10 bytes) | `62 61 63 6b 5c 73 6c 61 73 68` | `\\` collapses to one `\`, then `slash` is plain |
+| `set "back\\\slash" 1` | `back\slash` (10 bytes) | `62 61 63 6b 5c 73 6c 61 73 68` | `\\` -> `\` (consumes 2), then `\s` -> `s` (consumes 2, drops `\`) |
+| `set "back\\\\slash" 1` | `back\\slash` (11 bytes) | `62 61 63 6b 5c 5c 73 6c 61 73 68` | two `\\` pairs each collapse to one `\` |
+| `set {back\slash} 1` | `back\slash` (10 bytes) | `62 61 63 6b 5c 73 6c 61 73 68` | braces preserve literally |
+| `set {back\\\slash} 1` | `back\\\slash` (12 bytes) | `62 61 63 6b 5c 5c 5c 73 6c 61 73 68` | braces preserve literally -- 3 in, 3 out |
 
-Verified empirically against tclsh 9.0.3 -- see `tests/data/tcl_probes_definitive.tcl` §A.
+**Key takeaway:** in a *quoted* arg, three source backslashes collapse to **one** runtime byte; in a *braced* arg, every byte survives.  Verified empirically against tclsh 9.0.3 by setting the var, then dumping `set $name` and inspecting the resulting bytes -- see `tests/data/tcl_probes_definitive.tcl` §A.
 
 ## Known divergences in our analyser/lexer
 
-### Lexer's `${...}` form does NOT recognise `\X` escape
+### `${...}` form -- aligned with Tcl 9.0.3 since 78d7437
 
-`core/parsing/lexer.py::_parse_var` reads chars until the first `}`,
-treating backslashes as literal.  Tcl 9.0.3's parser instead
-consumes 2 chars on `\X` (so `\}` does not close the brace) and
-tracks inner `{...}` with brace counting.
-
-**Impact:** rare in practice — variable names with literal backslashes
-or balanced inner braces are exotic.  Documented here as a known
-limitation pending a follow-up issue to align the lexer.
-
-**Test:** `tests/data/tcl_probes_full.tcl §A.brace-backslash-keeps-as-escape`
-(currently disabled in the probe runner due to escaping conflicts at
-the probe-wrapper level; the standalone case
-`/tmp/brace_lexer_probe.tcl` confirms the divergence).
+`core/parsing/lexer.py::_parse_var` previously read chars until the
+first `}`, treating backslashes as literal.  This PR updates the
+brace-form scan to mirror Tcl 9.0.3's `Tcl_ParseVarName` exactly:
+inner `{...}` are tracked with brace-depth counting, and `\X`
+consumes 2 chars (so `\}` does NOT close).  No remaining
+divergence in this area; the regression tests in
+`tests/test_parser_edge_cases.py::TestBracedVarSpecialChars` and
+`tests/test_tcl_corner_cases.py::TestBraceVarSubstitution` pin the
+new behaviour.
 
 ### `${arr}(idx)` analyser scope
 

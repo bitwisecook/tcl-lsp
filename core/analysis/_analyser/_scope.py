@@ -287,7 +287,7 @@ class _AnalyserScopeMixin(_Base):
                     Diagnostic(
                         range=site_range,
                         message=(
-                            f"variable name [{runtime_name!r}] is not reachable via "
+                            f"variable name ``{runtime_name}`` is not reachable via "
                             "$-substitution; it can still be created/read via "
                             '``set name`` / ``[set "name"]`` / ``info exists`` / '
                             f"``upvar``, but {detail}"

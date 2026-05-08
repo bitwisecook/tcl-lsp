@@ -76,13 +76,24 @@ suite("Variable Completion", () => {
   });
 
   test("brace-required name auto-promotes to ${name}", async () => {
+    // ``foo-bar`` is set at top level (see fixture).  From inside the
+    // ``::myns::helper`` proc, Tcl's runtime requires the qualified
+    // form ``$::foo-bar`` to reach a global var that has no local
+    // alias, so completion offers ``$::foo-bar`` (with the brace-form
+    // promotion for the hyphen).
     const items = await completionItems(docUri, "\n        puts $", HELPER_BODY_INSERT);
-    const item = items.find((i) => labelOf(i) === "$foo-bar");
-    assert.ok(item, `Expected $foo-bar in completions`);
+    const item = items.find((i) => labelOf(i) === "$::foo-bar");
+    assert.ok(
+      item,
+      `Expected $::foo-bar in completions; labels: ${items
+        .map(labelOf)
+        .filter((s) => s.startsWith("$"))
+        .join(", ")}`,
+    );
     assert.strictEqual(
       insertedText(item),
-      "${foo-bar}",
-      `Expected '${"${foo-bar}"}' for hyphenated name, got '${insertedText(item)}'`,
+      "${::foo-bar}",
+      `Expected '${"${::foo-bar}"}' for hyphenated qualified name, got '${insertedText(item)}'`,
     );
   });
 

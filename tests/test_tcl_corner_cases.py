@@ -260,6 +260,31 @@ class TestArrayElementForms:
 
 
 class TestGlobalsAndNamespaces:
+    def test_global_unqualified_offered_qualified_from_namespace(self):
+        # ``set foo 1`` at top level creates an unqualified global.
+        # From inside ``namespace eval ::ns`` (or any non-global
+        # scope), Tcl's runtime resolution does NOT make bare ``$foo``
+        # reach the global -- attempting it errors with ``can't read
+        # "foo"``.  Completion must therefore offer the qualified
+        # form ``$::foo`` from those scopes.
+        from lsp.features.completion import get_completions
+
+        source = "set foo 1\nnamespace eval ::ns {\n    puts $\n}"
+        items = get_completions(source, 2, 10)
+        labels = [i.label for i in items]
+        assert "$::foo" in labels, f"expected ``$::foo`` qualified, got {labels}"
+        # Bare ``$foo`` would not reach the global -- must NOT appear.
+        assert "$foo" not in labels, f"bare ``$foo`` from namespace is unreachable; got {labels}"
+
+    def test_global_unqualified_stays_bare_at_top_level(self):
+        # At the global scope itself, bare ``$foo`` is correct.
+        from lsp.features.completion import get_completions
+
+        source = "set foo 1\nputs $"
+        items = get_completions(source, 1, 6)
+        labels = [i.label for i in items]
+        assert "$foo" in labels
+
     def test_global_decl_bare(self):
         a = analyse("set ::g 5\nproc f {} {global g; return $g}")
         proc_scope = next(c for c in a.global_scope.children if c.kind == "proc")

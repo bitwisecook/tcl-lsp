@@ -76,16 +76,36 @@ def _root_global_scope(scope: Scope) -> Scope:
 def _collect_vars_from_scope(scope: Scope) -> list[str]:
     """Collect variable names from scope and ancestors.
 
+    Names from the lexical chain are offered as written (bare).  When
+    the cursor is *not* in the global namespace, however, vars that
+    live in the global scope WITHOUT a leading ``::`` qualifier (e.g.
+    ``set foo 1`` at top level produces ``foo`` in
+    ``global_scope.variables``) get qualified as ``::foo`` here --
+    Tcl's runtime resolution does NOT make bare ``$foo`` reach a
+    global from inside a namespace eval body or proc body, so
+    offering bare ``$foo`` would produce a runtime ``can't read
+    "foo"`` error.  Cross-checked against tclsh 9.0.3.
+
     A ``Scope(kind="uplevel")`` short-circuits the lexical-parent walk
     and redirects to the global scope -- modelling Tcl's runtime
     behaviour where ``uplevel #0`` body lookups happen in the global
-    frame, skipping the calling proc's locals."""
+    frame, skipping the calling proc's locals.  Inside that synthetic
+    scope the cursor is "globally located" at runtime, so global vars
+    are offered bare just like at top level.
+    """
     names: list[str] = []
+    cursor_at_global = scope.kind in ("global", "uplevel")
     current: Scope | None = scope
     while current is not None:
-        names.extend(current.variables.keys())
+        for vname in current.variables:
+            if current.kind == "global" and not cursor_at_global and not vname.startswith("::"):
+                names.append(f"::{vname}")
+            else:
+                names.append(vname)
         if current.kind == "uplevel":
             global_scope = _root_global_scope(current)
+            # ``uplevel #0`` body runs in the global frame, so its
+            # bare-name lookups DO reach globals -- offer them bare.
             names.extend(global_scope.variables.keys())
             break
         current = current.parent
