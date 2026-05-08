@@ -221,12 +221,14 @@ right variant based on the `package require` calls it finds in the
 merged IR, then `wasm-merge`s it with the user-code module to
 produce a single bundled `.wasm`.
 
-The first extension is **Tcltest**, porting the Tcl 9 `tcltest`
-C-tier `test*` commands to `runtime/zig/tcltest/`.  See
+The first extension is **Tcltest**: the full Tcl 9 `tcltest` C-tier
+`test*` command surface (107 commands across 12 cmd_*.zig files
+under `runtime/zig/tcltest/`).  PORTABLE / PARTIAL commands have
+functional implementations; NOT-PORTABLE ones (sockets, threads,
+fork, native FS hooks) raise an explicit "not supported under WASM"
+error.  See
 [`docs/design/compiler/wasm-extensions.md`](docs/design/compiler/wasm-extensions.md)
-for the contract and
-[`docs/design/compiler/wasm-extensions-tcltest.md`](docs/design/compiler/wasm-extensions-tcltest.md)
-for the per-command triage matrix.
+for the contract and full per-cluster file layout.
 
 ## Workflow requirements
 

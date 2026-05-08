@@ -101,11 +101,10 @@ ownership matrices.
   contract for shipping optional runtime features the user's
   program requests via ``package require``. Build-flag variant
   runtimes today; deferred Stage 2 plan for separately-merged
-  extension WASMs.
-- [compiler/wasm-extensions-tcltest.md](compiler/wasm-extensions-tcltest.md)
-  — per-command triage and porting roadmap for the Tcl 9
-  ``tcltest`` C-tier ``test*`` commands under
-  ``runtime/zig/tcltest/``.
+  extension WASMs. Includes the file layout for the in-tree
+  ``runtime/zig/tcltest/`` port (every ~107 upstream tcltest
+  command registered, PORTABLE/PARTIAL ones implemented and
+  NOT-PORTABLE ones stubbed with explicit error messages).
 
 ## Compiler staircase (S0–S6)
 

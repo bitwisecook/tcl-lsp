@@ -6,10 +6,14 @@
 
 This doc describes how the Tcl→WASM compiler ships *optional*
 runtime features the user's program can request via
-`package require`.  The first user is **Tcltest** — the C-tier
-`test*` commands ported from `generic/tclTest.c` /
+`package require`.  The first user is **Tcltest** — the full C-tier
+`test*` command surface ported from `generic/tclTest.c` /
 `tclTestObj.c` / `tclTestProcBodyObj.c` / `tclTestABSList.c` to
-`runtime/zig/tcltest/`.
+`runtime/zig/tcltest/`.  All 107 upstream commands are registered;
+PORTABLE / PARTIAL ones have functional implementations, NOT-PORTABLE
+ones (sockets, threads, fork, native FS hooks, hardware probes) raise
+an explicit "not supported under WASM" error so test scripts get a
+clear reason rather than `invalid command name`.
 
 ## Why optional extensions
 
@@ -87,9 +91,7 @@ Selection happens in :mod:`core.compiler.codegen.wasm.extensions`:
    test that compiles a Tcl program with the new
    `package require` and asserts the runtime variant kicks in.
 
-7. Document the extension under `docs/design/compiler/` —
-   for tcltest see
-   [`wasm-extensions-tcltest.md`](wasm-extensions-tcltest.md).
+7. Document the extension under `docs/design/compiler/`.
 
 ## Trade-offs of the variant-runtime model
 
@@ -143,6 +145,62 @@ contract change is that the factory will return a separate
 extension `.wasm` instead of a runtime variant, and the bundler
 will pass a list of extension paths to `bundle_wasm` instead of
 just a runtime.
+
+## Tcltest layout
+
+The full upstream tcltest surface is split across 12
+`runtime/zig/tcltest/` files:
+
+```
+slots.zig           — per-extension Tcl_Obj* slot table
+cmd_obj.zig         — testintobj / testbooleanobj / testdoubleobj /
+                      testbignumobj / testindexobj / testlistobj /
+                      testobj / teststringobj / testbigdata
+cmd_eval.zig        — testevalex / testevalobjv / testreturn /
+                      testseterr / testsetnoerr / testset2 /
+                      testseterrorcode / testsetobjerrorcode /
+                      testwrongnumargs
+cmd_expr.zig        — testexprlong / testexprlongobj / testexprdouble /
+                      testexprdoubleobj / testexprstring / testconcatobj
+cmd_utf.zig         — testutfnext / testutfprev / testnumutfchars /
+                      testgetunichar / testfindfirst / testfindlast /
+                      testuniclass
+cmd_misc.zig        — testlongsize / testsize / testgetint /
+                      testgetintforindex / testgetindexfromobjstruct /
+                      testdoubledigits / testlutil / testmsb /
+                      testpurebytesobj / testbytestring /
+                      teststringbytes / testsetbytearraylength /
+                      testapplylambda / testpreferstable / testlocale /
+                      testbumpinterpepoch / testdcall / testpanic /
+                      testprint / testparseargs / testgetplatform /
+                      testsetplatform / testhashsystemhash /
+                      testhandlecount / testappverifierpresent /
+                      testmainthread / testnrelevels / testnreunwind /
+                      gettimes
+cmd_dstring.zig     — testdstring (full sub-command coverage)
+cmd_assoc.zig       — testsetassocdata / testgetassocdata /
+                      testdelassocdata
+cmd_var.zig         — testupvar / testgetvarfullname
+cmd_proc.zig        — tcl::procbodytest::proc / tcl::procbodytest::check
+cmd_abslist.zig     — lstring / lgen / value:at:
+cmd_parser.zig      — testparser / testparsevar / testparsevarname /
+                      testexprparser
+cmd_cmdinfo.zig     — testcmdinfo / testcmdtoken / testcmdtrace /
+                      testcmdobj2 / testcreatecommand / testdel /
+                      testinterpdelete / testinterpresolver
+cmd_extra.zig       — ::tcl::test::build-info /
+                      test_ns_basic::createdcommand / testencoding /
+                      testregexp / testlistrep
+cmd_stubs.zig       — NOT-PORTABLE stubs (testsocket / testcpuid /
+                      testfevent / testevent / testsetmainloop /
+                      testexitmainloop / testexithandler /
+                      testservicemode / teststaticlibrary / testlink /
+                      testlinkarray / testchannel / testchannelevent /
+                      testfilesystem / testsimplefilesystem / testfile /
+                      testfilelink / testfstildeexpand /
+                      testtranslatefilename / testasync) plus the
+                      ``noop`` trivial command.
+```
 
 ## Verification
 

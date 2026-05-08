@@ -127,7 +127,10 @@ fn eval_testintobj(words: []const i32) result_mod.InterpResult {
 
     if (obj_eq_lit(words[1], "setmax")) {
         const sr = slot_or_err(words[2]);
-        const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+        const slot = switch (sr) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         if (words.len != 3) return err_msg("wrong # args: testintobj setmax varIndex");
         const v = obj.obj_new_int(std.math.maxInt(i64));
         slots.set(slot, v);
@@ -135,7 +138,10 @@ fn eval_testintobj(words: []const i32) result_mod.InterpResult {
     }
     if (obj_eq_lit(words[1], "setmin")) {
         const sr = slot_or_err(words[2]);
-        const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+        const slot = switch (sr) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         if (words.len != 3) return err_msg("wrong # args: testintobj setmin varIndex");
         const v = obj.obj_new_int(std.math.minInt(i64));
         slots.set(slot, v);
@@ -144,7 +150,10 @@ fn eval_testintobj(words: []const i32) result_mod.InterpResult {
 
     if (words.len < 3) return err_msg("wrong # args");
     const sr = slot_or_err(words[2]);
-    const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+    const slot = switch (sr) {
+        .ok => |s| s,
+        .err => |e| return e,
+    };
 
     if (obj_eq_lit(words[1], "set") or obj_eq_lit(words[1], "setint")) {
         if (words.len != 4) return err_msg("wrong # args: testintobj set/setint varIndex value");
@@ -214,7 +223,10 @@ fn eval_testintobj(words: []const i32) result_mod.InterpResult {
 fn eval_testbooleanobj(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return err_msg("wrong # args: testbooleanobj option arg ?arg ...?");
     const sr = slot_or_err(words[2]);
-    const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+    const slot = switch (sr) {
+        .ok => |s| s,
+        .err => |e| return e,
+    };
 
     if (obj_eq_lit(words[1], "set")) {
         if (words.len != 4) return err_msg("wrong # args: testbooleanobj set varIndex value");
@@ -246,7 +258,10 @@ fn eval_testbooleanobj(words: []const i32) result_mod.InterpResult {
 fn eval_testdoubleobj(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return err_msg("wrong # args: testdoubleobj option arg ?arg ...?");
     const sr = slot_or_err(words[2]);
-    const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+    const slot = switch (sr) {
+        .ok => |s| s,
+        .err => |e| return e,
+    };
 
     if (obj_eq_lit(words[1], "set")) {
         if (words.len != 4) return err_msg("wrong # args: testdoubleobj set varIndex value");
@@ -287,7 +302,10 @@ fn eval_testdoubleobj(words: []const i32) result_mod.InterpResult {
 fn eval_testbignumobj(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return err_msg("wrong # args: testbignumobj option arg ?arg ...?");
     const sr = slot_or_err(words[2]);
-    const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+    const slot = switch (sr) {
+        .ok => |s| s,
+        .err => |e| return e,
+    };
 
     if (obj_eq_lit(words[1], "set")) {
         if (words.len != 4) return err_msg("wrong # args: testbignumobj set varIndex value");
@@ -410,7 +428,10 @@ fn eval_testindexobj(words: []const i32) result_mod.InterpResult {
 fn eval_testlistobj(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return err_msg("wrong # args: testlistobj option arg ?arg ...?");
     const sr = slot_or_err(words[2]);
-    const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+    const slot = switch (sr) {
+        .ok => |s| s,
+        .err => |e| return e,
+    };
 
     const tcl_list = @import("../valtypes/tcl_list.zig");
     if (obj_eq_lit(words[1], "set")) {
@@ -484,7 +505,10 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "newobj")) {
         if (words.len != 3) return err_msg("wrong # args: testobj newobj varIndex");
         const sr = slot_or_err(words[2]);
-        const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+        const slot = switch (sr) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         const v = obj.obj_new_string(0, 0);
         slots.set(slot, v);
         return result_mod.ok(v);
@@ -492,7 +516,10 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "set")) {
         if (words.len != 4) return err_msg("wrong # args: testobj set varIndex value");
         const sr = slot_or_err(words[2]);
-        const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+        const slot = switch (sr) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         slots.set(slot, words[3]);
         return result_mod.from_globals(0);
     }
@@ -507,7 +534,10 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
     if (obj_eq_lit(words[1], "type")) {
         if (words.len != 3) return err_msg("wrong # args: testobj type varIndex");
         const sr = slot_or_err(words[2]);
-        const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+        const slot = switch (sr) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         if (check_unset(slot)) |e| return e;
         const t = obj.obj_type(slots.get(slot));
         return result_mod.ok(obj.obj_new_string_copy(
@@ -517,17 +547,33 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
     }
     if (obj_eq_lit(words[1], "assign")) {
         if (words.len != 4) return err_msg("wrong # args: testobj assign varIndex destIndex");
-        const src = slot_or_err(words[2]); const sslot = switch (src) { .ok => |s| s, .err => |e| return e };
+        const src = slot_or_err(words[2]);
+        const sslot = switch (src) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         if (check_unset(sslot)) |e| return e;
-        const dst = slot_or_err(words[3]); const dslot = switch (dst) { .ok => |s| s, .err => |e| return e };
+        const dst = slot_or_err(words[3]);
+        const dslot = switch (dst) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         slots.set(dslot, slots.get(sslot));
         return result_mod.ok(slots.get(dslot));
     }
     if (obj_eq_lit(words[1], "duplicate")) {
         if (words.len != 4) return err_msg("wrong # args: testobj duplicate varIndex destIndex");
-        const src = slot_or_err(words[2]); const sslot = switch (src) { .ok => |s| s, .err => |e| return e };
+        const src = slot_or_err(words[2]);
+        const sslot = switch (src) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         if (check_unset(sslot)) |e| return e;
-        const dst = slot_or_err(words[3]); const dslot = switch (dst) { .ok => |s| s, .err => |e| return e };
+        const dst = slot_or_err(words[3]);
+        const dslot = switch (dst) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         // "Duplicate" semantically: build a fresh string-rep obj.  Our
         // tagged-immediate values are already shared-safe; for non-
         // immediate types we copy the string rep.
@@ -538,7 +584,11 @@ fn eval_testobj(words: []const i32) result_mod.InterpResult {
     }
     if (obj_eq_lit(words[1], "convert")) {
         if (words.len != 4) return err_msg("wrong # args: testobj convert varIndex type");
-        const sr = slot_or_err(words[2]); const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+        const sr = slot_or_err(words[2]);
+        const slot = switch (sr) {
+            .ok => |s| s,
+            .err => |e| return e,
+        };
         if (check_unset(slot)) |e| return e;
         // Forces materialisation by reading the string rep — that's
         // the closest portable approximation of Tcl_ConvertToType.
@@ -579,7 +629,10 @@ fn type_name(tag: i32) []const u8 {
 fn eval_teststringobj(words: []const i32) result_mod.InterpResult {
     if (words.len < 3) return err_msg("wrong # args: teststringobj option arg ?arg ...?");
     const sr = slot_or_err(words[2]);
-    const slot = switch (sr) { .ok => |s| s, .err => |e| return e };
+    const slot = switch (sr) {
+        .ok => |s| s,
+        .err => |e| return e,
+    };
 
     if (obj_eq_lit(words[1], "set") or obj_eq_lit(words[1], "set2")) {
         if (words.len != 4) return err_msg("wrong # args: teststringobj set varIndex value");

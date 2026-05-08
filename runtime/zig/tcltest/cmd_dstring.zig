@@ -167,12 +167,12 @@ fn eval_testdstring(words: []const i32) result_mod.InterpResult {
         if (obj_eq_lit(words[2], "staticlarge")) {
             return result_mod.ok(build_msg(
                 "first0 first1 first2 first3 first4 first5 first6 first7 first8 first9\n" ++
-                "second0 second1 second2 second3 second4 second5 second6 second7 second8 second9\n" ++
-                "third0 third1 third2 third3 third4 third5 third6 third7 third8 third9\n" ++
-                "fourth0 fourth1 fourth2 fourth3 fourth4 fourth5 fourth6 fourth7 fourth8 fourth9\n" ++
-                "fifth0 fifth1 fifth2 fifth3 fifth4 fifth5 fifth6 fifth7 fifth8 fifth9\n" ++
-                "sixth0 sixth1 sixth2 sixth3 sixth4 sixth5 sixth6 sixth7 sixth8 sixth9\n" ++
-                "seventh0 seventh1 seventh2 seventh3 seventh4 seventh5 seventh6 seventh7 seventh8 seventh9\n",
+                    "second0 second1 second2 second3 second4 second5 second6 second7 second8 second9\n" ++
+                    "third0 third1 third2 third3 third4 third5 third6 third7 third8 third9\n" ++
+                    "fourth0 fourth1 fourth2 fourth3 fourth4 fourth5 fourth6 fourth7 fourth8 fourth9\n" ++
+                    "fifth0 fifth1 fifth2 fifth3 fifth4 fifth5 fifth6 fifth7 fifth8 fifth9\n" ++
+                    "sixth0 sixth1 sixth2 sixth3 sixth4 sixth5 sixth6 sixth7 sixth8 sixth9\n" ++
+                    "seventh0 seventh1 seventh2 seventh3 seventh4 seventh5 seventh6 seventh7 seventh8 seventh9\n",
             ));
         }
         if (obj_eq_lit(words[2], "free")) {

@@ -47,52 +47,84 @@ const NOT_YET_PORTED = "not yet ported to the WASM runtime";
 
 // -- NOT-PORTABLE stubs ----------------------------------------------------
 
-fn st_testsocket(w: []const i32) result_mod.InterpResult { return stub_named(w, "testsocket", NOT_SUPPORTED ++ " (BSD sockets unavailable)"); }
-fn st_testcpuid(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcpuid", NOT_SUPPORTED ++ " (x86 cpuid unavailable)"); }
-fn st_testfevent(w: []const i32) result_mod.InterpResult { return stub_named(w, "testfevent", NOT_SUPPORTED ++ " (file events: no event loop)"); }
-fn st_testevent(w: []const i32) result_mod.InterpResult { return stub_named(w, "testevent", NOT_SUPPORTED ++ " (no event loop)"); }
-fn st_testsetmainloop(w: []const i32) result_mod.InterpResult { return stub_named(w, "testsetmainloop", NOT_SUPPORTED ++ " (no main loop)"); }
-fn st_testexitmainloop(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexitmainloop", NOT_SUPPORTED ++ " (no main loop)"); }
-fn st_testexithandler(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexithandler", NOT_SUPPORTED ++ " (no atexit hooks)"); }
-fn st_testservicemode(w: []const i32) result_mod.InterpResult { return stub_named(w, "testservicemode", NOT_SUPPORTED ++ " (no event service mode)"); }
-fn st_teststaticlibrary(w: []const i32) result_mod.InterpResult { return stub_named(w, "teststaticlibrary", NOT_SUPPORTED ++ " (dynamic loading unavailable)"); }
-fn st_testlink(w: []const i32) result_mod.InterpResult { return stub_named(w, "testlink", NOT_SUPPORTED ++ " (Tcl_LinkVar requires C address probes)"); }
-fn st_testlinkarray(w: []const i32) result_mod.InterpResult { return stub_named(w, "testlinkarray", NOT_SUPPORTED ++ " (Tcl_LinkArray requires C address probes)"); }
-fn st_testchannel(w: []const i32) result_mod.InterpResult { return stub_named(w, "testchannel", NOT_SUPPORTED ++ " (channel internals)"); }
-fn st_testchannelevent(w: []const i32) result_mod.InterpResult { return stub_named(w, "testchannelevent", NOT_SUPPORTED ++ " (no event loop)"); }
-fn st_testfilesystem(w: []const i32) result_mod.InterpResult { return stub_named(w, "testfilesystem", NOT_SUPPORTED ++ " (Tcl_FSRegister C API)"); }
-fn st_testsimplefilesystem(w: []const i32) result_mod.InterpResult { return stub_named(w, "testsimplefilesystem", NOT_SUPPORTED ++ " (Tcl_FSRegister C API)"); }
-fn st_testfile(w: []const i32) result_mod.InterpResult { return stub_named(w, "testfile", NOT_SUPPORTED ++ " (native FS probes)"); }
-fn st_testfilelink(w: []const i32) result_mod.InterpResult { return stub_named(w, "testfilelink", NOT_SUPPORTED ++ " (symlink semantics)"); }
-fn st_testfstildeexpand(w: []const i32) result_mod.InterpResult { return stub_named(w, "testfstildeexpand", NOT_SUPPORTED ++ " (HOME/passwd lookup)"); }
-fn st_testtranslatefilename(w: []const i32) result_mod.InterpResult { return stub_named(w, "testtranslatefilename", NOT_SUPPORTED ++ " (native FS probes)"); }
-fn st_testasync(w: []const i32) result_mod.InterpResult { return stub_named(w, "testasync", NOT_SUPPORTED ++ " (Tcl_AsyncMark requires async signal delivery)"); }
+fn st_testsocket(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testsocket", NOT_SUPPORTED ++ " (BSD sockets unavailable)");
+}
+fn st_testcpuid(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testcpuid", NOT_SUPPORTED ++ " (x86 cpuid unavailable)");
+}
+fn st_testfevent(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testfevent", NOT_SUPPORTED ++ " (file events: no event loop)");
+}
+fn st_testevent(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testevent", NOT_SUPPORTED ++ " (no event loop)");
+}
+fn st_testsetmainloop(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testsetmainloop", NOT_SUPPORTED ++ " (no main loop)");
+}
+fn st_testexitmainloop(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testexitmainloop", NOT_SUPPORTED ++ " (no main loop)");
+}
+fn st_testexithandler(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testexithandler", NOT_SUPPORTED ++ " (no atexit hooks)");
+}
+fn st_testservicemode(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testservicemode", NOT_SUPPORTED ++ " (no event service mode)");
+}
+fn st_teststaticlibrary(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "teststaticlibrary", NOT_SUPPORTED ++ " (dynamic loading unavailable)");
+}
+fn st_testlink(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testlink", NOT_SUPPORTED ++ " (Tcl_LinkVar requires C address probes)");
+}
+fn st_testlinkarray(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testlinkarray", NOT_SUPPORTED ++ " (Tcl_LinkArray requires C address probes)");
+}
+fn st_testchannel(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testchannel", NOT_SUPPORTED ++ " (channel internals)");
+}
+fn st_testchannelevent(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testchannelevent", NOT_SUPPORTED ++ " (no event loop)");
+}
+fn st_testfilesystem(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testfilesystem", NOT_SUPPORTED ++ " (Tcl_FSRegister C API)");
+}
+fn st_testsimplefilesystem(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testsimplefilesystem", NOT_SUPPORTED ++ " (Tcl_FSRegister C API)");
+}
+fn st_testfile(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testfile", NOT_SUPPORTED ++ " (native FS probes)");
+}
+fn st_testfilelink(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testfilelink", NOT_SUPPORTED ++ " (symlink semantics)");
+}
+fn st_testfstildeexpand(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testfstildeexpand", NOT_SUPPORTED ++ " (HOME/passwd lookup)");
+}
+fn st_testtranslatefilename(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testtranslatefilename", NOT_SUPPORTED ++ " (native FS probes)");
+}
+fn st_testasync(w: []const i32) result_mod.InterpResult {
+    return stub_named(w, "testasync", NOT_SUPPORTED ++ " (Tcl_AsyncMark requires async signal delivery)");
+}
 
 // -- NOT-YET-PORTED stubs --------------------------------------------------
 
-fn st_testdel(w: []const i32) result_mod.InterpResult { return stub_named(w, "testdel", NOT_YET_PORTED); }
+// testdel — graduated to cmd_cmdinfo.zig
 // assoc-data — graduated to cmd_assoc.zig
-fn st_testcmdinfo(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdinfo", NOT_YET_PORTED); }
-fn st_testcmdtoken(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdtoken", NOT_YET_PORTED); }
-fn st_testcmdtrace(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdtrace", NOT_YET_PORTED); }
-fn st_testcmdobj2(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdobj2", NOT_YET_PORTED); }
-fn st_testcreatecommand(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcreatecommand", NOT_YET_PORTED); }
-fn st_testinterpdelete(w: []const i32) result_mod.InterpResult { return stub_named(w, "testinterpdelete", NOT_YET_PORTED); }
+// testcmdinfo / testcmdtoken / testcmdtrace / testcmdobj2 /
+// testcreatecommand / testinterpdelete — graduated to cmd_cmdinfo.zig
 // testdstring — graduated to cmd_dstring.zig
-fn st_testencoding(w: []const i32) result_mod.InterpResult { return stub_named(w, "testencoding", NOT_YET_PORTED); }
-fn st_testparser(w: []const i32) result_mod.InterpResult { return stub_named(w, "testparser", NOT_YET_PORTED); }
-fn st_testparsevar(w: []const i32) result_mod.InterpResult { return stub_named(w, "testparsevar", NOT_YET_PORTED); }
-fn st_testparsevarname(w: []const i32) result_mod.InterpResult { return stub_named(w, "testparsevarname", NOT_YET_PORTED); }
-fn st_testexprparser(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprparser", NOT_YET_PORTED); }
+// testparser / testparsevar / testparsevarname / testexprparser
+// — graduated to cmd_parser.zig
+// testencoding — graduated to cmd_extra.zig
 // expr cluster (testexprlong/testexprlongobj/testexprdouble/
 // testexprdoubleobj/testexprstring/testconcatobj) — graduated to
 // cmd_expr.zig
 // testupvar / testgetvarfullname — graduated to cmd_var.zig
-fn st_testregexp(w: []const i32) result_mod.InterpResult { return stub_named(w, "testregexp", NOT_YET_PORTED); }
-fn st_testlistrep(w: []const i32) result_mod.InterpResult { return stub_named(w, "testlistrep", NOT_YET_PORTED); }
-fn st_testinterpresolver(w: []const i32) result_mod.InterpResult { return stub_named(w, "testinterpresolver", NOT_YET_PORTED); }
-fn st_test_build_info(w: []const i32) result_mod.InterpResult { return stub_named(w, "::tcl::test::build-info", NOT_YET_PORTED); }
-fn st_test_ns_basic_createdcommand(w: []const i32) result_mod.InterpResult { return stub_named(w, "test_ns_basic::createdcommand", NOT_YET_PORTED); }
+// testregexp / testlistrep / ::tcl::test::build-info /
+// test_ns_basic::createdcommand — graduated to cmd_extra.zig
+// testinterpresolver — graduated to cmd_cmdinfo.zig
 // abslist (lstring / lgen / value:at:) — graduated to cmd_abslist.zig
 // procbody — graduated to cmd_proc.zig
 
@@ -120,29 +152,20 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "testasync", .arity_min = 0, .arity_max = null, .handler = &st_testasync },
 
     // NOT-YET-PORTED — graduate one by one
-    .{ .name = "testdel", .arity_min = 0, .arity_max = null, .handler = &st_testdel },
+    // testdel — graduated to cmd_cmdinfo.zig
     // assoc-data — graduated to cmd_assoc.zig
-    .{ .name = "testcmdinfo", .arity_min = 0, .arity_max = null, .handler = &st_testcmdinfo },
-    .{ .name = "testcmdtoken", .arity_min = 0, .arity_max = null, .handler = &st_testcmdtoken },
-    .{ .name = "testcmdtrace", .arity_min = 0, .arity_max = null, .handler = &st_testcmdtrace },
-    .{ .name = "testcmdobj2", .arity_min = 0, .arity_max = null, .handler = &st_testcmdobj2 },
-    .{ .name = "testcreatecommand", .arity_min = 0, .arity_max = null, .handler = &st_testcreatecommand },
-    .{ .name = "testinterpdelete", .arity_min = 0, .arity_max = null, .handler = &st_testinterpdelete },
+    // testcmdinfo / testcmdtoken / testcmdtrace / testcmdobj2 /
+    // testcreatecommand / testinterpdelete — graduated to cmd_cmdinfo.zig
     // testdstring — graduated to cmd_dstring.zig
-    .{ .name = "testencoding", .arity_min = 0, .arity_max = null, .handler = &st_testencoding },
-    .{ .name = "testparser", .arity_min = 0, .arity_max = null, .handler = &st_testparser },
-    .{ .name = "testparsevar", .arity_min = 0, .arity_max = null, .handler = &st_testparsevar },
-    .{ .name = "testparsevarname", .arity_min = 0, .arity_max = null, .handler = &st_testparsevarname },
-    .{ .name = "testexprparser", .arity_min = 0, .arity_max = null, .handler = &st_testexprparser },
+    // testencoding — graduated to cmd_extra.zig
+    // testparser / testparsevar / testparsevarname / testexprparser
+    // — graduated to cmd_parser.zig
     // expr cluster — graduated to cmd_expr.zig
     // testupvar / testgetvarfullname — graduated to cmd_var.zig
-    .{ .name = "testregexp", .arity_min = 0, .arity_max = null, .handler = &st_testregexp },
-    .{ .name = "testlistrep", .arity_min = 0, .arity_max = null, .handler = &st_testlistrep },
-    .{ .name = "testinterpresolver", .arity_min = 0, .arity_max = null, .handler = &st_testinterpresolver },
-
-    // Namespace-prefixed test commands
-    .{ .name = "::tcl::test::build-info", .arity_min = 0, .arity_max = null, .handler = &st_test_build_info },
-    .{ .name = "test_ns_basic::createdcommand", .arity_min = 0, .arity_max = null, .handler = &st_test_ns_basic_createdcommand },
+    // testregexp / testlistrep — graduated to cmd_extra.zig
+    // testinterpresolver — graduated to cmd_cmdinfo.zig
+    // ::tcl::test::build-info / test_ns_basic::createdcommand —
+    // graduated to cmd_extra.zig
     // value:at: / lstring / lgen — graduated to cmd_abslist.zig
     // tcl::procbodytest::proc / check — graduated to cmd_proc.zig
 
@@ -152,4 +175,7 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "noop", .arity_min = 0, .arity_max = null, .handler = &st_noop },
 };
 
-fn st_noop(w: []const i32) result_mod.InterpResult { _ = w; return result_mod.ok(obj.obj_new_string(0, 0)); }
+fn st_noop(w: []const i32) result_mod.InterpResult {
+    _ = w;
+    return result_mod.ok(obj.obj_new_string(0, 0));
+}
