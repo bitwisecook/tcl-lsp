@@ -884,19 +884,23 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
-Refreshed: 2026-05-07 (re-audited later same day against
-`origin/main`@`8b68af55`, `origin/rust`@`7364fd85`; previous audit
-was `31d5d473` / `9205b90b`).
+Refreshed: 2026-05-08 (re-audited against
+`origin/main`@`015288cf`, `origin/rust`@`9c779b31`; previous audit
+was `8b68af55` / `7364fd85`).
 
-`main` carries 97 commits past the last rust-side rebase point
-(`SYNC-MAY26`).  The 3 commits added since the morning audit
-(`#347` Zig dict iter / array upvar; `#348` regexp/regsub +
-coroutine semantics; `#349` WASM test-bucket categorisation) are
-all out of scope except for one new Python registry entry —
-`::tcl::unsupported::corotype` — added in `#348`.  That mirror
-landed in PR #355 (`rust/tcl-registry/src/commands/tcl/tcl_unsupported_corotype.rs`
-+ `mod.rs` registration) and is not tracked in the Outstanding
-table.
+`main` carries 104 commits past the last rust-side rebase point
+(`SYNC-MAY26`).  The 7 commits added since the 2026-05-07 audit
+are: `#347` Zig dict iter / array upvar (out of scope); `#348`
+regexp/regsub + coroutine semantics (out of scope, except the
+`::tcl::unsupported::corotype` registry entry mirrored in PR #355);
+`#349` WASM test-bucket categorisation (out of scope); `#358`
+pre-populate `::tcl::*` / `::oo::*` runtime namespaces (out of
+scope — runtime); `#359` non-finite float rendering (out of
+scope — runtime); `#360` subnormal float rendering (out of
+scope — runtime); `#361` / `#363` / `#364` Tcl 9 core test slice
+harness + tcltest WASM port (out of scope — runtime/Zig); `#356`
+"Centralise frame/no-frame compiler architecture" — **in scope**,
+new row added below (`SYNC-JUN-FRAME356-interp-boundaries`).
 
 Triage:
 
@@ -907,7 +911,7 @@ Triage:
   drive-bys, runtime test categorisation.  None has a Rust
   mirror; absorbed silently when the corresponding Rust crate
   ships.
-- **In scope (10 commits / 7 distinct work items)** —
+- **In scope (11 commits / 8 distinct work items)** —
   enumerated below.  All affect a Rust-mirrored area
   (analyser suppression, var\_escape, CFG lowering, IR /
   lowering hooks, expression evaluator, registry).
@@ -926,11 +930,13 @@ Triage:
 | open | `342d4c7a` (#331) | Full `lsearch` option surface (`-glob` / `-regexp` / `-exact` / `-sorted` / `-index` / `-inline` / `-not` / `-all` / `-stride`) and `foreach` multi-iterator binding.  Touches `cfg.py`, `lowering.py`, `ir.py`, `passes/dce.py`, `tcl_expr_eval.py`. | matching modules in `rust/tcl-compiler/src/`; new IR variant or arg-role coverage for the multi-iterator foreach binding | `SYNC-JUN-LSEARCH331-foreach-multi-iter` |
 | open | `6c7a7c42` | `var_escape`: any non-literal `upvar LEVEL` (i.e. anything that isn't a decimal digit literal or `#N`) is treated as dynamic, blocking slot lifting. Touches `_propagation.py` + `_cfg_propagation.py`. | `rust/tcl-compiler/src/var_escape/{propagation,cfg_propagation}.rs` | `SYNC-JUN-VARESC-dynamic-upvar` |
 | open | `d5ac467c` | CFG: detect literal-target `uplevel 1 set x ...` writes so they materialise as defs in the caller's frame instead of opaque barriers. | `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs::lower_uplevel` (currently models all uplevel as barrier) | `SYNC-JUN-CFG-uplevel-literal-set` |
+| open | `015288cf` (#356) | Centralise frame/no-frame compiler architecture: extends `var_escape` with new fact surface (~700 LOC of changes across `_api.py` / `_cfg_propagation.py` / `_propagation.py` / `_types.py` / `__init__.py`); adds new `core/compiler/passes/interp_boundaries.py` pass (287 LOC) tracking interp-share / coroutine / `info frame` boundaries that block frame-routing assumptions; +34 LOC on `ir.py` and +13 on `compilation_unit.py` to thread the new fact set.  WASM-emitter hunks in the same commit are out of scope (no Rust mirror). | extend `rust/tcl-compiler/src/var_escape/{api,cfg_propagation,propagation,types,mod}.rs` with the new fact surface; add new `rust/tcl-compiler/src/passes/interp_boundaries.rs` (or as a sibling module if `passes/` doesn't exist) mirroring the Python pass; thread the new facts into `ir.rs` and `compilation_unit.rs`. | `SYNC-JUN-FRAME356-interp-boundaries` |
 | open | n/a (pre-existing breakage from PR #241) | `tests/test_rust_analyser_differential.py` is broken: line 37's `from core.analysis._analyser import _materialise_rust_analysis` raises `ImportError`. The symbol was deleted when `__init__.py` was simplified at `cd7a8441`. The whole differential harness has been silently uncovered since 2026-04-30. | Either restore a minimal `_materialise_rust_analysis` shim that consumes `tcl_lsp_rust.analyser_analyse` output (so the harness can keep running differential checks against the Rust analyser library) **or** delete the test file outright (consistent with the dispatch removal). The first option preserves the differential harness; the second matches the established direction of the C41 family closing with `S*`. | `SYNC-JUN-DIFF-harness-restore` (or `-delete`) |
 
-All seven rows are independently shippable; suggested order is
-the table order (suppression → var\_escape → expr → CFG), which
-mirrors the analyser-pipeline dependency graph.  Each row should
+All eight rows are independently shippable; suggested order is
+the table order (suppression → var\_escape → expr → CFG →
+frame-architecture), which mirrors the analyser-pipeline
+dependency graph.  Each row should
 land as a `SYNC-JUN-*` chunk PR base = `rust`, and the row should
 be deleted from this table (not just marked landed) once the
 matching PR merges — this section's purpose is the *open*
