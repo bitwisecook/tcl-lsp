@@ -1847,6 +1847,90 @@ return [main]
         _, stdout = _run_wasm(wasm, capture_stdout=True)
         assert stdout == "v=42 done\n"
 
+    def test_qualified_array_read_inside_string_subst(self):
+        """``$::arr(key)`` inside a nested ``[cmd ...]`` substitution.
+
+        The bare-name scan in ``_scan_value_for_array_refs`` advances
+        past namespace separators in pairs (``::`` → +2); a single-
+        step advance left the second colon to terminate the scan, so
+        ``$::myarr(`` was never recognised and ``tcl_array_get`` was
+        never imported.  ``_emit_array_element_read`` then silently
+        emitted ``i32.const 0`` for the read, the unset-check fired,
+        and the bundle trapped ``can't read "::myarr(x)": no such
+        variable`` even though the array existed.
+
+        Reproduces the cmdAH.test:25 ``testConstraint time64bit
+        [expr {... $::tcl_platform(pointerSize) ...}]`` shape via
+        the simplest equivalent: a fully-qualified global array
+        consumed by an outer command substitution.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set ::myarr {x hello}\nputs [string length $::myarr(x)]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "5\n"
+
+    def test_qualified_array_read_inside_expr_subst(self):
+        """Mirror of :meth:`test_qualified_array_read_inside_string_subst`
+        for the ``[expr {...}]`` command-substitution path.
+
+        cmdAH.test's actual call shape is ``testConstraint time64bit
+        [expr {... ?  ...  : $::tcl_platform(pointerSize)}]`` — the
+        ternary's false branch evaluates the array read inside the
+        nested ``[expr]`` cmd-sub.  Same root cause as the string-
+        subst case: the value-level array-ref scanner missed the
+        ``$::name(`` shape and the import dropped out.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set ::tcl_platform {pointerSize 4}\n"
+            "puts [expr {$::tcl_platform(pointerSize) >= 8}]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "0\n"
+
+    def test_braced_array_read_inside_expr_subst(self):
+        """``${arr(idx)}`` (braced form) inside a ``[expr {…}]`` cmd-
+        substitution.  The expression lexer wraps everything between
+        ``${`` and ``}`` into a single VARIABLE token whose ``text``
+        ends with ``}`` — distinct from the bare ``$arr(idx)`` shape
+        whose text ends with ``)``.  The expr-body import scanner has
+        to recognise both endings so ``tcl_array_get`` reaches the
+        module imports for either form; otherwise the fallback
+        ``i32.const 0`` path raises ``can't read "arr(idx)": no such
+        variable`` at runtime.
+        """
+        wasm, _ = _compile_tcl_with_diag("set ::myarr(x) 7\nputs [expr {${::myarr(x)} + 1}]\n")
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "8\n"
+
+    def test_qualified_array_read_in_runtime_expr_eval(self):
+        """``$::arr(key)`` inside an expression evaluated by the
+        runtime interpreter (eval-fallback path).
+
+        ``parse_var`` in ``runtime/zig/interp/tcl_expr_eval.zig`` only
+        consumed identifier characters and lone ``:``s when scanning
+        a bareword variable reference, so a fully-qualified array
+        element ``$::arr(key)`` ended its slice at ``$::arr`` and the
+        downstream ``subst_flagged`` lookup treated the array name as
+        a scalar — failing with ``can't read "::arr": no such
+        variable`` even when the array existed.  cmdAH.test's
+        ``testConstraint time64bit [expr {... $::tcl_platform(pointerSize)}]``
+        hits this path because the ``testConstraint`` proc is
+        eval-fallback-dispatched, so its ``[expr]`` arg is evaluated
+        by the runtime interpreter rather than the AOT-compiled
+        expr emitter.
+
+        Force the same shape with ``eval`` so the expression body
+        is parsed at runtime and routes through ``parse_var`` —
+        compile-time codegen would otherwise re-route the read.
+        """
+        wasm, _ = _compile_tcl_with_diag(
+            "array set ::tcl_platform {pointerSize 4}\n"
+            "puts [eval {expr {$::tcl_platform(pointerSize) >= 8}}]\n"
+        )
+        _, stdout = _run_wasm(wasm, capture_stdout=True)
+        assert stdout == "0\n"
+
 
 class TestNamespaceVariables:
     """Variables inside ``namespace eval ::ns { … }`` bodies must

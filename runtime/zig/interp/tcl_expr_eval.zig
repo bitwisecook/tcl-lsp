@@ -764,13 +764,39 @@ fn parse_var(s: *State) i32 {
         while (s.pos < s.len and s.src[s.pos] != '}') s.pos += 1;
         if (s.pos < s.len) s.pos += 1;
     } else {
+        // Bareword name scanner — matches the canonical version in
+        // ``subst_flagged_full``: identifier chars plus the ``::``
+        // namespace separator only.  A lone ``:`` terminates the
+        // name (so ``$x:foo`` resolves ``$x`` and leaves ``:foo``
+        // literal); accepting a single ``:`` would silently absorb
+        // it into the variable name and surface as a misleading
+        // ``can't read "x:foo"`` later.
         while (s.pos < s.len) {
             const ch = s.src[s.pos];
             if ((ch >= 'a' and ch <= 'z') or (ch >= 'A' and ch <= 'Z') or
-                (ch >= '0' and ch <= '9') or ch == '_' or ch == ':')
+                (ch >= '0' and ch <= '9') or ch == '_')
             {
                 s.pos += 1;
+            } else if (ch == ':' and s.pos + 1 < s.len and s.src[s.pos + 1] == ':') {
+                s.pos += 2;
             } else break;
+        }
+        // Array element form ``$arr(idx)``: extend the slice through
+        // the matching ``)`` so the downstream ``subst_flagged`` call
+        // sees the full ``$arr(idx)`` reference and dispatches to its
+        // array-lookup path.  Truncating the slice at ``$arr`` would
+        // route the lookup through ``var_resolve`` as if the user
+        // wrote ``$arr`` standalone, which then traps with
+        // ``can't read "arr": no such variable``.  Mirrors the
+        // array-form branch in ``subst_flagged_full``
+        // (parse/tcl_subst.zig): scan to the first ``)`` with no
+        // escape handling — both end-positions must agree so the
+        // recursive substitution of the index span sees the same
+        // bytes the expression parser advanced over.
+        if (s.pos < s.len and s.src[s.pos] == '(') {
+            s.pos += 1;
+            while (s.pos < s.len and s.src[s.pos] != ')') s.pos += 1;
+            if (s.pos < s.len) s.pos += 1; // consume ')'
         }
     }
     // Skip mode: source position has advanced past the variable

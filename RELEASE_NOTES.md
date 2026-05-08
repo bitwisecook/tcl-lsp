@@ -1,65 +1,52 @@
-# v1.8.0
+# v1.8.1
 
 ## New Features
-- Per-folder configuration: `tclLsp.*` settings now resolve per workspace
-  folder, so multi-folder VS Code workspaces honour distinct formatter and
-  diagnostic configuration per folder. Pull-config now happens on
-  initialisation via the pygls 2.x `Workspace.folders` API.
-- Cross-file namespace imports: the LSP now resolves `namespace import`
-  across files, including tcllib-style factory procs.
-- Variable traces on proc-locals: runtime supports `trace add variable`
-  on local variables in compiled procs.
-- `info frame` in compiled procs: typed result snapshot and per-frame
-  metadata enable accurate `info frame` and `info level` reporting,
-  including `info level 0` argv.
-- `interp share-variable` and coroutine frame isolation.
-- Full `lsearch` options support, and multi-iterator `foreach`
-  (`foreach a $l1 b $l2 {...}`).
-- Arbitrary-precision integers in `expr`: bignum support spans
-  comparison, bitwise, shift, `pow`, `int()` coercion, `mathop`, `incr`,
-  `format`, `scan`, and `string is integer/wideinteger`.
-- Combined `-nocase -length` form on `string compare` / `string equal`.
-- Child interpreters: full delete cascade, child-as-command dispatch,
-  per-parent `idIssuer`, and `interp.test` parity.
-- Eglot debugging support: bug-recorder and headless test harness for
-  upstream eglot issue #333, plus README workaround documentation.
+
+- WASM runtime now ships an optional `tcltest` extension, enabling Tcl 9 core
+  test slices to run inside the embedded VM.
+- Implemented `upvar` support for array elements, allowing aliases such as
+  `upvar 1 arr(key) localName` to work correctly.
+- Added a Tcl 9 core test slice harness with regression baselines for both the
+  Python VM and the Zig WASM runtime, tracked under `tests/baselines/`.
+- New `impossible_in_wasm_wasi` and `impossible_in_wasm_browser` capability
+  buckets so platform / host-capability tests are correctly classified per
+  target.
 
 ## Improvements
-- Diagnostic suppression: `noqa` / next-line annotations now cover
-  orphaned comments and the noqa-before-comment case (issue #306), with
-  scope for all suppression layers documented in the README.
-- WASM coverage: many more runtime commands implemented; substantial
-  fixes to `cmdAH`, `opt.test`, `dict` subcommands, `file` subcommand
-  abbreviations, and multi-token quoting.
-- Error handling: automatic `errorCode TCL WRONGARGS` tagging, dynamic
-  switch handler, and proper routing of user `return -code error` through
-  the 3-arg error sink.
-- Tcl 9 test suite: two null-pointer traps fixed and eight previously
-  failing suites now gated and passing.
-- Internal architecture: command registry-driven dispatch in both the
-  WASM emitter and the Zig runtime; large modules
-  (`core/analysis/analyser.py`, `lsp/server.py`, `wasm/_emitter.py`,
-  `runtime/zig/tcl_interp.zig`) split into focused leaf modules and
-  mixin packages, improving maintainability.
-- Compiled-frame `upvar` / `uplevel` correctness for `opt.test`, with
-  signal propagation across compiled-proc boundaries.
-- Build: dropped `python-minifier` from the zipapp pipeline.
-- Security: pinned `@azure/msal-node` to `^5.1.5` to address the
-  `uuid<14` advisory in the VS Code extension.
+
+- Variable completion now preserves the leading `$` and any partial token via
+  a precise `TextEdit`, eliminating duplicated dollar signs and
+  truncated-prefix glitches in editors that apply completions verbatim
+  (issue #362).
+- Lazy materialisation of `BUILTIN` namespaces speeds up `namespace import` of
+  rarely used namespaces and reduces start-up cost for large workspaces.
+- Pre-populated `::tcl::*` and `::oo::*` implementation namespaces so
+  reflection commands (`namespace children`, `info commands`) match Tcl 9
+  behaviour out of the box.
+- Non-finite floats now render as `Inf` / `-Inf` / `NaN` to match Tcl 9.0.3,
+  and subnormal floats use `Tcl_PrintDouble`-style formatting for
+  byte-for-byte parity with the reference interpreter.
+- Centralised the frame / no-frame compiler architecture, simplifying codegen
+  for commands that switch between framed and non-framed execution and
+  extending the embedded C Tcl reference data.
+- Implemented Tcl 9 expression semantics across the compiler and VM, bringing
+  arithmetic, comparison, and bitwise operator behaviour in line with Tcl
+  9.0.3.
 
 ## Bug Fixes
-- Memory: plugged `TclObj` / buffer leaks across proc-call, list, error,
-  and parse-cache paths (issue #317); `frame_depth_restore` now releases
-  the orphan frame buffer; `obj_new_string_take` frees its buffer on
-  OOM; `parse_cache` gates `free_bucket_slab` on occupied buckets.
-- `upvar` rejects negative levels with a bad-level error; non-literal
-  upvar levels are treated as dynamic in `var_escape`.
-- `arr(key)` reads and writes are routed through the array directory in
-  `var_*`.
-- `double(x)` raises on non-numeric coercion.
-- Codegen folds `\<newline>` line continuations inside interpolated
-  strings; multi-element list literals retain their braces; `catch`
-  return-code propagation fixed in WASM.
-- Six pre-existing Zig test-suite failures resolved.
-- `var_escape`: literal-target `uplevel` writes (e.g. `uplevel 1 set x …`)
-  are now detected by the CFG analysis.
+
+- Fix qualified array reads (`$ns::arr(key)`) inside nested command
+  substitutions, which previously failed to resolve the namespace prefix
+  (issue #370).
+- Fix integer overflow in `lseq` when called with large floating-point
+  arguments — the runtime now produces the same error as Tcl 9 instead of
+  wrapping around (issue #369).
+- Fix `regexp` / `regsub` error handling so failures propagate correctly, and
+  fix coroutine semantics around yielded results.
+- Fix i32 negation overflow in the WASM runtime (negating `INT32_MIN` no
+  longer traps).
+- Fix array name resolution for global aliases and the root namespace, so
+  `::arr(key)` and global aliases pointing at array elements resolve
+  consistently.
+- Fix variable resolution and trace dispatch inside namespace contexts so
+  read / write traces fire reliably for namespace-qualified variables.

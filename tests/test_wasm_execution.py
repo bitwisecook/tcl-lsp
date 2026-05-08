@@ -1510,6 +1510,71 @@ class TestListOperations:
         )
         assert result == "hello world"
 
+    def test_lseq_basic_count(self):
+        """lseq N -> 0..N-1."""
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 5 }\n",
+            "f",
+            (),
+        )
+        assert result == "0 1 2 3 4"
+
+    def test_lseq_start_end(self):
+        """lseq START END -> START..END (direction inferred)."""
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 3 7 }\n",
+            "f",
+            (),
+        )
+        assert result == "3 4 5 6 7"
+
+    def test_lseq_decreasing(self):
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 10 1 }\n",
+            "f",
+            (),
+        )
+        assert result == "10 9 8 7 6 5 4 3 2 1"
+
+    def test_lseq_large_double_does_not_panic(self):
+        """``lseq`` on float inputs that clamp to i64 extremes must not
+        trip Zig's integer-overflow safety panic.
+
+        Regression test for the WASM-runtime trap surfaced by
+        ``lseq.test`` lseq-1.27, which calls ``lseq 1e50 [expr {1e50+1}]``.
+        Both arguments clamp to ``i64_max``; before the fix the loop
+        body would emit one element and then panic on ``i += step``.
+        We don't yet support arbitrary-precision arith-series, so the
+        result content is intentionally unspecified — what matters is
+        that the bundle does not trap, leaving the rest of the file
+        free to run.
+        """
+        # The body must complete (returning *some* string) rather
+        # than trapping; downstream lseq tests then get to execute.
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 1e50 [expr {1e50+1}] }\n",
+            "f",
+            (),
+        )
+        assert isinstance(result, str)
+
+    def test_lseq_negative_huge_double_step_does_not_panic(self):
+        """``lseq`` with a negative-float step that clamps to
+        ``i64_min`` must not panic on ``-step_val`` when computing
+        ``abs(step)`` for the max-count guard.
+
+        With ``start == end == i64_max`` the span is zero and so
+        cannot bail out via the overflow-on-subtraction path; the
+        next guard takes ``abs(step_val)`` to feed ``@divTrunc`` and
+        ``-i64_min`` is the panic site this test pins down.
+        """
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 1e50 1e50 -1e50 }\n",
+            "f",
+            (),
+        )
+        assert isinstance(result, str)
+
 
 # Dict operations
 

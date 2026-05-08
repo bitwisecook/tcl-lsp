@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T14:58:06Z",
+  "generated_at": "2026-05-08T16:43:32Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -60,9 +60,9 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 42,
+      "failed_max": 43,
       "passed_min": 54,
-      "skipped": 1,
+      "skipped": 0,
       "total": 97
     },
     "compExpr": {
@@ -75,12 +75,12 @@
       "total": 82
     },
     "compExpr-old": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 181,
-      "skipped": 2,
+      "failed_max": 0,
+      "passed_min": 183,
+      "skipped": 1,
       "total": 184
     },
     "compile": {
@@ -132,18 +132,18 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 16,
-      "passed_min": 1097,
-      "skipped": 1055,
+      "failed_max": 19,
+      "passed_min": 1099,
+      "skipped": 1050,
       "total": 2168
     },
     "expr-old": {
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 3,
-      "passed_min": 431,
-      "skipped": 27,
+      "failed_max": 5,
+      "passed_min": 432,
+      "skipped": 24,
       "total": 461
     },
     "for": {
@@ -222,9 +222,9 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 67,
-      "passed_min": 214,
-      "skipped": 6,
+      "failed_max": 70,
+      "passed_min": 216,
+      "skipped": 1,
       "total": 287
     },
     "join": {
@@ -327,13 +327,13 @@
       "total": 165
     },
     "lseq": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
-      "crashed": true,
-      "failed_max": 0,
-      "passed_min": 0,
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 23,
+      "passed_min": 111,
       "skipped": 0,
-      "total": 0
+      "total": 134
     },
     "lset": {
       "bucket": "clean",
