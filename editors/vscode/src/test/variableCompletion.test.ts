@@ -176,15 +176,35 @@ suite("Variable Completion", () => {
   });
 
   test("array element completion offers known indices", async () => {
-    const items = await completionItems(docUri, "\n        puts $arr(", HELPER_BODY_INSERT);
-    const labels = items.map(labelOf);
-    assert.ok(
-      labels.includes("$arr(name)"),
-      `Expected $arr(name): ${labels.slice(0, 30).join(", ")}`,
-    );
-    assert.ok(
-      labels.includes("$arr(age)"),
-      `Expected $arr(age): ${labels.slice(0, 30).join(", ")}`,
-    );
+    // Use a balanced ``$arr()`` probe and place the cursor between the
+    // parens.  An unbalanced ``$arr(`` would let the lexer's array-index
+    // scanner eat the rest of the file looking for ``)``, which breaks
+    // the surrounding proc analysis and starves the LSP of array data.
+    const doc = await activate(docUri);
+    const insertOffset = doc.offsetAt(HELPER_BODY_INSERT);
+    const insertion = "\n        puts $arr()";
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(docUri, HELPER_BODY_INSERT, insertion);
+    await vscode.workspace.applyEdit(edit);
+    // Cursor goes between ``(`` and ``)`` -- one char before the end.
+    const completionPos = doc.positionAt(insertOffset + insertion.length - 1);
+    try {
+      const result = (await vscode.commands.executeCommand(
+        "vscode.executeCompletionItemProvider",
+        docUri,
+        completionPos,
+      )) as vscode.CompletionList;
+      const labels = result.items.map(labelOf);
+      assert.ok(
+        labels.includes("$arr(name)"),
+        `Expected $arr(name): ${labels.slice(0, 30).join(", ")}`,
+      );
+      assert.ok(
+        labels.includes("$arr(age)"),
+        `Expected $arr(age): ${labels.slice(0, 30).join(", ")}`,
+      );
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+    }
   });
 });
