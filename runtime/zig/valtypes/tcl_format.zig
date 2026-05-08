@@ -103,6 +103,11 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
     const out: [*]u8 = @ptrFromInt(buf_addr);
     var off: u32 = 0;
 
+    // Track positional / sequential mode: each spec must use the
+    // same shape, otherwise Tcl 9 raises ``cannot mix "%" and "%n$"
+    // conversion specifiers`` (test format-11.5 / 11.6 / 11.7).
+    var saw_positional = false;
+    var saw_sequential = false;
     var i: u32 = 0;
     while (i < fs.len) {
         const c = fp[i];
@@ -113,7 +118,10 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             continue;
         }
         i += 1;
-        if (i >= fs.len) break;
+        if (i >= fs.len) {
+            stubs.raise("format string ended in middle of field specifier");
+            return obj_new_string(0, 0);
+        }
         if (fp[i] == '%') {
             out[off] = '%';
             off += 1;
@@ -162,7 +170,11 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             // semantics; opt.test's ``OptTree`` (``format "%-*s"``)
             // depends on this for column alignment.
             i += 1;
-            const w_arg = if (arg_idx < args.len) args[arg_idx] else 0;
+            if (arg_idx >= args.len) {
+                stubs.raise("not enough arguments for all format specifiers");
+                return obj_new_string(0, 0);
+            }
+            const w_arg = args[arg_idx];
             arg_idx += 1;
             const w = obj_get_int(w_arg);
             // Negative widths are treated as left-aligned + abs(width).
@@ -183,7 +195,11 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             if (i < fs.len and fp[i] == '*') {
                 // ``%.*s`` — dynamic precision from the next arg.
                 i += 1;
-                const p_arg = if (arg_idx < args.len) args[arg_idx] else 0;
+                if (arg_idx >= args.len) {
+                    stubs.raise("not enough arguments for all format specifiers");
+                    return obj_new_string(0, 0);
+                }
+                const p_arg = args[arg_idx];
                 arg_idx += 1;
                 const p = obj_get_int(p_arg);
                 precision = if (p < 0) 0 else @intCast(p);
@@ -194,7 +210,10 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
                 }
             }
         }
-        if (i >= fs.len) break;
+        if (i >= fs.len) {
+            stubs.raise("format string ended in middle of field specifier");
+            return obj_new_string(0, 0);
+        }
         // C-style length modifiers (l, ll, h, hh, L, j, z, t, q).
         // Reference Tcl 9 reads all integers as wide so most are no-ops,
         // but ``h`` / ``hh`` truncate to short / signed-char before
@@ -207,17 +226,36 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
                 else => break,
             }
         }
-        if (i >= fs.len) break;
+        if (i >= fs.len) {
+            stubs.raise("format string ended in middle of field specifier");
+            return obj_new_string(0, 0);
+        }
         const conv = fp[i];
         i += 1;
 
-        // Pull the arg: explicit positional if requested, else the next
-        // sequential.  Out-of-range positionals fall through to 0 (empty
-        // string / zero), matching the fallthrough we already do for
-        // missing sequential args.
+        // Pull the arg: explicit positional if requested, else the
+        // next sequential.  Mixing positional and sequential specs in
+        // the same format string is an error.
         var pick: u32 = arg_idx;
-        if (explicit_arg) |idx| pick = idx;
-        const a = if (pick < args.len) args[pick] else 0;
+        if (explicit_arg) |idx| {
+            saw_positional = true;
+            pick = idx;
+        } else {
+            saw_sequential = true;
+        }
+        if (saw_positional and saw_sequential) {
+            stubs.raise("cannot mix \"%\" and \"%n$\" conversion specifiers");
+            return obj_new_string(0, 0);
+        }
+        if (pick >= args.len) {
+            if (explicit_arg != null) {
+                stubs.raise("\"%n$\" argument index out of range");
+            } else {
+                stubs.raise("not enough arguments for all format specifiers");
+            }
+            return obj_new_string(0, 0);
+        }
+        const a = args[pick];
         if (explicit_arg == null) arg_idx += 1;
 
         off = emit_conversion(
