@@ -288,6 +288,7 @@ impl CfgBuilder {
             options_var,
             raw_args,
             span,
+            tokens,
             ..
         } = stmt
         else {
@@ -302,6 +303,14 @@ impl CfgBuilder {
             catch_defs.push(ov.clone());
         }
         dedup_preserve_order(&mut catch_defs);
+        // Preserve ``tokens`` on the synthetic ``Statement::Call``
+        // so the codegen's eval-fallback can detect the braced
+        // body word and re-wrap it in ``{…}`` when reconstructing
+        // the script for ``tcl_eval``.  Without this,
+        // ``catch {$undef} msg`` would lower to ``catch $undef
+        // msg`` and the var-read trap would fire before catch
+        // could intercept it.  Mirrors upstream commit
+        // ``31f5357f`` (PR #341).
         self.block_mut(current).statements.push(Statement::Call {
             span: *span,
             command: "catch".into(),
@@ -310,7 +319,7 @@ impl CfgBuilder {
             reads: vec![],
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: None,
+            tokens: tokens.clone(),
         });
     }
 
@@ -517,6 +526,7 @@ mod tests {
             result_var: Some("result".into()),
             options_var: None,
             raw_args: vec!["{set inner 1}".into(), "result".into()],
+            tokens: None,
         }]);
         let func = build_cfg_function("::test", &script, true);
         let entry = &func.blocks[&func.entry];

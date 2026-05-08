@@ -339,6 +339,7 @@ impl Lowerer<'_> {
             result_var,
             options_var,
             raw_args: args.to_vec(),
+            tokens: Some(Self::cmd_tokens(seg)),
         }
     }
 
@@ -699,6 +700,24 @@ mod tests {
         {
             assert_eq!(result_var.as_deref(), Some("result"));
             assert_eq!(options_var.as_deref(), Some("opts"));
+        } else {
+            panic!("expected Catch");
+        }
+    }
+
+    #[test]
+    fn catch_preserves_command_tokens() {
+        // ``Statement::Catch`` must carry the full ``CommandTokens``
+        // snapshot so the CFG's ``Catch → Call`` lowering
+        // (`emit_opaque_catch`) can preserve the brace-vs-bare
+        // shape of the body word when reconstructing the script
+        // for the runtime's eval-fallback.  Mirrors upstream
+        // commit ``31f5357f`` (PR #341).
+        let m = lower_to_ir("catch {set x 1} result", &reg());
+        if let Statement::Catch { tokens, .. } = &m.top_level.statements[0] {
+            let tokens = tokens.as_ref().expect("tokens populated");
+            // 3 words: ``catch`` + ``{set x 1}`` + ``result``.
+            assert_eq!(tokens.argv.len(), 3);
         } else {
             panic!("expected Catch");
         }

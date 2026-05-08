@@ -379,6 +379,16 @@ pub enum Statement {
         options_var: Option<String>,
         /// Raw argument texts for generic fallback.
         raw_args: Vec<String>,
+        /// Original parsed tokens, including braced/quoted flags.
+        /// Threaded through so the CFG's `Catch → Call` lowering
+        /// (`emit_opaque_catch`) can preserve the `{…}` braces
+        /// around the body when the codegen falls back to
+        /// `tcl_eval`.  Without this, ``catch {$undef} msg`` would
+        /// be reconstructed as ``catch $undef msg`` and the
+        /// unset-var read would fire before catch could intercept
+        /// it.  Mirrors Python's `IRCatch.tokens` field added by
+        /// upstream commit ``31f5357f`` (PR #341).
+        tokens: Option<CommandTokens>,
     },
 
     /// `try body ?on/trap ...? ?finally body?`.
@@ -875,6 +885,7 @@ mod tests {
             result_var: Some("result".into()),
             options_var: Some("opts".into()),
             raw_args: Vec::new(),
+            tokens: None,
         };
         if let Statement::Catch {
             result_var,
