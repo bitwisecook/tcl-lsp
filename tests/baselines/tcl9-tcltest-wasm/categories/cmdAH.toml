@@ -1,6 +1,6 @@
 # cmdAH.test — auto-generated WASM baseline.
 # bucket = 'W0-runtime-error'
-# reason = 'tcl trap: site=123 can\'t read "::tcl_platform": no such variable'
+# reason = 'tcl trap: site=1201 can\'t read "numargErrors($cmd)": no such variable'
 trap_allowed = true
 good_to_have = []
 just_to_match_ctcl = []
@@ -15,6 +15,10 @@ observed_passed = 0
 observed_failed = 0
 observed_skipped = 0
 
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["cmdAH-1.4", "cmdAH-1.5"]
+
 [crash]
 type = "Trap"
-msg = "tcl trap: site=123 can't read \"::tcl_platform\": no such variable"
+msg = "tcl trap: site=1201 can't read \"numargErrors($cmd)\": no such variable"
