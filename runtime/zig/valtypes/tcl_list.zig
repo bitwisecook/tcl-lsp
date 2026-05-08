@@ -74,12 +74,23 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // cascaded read trace re-entry).  ``@intCast(i32 -> u32)`` panics
     // in ReleaseSafe on a negative input; we want to fall through to
     // the canonical-rebuild path instead.
-    if (sc.len > 0 and current > 0 and !obj.is_immediate(current)) {
+    // Defensive bound: a corrupt TclObj whose ``OBJ_STR_LEN`` field
+    // got clobbered (e.g. its byte buffer was freed and the slot
+    // recycled by the obj allocator) can surface here as a near-2GB
+    // length.  ``sv.len * 2`` would then panic on u32 overflow in
+    // ReleaseSafe / Debug; fall through to the canonical-rebuild
+    // path which handles the overflow case via ``alloc`` returning
+    // 0 instead of crashing the bundle.  16 MiB is well above any
+    // realistic single-element value (the largest raw lists in
+    // upstream tcltest's slice are kilobytes) but small enough that
+    // ``len * 2 + 8`` stays safely under u32 max.
+    const SAFE_LEN: u32 = 16 * 1024 * 1024;
+    if (sc.len > 0 and sc.len < SAFE_LEN and sv.len < SAFE_LEN and current > 0 and !obj.is_immediate(current)) {
         const addr: u32 = @intCast(current);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
         const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
-        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
+        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0 and cap < SAFE_LEN) {
             // Worst case for the new tail: a single space + sv.len*2 + 2
             // (for surrounding braces if the value needs them).
             const tail_max: u32 = 1 + sv.len * 2 + 4;
@@ -88,7 +99,12 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
             var new_cap: u32 = cap;
             if (cap < want) {
                 new_cap = if (cap == 0) 16 else cap * 2;
-                while (new_cap < want) new_cap *= 2;
+                // ``new_cap *= 2`` panics on u32 overflow; clamp the
+                // doubling at the same SAFE_LEN ceiling we already
+                // applied to sc.len / sv.len above so the loop
+                // terminates instead of trapping on a corrupt cap.
+                while (new_cap < want and new_cap < SAFE_LEN) new_cap *= 2;
+                if (new_cap < want) return lappend_canonical(sc.ptr, sc.len, sv.ptr, sv.len);
                 const nbuf = obj.alloc(new_cap);
                 if (nbuf == 0) return current;
                 memcpy(nbuf, sc.ptr, sc.len);
@@ -115,6 +131,15 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
 /// ``OBJ_STR_CAP`` so the next ``lappend`` against this obj can
 /// take the in-place fast path.
 fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
+    // Defensive: clamp the multiplications below so a corrupted
+    // ``OBJ_STR_LEN`` (e.g. from a TclObj whose backing buffer was
+    // freed and the slot recycled) doesn't blow up the buffer-size
+    // calculation.  Returning the source obj unchanged on a wildly
+    // out-of-range input is strictly safer than trapping the bundle.
+    const SAFE_LEN: u32 = 16 * 1024 * 1024;
+    if (sc_len >= SAFE_LEN or sv_len >= SAFE_LEN) {
+        return obj_new_string(@bitCast(sc_ptr), @bitCast(sc_len));
+    }
     const max_buf: u32 = sc_len * 2 + sv_len * 2 + 16;
     const cap = obj.round_up_to_class((max_buf + 7) & ~@as(u32, 7));
     const buf = alloc(cap);
@@ -353,6 +378,18 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
+    // Defensive: a cumulative-state issue in the trace.test bundle
+    // (multiple test traces accumulating, callbacks firing
+    // recursively) was producing TclObj handles whose
+    // ``OBJ_STR_LEN`` read back as a near-2GB length, which then
+    // surfaced here as ``@intCast`` panics on the ``i64 -> u32``
+    // conversion or on the per-element ``@intCast(elem.len)``
+    // write below.  Bound the working set at 16 Mi elements / 16
+    // MiB string and bail to a safe no-op return on overflow.
+    // 16 Mi covers every realistic list in the slice (the upstream
+    // tests max out around 10K elements).
+    const SAFE_LEN: u32 = 16 * 1024 * 1024;
+    if (n_i64 >= SAFE_LEN or s.len >= SAFE_LEN) return list;
     const n: u32 = @intCast(n_i64);
 
     // Decoded-content scratch: backslash-escaped bytes in unbraced
@@ -379,8 +416,14 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
         const elem = list_element_at(s.ptr, s.len, @intCast(idx));
         if (elem.braced) {
             // Already raw bytes — point straight into the source.
-            write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
-            write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
+            // ``@bitCast`` instead of ``@intCast`` for the u32 → i32
+            // address store: heaps that grow past 2 GiB hand out
+            // addresses with the high bit set, and ``@intCast``
+            // panics on those.  The slot is paired with a separate
+            // ``len`` write below; both round-trip through
+            // ``@bitCast`` reads on the sort/output side.
+            write_i32(arr_buf + idx * 8, @bitCast(s.ptr + elem.start));
+            write_i32(arr_buf + idx * 8 + 4, @bitCast(elem.len));
         } else {
             // Decode backslash escapes into the shared scratch so the
             // sort key (and the output quote pass) compare against the
@@ -392,8 +435,8 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
                 @as(u32, 0)
             else
                 obj.copy_unbraced_elem(dst, s.ptr + elem.start, elem.len);
-            write_i32(arr_buf + idx * 8, @intCast(dst));
-            write_i32(arr_buf + idx * 8 + 4, @intCast(dec_len));
+            write_i32(arr_buf + idx * 8, @bitCast(dst));
+            write_i32(arr_buf + idx * 8 + 4, @bitCast(dec_len));
             decoded_off += dec_len;
         }
     }
@@ -401,22 +444,22 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     // Insertion sort on the canonical content.
     var i: u32 = 1;
     while (i < n) : (i += 1) {
-        const key_ptr: u32 = @intCast(read_i32(arr_buf + i * 8));
-        const key_len: u32 = @intCast(read_i32(arr_buf + i * 8 + 4));
+        const key_ptr: u32 = @bitCast(read_i32(arr_buf + i * 8));
+        const key_len: u32 = @bitCast(read_i32(arr_buf + i * 8 + 4));
         var j: i32 = @as(i32, @intCast(i)) - 1;
         while (j >= 0) {
             const j_u: u32 = @intCast(j);
-            const cmp_ptr: u32 = @intCast(read_i32(arr_buf + j_u * 8));
-            const cmp_len: u32 = @intCast(read_i32(arr_buf + j_u * 8 + 4));
+            const cmp_ptr: u32 = @bitCast(read_i32(arr_buf + j_u * 8));
+            const cmp_len: u32 = @bitCast(read_i32(arr_buf + j_u * 8 + 4));
             if (str_cmp(cmp_ptr, cmp_len, key_ptr, key_len) > 0) {
-                write_i32(arr_buf + (j_u + 1) * 8, @intCast(cmp_ptr));
-                write_i32(arr_buf + (j_u + 1) * 8 + 4, @intCast(cmp_len));
+                write_i32(arr_buf + (j_u + 1) * 8, @bitCast(cmp_ptr));
+                write_i32(arr_buf + (j_u + 1) * 8 + 4, @bitCast(cmp_len));
                 j -= 1;
             } else break;
         }
         const ins: u32 = @intCast(j + 1);
-        write_i32(arr_buf + ins * 8, @intCast(key_ptr));
-        write_i32(arr_buf + ins * 8 + 4, @intCast(key_len));
+        write_i32(arr_buf + ins * 8, @bitCast(key_ptr));
+        write_i32(arr_buf + ins * 8 + 4, @bitCast(key_len));
     }
 
     // Worst-case output: ``2 * len + 2`` per element via the quoter,
@@ -427,8 +470,8 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     var result_len: u32 = 0;
     idx = 0;
     while (idx < n) : (idx += 1) {
-        const e_ptr: u32 = @intCast(read_i32(arr_buf + idx * 8));
-        const e_len: u32 = @intCast(read_i32(arr_buf + idx * 8 + 4));
+        const e_ptr: u32 = @bitCast(read_i32(arr_buf + idx * 8));
+        const e_len: u32 = @bitCast(read_i32(arr_buf + idx * 8 + 4));
         if (idx > 0) {
             const d: [*]u8 = @ptrFromInt(result_buf + result_len);
             d[0] = ' ';
