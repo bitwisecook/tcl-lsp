@@ -46,6 +46,7 @@ import multiprocessing as mp
 import os
 import re
 import sys
+import tempfile
 import time
 import traceback
 from collections import Counter
@@ -164,6 +165,11 @@ INVALID_CMD_RE = re.compile(r'invalid command name "([^"]+)"')
 FAILED_TEST_LINE_RE = re.compile(r"==== ([\S]+) FAILED")
 
 
+def _tcl_quote(s: str) -> str:
+    """Quote a host filesystem path for safe interpolation into Tcl source."""
+    return "{" + s.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}") + "}"
+
+
 @dataclass
 class StemResult:
     """Single-stem outcome."""
@@ -262,8 +268,30 @@ def _run_stem_in_child(stem: str, conn) -> None:
         conn.close()
         return
 
+    # Sandbox: each child runs in a fresh tempdir, so any stray relative-path
+    # file writes by a misbehaving test land there and get reaped on exit
+    # rather than polluting the repo root.  The original tests directory is
+    # exposed via ::tcltest::testsDirectory so tests that source siblings
+    # (e.g. `source [file join $::tcltest::testsDirectory constraints.tcl]`)
+    # still resolve.
+    sandbox = tempfile.TemporaryDirectory(prefix=f"tcl9-vm-core-{stem}-")
     try:
-        os.chdir(TESTS_DIR)
+        os.chdir(sandbox.name)
+        try:
+            interp.eval(
+                "set ::tcltest::testsDirectory "
+                + _tcl_quote(str(TESTS_DIR))
+            )
+            interp.eval(
+                "set ::tcltest::temporaryDirectory "
+                + _tcl_quote(sandbox.name)
+            )
+            interp.eval(
+                "set ::tcltest::workingDirectory "
+                + _tcl_quote(sandbox.name)
+            )
+        except Exception:
+            pass
         interp.global_frame.set_var("argv0", str(path))
         interp.global_frame.set_var("argv", "")
         interp.global_frame.set_var("argc", "0")
@@ -289,6 +317,17 @@ def _run_stem_in_child(stem: str, conn) -> None:
         cmd = INVALID_CMD_RE.search(str(exc))
         if cmd:
             result.missing_commands.append(cmd.group(1))
+    finally:
+        # Some tests `cd` elsewhere — get back into the sandbox so its
+        # cleanup() can rmtree it without "directory not empty" / EBUSY.
+        try:
+            os.chdir("/")
+        except Exception:
+            pass
+        try:
+            sandbox.cleanup()
+        except Exception:
+            pass
     result.duration_s = time.monotonic() - start
 
     stdout_text = stdout_buf.getvalue()
