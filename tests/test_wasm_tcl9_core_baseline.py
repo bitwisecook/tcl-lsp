@@ -54,7 +54,20 @@ pytestmark = [
 ]
 
 
-def _harness_upper_bound_seconds(num_stems: int = 68, workers: int = 4, per_stem: int = 240) -> int:
+# Worker count and per-stem wall-clock timeout the gate passes to the
+# harness.  Kept as module-level constants so the subprocess invocation
+# and ``_harness_upper_bound_seconds`` cannot drift apart — the harness
+# script's own defaults are tuned for interactive use (workers=2) and
+# differ from what the gate wants.
+_GATE_WORKERS = 4
+_GATE_PER_STEM_TIMEOUT_S = 240
+
+
+def _harness_upper_bound_seconds(
+    num_stems: int = 68,
+    workers: int = _GATE_WORKERS,
+    per_stem: int = _GATE_PER_STEM_TIMEOUT_S,
+) -> int:
     """Conservative ceiling for how long the harness can run.
 
     Worst case = every stem hits its per-stem wall-clock timeout, no
@@ -75,7 +88,15 @@ def _run_harness() -> dict:
     timeout = _harness_upper_bound_seconds()
     try:
         result = subprocess.run(
-            [sys.executable, str(HARNESS), "--no-baseline"],
+            [
+                sys.executable,
+                str(HARNESS),
+                "--no-baseline",
+                "--workers",
+                str(_GATE_WORKERS),
+                "--timeout",
+                str(_GATE_PER_STEM_TIMEOUT_S),
+            ],
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
