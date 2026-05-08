@@ -23,6 +23,7 @@ use crate::shimmer::{
 use crate::taint::{
     find_setter_constraint_warnings, find_taint_warnings, is_irules_dialect, TaintWarning,
 };
+use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,17 @@ pub fn run_all_checks(
                 &fu.ssa,
                 &fu.taints,
                 &fu.sccp.executable_blocks,
+                dialect,
+            ) {
+                out.push(Diagnostic::from_taint(&w));
+            }
+            // IRULE3103 — `*::uri` getter + manual decomposition.
+            for w in find_uri_split_suggestions(
+                &fu.cfg,
+                &fu.ssa,
+                Some(&fu.sccp.values),
+                &fu.sccp.executable_blocks,
+                registry,
                 dialect,
             ) {
                 out.push(Diagnostic::from_taint(&w));
