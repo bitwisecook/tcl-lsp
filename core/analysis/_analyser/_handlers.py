@@ -249,6 +249,51 @@ class _AnalyserHandlersMixin(_Base):
             self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
             i += 2
 
+    def _handle_namespace_upvar_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> None:
+        """``namespace upvar nsname otherVar myVar ?otherVar myVar ...?``
+        -- each ``myVar`` is a local alias to a namespace variable."""
+        if cmd_name != "namespace" or len(args) < 4 or args[0] != "upvar":
+            return
+        # args = ["upvar", nsname, otherVar1, myVar1, otherVar2, myVar2, ...].
+        # myVar lives at indices 3, 5, 7, ...
+        i = 3
+        while i < len(args) and i < len(arg_tokens):
+            self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
+            i += 2
+
+    def _handle_dict_var_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> None:
+        """Register loop / alias variables introduced by ``dict for`` and
+        ``dict update``.
+
+        - ``dict for {keyVar valueVar} dictValue body`` -- keyVar/valueVar
+          are loop locals visible in body.
+        - ``dict update dictVar key1 var1 ?key2 var2 ...? body`` -- each
+          ``var`` is a local alias to the matching key during body."""
+        if cmd_name != "dict" or not args or not arg_tokens:
+            return
+        sub = args[0]
+        if sub == "for" and len(args) >= 4 and len(arg_tokens) >= 2:
+            self._define_vars_from_list(args[1], arg_tokens[1], scope)
+            return
+        if sub == "update" and len(args) >= 5 and (len(args) - 3) % 2 == 0:
+            # args = ["update", dictVar, key1, var1, key2, var2, ..., body].
+            # var positions: 3, 5, 7, ..., len-2.
+            for i in range(3, len(args) - 1, 2):
+                if i < len(arg_tokens):
+                    self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
+
     def _handle_interp_alias(self, cmd_name: str, args: list[str]) -> None:
         """Detect ``interp alias {} srcToken {} targetCmd ?arg ...?``.
 

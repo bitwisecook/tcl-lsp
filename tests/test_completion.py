@@ -313,6 +313,51 @@ class TestVariableCompletion:
         labels = [i.label for i in items]
         assert "$alias" in labels
 
+    def test_dollar_completion_offers_namespace_upvar_alias(self):
+        """``namespace upvar ns other my`` registers ``my`` as a local
+        alias to a namespace var."""
+        source = textwrap.dedent("""\
+            namespace eval ::ns { variable foo 1 }
+            proc p {} {
+                namespace upvar ::ns foo localfoo
+                puts $
+            }
+        """)
+        items = get_completions(source, 3, 10)
+        labels = [i.label for i in items]
+        assert "$localfoo" in labels
+
+    def test_dollar_completion_offers_dict_for_loop_vars(self):
+        """``dict for {k v} dictVal body`` registers ``k`` and ``v`` as
+        loop locals visible in the body."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                dict for {k v} {a 1 b 2} {
+                    puts $
+                }
+            }
+        """)
+        items = get_completions(source, 2, 14)
+        labels = [i.label for i in items]
+        assert "$k" in labels
+        assert "$v" in labels
+
+    def test_dollar_completion_offers_dict_update_aliases(self):
+        """``dict update var key1 var1 ?key2 var2 ...? body`` registers
+        each ``var`` as a local alias visible in the body."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set d {a 1 b 2}
+                dict update d a varA b varB {
+                    puts $
+                }
+            }
+        """)
+        items = get_completions(source, 3, 14)
+        labels = [i.label for i in items]
+        assert "$varA" in labels
+        assert "$varB" in labels
+
     def test_dollar_completion_tolerates_cursor_past_eol(self):
         """LSP clients may send positions past EOL; the provider must not
         crash with IndexError."""
