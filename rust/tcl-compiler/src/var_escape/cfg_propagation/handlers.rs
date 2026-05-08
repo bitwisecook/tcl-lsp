@@ -22,7 +22,8 @@ use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
 use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
+    global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
+    variable_declaration_indices,
 };
 
 /// Detect the `upvar ?level? src dst ...` shape and apply escape
@@ -32,14 +33,12 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
         return;
     }
     let head = &args[0];
-    let head_no_dash = head.trim_start_matches('-');
-    let is_level_literal = (!head_no_dash.is_empty()
-        && head_no_dash.chars().all(|c| c.is_ascii_digit()))
-        || (head.starts_with('#') && head[1..].chars().all(|c| c.is_ascii_digit()));
+    let is_level_literal = looks_like_level(head);
     if !is_level_literal && is_dynamic_upvar_level(head) {
         // Dynamic level — pessimistic. See the matching block in
         // [`super::super::handlers::handle_upvar`] for the
-        // unbounded-upvar rationale (Copilot review on PR #325).
+        // unbounded-upvar rationale (mirrors upstream commit
+        // ``6c7a7c42``).
         state.mark_pessimistic();
         state.record_unbounded_upvar();
         return;

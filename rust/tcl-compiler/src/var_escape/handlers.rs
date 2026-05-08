@@ -12,7 +12,8 @@ use crate::var_escape::info_subcommands::{
 };
 use crate::var_escape::state::EscapeState;
 use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
+    global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
+    variable_declaration_indices,
 };
 
 /// True if any word in *tokens* is `{*}`-expanded.
@@ -32,10 +33,7 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
         return;
     }
     let head = &args[0];
-    let head_no_dash = head.trim_start_matches('-');
-    let is_level_literal = (!head_no_dash.is_empty()
-        && head_no_dash.chars().all(|c| c.is_ascii_digit()))
-        || (head.starts_with('#') && head[1..].chars().all(|c| c.is_ascii_digit()));
+    let is_level_literal = looks_like_level(head);
     if !is_level_literal && is_dynamic_upvar_level(head) {
         // Dynamic level — pessimistic. Also flag the unbounded-
         // upvar source so the interprocedural pass forces every
@@ -46,7 +44,8 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
         // leaves the caller's WASM-local mirror stale because the
         // alias write back into the runtime frame's slot never
         // reaches the mirror. Mirrors the matching block in
-        // ``core/compiler/var_escape/_propagation.py``.
+        // ``core/compiler/var_escape/_propagation.py`` as of
+        // upstream commit ``6c7a7c42``.
         state.mark_pessimistic();
         state.record_unbounded_upvar();
         return;

@@ -92,19 +92,20 @@ pub fn is_dynamic_token(arg: &str) -> bool {
 /// potentially dynamic at runtime.
 ///
 /// Mirrors the dynamic-level predicate in
-/// `core/compiler/var_escape/_propagation.py::_handle_upvar`:
-/// any non-literal head shape — `$var`, `[cmd]`, double-quoted
-/// `"..."` containing `$` or `[`, or `#`-absolute forms with
-/// embedded substitution like `"#${n}"` / `"#[expr ...]"` — must
-/// trigger the pessimistic-spill path. Recognising only `$var`
-/// (the original gate) let `upvar [expr {$n}] ...` /
+/// `core/compiler/var_escape/_propagation.py::_handle_upvar` as of
+/// upstream commit ``6c7a7c42`` (Copilot review on PR #325 widened
+/// the original `$var`-only gate).  Any non-literal head shape —
+/// `$var`, `[cmd]`, double-quoted `"..."` containing `$` or `[`, or
+/// `#`-absolute forms with embedded substitution like `"#${n}"` /
+/// `"#[expr ...]"` — must trigger the pessimistic-spill path.
+/// Recognising only `$var` let `upvar [expr {$n}] ...` /
 /// `upvar "#${n}" ...` / `upvar $::ns::level ...` callsites bypass
-/// the pessimism, leaving WASM-local mirrors stale after an alias
-/// write through the dynamic level (Copilot review on PR #325).
+/// the pessimism, leaving caller-side mirrors stale after an alias
+/// write through the dynamic level.
 ///
 /// The caller is expected to have already excluded literal-integer
-/// and `#N` forms via the `is_level_literal` check; this helper
-/// only classifies the dynamic shape.
+/// and `#N` forms via [`crate::var_scoping::looks_like_level`]; this
+/// helper only classifies the dynamic shape.
 #[must_use]
 pub fn is_dynamic_upvar_level(head: &str) -> bool {
     head.starts_with('$')

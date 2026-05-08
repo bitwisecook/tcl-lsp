@@ -121,7 +121,15 @@ pub fn upvar_local_declaration_indices(command: &str, args: &[String]) -> Vec<us
 /// True when `head` looks like a Tcl upvar-level word:
 /// - A decimal integer (optionally prefixed with `-`).
 /// - `#<digits>` (absolute frame level).
-fn looks_like_level(head: &str) -> bool {
+///
+/// Mirrors Python's ``head.lstrip("-").isdigit() or
+/// (head.startswith("#") and head[1:].isdigit())``.  In particular,
+/// the bare ``#`` form (no digit tail) is rejected — `"".isdigit()`
+/// returns False in Python, and so does this predicate.  Reused by
+/// `var_escape::handlers` so every call site shares one definition
+/// (Copilot review on PR #368 caught a latent vacuous-`all()` bug
+/// in the inline copies that shipped before this consolidation).
+pub(crate) fn looks_like_level(head: &str) -> bool {
     if head.is_empty() {
         return false;
     }
