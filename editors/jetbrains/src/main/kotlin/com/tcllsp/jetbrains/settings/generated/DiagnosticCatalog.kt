@@ -55,6 +55,8 @@ object DiagnosticCatalog {
         DiagnosticDef("W212", "variable", "W212: Variable substitution where name expected (set \$x, i...", true),
         DiagnosticDef("W213", "variable", "W213: Variable may not exist", true),
         DiagnosticDef("W214", "variable", "W214: Unused proc parameter", true),
+        DiagnosticDef("W215", "variable", "W215: Variable name unreachable via \$-substitution (creata...", true),
+        DiagnosticDef("W216", "variable", "W216: Broken brace-form array element reference", true),
         DiagnosticDef("W220", "variable", "W220: Dead store", true),
         DiagnosticDef("W101", "security", "W101: eval with string concatenation", true),
         DiagnosticDef("W102", "security", "W102: subst on variable input", true),

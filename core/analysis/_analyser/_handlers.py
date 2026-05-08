@@ -32,6 +32,7 @@ class _AnalyserHandlersMixin(_Base):
         # From _AnalyserScopeMixin
         def _set_const_string(self, *a: Any, **kw: Any) -> None: ...
         def _clear_const_string(self, *a: Any, **kw: Any) -> None: ...
+        def _lookup_const_string(self, *a: Any, **kw: Any) -> Any: ...
         def _define_var(self, *a: Any, **kw: Any) -> Any: ...
         def _define_vars_from_list(self, *a: Any, **kw: Any) -> None: ...
         def _namespace_from_scope(self, *a: Any, **kw: Any) -> str: ...
@@ -82,7 +83,11 @@ class _AnalyserHandlersMixin(_Base):
         if cmd_name == "global":
             for i, arg_text in enumerate(args):
                 if i < len(arg_tokens):
-                    self._define_var(arg_text, arg_tokens[i], scope, warn_if_unused=False)
+                    # Tcl strips any namespace qualifiers from the alias
+                    # name -- ``global ::foo`` creates a local variable
+                    # called ``foo`` (not ``::foo``).
+                    local_name = arg_text.rsplit("::", 1)[-1] or arg_text
+                    self._define_var(local_name, arg_tokens[i], scope, warn_if_unused=False)
             return
 
         i = 0
@@ -221,6 +226,139 @@ class _AnalyserHandlersMixin(_Base):
     ) -> None:
         if cmd_name == "incr" and args and arg_tokens:
             self._define_var(args[0], arg_tokens[0], scope, warn_if_unused=True)
+
+    def _handle_upvar_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> None:
+        """Register the local-alias names from ``upvar`` so they show up in
+        completion / hover / references even when the proc only reads them.
+
+        ``upvar ?level? otherVar myVar ?otherVar myVar ...?`` -- the level
+        is optional; when present it makes the arg count odd.  Each pair
+        after the (optional) level binds ``myVar`` (the local alias) to
+        ``otherVar`` (in another stack frame)."""
+        if cmd_name != "upvar" or not args or not arg_tokens:
+            return
+        # If arg count is odd, the first arg is ``?level?``; pairs follow.
+        pair_start = 1 if len(args) % 2 == 1 else 0
+        i = pair_start + 1  # myVar position within the first pair
+        while i < len(args) and i < len(arg_tokens):
+            self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
+            i += 2
+
+    def _handle_namespace_upvar_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> None:
+        """``namespace upvar nsname otherVar myVar ?otherVar myVar ...?``
+        -- each ``myVar`` is a local alias to a namespace variable."""
+        if cmd_name != "namespace" or len(args) < 4 or args[0] != "upvar":
+            return
+        # args = ["upvar", nsname, otherVar1, myVar1, otherVar2, myVar2, ...].
+        # myVar lives at indices 3, 5, 7, ...
+        i = 3
+        while i < len(args) and i < len(arg_tokens):
+            self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
+            i += 2
+
+    def _handle_uplevel_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> bool:
+        """``uplevel ?level? body ?body ...?`` runs the body in another
+        stack frame.  For ``uplevel #0`` we model the body with a
+        ``Scope(kind="uplevel")`` that is a regular child of the
+        lexical containing scope (so ``find_scope_at_line`` descends
+        normally and ``Scope._copy_tree`` round-trips the parent
+        pointer correctly).  The "look up vars in the global frame
+        instead of the proc's locals" semantics is implemented by
+        the completion-side helpers special-casing ``kind=="uplevel"``
+        when they walk the parent chain.  Other levels depend on the
+        dynamic caller and aren't resolvable statically."""
+        if cmd_name != "uplevel" or not args or not arg_tokens:
+            return False
+        if args[0] != "#0":
+            return False
+        for i in range(1, len(args)):
+            if i >= len(arg_tokens):
+                continue
+            body_tok = arg_tokens[i]
+            synthetic = Scope(
+                kind="uplevel",
+                name="<uplevel#0>",
+                parent=scope,
+                body_range=range_from_token(body_tok),
+            )
+            scope.children.append(synthetic)
+            self._analyse_body(args[i], synthetic, body_token=body_tok)
+        return True
+
+    def _handle_dict_var_command(
+        self,
+        cmd_name: str,
+        args: list[str],
+        arg_tokens: list[Token],
+        scope: Scope,
+    ) -> None:
+        """Register loop / alias variables introduced by ``dict for`` /
+        ``dict update`` / ``dict with``.
+
+        - ``dict for {keyVar valueVar} dictValue body`` -- keyVar/valueVar
+          are loop locals visible in body.
+        - ``dict update dictVar key1 var1 ?key2 var2 ...? body`` -- each
+          ``var`` is a local alias to the matching key during body.
+        - ``dict with dictVar ?key ...? body`` -- the dict's keys become
+          local vars during body.  Best effort: when the dict was set
+          from a constant literal we parse its keys; otherwise the body
+          is analysed as before and references to dict keys won't have
+          a definition site."""
+        if cmd_name != "dict" or not args or not arg_tokens:
+            return
+        sub = args[0]
+        if sub == "for" and len(args) >= 4 and len(arg_tokens) >= 2:
+            self._define_vars_from_list(args[1], arg_tokens[1], scope)
+            return
+        if sub == "update" and len(args) >= 5 and (len(args) - 3) % 2 == 0:
+            # args = ["update", dictVar, key1, var1, key2, var2, ..., body].
+            # var positions: 3, 5, 7, ..., len-2.
+            for i in range(3, len(args) - 1, 2):
+                if i < len(arg_tokens):
+                    self._define_var(args[i], arg_tokens[i], scope, warn_if_unused=False)
+            return
+        if sub == "with" and len(args) >= 3 and len(arg_tokens) >= 2:
+            # ``dict with dictVar ?key ...? body`` -- only the no-path
+            # case is statically resolvable.  Path keys are intermediate
+            # navigation that we'd need to evaluate to know the leaf
+            # dict's keys, so skip them.
+            if len(args) != 3:
+                return
+            dict_var = args[1]
+            const_val = self._lookup_const_string(dict_var, scope)
+            if const_val is None:
+                return
+            from ...compiler.tcl_expr_eval import _split_tcl_list
+
+            try:
+                elements = _split_tcl_list(const_val)
+            except Exception:
+                return
+            # Tcl dicts are flat key/value lists; even-indexed entries
+            # are the keys.
+            for i in range(0, len(elements), 2):
+                key = elements[i]
+                if not key:
+                    continue
+                self._define_var(key, arg_tokens[1], scope, warn_if_unused=False)
 
     def _handle_interp_alias(self, cmd_name: str, args: list[str]) -> None:
         """Detect ``interp alias {} srcToken {} targetCmd ?arg ...?``.

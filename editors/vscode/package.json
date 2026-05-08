@@ -3832,12 +3832,26 @@
             "markdownDescription": "**W214:** Unused proc parameter — argument is declared but never read in the procedure body.",
             "order": 4
           },
+          "tclLsp.diagnostics.W215": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W215:** Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).",
+            "order": 5
+          },
+          "tclLsp.diagnostics.W216": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W216:** Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.",
+            "order": 6
+          },
           "tclLsp.diagnostics.W220": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W220:** Dead store — variable set but overwritten before use.",
-            "order": 5
+            "order": 7
           }
         }
       },

@@ -37,6 +37,7 @@ class _AnalyserProcMixin(_Base):
     if TYPE_CHECKING:
         # From _AnalyserScopeMixin
         def _define_var(self, *a: Any, **kw: Any) -> Any: ...
+        def _define_vars_from_list(self, *a: Any, **kw: Any) -> None: ...
         def _record_var_read(self, *a: Any, **kw: Any) -> None: ...
         def _lookup_const_string(self, *a: Any, **kw: Any) -> Any: ...
         def _record_defining_set_as_regex(self, *a: Any, **kw: Any) -> None: ...
@@ -352,6 +353,11 @@ class _AnalyserProcMixin(_Base):
                 i += 2
             elif kw in ("on", "trap") and i + 3 < len(args):
                 # on code varList body  /  trap pattern varList body
+                # The varList binds two locals: ``resultVar`` and
+                # ``optionsVar`` (the latter is optional).
+                varlist_tok = arg_tokens[i + 2] if i + 2 < len(arg_tokens) else None
+                if varlist_tok is not None:
+                    self._define_vars_from_list(args[i + 2], varlist_tok, scope)
                 handler_tok = arg_tokens[i + 3] if i + 3 < len(arg_tokens) else None
                 self._analyse_body(args[i + 3], scope, body_token=handler_tok)
                 i += 4

@@ -3,6 +3,7 @@ from __future__ import annotations
 from ..semantic_model import AnalysisResult
 from ._commands import _AnalyserCommandsMixin
 from ._core import _AnalyserBase
+from ._diag_brace_then_paren import _AnalyserDiagBraceThenParenMixin
 from ._diag_branches import _AnalyserDiagBranchesMixin
 from ._diag_channel import _AnalyserDiagChannelMixin
 from ._diag_commands import _AnalyserDiagCommandsMixin
@@ -30,6 +31,7 @@ class Analyser(
     _AnalyserDiagsMixin,
     _AnalyserDiagCommandsMixin,
     _AnalyserDiagVarCommandMixin,
+    _AnalyserDiagBraceThenParenMixin,
     _AnalyserDiagBranchesMixin,
     _AnalyserDiagChannelMixin,
     _AnalyserDiagIPMixin,

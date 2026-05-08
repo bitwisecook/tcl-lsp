@@ -250,6 +250,20 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W215",
+    section: "variable",
+    description:
+      "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W216",
+    section: "variable",
+    description:
+      "Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.",
+    defaultEnabled: true,
+  },
+  {
     code: "W220",
     section: "variable",
     description: "Dead store — variable set but overwritten before use.",

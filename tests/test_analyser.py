@@ -2458,6 +2458,109 @@ class TestCanonicalisationMatrix:
         result = analyse(source)
         return sum(1 for d in result.diagnostics if d.code == "W213")
 
+    def test_w215_brace_in_var_name_emits_warning(self):
+        # ``set "weird}name" 1`` creates a variable but no $-substitution
+        # form can read it -- W215 alerts the user.
+        source = 'set "weird}name" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "weird}name" in w215[0].message
+        assert "}" in w215[0].message
+
+    def test_w215_trailing_backslash_in_var_name(self):
+        # ``set "back\\" 1`` creates ``back\`` (5 chars including ``\``).
+        # The brace form ``${back\}`` would read the trailing ``\`` as
+        # an escape and run out of input -- unreachable.
+        # Verified against tclsh 9.0.3 (see kcs-tcl-corner-cases.md).
+        source = 'set "back\\\\" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "trailing" in w215[0].message or "missing close-brace" in w215[0].message
+
+    def test_w215_does_not_fire_on_backslash_mid_name(self):
+        # ``set "back\\slash" 1`` creates ``back\slash`` (10 chars).
+        # The brace form ``${back\slash}`` consumes ``\s`` as a 2-char
+        # escape, both of which stay in the lookup name -- so the
+        # name IS reachable.  No W215.
+        # Verified against tclsh 9.0.3.
+        source = 'set "back\\\\slash" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
+    def test_w215_does_not_fire_on_balanced_inner_braces(self):
+        # ``set "a{b}c" 1`` creates ``a{b}c`` (5 chars).  Tcl 9.0.3's
+        # brace-form parser tracks inner ``{...}`` with depth, so
+        # ``${a{b}c}`` reaches it.  No W215.
+        source = 'set "a{b}c" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
+    def test_w215_close_paren_in_array_index_emits_warning(self):
+        # ``$arr(idx)`` reads up to the matching ``)``; an idx with ``)``
+        # is creatable via ``set "arr(weird)stuff)" 1`` but unreachable.
+        # The message must distinguish "array element index" from
+        # "variable name" so the user knows which part is offending.
+        source = 'set "arr(weird)stuff)" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "array element index contains ')'" in w215[0].message
+
+    def test_w216_brace_then_paren_pattern(self):
+        # ``${arr}(foo)`` parses as scalar ``${arr}`` + literal ``(foo)``.
+        # W216 flags it and the quick fix swaps to ``$arr(foo)``.
+        source = "set arr(name) hello\nputs ${arr}(name)"
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes
+        assert w216[0].fixes[0].new_text == "$arr(name)"
+
+    def test_w216_brace_array_with_dollar_index(self):
+        # ``${arr($foo)}`` does NOT substitute ``$foo`` (Tcl(n) docs).
+        # W216 flags it; the fix uses bare ``$arr($foo)`` which does
+        # substitute the index at runtime.
+        source = "set foo bar\nputs ${arr($foo)}"
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes[0].new_text == "$arr($foo)"
+
+    def test_w216_funny_name_falls_back_to_set_indirection(self):
+        # When the array name has chars the bare form can't carry (here
+        # a space), the fix uses ``[set "name(idx)"]`` -- substitution
+        # still works in ``set``'s argument.
+        source = 'set "funny name" 1\nputs ${funny name($foo)}'
+        result = analyse(source)
+        w216 = [d for d in result.diagnostics if d.code == "W216"]
+        assert len(w216) == 1, f"expected one W216, got {len(w216)}"
+        assert w216[0].fixes[0].new_text == '[set "funny name($foo)"]'
+
+    def test_w216_does_not_fire_on_correct_forms(self):
+        # ``${arr(name)}`` (literal index) and ``$arr($foo)`` (bare with
+        # substitution) are both correct -- no W216.
+        for src in [
+            "puts ${arr(name)}",
+            "puts $arr($foo)",
+            "puts ${arr}",
+            "set foo bar\nputs $arr($foo)",
+        ]:
+            result = analyse(src)
+            w216 = [d for d in result.diagnostics if d.code == "W216"]
+            assert w216 == [], f"unexpected W216 for {src!r}: {[d.message for d in w216]}"
+
+    def test_w215_does_not_fire_on_normal_names(self):
+        # Sanity: hyphenated / colon-qualified names are reachable via
+        # ``${...}`` / bare $; only ``}`` and array ``)`` are flagged.
+        source = 'set "foo-bar" 1\nset normal 2\nset ::globalvar 3\nset arr(name) 4'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
     def test_w213_unset_bare(self):
         # ``unset $x`` on a possibly-undefined ``x`` triggers W213.
         # Bare form is the baseline.
