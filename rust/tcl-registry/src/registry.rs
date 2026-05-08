@@ -548,6 +548,47 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
+    /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
+    /// variable) plays both `VarRead` and `VarWrite` roles. Mirrors
+    /// Python's `frozenset({VAR_READ, VAR_WRITE})` post-`8c95c2ee`.
+    /// The Rust port emits this via duplicate `(idx, role)` rows in
+    /// the resolver; the type widening to an explicit `ArgRoleSet`
+    /// is deferred (the multi-role observable behaviour is already
+    /// what consumers query).
+    #[test]
+    fn arg_indices_for_role_dict_with_multirole() {
+        let reg = CommandRegistry::build_default();
+        let reads = reg.arg_indices_for_role(
+            "dict",
+            &["with", "$var", "body"],
+            ArgRole::VarRead,
+        );
+        let writes = reg.arg_indices_for_role(
+            "dict",
+            &["with", "$var", "body"],
+            ArgRole::VarWrite,
+        );
+        assert!(reads.contains(&1), "VarRead reads={reads:?}");
+        assert!(writes.contains(&1), "VarWrite writes={writes:?}");
+    }
+
+    #[test]
+    fn arg_indices_for_role_dict_update_multirole() {
+        let reg = CommandRegistry::build_default();
+        let reads = reg.arg_indices_for_role(
+            "dict",
+            &["update", "$var", "k", "vname", "body"],
+            ArgRole::VarRead,
+        );
+        let writes = reg.arg_indices_for_role(
+            "dict",
+            &["update", "$var", "k", "vname", "body"],
+            ArgRole::VarWrite,
+        );
+        assert!(reads.contains(&1), "VarRead reads={reads:?}");
+        assert!(writes.contains(&1), "VarWrite writes={writes:?}");
+    }
+
     #[test]
     fn dynamic_arg_role_resolution() {
         let reg = CommandRegistry::build_default();

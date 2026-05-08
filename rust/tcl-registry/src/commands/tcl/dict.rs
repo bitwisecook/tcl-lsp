@@ -4,10 +4,22 @@ use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 
 /// Dynamic resolver: last arg is body for `dict update`/`dict with`.
+///
+/// Arg 0 (the dict variable) plays both `VarRead` and `VarWrite` roles —
+/// the body sees the current keys mapped into local vars (read), and the
+/// body's writes are reflected back into the dict on completion (write).
+/// Mirrors Python's `frozenset({VAR_READ, VAR_WRITE})` after `8c95c2ee` /
+/// `38d90003` (multi-role resolver shape). The Rust port emits this via
+/// duplicate `(idx, role)` entries — `arg_indices_for_role` collects all
+/// matches, so two rows with the same index produce the same observable
+/// behaviour as Python's frozenset. The full `ArgRoleSet` type widening
+/// (per SYNC1's spec) is deferred; the multi-role acceptance test passes
+/// with the duplicate-entries form.
 fn dict_last_arg_body(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let mut roles = Vec::new();
     if args.len() >= 2 {
         roles.push((0, ArgRole::VarWrite));
+        roles.push((0, ArgRole::VarRead));
         if let Ok(last) = u8::try_from(args.len() - 1) {
             roles.push((last, ArgRole::Body));
         }

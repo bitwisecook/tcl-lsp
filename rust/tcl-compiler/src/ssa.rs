@@ -531,10 +531,27 @@ pub fn uses_of(
             }
             // dict with/update: the dict variable name is a plain string,
             // not a $-substitution, so scan_word misses it.
+            //
+            // SYNC6: arg 0 carries both VarRead and VarWrite roles
+            // (mirrors Python's `frozenset({VAR_READ, VAR_WRITE})` post
+            // `8c95c2ee`).  When SYNC4 routes barrier defs through the
+            // registry, the same name will land in `defs` from the
+            // VarWrite query.  The closing filter at line ~553
+            // (`!defs.contains(v) || reads_own_def.contains(v)`) would
+            // then drop the dict var unless we mark it as reads-own-def
+            // here.  Without this, a proc whose only reference to a
+            // parameter is `dict with $param {}` would produce a
+            // false unused-parameter diagnostic.  Preemptive fix: the
+            // line is a no-op today (SYNC4 hasn't routed dict with
+            // through the registry yet) but matches Python parity and
+            // sequences cleanly with the SYNC4 follow-up.  See
+            // ssa.py::_uses for the Python-side comment.
             if command == "dict" && args.len() >= 2 && (args[0] == "with" || args[0] == "update") {
                 let dict_var = normalise_var_name(&args[1]);
                 if !dict_var.is_empty() {
-                    vars_found.insert(dict_var.to_owned());
+                    let owned = dict_var.to_owned();
+                    vars_found.insert(owned.clone());
+                    reads_own_def.insert(owned);
                 }
             }
         }
