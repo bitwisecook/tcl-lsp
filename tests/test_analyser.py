@@ -2460,21 +2460,24 @@ class TestCanonicalisationMatrix:
 
     def test_w215_brace_in_var_name_emits_warning(self):
         # ``set "weird}name" 1`` creates a variable but no $-substitution
-        # form can read it -- W215 alerts the user.
+        # form can read it -- W215 alerts the user with a message that
+        # specifically mentions the variable-name case.
         source = 'set "weird}name" 1'
         result = analyse(source)
         w215 = [d for d in result.diagnostics if d.code == "W215"]
         assert len(w215) == 1, f"expected one W215, got {len(w215)}"
-        assert "}" in w215[0].message
+        assert "variable name contains '}'" in w215[0].message
 
     def test_w215_close_paren_in_array_index_emits_warning(self):
         # ``$arr(idx)`` reads up to the matching ``)``; an idx with ``)``
         # is creatable via ``set "arr(weird)stuff)" 1`` but unreachable.
+        # The message must distinguish "array element index" from
+        # "variable name" so the user knows which part is offending.
         source = 'set "arr(weird)stuff)" 1'
         result = analyse(source)
         w215 = [d for d in result.diagnostics if d.code == "W215"]
         assert len(w215) == 1, f"expected one W215, got {len(w215)}"
-        assert ")" in w215[0].message
+        assert "array element index contains ')'" in w215[0].message
 
     def test_w215_does_not_fire_on_normal_names(self):
         # Sanity: hyphenated / colon-qualified names are reachable via

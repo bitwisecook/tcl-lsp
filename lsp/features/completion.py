@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from lsprotocol import types
 
 from core.analysis import analyse
@@ -27,15 +25,26 @@ from .symbol_resolution import (
     find_variable_completion_prefix,
 )
 
-# A bare ``$name`` substitution may only contain alnum / ``_`` / ``::``
-# (matching the lexer's bare-var rule).  Anything else -- hyphens, spaces,
-# dots, parens, etc. -- forces the ``${...}`` form.
-_BARE_VAR_NAME_RE = re.compile(r"^(?:::)?[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*$")
-
 
 def _var_needs_braces(name: str) -> bool:
-    """Return True if ``$name`` would not lex as a single variable token."""
-    return not _BARE_VAR_NAME_RE.match(name)
+    """Return True if ``$name`` would not lex as a single variable token.
+
+    Mirrors the lexer's bare-var rule (``ch.isalnum() or ch == "_"`` plus
+    ``::`` namespace separators), including its Unicode-awareness -- an
+    ASCII-only regex would force the ``${...}`` form unnecessarily for
+    non-ASCII names that the lexer accepts in bare form."""
+    if not name:
+        return True
+    s = name[2:] if name.startswith("::") else name
+    if not s:
+        return True
+    for segment in s.split("::"):
+        if not segment:
+            return True
+        for ch in segment:
+            if not (ch.isalnum() or ch == "_"):
+                return True
+    return False
 
 
 def _var_is_substitutable(name: str) -> bool:

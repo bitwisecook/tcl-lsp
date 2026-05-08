@@ -222,30 +222,41 @@ class _AnalyserScopeMixin(_Base):
             if element is not None:
                 scope.variables[base_name].array_indices.add(element)
 
-        # Warn (once, at first definition) when a name contains a ``}``
-        # or array indices contain ``)`` -- such names are creatable
-        # via ``set "weird}name" 1`` (backslash-substitution at the
-        # command-word level produces the literal byte) but Tcl's
-        # ``$`` and ``${...}`` parsers can't reach them.  The variable
-        # exists; only commands that take a variable *name* (``set``,
-        # ``info exists``, ``unset``, ``upvar``, ``[set "..."]``) can
-        # access the value.
+        # Warn (once, at first definition) when a name component contains
+        # characters that block Tcl's $-substitution forms.  The variable
+        # is creatable via backslash-substitution at the command-word
+        # level (``set "weird}name" 1``) and readable via commands that
+        # take a variable *name* (``set name`` / ``[set "name"]`` /
+        # ``info exists`` / ``upvar``), but no ``$`` form can reach it
+        # because the lexer stops on the offending char.  Emit separate
+        # messages for the var-name and array-index cases so the user
+        # knows which part to fix.
         if first_definition:
-            unreachable_chars: list[str] = []
+            site_range = definition_range or range_from_token(tok)
             if "}" in base_name:
-                unreachable_chars.append("}")
-            if element is not None and ")" in element:
-                unreachable_chars.append(")")
-            if unreachable_chars:
-                ch_list = " or ".join(f"'{c}'" for c in unreachable_chars)
                 self.result.diagnostics.append(
                     Diagnostic(
-                        range=definition_range or range_from_token(tok),
+                        range=site_range,
                         message=(
-                            f"variable name contains {ch_list}; it can be created "
-                            f'and read via ``set name`` / ``[set "name"]`` / ``info '
-                            f"exists`` / ``upvar``, but is not reachable via $-substitution "
-                            f"(neither ``$name`` nor ``${{name}}`` can fetch it)"
+                            "variable name contains '}'; it can be created and read via "
+                            '``set name`` / ``[set "name"]`` / ``info exists`` / ``upvar``, '
+                            "but is not reachable via $-substitution (the brace form "
+                            "``${name}`` has no escape and stops at the first ``}``, and "
+                            "bare ``$name`` stops at the first non-word character)"
+                        ),
+                        severity=Severity.WARNING,
+                        code="W215",
+                    )
+                )
+            if element is not None and ")" in element:
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=site_range,
+                        message=(
+                            "array element index contains ')'; the element can be created "
+                            'and read via ``set arr(idx) ...`` / ``[set "arr(idx)"]``, but '
+                            "is not reachable via $-substitution (``$arr(idx)`` reads up "
+                            "to the first ``)`` and stops there)"
                         ),
                         severity=Severity.WARNING,
                         code="W215",

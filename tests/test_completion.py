@@ -183,6 +183,33 @@ class TestVariableCompletion:
         assert item.text_edit.range.end.character == 16
         assert item.text_edit.new_text == "${greeting}"
 
+    def test_var_needs_braces_unicode_aware(self):
+        """The lexer's bare-var rule uses ``ch.isalnum()`` (Unicode), so
+        non-ASCII names like ``ñame`` lex as a single bare token.  An
+        ASCII-only regex would force ``${...}`` unnecessarily."""
+        from lsp.features.completion import _var_needs_braces
+
+        # Names that lex as a bare ``$name`` -- braces NOT required.
+        for name in ["foo", "foo_bar", "::foo", "::ns::foo", "ñame", "café", "__中文__"]:
+            assert not _var_needs_braces(name), f"{name!r} should not need braces"
+        # Names that the bare form rejects -- braces required.
+        for name in ["foo-bar", "foo bar", "foo.bar", "", "::", "a::"]:
+            assert _var_needs_braces(name), f"{name!r} should need braces"
+
+    def test_split_array_name_does_not_misclassify_brace_then_paren(self):
+        """``${arr}(foo)`` is parsed by Tcl as scalar ``${arr}`` followed
+        by literal characters ``(foo)`` -- not as an array reference.
+        The brace form's name is exactly the chars inside ``${...}``."""
+        from core.common.naming import split_array_name
+
+        assert split_array_name("${arr}(foo)") == ("arr", None)
+        assert split_array_name("${arr}") == ("arr", None)
+        # Inside the braces, ``(idx)`` IS an array reference.
+        assert split_array_name("${arr(foo)}") == ("arr", "foo")
+        assert split_array_name("$arr(foo)") == ("arr", "foo")
+        assert split_array_name("arr(foo)") == ("arr", "foo")
+        assert split_array_name("arr") == ("arr", None)
+
     def test_dollar_completion_omits_unsubstitutable_brace_names(self):
         """Variables whose name contains ``}`` are creatable -- e.g.
         ``set a_\\}_closebrace 1`` -- but they cannot be reached via

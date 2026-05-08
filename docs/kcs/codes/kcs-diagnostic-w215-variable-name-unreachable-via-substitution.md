@@ -13,7 +13,7 @@ default
 
 ## Question
 
-Why does the analyser flag `set "weird}name" 1` (or `set arr(weird)stuff) 1`) with a warning that the variable cannot be read via `$`?
+Why does the analyser flag `set "weird}name" 1` (or `set "arr(weird)stuff)" 1`) with a warning that the variable cannot be read via `$`?
 
 ## Why
 

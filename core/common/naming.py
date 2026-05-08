@@ -51,19 +51,35 @@ def split_array_name(name: str) -> tuple[str, str | None]:
     the optional ``(element)`` array-index suffix from the base name.
     Returns ``(base, None)`` for scalar references.
 
+    Brace and bare forms differ on what's "part of the reference":
+
+    - ``${name}`` reads exactly the chars inside the braces.  Anything
+      after the closing ``}`` is unrelated literal text -- e.g. Tcl
+      parses ``${arr}(foo)`` as scalar ``${arr}`` followed by the
+      literal characters ``(foo)``, *not* as an array reference.
+    - Inside a brace form, ``(idx)`` *is* an array reference, because
+      ``${arr(foo)}`` is just the brace form of ``$arr(foo)`` -- the
+      runtime treats both as the literal name ``arr(foo)``.
+
     Examples::
 
-        split_array_name("arr")          -> ("arr", None)
-        split_array_name("arr(foo)")     -> ("arr", "foo")
-        split_array_name("$arr(foo)")    -> ("arr", "foo")
-        split_array_name("${arr}(foo)")  -> ("arr", "foo")
+        split_array_name("arr")            -> ("arr", None)
+        split_array_name("arr(foo)")       -> ("arr", "foo")
+        split_array_name("$arr(foo)")      -> ("arr", "foo")
+        split_array_name("${arr(foo)}")    -> ("arr", "foo")
+        split_array_name("${arr}(foo)")    -> ("arr", None)   # not an array
+        split_array_name("${arr}")         -> ("arr", None)
     """
     base = name
     if base.startswith("${") and "}" in base:
         end = base.index("}")
-        rest = base[end + 1 :]
-        base = base[2:end] + rest
-    elif base.startswith("$"):
+        inner = base[2:end]
+        # Anything after ``}`` is unrelated literal text -- ignore it.
+        if "(" in inner and inner.endswith(")"):
+            idx = inner.index("(")
+            return inner[:idx], inner[idx + 1 : -1]
+        return inner, None
+    if base.startswith("$"):
         base = base[1:]
     if "(" in base and base.endswith(")"):
         idx = base.index("(")
