@@ -1,4 +1,11 @@
-"""Regression gate for the Tcl 9 core test slice through the VM.
+"""Regression gate for the Tcl 9 core test slice through the **Python VM**.
+
+**Scope.**  This gate exercises the Python interpreter
+(``vm.interp.TclInterp``) only — *not* the Zig WASM runtime, which is
+the production ship target.  Fixes landed in ``runtime/zig/`` are
+invisible to this gate by construction.  Use this to keep the Python
+VM from regressing on upstream Tcl 9 semantics; the WASM equivalent
+is tracked separately.
 
 Runs the focused harness (``scripts/run_tcl9_vm_core.py``) and asserts
 that no stem regresses against the committed baseline at

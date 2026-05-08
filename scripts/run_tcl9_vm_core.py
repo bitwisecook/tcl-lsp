@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Run the focused C-Tcl 9.0.3 core test slice through the Python VM.
+"""Run the focused C-Tcl 9.0.3 core test slice through the **Python VM**.
+
+**Scope.**  This harness exercises ``vm.interp.TclInterp`` (the Python
+interpreter), *not* the Zig WASM runtime under ``runtime/zig/``.
+Pass / fail numbers from this script are Python-VM dev signal only —
+they are *not* a WASM ship gate.  The WASM-equivalent entry point
+lives at ``tests/external/run_tcl9_tests.py``.  See
+``tests/baselines/tcl9-tcltest-vm/README.md`` for the full scope
+statement and hand-off rules.
 
 Sources the original ``tmp/tcl9.0.3/library/init.tcl`` and the original
 ``tmp/tcl9.0.3/library/tcltest/tcltest.tcl`` unmodified, executes each
@@ -617,8 +625,19 @@ def write_dossier(results: list[StemResult]) -> None:
     summary = _aggregate(results)
 
     lines: list[str] = []
-    lines.append("# Tcl 9 core test slice — VM dossier\n")
+    lines.append("# Tcl 9 core test slice — Python VM dossier\n")
     lines.append(f"Generated: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
+    lines.append("")
+    lines.append(
+        "**Scope: Python VM (`vm.interp`) only — _not_ a WASM signal.**  "
+        "The production Zig WASM runtime under `runtime/zig/` is not "
+        "exercised by this harness; fixes there will not show up here. "
+        "The numbers below are internal Python-VM dev signal, not a "
+        "release metric.  See "
+        "`tests/baselines/tcl9-tcltest-vm/README.md` for full scope, "
+        "and `tests/external/run_tcl9_tests.py` for the existing "
+        "WASM-side entry point.\n"
+    )
     lines.append("")
     lines.append(
         "Sources used unmodified: `tmp/tcl9.0.3/library/init.tcl`, "
@@ -626,7 +645,7 @@ def write_dossier(results: list[StemResult]) -> None:
         "and every `.test` file in `tmp/tcl9.0.3/tests/`.\n"
     )
     lines.append("")
-    lines.append("## Summary\n")
+    lines.append("## Summary (Python VM only)\n")
     lines.append(f"- Stems run: **{summary['stems']}**")
     lines.append(f"- Clean (all pass / skip): **{summary['stems_clean']}**")
     lines.append(
@@ -640,7 +659,8 @@ def write_dossier(results: list[StemResult]) -> None:
         f"passed **{summary['tests_passed']}** "
         f"({100 * summary['tests_passed'] // max(1, summary['tests_total'])}%), "
         f"skipped **{summary['tests_skipped']}**, "
-        f"failed **{summary['tests_failed']}**\n"
+        f"failed **{summary['tests_failed']}** "
+        "_(Python VM only; not a WASM signal)_\n"
     )
 
     # Crash root-cause section — the headline of the dossier.

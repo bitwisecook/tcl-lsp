@@ -1,9 +1,40 @@
-# Tcl 9 core test slice — VM baseline & hand-off
+# Tcl 9 core test slice — Python VM baseline & hand-off
 
 This directory captures the result of running the upstream **C Tcl 9.0.3**
-core test slice through the Python VM (`vm.interp`) using the upstream
+core test slice through the **Python VM** (`vm.interp`) using the upstream
 `init.tcl` and `tcltest.tcl` **unmodified**.  It is the durable hand-off
 for whoever picks up the per-bucket fix work the harness identified.
+
+## Scope — read this first
+
+**This baseline gates the Python VM only.  It is _not_ a WASM ship gate.**
+
+The production deliverable is the Zig WASM runtime under `runtime/zig/`.
+Fixes landed in `runtime/zig/` will *not* move this baseline — the
+harness never invokes the compiled WASM module.  Crashes catalogued
+here (e.g. Python `ValueError` leaking from a builtin) are
+Python-VM-specific failure modes that do not exist in the Zig runtime
+by construction.
+
+What this work *is* good for:
+
+- Triaging shared compiler / parser bugs in `core/parsing/` and
+  `core/compiler/`, where fixes propagate to both backends.
+- Tightening the Python-side command implementations under
+  `core/commands/` and `vm/commands/` whose specs the WASM parity
+  gate (`make check-wasm-parity`) then enforces against
+  `runtime/zig/`.
+- Keeping the Python VM honest as the cheaper iteration loop while
+  the Zig runtime catches up on framework features.
+
+What this work is *not*:
+
+- A signal that the WASM ship target is X% correct against upstream
+  Tcl 9.  The WASM-equivalent harness is the priority next step;
+  the existing entry point for compiling-and-running `.test` files
+  through wasmtime is `tests/external/run_tcl9_tests.py`.
+- A gate for any production change.  Treat the pass/fail counts here
+  as internal dev signal, not a release metric.
 
 ## Hard rules — read before touching anything
 
@@ -11,8 +42,9 @@ These rules are not negotiable.  They exist so that the test-suite
 contract can never silently drift away from upstream.
 
 1. **Never edit `tmp/tcl9.0.3/library/tcltest/tcltest.tcl`.**
-   The whole point of this exercise is that our VM must accept the
-   real upstream framework.  Any change to `tcltest.tcl` invalidates
+   The whole point of this exercise is that our Python VM must accept
+   the real upstream framework.  Any change to `tcltest.tcl`
+   invalidates
    the experiment.
 
 2. **Never edit any `.test` file in `tmp/tcl9.0.3/tests/`.**
@@ -175,9 +207,11 @@ how a future reviewer can tell whether to revisit the classification.
    `tmp/tcl9.0.3/generic/` (e.g. `tclParse.c`, `tclBasic.c`,
    `tclCmdAH.c`) is the spec.  Match its error wording and return-code
    path exactly.
-4. **Fix in `vm/`, `core/parsing/`, `core/compiler/`, or
-   `runtime/zig/`.**  Never in `tcltest.tcl`, never in `.test`, never
-   in `init.tcl`, and never by adding a new monkey-patch.
+4. **Fix in `vm/`, `core/parsing/`, `core/compiler/`, or `core/commands/`.**
+   Never in `tcltest.tcl`, never in `.test`, never in `init.tcl`,
+   and never by adding a new monkey-patch.  Note: this gate does *not*
+   see `runtime/zig/`; if the same bug exists on the WASM side, it
+   needs a separate fix and a separate (future) WASM-side gate.
 5. **Mirror the contract in pytest.** Add a focused test under
    `tests/test_vm_<area>_test.py` that pins both the success path and
    (where applicable) the host-exception → `TclError` conversion.
