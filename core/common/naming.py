@@ -32,6 +32,85 @@ RawCommandText = NewType("RawCommandText", str)
 source-fidelity passes (formatter, refactor)."""
 
 
+def is_bare_var_name(name: str) -> bool:
+    """Return True when ``$name`` would lex as a single bare variable token.
+
+    Mirrors ``core.parsing.lexer._parse_var``'s bare-form rule: a name is
+    one or more ``::``-separated segments, each consisting of Unicode
+    alnum or ``_`` characters.  An optional leading ``::`` is allowed.
+
+    Used to decide between the bare ``$name`` and brace ``${name}`` forms
+    in completion / quick fixes -- and as the inverse of "needs braces".
+    Centralised here so both the completion provider and the W216
+    analyser pass derive their decision from a single source of truth
+    rather than independent regexes that may drift from the lexer rule.
+    """
+    if not name:
+        return False
+    s = name[2:] if name.startswith("::") else name
+    if not s:
+        return False
+    for segment in s.split("::"):
+        if not segment:
+            return False
+        for ch in segment:
+            if not (ch.isalnum() or ch == "_"):
+                return False
+    return True
+
+
+def is_brace_substitutable(name: str) -> bool:
+    """Return True when ``${name}`` would successfully look up ``name``.
+
+    Mirrors Tcl 9.0.3's ``Tcl_ParseVarName`` brace-form parser
+    (tclParse.c §1383+):
+
+    - ``\\X`` (backslash + any char) consumes 2 source chars, both of
+      which stay in the lookup name.  So a closing ``}`` preceded by
+      ``\\`` does not end the var-name span -- but the ``\\`` is also
+      preserved in the looked-up name.
+    - ``{`` / ``}`` are tracked with a depth counter; only a ``}`` at
+      depth 0 ends the var-name span.
+
+    Verified empirically against ``tclsh`` 9.0.3 in
+    ``docs/kcs/kcs-tcl-corner-cases.md``.
+
+    Strategy: simulate the parser using ``source = name``.  If it
+    produces ``name`` and closes successfully, ``name`` is reachable.
+    The function returns ``False`` for:
+
+    - any ``}`` in ``name`` not preceded by a balanced inner ``{``
+      (the ``}`` would close the brace before all chars are read);
+    - a trailing single ``\\`` (the parser's ``\\X``-consumes-2 rule
+      can't close because there's no next char);
+    - unbalanced ``{`` (depth > 0 at end -- missing close-brace).
+
+    Names that pass this check are reachable via ``${name}`` exactly.
+    Bare ``$name`` reachability is a strict subset (covered by
+    :func:`is_bare_var_name`).
+    """
+    if not name:
+        return True  # ``${}`` looks up the var literally named ""
+    n = len(name)
+    depth = 0
+    i = 0
+    while i < n:
+        ch = name[i]
+        if ch == "}" and depth == 0:
+            return False
+        if ch == "\\":
+            if i + 1 >= n:
+                return False
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        i += 1
+    return depth == 0
+
+
 def normalise_var_name(name: str) -> str:
     """Normalise Tcl variable forms to their base name."""
     base = name
@@ -42,6 +121,49 @@ def normalise_var_name(name: str) -> str:
     if "(" in base:
         base = base.split("(", 1)[0]
     return base
+
+
+def split_array_name(name: str) -> tuple[str, str | None]:
+    """Split a Tcl variable reference into ``(base, element)``.
+
+    Strips ``$`` / ``${...}`` substitution sigils first, then separates
+    the optional ``(element)`` array-index suffix from the base name.
+    Returns ``(base, None)`` for scalar references.
+
+    Brace and bare forms differ on what's "part of the reference":
+
+    - ``${name}`` reads exactly the chars inside the braces.  Anything
+      after the closing ``}`` is unrelated literal text -- e.g. Tcl
+      parses ``${arr}(foo)`` as scalar ``${arr}`` followed by the
+      literal characters ``(foo)``, *not* as an array reference.
+    - Inside a brace form, ``(idx)`` *is* an array reference, because
+      ``${arr(foo)}`` is just the brace form of ``$arr(foo)`` -- the
+      runtime treats both as the literal name ``arr(foo)``.
+
+    Examples::
+
+        split_array_name("arr")            -> ("arr", None)
+        split_array_name("arr(foo)")       -> ("arr", "foo")
+        split_array_name("$arr(foo)")      -> ("arr", "foo")
+        split_array_name("${arr(foo)}")    -> ("arr", "foo")
+        split_array_name("${arr}(foo)")    -> ("arr", None)   # not an array
+        split_array_name("${arr}")         -> ("arr", None)
+    """
+    base = name
+    if base.startswith("${") and "}" in base:
+        end = base.index("}")
+        inner = base[2:end]
+        # Anything after ``}`` is unrelated literal text -- ignore it.
+        if "(" in inner and inner.endswith(")"):
+            idx = inner.index("(")
+            return inner[:idx], inner[idx + 1 : -1]
+        return inner, None
+    if base.startswith("$"):
+        base = base[1:]
+    if "(" in base and base.endswith(")"):
+        idx = base.index("(")
+        return base[:idx], base[idx + 1 : -1]
+    return base, None
 
 
 def normalise_qualified_name(name: str) -> str:

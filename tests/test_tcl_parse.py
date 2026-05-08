@@ -778,26 +778,26 @@ class TestBracedVarByteSpans:
         assert tok.text == "array name (foo)"
         assert self._is_braced(tok)
 
-    def test_braced_var_stops_at_first_close_brace(self):
-        """${name{}name}: stops at first }, rest is ESC text.
-
-        Matches C Tcl's Tcl_ParseVarName which scans until first '}'.
-        """
+    def test_braced_var_with_balanced_inner_braces(self):
+        """``${name{}name}`` -- inner ``{}`` is balanced (depth 0->1->0),
+        so the trailing ``name`` is part of the var-name and the final
+        ``}`` closes.  Matches Tcl 9.0.3 ``Tcl_ParseVarName`` brace-
+        depth tracking."""
         tokens = lex("${name{}name}")
         var_toks = [t for t in tokens if t.type == TokenType.VAR]
         assert len(var_toks) == 1
-        assert var_toks[0].text == "name{"
+        assert var_toks[0].text == "name{}name"
         assert self._is_braced(var_toks[0])
-        # The "name}" after the first close brace is separate ESC text
-        esc_toks = [t for t in tokens if t.type == TokenType.ESC]
-        assert any(t.text == "name}" for t in esc_toks)
 
     def test_braced_var_with_open_brace(self):
-        """${name{}: open brace inside braced var name."""
+        """``${name{}`` -- inner ``{`` opens depth 1, the ``}`` returns
+        to 0; runs out of input before finding the closing ``}`` of the
+        ``${...}`` itself.  Name = ``name{}`` (warning: missing close-
+        brace)."""
         tokens = lex("${name{}")
         tok = tokens[0]
         assert tok.type == TokenType.VAR
-        assert tok.text == "name{"
+        assert tok.text == "name{}"
         assert self._is_braced(tok)
 
     # In quoted strings

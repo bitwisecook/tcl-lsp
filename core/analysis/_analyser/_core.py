@@ -52,6 +52,7 @@ class _AnalyserBase:
         def _recover_missing_open_brace(self, *a: Any, **kw: Any) -> Any: ...
         def _record_var_read(self, *a: Any, **kw: Any) -> None: ...
         def _process_command(self, *a: Any, **kw: Any) -> None: ...
+        def _emit_w216_for_command(self, *a: Any, **kw: Any) -> None: ...
 
     def __init__(self, *, disabled_diagnostics: frozenset[str] | None = None) -> None:
         self.result = AnalysisResult()
@@ -375,6 +376,7 @@ class _AnalyserBase:
                     self._record_var_read(tok.text, range_from_token(tok), scope)
                 elif tok.type is TokenType.CMD:
                     self._analyse_body(tok.text, scope, body_token=tok)
+            self._emit_w216_for_command(cmd.all_tokens, source)
             self._process_command(
                 cmd.argv,
                 cmd.texts,
@@ -563,6 +565,7 @@ class _AnalyserBase:
                     self._record_var_read(tok.text, range_from_token(tok), scope)
                 elif tok.type is TokenType.CMD:
                     self._analyse_body(tok.text, scope, body_token=tok)
+            self._emit_w216_for_command(cmd.all_tokens, source)
             # Apply command-prefix implicit-args offset to the *first*
             # top-level command of this body only (subsequent commands
             # would not be reachable under command-prefix semantics, so

@@ -403,12 +403,39 @@ class TclLexer:
         dollar_pos = self._position()
         self._advance()  # skip '$'
 
-        # Handle ${name} form
+        # Handle ${name} form.
+        #
+        # Per Tcl 9.0.3's parser (tclParse.c::Tcl_ParseVarName), the
+        # ``${...}`` form is *not* a literal scan-to-first-``}``: the
+        # parser tracks inner ``{...}`` with brace counting and
+        # consumes ``\X`` (any backslash + next char) as part of the
+        # name -- so ``${a\}b}`` reads var ``a\}b`` (4 chars including
+        # the literal backslash) and ``${a{b}c}`` reads var ``a{b}c``.
+        #
+        # The Tcl(n) man page's "no further substitution or
+        # modification" claim refers only to ``$``/``[`` substitution;
+        # backslashes and inner braces ARE recognised as syntax.
         if self.remaining and self._cur() == "{":
             self._advance()  # skip '{'
             self._start = self.pos
-            while self.remaining and self._cur() != "}":
-                self._advance()
+            brace_depth = 0
+            while self.remaining:
+                ch = self._cur()
+                if ch == "}" and brace_depth == 0:
+                    break
+                if ch == "{":
+                    brace_depth += 1
+                    self._advance()
+                elif ch == "}":
+                    brace_depth -= 1
+                    self._advance()
+                elif ch == "\\":
+                    # Consume the backslash and (if any) the next char.
+                    self._advance()
+                    if self.remaining:
+                        self._advance()
+                else:
+                    self._advance()
             self._end = self.pos - 1
             self._type = TokenType.VAR
             if self.remaining:

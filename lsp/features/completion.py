@@ -13,6 +13,7 @@ from core.commands.registry.runtime import (
     SubcommandSig,
 )
 from core.common.dialect import active_dialect
+from core.common.naming import is_bare_var_name
 from core.formatting.config import FormatterConfig, IndentStyle
 from core.formatting.docstring import format_docstring
 
@@ -26,14 +27,140 @@ from .symbol_resolution import (
 )
 
 
+def _var_needs_braces(name: str) -> bool:
+    """Return True if ``$name`` would not lex as a single variable token.
+
+    Inverse of :func:`core.common.naming.is_bare_var_name` -- centralising
+    the bare-vs-brace decision in one helper so the completion path and
+    the W216 analyser pass can never drift from the lexer rule."""
+    return not is_bare_var_name(name)
+
+
+def _var_is_substitutable(name: str) -> bool:
+    """Return False when offering ``$<name>`` / ``${<name>}`` as a
+    completion candidate would not round-trip back to the actual
+    runtime variable.
+
+    Two distinct backslash-subst passes apply on insertion:
+    1. Command-arg parsing of the inserted text: ``set "back\\slash" 1``
+       creates var ``backslash`` (no ``\\`` -- Tcl drops backslashes
+       before non-special chars).
+    2. Brace-form parsing inside ``${...}``: ``\\X`` is consumed as 2
+       chars and BOTH stay in the lookup name.
+
+    The analyser stores ``scope.variables`` keys as the *raw* segmenter-
+    arg source text (with ``\\`` kept), but Tcl's *runtime* var name
+    is the post-subst form.  So a raw key ``back\\slash`` corresponds
+    to runtime var ``backslash`` -- and offering ``${back\\slash}``
+    would have the brace parser look up ``back\\slash`` (with ``\\``,
+    different from the actual var ``backslash``), making the
+    completion broken.
+
+    Conservative rule: reject any raw name containing ``\\`` or ``}``.
+    Both characters trigger the round-trip mismatch.  This is a strict
+    superset of the unreachable set (we may skip a few legitimate but
+    rare cases) -- but it never offers a broken completion.  W215 in
+    the analyser uses the more precise :func:`is_brace_substitutable`
+    against the runtime name to give the user a targeted warning."""
+    return "}" not in name and "\\" not in name
+
+
+def _root_global_scope(scope: Scope) -> Scope:
+    """Walk to the root of the lexical tree (always the global scope)."""
+    s = scope
+    while s.parent is not None:
+        s = s.parent
+    return s
+
+
 def _collect_vars_from_scope(scope: Scope) -> list[str]:
-    """Collect variable names from scope and ancestors."""
+    """Collect variable names from scope and ancestors.
+
+    Names from the lexical chain are offered as written (bare).  When
+    the cursor is *not* in the global namespace, however, vars that
+    live in the global scope WITHOUT a leading ``::`` qualifier (e.g.
+    ``set foo 1`` at top level produces ``foo`` in
+    ``global_scope.variables``) get qualified as ``::foo`` here --
+    Tcl's runtime resolution does NOT make bare ``$foo`` reach a
+    global from inside a namespace eval body or proc body, so
+    offering bare ``$foo`` would produce a runtime ``can't read
+    "foo"`` error.  Cross-checked against tclsh 9.0.3.
+
+    A ``Scope(kind="uplevel")`` short-circuits the lexical-parent walk
+    and redirects to the global scope -- modelling Tcl's runtime
+    behaviour where ``uplevel #0`` body lookups happen in the global
+    frame, skipping the calling proc's locals.  Inside that synthetic
+    scope the cursor is "globally located" at runtime, so global vars
+    are offered bare just like at top level.
+    """
     names: list[str] = []
+    cursor_at_global = scope.kind in ("global", "uplevel")
     current: Scope | None = scope
     while current is not None:
-        names.extend(current.variables.keys())
+        for vname in current.variables:
+            if current.kind == "global" and not cursor_at_global and not vname.startswith("::"):
+                names.append(f"::{vname}")
+            else:
+                names.append(vname)
+        if current.kind == "uplevel":
+            global_scope = _root_global_scope(current)
+            # ``uplevel #0`` body runs in the global frame, so its
+            # bare-name lookups DO reach globals -- offer them bare.
+            names.extend(global_scope.variables.keys())
+            break
         current = current.parent
     return sorted(set(names))
+
+
+def _qualified_var_name(scope: Scope, var_name: str) -> str:
+    """Build the fully-qualified ``::ns::var`` form for a var stored in
+    a namespace or global scope.  Vars whose recorded name already starts
+    with ``::`` (e.g. ``set ::globalvar`` registered at the global scope)
+    are returned unchanged."""
+    if var_name.startswith("::"):
+        return var_name
+    if scope.kind == "global":
+        return f"::{var_name}"
+    return f"{scope.name}::{var_name}"
+
+
+def _lexical_namespace_chain(scope: Scope) -> set[str]:
+    """Return the names of every namespace/global scope in the lexical
+    chain from ``scope`` up to the root.  Used to skip cross-namespace
+    candidates that are already covered by the bare-name parent walk.
+
+    Inside an ``uplevel #0`` body the runtime namespace chain is just
+    ``{"::"}`` regardless of where the body appears lexically -- so the
+    surrounding namespace's vars must show up as cross-namespace
+    qualified candidates rather than be hidden as "in chain"."""
+    chain: set[str] = set()
+    current: Scope | None = scope
+    while current is not None:
+        if current.kind == "uplevel":
+            chain.add("::")
+            return chain
+        if current.kind in ("namespace", "global"):
+            chain.add(current.name)
+        current = current.parent
+    return chain
+
+
+def _collect_cross_namespace_vars(global_scope: Scope, lexical_chain: set[str]) -> list[str]:
+    """Walk the scope tree and return fully-qualified namespace/global
+    variable names whose enclosing namespace is *not* in the cursor's
+    lexical chain.  Proc locals are excluded -- they aren't reachable
+    from outside their proc."""
+    out: list[str] = []
+
+    def visit(scope: Scope) -> None:
+        if scope.kind in ("namespace", "global") and scope.name not in lexical_chain:
+            for vname in scope.variables:
+                out.append(_qualified_var_name(scope, vname))
+        for child in scope.children:
+            visit(child)
+
+    visit(global_scope)
+    return sorted(set(out))
 
 
 def _usage_bucket(count: int) -> int:
@@ -247,36 +374,176 @@ def get_completions(
     items: list[types.CompletionItem] = []
 
     if trigger == "$":
-        # Variable completion
+        # Variable completion.  We always insert the leading ``$`` (and a closing
+        # ``}`` when the user typed ``${``) via an explicit TextEdit, otherwise
+        # VS Code's word-based replacement deletes the typed ``$`` (issue #357).
+        var_lines = lines if lines is not None else source.split("\n")
+        line_text_for_var = var_lines[line] if line < len(var_lines) else ""
+        # Clamp the cursor to [0, line_len] -- LSP allows clients to report
+        # positions past EOL, and the rest of this block indexes line_text.
+        line_len = len(line_text_for_var)
+        cursor_col = max(0, min(character, line_len))
+        dollar_col = cursor_col - 1
+        while dollar_col >= 0 and line_text_for_var[dollar_col] != "$":
+            dollar_col -= 1
+        has_open_brace = (
+            dollar_col >= 0
+            and dollar_col + 1 < line_len
+            and line_text_for_var[dollar_col + 1] == "{"
+        )
+        # Scan forward from the cursor to the end of the existing var
+        # reference so the edit replaces the whole token (avoiding
+        # leftover suffix text like ``$nameeting`` from ``$gre|eting``
+        # or duplicated braces from ``${gre|}``).
+        #
+        # In brace form (``${...}``), the forward scan must mirror the
+        # lexer's ``Tcl_ParseVarName`` rule (which itself mirrors Tcl
+        # 9.0.3's ``tclParse.c``): inner ``{...}`` are tracked with a
+        # brace-depth counter and ``\X`` consumes 2 chars (so ``\}``
+        # does NOT close).  A naive scan-to-first-``}`` would end the
+        # TextEdit too early on a name like ``${a{b}c}`` or ``${a\}b}``
+        # and leave ``c}`` / ``b}`` in the buffer after the user
+        # accepts the completion.  In bare form, only alnum / ``_`` /
+        # ``::`` are valid var-name chars.
+        end_col = cursor_col
+        if has_open_brace:
+            brace_depth = 0
+            while end_col < line_len:
+                ch = line_text_for_var[end_col]
+                if ch == "}" and brace_depth == 0:
+                    end_col += 1  # consume the closing ``}``
+                    break
+                if ch == "{":
+                    brace_depth += 1
+                    end_col += 1
+                elif ch == "}":
+                    brace_depth -= 1
+                    end_col += 1
+                elif ch == "\\":
+                    # Consume the backslash and (if any) the next char.
+                    end_col += 1
+                    if end_col < line_len:
+                        end_col += 1
+                else:
+                    end_col += 1
+        else:
+            while end_col < line_len:
+                ch = line_text_for_var[end_col]
+                if ch.isalnum() or ch == "_":
+                    end_col += 1
+                elif ch == ":" and end_col + 1 < line_len and line_text_for_var[end_col + 1] == ":":
+                    end_col += 2
+                else:
+                    break
+        var_edit_range: types.Range | None = None
+        if dollar_col >= 0:
+            var_edit_range = types.Range(
+                start=types.Position(line=line, character=dollar_col),
+                end=types.Position(line=line, character=end_col),
+            )
+
+        def _make_var_item(name: str, *, detail: str | None = None) -> types.CompletionItem:
+            # Force the ``${...}`` form when the name contains chars the bare
+            # ``$name`` syntax can't carry (hyphens, spaces, dots, etc.) -- so
+            # ``set foo-bar 1; puts $`` completes to ``${foo-bar}``.
+            use_brace = has_open_brace or _var_needs_braces(name)
+            new_text = f"${{{name}}}" if use_brace else f"${name}"
+            item = types.CompletionItem(
+                label=f"${name}",
+                kind=types.CompletionItemKind.Variable,
+                insert_text=new_text,
+                detail=detail,
+            )
+            if var_edit_range is not None:
+                item.text_edit = types.TextEdit(range=var_edit_range, new_text=new_text)
+            return item
+
         scope = find_scope_at_line(analysis.global_scope, line)
+
+        # Array element completion: ``$arr(elem)``.  The lexer already
+        # parses ``$arr(`` as a single VAR token whose text is ``arr(``,
+        # so this branch fires on the partial ``arr(`` / ``arr(prefix``.
+        if "(" in partial:
+            arr_name, _, elem_prefix = partial.partition("(")
+            arr_name = arr_name.lstrip("{")
+            arr_def = None
+            s: Scope | None = scope
+            while s is not None:
+                arr_def = s.variables.get(arr_name)
+                if arr_def is not None:
+                    break
+                s = s.parent
+            if arr_def is not None and arr_def.array_indices and _var_is_substitutable(arr_name):
+                # Extend the replacement range to include any existing
+                # ``)`` after the cursor so we don't double the closer.
+                arr_end_col = cursor_col
+                while arr_end_col < line_len and line_text_for_var[arr_end_col] != ")":
+                    arr_end_col += 1
+                if arr_end_col < line_len and line_text_for_var[arr_end_col] == ")":
+                    arr_end_col += 1
+                arr_edit_range = types.Range(
+                    start=types.Position(line=line, character=dollar_col),
+                    end=types.Position(line=line, character=arr_end_col),
+                )
+                for elem in sorted(arr_def.array_indices):
+                    if not elem:
+                        continue  # ``$arr()`` is unusual; skip empty index.
+                    # Tcl's ``$arr(idx)`` parser stops at the matching
+                    # ``)``; an index containing ``)`` can be created by
+                    # ``set "arr(weird)stuff)" 1`` but isn't reachable
+                    # via $-substitution, so don't offer it.
+                    if ")" in elem:
+                        continue
+                    if elem_prefix and not elem.startswith(elem_prefix):
+                        continue
+                    new_text = f"${arr_name}({elem})"
+                    items.append(
+                        types.CompletionItem(
+                            label=new_text,
+                            kind=types.CompletionItemKind.Field,
+                            insert_text=new_text,
+                            detail=f"{arr_name} element",
+                            text_edit=types.TextEdit(range=arr_edit_range, new_text=new_text),
+                        )
+                    )
+            return items
+
         var_names = _collect_vars_from_scope(scope)
         for name in var_names:
+            if not _var_is_substitutable(name):
+                continue
             if partial and not name.startswith(partial.lstrip("{")):
                 continue
-            items.append(
-                types.CompletionItem(
-                    label=f"${name}",
-                    kind=types.CompletionItemKind.Variable,
-                    insert_text=name,
-                )
-            )
+            items.append(_make_var_item(name))
+        # Cross-namespace candidates -- vars in *other* namespaces, offered
+        # in their fully-qualified ``::ns::var`` form so the inserted text
+        # is always a valid Tcl substitution.  (Vars in the cursor's own
+        # namespace chain are already covered above as bare names, which
+        # is the minimal valid form -- we don't duplicate them here.)
+        existing = {item.label for item in items}
+        chain = _lexical_namespace_chain(scope)
+        for qname in _collect_cross_namespace_vars(analysis.global_scope, chain):
+            label = f"${qname}"
+            if label in existing:
+                continue
+            if not _var_is_substitutable(qname):
+                continue
+            if partial and not qname.startswith(partial.lstrip("{")):
+                continue
+            items.append(_make_var_item(qname, detail="namespace variable"))
+            existing.add(label)
         # Cross-file RULE_INIT variables
         if workspace_rule_init_vars:
-            existing = {item.label for item in items}
+            existing_labels = {item.label for item in items}
             for name in workspace_rule_init_vars:
                 label = f"${name}"
-                if label in existing:
+                if label in existing_labels:
+                    continue
+                if not _var_is_substitutable(name):
                     continue
                 if partial and not name.startswith(partial.lstrip("{")):
                     continue
-                items.append(
-                    types.CompletionItem(
-                        label=label,
-                        kind=types.CompletionItemKind.Variable,
-                        insert_text=name,
-                        detail="RULE_INIT (cross-file)",
-                    )
-                )
+                items.append(_make_var_item(name, detail="RULE_INIT (cross-file)"))
 
     elif trigger == "sub":
         # Subcommand completion

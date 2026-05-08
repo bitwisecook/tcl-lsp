@@ -74,6 +74,16 @@ diag(
     "Unused proc parameter — argument is declared but never read in the procedure body.",
     section="variable",
 )
+diag(
+    "W215",
+    "Variable name unreachable via $-substitution (creatable via set/info exists/upvar but no $-form can read it).",
+    section="variable",
+)
+diag(
+    "W216",
+    "Broken brace-form array element reference — ``${arr}(x)`` parses as scalar+literal, ``${arr($foo)}`` does not substitute the index.",
+    section="variable",
+)
 diag("W220", "Dead store — variable set but overwritten before use.", section="variable")
 diag(
     "IRULE4005",
