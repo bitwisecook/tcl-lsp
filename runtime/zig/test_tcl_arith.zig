@@ -328,6 +328,47 @@ test "obj_ensure_string — bignum renders to decimal string" {
     try testing.expectEqualStrings("9223372036854775808", sl[0..s.len]);
 }
 
+fn floatStr(v: f64) []const u8 {
+    const o = obj.obj_new_float(v);
+    const s = obj.obj_ensure_string(o);
+    const sl: [*]const u8 = @ptrFromInt(s.ptr);
+    return sl[0..s.len];
+}
+
+test "obj_ensure_string — float renders Tcl_PrintDouble F format" {
+    // Exponent in [-4, 16] → fixed decimal with ``.0`` for integers.
+    try testing.expectEqualStrings("1.0", floatStr(1.0));
+    try testing.expectEqualStrings("-1.0", floatStr(-1.0));
+    try testing.expectEqualStrings("1.5", floatStr(1.5));
+    try testing.expectEqualStrings("3.14", floatStr(3.14));
+    try testing.expectEqualStrings("100.0", floatStr(100.0));
+    try testing.expectEqualStrings("0.5", floatStr(0.5));
+    try testing.expectEqualStrings("0.0001", floatStr(0.0001));
+    try testing.expectEqualStrings("0.0", floatStr(0.0));
+}
+
+test "obj_ensure_string — float renders Tcl_PrintDouble E format for tiny / huge" {
+    // Exponent < -4 or > 16 → scientific with explicit-sign,
+    // un-padded exponent (mirroring upstream's ``e%+d``).
+    try testing.expectEqualStrings("1e-5", floatStr(1e-5));
+    try testing.expectEqualStrings("1e+20", floatStr(1e20));
+    try testing.expectEqualStrings("1e+308", floatStr(1e308));
+}
+
+test "obj_ensure_string — subnormal floats render as scientific (not flushed to zero)" {
+    // The 32-byte ftoa scratch buffer used to silently overflow on
+    // ``{d}`` decimal expansion of subnormals (``1e-320`` ≈ 322 chars)
+    // and fall back to a single stale byte — printing ``0.0``.  Render
+    // via shortest-roundtrip scientific so the subnormal value is
+    // preserved through the obj's string rep.
+    try testing.expectEqualStrings("1e-320", floatStr(1e-320));
+    // ``1e-320 / 0.9`` is a subnormal whose shortest-roundtrip mantissa
+    // is ``1.111`` at full f64 precision (``1.111e-320``); the deeper
+    // digits beyond that round-trip differently because the available
+    // mantissa bits shrink with the exponent.
+    try testing.expectEqualStrings("1.111e-320", floatStr(1e-320 / 0.9));
+}
+
 test "obj_ensure_string — caches the rendered buffer (str_ptr persists)" {
     const big: i128 = @as(i128, 1) << 100;
     const o = bignumObj(big);
