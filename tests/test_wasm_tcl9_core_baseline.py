@@ -58,13 +58,21 @@ pytestmark = [
 ]
 
 
-# Worker count and per-stem wall-clock timeout the gate passes to the
-# harness.  Kept as module-level constants so the subprocess invocation
-# and ``_harness_upper_bound_seconds`` cannot drift apart — the harness
-# script's own defaults are tuned for interactive use (workers=2) and
-# differ from what the gate wants.
+# Worker count, per-stem wall-clock timeout, and per-stem WASM-runtime
+# watchdog the gate passes to the harness.  Kept as module-level
+# constants so the subprocess invocation and
+# ``_harness_upper_bound_seconds`` cannot drift apart — the harness
+# script's own defaults are tuned for interactive use (workers=2,
+# run-timeout=120) and differ from what the gate wants.  The
+# ``--run-timeout 180`` matches the ``make refresh-tcl9-wasm-core-baseline``
+# target so the runtime envelope used to capture ``summary.json`` is
+# the same envelope this gate enforces against; without it, a stem
+# that the refresh recorded as non-crashed (because it completed in
+# 120-180s under refresh's looser watchdog) flips to ``Timeout`` here
+# and the gate spuriously regresses.
 _GATE_WORKERS = 4
 _GATE_PER_STEM_TIMEOUT_S = 240
+_GATE_PER_STEM_RUN_TIMEOUT_S = 180
 
 
 def _harness_upper_bound_seconds(
@@ -100,6 +108,8 @@ def _run_harness() -> dict:
                 str(_GATE_WORKERS),
                 "--timeout",
                 str(_GATE_PER_STEM_TIMEOUT_S),
+                "--run-timeout",
+                str(_GATE_PER_STEM_RUN_TIMEOUT_S),
             ],
             cwd=str(REPO_ROOT),
             capture_output=True,

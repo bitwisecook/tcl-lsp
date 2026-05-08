@@ -328,6 +328,27 @@ def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
 
     def _walk(n: object) -> None:
         match n:
+            case ExprVar(name=name, text=text):
+                # Mirrors the ``ExprVar`` arm in :func:`_scan_expr` so
+                # an expression body reached via the cmd-subst scan
+                # path (``[expr {...}]`` inside another command) gets
+                # the same imports the IR-level expression scan would
+                # have requested.  Without this, an ``$::ns::v`` /
+                # ``$::arr(k)`` read inside ``[expr {...}]`` traps when
+                # the value-level array scan is the only path that
+                # registers ``tcl_array_get`` / ``tcl_global_get``.
+                if name.startswith("::"):
+                    needed.add("tcl_global_get")
+                # Detect array refs in both the bare ``$arr(k)`` form
+                # (text ends with ``)``) and the braced ``${arr(k)}``
+                # form the lowerer emits for array reads inside
+                # interpolated strings (text ends with ``}``).  Either
+                # routes through ``_emit_var_read_obj`` →
+                # ``_parse_array_ref`` and needs ``tcl_array_get``.
+                if "(" in text and (
+                    text.endswith(")") or (text.startswith("${") and text.endswith("}"))
+                ):
+                    needed.add("tcl_array_get")
             case ExprBinary(op=op, left=left, right=right):
                 if op in (BinOp.STR_EQ, BinOp.STR_EQUALS, BinOp.STR_NE):
                     needed.add("tcl_string_equal")
@@ -919,12 +940,23 @@ def _scan_needed_imports(
                         break
                     j = k
                 else:
-                    while j < n and (
-                        value[j].isalnum()
-                        or value[j] == "_"
-                        or (value[j] == ":" and j + 1 < n and value[j + 1] == ":")
-                    ):
-                        j += 1
+                    # Bare ``$name`` — accept identifier characters
+                    # plus the ``::`` namespace separator.  The
+                    # separator must advance two characters at a time
+                    # so the second colon doesn't terminate the scan
+                    # mid-name; a single-step advance left ``$::myarr(``
+                    # unrecognised and ``tcl_array_get`` was never
+                    # imported, so the read silently fell back to
+                    # ``i32.const 0`` and the caller trapped on the
+                    # synthesised null obj.
+                    while j < n:
+                        c = value[j]
+                        if c.isalnum() or c == "_":
+                            j += 1
+                        elif c == ":" and j + 1 < n and value[j + 1] == ":":
+                            j += 2
+                        else:
+                            break
                 if j < n and value[j] == "(":
                     needed.add("tcl_array_get")
                     break
