@@ -1150,6 +1150,24 @@ pub fn eval_for(words: []const i32) i32 {
         }
         const next_res = eval_script(next_s.ptr, next_s.len);
         if (next_res != 0) obj_mod.tcl_obj_release(next_res);
+        // Mirror ``tclCmdAH.c`` ForPostNextCallback (Tcl 9.0.3 line
+        // ~2713): the next-clause's BREAK collapses to TCL_OK and
+        // terminates the loop; CONTINUE / ERROR / RETURN propagate
+        // unchanged.  Without this branch ``for {} {1} {break} {}``
+        // span-locks because the BREAK signal never gets observed
+        // (the cond is a bare literal so eval_expr_str ignores it),
+        // and ``for {} {1} {continue} {}`` ditto for CONTINUE — both
+        // appear as Tier-3 timeouts in the upstream for.test slice
+        // (for-6.17 / for-6.18).
+        const next_ir = result_mod.snapshot(0);
+        switch (next_ir.code) {
+            .OK => {},
+            .BREAK => {
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE, .ERROR, .RETURN => return result,
+        }
     }
     return result;
 }

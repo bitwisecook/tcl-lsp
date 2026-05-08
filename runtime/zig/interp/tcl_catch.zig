@@ -199,6 +199,47 @@ pub export fn flow_check_return() i32 {
     return @as(i32, @intCast(state.return_flag));
 }
 
+/// Compiled ``for`` loops call this once after the next-clause
+/// has run to decide whether to iterate again or exit the loop.
+///
+/// Mirrors ``tclCmdAH.c`` ForPostNextCallback (Tcl 9.0.3 line ~2713):
+///   * BREAK in next     → consume the flag, exit loop with TCL_OK
+///   * CONTINUE in next  → leave the flag set, exit loop (caller's
+///                         catch / proc dispatcher reports TCL_CONTINUE)
+///   * ERROR / RETURN    → leave the flag set, exit loop (propagates)
+///
+/// Returns 1 when the loop should exit, 0 when it should continue.
+/// Without this hook ``for {} {1} {break} {}`` and
+/// ``for {} {1} {continue} {}`` (upstream for-6.17 / for-6.18) span-
+/// lock the wasm-compiled loop because next-clause flow signals
+/// from an eval-fallback never become a wasm ``br``.
+pub export fn flow_for_next_post_check() i32 {
+    if (state.break_flag != 0) {
+        state.break_flag = 0;
+        state.signal_break_flag = 0;
+        return 1;
+    }
+    if (state.continue_flag != 0) return 1;
+    if (state.error_flag != 0) return 1;
+    if (state.return_flag != 0) return 1;
+    return 0;
+}
+
+/// Non-consuming "is any control flow pending?" probe.  Compiled
+/// ``for`` loops call this after the *init* clause to decide
+/// whether to enter the loop or propagate immediately — init's
+/// BREAK / CONTINUE / ERROR / RETURN all surface as the for
+/// command's own exit code (per ``tclCmdAH.c`` Tcl_ForObjCmd line
+/// ~2598), so we leave the flag set and just signal the compiled
+/// emitter to br to the break target.
+pub export fn flow_check_any_signal() i32 {
+    if (state.break_flag != 0) return 1;
+    if (state.continue_flag != 0) return 1;
+    if (state.error_flag != 0) return 1;
+    if (state.return_flag != 0) return 1;
+    return 0;
+}
+
 /// Read-and-clear the pending return state, returning the value
 /// the body intended to return.  Used at the compiled-proc-call
 /// boundary in the caller to absorb a callee's ``return`` so

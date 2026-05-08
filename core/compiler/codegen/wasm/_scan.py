@@ -167,6 +167,8 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
                 needed.add("tcl_catch_has_error")
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
+                needed.add("tcl_flow_for_next_post_check")
+                needed.add("tcl_flow_check_any_signal")
                 _scan_s(init)
                 _scan_s(body)
                 _scan_s(next_script)
@@ -1308,6 +1310,8 @@ def _scan_needed_imports(
                 _scan_script(next_s)
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
+                needed.add("tcl_flow_for_next_post_check")
+                needed.add("tcl_flow_check_any_signal")
             case IRWhile(condition=condition, body=body):
                 _scan_expr(condition)
                 _scan_script(body)
