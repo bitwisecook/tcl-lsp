@@ -27,16 +27,27 @@ def word_piece(tok: Token) -> str:
     ``loadArray1``.
     """
     if tok.type is TokenType.VAR:
-        # Detect braced ${...} vs bare $name form from token span.
-        # ${name} has span > len(name) ($ + { + ... + }), while bare
-        # $name has span == len(name) (just the $ prefix, end lands
-        # on the last char of the name).
-        is_braced = (tok.end.offset - tok.start.offset) > len(tok.text)
+        # Detect braced ``${...}`` vs bare ``$name`` form from the
+        # token span.  Bare ``$name`` adds one source char (the
+        # ``$``) over the text; braced ``${name}`` adds three (``${``
+        # plus closing ``}``).  Earlier this used ``span > len(text)``
+        # which is true for *both* forms — the resulting false-positive
+        # silently re-quoted bare ``$arr(key)`` as ``$={arr(key)}``,
+        # collapsing array-element reads into scalar lookups of the
+        # literal name (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)`` and
+        # every eval-fallback that re-emits the source spelling).
+        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
+        is_braced = span_extra >= 2
         if is_braced and "(" in tok.text and tok.text.endswith(")"):
             # Braced form with array-like name: ${a(1)} is a scalar,
             # NOT an array access.  Mark with $= prefix so codegen
             # emits push + loadStk instead of array load.
             return f"$={{{tok.text}}}"
+        # Bare ``$arr(idx)`` — pass through verbatim so the array
+        # element lookup keeps its substitution semantics on the
+        # eval-fallback path.
+        if not is_braced and "(" in tok.text and tok.text.endswith(")"):
+            return "$" + tok.text
         # Use ${name} form only when the name doesn't contain '}'.
         # Names with '}' (e.g. array indices with braced expressions
         # like ``a(1[expr {3 - 1}])``) would cause the first '}' to

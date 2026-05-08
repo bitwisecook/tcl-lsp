@@ -267,8 +267,22 @@ fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
     if (le >= ls + 2 and src[ls] == '{' and src[le - 1] == '}') {
         ls += 1;
         le -= 1;
+    } else if (le >= ls + 2 and src[ls] == '"' and src[le - 1] == '"') {
+        // ``$x eq ""`` — the empty-string literal would otherwise
+        // round-trip through ``subst_word`` as the two-byte string
+        // ``""`` (the quotes survive unchanged, ``has_dollar`` etc.
+        // all false).  Strip the outer quotes the same way the
+        // braced branch does so ``"abc"`` → ``abc`` and ``""``
+        // → empty (cmdIL bootstrap: the
+        // ``[namespace which -command …] eq ""`` guard around
+        // ``namespace eval ::tcltest::internals { … }``).
+        ls += 1;
+        le -= 1;
     }
     if (re >= rs + 2 and src[rs] == '{' and src[re - 1] == '}') {
+        rs += 1;
+        re -= 1;
+    } else if (re >= rs + 2 and src[rs] == '"' and src[re - 1] == '"') {
         rs += 1;
         re -= 1;
     }
@@ -2113,6 +2127,28 @@ fn build_invocation_list(words: []const i32) i32 {
 /// Shared between ``eval_proc_call`` (legacy path) and the proc-first
 /// fast path in ``eval_command``.
 fn eval_proc_call_bucket(words: []const i32, bucket: i32) i32 {
+    // Recursion-depth ceiling — fires for both interpreted and
+    // compiled-proc dispatches that flow through this entry point.
+    // Reference Tcl's default ``Tcl_RecursionLimit`` is 1000 but a
+    // single compiled-proc invocation lands ~10 wasm stack frames,
+    // so wasmtime's default 512 KiB stack runs out long before that.
+    // Cap at a value (50) that leaves room for normal nesting (the
+    // tcltest ``proc Body { … }`` chain reaches ~15) but stops the
+    // ``error-1.8`` ``proc p {} { uplevel 1 catch p error }; p``
+    // self-recursion before the wasm call stack exhausts.
+    // ``parked_top`` covers the uplevel-style pattern where each
+    // iteration parks the top frame and ``frame_depth`` itself
+    // oscillates around 1 — without summing them in the bare
+    // ``frame_depth`` ceiling never trips.
+    if (frames.frame_depth + frames.parked_top >= 50) {
+        const tcl_catch = @import("tcl_catch.zig");
+        const msg_text: []const u8 =
+            "too many nested evaluations (infinite loop?)";
+        const m = obj_mod.obj_new_string_copy(@intFromPtr(msg_text.ptr), @intCast(msg_text.len));
+        tcl_catch.tcl_cmd_error(m);
+        return 0;
+    }
+
     // ``interp alias`` redirect Commands carry the CMD_ALIAS flag bit
     // and an ``AliasRec`` in their params_obj slot.  Route them
     // through the alias trampoline BEFORE the generic proc body
@@ -3210,6 +3246,15 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
 /// caller has unwound (e.g. recursive substitution paths).
 fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     if (cmd_len == 0) return;
+    // ``script_ptr == 0`` means the caller doesn't have a backing
+    // script buffer to quote (e.g. error raised from a synthesised
+    // recursion-limit / arity stub).  ReleaseSafe builds turn the
+    // ``@ptrFromInt(0)`` cast at line 3311 into a panic, which
+    // wasmtime surfaces as ``cast causes pointer to be null``;
+    // bail early so the unwinding error continues to propagate
+    // without an extra ``invoked from within`` frame we have no
+    // bytes to fill.
+    if (script_ptr == 0) return;
     const tcl_catch = @import("tcl_catch.zig");
     const cur = tcl_catch.state.error_msg;
     if (cur == 0) return;
@@ -3234,7 +3279,14 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
             const ei_cur = tcl_ns.global_get(ec_name_probe);
             if (ei_cur != 0) {
                 const ei_s = obj_mod.obj_ensure_string(ei_cur);
-                if (ei_s.len > msg_s.len) {
+                // Guard against zero-pointer string reps before
+                // ``@ptrFromInt`` — ReleaseSafe panics with
+                // ``cast causes pointer to be null`` if either
+                // span has len > 0 with a stale 0 ptr (seen when
+                // the proc-call recursion-limit error fires with
+                // a message obj whose string rep was pre-built
+                // but whose underlying buffer was already freed).
+                if (ei_s.len > msg_s.len and msg_s.ptr != 0 and ei_s.ptr != 0) {
                     const msg_p: [*]const u8 = @ptrFromInt(msg_s.ptr);
                     const ei_p: [*]const u8 = @ptrFromInt(ei_s.ptr);
                     var matches = true;
@@ -3268,7 +3320,7 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     if (buf == 0) return;
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
-    if (cur_s.len > 0) {
+    if (cur_s.len > 0 and cur_s.ptr != 0) {
         const csp: [*]const u8 = @ptrFromInt(cur_s.ptr);
         for (0..cur_s.len) |k| {
             dst[off] = csp[k];
@@ -3279,6 +3331,7 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
         dst[off] = b;
         off += 1;
     }
+    if (script_ptr + cmd_start == 0) return;
     const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
     for (0..trunc_len) |k| {
         dst[off] = cmdp[k];

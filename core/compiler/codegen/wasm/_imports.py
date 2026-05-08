@@ -137,6 +137,29 @@ def subcommand_runtime_import_for(command: str, subcommand: str) -> WasmRuntimeI
     return None
 
 
+def subcommand_min_arity_for(command: str, subcommand: str) -> int | None:
+    """Return ``SubCommand.arity.min`` for ``<command> <subcommand>``, or None.
+
+    Used by the static-call codegen to bail out to ``eval``-fallback when
+    a literal call is short of the registry-declared minimum.  Without
+    this guard, e.g. statement-level ``catch {string index} b`` zero-pads
+    the missing args at compile time, ``tcl_string_index(0,0)`` silently
+    returns the empty string, and the surrounding ``catch`` never sees an
+    error — ``$b`` ends up empty and ``::errorInfo`` is never stamped
+    (error-1.3 / 1.6 / 1.7 / cmdAH-1.4 / 1.5 / list).
+    """
+    specs = REGISTRY.specs_by_name.get(command)
+    if specs is None and command.startswith("::"):
+        specs = REGISTRY.specs_by_name.get(command[2:])
+    if specs is None:
+        return None
+    for spec in specs:
+        sub = spec.subcommands.get(subcommand)
+        if sub is not None:
+            return sub.arity.min
+    return None
+
+
 # Infrastructure import signatures — runtime helpers the codegen
 # references directly, with no ``CommandSpec`` owner.  Every entry
 # maps an import key to ``(module, export_name, param_types,

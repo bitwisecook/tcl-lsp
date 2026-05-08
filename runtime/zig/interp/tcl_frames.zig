@@ -986,7 +986,7 @@ var parked_capacity: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var parked_dirty: [MAX_DEPTH]u64 = [_]u64{0} ** MAX_DEPTH;
 var parked_ns: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 var parked_argv: [MAX_DEPTH]i32 = [_]i32{0} ** MAX_DEPTH;
-var parked_top: u32 = 0;
+pub var parked_top: u32 = 0;
 // Per-stash count of parked frames.  Indexed by ``ns_save_top``
 // at stash time so restore can recover the matching count.
 var parked_count_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;

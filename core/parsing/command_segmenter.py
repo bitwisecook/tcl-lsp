@@ -44,6 +44,16 @@ def _word_piece(tok: Token) -> str:
     wrapped in ``[...]`` so that the result mirrors what the user wrote.
     """
     if tok.type is TokenType.VAR:
+        # Bare ``$arr(idx)`` MUST round-trip as ``$arr(idx)``, not
+        # ``${arr(idx)}``.  Tcl's ``${name}`` syntax disables array-
+        # element interpretation — wrapping bare array refs in braces
+        # turns them into scalar lookups of the literal name (the
+        # cmdAH-1.4 / 1.5 ``$numargErrors($cmd)`` regression that
+        # silenced ``$cmd`` substitution inside the index span).
+        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
+        is_braced = span_extra >= 2
+        if not is_braced and "(" in tok.text and tok.text.endswith(")"):
+            return "$" + tok.text
         # Use ${name} form only when the name doesn't contain '}'.
         # Names with '}' (e.g. array indices with braced expressions
         # like ``a(1[expr {3 - 1}])``) would cause the first '}' to
