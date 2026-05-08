@@ -27,16 +27,33 @@ def word_piece(tok: Token) -> str:
     ``loadArray1``.
     """
     if tok.type is TokenType.VAR:
-        # Detect braced ${...} vs bare $name form from token span.
-        # ${name} has span > len(name) ($ + { + ... + }), while bare
-        # $name has span == len(name) (just the $ prefix, end lands
-        # on the last char of the name).
-        is_braced = (tok.end.offset - tok.start.offset) > len(tok.text)
+        # Detect braced ``${...}`` vs bare ``$name`` form from the
+        # token span.  ``Token.end.offset`` is the position of the
+        # *last* source byte covered by the token (inclusive — see
+        # ``core/parsing/lexer.py``); ``tok.text`` excludes the
+        # leading ``$`` for bare and excludes both braces for
+        # ``${…}``.  Net delta is 0 for bare and 1 for braced
+        # (the leading ``$`` and the closing ``}`` cancel against
+        # the omitted ``${``+``}`` so only one source char is
+        # un-accounted-for in the braced form).  An earlier
+        # ``>= 2`` test never fired and silently flipped braced
+        # array-shaped names into bare array-element reads
+        # (Copilot review on PR #382).
+        span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
+        is_braced = span_extra >= 1
         if is_braced and "(" in tok.text and tok.text.endswith(")"):
             # Braced form with array-like name: ${a(1)} is a scalar,
             # NOT an array access.  Mark with $= prefix so codegen
             # emits push + loadStk instead of array load.
             return f"$={{{tok.text}}}"
+        # Bare ``$arr(idx)`` — pass through verbatim so the array
+        # element lookup keeps its substitution semantics on the
+        # eval-fallback path.  Without this, the ``${…}`` wrapper
+        # below collapses bare array refs into scalar lookups of
+        # the literal name (cmdAH-1.4 / 1.5
+        # ``$numargErrors($cmd)``).
+        if not is_braced and "(" in tok.text and tok.text.endswith(")"):
+            return "$" + tok.text
         # Use ${name} form only when the name doesn't contain '}'.
         # Names with '}' (e.g. array indices with braced expressions
         # like ``a(1[expr {3 - 1}])``) would cause the first '}' to

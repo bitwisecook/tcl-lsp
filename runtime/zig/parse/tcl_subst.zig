@@ -262,6 +262,20 @@ pub fn subst_flagged_full(
                         break;
                     }
                 }
+                if (i == vstart) {
+                    // ``$`` followed by a non-name character (non-ASCII
+                    // alnum, punctuation other than ``::`` / ``{`` / ``(``)
+                    // is a literal ``$``.  C Tcl's Tcl_ParseVarName also
+                    // refuses to start a variable name on a non-ASCII byte
+                    // (parse-12.26 ``Tcl_ParseVarName [d2ffcca163]
+                    // non-ascii``).  Without this guard we fall through to
+                    // ``var_resolve`` with an empty name and trap on
+                    // ``can't read "": no such variable``.
+                    i = vstart; // already true, but explicit for clarity
+                    lit_start = vstart - 1; // include the ``$``
+                    lit_run = 1;
+                    continue;
+                }
                 const name_obj = obj_new_string(@bitCast(wptr + vstart), @bitCast(i - vstart));
                 // Array-element form ``$arr(idx)``: when the next byte
                 // is ``(`` we consume up to the matching ``)``,

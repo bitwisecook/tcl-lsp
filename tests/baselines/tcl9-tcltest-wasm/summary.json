@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T16:43:32Z",
+  "generated_at": "2026-05-08T19:04:40Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -30,22 +30,22 @@
       "total": 146
     },
     "cmdAH": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
-      "crashed": true,
-      "failed_max": 0,
-      "passed_min": 0,
-      "skipped": 0,
-      "total": 0
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 21,
+      "passed_min": 3885,
+      "skipped": 147,
+      "total": 4053
     },
     "cmdIL": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
-      "crashed": true,
-      "failed_max": 0,
-      "passed_min": 0,
-      "skipped": 0,
-      "total": 0
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 41,
+      "passed_min": 125,
+      "skipped": 2,
+      "total": 168
     },
     "cmdInfo": {
       "bucket": "clean",
@@ -102,13 +102,13 @@
       "total": 9
     },
     "error": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
-      "crashed": true,
-      "failed_max": 0,
-      "passed_min": 0,
-      "skipped": 0,
-      "total": 0
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 180,
+      "passed_min": 129,
+      "skipped": 8,
+      "total": 317
     },
     "eval": {
       "bucket": "W-mixed-fail",
@@ -255,13 +255,13 @@
       "total": 28
     },
     "list": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
-      "crashed": true,
-      "failed_max": 0,
-      "passed_min": 0,
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 1,
+      "passed_min": 77,
       "skipped": 0,
-      "total": 0
+      "total": 78
     },
     "llength": {
       "bucket": "W-mixed-fail",
@@ -390,13 +390,13 @@
       "total": 126
     },
     "parse": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
-      "crashed": true,
-      "failed_max": 0,
-      "passed_min": 0,
-      "skipped": 0,
-      "total": 0
+      "bucket": "W-mixed-fail",
+      "crash_type": "",
+      "crashed": false,
+      "failed_max": 2,
+      "passed_min": 100,
+      "skipped": 169,
+      "total": 271
     },
     "parseExpr": {
       "bucket": "clean",
@@ -519,8 +519,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 5,
-      "passed_min": 57,
+      "failed_max": 3,
+      "passed_min": 59,
       "skipped": 1,
       "total": 63
     },
