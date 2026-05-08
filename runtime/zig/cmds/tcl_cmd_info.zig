@@ -1027,6 +1027,29 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
                     // matches nothing.
                     return obj_new_string(0, 0);
                 }
+                // BUILTIN-tier namespaces (``::tcl::mathop::*``,
+                // ``::tcl::mathfunc::*``, …) aren't represented in
+                // the namespace tree until something pokes them, so
+                // a fresh ``info commands ::tcl::mathop::*`` would
+                // come back empty.  Materialise lazily.
+                if (qualified_target == 0 and ctx.kind == .commands) {
+                    const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+                    // Reconstruct the namespace prefix: everything
+                    // up to (and including the second-to-last) ``::``
+                    // before the trailing simple pattern.
+                    var last_sep: i32 = -1;
+                    var k: u32 = 0;
+                    while (k + 1 < p.len) : (k += 1) {
+                        if (src[k] == ':' and src[k + 1] == ':') {
+                            last_sep = @intCast(k);
+                            k += 1;
+                        }
+                    }
+                    if (last_sep > 0) {
+                        const prefix_len: u32 = @intCast(last_sep);
+                        qualified_target = builtin_ns.materialise(p.ptr, prefix_len);
+                    }
+                }
             }
         }
     }

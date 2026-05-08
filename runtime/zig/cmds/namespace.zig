@@ -167,7 +167,18 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         if (sep_at > 0) {
                             const src_ns_ptr = is.ptr;
                             const src_ns_len = sep_at;
-                            const target = resolve_ns(src_ns_ptr, src_ns_len);
+                            var target = resolve_ns(src_ns_ptr, src_ns_len);
+                            // BUILTIN-tier namespaces (``::tcl::mathop``,
+                            // ``::tcl::mathfunc``, …) live in the static
+                            // BUILTINS slice rather than the namespace
+                            // tree.  Materialise the namespace + its
+                            // forward Commands on demand so the
+                            // existence check (and the ``ns_import``
+                            // walk that follows) sees them.
+                            if (target == 0) {
+                                const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+                                target = builtin_ns.materialise(src_ns_ptr, src_ns_len);
+                            }
                             if (target == 0) {
                                 const prefix: []const u8 = "unknown namespace in import pattern \"";
                                 const suffix: []const u8 = "\"";
@@ -241,6 +252,16 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                     if (r.simple_len > 0 and r.target_ns != 0) {
                         const child = tcl_ns.ns_lookup(r.target_ns, r.simple_ptr, r.simple_len);
                         resolved = child;
+                    }
+                    // Path target may name a BUILTIN-tier namespace
+                    // (``::tcl::mathop``) that hasn't been materialised
+                    // yet — populate from BUILTINS so the ns shows up
+                    // as a real path target with all its forwarder
+                    // commands in place.  Mirrors the same hook in
+                    // ``namespace import``.
+                    if (resolved == 0) {
+                        const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+                        resolved = builtin_ns.materialise(elt.start, elt.len);
                     }
                     obj_mod.write_i32(targets_buf + @as(u32, @intCast(li)) * 4, @bitCast(resolved));
                 }

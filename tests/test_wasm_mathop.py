@@ -12,7 +12,7 @@ import pytest
 
 wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
-from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm  # noqa: E402
+from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm, _try_compile_and_run  # noqa: E402
 
 
 def _run(source: str) -> str:
@@ -186,3 +186,85 @@ def test_mathop_logical_boolean_keywords() -> None:
     # Numeric truth still works.
     assert _run("puts [::tcl::mathop::&& 1 1 1]") == "1"
     assert _run("puts [::tcl::mathop::|| 0 0 1]") == "1"
+
+
+# -- ``namespace import ::tcl::mathop::*`` materialisation -----------------
+#
+# The ``::tcl::mathop`` ensemble's commands live in the static BUILTINS
+# slice keyed by FQN (``::tcl::mathop::+`` and friends), not in any
+# namespace's ``cmd_table``.  Until the runtime materialises the
+# ensemble lazily via ``dispatch/tcl_builtin_ns.zig``, ``namespace
+# import ::tcl::mathop::*`` raises ``unknown namespace in import
+# pattern "::tcl::mathop::*"`` because the existence check at
+# ``cmds/namespace.zig`` doesn't know that the BUILTINS slice implies
+# the namespace exists.  ``mathop.test`` (Tcl 9 core slice) is the
+# canonical caller and trapped at line 22 before our fix.
+
+
+def test_namespace_import_mathop_glob() -> None:
+    """``namespace import ::tcl::mathop::*`` must succeed and pull every
+    operator into the destination namespace, where the bare names
+    dispatch through the import redirect to the BUILTIN handler."""
+    out = _run(
+        """
+namespace eval ::testmathop2 {
+    namespace import ::tcl::mathop::*
+}
+puts [::testmathop2::+ 1 2 3]
+puts [::testmathop2::== 1 1 1]
+puts [::testmathop2::eq abc abc abc]
+puts [::testmathop2::min 5 2 7 3]
+puts [::testmathop2::in b {a b c}]
+"""
+    )
+    assert out == "6\n1\n1\n2\n1"
+
+
+def test_namespace_import_mathop_single_name() -> None:
+    """A targeted ``namespace import ::tcl::mathop::min`` (no glob) must
+    also materialise the source namespace and import just the named
+    op."""
+    out = _run(
+        """
+namespace eval ::picker {
+    namespace import ::tcl::mathop::min
+    namespace import ::tcl::mathop::max
+}
+puts [::picker::min 5 2 7]
+puts [::picker::max 5 2 7]
+"""
+    )
+    assert out == "2\n7"
+
+
+def test_info_commands_lists_mathop_ensemble() -> None:
+    """``info commands ::tcl::mathop::*`` must enumerate every operator
+    even before any other code touches the ensemble — the
+    ``info commands`` walker materialises BUILTIN namespaces lazily."""
+    out = _run("puts [llength [info commands ::tcl::mathop::*]]")
+    assert out == "32"
+
+
+def test_materialise_only_for_builtin_backed_namespaces() -> None:
+    """Materialisation must only fire for namespaces backed by a
+    BUILTINS prefix.  An unknown prefix must remain unknown — i.e.
+    ``namespace exists`` against a name that has no BUILTINS entries
+    must still return 0 — so the materialise hook isn't degrading
+    into "any qualified ns is fine"."""
+    out = _run("puts [namespace exists ::nope::does_not_exist]")
+    assert out == "0"
+
+
+def test_materialise_does_not_create_unrelated_namespaces() -> None:
+    """After ``namespace import`` triggers materialisation of
+    ``::tcl::mathop``, a sibling whose name shares the prefix but
+    isn't backed by BUILTINS (``::tcl::mathop_BOGUS``) must NOT
+    spring into existence as a side-effect."""
+    out = _run(
+        """
+namespace import ::tcl::mathop::*
+puts [namespace exists ::tcl::mathop]
+puts [namespace exists ::tcl::mathop_BOGUS]
+"""
+    )
+    assert out == "1\n0"
