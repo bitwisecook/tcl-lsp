@@ -198,62 +198,21 @@ pub fn build(b: *std.Build) void {
     tcltest_exe.entry = .disabled;
     tcltest_exe.wasi_exec_model = .reactor;
     tcltest_exe.step.dependOn(&fetch_regex.step);
-    b.installArtifact(tcltest_exe);
 
     if (asyncify) {
-        // Run wasm-opt --asyncify on the linker output and install
-        // the result as ``zig-out/bin/tcl_runtime.wasm``.  DWARF
-        // sections trip the asyncify pass on Zig 0.16 debug builds
-        // (TODO: DW_LNE_define_file), so strip them first.
-        // ``--enable-bulk-memory`` matches the linker's feature set
-        // (Zig stdlib uses ``memory.fill``).
-        const wasm_opt = b.findProgram(
-            &.{"wasm-opt"},
-            &.{ "/opt/binaryen/bin", "/usr/local/bin", "/usr/bin" },
-        ) catch @panic("wasm-opt (binaryen) not found; install for -Dasyncify=true builds");
-        const post = b.addSystemCommand(&.{
-            wasm_opt,
-            "--strip-dwarf",
-            "--enable-bulk-memory",
-            "--asyncify",
-            // Exclude ``tcl_coro_drive`` from instrumentation so
-            // the unwind triggered by ``yield`` stops at the
-            // coroutine driver instead of propagating all the way
-            // to the host.  The driver inspects
-            // ``asyncify_get_state()`` after ``eval_script``
-            // returns and reports SUSPENDED to its caller
-            // (``eval_proc_call_bucket``).  Resume calls
-            // ``asyncify_start_rewind`` then re-enters
-            // ``eval_script``, which fast-forwards through the
-            // saved frames back to the yield site.  Internal Zig
-            // name (``file.module.func`` mangled form) — wasm-opt's
-            // removelist matches on the names section, not on
-            // export names.
-            "--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive",
-            // Treat ``env.coro_yield_unwind`` as an unwinding
-            // import so callers wrap the call with the standard
-            // ``state==UNWINDING ⇒ save+br`` epilogue.  This is
-            // the host-trampolined boundary ``signal_yield`` uses
-            // to dispatch yield/resume — see the doc comment on
-            // ``coro_yield_unwind`` in ``sched/tcl_asyncify.zig``
-            // and the trampoline in the test harness.  Routing
-            // through an instrumented import call site (instead of
-            // a direct ``asyncify_start_unwind`` call from
-            // ``signal_yield``) avoids the multi-yield rewind loop
-            // tracked as issue #282 — the rewind dispatches into
-            // ``coro_yield_unwind`` once, the host calls
-            // ``stop_rewind`` to flip state to NORMAL, and the
-            // body resumes past the original ``yield`` to the next.
-            "--pass-arg=asyncify-imports@env.coro_yield_unwind",
-        });
-        post.addArtifactArg(exe);
-        post.addArg("-o");
-        const out = post.addOutputFileArg("tcl_runtime.wasm");
-        b.getInstallStep().dependOn(&post.step);
-        const install = b.addInstallFileWithDir(out, .bin, "tcl_runtime.wasm");
-        b.getInstallStep().dependOn(&install.step);
+        // Both the lean and tcltest-enabled runtimes need the
+        // ``wasm-opt --asyncify`` post-pass when ``-Dasyncify=true`` —
+        // the rewrite is what turns ``env.asyncify_*`` imports into
+        // real stack-saving primitives, and a build that skips it
+        // for one variant produces a binary that fails to instantiate
+        // (or silently breaks yield/rewind) when the bundler picks
+        // that variant.  See the long-form rationale in the
+        // ``if (asyncify)`` block below for the lean exe.
+        installAsyncify(b, exe, "tcl_runtime");
+        installAsyncify(b, tcltest_exe, "tcl_runtime_with_tcltest");
     } else {
         b.installArtifact(exe);
+        b.installArtifact(tcltest_exe);
     }
 
     // ---------------------------------------------------------------
@@ -447,6 +406,66 @@ fn collectTestFiles(b: *std.Build) ![][]const u8 {
 /// path.  ``valtypes/test_tcl_bs.zig`` → ``valtypes-tcl_bs`` so the
 /// build summary is readable and Zig 0.16's
 /// "looks-like-a-file-path" name validator stays happy.
+/// Run wasm-opt --asyncify on the linker output of *exe* and install
+/// the result as ``zig-out/bin/<install_name>.wasm``.  DWARF sections
+/// trip the asyncify pass on Zig 0.16 debug builds
+/// (TODO: DW_LNE_define_file), so strip them first.
+/// ``--enable-bulk-memory`` matches the linker's feature set
+/// (Zig stdlib uses ``memory.fill``).
+///
+/// Both runtime variants (lean ``tcl_runtime`` and the
+/// ``tcl_runtime_with_tcltest`` extension build) need this rewrite
+/// when ``-Dasyncify=true`` — it's what turns ``env.asyncify_*``
+/// imports into real stack-saving primitives, and a binary that
+/// skips it fails to instantiate or silently breaks yield/rewind
+/// when the bundler picks that variant for a coroutine workload.
+fn installAsyncify(b: *std.Build, exe: *std.Build.Step.Compile, comptime install_name: []const u8) void {
+    const wasm_opt = b.findProgram(
+        &.{"wasm-opt"},
+        &.{ "/opt/binaryen/bin", "/usr/local/bin", "/usr/bin" },
+    ) catch @panic("wasm-opt (binaryen) not found; install for -Dasyncify=true builds");
+    const post = b.addSystemCommand(&.{
+        wasm_opt,
+        "--strip-dwarf",
+        "--enable-bulk-memory",
+        "--asyncify",
+        // Exclude ``tcl_coro_drive`` from instrumentation so the
+        // unwind triggered by ``yield`` stops at the coroutine
+        // driver instead of propagating all the way to the host.
+        // The driver inspects ``asyncify_get_state()`` after
+        // ``eval_script`` returns and reports SUSPENDED to its
+        // caller (``eval_proc_call_bucket``).  Resume calls
+        // ``asyncify_start_rewind`` then re-enters ``eval_script``,
+        // which fast-forwards through the saved frames back to the
+        // yield site.  Internal Zig name (``file.module.func``
+        // mangled form) — wasm-opt's removelist matches on the
+        // names section, not on export names.
+        "--pass-arg=asyncify-removelist@sched.tcl_coro.tcl_coro_drive",
+        // Treat ``env.coro_yield_unwind`` as an unwinding import so
+        // callers wrap the call with the standard
+        // ``state==UNWINDING ⇒ save+br`` epilogue.  This is the
+        // host-trampolined boundary ``signal_yield`` uses to
+        // dispatch yield/resume — see the doc comment on
+        // ``coro_yield_unwind`` in ``sched/tcl_asyncify.zig`` and
+        // the trampoline in the test harness.  Routing through an
+        // instrumented import call site (instead of a direct
+        // ``asyncify_start_unwind`` call from ``signal_yield``)
+        // avoids the multi-yield rewind loop tracked as issue
+        // #282 — the rewind dispatches into ``coro_yield_unwind``
+        // once, the host calls ``stop_rewind`` to flip state to
+        // NORMAL, and the body resumes past the original ``yield``
+        // to the next.
+        "--pass-arg=asyncify-imports@env.coro_yield_unwind",
+    });
+    post.addArtifactArg(exe);
+    post.addArg("-o");
+    const out_name = install_name ++ ".wasm";
+    const out = post.addOutputFileArg(out_name);
+    b.getInstallStep().dependOn(&post.step);
+    const install = b.addInstallFileWithDir(out, .bin, out_name);
+    b.getInstallStep().dependOn(&install.step);
+}
+
 fn testNameFromPath(b: *std.Build, file: []const u8) []const u8 {
     const without_ext = if (std.mem.endsWith(u8, file, ".zig"))
         file[0 .. file.len - ".zig".len]

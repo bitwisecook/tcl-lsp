@@ -28,11 +28,21 @@ pub const NUM_SLOTS: u32 = 256;
 
 var slots: [NUM_SLOTS]i32 = [_]i32{0} ** NUM_SLOTS;
 
-/// Resolve an integer slot index from a TclObj.  Accepts any TclObj
-/// whose int view is in ``[0, NUM_SLOTS)``.  Returns ``null`` when
-/// the index is out of range.
+/// Resolve an integer slot index from a TclObj.  ``handle`` must
+/// stringify to a syntactically-valid base-10 (or 0x.../0o.../0b...)
+/// integer in ``[0, NUM_SLOTS)``; everything else (a non-numeric
+/// string, an out-of-range integer, an empty obj) returns ``null``.
+///
+/// Why strict: :fn:`obj.obj_get_int` is permissive — it returns 0
+/// for inputs it can't parse — which let malformed indices silently
+/// alias slot 0 across every ``test*obj`` command, diverging from
+/// upstream's "bad index" error semantics (Codex review feedback,
+/// PR #363).  We route through :fn:`obj.try_parse_int` here so a
+/// non-integer slot argument turns into a clear error rather than
+/// a stealth slot-0 mutation.
 pub fn parse_slot_index(handle: i32) ?u32 {
-    const v = obj.obj_get_int(handle);
+    const s = obj.obj_ensure_string(handle);
+    const v = obj.try_parse_int(s.ptr, s.len) orelse return null;
     if (v < 0 or v >= NUM_SLOTS) return null;
     return @intCast(v);
 }
