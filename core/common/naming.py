@@ -59,6 +59,58 @@ def is_bare_var_name(name: str) -> bool:
     return True
 
 
+def is_brace_substitutable(name: str) -> bool:
+    """Return True when ``${name}`` would successfully look up ``name``.
+
+    Mirrors Tcl 9.0.3's ``Tcl_ParseVarName`` brace-form parser
+    (tclParse.c §1383+):
+
+    - ``\\X`` (backslash + any char) consumes 2 source chars, both of
+      which stay in the lookup name.  So a closing ``}`` preceded by
+      ``\\`` does not end the var-name span -- but the ``\\`` is also
+      preserved in the looked-up name.
+    - ``{`` / ``}`` are tracked with a depth counter; only a ``}`` at
+      depth 0 ends the var-name span.
+
+    Verified empirically against ``tclsh`` 9.0.3 in
+    ``docs/kcs/kcs-tcl-corner-cases.md``.
+
+    Strategy: simulate the parser using ``source = name``.  If it
+    produces ``name`` and closes successfully, ``name`` is reachable.
+    The function returns ``False`` for:
+
+    - any ``}`` in ``name`` not preceded by a balanced inner ``{``
+      (the ``}`` would close the brace before all chars are read);
+    - a trailing single ``\\`` (the parser's ``\\X``-consumes-2 rule
+      can't close because there's no next char);
+    - unbalanced ``{`` (depth > 0 at end -- missing close-brace).
+
+    Names that pass this check are reachable via ``${name}`` exactly.
+    Bare ``$name`` reachability is a strict subset (covered by
+    :func:`is_bare_var_name`).
+    """
+    if not name:
+        return True  # ``${}`` looks up the var literally named ""
+    n = len(name)
+    depth = 0
+    i = 0
+    while i < n:
+        ch = name[i]
+        if ch == "}" and depth == 0:
+            return False
+        if ch == "\\":
+            if i + 1 >= n:
+                return False
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        i += 1
+    return depth == 0
+
+
 def normalise_var_name(name: str) -> str:
     """Normalise Tcl variable forms to their base name."""
     base = name

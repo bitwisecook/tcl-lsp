@@ -37,18 +37,32 @@ def _var_needs_braces(name: str) -> bool:
 
 
 def _var_is_substitutable(name: str) -> bool:
-    """Return False for variable names that cannot be reached via Tcl's
-    ``$``-substitution syntax.
+    """Return False when offering ``$<name>`` / ``${<name>}`` as a
+    completion candidate would not round-trip back to the actual
+    runtime variable.
 
-    Names containing ``}`` are creatable -- ``set "weird}name" 1`` works
-    because backslash-substitution at the command-word level produces a
-    literal ``}`` in the name -- but neither ``$weird}name`` (bare form
-    stops at the first non-word char) nor ``${weird}name}`` (brace form
-    has no escape; reads up to the first ``}``) can fetch the value.
-    Such names round-trip only through ``[set "..."]``, so offering
-    them as ``$``-completion candidates would always produce broken
-    insertions."""
-    return "}" not in name
+    Two distinct backslash-subst passes apply on insertion:
+    1. Command-arg parsing of the inserted text: ``set "back\\slash" 1``
+       creates var ``backslash`` (no ``\\`` -- Tcl drops backslashes
+       before non-special chars).
+    2. Brace-form parsing inside ``${...}``: ``\\X`` is consumed as 2
+       chars and BOTH stay in the lookup name.
+
+    The analyser stores ``scope.variables`` keys as the *raw* segmenter-
+    arg source text (with ``\\`` kept), but Tcl's *runtime* var name
+    is the post-subst form.  So a raw key ``back\\slash`` corresponds
+    to runtime var ``backslash`` -- and offering ``${back\\slash}``
+    would have the brace parser look up ``back\\slash`` (with ``\\``,
+    different from the actual var ``backslash``), making the
+    completion broken.
+
+    Conservative rule: reject any raw name containing ``\\`` or ``}``.
+    Both characters trigger the round-trip mismatch.  This is a strict
+    superset of the unreachable set (we may skip a few legitimate but
+    rare cases) -- but it never offers a broken completion.  W215 in
+    the analyser uses the more precise :func:`is_brace_substitutable`
+    against the runtime name to give the user a targeted warning."""
+    return "}" not in name and "\\" not in name
 
 
 def _root_global_scope(scope: Scope) -> Scope:

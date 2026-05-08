@@ -9,6 +9,9 @@ else:
     _Base = object
 
 from ...common.naming import (
+    is_brace_substitutable,
+)
+from ...common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
 from ...common.naming import (
@@ -18,6 +21,7 @@ from ...common.naming import (
     split_array_name as _split_array_name,
 )
 from ...common.ranges import position_from_relative, range_from_token
+from ...parsing.substitution import backslash_subst as _backslash_subst
 from ...parsing.tokens import Token
 from ..semantic_model import (
     Diagnostic,
@@ -222,33 +226,65 @@ class _AnalyserScopeMixin(_Base):
             if element is not None:
                 scope.variables[base_name].array_indices.add(element)
 
-        # Warn (once, at first definition) when a name component contains
-        # characters that block Tcl's $-substitution forms.  The variable
-        # is creatable via backslash-substitution at the command-word
-        # level (``set "weird}name" 1``) and readable via commands that
-        # take a variable *name* (``set name`` / ``[set "name"]`` /
-        # ``info exists`` / ``upvar``), but no ``$`` form can reach it
-        # because the lexer stops on the offending char.  Emit separate
-        # messages for the var-name and array-index cases so the user
-        # knows which part to fix.
+        # Warn (once, at first definition) when the name is unreachable
+        # via Tcl's ``$``-substitution forms.  The variable is creatable
+        # via the command-word's backslash-subst (``set "weird}name" 1``,
+        # ``set "back\\" 1``) and readable via commands that take a
+        # variable *name* (``set name`` / ``[set "name"]`` / ``info
+        # exists`` / ``upvar``), but neither ``$name`` nor ``${name}``
+        # can fetch the value.
+        #
+        # Reachability is computed via :func:`is_brace_substitutable`
+        # which mirrors Tcl 9.0.3's ``Tcl_ParseVarName`` brace-form
+        # parser exactly (see ``docs/kcs/kcs-tcl-corner-cases.md``).
         if first_definition:
             site_range = definition_range or range_from_token(tok)
-            if "}" in base_name:
+            # Compute the *actual* runtime var name by applying Tcl
+            # backslash substitution.  Our scope.variables key is the
+            # raw segmenter-arg text (which keeps escapes verbatim), but
+            # Tcl 9.0.3 creates the var under the subst-applied name --
+            # so e.g. ``set "back\\\\slash" 1`` produces var ``back\slash``
+            # at runtime even though our scope key is ``back\\\\slash``.
+            # W215's reachability check must use the runtime name.
+            runtime_name = _backslash_subst(base_name) if "\\" in base_name else base_name
+            runtime_element = (
+                _backslash_subst(element) if element is not None and "\\" in element else element
+            )
+            if not is_brace_substitutable(runtime_name):
+                # Identify the worst offending feature for the message.
+                if "}" in runtime_name:
+                    detail = (
+                        "the brace form ``${name}`` ends at the first "
+                        "``}`` not preceded by ``\\`` (and the bare form "
+                        "stops at the first non-word character)"
+                    )
+                elif runtime_name.endswith("\\"):
+                    detail = (
+                        "the brace form ``${name}`` would read the "
+                        "trailing ``\\`` as the start of a 2-char escape "
+                        "and run out of input -- missing close-brace"
+                    )
+                elif "{" in runtime_name:
+                    detail = (
+                        "the brace form ``${name}`` has unbalanced ``{`` "
+                        "and runs out of input -- missing close-brace"
+                    )
+                else:
+                    detail = "the brace form ``${name}`` cannot match this name"
                 self.result.diagnostics.append(
                     Diagnostic(
                         range=site_range,
                         message=(
-                            "variable name contains '}'; it can be created and read via "
-                            '``set name`` / ``[set "name"]`` / ``info exists`` / ``upvar``, '
-                            "but is not reachable via $-substitution (the brace form "
-                            "``${name}`` has no escape and stops at the first ``}``, and "
-                            "bare ``$name`` stops at the first non-word character)"
+                            f"variable name [{runtime_name!r}] is not reachable via "
+                            "$-substitution; it can still be created/read via "
+                            '``set name`` / ``[set "name"]`` / ``info exists`` / '
+                            f"``upvar``, but {detail}"
                         ),
                         severity=Severity.WARNING,
                         code="W215",
                     )
                 )
-            if element is not None and ")" in element:
+            if runtime_element is not None and ")" in runtime_element:
                 self.result.diagnostics.append(
                     Diagnostic(
                         range=site_range,

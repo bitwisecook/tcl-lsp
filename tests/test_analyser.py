@@ -2460,13 +2460,44 @@ class TestCanonicalisationMatrix:
 
     def test_w215_brace_in_var_name_emits_warning(self):
         # ``set "weird}name" 1`` creates a variable but no $-substitution
-        # form can read it -- W215 alerts the user with a message that
-        # specifically mentions the variable-name case.
+        # form can read it -- W215 alerts the user.
         source = 'set "weird}name" 1'
         result = analyse(source)
         w215 = [d for d in result.diagnostics if d.code == "W215"]
         assert len(w215) == 1, f"expected one W215, got {len(w215)}"
-        assert "variable name contains '}'" in w215[0].message
+        assert "weird}name" in w215[0].message
+        assert "}" in w215[0].message
+
+    def test_w215_trailing_backslash_in_var_name(self):
+        # ``set "back\\" 1`` creates ``back\`` (5 chars including ``\``).
+        # The brace form ``${back\}`` would read the trailing ``\`` as
+        # an escape and run out of input -- unreachable.
+        # Verified against tclsh 9.0.3 (see kcs-tcl-corner-cases.md).
+        source = 'set "back\\\\" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "trailing" in w215[0].message or "missing close-brace" in w215[0].message
+
+    def test_w215_does_not_fire_on_backslash_mid_name(self):
+        # ``set "back\\slash" 1`` creates ``back\slash`` (10 chars).
+        # The brace form ``${back\slash}`` consumes ``\s`` as a 2-char
+        # escape, both of which stay in the lookup name -- so the
+        # name IS reachable.  No W215.
+        # Verified against tclsh 9.0.3.
+        source = 'set "back\\\\slash" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
+    def test_w215_does_not_fire_on_balanced_inner_braces(self):
+        # ``set "a{b}c" 1`` creates ``a{b}c`` (5 chars).  Tcl 9.0.3's
+        # brace-form parser tracks inner ``{...}`` with depth, so
+        # ``${a{b}c}`` reaches it.  No W215.
+        source = 'set "a{b}c" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
 
     def test_w215_close_paren_in_array_index_emits_warning(self):
         # ``$arr(idx)`` reads up to the matching ``)``; an idx with ``)``
