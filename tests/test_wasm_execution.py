@@ -1558,6 +1558,23 @@ class TestListOperations:
         )
         assert isinstance(result, str)
 
+    def test_lseq_negative_huge_double_step_does_not_panic(self):
+        """``lseq`` with a negative-float step that clamps to
+        ``i64_min`` must not panic on ``-step_val`` when computing
+        ``abs(step)`` for the max-count guard.
+
+        With ``start == end == i64_max`` the span is zero and so
+        cannot bail out via the overflow-on-subtraction path; the
+        next guard takes ``abs(step_val)`` to feed ``@divTrunc`` and
+        ``-i64_min`` is the panic site this test pins down.
+        """
+        result = _compile_and_run_proc_string(
+            "proc f {} { lseq 1e50 1e50 -1e50 }\n",
+            "f",
+            (),
+        )
+        assert isinstance(result, str)
+
 
 # Dict operations
 

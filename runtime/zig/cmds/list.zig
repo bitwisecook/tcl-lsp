@@ -734,7 +734,15 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
         @subWithOverflow(start_val, end_val);
     if (span_res[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
     const span: i64 = span_res[0];
-    if (span < 0 or @divTrunc(span, if (step_val > 0) step_val else -step_val) > max_count) {
+    // ``abs(step_val)`` via overflow-safe negation: ``-i64_min``
+    // would itself panic, so detect it explicitly and bail.
+    const abs_step_res = if (step_val > 0)
+        .{ step_val, @as(u1, 0) }
+    else
+        @subWithOverflow(@as(i64, 0), step_val);
+    if (abs_step_res[1] != 0) return result_mod.from_globals(obj_new_string(0, 0));
+    const abs_step: i64 = abs_step_res[0];
+    if (span < 0 or @divTrunc(span, abs_step) > max_count) {
         return result_mod.from_globals(obj_new_string(0, 0));
     }
 
@@ -742,7 +750,16 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
     var i: i64 = start_val;
     if (step_val > 0) {
         while (i <= end_val) {
-            acc = rt.tcl_list(acc, obj_new_int(i));
+            // ``tcl_list`` allocates a fresh accumulator each call
+            // and does not consume its inputs (see
+            // ``valtypes/tcl_list.zig``).  Without explicit releases
+            // we'd leak one accumulator and one element obj per
+            // iteration — up to 16 M of each at the cap above.
+            const elem = obj_new_int(i);
+            const new_acc = rt.tcl_list(acc, elem);
+            obj_mod.tcl_obj_release(acc);
+            obj_mod.tcl_obj_release(elem);
+            acc = new_acc;
             // Stop before the increment overflows — this can happen
             // when ``end_val`` is at i64_max (clamped from a float)
             // and the loop emits the final element.
@@ -752,7 +769,11 @@ fn eval_lseq(words: []const i32) result_mod.InterpResult {
         }
     } else {
         while (i >= end_val) {
-            acc = rt.tcl_list(acc, obj_new_int(i));
+            const elem = obj_new_int(i);
+            const new_acc = rt.tcl_list(acc, elem);
+            obj_mod.tcl_obj_release(acc);
+            obj_mod.tcl_obj_release(elem);
+            acc = new_acc;
             const next = @addWithOverflow(i, step_val);
             if (next[1] != 0) break;
             i = next[0];
