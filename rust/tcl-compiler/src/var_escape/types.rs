@@ -2,7 +2,7 @@
 //!
 //! Mirrors `core/compiler/var_escape/_types.py`.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use bitflags::bitflags;
 
@@ -118,6 +118,15 @@ pub struct ProcEscapeSummary {
     /// CFG+SSA propagation. Empty when the analysis was driven
     /// from an IR-only source. Keyed by `(name, ssa_version)`.
     pub ssa_tags: HashMap<(String, u32), EscapeTag>,
+    /// Slot indices for proc-locals that pass the slot-resolution
+    /// eligibility check.  Empty when the proc isn't eligible at
+    /// all (dynamic eval body, `has_fallback`, etc.) or when no
+    /// local survives the per-name checks.  Populated by
+    /// [`super::slot_resolution::populate_local_slots`].
+    ///
+    /// Mirrors `local_slots` on Python's `ProcEscapeSummary`
+    /// (added by upstream commit ``957dc1f6``).
+    pub local_slots: BTreeMap<String, u32>,
 }
 
 impl ProcEscapeSummary {
@@ -189,6 +198,24 @@ impl ProcEscapeSummary {
             upvar_source_names: self.upvar_source_names.clone(),
             direct_callees: self.direct_callees.clone(),
             ssa_tags: self.ssa_tags.clone(),
+            local_slots: self.local_slots.clone(),
+        }
+    }
+
+    /// Return a new summary with *slots* installed as the
+    /// `local_slots` field.  Mirrors Python's
+    /// `ProcEscapeSummary.with_local_slots` (added by upstream
+    /// commit ``957dc1f6`` for the slot-resolution pass).
+    #[must_use]
+    pub fn with_local_slots(&self, slots: BTreeMap<String, u32>) -> Self {
+        Self {
+            tags: self.tags.clone(),
+            flags: self.flags,
+            frame_needed: self.frame_needed,
+            upvar_source_names: self.upvar_source_names.clone(),
+            direct_callees: self.direct_callees.clone(),
+            ssa_tags: self.ssa_tags.clone(),
+            local_slots: slots,
         }
     }
 }
