@@ -153,12 +153,25 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 };
             }
             ArgTokenKind::Esc => {
+                // Only fold to the parsed decimal form when the
+                // source spelling already matches the canonical
+                // decimal form.  ``set arg 0005`` must store
+                // ``0005`` verbatim — Tcl preserves the source
+                // string repr; the value only shimmers to int 5
+                // when used as an integer.  Folding eagerly here
+                // would destroy the leading zeros and break
+                // ``puts $arg``, ``string length $arg``, and
+                // ``expr "0005"`` which all care about the
+                // original spelling.  Mirrors upstream commit
+                // ``31f5357f`` (PR #341).
                 if let Some(int_val) = parse_decimal_int(value) {
-                    return Statement::AssignConst {
-                        span: cmd.span,
-                        name: name.clone(),
-                        value: int_val,
-                    };
+                    if int_val == value.trim() {
+                        return Statement::AssignConst {
+                            span: cmd.span,
+                            name: name.clone(),
+                            value: int_val,
+                        };
+                    }
                 }
                 let needs_backsubst = value.contains('\\');
                 return Statement::AssignValue {
@@ -434,6 +447,39 @@ fn parse_decimal_int(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lower_set_preserves_leading_zeros() {
+        // ``set arg 0005`` must store ``0005`` verbatim — folding
+        // to ``5`` would destroy the source-level repr that
+        // ``puts $arg`` / ``string length $arg`` / ``expr "0005"``
+        // depend on.  Mirrors upstream commit ``31f5357f`` (PR #341).
+        // The leading-zero rejection in `parse_decimal_int` already
+        // kicks the value to the `AssignValue` path; the
+        // `int_val == value.trim()` guard added in the same sync
+        // is a redundant safety check that catches any future
+        // loosening of `parse_decimal_int`.
+        let m = crate::lowering::lower_to_ir("set arg 0005", &CommandRegistry::build_default());
+        let value = match &m.top_level.statements[0] {
+            Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
+                value.clone()
+            }
+            other => panic!("expected AssignConst or AssignValue, got {:?}", other),
+        };
+        assert_eq!(value, "0005");
+    }
+
+    #[test]
+    fn lower_set_folds_canonical_decimal_form() {
+        // Canonical decimal spelling — ``5`` parses to ``5`` and
+        // can fold without losing repr fidelity.
+        let m = crate::lowering::lower_to_ir("set arg 5", &CommandRegistry::build_default());
+        if let Statement::AssignConst { value, .. } = &m.top_level.statements[0] {
+            assert_eq!(value, "5");
+        } else {
+            panic!("expected AssignConst");
+        }
+    }
 
     #[test]
     fn parse_decimal_int_simple() {

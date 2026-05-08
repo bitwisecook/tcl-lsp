@@ -430,6 +430,7 @@ mod tests {
             result_var: Some("result".into()),
             options_var: None,
             raw_args: vec![],
+            tokens: None,
         }]);
         let d = defs_from_ir_script(&script);
         assert!(d.contains(&"inner".to_string()));
