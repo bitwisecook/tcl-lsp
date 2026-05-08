@@ -890,17 +890,19 @@ was `8b68af55` / `7364fd85`).
 
 `main` carries 104 commits past the last rust-side rebase point
 (`SYNC-MAY26`).  The 7 commits added since the 2026-05-07 audit
-are: `#347` Zig dict iter / array upvar (out of scope); `#348`
-regexp/regsub + coroutine semantics (out of scope, except the
-`::tcl::unsupported::corotype` registry entry mirrored in PR #355);
-`#349` WASM test-bucket categorisation (out of scope); `#358`
-pre-populate `::tcl::*` / `::oo::*` runtime namespaces (out of
-scope — runtime); `#359` non-finite float rendering (out of
-scope — runtime); `#360` subnormal float rendering (out of
-scope — runtime); `#361` / `#363` / `#364` Tcl 9 core test slice
-harness + tcltest WASM port (out of scope — runtime/Zig); `#356`
-"Centralise frame/no-frame compiler architecture" — **in scope**,
-new row added below (`SYNC-JUN-FRAME356-interp-boundaries`).
+(`#347` / `#348` / `#349` were already triaged in that audit and
+are not re-counted here; the `::tcl::unsupported::corotype`
+registry mirror from `#348` already landed in PR #355) are:
+
+- `#356` "Centralise frame/no-frame compiler architecture" —
+  **in scope**, new row added below
+  (`SYNC-JUN-FRAME356-interp-boundaries`).
+- `#358` pre-populate `::tcl::*` / `::oo::*` runtime namespaces
+  — out of scope (runtime).
+- `#359` non-finite float rendering — out of scope (runtime).
+- `#360` subnormal float rendering — out of scope (runtime).
+- `#361` / `#363` / `#364` Tcl 9 core test slice harness +
+  tcltest WASM port — out of scope (runtime/Zig).
 
 Triage:
 
@@ -933,10 +935,13 @@ Triage:
 | open | `015288cf` (#356) | Centralise frame/no-frame compiler architecture: extends `var_escape` with new fact surface (~700 LOC of changes across `_api.py` / `_cfg_propagation.py` / `_propagation.py` / `_types.py` / `__init__.py`); adds new `core/compiler/passes/interp_boundaries.py` pass (287 LOC) tracking interp-share / coroutine / `info frame` boundaries that block frame-routing assumptions; +34 LOC on `ir.py` and +13 on `compilation_unit.py` to thread the new fact set.  WASM-emitter hunks in the same commit are out of scope (no Rust mirror). | extend `rust/tcl-compiler/src/var_escape/{api,cfg_propagation,propagation,types,mod}.rs` with the new fact surface; add new `rust/tcl-compiler/src/passes/interp_boundaries.rs` (or as a sibling module if `passes/` doesn't exist) mirroring the Python pass; thread the new facts into `ir.rs` and `compilation_unit.rs`. | `SYNC-JUN-FRAME356-interp-boundaries` |
 | open | n/a (pre-existing breakage from PR #241) | `tests/test_rust_analyser_differential.py` is broken: line 37's `from core.analysis._analyser import _materialise_rust_analysis` raises `ImportError`. The symbol was deleted when `__init__.py` was simplified at `cd7a8441`. The whole differential harness has been silently uncovered since 2026-04-30. | Either restore a minimal `_materialise_rust_analysis` shim that consumes `tcl_lsp_rust.analyser_analyse` output (so the harness can keep running differential checks against the Rust analyser library) **or** delete the test file outright (consistent with the dispatch removal). The first option preserves the differential harness; the second matches the established direction of the C41 family closing with `S*`. | `SYNC-JUN-DIFF-harness-restore` (or `-delete`) |
 
-All eight rows are independently shippable; suggested order is
-the table order (suppression → var\_escape → expr → CFG →
-frame-architecture), which mirrors the analyser-pipeline
-dependency graph.  Each row should
+All eight in-scope rows are independently shippable; suggested
+order is the table order (suppression → var\_escape → expr →
+CFG → frame-architecture), which mirrors the analyser-pipeline
+dependency graph.  The trailing pre-existing-breakage row
+(`SYNC-JUN-DIFF-harness-restore`) is tracked alongside but is
+independent of the `main`-delta audit and lands on its own
+schedule.  Each row should
 land as a `SYNC-JUN-*` chunk PR base = `rust`, and the row should
 be deleted from this table (not just marked landed) once the
 matching PR merges — this section's purpose is the *open*
