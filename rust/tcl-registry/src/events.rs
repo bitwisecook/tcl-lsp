@@ -4,11 +4,12 @@
 //! layer, connection side, required profiles, flow properties,
 //! and canonical firing order.
 
-// `event_props_table` (1664 lines), `master_order` (298), and
-// `flow_chains` (675) are flat declarative arrays of `EventProps`
-// / `&str` / `(&str, &[&str])` literals — splitting them into
-// per-protocol helpers adds ceremony without improving
-// readability and breaks the "one table per concept" structure.
+// `event_props_table`, `master_order`, and `flow_chains` are
+// large flat declarative arrays of `EventProps` / `&str` /
+// `(&str, &[&str])` literals (one entry per iRules event) —
+// splitting them into per-protocol helpers adds ceremony without
+// improving readability and breaks the "one table per concept"
+// structure.
 #![allow(clippy::too_many_lines)]
 
 use std::collections::{HashMap, HashSet};

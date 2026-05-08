@@ -3,10 +3,11 @@
 //! Static data tables describing the 57 profile types, 87 protocol
 //! command namespaces, and stack modification commands.
 
-// `profile_specs` (538 lines) and `protocol_namespace_specs` (793)
-// are flat declarative arrays of `ProfileSpec` / `ProtocolNamespaceSpec`
-// literals — splitting them by category adds ceremony without
-// improving readability.
+// `profile_specs` and `protocol_namespace_specs` are large flat
+// declarative arrays of `ProfileSpec` / `ProtocolNamespaceSpec`
+// literals (one entry per F5 profile / protocol namespace) —
+// splitting them by category adds ceremony without improving
+// readability.
 #![allow(clippy::too_many_lines)]
 
 use std::collections::HashMap;
