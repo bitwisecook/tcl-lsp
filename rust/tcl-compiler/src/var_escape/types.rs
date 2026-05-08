@@ -5,6 +5,155 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use bitflags::bitflags;
+use tcl_lexer::Span;
+
+/// Why the analysis fell back to the dynamic-barrier path.
+///
+/// Mirrors Python's `BarrierKind` enum added by upstream commit
+/// ``015288cf`` (PR #356).  Each kind names a distinct *reason* so
+/// codegen, the LSP, and the compiler explorer can narrow / explain
+/// rather than treat every pessimistic-frame proc as opaque.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BarrierKind {
+    /// Frame-inspecting `info` subcommand (`info level`,
+    /// `info frame`, `info vars`, `info locals`, `info coroutine`,
+    /// `info errorstack`), or an unknown / dynamic `info`
+    /// subcommand.
+    Info,
+    /// `eval` / `source` / `subst` with a body the analysis can't
+    /// statically scan (dynamic body, parse failure, lowering
+    /// failure).
+    Eval,
+    /// `upvar` with a dynamic level or unbounded source, or a
+    /// non-`#0` `uplevel` whose body could touch caller-frame
+    /// names.
+    Upvar,
+    /// Assignment / increment / unset whose first arg is a
+    /// dynamic name the analysis can't resolve to a literal
+    /// target (`set $varname value` etc.) — the fallback escapes
+    /// every known proc-local.
+    DynName,
+    /// `{*}`-word expansion in an unknown command call, where
+    /// argument-index analysis can't tell where the name landed.
+    Expand,
+    /// Any other barrier shape we don't yet classify (catch-all
+    /// so the field stays exhaustive).
+    Unknown,
+}
+
+/// A single barrier trigger recorded by the analysis.
+///
+/// Mirrors Python's `Barrier` dataclass added by ``015288cf``.
+/// `kind` identifies the category (see [`BarrierKind`]); `detail`
+/// is a short human-readable explanation surfaced verbatim in
+/// compiler-explorer hovers and LSP hints (e.g. ``"info level"``,
+/// ``"eval $body (dynamic)"``, ``"set $varname value"``).  `range`
+/// is the source span of the triggering construct when the
+/// analysis pass had it available — `None` when the barrier was
+/// synthesised from an inferred / nested IR shape.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Barrier {
+    /// Barrier category.
+    pub kind: BarrierKind,
+    /// Human-readable explanation.
+    pub detail: String,
+    /// Source span of the triggering construct, if known.
+    pub range: Option<Span>,
+}
+
+impl Barrier {
+    /// Build a barrier of *kind* with empty detail and no range.
+    #[must_use]
+    pub fn new(kind: BarrierKind) -> Self {
+        Self {
+            kind,
+            detail: String::new(),
+            range: None,
+        }
+    }
+
+    /// Build a barrier of *kind* carrying a human-readable detail.
+    #[must_use]
+    pub fn with_detail(kind: BarrierKind, detail: impl Into<String>) -> Self {
+        Self {
+            kind,
+            detail: detail.into(),
+            range: None,
+        }
+    }
+}
+
+/// Why a specific variable was tagged `Frame`.
+///
+/// Per-name companion to [`BarrierKind`].  A barrier is a
+/// proc-level fact ("this proc went pessimistic"); an escape
+/// reason is a per-variable fact ("this var is `Frame` because
+/// …") — they overlap (a barrier *implies* every-known-var is
+/// `Frame`) but the finer split lets the LSP / compiler explorer
+/// answer "why is `x` `Frame`?" precisely.  Mirrors Python's
+/// `EscapeReasonKind` enum added by ``015288cf``.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EscapeReasonKind {
+    /// Proc went pessimistic; the var is `Frame` by virtue of
+    /// being in the proc.  Pair with the proc's [`Barrier`] for
+    /// detail.
+    Barrier,
+    /// `[info exists <name>]` references this var by literal
+    /// name.  The interpreter resolves the lookup against the
+    /// runtime frame, so the var must live there.
+    InfoExists,
+    /// This name is the *source* of an `upvar` declaration in
+    /// this proc.  Caller-side aliasing requires the name to be
+    /// in the runtime frame.
+    UpvarSource,
+    /// Interprocedural: a callee upvars this name from our
+    /// frame, so we have to spill it.
+    CalleeUpvar,
+    /// An `eval` / `source` / `subst` body references this name
+    /// (`$<name>` or `set <name> ...`).
+    EvalReference,
+    /// A dynamic-name command (`set $v ...`) resolved to this
+    /// literal target via in-body literal analysis.
+    DynNameResolved,
+    /// Fallback path spilled every known proc-local because no
+    /// narrower escape set could be proved.
+    EscapeAllKnown,
+}
+
+/// A single per-variable escape reason recorded by the analysis.
+///
+/// Mirrors Python's `EscapeReason` dataclass added by ``015288cf``.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EscapeReason {
+    /// Reason category.
+    pub kind: EscapeReasonKind,
+    /// Human-readable explanation.
+    pub detail: String,
+    /// Source span of the triggering construct, if known.
+    pub range: Option<Span>,
+}
+
+impl EscapeReason {
+    /// Build a reason of *kind* with empty detail and no range.
+    #[must_use]
+    pub fn new(kind: EscapeReasonKind) -> Self {
+        Self {
+            kind,
+            detail: String::new(),
+            range: None,
+        }
+    }
+
+    /// Build a reason of *kind* carrying a human-readable detail.
+    #[must_use]
+    pub fn with_detail(kind: EscapeReasonKind, detail: impl Into<String>) -> Self {
+        Self {
+            kind,
+            detail: detail.into(),
+            range: None,
+        }
+    }
+}
 
 /// Where a Tcl variable must live at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -127,6 +276,39 @@ pub struct ProcEscapeSummary {
     /// Mirrors `local_slots` on Python's `ProcEscapeSummary`
     /// (added by upstream commit ``957dc1f6``).
     pub local_slots: BTreeMap<String, u32>,
+    /// Recorded barrier triggers.  Each barrier carries its kind +
+    /// detail + source range so callers (codegen, compiler
+    /// explorer, LSP) can narrow / explain rather than treat every
+    /// pessimistic-frame proc as opaque.  Always consistent with
+    /// `dynamic_barrier`: the latter is `true` iff `barriers` is
+    /// non-empty *or* the dynamic-barrier flag was set explicitly.
+    /// Empty for procs the analysis proved frame-elidable.
+    /// Mirrors Python's `ProcEscapeSummary.barriers` field added
+    /// by upstream commit ``015288cf`` (PR #356).
+    ///
+    /// **Status:** the analysis pipeline (`propagation` /
+    /// `cfg_propagation` / `interprocedural`) does not yet
+    /// populate this field — that's tracked as a deferred
+    /// follow-up.  Consumers see an empty `Vec` until the
+    /// population work lands; `reasons_for` synthesises a single
+    /// `Barrier` reason from `dynamic_barrier()` so LSP / explorer
+    /// surfaces still get a structured fallback.
+    pub barriers: Vec<Barrier>,
+    /// Per-variable escape reasons.  `tag_reasons[name]` lists
+    /// every trigger that contributed to `tags[name] == Frame`.
+    /// An empty `Vec` (or missing key) means the analysis didn't
+    /// record a specific reason — typically because the var
+    /// stayed `Local` or because a barrier-induced escape is
+    /// implied by `barriers` rather than explicit per-name
+    /// (`Barrier` reasons are usually synthesised on demand by
+    /// [`Self::reasons_for`]).  Mirrors Python's
+    /// `ProcEscapeSummary.tag_reasons` field added by ``015288cf``.
+    ///
+    /// **Status:** like `barriers`, this is a deferred follow-up
+    /// for the population pipeline; the type surface lands here
+    /// so downstream consumers (LSP, compiler explorer) can adopt
+    /// it incrementally.
+    pub tag_reasons: HashMap<String, Vec<EscapeReason>>,
 }
 
 impl ProcEscapeSummary {
@@ -173,6 +355,83 @@ impl ProcEscapeSummary {
         self.tag(name) == EscapeTag::Frame
     }
 
+    /// Single source of truth for "this proc needs a runtime
+    /// frame".  Combines every analysis-known reason a proc body
+    /// can't run with the frame elided:
+    ///
+    /// * `frame_needed` — at least one var is `Frame` (escapes to
+    ///   a callee's `upvar` source, or the dynamic barrier
+    ///   flagged everything `Frame`).
+    /// * `has_fallback()` — a statically resolvable command falls
+    ///   through to the eval fallback, which resolves names
+    ///   against the runtime frame.
+    ///
+    /// Codegen / LSP / compiler-explorer consumers should call
+    /// this property instead of recomposing the same condition at
+    /// each call site.  The property does NOT include codegen-time
+    /// scans (e.g. `info level` references the analysis missed) —
+    /// those are layered on top of this gate by the emitter's
+    /// top-level `wants_frame` resolver until the analysis itself
+    /// catches every hazard.  Mirrors Python's
+    /// `ProcEscapeSummary.wants_frame` property added by upstream
+    /// commit ``015288cf`` (PR #356).
+    #[must_use]
+    pub fn wants_frame(&self) -> bool {
+        self.frame_needed || self.has_fallback()
+    }
+
+    /// Return the per-variable escape reasons for *name*.
+    ///
+    /// When the proc went pessimistic (`dynamic_barrier()` is
+    /// `true`) and no specific per-name reason was recorded,
+    /// synthesise one [`EscapeReason`] with kind
+    /// [`EscapeReasonKind::Barrier`] per proc-level [`Barrier`]
+    /// so callers can answer "why is `x` `Frame`?" with structured
+    /// detail instead of "because everything is".  When the var
+    /// is `Local` returns an empty `Vec` — the var is not in the
+    /// frame; no reason to surface.  Mirrors Python's
+    /// `ProcEscapeSummary.reasons_for` method added by ``015288cf``.
+    ///
+    /// **Status:** matches Python's behaviour for the synthesise-
+    /// from-barriers fallback path; explicit per-name reasons are
+    /// returned when the population follow-up populates
+    /// `tag_reasons`.  Until then this method returns either the
+    /// empty `Vec` (var is `Local`) or a single placeholder
+    /// `Barrier` reason (var is `Frame` due to `dynamic_barrier`).
+    #[must_use]
+    pub fn reasons_for(&self, name: &str) -> Vec<EscapeReason> {
+        if !self.is_frame(name) {
+            return Vec::new();
+        }
+        if let Some(explicit) = self.tag_reasons.get(name) {
+            if !explicit.is_empty() {
+                return explicit.clone();
+            }
+        }
+        if self.dynamic_barrier() {
+            // Synthesise from proc-level barriers when present —
+            // matches Python's fallback so the LSP / compiler
+            // explorer has structured detail to surface even when
+            // nothing specific was recorded for this var.
+            if !self.barriers.is_empty() {
+                return self
+                    .barriers
+                    .iter()
+                    .map(|b| EscapeReason {
+                        kind: EscapeReasonKind::Barrier,
+                        detail: b.detail.clone(),
+                        range: b.range,
+                    })
+                    .collect();
+            }
+            // No specific barrier recorded — return a single
+            // placeholder so consumers still get a structured
+            // reason rather than an empty `Vec`.
+            return vec![EscapeReason::new(EscapeReasonKind::Barrier)];
+        }
+        Vec::new()
+    }
+
     /// Return a new summary with *`extra_escaped`* spilled to
     /// `Frame`. Used by the interprocedural pass to fold
     /// callee-induced escapes into a caller's summary without
@@ -199,6 +458,8 @@ impl ProcEscapeSummary {
             direct_callees: self.direct_callees.clone(),
             ssa_tags: self.ssa_tags.clone(),
             local_slots: self.local_slots.clone(),
+            barriers: self.barriers.clone(),
+            tag_reasons: self.tag_reasons.clone(),
         }
     }
 
@@ -216,6 +477,8 @@ impl ProcEscapeSummary {
             direct_callees: self.direct_callees.clone(),
             ssa_tags: self.ssa_tags.clone(),
             local_slots: slots,
+            barriers: self.barriers.clone(),
+            tag_reasons: self.tag_reasons.clone(),
         }
     }
 }
@@ -277,5 +540,129 @@ mod tests {
         let new = s.with_escapes(std::iter::empty(), true);
         assert!(new.dynamic_barrier());
         assert!(new.frame_needed);
+    }
+
+    #[test]
+    fn wants_frame_false_for_default_summary() {
+        // Default summary: nothing escaped, no fallback — proc
+        // can run with the frame elided.
+        let s = ProcEscapeSummary::default();
+        assert!(!s.wants_frame());
+    }
+
+    #[test]
+    fn wants_frame_true_when_frame_needed() {
+        // ``frame_needed`` alone is enough.
+        let s = ProcEscapeSummary {
+            frame_needed: true,
+            ..Default::default()
+        };
+        assert!(s.wants_frame());
+    }
+
+    #[test]
+    fn wants_frame_true_when_has_fallback() {
+        // ``has_fallback`` alone is enough — eval-fallback resolves
+        // names against the runtime frame.
+        let s = ProcEscapeSummary {
+            flags: EscapeFlags::HAS_FALLBACK,
+            ..Default::default()
+        };
+        assert!(s.wants_frame());
+    }
+
+    #[test]
+    fn reasons_for_local_var_returns_empty() {
+        // ``Local`` vars never have a reason to surface — they
+        // don't live in the frame.
+        let s = ProcEscapeSummary::default();
+        assert!(s.reasons_for("any_var").is_empty());
+    }
+
+    #[test]
+    fn reasons_for_explicit_tag_reason_passes_through() {
+        let mut tag_reasons = HashMap::new();
+        tag_reasons.insert(
+            "x".to_string(),
+            vec![EscapeReason::with_detail(
+                EscapeReasonKind::InfoExists,
+                "info exists x",
+            )],
+        );
+        let s = ProcEscapeSummary {
+            tags: HashMap::from([("x".into(), EscapeTag::Frame)]),
+            tag_reasons,
+            ..Default::default()
+        };
+        let rs = s.reasons_for("x");
+        assert_eq!(rs.len(), 1);
+        assert_eq!(rs[0].kind, EscapeReasonKind::InfoExists);
+        assert_eq!(rs[0].detail, "info exists x");
+    }
+
+    #[test]
+    fn reasons_for_synthesises_barrier_when_dynamic_barrier_set() {
+        // No explicit tag_reason but proc is pessimistic — return
+        // a synthesised ``Barrier`` reason mirroring Python's
+        // fallback path.
+        let s = ProcEscapeSummary {
+            flags: EscapeFlags::DYNAMIC_BARRIER,
+            barriers: vec![Barrier::with_detail(BarrierKind::Eval, "eval $body")],
+            ..Default::default()
+        };
+        let rs = s.reasons_for("anything");
+        assert_eq!(rs.len(), 1);
+        assert_eq!(rs[0].kind, EscapeReasonKind::Barrier);
+        assert_eq!(rs[0].detail, "eval $body");
+    }
+
+    #[test]
+    fn reasons_for_synthesises_placeholder_when_no_barriers_recorded() {
+        // Pessimistic but no ``barriers`` populated — return a
+        // single placeholder so consumers always get a structured
+        // reason.
+        let s = ProcEscapeSummary {
+            flags: EscapeFlags::DYNAMIC_BARRIER,
+            ..Default::default()
+        };
+        let rs = s.reasons_for("anything");
+        assert_eq!(rs.len(), 1);
+        assert_eq!(rs[0].kind, EscapeReasonKind::Barrier);
+        assert!(rs[0].detail.is_empty());
+    }
+
+    #[test]
+    fn barrier_with_detail_constructor() {
+        let b = Barrier::with_detail(BarrierKind::Upvar, "upvar $level");
+        assert_eq!(b.kind, BarrierKind::Upvar);
+        assert_eq!(b.detail, "upvar $level");
+        assert!(b.range.is_none());
+    }
+
+    #[test]
+    fn escape_reason_constructors() {
+        let r = EscapeReason::new(EscapeReasonKind::CalleeUpvar);
+        assert_eq!(r.kind, EscapeReasonKind::CalleeUpvar);
+        assert!(r.detail.is_empty());
+
+        let r2 = EscapeReason::with_detail(EscapeReasonKind::EvalReference, "eval body refs x");
+        assert_eq!(r2.detail, "eval body refs x");
+    }
+
+    #[test]
+    fn with_escapes_preserves_barriers_and_reasons() {
+        let mut tag_reasons = HashMap::new();
+        tag_reasons.insert(
+            "x".into(),
+            vec![EscapeReason::new(EscapeReasonKind::InfoExists)],
+        );
+        let s = ProcEscapeSummary {
+            barriers: vec![Barrier::new(BarrierKind::Info)],
+            tag_reasons,
+            ..Default::default()
+        };
+        let new = s.with_escapes(std::iter::empty(), false);
+        assert_eq!(new.barriers.len(), 1);
+        assert_eq!(new.tag_reasons.len(), 1);
     }
 }
