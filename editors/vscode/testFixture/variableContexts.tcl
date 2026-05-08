@@ -91,4 +91,9 @@ set arr(name) hello
 set foo bar
 set indirect [puts ${arr}(name)]                       ;# W216 -- ${arr}(foo)
 set indirect2 [puts ${arr($foo)}]                      ;# W216 -- ${arr($foo)}
+# W216 funny-name case: array name has a space, so the fix falls back
+# to the [set "..."] indirection form (which the command parser still
+# substitutes $-vars in).
+set "funny name" 1
+set indirect3 [puts ${funny name($foo)}]               ;# W216 -- funny-name fallback
 

@@ -402,6 +402,40 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
     );
   });
 
+  test('W216 falls back to [set "..."] when the array name needs braces', async () => {
+    // ``funny name`` has a space, so bare ``$funny name(...)`` would
+    // tokenise as scalar ``$funny`` followed by literal text.  The
+    // quick fix uses the ``[set "name(idx)"]`` indirection form which
+    // works for any name, with index substitution preserved.
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const w216 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W216" && d.message.includes("funny name");
+    });
+    assert.ok(w216, "Expected a W216 diagnostic for the funny-name fixture line");
+    const actions = (await vscode.commands.executeCommand(
+      "vscode.executeCodeActionProvider",
+      docUri,
+      w216.range,
+    )) as vscode.CodeAction[];
+    const expected = '[set "funny name($foo)"]';
+    const fix = actions.find(
+      (a) =>
+        a.kind !== undefined &&
+        a.kind.value === vscode.CodeActionKind.QuickFix.value &&
+        ((typeof a.title === "string" && a.title.includes(expected)) ||
+          (a.edit !== undefined &&
+            [...a.edit.entries()].some(([, edits]) => edits.some((e) => e.newText === expected)))),
+    );
+    assert.ok(
+      fix,
+      `Expected a W216 quick-fix offering ${expected}; got titles: ${actions
+        .map((a) => a.title)
+        .join(" / ")}`,
+    );
+  });
+
   test("W215 has Warning severity", async () => {
     await activate(docUri);
     const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
