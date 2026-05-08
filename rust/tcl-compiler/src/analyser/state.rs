@@ -425,8 +425,19 @@ impl Analyser {
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
-        for code in super::utils::parse_file_suppression(source) {
-            self.disabled_diagnostics.insert(code);
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
+        }
+        if !file_codes.is_empty() {
+            // Mirror ``analyse``'s ``result.suppressed_lines[-1]``
+            // sentinel so downstream consumers see file-wide
+            // ``# tcl-lsp: disable=`` directives via the same
+            // surface regardless of which entry point dispatched
+            // the analyse (Copilot review on PR #371).
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
         }
         // Next-line ``# noqa`` pre-scan — see ``analyse`` for
         // rationale (issue #306).
@@ -499,8 +510,17 @@ impl Analyser {
         self.unresolved_commands_emitted = false;
         self.ns_cache.clear();
 
-        for code in super::utils::parse_file_suppression(source) {
-            self.disabled_diagnostics.insert(code);
+        let file_codes = super::utils::parse_file_suppression(source);
+        for code in &file_codes {
+            self.disabled_diagnostics.insert(code.clone());
+        }
+        if !file_codes.is_empty() {
+            // ``-1`` sentinel parity with ``analyse`` — see the
+            // matching block in ``analyse_chunked`` (Copilot
+            // review on PR #371).
+            self.result
+                .suppressed_lines
+                .insert(-1, file_codes.iter().cloned().collect());
         }
         // Next-line ``# noqa`` pre-scan — see ``analyse`` for
         // rationale (issue #306).
@@ -2360,5 +2380,39 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse("namespace import ::foo::bar\n", "tcl");
         assert!(r.namespace_imports.iter().all(|i| !i.conjectured));
+    }
+
+    #[test]
+    fn analyse_chunked_seeds_file_suppression_minus_one_sentinel() {
+        // ``analyse`` populates ``result.suppressed_lines[-1]`` with
+        // the file-level ``# tcl-lsp: disable=`` set; verify
+        // ``analyse_chunked`` does the same so consumers see the
+        // file-wide directives via the same surface regardless of
+        // which entry point dispatched (Copilot review on PR #371).
+        use crate::segmenter::SegmentedCommand;
+        let mut a = Analyser::new();
+        let cmds: Vec<Vec<SegmentedCommand>> = vec![Vec::new()];
+        let (r, _) = a.analyse_chunked("# tcl-lsp: disable=W210,W211\nset x 1\n", cmds, "tcl");
+        let codes = r.suppressed_lines.get(&-1).expect("-1 sentinel");
+        assert!(codes.contains("W210"));
+        assert!(codes.contains("W211"));
+    }
+
+    #[test]
+    fn analyse_commands_seeds_file_suppression_minus_one_sentinel() {
+        // Same parity assertion through ``analyse_commands`` — the
+        // snapshot-restore entry point.
+        use crate::segmenter::SegmentedCommand;
+        let mut a = Analyser::new();
+        let cmds: Vec<SegmentedCommand> = Vec::new();
+        let r = a.analyse_commands(
+            "# tcl-lsp: disable=W210,W211\nset x 1\n",
+            &cmds,
+            "tcl",
+            true,
+        );
+        let codes = r.suppressed_lines.get(&-1).expect("-1 sentinel");
+        assert!(codes.contains("W210"));
+        assert!(codes.contains("W211"));
     }
 }

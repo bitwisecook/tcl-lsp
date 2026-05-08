@@ -66,12 +66,18 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 /// Scan *source* for ``# noqa`` comment lines and record next-line
 /// suppressions.
 ///
-/// Mirrors `parse_noqa_line_suppressions` in
-/// `core/analysis/_analyser/_utils.py:138-173` (Python landed in
-/// `b66f8f9d`, issue #306).  For each ``# noqa`` /
-/// ``# noqa: CODE,…`` comment on line *N* (0-based), records the
-/// suppression codes against line *N+1*.  This covers two cases the
-/// command-attached `apply_preceding_noqa` mechanism cannot reach:
+/// Mirrors the `parse_noqa_line_suppressions` helper added to
+/// `core/analysis/_analyser/_utils.py` upstream by commit
+/// ``b66f8f9d`` (issue #306) plus its `_core.py` wiring at commit
+/// ``ceb190fc``.  The `rust` branch's Python tree predates both
+/// commits, so the pre-fix Python lacks both the helper and the
+/// merge block — the references here are to the upstream commits,
+/// not the checked-in Python file.
+///
+/// For each ``# noqa`` / ``# noqa: CODE,…`` comment on line *N*
+/// (0-based), records the suppression codes against line *N+1*.
+/// This covers two cases the command-attached
+/// `apply_preceding_noqa` mechanism cannot reach:
 ///
 /// * A ``# noqa`` comment at the tail of a brace body (orphaned —
 ///   no following command in that scope), where the diagnostic
@@ -829,14 +835,16 @@ mod tests {
 
     #[test]
     fn parse_noqa_line_suppressions_skips_non_comment_lines() {
-        // ``noqa`` inside a comment that's not at line-start (after
-        // code) — Python's helper inspects ``line.strip()``; a
-        // tail-of-line ``# noqa`` would still match.  We mirror that.
-        // But a substring ``noqa`` inside a Tcl string is never seen
-        // because the input loop only inspects ``#``-prefixed lines.
+        // The implementation skips any line that isn't ``#``-prefixed
+        // after ``trim()`` (so comments only — code lines, blank
+        // lines, and lines whose ``noqa`` substring sits inside a
+        // Tcl string never seed the map).  Verify line 0 (``set x
+        // "noqa"``) does not produce a line-1 entry: the only entry
+        // comes from the ``# noqa`` on line 1, which seeds line 2.
         let src = "set x \"noqa\"\n# noqa\nset y 1\n";
         let map = parse_noqa_line_suppressions(src);
         assert!(!map.contains_key(&0));
+        assert!(!map.contains_key(&1));
         // ``# noqa`` on line 1 → suppresses line 2.
         assert!(map.get(&2).expect("line 2 entry").contains("*"));
     }
