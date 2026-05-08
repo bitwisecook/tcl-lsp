@@ -69,6 +69,18 @@ else
     struct {
         pub const registrations: [0]reg.CmdEntry = .{};
     };
+const tcltest_cmd_utf = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_utf.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_misc = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_misc.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
 const tcltest_cmd_stubs = if (build_options.with_tcltest)
     @import("../tcltest/cmd_stubs.zig")
 else
@@ -109,6 +121,8 @@ const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration
     mathfunc_cmd.registrations ++
     tcltest_cmd_obj.registrations ++
     tcltest_cmd_eval.registrations ++
+    tcltest_cmd_utf.registrations ++
+    tcltest_cmd_misc.registrations ++
     tcltest_cmd_stubs.registrations);
 
 /// Look up a command by name in the static :data:`BUILTINS` slice.
