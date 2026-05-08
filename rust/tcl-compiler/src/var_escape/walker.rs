@@ -568,6 +568,8 @@ pub fn analyse_script<I: IntoIterator<Item = String>>(
         direct_callees: state.direct_callees,
         ssa_tags: std::collections::HashMap::new(),
         local_slots: std::collections::BTreeMap::new(),
+        barriers: Vec::new(),
+        tag_reasons: std::collections::HashMap::new(),
     }
 }
 

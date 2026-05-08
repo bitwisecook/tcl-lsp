@@ -42,4 +42,6 @@ pub use info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand, FRAME_INSPECTING_SUBCOMMANDS,
     INTERPRETER_GLOBAL_SUBCOMMANDS,
 };
-pub use types::{join, EscapeTag, ProcEscapeSummary};
+pub use types::{
+    join, Barrier, BarrierKind, EscapeReason, EscapeReasonKind, EscapeTag, ProcEscapeSummary,
+};
