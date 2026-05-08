@@ -167,7 +167,27 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         if (sep_at > 0) {
                             const src_ns_ptr = is.ptr;
                             const src_ns_len = sep_at;
-                            const target = resolve_ns(src_ns_ptr, src_ns_len);
+                            // Always run the BUILTINS materialiser
+                            // before resolving the source ns.  Two
+                            // shapes need it:
+                            //   * The namespace doesn't exist yet
+                            //     (``::tcl::mathop`` cold-start).
+                            //   * The namespace was created by a bare
+                            //     ``namespace eval ::tcl::mathop {}``
+                            //     and so has an empty ``cmd_table``
+                            //     even though the BUILTINS slice has
+                            //     entries under that prefix.
+                            // The materialiser is idempotent — it
+                            // skips slots already populated as
+                            // forwards and only stamps
+                            // ``namespace export *`` once.  When the
+                            // prefix doesn't match any BUILTINS
+                            // (``::myns::foo`` etc.), it returns 0
+                            // without touching the ns tree, and we
+                            // fall through to ``resolve_ns``.
+                            const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+                            var target = builtin_ns.materialise(src_ns_ptr, src_ns_len);
+                            if (target == 0) target = resolve_ns(src_ns_ptr, src_ns_len);
                             if (target == 0) {
                                 const prefix: []const u8 = "unknown namespace in import pattern \"";
                                 const suffix: []const u8 = "\"";
@@ -236,11 +256,28 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                 var li: i64 = 0;
                 while (li < count) : (li += 1) {
                     const elt = obj_mod.list_element_at(ls.ptr, ls.len, li);
-                    const r = tcl_ns.ns_resolve_qualified(tcl_ns.ns_current(), elt.start, elt.len);
-                    var resolved: u32 = r.target_ns;
-                    if (r.simple_len > 0 and r.target_ns != 0) {
-                        const child = tcl_ns.ns_lookup(r.target_ns, r.simple_ptr, r.simple_len);
-                        resolved = child;
+                    // ``element_at`` returns ``start`` as a byte
+                    // *offset* into ``ls.ptr``, not an absolute
+                    // address — same convention as the dict / inspect
+                    // call sites.  Compute the absolute address before
+                    // handing the bytes to anything that derefs.
+                    const elt_ptr: u32 = ls.ptr + elt.start;
+                    // Materialise BUILTIN-tier namespaces first so a
+                    // bare ``namespace path ::tcl::mathop`` finds the
+                    // populated ns regardless of whether anything
+                    // else has poked it yet (idempotent for
+                    // already-materialised entries; no-op for
+                    // non-BUILTINS prefixes).  Mirrors the same hook
+                    // in ``namespace import``.
+                    const builtin_ns = @import("../dispatch/tcl_builtin_ns.zig");
+                    var resolved: u32 = builtin_ns.materialise(elt_ptr, elt.len);
+                    if (resolved == 0) {
+                        const r = tcl_ns.ns_resolve_qualified(tcl_ns.ns_current(), elt_ptr, elt.len);
+                        resolved = r.target_ns;
+                        if (r.simple_len > 0 and r.target_ns != 0) {
+                            const child = tcl_ns.ns_lookup(r.target_ns, r.simple_ptr, r.simple_len);
+                            resolved = child;
+                        }
                     }
                     obj_mod.write_i32(targets_buf + @as(u32, @intCast(li)) * 4, @bitCast(resolved));
                 }
