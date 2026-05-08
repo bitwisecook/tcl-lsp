@@ -18,6 +18,7 @@ use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 
 mod cfg_lower;
+pub mod upvar_info;
 
 /// Mutable block used during construction, frozen into [`Block`] at the end.
 struct MutableBlock {
