@@ -301,14 +301,14 @@ fn raise_bad_specifier(conv: u8) void {
 }
 
 /// Alternate-form prefix for the requested base.  Returns ``"0x"`` /
-/// ``"0X"`` / ``"0o"`` / ``"0b"`` / ``"0d"`` per Tcl 9 — note Tcl
-/// uses ``0o`` (not bare leading zero) for octal and emits ``0d`` for
-/// decimal under ``%#d``.  Empty when the alt-form is a no-op (zero
-/// value, or no flag set).
-fn alt_prefix(base: u8, alt_form: bool, value_is_zero: bool, upper: bool) []const u8 {
+/// ``"0o"`` / ``"0b"`` / ``"0d"`` per Tcl 9 — Tcl always lower-cases
+/// the prefix even for ``%#X`` (``%#X 12`` → ``0xC``: upper-case
+/// digits but lower-case prefix).  Empty when the alt-form is a
+/// no-op (zero value, or no flag set).
+fn alt_prefix(base: u8, alt_form: bool, value_is_zero: bool, _: bool) []const u8 {
     if (!alt_form) return "";
     return switch (base) {
-        16 => if (value_is_zero) "" else if (upper) "0X" else "0x",
+        16 => if (value_is_zero) "" else "0x",
         8 => if (value_is_zero) "" else "0o",
         2 => if (value_is_zero) "" else "0b",
         10 => if (value_is_zero) "" else "0d",
