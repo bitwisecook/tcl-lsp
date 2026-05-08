@@ -29,11 +29,14 @@ plus a matching build target under ``runtime/zig/<extension>/`` and a
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from ...ir import IRModule
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _repo_root() -> Path:
@@ -109,16 +112,29 @@ def runtime_path_for(ir_module: IRModule) -> Path:
     """Pick the runtime variant covering every required extension.
 
     Today: returns the matching variant when exactly one extension
-    is needed (e.g. Tcltest → ``tcl_runtime_with_tcltest.wasm``);
-    falls back to the lean runtime otherwise.  When more than one
-    extension lands the dispatch logic here will need to choose a
-    multi-extension variant or pivot to the merge-based path.
+    is needed (e.g. Tcltest → ``tcl_runtime_with_tcltest.wasm``).
+    The variant-runtime model can't satisfy two extensions
+    simultaneously without a combinatorial-explosion of pre-built
+    variants, so when more than one is requested we log a warning,
+    pick the *first* matching variant (the user's program at least
+    gets that extension's commands), and let the bundle proceed —
+    the missing extensions will surface to the script as
+    ``invalid command name`` at runtime.  Once Stage 2 (separately-
+    merged extension WASMs, see
+    ``docs/design/compiler/wasm-extensions.md``) lands, this becomes
+    a list-of-extensions handover instead of a single-variant pick.
     """
     needed = find_required_extensions(ir_module)
+    if len(needed) == 0:
+        return default_runtime_path()
     if len(needed) == 1:
         return needed[0].runtime_path()
-    if len(needed) > 1:
-        # Conservative fallback — keep the lean runtime; the bundler
-        # logs a warning so the missing variant surfaces.
-        return default_runtime_path()
-    return default_runtime_path()
+    requested = [ext.name for ext in needed]
+    _LOGGER.warning(
+        "Multiple WASM extensions requested (%s) — the variant-runtime "
+        "model only covers one at a time. Bundling against %s; commands "
+        "from the others will surface as 'invalid command name'.",
+        ", ".join(requested),
+        needed[0].name,
+    )
+    return needed[0].runtime_path()

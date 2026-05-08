@@ -128,29 +128,100 @@ fn eval_testgetunichar(words: []const i32) result_mod.InterpResult {
 
 // -- testfindfirst / testfindlast ----------------------------------------
 
-/// Return the substring of *bytes* starting from the first byte that
-/// is NOT in the test-pattern set ``"A\xA0\xC0..."``.  Upstream
-/// passes a per-byte test; we implement the simpler observable
-/// surface "find first non-NUL byte after the head", returning the
-/// remaining suffix.
-fn eval_testfindfirst(words: []const i32) result_mod.InterpResult {
-    if (words.len < 2) return result_mod.from_globals(0);
-    const view = obj_view(words[1]);
-    if (view.len == 0) return result_mod.ok(obj.obj_new_string(0, 0));
-    return result_mod.ok(obj.obj_new_string_copy(@intCast(@intFromPtr(view.ptr)), @intCast(view.len)));
+/// Parse the second argument as either a single character (the byte
+/// to scan for) or a numeric code point.  Returns the byte to look
+/// for, or null on a multi-byte / out-of-range input.
+fn parse_scan_byte(handle: i32) ?u8 {
+    const v = obj_view(handle);
+    if (v.len == 1) return v[0];
+    // Numeric code point — only ASCII codepoints are addressable as
+    // a single byte; reject anything else (multi-byte codepoints).
+    const cp = obj.try_parse_int(@intCast(@intFromPtr(v.ptr)), @intCast(v.len)) orelse return null;
+    if (cp < 0 or cp > 0x7F) return null;
+    return @intCast(cp);
 }
 
-/// Return the substring up to but not including the last byte that
-/// would be the *last* matching position.  Mirrors upstream's
-/// ``Tcl_UtfFindLast`` shape; for the smoke-test surface we report
-/// the full string.
-fn eval_testfindlast(words: []const i32) result_mod.InterpResult {
-    if (words.len < 2) return result_mod.from_globals(0);
+/// ``testfindfirst bytes char ?length?`` — return the suffix of
+/// *bytes* starting at the first occurrence of *char*, or the empty
+/// string if not found / *length* is 0.  Mirrors upstream's
+/// ``Tcl_UtfFindFirst`` shape on the ASCII subset.
+fn eval_testfindfirst(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2 or words.len > 4) return err_msg("wrong # args: testfindfirst bytes ?char ?length??");
     const view = obj_view(words[1]);
-    return result_mod.ok(obj.obj_new_string_copy(@intCast(@intFromPtr(view.ptr)), @intCast(view.len)));
+    if (view.len == 0 or words.len < 3) return result_mod.ok(obj.obj_new_string(0, 0));
+    const target = parse_scan_byte(words[2]) orelse return err_msg("testfindfirst: char must be a single byte / ASCII codepoint");
+    var limit: u32 = @intCast(view.len);
+    if (words.len == 4) {
+        const n = obj.obj_get_int(words[3]);
+        if (n >= 0 and @as(u32, @intCast(n)) < limit) limit = @intCast(n);
+    }
+    var i: u32 = 0;
+    while (i < limit) : (i += 1) {
+        if (view[i] == target) {
+            return result_mod.ok(obj.obj_new_string_copy(
+                @intCast(@intFromPtr(&view[i])),
+                limit - i,
+            ));
+        }
+    }
+    return result_mod.ok(obj.obj_new_string(0, 0));
+}
+
+/// ``testfindlast bytes char ?length?`` — return the suffix starting
+/// at the *last* occurrence of *char* in the first *length* bytes,
+/// or the empty string when not found.  Matches upstream's
+/// ``Tcl_UtfFindLast`` on the ASCII subset.
+fn eval_testfindlast(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2 or words.len > 4) return err_msg("wrong # args: testfindlast bytes ?char ?length??");
+    const view = obj_view(words[1]);
+    if (view.len == 0 or words.len < 3) return result_mod.ok(obj.obj_new_string(0, 0));
+    const target = parse_scan_byte(words[2]) orelse return err_msg("testfindlast: char must be a single byte / ASCII codepoint");
+    var limit: u32 = @intCast(view.len);
+    if (words.len == 4) {
+        const n = obj.obj_get_int(words[3]);
+        if (n >= 0 and @as(u32, @intCast(n)) < limit) limit = @intCast(n);
+    }
+    var found: ?u32 = null;
+    var i: u32 = 0;
+    while (i < limit) : (i += 1) {
+        if (view[i] == target) found = i;
+    }
+    if (found) |idx| {
+        return result_mod.ok(obj.obj_new_string_copy(
+            @intCast(@intFromPtr(&view[idx])),
+            limit - idx,
+        ));
+    }
+    return result_mod.ok(obj.obj_new_string(0, 0));
 }
 
 // -- testuniclass --------------------------------------------------------
+
+/// Append *value* to the accumulator at *out_ref*, replacing the
+/// accumulator with the new handle when ``tcl_cmd_lappend`` returns
+/// a different obj (canonical-rebuild path) and releasing the
+/// previous accumulator so it doesn't leak.  ``tcl_cmd_lappend``
+/// only reads *value*'s string rep — it doesn't take a reference —
+/// so the caller is also responsible for releasing *value* when
+/// they own it; that release stays with the call sites.
+fn lappend_into(out_ref: *i32, value: i32) void {
+    const tcl_list = @import("../valtypes/tcl_list.zig");
+    const next = tcl_list.tcl_cmd_lappend(out_ref.*, value);
+    if (next != out_ref.*) {
+        obj.tcl_obj_release(out_ref.*);
+        out_ref.* = next;
+    }
+}
+
+/// Append a literal class-name token to the accumulator.  Pairs the
+/// :fn:`build_msg` allocation with a release after the lappend has
+/// consumed its string rep — the previous shape leaked one TclObj
+/// per matched class (Copilot review, PR #363).
+fn lappend_lit(out_ref: *i32, lit: []const u8) void {
+    const tmp = build_msg(lit);
+    lappend_into(out_ref, tmp);
+    obj.tcl_obj_release(tmp);
+}
 
 /// Returns ``[lower upper title class ...]`` where ``classN`` are the
 /// matched character classes (lower / upper / alnum / alpha / digit
@@ -163,7 +234,6 @@ fn eval_testuniclass(words: []const i32) result_mod.InterpResult {
     if (v < 0 or v > 0x10FFFF) return err_msg("code point out of range");
     const cp: u21 = @intCast(v);
 
-    const tcl_list = @import("../valtypes/tcl_list.zig");
     var out: i32 = obj.obj_new_string(0, 0);
 
     // case mappings — Zig stdlib doesn't expose unicode case mapping
@@ -172,19 +242,25 @@ fn eval_testuniclass(words: []const i32) result_mod.InterpResult {
     const lower: u21 = if (cp >= 'A' and cp <= 'Z') cp + 32 else cp;
     const upper: u21 = if (cp >= 'a' and cp <= 'z') cp - 32 else cp;
     const title: u21 = upper;
-    out = tcl_list.tcl_cmd_lappend(out, obj.obj_new_int(@intCast(lower)));
-    out = tcl_list.tcl_cmd_lappend(out, obj.obj_new_int(@intCast(upper)));
-    out = tcl_list.tcl_cmd_lappend(out, obj.obj_new_int(@intCast(title)));
+    const lower_obj = obj.obj_new_int(@intCast(lower));
+    lappend_into(&out, lower_obj);
+    obj.tcl_obj_release(lower_obj);
+    const upper_obj = obj.obj_new_int(@intCast(upper));
+    lappend_into(&out, upper_obj);
+    obj.tcl_obj_release(upper_obj);
+    const title_obj = obj.obj_new_int(@intCast(title));
+    lappend_into(&out, title_obj);
+    obj.tcl_obj_release(title_obj);
 
     if (cp < 0x80) {
         const c: u8 = @intCast(cp);
-        if (std.ascii.isLower(c)) out = tcl_list.tcl_cmd_lappend(out, build_msg("lower"));
-        if (std.ascii.isUpper(c)) out = tcl_list.tcl_cmd_lappend(out, build_msg("upper"));
-        if (std.ascii.isAlphanumeric(c)) out = tcl_list.tcl_cmd_lappend(out, build_msg("alnum"));
-        if (std.ascii.isAlphabetic(c)) out = tcl_list.tcl_cmd_lappend(out, build_msg("alpha"));
-        if (std.ascii.isDigit(c)) out = tcl_list.tcl_cmd_lappend(out, build_msg("digit"));
-        if (std.ascii.isWhitespace(c)) out = tcl_list.tcl_cmd_lappend(out, build_msg("space"));
-        if (std.ascii.isAlphanumeric(c) or c == '_') out = tcl_list.tcl_cmd_lappend(out, build_msg("word"));
+        if (std.ascii.isLower(c)) lappend_lit(&out, "lower");
+        if (std.ascii.isUpper(c)) lappend_lit(&out, "upper");
+        if (std.ascii.isAlphanumeric(c)) lappend_lit(&out, "alnum");
+        if (std.ascii.isAlphabetic(c)) lappend_lit(&out, "alpha");
+        if (std.ascii.isDigit(c)) lappend_lit(&out, "digit");
+        if (std.ascii.isWhitespace(c)) lappend_lit(&out, "space");
+        if (std.ascii.isAlphanumeric(c) or c == '_') lappend_lit(&out, "word");
     }
     return result_mod.ok(out);
 }

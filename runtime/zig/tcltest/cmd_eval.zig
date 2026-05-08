@@ -180,18 +180,34 @@ fn eval_testset2(words: []const i32) result_mod.InterpResult {
 
 // -- testseterrorcode / testsetobjerrorcode -----------------------------
 
+/// Append *value* to the accumulator at *out_ref*, releasing the
+/// prior accumulator on a canonical-rebuild return.  Caller still
+/// owns *value* — see :fn:`tcl_cmd_lappend` doc.  Mirrors the same
+/// helper in cmd_misc.zig / cmd_utf.zig (Copilot review, PR #363).
+fn lappend_into(out_ref: *i32, value: i32) void {
+    const tcl_list = @import("../valtypes/tcl_list.zig");
+    const next = tcl_list.tcl_cmd_lappend(out_ref.*, value);
+    if (next != out_ref.*) {
+        obj.tcl_obj_release(out_ref.*);
+        out_ref.* = next;
+    }
+}
+
 /// ``testseterrorcode arg ...`` — sets ``::errorCode`` to the
 /// supplied list of strings (max 5 args), then raises an empty Tcl
 /// error so the eval-loop captures the error code on the way out.
 fn eval_testseterrorcode(words: []const i32) result_mod.InterpResult {
     if (words.len > 6) return err_msg("too many args");
-    // Build the errorCode list value.
-    const tcl_list = @import("../valtypes/tcl_list.zig");
     var lst: i32 = obj.obj_new_string(0, 0);
     var i: u32 = 1;
-    while (i < words.len) : (i += 1) lst = tcl_list.tcl_cmd_lappend(lst, words[i]);
-    if (words.len == 1) lst = tcl_list.tcl_cmd_lappend(lst, build_msg("NONE"));
+    while (i < words.len) : (i += 1) lappend_into(&lst, words[i]);
+    if (words.len == 1) {
+        const none_obj = build_msg("NONE");
+        lappend_into(&lst, none_obj);
+        obj.tcl_obj_release(none_obj);
+    }
     set_error_code(lst);
+    obj.tcl_obj_release(lst);
     catch_mod.tcl_cmd_error(obj.obj_new_string(0, 0));
     return result_mod.from_globals(0);
 }
@@ -227,14 +243,29 @@ fn eval_testsetobjerrorcode(words: []const i32) result_mod.InterpResult {
     }
     const concat = obj.obj_new_string_take(buf, total, total);
     set_error_code(concat);
+    obj.tcl_obj_release(concat);
     catch_mod.tcl_cmd_error(obj.obj_new_string(0, 0));
     return result_mod.from_globals(0);
 }
 
+/// Lazily-allocated TclObj for the literal name ``::errorCode``.
+/// :fn:`tcl_ns.global_set` reads the name's string rep and keys the
+/// namespace lookup by the bytes — it doesn't take a ref — so we
+/// own the obj here.  Allocating a fresh one per call leaked one
+/// TclObj per ``testseterrorcode`` invocation (Copilot review,
+/// PR #363); cache and reuse.
+var error_code_name_obj: i32 = 0;
+
 fn set_error_code(value: i32) void {
-    // Write to ::errorCode through the global setter.
-    const name = build_msg("::errorCode");
-    _ = tcl_ns.global_set(name, value);
+    if (error_code_name_obj == 0) {
+        error_code_name_obj = build_msg("::errorCode");
+        // Pin the name across resets — global_set just reads the
+        // string rep, but a future intervening release could free
+        // the underlying buffer.  Retain so the cache stays valid
+        // for the process lifetime.
+        obj.tcl_obj_retain(error_code_name_obj);
+    }
+    _ = tcl_ns.global_set(error_code_name_obj, value);
 }
 
 // -- testwrongnumargs ---------------------------------------------------

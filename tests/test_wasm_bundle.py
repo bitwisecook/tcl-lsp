@@ -58,54 +58,59 @@ def _instantiate_bundle(bundle_bytes: bytes) -> tuple[str, str]:
     ``env.call_compiled_proc`` (no compiled procs in the smoke
     samples) or ``env.host_spawn`` (no ``exec``).
     """
-    engine = wasmtime.Engine()
-    store = wasmtime.Store(engine)
+    import os  # noqa: PLC0415
 
     fd_out, stdout_path = tempfile.mkstemp(suffix=".out")
     fd_err, stderr_path = tempfile.mkstemp(suffix=".err")
-    import os  # noqa: PLC0415
-
     os.close(fd_out)
     os.close(fd_err)
 
-    cfg = wasmtime.WasiConfig()
-    cfg.stdout_file = stdout_path
-    cfg.stderr_file = stderr_path
-    store.set_wasi(cfg)
+    # try/finally so an unexpected wasmtime exception (or a
+    # ``RuntimeError`` from ``_trap``) doesn't leak the temp files
+    # — Copilot review, PR #363.
+    try:
+        engine = wasmtime.Engine()
+        store = wasmtime.Store(engine)
 
-    linker = wasmtime.Linker(engine)
-    linker.define_wasi()
+        cfg = wasmtime.WasiConfig()
+        cfg.stdout_file = stdout_path
+        cfg.stderr_file = stderr_path
+        store.set_wasi(cfg)
 
-    def _trap(*args: int) -> int:
-        msg = f"env.* imported but not exercised by bundle smoke test: args={args}"
-        raise RuntimeError(msg)
+        linker = wasmtime.Linker(engine)
+        linker.define_wasi()
 
-    i32 = wasmtime.ValType.i32()
-    sig4_to_i32 = wasmtime.FuncType([i32, i32, i32, i32], [i32])
-    linker.define_func("env", "call_compiled_proc", sig4_to_i32, _trap)
-    linker.define_func("env", "host_spawn", sig4_to_i32, _trap)
+        def _trap(*args: int) -> int:
+            msg = f"env.* imported but not exercised by bundle smoke test: args={args}"
+            raise RuntimeError(msg)
 
-    module = wasmtime.Module(engine, bundle_bytes)
-    instance = linker.instantiate(store, module)
+        i32 = wasmtime.ValType.i32()
+        sig4_to_i32 = wasmtime.FuncType([i32, i32, i32, i32], [i32])
+        linker.define_func("env", "call_compiled_proc", sig4_to_i32, _trap)
+        linker.define_func("env", "host_spawn", sig4_to_i32, _trap)
 
-    init_fn = instance.exports(store).get("_initialize")
-    if init_fn is not None:
-        init_fn(store)
+        module = wasmtime.Module(engine, bundle_bytes)
+        instance = linker.instantiate(store, module)
 
-    top_fn = instance.exports(store).get("::top")
-    if top_fn is not None:
-        try:
-            top_fn(store)
-        except wasmtime.Trap:
-            # Caller may legitimately want to assert on stderr (the
-            # "invalid command name" path traps).  Don't raise.
-            pass
+        init_fn = instance.exports(store).get("_initialize")
+        if init_fn is not None:
+            init_fn(store)
 
-    stdout = Path(stdout_path).read_text()
-    stderr = Path(stderr_path).read_text()
-    Path(stdout_path).unlink(missing_ok=True)
-    Path(stderr_path).unlink(missing_ok=True)
-    return stdout, stderr
+        top_fn = instance.exports(store).get("::top")
+        if top_fn is not None:
+            try:
+                top_fn(store)
+            except wasmtime.Trap:
+                # Caller may legitimately want to assert on stderr
+                # (the "invalid command name" path traps).
+                pass
+
+        stdout = Path(stdout_path).read_text()
+        stderr = Path(stderr_path).read_text()
+        return stdout, stderr
+    finally:
+        Path(stdout_path).unlink(missing_ok=True)
+        Path(stderr_path).unlink(missing_ok=True)
 
 
 def test_lean_bundle_runs_without_extensions(tmp_path: Path) -> None:

@@ -156,15 +156,44 @@ fn eval_testgetindexfromobjstruct(words: []const i32) result_mod.InterpResult {
 // -- testdoubledigits ----------------------------------------------------
 
 /// ``testdoubledigits value ndigits ?type?`` — format a double with a
-/// requested digit count.  Maps to Zig's ``std.fmt.formatFloatDecimal``
-/// — type is "shortest" (default), "Steele", "e", or "f".
+/// requested digit count.  *type* is ``shortest`` (default),
+/// ``Steele``, ``e``, or ``f`` — matches the upstream
+/// ``TclDoubleDigits`` type-token surface; we honour them via
+/// :func:`std.fmt`-style format specifiers.  Anything else is a
+/// recognisable Tcl error rather than silently equivalent to the
+/// default — Copilot review feedback (PR #363).
 fn eval_testdoubledigits(words: []const i32) result_mod.InterpResult {
     if (words.len < 3 or words.len > 4) return err_msg("wrong # args: testdoubledigits value ndigits ?type?");
     const v = obj.obj_get_float(words[1]);
     const n = obj.obj_get_int(words[2]);
     const precision: u32 = if (n < 0) 0 else @intCast(n);
+
+    const FormatKind = enum { shortest, steele, exponential, fixed };
+    var kind: FormatKind = .shortest;
+    if (words.len == 4) {
+        const type_view = obj_view(words[3]);
+        if (std.mem.eql(u8, type_view, "shortest")) {
+            kind = .shortest;
+        } else if (std.mem.eql(u8, type_view, "Steele")) {
+            kind = .steele;
+        } else if (std.mem.eql(u8, type_view, "e")) {
+            kind = .exponential;
+        } else if (std.mem.eql(u8, type_view, "f")) {
+            kind = .fixed;
+        } else {
+            return err_fmt(
+                "bad type \"{s}\": must be shortest, Steele, e, or f",
+                .{type_view},
+            );
+        }
+    }
+
     var buf: [128]u8 = undefined;
-    const slice = std.fmt.bufPrint(&buf, "{d:.[1]}", .{ v, precision }) catch "0";
+    const slice = switch (kind) {
+        .shortest, .steele => std.fmt.bufPrint(&buf, "{d}", .{v}) catch "0",
+        .exponential => std.fmt.bufPrint(&buf, "{e:.[1]}", .{ v, precision }) catch "0",
+        .fixed => std.fmt.bufPrint(&buf, "{d:.[1]}", .{ v, precision }) catch "0",
+    };
     return result_mod.ok(obj.obj_new_string(@intCast(@intFromPtr(slice.ptr)), @intCast(slice.len)));
 }
 
@@ -318,6 +347,20 @@ fn eval_testprint(words: []const i32) result_mod.InterpResult {
 
 // -- testparseargs ------------------------------------------------------
 
+/// Append *value* to the accumulator at *out_ref*, releasing the
+/// prior accumulator when ``tcl_cmd_lappend`` returns a fresh obj.
+/// ``tcl_cmd_lappend`` doesn't retain *value*, so the caller still
+/// owns *value* and is responsible for releasing it when they own
+/// the only reference (Copilot review, PR #363).
+fn lappend_into(out_ref: *i32, value: i32) void {
+    const tcl_list = @import("../valtypes/tcl_list.zig");
+    const next = tcl_list.tcl_cmd_lappend(out_ref.*, value);
+    if (next != out_ref.*) {
+        obj.tcl_obj_release(out_ref.*);
+        out_ref.* = next;
+    }
+}
+
 /// Minimal arg parser: consumes optional ``-bool``, ``-colormode mode``,
 /// ``-media size`` toggles before positional args, returning a list
 /// of {bool colormode media remaining-args}.
@@ -341,13 +384,14 @@ fn eval_testparseargs(words: []const i32) result_mod.InterpResult {
             break;
         }
     }
-    const tcl_list = @import("../valtypes/tcl_list.zig");
     var result: i32 = obj.obj_new_string(0, 0);
-    result = tcl_list.tcl_cmd_lappend(result, obj.obj_new_int(if (bool_set) 1 else 0));
-    result = tcl_list.tcl_cmd_lappend(result, colormode);
-    result = tcl_list.tcl_cmd_lappend(result, media);
+    const bool_obj = obj.obj_new_int(if (bool_set) 1 else 0);
+    lappend_into(&result, bool_obj);
+    obj.tcl_obj_release(bool_obj);
+    lappend_into(&result, colormode);
+    lappend_into(&result, media);
     while (i < words.len) : (i += 1) {
-        result = tcl_list.tcl_cmd_lappend(result, words[i]);
+        lappend_into(&result, words[i]);
     }
     return result_mod.ok(result);
 }
