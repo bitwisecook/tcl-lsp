@@ -292,9 +292,20 @@ def _parse_literal_value(text: str) -> int | str:
     stripped = text.strip()
     if _DECIMAL_INT_RE.fullmatch(stripped):
         try:
-            return int(stripped)
+            iv = int(stripped)
         except ValueError:
-            pass
+            return stripped
+        # Only collapse to int when the textual identity round-trips:
+        # ``"010"`` parses as int 10, but ``[expr {$a eq "10"}]`` for
+        # ``a == "010"`` must yield 0 (string compare).  Storing it as
+        # the canonical int would lose that string identity, and
+        # downstream constant-substitution then folds the comparison
+        # the wrong way.  ``" 5 "`` and ``+5`` round-trip differently
+        # too — keep them as strings so SCCP doesn't change observable
+        # behaviour.
+        if str(iv) != stripped:
+            return stripped
+        return iv
     return stripped
 
 
