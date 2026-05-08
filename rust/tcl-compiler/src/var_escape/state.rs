@@ -9,7 +9,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::var_escape::helpers::is_dynamic_name;
-use crate::var_escape::types::{EscapeFlags, EscapeTag};
+use crate::var_escape::types::{Barrier, EscapeFlags, EscapeReason, EscapeTag};
 
 /// Tracked literal binding for the alias-inference path.
 ///
@@ -44,6 +44,15 @@ pub struct EscapeState {
     /// `set $n` alias inference to resolve `$n` back to the
     /// literal when one writer was observed.
     literal_assigns: HashMap<String, LiteralBinding>,
+    /// SYNC-JUN-FRAME356-population: recorded barrier triggers
+    /// (mirrors `ProcEscapeSummary.barriers`).  Each
+    /// [`record_barrier`](Self::record_barrier) call appends here;
+    /// the summary builder copies this into
+    /// [`ProcEscapeSummary::barriers`] verbatim.
+    pub barriers: Vec<Barrier>,
+    /// SYNC-JUN-FRAME356-population: recorded per-name escape
+    /// reasons (mirrors `ProcEscapeSummary.tag_reasons`).
+    pub tag_reasons: HashMap<String, Vec<EscapeReason>>,
 }
 
 impl EscapeState {
@@ -101,6 +110,53 @@ impl EscapeState {
     /// Mark the whole proc as needing a dynamic-barrier fallback.
     pub fn mark_pessimistic(&mut self) {
         self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
+    }
+
+    /// SYNC-JUN-FRAME356-population: record a structured [`Barrier`]
+    /// describing why the proc went pessimistic.
+    ///
+    /// Sets the [`EscapeFlags::DYNAMIC_BARRIER`] flag (so callers that
+    /// only check the flag still see the pessimistic state) AND
+    /// appends the barrier to [`Self::barriers`] so consumers (LSP
+    /// hover, compiler-explorer surface) can render the specific
+    /// kind / detail / range instead of opaque "frame needed".
+    pub fn record_barrier(&mut self, barrier: Barrier) {
+        self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
+        self.barriers.push(barrier);
+    }
+
+    /// SYNC-JUN-FRAME356-population: escape *name* and record the
+    /// triggering [`EscapeReason`].
+    ///
+    /// Sister of [`Self::escape`]; same `Frame` tag plus a structured
+    /// per-name reason in [`Self::tag_reasons`].  Callers that don't
+    /// have a specific reason handy keep using the bare
+    /// [`Self::escape`] — those paths fall through to the
+    /// barrier-synthesised reason in
+    /// [`crate::var_escape::types::ProcEscapeSummary::reasons_for`].
+    pub fn escape_with_reason(&mut self, name: &str, reason: EscapeReason) {
+        if name.is_empty() {
+            return;
+        }
+        self.tags.insert(name.to_string(), EscapeTag::Frame);
+        self.known_names.insert(name.to_string());
+        self.tag_reasons
+            .entry(name.to_string())
+            .or_default()
+            .push(reason);
+    }
+
+    /// Record a per-name [`EscapeReason`] without changing the tag.
+    /// Useful when the caller already escaped the var via a separate
+    /// path and now wants to attach a reason.
+    pub fn record_reason(&mut self, name: &str, reason: EscapeReason) {
+        if name.is_empty() {
+            return;
+        }
+        self.tag_reasons
+            .entry(name.to_string())
+            .or_default()
+            .push(reason);
     }
 
     /// Record a literal caller-frame name this proc accesses via
