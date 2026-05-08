@@ -14,6 +14,9 @@ from ...common.naming import (
 from ...common.naming import (
     normalise_var_name as _normalise_var_name,
 )
+from ...common.naming import (
+    split_array_name as _split_array_name,
+)
 from ...common.ranges import position_from_relative, range_from_token
 from ...parsing.tokens import Token
 from ..semantic_model import (
@@ -161,8 +164,12 @@ class _AnalyserScopeMixin(_Base):
         if not base_name:
             return
 
+        _base, element = _split_array_name(name)
+
         if base_name in scope.variables:
             scope.variables[base_name].references.append(read_range)
+            if element is not None:
+                scope.variables[base_name].array_indices.add(element)
             return
 
         # Cross-rule variables (::var and static::var) live in global scope.
@@ -170,6 +177,8 @@ class _AnalyserScopeMixin(_Base):
             base_name.startswith("::") or base_name.startswith("static::")
         ) and base_name in self.result.global_scope.variables:
             self.result.global_scope.variables[base_name].references.append(read_range)
+            if element is not None:
+                self.result.global_scope.variables[base_name].array_indices.add(element)
             return
         # W210 is now emitted by the SSA-based analysis in
         # _emit_cfg_ssa_diagnostics_for_function.
@@ -193,6 +202,8 @@ class _AnalyserScopeMixin(_Base):
         if not base_name:
             return
 
+        _base, element = _split_array_name(name)
+
         if base_name not in scope.variables:
             scope.variables[base_name] = VarDef(
                 name=base_name,
@@ -200,7 +211,11 @@ class _AnalyserScopeMixin(_Base):
                 warn_if_unused=warn_if_unused,
             )
             self.result.all_variables[f"{scope.name}::{base_name}"] = scope.variables[base_name]
+            if element is not None:
+                scope.variables[base_name].array_indices.add(element)
             return
 
         if warn_if_unused:
             scope.variables[base_name].warn_if_unused = True
+        if element is not None:
+            scope.variables[base_name].array_indices.add(element)

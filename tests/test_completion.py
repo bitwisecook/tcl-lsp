@@ -358,6 +358,122 @@ class TestVariableCompletion:
         assert "$varA" in labels
         assert "$varB" in labels
 
+    def test_dollar_completion_offers_dict_with_keys_from_const_literal(self):
+        """``dict with d body`` -- when ``d`` is set from a constant
+        literal, the dict's keys appear as local vars in the body."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set d {name alice age 30}
+                dict with d {
+                    puts $
+                }
+            }
+        """)
+        items = get_completions(source, 3, 14)
+        labels = [i.label for i in items]
+        assert "$name" in labels
+        assert "$age" in labels
+
+    def test_dollar_completion_uplevel_zero_uses_global_scope(self):
+        """``uplevel #0 { body }`` runs body in the global frame -- the
+        body should see global vars and its own writes, but NOT the
+        calling proc's locals."""
+        source = textwrap.dedent("""\
+            set ::globalvar 9
+            proc p {} {
+                set local_var 1
+                uplevel #0 {
+                    set inside_var 99
+                    puts $
+                }
+            }
+        """)
+        items = get_completions(source, 5, 18)
+        labels = [i.label for i in items]
+        assert "$::globalvar" in labels
+        assert "$inside_var" in labels
+        # ``local_var`` belongs to proc ``p`` and is not reachable from
+        # the global frame at runtime, so it must not be offered.
+        assert "$local_var" not in labels
+
+    def test_dollar_completion_uplevel_one_keeps_proc_scope(self):
+        """``uplevel 1 { body }`` (and bare ``uplevel``) depend on the
+        runtime caller and aren't statically resolvable, so we leave
+        them in the calling proc's scope -- a pragmatic best-effort."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set local_var 1
+                uplevel 1 {
+                    puts $
+                }
+            }
+        """)
+        items = get_completions(source, 3, 14)
+        labels = [i.label for i in items]
+        assert "$local_var" in labels
+
+
+class TestArrayElementCompletion:
+    def test_array_element_completion_offers_known_indices(self):
+        """``$arr(`` offers each index the analyser has seen."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set arr(name) hello
+                set arr(age) 42
+                puts $arr(
+            }
+        """)
+        items = get_completions(source, 3, 14)
+        labels = sorted(i.label for i in items)
+        assert "$arr(name)" in labels
+        assert "$arr(age)" in labels
+
+    def test_array_element_completion_filters_by_partial(self):
+        """Typing ``$arr(na`` filters to elements starting with ``na``."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set arr(name) hello
+                set arr(age) 42
+                puts $arr(na
+            }
+        """)
+        items = get_completions(source, 3, 16)
+        labels = sorted(i.label for i in items)
+        assert labels == ["$arr(name)"]
+
+    def test_array_element_completion_consumes_existing_close_paren(self):
+        """``$arr(|)`` -- the existing ``)`` is subsumed so the inserted
+        text doesn't leave a duplicate ``)``."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set arr(name) hello
+                puts $arr()
+            }
+        """)
+        items = get_completions(source, 2, 14)
+        item = next(i for i in items if i.label == "$arr(name)")
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        # End col should cover the trailing ``)`` (col 14 ``(`` + 1 = ``)``)
+        # so the replacement doesn't double the close paren.
+        assert item.text_edit.range.end.character == 15
+        assert item.text_edit.new_text == "$arr(name)"
+
+    def test_array_element_completion_picks_up_read_only_indices(self):
+        """An index that's only ever *read* (``puts $arr(role)``, never
+        ``set``) still shows up in completion."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                set arr(name) hello
+                puts $arr(role)
+                puts $arr(
+            }
+        """)
+        items = get_completions(source, 3, 14)
+        labels = sorted(i.label for i in items)
+        assert "$arr(name)" in labels
+        assert "$arr(role)" in labels
+
     def test_dollar_completion_tolerates_cursor_past_eol(self):
         """LSP clients may send positions past EOL; the provider must not
         crash with IndexError."""

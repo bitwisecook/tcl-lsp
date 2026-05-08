@@ -359,6 +359,49 @@ def get_completions(
             return item
 
         scope = find_scope_at_line(analysis.global_scope, line)
+
+        # Array element completion: ``$arr(elem)``.  The lexer already
+        # parses ``$arr(`` as a single VAR token whose text is ``arr(``,
+        # so this branch fires on the partial ``arr(`` / ``arr(prefix``.
+        if "(" in partial:
+            arr_name, _, elem_prefix = partial.partition("(")
+            arr_name = arr_name.lstrip("{")
+            arr_def = None
+            s: Scope | None = scope
+            while s is not None:
+                arr_def = s.variables.get(arr_name)
+                if arr_def is not None:
+                    break
+                s = s.parent
+            if arr_def is not None and arr_def.array_indices:
+                # Extend the replacement range to include any existing
+                # ``)`` after the cursor so we don't double the closer.
+                arr_end_col = cursor_col
+                while arr_end_col < line_len and line_text_for_var[arr_end_col] != ")":
+                    arr_end_col += 1
+                if arr_end_col < line_len and line_text_for_var[arr_end_col] == ")":
+                    arr_end_col += 1
+                arr_edit_range = types.Range(
+                    start=types.Position(line=line, character=dollar_col),
+                    end=types.Position(line=line, character=arr_end_col),
+                )
+                for elem in sorted(arr_def.array_indices):
+                    if not elem:
+                        continue  # ``$arr()`` is unusual; skip empty index.
+                    if elem_prefix and not elem.startswith(elem_prefix):
+                        continue
+                    new_text = f"${arr_name}({elem})"
+                    items.append(
+                        types.CompletionItem(
+                            label=new_text,
+                            kind=types.CompletionItemKind.Field,
+                            insert_text=new_text,
+                            detail=f"{arr_name} element",
+                            text_edit=types.TextEdit(range=arr_edit_range, new_text=new_text),
+                        )
+                    )
+            return items
+
         var_names = _collect_vars_from_scope(scope)
         for name in var_names:
             if partial and not name.startswith(partial.lstrip("{")):

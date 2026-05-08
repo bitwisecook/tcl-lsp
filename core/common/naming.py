@@ -44,6 +44,33 @@ def normalise_var_name(name: str) -> str:
     return base
 
 
+def split_array_name(name: str) -> tuple[str, str | None]:
+    """Split a Tcl variable reference into ``(base, element)``.
+
+    Strips ``$`` / ``${...}`` substitution sigils first, then separates
+    the optional ``(element)`` array-index suffix from the base name.
+    Returns ``(base, None)`` for scalar references.
+
+    Examples::
+
+        split_array_name("arr")          -> ("arr", None)
+        split_array_name("arr(foo)")     -> ("arr", "foo")
+        split_array_name("$arr(foo)")    -> ("arr", "foo")
+        split_array_name("${arr}(foo)")  -> ("arr", "foo")
+    """
+    base = name
+    if base.startswith("${") and "}" in base:
+        end = base.index("}")
+        rest = base[end + 1 :]
+        base = base[2:end] + rest
+    elif base.startswith("$"):
+        base = base[1:]
+    if "(" in base and base.endswith(")"):
+        idx = base.index("(")
+        return base[:idx], base[idx + 1 : -1]
+    return base, None
+
+
 def normalise_qualified_name(name: str) -> str:
     """Normalise a possibly-qualified Tcl command/proc name."""
     if not name:
