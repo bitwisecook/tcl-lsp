@@ -664,8 +664,8 @@ class _WasmEmitterValuesMixin(_Base):
             was_braced = expr_arg.startswith("{") and expr_arg.endswith("}")
             if was_braced:
                 expr_arg = expr_arg[1:-1]
+            from .....compiler.expr_ast import ExprLiteral, ExprString, ExprVar
             from .....parsing.expr_parser import parse_expr
-            from .....compiler.expr_ast import ExprVar, ExprLiteral, ExprString, ExprRaw
 
             try:
                 nested_expr = parse_expr(expr_arg)
