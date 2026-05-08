@@ -1276,14 +1276,16 @@ pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
     return .{ .ptr = @as([*]u8, &itoa_buf) + i, .len = itoa_buf.len - i };
 }
 
-// Scratch buffer for float-to-string conversion (max 32 bytes).
-var ftoa_buf: [32]u8 = undefined;
+// Scratch buffer for float-to-string conversion.  Sized for the
+// worst-case Tcl-style "F" rendering (sign + up to 17 mantissa digits
+// + ``.`` + ``0`` for normal magnitudes), and "E" rendering (sign +
+// 17 digits + ``.`` + ``e`` + sign + 4-digit exponent for subnormals
+// down to ~5e-324).  64 bytes is comfortably above both.
+var ftoa_buf: [64]u8 = undefined;
 
 fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
     // Tcl 9 renders non-finite floats as ``Inf``, ``-Inf``, ``NaN``
-    // — not Zig's lowercase ``inf`` / ``nan``.  Special-case before
-    // the generic decimal path so the trailing ``.0`` fixup below
-    // doesn't append to ``inf`` and produce ``inf.0``.
+    // — not Zig's lowercase ``inf`` / ``nan``.
     if (std.math.isNan(value)) {
         const lit = "NaN";
         @memcpy(ftoa_buf[0..lit.len], lit);
@@ -1299,23 +1301,124 @@ fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
         @memcpy(ftoa_buf[0..lit.len], lit);
         return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
     }
-    const result = std.fmt.bufPrint(&ftoa_buf, "{d}", .{value}) catch ftoa_buf[0..1];
-    const len = result.len;
-    // Tcl requires floats to look like floats: ensure the string contains
-    // a '.', 'e', or 'E' so that "5.0" is not confused with integer "5".
-    var has_dot = false;
-    for (result) |c| {
-        if (c == '.' or c == 'e' or c == 'E') {
-            has_dot = true;
-            break;
+
+    // Render the shortest-roundtrip scientific form (always fits in
+    // 53 bytes — see ``std.fmt.float.bufferSize(.scientific, f64)``);
+    // then reformat into Tcl 9's ``Tcl_PrintDouble`` style.  Using
+    // ``{d}`` here directly is unsafe — for subnormals like ``1e-320``
+    // the decimal expansion is 322 characters, which previously
+    // overflowed a 32-byte buffer and silently rendered as ``0.0``
+    // (the ``catch`` fallback returned a single stale byte).
+    var sci_buf: [64]u8 = undefined;
+    const sci = std.fmt.float.render(&sci_buf, value, .{ .mode = .scientific }) catch {
+        // Should never fail at this buffer size; emit a safe fallback.
+        const lit = "0.0";
+        @memcpy(ftoa_buf[0..lit.len], lit);
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
+    };
+
+    // Parse ``[-]<digits>[.<more>]e<sign?><exp>`` into a sign, a
+    // contiguous digit run, and the integer exponent.  Tcl's
+    // ``exponent`` is the position of the leading digit relative to
+    // the decimal point — equivalent to Zig scientific's exponent.
+    var sign_neg = false;
+    var i: usize = 0;
+    if (sci.len > 0 and sci[0] == '-') {
+        sign_neg = true;
+        i = 1;
+    }
+    var e_pos: usize = i;
+    while (e_pos < sci.len and sci[e_pos] != 'e') e_pos += 1;
+    var digits: [32]u8 = undefined;
+    var ndigits: usize = 0;
+    var j = i;
+    while (j < e_pos) : (j += 1) {
+        if (sci[j] != '.') {
+            if (ndigits < digits.len) {
+                digits[ndigits] = sci[j];
+                ndigits += 1;
+            }
         }
     }
-    if (!has_dot and len + 2 <= ftoa_buf.len) {
-        ftoa_buf[len] = '.';
-        ftoa_buf[len + 1] = '0';
-        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(len + 2) };
+    var exp: i32 = 0;
+    if (e_pos < sci.len) {
+        exp = std.fmt.parseInt(i32, sci[e_pos + 1 ..], 10) catch 0;
     }
-    return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(len) };
+
+    var out: usize = 0;
+    if (sign_neg) {
+        ftoa_buf[out] = '-';
+        out += 1;
+    }
+
+    // Tcl 9 picks E format when ``exponent < -4`` or ``exponent > 16``
+    // (see ``Tcl_PrintDouble`` in ``generic/tclUtil.c``); otherwise F.
+    if (exp < -4 or exp > 16) {
+        // E format: ``<d>[.<more>]e<+/-><abs_exp>``.  Tcl always emits
+        // an explicit sign for the exponent, matching ``e%+d``.
+        ftoa_buf[out] = if (ndigits > 0) digits[0] else '0';
+        out += 1;
+        if (ndigits > 1) {
+            ftoa_buf[out] = '.';
+            out += 1;
+            var k: usize = 1;
+            while (k < ndigits) : (k += 1) {
+                ftoa_buf[out] = digits[k];
+                out += 1;
+            }
+        }
+        ftoa_buf[out] = 'e';
+        out += 1;
+        ftoa_buf[out] = if (exp >= 0) '+' else '-';
+        out += 1;
+        const abs_exp: u32 = if (exp < 0) @intCast(-exp) else @intCast(exp);
+        const er = std.fmt.bufPrint(ftoa_buf[out..], "{d}", .{abs_exp}) catch {
+            ftoa_buf[out] = '0';
+            out += 1;
+            return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(out) };
+        };
+        out += er.len;
+    } else if (exp < 0) {
+        // F format with leading "0.<zeros><digits>".
+        ftoa_buf[out] = '0';
+        out += 1;
+        ftoa_buf[out] = '.';
+        out += 1;
+        var zeros: i32 = -exp - 1;
+        while (zeros > 0) : (zeros -= 1) {
+            ftoa_buf[out] = '0';
+            out += 1;
+        }
+        var k: usize = 0;
+        while (k < ndigits) : (k += 1) {
+            ftoa_buf[out] = digits[k];
+            out += 1;
+        }
+    } else {
+        // F format with ``<int_part>.<frac_part>``; pad the integer
+        // part with trailing zeros if exponent runs past ``ndigits``,
+        // and emit ``.0`` when there's no fractional part so the
+        // result stays distinguishable from an integer.
+        const int_len: usize = @as(usize, @intCast(exp)) + 1;
+        var k: usize = 0;
+        while (k < int_len) : (k += 1) {
+            ftoa_buf[out] = if (k < ndigits) digits[k] else '0';
+            out += 1;
+        }
+        ftoa_buf[out] = '.';
+        out += 1;
+        if (k >= ndigits) {
+            ftoa_buf[out] = '0';
+            out += 1;
+        } else {
+            while (k < ndigits) : (k += 1) {
+                ftoa_buf[out] = digits[k];
+                out += 1;
+            }
+        }
+    }
+
+    return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(out) };
 }
 
 /// Render a TclObj to its string representation (integer, float, or string).

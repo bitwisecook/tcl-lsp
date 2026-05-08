@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 from ...common.dialect import active_dialect
@@ -1009,16 +1010,46 @@ def _substitute_expr_constants(expr: str, constants: dict[str, str]) -> tuple[st
             if value is not None:
                 # Numeric values can be substituted directly; string values
                 # must be quoted to be valid in expr context.
+                #
+                # The round-trip check is load-bearing: "010" parses as
+                # int 10 but its string identity differs ("010" vs "10"),
+                # and ``$a eq "10"`` for ``a == "010"`` must yield 0
+                # (string compare), not 1 (numeric compare).  Substituting
+                # the bare numeric collapses the two — the downstream
+                # evaluator only sees the canonical integer and folds
+                # ``eq`` to ``str(10) == str(10)``.  Preserve the source
+                # spelling as a quoted string whenever it doesn't
+                # round-trip through ``str(int(value))`` /
+                # ``str(float(value))``.
+                substituted = False
+                stripped = value.strip()
                 try:
-                    int(value)
-                    pieces.append(value)
-                except (ValueError, OverflowError):
-                    try:
-                        float(value)
+                    iv = int(stripped)
+                    if str(iv) == stripped and stripped == value:
                         pieces.append(value)
+                        substituted = True
+                except (ValueError, OverflowError):
+                    pass
+                if not substituted:
+                    try:
+                        fv = float(stripped)
+                        # ``float()`` accepts ``"010"``/``"01.5"``/``" 1 "``
+                        # the same way ``int()`` does — same round-trip
+                        # guard so leading zeros and stripped whitespace
+                        # don't lose their string identity.
+                        if (
+                            stripped == value
+                            and not math.isinf(fv)
+                            and not math.isnan(fv)
+                            and repr(fv) == stripped
+                        ):
+                            pieces.append(value)
+                            substituted = True
                     except (ValueError, OverflowError):
-                        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-                        pieces.append(f'"{escaped}"')
+                        pass
+                if not substituted:
+                    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+                    pieces.append(f'"{escaped}"')
                 changed = True
                 substituted_names.add(name)
             else:

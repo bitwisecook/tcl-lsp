@@ -338,19 +338,67 @@ pub export fn list_tail(list: i32, start: i32) i32 {
     return tcl_cmd_list_range(list, start_obj, last_obj);
 }
 
-// Exported: list sort — simple insertion sort on string comparison.
+// Exported: list sort — insertion sort on the canonical (post-decode)
+// element value.  Output is fully re-canonicalised through
+// ``list_elem_quote`` / ``list_elem_quote_nth``: braces are added when
+// (and only when) the value's bytes need them, regardless of how the
+// source spelled the element.  ``lsort {{abc} d}`` therefore returns
+// the canonical ``abc d``, not ``{abc} d``.  Elements whose value
+// contains list metacharacters (whitespace, braces, ``$``, ``[``, …)
+// keep their grouping — that's the ``tcltest`` case where an
+// ``[array names skippedBecause]`` over keys like
+// ``"testexprparser && !ieeeFloatingPoint"`` must round-trip through
+// ``[lsort [...]]`` as a single element each.
 pub export fn tcl_cmd_list_sort(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
     const n: u32 = @intCast(n_i64);
-    const arr_buf = alloc(n * 8);
+
+    // Decoded-content scratch: backslash-escaped bytes in unbraced
+    // source words decode to ``<= len`` bytes, so the whole input's
+    // worth of decoded bytes fits in ``s.len``.  ``+ n`` keeps room
+    // for any per-element NUL padding ``copy_unbraced_elem`` may
+    // place (matching the ``elem.len + 1`` allowance in
+    // ``lappend_canonical``).  Single shared buffer means one free at
+    // the end instead of n per-element scratch frees.
+    const decoded_size: u32 = if (s.len + n + 4 < 4) 4 else s.len + n + 4;
+    const decoded_buf = alloc(decoded_size);
+    if (decoded_buf == 0) return obj_new_string(0, 0);
+    defer obj.free_sized(decoded_buf, decoded_size);
+
+    // Slot table: (canonical-ptr, canonical-len) — 8 bytes per slot.
+    const arr_size: u32 = n * 8;
+    const arr_buf = alloc(arr_size);
+    if (arr_buf == 0) return obj_new_string(0, 0);
+    defer obj.free_sized(arr_buf, arr_size);
+
+    var decoded_off: u32 = 0;
     var idx: u32 = 0;
     while (idx < n) : (idx += 1) {
         const elem = list_element_at(s.ptr, s.len, @intCast(idx));
-        write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
-        write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
+        if (elem.braced) {
+            // Already raw bytes — point straight into the source.
+            write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
+            write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
+        } else {
+            // Decode backslash escapes into the shared scratch so the
+            // sort key (and the output quote pass) compare against the
+            // logical value, not the source spelling.  Empty elements
+            // produce a 0-length slice — store a stable pointer (any
+            // address inside the buffer) so the slot is well-formed.
+            const dst = decoded_buf + decoded_off;
+            const dec_len = if (elem.len == 0)
+                @as(u32, 0)
+            else
+                obj.copy_unbraced_elem(dst, s.ptr + elem.start, elem.len);
+            write_i32(arr_buf + idx * 8, @intCast(dst));
+            write_i32(arr_buf + idx * 8 + 4, @intCast(dec_len));
+            decoded_off += dec_len;
+        }
     }
+
+    // Insertion sort on the canonical content.
     var i: u32 = 1;
     while (i < n) : (i += 1) {
         const key_ptr: u32 = @intCast(read_i32(arr_buf + i * 8));
@@ -370,21 +418,34 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
         write_i32(arr_buf + ins * 8, @intCast(key_ptr));
         write_i32(arr_buf + ins * 8 + 4, @intCast(key_len));
     }
+
+    // Worst-case output: ``2 * len + 2`` per element via the quoter,
+    // plus one separator space per element after the first.
+    const result_size: u32 = s.len * 2 + n * 4 + 8;
+    const result_buf = alloc(result_size);
+    if (result_buf == 0) return obj_new_string(0, 0);
     var result_len: u32 = 0;
-    const result_buf = alloc(s.len + n);
     idx = 0;
     while (idx < n) : (idx += 1) {
+        const e_ptr: u32 = @intCast(read_i32(arr_buf + idx * 8));
+        const e_len: u32 = @intCast(read_i32(arr_buf + idx * 8 + 4));
         if (idx > 0) {
             const d: [*]u8 = @ptrFromInt(result_buf + result_len);
             d[0] = ' ';
             result_len += 1;
+            result_len = list_elem_quote_nth(result_buf, result_len, e_ptr, e_len);
+        } else {
+            // First element keeps the leading-``#`` quoting rule so
+            // the canonical output works as a script when callers
+            // ``eval`` the result.
+            result_len = list_elem_quote(result_buf, result_len, e_ptr, e_len);
         }
-        const e_ptr: u32 = @intCast(read_i32(arr_buf + idx * 8));
-        const e_len: u32 = @intCast(read_i32(arr_buf + idx * 8 + 4));
-        memcpy(result_buf + result_len, e_ptr, e_len);
-        result_len += e_len;
     }
-    return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
+    // ``obj_new_string_take`` so the result obj records the buffer
+    // capacity in ``OBJ_STR_CAP``; without that, ``release_now``
+    // treats ``result_buf`` as alias-borrowed and skips the free,
+    // leaking one buffer per ``lsort`` call.
+    return obj.obj_new_string_take(result_buf, result_len, result_size);
 }
 
 // Exported: list search — default Tcl ``lsearch`` semantics, which
@@ -426,32 +487,54 @@ pub export fn tcl_cmd_list_contains(list: i32, value: i32) i32 {
     return obj_new_int(0);
 }
 
-// Exported: list reverse — return a new list with elements in reverse order.
+// Exported: list reverse — return a new list with elements in reverse
+// order, fully canonicalised (braces only where the value needs them).
+// Mirrors ``lsort``'s output strategy so callers comparing
+// ``[lreverse $x]`` against a literal string see canonical bytes.
 pub export fn tcl_cmd_list_reverse(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
     const n: u32 = @intCast(n_i64);
-    // Over-allocate to fit braces around every element (2 extra bytes
-    // each) in the worst case; the bump allocator makes over-alloc
-    // free.
-    const result_buf = alloc(s.len + n * 3 + 4);
+    // Worst-case: every element doubles in size via ``list_elem_quote``
+    // (``2 * len + 2``) plus one separator space per element after
+    // the first.  Use ``obj_new_string_take`` at the end so the
+    // buffer is owned by the result obj and recycled on release.
+    const result_size: u32 = s.len * 2 + n * 4 + 8;
+    const result_buf = alloc(result_size);
+    if (result_buf == 0) return obj_new_string(0, 0);
     var result_len: u32 = 0;
+    var emitted: u32 = 0;
     var i: i32 = @as(i32, @intCast(n)) - 1;
     while (i >= 0) : (i -= 1) {
-        if (result_len > 0) {
+        const elem = list_element_at(s.ptr, s.len, @intCast(i));
+        // Decode unbraced source words so the quoter sees the logical
+        // value rather than the source spelling — same pattern as
+        // ``lappend_canonical`` and ``tcl_cmd_list_sort``.
+        var ep: u32 = s.ptr + elem.start;
+        var el: u32 = elem.len;
+        var tmp: u32 = 0;
+        var tmp_size: u32 = 0;
+        if (!elem.braced and elem.len > 0) {
+            tmp_size = elem.len + 1;
+            tmp = alloc(tmp_size);
+            if (tmp != 0) {
+                el = obj.copy_unbraced_elem(tmp, ep, elem.len);
+                ep = tmp;
+            }
+        }
+        if (emitted == 0) {
+            result_len = list_elem_quote(result_buf, result_len, ep, el);
+        } else {
             const d: [*]u8 = @ptrFromInt(result_buf + result_len);
             d[0] = ' ';
             result_len += 1;
+            result_len = list_elem_quote_nth(result_buf, result_len, ep, el);
         }
-        const elem = list_element_at(s.ptr, s.len, @intCast(i));
-        // ``append_list_element`` re-adds ``{...}`` when the source
-        // word was braced so nested lists (e.g. ``{a b}`` inside
-        // ``{{a b} c}``) keep their grouping instead of flattening
-        // into siblings.
-        result_len = append_list_element(result_buf, result_len, s.ptr, elem);
+        if (tmp != 0) obj.free_sized(tmp, tmp_size);
+        emitted += 1;
     }
-    return obj_new_string(@bitCast(result_buf), @bitCast(result_len));
+    return obj.obj_new_string_take(result_buf, result_len, result_size);
 }
 
 // Exported: list insert — ``linsert list index value1 ?value2 ...?``.
