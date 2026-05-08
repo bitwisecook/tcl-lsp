@@ -1,6 +1,6 @@
 # info.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '70 of 287 failed'
+# reason = '67 of 287 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 287
-observed_passed = 216
-observed_failed = 70
+observed_passed = 219
+observed_failed = 67
 observed_skipped = 1
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["info-1.2", "info-1.7", "info-3.1", "info-6.11", "info-7.6", "info-9.2", "info-10.2", "info-12.2", "info-12.6", "info-12.7", "info-15.2", "info-16.2", "info-16.3", "info-16.4", "info-16.5", "info-16.8", "info-19.3", "info-20.1", "info-20.2", "info-20.3", "info-20.4", "info-22.0", "info-22.6", "info-22.7", "info-23.4", "info-24.7", "info-24.8", "info-24.9", "info-25.0", "info-25.1", "info-33.2", "info-33.2a", "info-33.3", "info-33.3a", "info-34.0", "info-34.1", "info-35.0", "info-35.1", "info-30.2", "info-30.3", "info-30.14", "info-30.15", "info-30.16", "info-30.17", "info-30.18", "info-30.19", "info-30.20", "info-30.21", "info-30.22", "info-30.23", "info-30.24", "info-30.25", "info-30.26", "info-30.27", "info-30.28", "info-30.29", "info-30.30", "info-30.31", "info-30.32", "info-30.33", "info-30.34", "info-30.35", "info-30.36", "info-30.37", "info-30.38", "info-30.39", "info-30.44", "info-30.45", "info-30.46", "info-30.47"]
+ids = ["info-1.2", "info-1.7", "info-3.1", "info-6.11", "info-7.6", "info-9.2", "info-10.2", "info-15.2", "info-16.2", "info-16.3", "info-16.4", "info-16.5", "info-16.8", "info-19.3", "info-20.1", "info-20.2", "info-20.3", "info-20.4", "info-22.0", "info-22.6", "info-22.7", "info-23.4", "info-24.7", "info-24.8", "info-24.9", "info-25.0", "info-25.1", "info-33.2", "info-33.2a", "info-33.3", "info-33.3a", "info-34.0", "info-34.1", "info-35.0", "info-35.1", "info-30.2", "info-30.3", "info-30.14", "info-30.15", "info-30.16", "info-30.17", "info-30.18", "info-30.19", "info-30.20", "info-30.21", "info-30.22", "info-30.23", "info-30.24", "info-30.25", "info-30.26", "info-30.27", "info-30.28", "info-30.29", "info-30.30", "info-30.31", "info-30.32", "info-30.33", "info-30.34", "info-30.35", "info-30.36", "info-30.37", "info-30.38", "info-30.39", "info-30.44", "info-30.45", "info-30.46", "info-30.47"]

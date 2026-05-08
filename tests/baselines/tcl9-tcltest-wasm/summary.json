@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T18:40:53Z",
+  "generated_at": "2026-05-08T18:48:53Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -222,8 +222,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 70,
-      "passed_min": 216,
+      "failed_max": 67,
+      "passed_min": 219,
       "skipped": 1,
       "total": 287
     },
