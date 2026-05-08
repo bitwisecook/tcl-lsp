@@ -27,6 +27,9 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),
+        // SYNC2: bodies of `oo::class create / new / createWithNamespace`
+        // run in a TclOO definition context (not the caller's frame).
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet::brief(
             "Define or manipulate a `TclOO` class.",
             &["oo::class create name ?definition?"],

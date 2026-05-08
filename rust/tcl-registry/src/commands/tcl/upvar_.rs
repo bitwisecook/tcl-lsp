@@ -7,7 +7,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "upvar",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::CREATES_BARRIER | Traits::CREATES_SCOPE_ALIAS,
+        traits: Traits::LANGUAGE_KEYWORD
+            | Traits::CREATES_BARRIER
+            | Traits::CREATES_SCOPE_ALIAS
+            | Traits::CREATES_DYNAMIC_BARRIER,
         arity: Arity::at_least(2),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {

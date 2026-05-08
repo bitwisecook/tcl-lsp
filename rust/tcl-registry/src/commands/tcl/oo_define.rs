@@ -106,6 +106,14 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Name)],
         arg_role_resolver: Some(oo_define_arg_roles),
         return_type: Some(TclType::String),
+        // SYNC2: every body argument that `oo_define_arg_roles`
+        // surfaces is a TclOO definition / dispatch body, never a
+        // caller-frame body.  Stamping `Structural` here covers all
+        // the script-bearing forms (constructor / destructor /
+        // method / classmethod / initialise / initialize / private /
+        // self.* / property -set / -get) plus the bare-script form
+        // `oo::define Cls {body}`.
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet::brief(
             "Define class members.",
             &[

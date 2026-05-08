@@ -19,6 +19,13 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::Body),
         ],
         return_type: Some(TclType::String),
+        // SYNC2: a `proc` body runs in the proc's own frame on each
+        // call — never the caller's frame.  Stamping `Structural`
+        // here lets generic `body_indices_to_skip` consumers (SSA,
+        // dead-store, def-use) treat `proc` like every other
+        // structural-body command without a string-match special
+        // case.
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet::brief(
             "Define a procedure.",
             &["proc name args body"],

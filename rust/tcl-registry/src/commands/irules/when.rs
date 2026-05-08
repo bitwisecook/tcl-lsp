@@ -23,6 +23,10 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::IRULES),
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),
+        // SYNC2: iRules event handler bodies run in the event
+        // dispatcher's frame — separate from the top-level rule
+        // file's evaluation context.
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet::brief(
             "Declare an iRules event handler block.",
             &["when EVENT { body }"],

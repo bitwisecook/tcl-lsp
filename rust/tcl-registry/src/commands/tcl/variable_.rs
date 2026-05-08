@@ -7,7 +7,10 @@ use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
-        traits: Traits::LANGUAGE_KEYWORD | Traits::CREATES_BARRIER | Traits::CREATES_SCOPE_ALIAS,
+        traits: Traits::LANGUAGE_KEYWORD
+            | Traits::CREATES_BARRIER
+            | Traits::CREATES_SCOPE_ALIAS
+            | Traits::CREATES_DYNAMIC_BARRIER,
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

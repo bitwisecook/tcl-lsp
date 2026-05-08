@@ -6,6 +6,7 @@
 
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
+use crate::body_kind::BodyKind;
 use crate::dialects::DialectSet;
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::hooks::{ArgTypeHint, CodegenHookId, ConstFoldFn, LoweringHookId, WasmCodegenHookId};
@@ -123,6 +124,29 @@ pub struct CommandSpec {
 
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
+
+    /// Whether `ArgRole::Body` arguments of this command run in the
+    /// caller's frame ([`BodyKind::Plain`]) or in a separate
+    /// definition / dispatch context ([`BodyKind::Structural`]).
+    ///
+    /// `Structural` opts every body arg out of the enclosing block's
+    /// data flow (SSA, def-use scans, dead-store detection).  Default
+    /// `Plain` keeps existing specs unchanged.  Mirrors Python's
+    /// `body_kind` field on the command spec (introduced in
+    /// `88970edc` / `91daf5c2`, closes `#250`).
+    pub body_kind: BodyKind,
+
+    /// Number of runtime-supplied positional args the body's first
+    /// command receives.  Used by proc-call arity checks to relax
+    /// static arity bounds on a `Body`-marked argument that is
+    /// invoked as a command prefix (e.g.
+    /// `fileutil::updateInPlace path cmd` appends file contents to
+    /// `cmd` at runtime).
+    ///
+    /// Default `0` keeps every existing spec correct.  Mirrors Python's
+    /// `body_arg_implicit_args` (introduced in `e30b6ae9`, closes
+    /// `#308`).
+    pub body_arg_implicit_args: u8,
 }
 
 impl CommandSpec {
@@ -152,6 +176,8 @@ impl CommandSpec {
         required_package: None,
         excluded_events: &[],
         options: &[],
+        body_kind: BodyKind::Plain,
+        body_arg_implicit_args: 0,
     };
 
     /// Look up a subcommand by name.
@@ -275,6 +301,15 @@ pub struct SubCommand {
 
     /// Inferred storage type for target variable.
     pub inferred_storage_type: Option<StorageType>,
+
+    /// Body-kind classification for `ArgRole::Body` args declared on
+    /// this subcommand.  See [`CommandSpec::body_kind`] for the
+    /// semantics; default `Plain`.
+    pub body_kind: BodyKind,
+
+    /// Implicit-args count for proc-call arity relaxation.  See
+    /// [`CommandSpec::body_arg_implicit_args`].
+    pub body_arg_implicit_args: u8,
 }
 
 impl SubCommand {
@@ -304,6 +339,8 @@ impl SubCommand {
         loop_list_header: false,
         creates_scope_alias: false,
         inferred_storage_type: None,
+        body_kind: BodyKind::Plain,
+        body_arg_implicit_args: 0,
     };
 
     /// Look up a static arg role by index.
