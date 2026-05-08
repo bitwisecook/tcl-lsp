@@ -871,6 +871,11 @@ class TestCommandDispatch:
             "var_resolve",
             "var_set",
             "tcl_cmd_append",
+            # Always imported alongside the dynamic-name trio so the
+            # compiled ``_emit_array_name_obj`` proc-local path can
+            # round-trip a bare unqualified array name through the
+            # eval-fallback's resolved key.
+            "frame_resolve_array_name",
         }
 
 

@@ -667,6 +667,20 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     ),
     "tcl_array_size": ("tcl", "array_size", [ValType.I32], [ValType.I32]),
     "tcl_array_unset": ("tcl", "array_unset", [ValType.I32], [ValType.I32]),
+    # ``frame_resolve_array_name(local_name) -> resolved_name`` —
+    # turns a bare proc-local name into the synthetic
+    # ``::__local::<depth>::<name>`` directory key that the
+    # eval-fallback's ``array set …`` already uses.  Compiled
+    # ``_emit_array_name_obj`` calls this from inside a proc so
+    # compiled and eval-fallback array operations agree on the
+    # storage key (see :func:`_scan.scan_for_imports` for the
+    # always-import rationale).
+    "frame_resolve_array_name": (
+        "tcl",
+        "frame_resolve_array_name",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     "tcl_array_unset_element": (
         "tcl",
         "array_unset_element",

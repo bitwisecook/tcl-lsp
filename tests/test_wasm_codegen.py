@@ -436,6 +436,12 @@ def test_no_cmd_imports_for_pure_math():
         "var_resolve",
         "var_set",
         "tcl_cmd_append",
+        # Always imported alongside ``var_resolve`` / ``var_set`` so
+        # the compiled ``_emit_array_name_obj`` proc-local path can
+        # round-trip a bare unqualified array name through the
+        # eval-fallback's resolved key — see the matching
+        # always-import block in :func:`_scan.scan_for_imports`.
+        "frame_resolve_array_name",
     }
 
 

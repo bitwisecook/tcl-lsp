@@ -1422,6 +1422,22 @@ def _scan_needed_imports(
     needed.add("tcl_var_resolve")
     needed.add("tcl_var_set")
     needed.add("tcl_append")
+    # Proc-local array directory key resolution.  The eval-side
+    # ``array`` command (``runtime/zig/cmds/array.zig``) routes every
+    # array-name argument through ``frame_resolve_array_name`` so an
+    # unaliased proc-local lands in the synthetic
+    # ``::__local::<depth>::<name>`` directory entry.  The compiled
+    # ``_emit_array_name_obj`` path mirrors this so a write that
+    # falls through to the eval fallback (``array set arr $args``,
+    # parsed lazily) and a subsequent compiled read (``array names
+    # arr``) reach the *same* directory entry.  Without this, an
+    # ``array set arr $listVar`` (eval-fallback path) deposited keys
+    # under ``::__local::1::arr`` while ``array names arr``
+    # (compiled) read from ``::ns::arr``, returning empty — observed
+    # as ``tcltest::test`` losing every ``-body`` / ``-result`` /
+    # ``-match`` value passed via ``$args`` and the trace stem
+    # trapping inside the arg-parser loop.
+    needed.add("frame_resolve_array_name")
     # Register each compiled proc by name so the interpreter's
     # host-bridge dispatch can find it when an interpreted caller
     # (a Tcl-source proc body walked by eval_script) invokes a

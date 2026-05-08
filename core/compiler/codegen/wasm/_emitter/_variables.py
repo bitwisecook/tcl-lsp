@@ -751,6 +751,27 @@ class _WasmEmitterVarMixin(_Base):
         ):
             self._emit_obj_literal(f"{self._block_namespace}::{arr}")
             return
+        # Inside a compiled proc, route the bare name through the
+        # runtime resolver so the directory key matches the
+        # eval-fallback path (which always pre-resolves via
+        # ``frame_resolve_array_name`` — see ``runtime/zig/cmds/
+        # array.zig``).  An unaliased proc-local lands in the
+        # synthetic ``::__local::<depth>::<name>`` slot; the
+        # eval-fallback for ``array set arr $listVar`` (forced into
+        # interp dispatch because ``$listVar`` isn't a literal list)
+        # already deposited entries under that key, so a subsequent
+        # compiled ``array names arr`` / ``$arr(key)`` had to look
+        # there too — without this call the compiled side used the
+        # bare/namespace-prefixed form and missed every key.
+        # Aliased names already pushed the alias target above and
+        # skipped this branch; ``::``-qualified names are also
+        # handled above.
+        if self._is_proc:
+            far_idx = self._shared_imports.get("frame_resolve_array_name")
+            if far_idx is not None:
+                self._emit_obj_literal(arr)
+                self._emit_call(far_idx)
+                return
         self._emit_obj_literal(arr)
 
     def _emit_array_element_read(self, arr: str, key: str) -> None:
