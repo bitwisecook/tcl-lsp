@@ -229,6 +229,56 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_math_fmod": ("tcl", "tcl_math_fmod", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_math_hypot": ("tcl", "tcl_math_hypot", [ValType.I32, ValType.I32], [ValType.I32]),
     "tcl_math_fabs": ("tcl", "tcl_math_fabs", [ValType.I32], [ValType.I32]),
+    # ``isqrt(x)`` — bignum-aware integer square root (expr-47.x).
+    "tcl_math_isqrt": ("tcl", "tcl_math_isqrt", [ValType.I32], [ValType.I32]),
+    # ``bool(x)`` — coerce to Tcl boolean accepting keyword forms
+    # (``yes`` / ``no`` / ``true`` / ``false`` / ``on`` / ``off``).
+    "tcl_math_bool": ("tcl", "tcl_math_bool", [ValType.I32], [ValType.I32]),
+    # IEEE-754 float classification (TIP 519).  Each predicate takes
+    # one operand and returns 0 / 1; ``fpclassify`` returns the
+    # classification name as a string (``zero``/``subnormal``/...);
+    # ``isunordered`` takes two operands.
+    "tcl_math_isfinite": ("tcl", "tcl_math_isfinite", [ValType.I32], [ValType.I32]),
+    "tcl_math_isinf": ("tcl", "tcl_math_isinf", [ValType.I32], [ValType.I32]),
+    "tcl_math_isnan": ("tcl", "tcl_math_isnan", [ValType.I32], [ValType.I32]),
+    "tcl_math_isnormal": ("tcl", "tcl_math_isnormal", [ValType.I32], [ValType.I32]),
+    "tcl_math_issubnormal": (
+        "tcl",
+        "tcl_math_issubnormal",
+        [ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_math_fpclassify": (
+        "tcl",
+        "tcl_math_fpclassify",
+        [ValType.I32],
+        [ValType.I32],
+    ),
+    "tcl_math_isunordered": (
+        "tcl",
+        "tcl_math_isunordered",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    # ``tcl_expr_unordered(a, b)`` — returns 1 if either operand is a
+    # NaN value (TYPE_FLOAT NaN or ``"NaN"`` string).  Used by the
+    # comparison codegen to short-circuit IEEE-754 unordered results.
+    "tcl_expr_unordered": (
+        "tcl",
+        "tcl_expr_unordered",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
+    # Canonicalise an obj via the expression parser — single-token
+    # ``expr {$var}`` semantics.  Returns the canonical numeric obj
+    # when the string parses as a Tcl integer / hex / octal / binary /
+    # float; otherwise the original obj.
+    "tcl_expr_canonicalise": (
+        "tcl",
+        "tcl_expr_canonicalise",
+        [ValType.I32],
+        [ValType.I32],
+    ),
     # Infra used by the puts specialisation for ``-nonewline``.
     "tcl_puts_nonewline": (
         "tcl",

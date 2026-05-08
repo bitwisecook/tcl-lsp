@@ -11,6 +11,8 @@ else:
 
 from collections.abc import Callable
 
+from .....commands.registry import REGISTRY as _REGISTRY
+from .....commands.registry import EmitContext as _EmitContext
 from .....parsing.substitution import backslash_subst as _tcl_backslash_subst
 from .._encoding import (
     _tcl_list_quote,
@@ -21,6 +23,7 @@ from .._imports import (
 )
 from .._ir import (
     ValType,
+    WasmOp,
 )
 from .._ownership import Ownership
 from ._ops import _is_end_relative_index
@@ -81,6 +84,140 @@ def _contains_expand_prefix(text: str) -> bool:
         i = idx + 1
         if i >= n:
             return False
+
+
+def _contains_command_separator(text: str) -> bool:
+    """True when *text* contains an unquoted ``;`` or unescaped newline
+    at top level — i.e. the cmd-substitution body is a multi-command
+    script rather than a single command.
+
+    Quoting/grouping that suppresses command-separator semantics is
+    skipped: ``{...}`` braces (with brace nesting and ``\\{`` /
+    ``\\}`` escapes), ``"..."`` quoted strings, and ``[...]`` nested
+    command substitutions.  Backslash-newline is Tcl line-continuation
+    and does NOT separate commands.
+
+    The compiler's ``_split_command_subst`` only handles a single
+    command; multi-command bodies must be routed through the runtime
+    parser via ``_emit_eval_fallback``.
+    """
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            # Backslash-anything (including ``\;``, ``\n``, line
+            # continuation) consumes two chars and never separates.
+            i += 2
+            continue
+        if c == "{":
+            depth = 1
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                i += 1
+            continue
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                i += 1
+            i += 1  # closing quote
+            continue
+        if c == "[":
+            depth = 1
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if text[i] == "[":
+                    depth += 1
+                elif text[i] == "]":
+                    depth -= 1
+                i += 1
+            continue
+        if c == ";" or c == "\n":
+            return True
+        i += 1
+    return False
+
+
+def _split_top_level_commands(text: str) -> list[str]:
+    """Split *text* into individual Tcl commands at top-level ``;`` and
+    unescaped newlines.
+
+    Top-level here means: outside of ``{…}`` / ``"…"`` / ``[…]`` and
+    not preceded by a backslash.  Returns the list of stripped command
+    strings (empty entries dropped).  Mirrors the same quoting rules
+    as :func:`_contains_command_separator`; used by the cmd-sub
+    emitters to compile multi-command bodies as a sequence of single
+    commands rather than handing them off to the eval-fallback (which
+    re-parses + re-binds locals on every entry, an O(N²) cost on deep
+    recursion).
+    """
+    parts: list[str] = []
+    n = len(text)
+    i = 0
+    start = 0
+    while i < n:
+        c = text[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c == "{":
+            depth = 1
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                i += 1
+            continue
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                i += 1
+            i += 1
+            continue
+        if c == "[":
+            depth = 1
+            i += 1
+            while i < n and depth > 0:
+                if text[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if text[i] == "[":
+                    depth += 1
+                elif text[i] == "]":
+                    depth -= 1
+                i += 1
+            continue
+        if c == ";" or c == "\n":
+            piece = text[start:i].strip()
+            if piece:
+                parts.append(piece)
+            start = i + 1
+        i += 1
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
 
 
 def _outer_braces_balanced(value: str) -> bool:
@@ -478,6 +615,39 @@ class _WasmEmitterValuesMixin(_Base):
         if not cmd_text:
             self._emit_i32_const(0)
             return
+        # Multi-command substitution (``[cmd1; cmd2]`` / ``[cmd1\ncmd2]``)
+        # — ``_split_command_subst`` only parses one command and
+        # would drag the second command's words into the first
+        # command's argv.  Split at top-level command separators and
+        # compile each command in sequence: every command except the
+        # last is emitted as a value+drop (statement-shape result is
+        # discarded), and the final command's value stays on the
+        # stack as the cmd-sub's result.  Compiling each command
+        # inline keeps recursive proc calls in compiled form and
+        # keeps the proc's frame chain intact — routing the whole
+        # body through the eval-fallback would re-enter the runtime
+        # parser per recursion level, and the 12days stress test
+        # exhausts the obj allocator inside the fallback before it
+        # finishes.
+        if _contains_command_separator(cmd_text):
+            sub_cmds = _split_top_level_commands(cmd_text)
+            if not sub_cmds:
+                self._emit_i32_const(0)
+                return
+            # Drop the intermediate values rather than releasing them
+            # — some cmd-sub result paths return borrowed refs (e.g.
+            # ``[set varname]`` hands back the variable's slot value
+            # without retaining), and a blanket release would
+            # over-decrement the refcount and free the slot's obj.
+            # ``WasmOp.DROP`` discards from the WASM stack only; any
+            # +1 the cmd-sub allocated in passing leaks for the
+            # duration of this proc body, which is preferable to a
+            # use-after-free.
+            for sub in sub_cmds[:-1]:
+                self._emit_command_subst_value("[" + sub + "]")
+                self._emit(WasmOp.DROP)
+            self._emit_command_subst_value("[" + sub_cmds[-1] + "]")
+            return
 
         parts = self._split_command_subst(cmd_text)
         if not parts:
@@ -491,13 +661,37 @@ class _WasmEmitterValuesMixin(_Base):
         # Strip outer braces from expr_arg ({...} kept by splitter).
         if cmd_name == "expr" and len(cmd_args) == 1:
             expr_arg = cmd_args[0]
-            if expr_arg.startswith("{") and expr_arg.endswith("}"):
+            was_braced = expr_arg.startswith("{") and expr_arg.endswith("}")
+            if was_braced:
                 expr_arg = expr_arg[1:-1]
+            from .....compiler.expr_ast import ExprLiteral, ExprString, ExprVar
             from .....parsing.expr_parser import parse_expr
 
             try:
                 nested_expr = parse_expr(expr_arg)
+                # Unbraced ``expr X`` re-parses ``X`` as an expression
+                # *after* Tcl word-substitution.  The AOT compile-time
+                # path can't see the post-substitution shape — e.g.
+                # ``expr $v`` where ``$v = "1e308**1e10"`` should
+                # evaluate as ``1e308**1e10`` (Inf), but the compiled
+                # var read just returns the string ``"1e308**1e10"``.
+                # Defer all unbraced forms to the eval-fallback so
+                # the runtime sees the substituted source and runs
+                # ``eval_expr_top`` against it.
+                if not was_braced:
+                    raise RuntimeError("unbraced expr — defer to eval-fallback")
                 self._emit_expr_obj(nested_expr)
+                # Single-token braced expressions (``expr {$var}`` /
+                # ``expr {0o00123}``) need to canonicalise through
+                # the runtime parser so a numeric-shaped string ``$a``
+                # value collapses to its decimal form.  Compound
+                # expressions (with operators) are already canonical
+                # because the arithmetic helpers stamp the canonical
+                # int / float / bignum tag on their result obj.
+                if isinstance(nested_expr, (ExprVar, ExprLiteral, ExprString)):
+                    canon_idx = self._shared_imports.get("tcl_expr_canonicalise")
+                    if canon_idx is not None:
+                        self._emit_call(canon_idx)
                 return
             except Exception:
                 pass
@@ -847,6 +1041,31 @@ class _WasmEmitterValuesMixin(_Base):
                     self._emit_call(list_create_idx)
                 self._emit_call(format_list_idx)
                 return
+
+        # Registered WASM emitter for the command — consult the
+        # registry before the generic runtime-import fast path.  Many
+        # commands have a ``CommandSpec.wasm_runtime_import`` whose
+        # signature does NOT match Tcl-level call semantics: the
+        # ``append`` / ``lappend`` import keys, for instance, point at
+        # the runtime *concat* helpers (``tcl_cmd_append`` /
+        # ``tcl_cmd_lappend``) which take two values, not a var-name +
+        # value pair.  The runtime fast path below would push the var
+        # name as the first value and call concat on it — so
+        # ``[append xxx "A"]`` returned the literal string ``"xxxA"``
+        # without writing to ``xxx``.  The registered emitter
+        # (``_emit_append`` / ``_emit_lappend`` / …) knows the proper
+        # var-handling, mirrors it through the global table, and
+        # leaves the post-write value on the stack when invoked with
+        # ``EmitContext.VALUE``.  Mirrors the same dispatch in
+        # ``_statements.py``'s tail-position handler.
+        prev_tokens = getattr(self, "_current_call_tokens", None)
+        self._current_call_tokens = None
+        try:
+            hook = _REGISTRY.get_wasm_hook(cmd_name)
+            if hook is not None and hook(self, tuple(cmd_args), (), _EmitContext.VALUE):
+                return
+        finally:
+            self._current_call_tokens = prev_tokens
 
         # Runtime command in value context (llength, lindex, etc.)
         rimp = runtime_import_for(cmd_name)

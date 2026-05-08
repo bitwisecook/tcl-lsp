@@ -211,6 +211,12 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
                 _scan_expr_body_imports_from_node(expr, needed)
             case IRAssignExpr(expr=expr):
                 _scan_expr_body_imports_from_node(expr, needed)
+                # ``set r [expr $v]`` (var-only RHS) re-parses ``$v``'s
+                # value as an expression at runtime.  Pull in the
+                # canonicaliser so the codegen path that handles this
+                # case has the import wired up.
+                if isinstance(expr, ExprVar):
+                    needed.add("tcl_expr_canonicalise")
             case IRReturn(expr=expr):
                 if expr is not None:
                     _scan_expr_body_imports_from_node(expr, needed)
@@ -309,6 +315,15 @@ def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
         "int": "tcl_math_int",
         "entier": "tcl_math_int",
         "wide": "tcl_math_wide",
+        "isqrt": "tcl_math_isqrt",
+        "bool": "tcl_math_bool",
+        "isfinite": "tcl_math_isfinite",
+        "isinf": "tcl_math_isinf",
+        "isnan": "tcl_math_isnan",
+        "isnormal": "tcl_math_isnormal",
+        "issubnormal": "tcl_math_issubnormal",
+        "fpclassify": "tcl_math_fpclassify",
+        "isunordered": "tcl_math_isunordered",
     }
 
     def _walk(n: object) -> None:
@@ -614,6 +629,13 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         if rest.startswith("{") and rest.endswith("}"):
                             rest = rest[1:-1]
                         _scan_expr_body_imports(rest, needed)
+                        # ``[expr {$var}]`` and ``[expr {literal}]`` paths
+                        # route through ``tcl_expr_canonicalise`` so a
+                        # number-shaped string value collapses to the
+                        # canonical numeric form.  Pull in the helper here
+                        # so the import is present whenever an expr command
+                        # substitution appears in a value context.
+                        needed.add("tcl_expr_canonicalise")
                 elif cmd == "catch":
                     # ``[catch {body} ?var?]`` as a command substitution
                     # compiles via the real catch codegen path (see
@@ -733,13 +755,14 @@ def _scan_needed_imports(
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
-                if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD):
+                if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW):
                     _ARITH_IMPORT2 = {
                         BinOp.ADD: "tcl_arith_add",
                         BinOp.SUB: "tcl_arith_sub",
                         BinOp.MUL: "tcl_arith_mul",
                         BinOp.DIV: "tcl_arith_div",
                         BinOp.MOD: "tcl_arith_mod",
+                        BinOp.POW: "tcl_arith_pow",
                     }
                     imp2 = _ARITH_IMPORT2.get(op)
                     if imp2:
@@ -825,6 +848,8 @@ def _scan_needed_imports(
                     "int": "tcl_math_int",
                     "entier": "tcl_math_int",
                     "wide": "tcl_math_wide",
+                    "isqrt": "tcl_math_isqrt",
+                    "bool": "tcl_math_bool",
                 }
                 imp2 = _MATH_FUNC_IMPORT2.get(func)
                 if imp2:
@@ -1160,6 +1185,13 @@ def _scan_needed_imports(
             case IRAssignExpr(name=name, expr=expr):
                 _scan_qualified_name(name)
                 _scan_expr(expr)
+                # ``set r [expr $v]`` (var-only RHS) re-parses the
+                # var's value as an expression at runtime — pull in
+                # the canonicaliser used by the IRAssignExpr emitter
+                # for the ``ExprVar`` shape (compExpr-1.4 / expr-58.x
+                # subnormal pre-evaluation).
+                if isinstance(expr, ExprVar):
+                    needed.add("tcl_expr_canonicalise")
             case IRReturn(value=value, expr=expr):
                 if value is not None:
                     _scan_value(value)

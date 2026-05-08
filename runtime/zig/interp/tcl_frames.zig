@@ -137,7 +137,18 @@ const KIND_GLOBAL_NAMED: i32 = 0; // target_name is global var name
 const KIND_FRAME_VAR: i32 = 1; // param = abs frame depth, target_name = var
 const KIND_NS_VAR_PTR: i32 = 2; // descriptor.target = absolute *Var address (P3.3)
 
-const MAX_DEPTH: u32 = 64;
+// Recursion depth cap.  Reference Tcl 9 defaults to a soft stack
+// limit of 1000 frames (``Tcl_RecursionLimit``); deep recursive
+// algorithms like the 12days IOCCC stress test push tens of
+// thousands of calls during their lifetime (peak depth a few
+// hundred).  64 was enough for tcltest's own machinery but not for
+// user procs that recurse meaningfully — at depth >64 the
+// ``frame_push`` returned -1 and the codegen DROPped the result,
+// so subsequent ``local_set`` calls silently wrote into the
+// previous frame.  Bumping to 1024 covers reference Tcl's default
+// while keeping the per-slot ``frame_stack`` / ``frame_capacity``
+// / ``frame_dirty`` arrays bounded.
+const MAX_DEPTH: u32 = 1024;
 
 // Frame stack — array of frame buffer pointers
 var frame_stack: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;

@@ -122,7 +122,7 @@ fn eval_expr(words: []const i32) result_mod.InterpResult {
     const expr_eval = @import("../interp/tcl_expr_eval.zig");
     if (words.len == 2) {
         const es = obj_ensure_string(words[1]);
-        return result_mod.from_globals(expr_eval.eval(es.ptr, es.len));
+        return result_mod.from_globals(expr_eval.eval_top(es.ptr, es.len));
     }
     var total: u32 = 0;
     var wi: u32 = 1;
@@ -153,12 +153,34 @@ fn eval_expr(words: []const i32) result_mod.InterpResult {
             off += 1;
         }
     }
-    const r = expr_eval.eval(buf, total);
+    const r = expr_eval.eval_top(buf, total);
     obj_mod.free_sized(buf, total);
     return result_mod.from_globals(r);
+}
+
+/// fpclassify — IEEE-754 float classification command (TIP 519).
+/// ``fpclassify floatValue`` returns one of ``zero`` / ``subnormal`` /
+/// ``normal`` / ``infinite`` / ``nan``.
+fn cmd_fpclassify(words: []const i32) result_mod.InterpResult {
+    if (words.len != 2) {
+        const catch_mod = @import("../interp/tcl_catch.zig");
+        const obj_mod = @import("../valtypes/tcl_obj.zig");
+        const msg_text: []const u8 = "wrong # args: should be \"fpclassify floatValue\"";
+        const buf = obj_mod.alloc(@intCast(msg_text.len));
+        if (buf != 0) {
+            const d: [*]u8 = @ptrFromInt(buf);
+            for (msg_text, 0..) |b, k| d[k] = b;
+            const msg = obj_mod.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+            catch_mod.tcl_cmd_error(msg);
+        }
+        return result_mod.from_globals(0);
+    }
+    const arith = @import("../valtypes/tcl_arith.zig");
+    return result_mod.from_globals(arith.tcl_math_fpclassify(words[1]));
 }
 
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "subst", .arity_min = 1, .arity_max = null, .handler = &eval_subst },
     .{ .name = "expr", .arity_min = 1, .arity_max = null, .handler = &eval_expr },
+    .{ .name = "fpclassify", .arity_min = 1, .arity_max = 1, .handler = &cmd_fpclassify },
 };

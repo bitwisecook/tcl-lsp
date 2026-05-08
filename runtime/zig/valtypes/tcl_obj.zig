@@ -838,7 +838,9 @@ pub fn try_parse_float(ptr: u32, len: u32) ?f64 {
     while (i < len and is_space(src[i])) i += 1;
     if (i >= len) return null;
     const start = i;
-    if (src[i] == '-' or src[i] == '+') i += 1;
+    if (src[i] == '-' or src[i] == '+') {
+        i += 1;
+    }
     if (i >= len) return null;
     var has_dot = false;
     var has_exp = false;
@@ -1278,6 +1280,25 @@ pub fn itoa(value: i64) struct { ptr: [*]u8, len: u32 } {
 var ftoa_buf: [32]u8 = undefined;
 
 fn ftoa(value: f64) struct { ptr: [*]u8, len: u32 } {
+    // Tcl 9 renders non-finite floats as ``Inf``, ``-Inf``, ``NaN``
+    // — not Zig's lowercase ``inf`` / ``nan``.  Special-case before
+    // the generic decimal path so the trailing ``.0`` fixup below
+    // doesn't append to ``inf`` and produce ``inf.0``.
+    if (std.math.isNan(value)) {
+        const lit = "NaN";
+        @memcpy(ftoa_buf[0..lit.len], lit);
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
+    }
+    if (std.math.isInf(value)) {
+        if (value < 0) {
+            const lit = "-Inf";
+            @memcpy(ftoa_buf[0..lit.len], lit);
+            return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
+        }
+        const lit = "Inf";
+        @memcpy(ftoa_buf[0..lit.len], lit);
+        return .{ .ptr = ftoa_buf[0..].ptr, .len = @intCast(lit.len) };
+    }
     const result = std.fmt.bufPrint(&ftoa_buf, "{d}", .{value}) catch ftoa_buf[0..1];
     const len = result.len;
     // Tcl requires floats to look like floats: ensure the string contains

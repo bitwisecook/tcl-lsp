@@ -61,49 +61,6 @@ KNOWN_FAILURES_EXPR_OLD: set[str] = set(
 )
 
 
-# Script patching
-
-
-def _patch_hello_world_procs(script: str) -> str:
-    """Replace the ``hello_world``/``12days`` procs with no-ops.
-
-    These procs contain deeply nested expressions that trigger a
-    compiler error in our VM.  The procs are only used by a few
-    tests (``*-1.1``) that exercise correct evaluation ordering,
-    not expression semantics proper.
-    """
-    for proc_name in ("put_hello_char", "hello_world", "12days", "do_twelve_days"):
-        start_marker = f"proc {proc_name} "
-        idx = script.find(start_marker)
-        if idx < 0:
-            continue
-        # Find the opening brace of the body (second '{' on the line)
-        body_start = script.index("{", script.index("{", idx) + 1)
-        # Count braces to find the matching close
-        depth = 1
-        pos = body_start + 1
-        while depth > 0 and pos < len(script):
-            ch = script[pos]
-            if ch == "\\":
-                pos += 2
-                continue
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-            pos += 1
-        # pos is now just past the closing brace
-        end_of_proc = pos
-        # Replace with a no-op proc
-        # Find the arg list
-        args_start = script.index("{", idx)
-        args_end = script.index("}", args_start) + 1
-        arg_list = script[args_start:args_end]
-        replacement = f"proc {proc_name} {arg_list} {{}}"
-        script = script[:idx] + replacement + script[end_of_proc:]
-    return script
-
-
 # Test runner
 
 
@@ -137,12 +94,6 @@ def _run_test_file(test_file: str) -> dict[str, object]:
         "testConstraint ieeeFloatingPoint [testIEEE]",
         "testConstraint ieeeFloatingPoint 1",
     )
-
-    # The ``12days`` proc body triggers a compiler error in our VM
-    # (the deeply nested expressions reference ``$a`` which the
-    # bytecode compiler tries to resolve at compile time).  Replace
-    # the helper procs with no-ops so the rest of the file runs.
-    script = _patch_hello_world_procs(script)
 
     try:
         interp.eval(script)

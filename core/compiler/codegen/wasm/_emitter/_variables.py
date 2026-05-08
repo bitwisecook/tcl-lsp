@@ -246,6 +246,22 @@ class _WasmEmitterVarMixin(_Base):
                 self._emit_obj_literal(name)
                 self._emit_call(gget_idx)
                 return
+        # ``global``-declared names inside a proc are aliases for the
+        # global of the same name — every read must consult the global
+        # table directly, not the WASM-local mirror.  The mirror goes
+        # stale whenever a callee modifies the global through a
+        # different proc's ``global`` declaration: e.g.
+        # ``proc f {} { global a; set a ""; g; set a }`` where ``g``
+        # also declares ``global a`` and writes to it.  Without this
+        # branch, ``f`` returned the empty string seeded into its
+        # mirror by ``set a ""`` because no path invalidates ``f``'s
+        # mirror when ``g`` writes through the global table.
+        if name in self._globals:
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
+            if gget_idx is not None:
+                self._emit_obj_literal(name)
+                self._emit_call(gget_idx)
+                return
         # WASM-local-mirror read for proc-locals.  The slot defaults to 0
         # (null TclObj) when never assigned, so emit an inline check that
         # raises ``can't read "<name>": no such variable`` via

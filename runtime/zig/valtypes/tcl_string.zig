@@ -4,6 +4,7 @@
 // string_range, string_map, string_is_integer, string_is_alpha, string_is_digit,
 // string_is_space, string_trimleft, string_trimright, concat.
 
+const std = @import("std");
 const obj = @import("tcl_obj.zig");
 const bignum = @import("tcl_bignum.zig");
 const list_mod = @import("tcl_list.zig");
@@ -256,6 +257,42 @@ pub export fn tcl_expr_order_cmp(a: i32, b: i32) i32 {
     if (sa.len < sb.len) return obj_new_int(-1);
     if (sa.len > sb.len) return obj_new_int(1);
     return obj_new_int(0);
+}
+
+/// True iff *o* is a NaN value — TYPE_FLOAT NaN or a string with
+/// the ``NaN`` (case-insensitive) literal.  Used by the comparison
+/// codegen so ``$x == $x`` with ``$x = "NaN"`` evaluates to 0 per
+/// IEEE-754 (NaN is unordered with respect to itself).
+fn obj_is_nan(o: i32) bool {
+    if (o == 0 or obj.is_immediate(o)) return false;
+    const tag = obj.obj_type(o);
+    if (tag == obj.TYPE_FLOAT) {
+        const fv: f64 = @bitCast(obj.read_i64(@as(u32, @bitCast(o)) + obj.OBJ_INT_CACHE));
+        return std.math.isNan(fv);
+    }
+    if (tag == obj.TYPE_STRING or tag == obj.TYPE_INLINE_STRING) {
+        const s = obj.obj_ensure_string(o);
+        if (s.len == 0 or s.len > 4) return false;
+        const sp: [*]const u8 = @ptrFromInt(s.ptr);
+        var off: u32 = 0;
+        if (sp[0] == '+' or sp[0] == '-') off = 1;
+        if (s.len - off != 3) return false;
+        var buf: [3]u8 = undefined;
+        for (0..3) |i| {
+            const c = sp[off + i];
+            buf[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
+        }
+        return std.mem.eql(u8, buf[0..3], "nan");
+    }
+    return false;
+}
+
+/// True iff at least one operand is a NaN value.  Used by the
+/// comparison codegen to short-circuit ``==`` / ``!=`` / ``<`` /
+/// ``<=`` / ``>`` / ``>=`` to the IEEE-754 unordered result (every
+/// op except ``!=`` returns false; ``!=`` returns true).
+pub export fn tcl_expr_unordered(a: i32, b: i32) i32 {
+    return obj_new_int(if (obj_is_nan(a) or obj_is_nan(b)) 1 else 0);
 }
 
 // Exported: string length — byte length of the string representation.

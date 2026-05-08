@@ -937,6 +937,19 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
         # don't escape — they're statically resolved writes.
         pass
 
+    # Walk every arg for embedded multi-command substitutions.
+    # ``_apply_value_scan`` already handles the IRAssignValue /
+    # IRAssignExpr / IRIncr.amount paths; an ``[expr {…[cmd1; cmd2]…}]``
+    # carried as an IRCall arg (e.g. ``expr {…}`` as a bare statement,
+    # or ``puts [proc_call_with_multi_cmd_arg]``) needs the same
+    # treatment so the proc keeps its frame around the cmd-sub's
+    # eval-fallback.  See ``_value_has_multi_command_subst`` for the
+    # detection logic.
+    for arg in call.args:
+        if arg and "[" in arg and _value_has_multi_command_subst(arg):
+            state.record_fallback()
+            break
+
     # Record statically resolvable callees for interprocedural propagation.
     # Bare or ``::``-qualified command words are candidates; anything that
     # looks like a substitution (``$foo`` / ``[bar]``) is ignored.
@@ -952,6 +965,96 @@ def _handle_call(call: IRCall, state: _EscapeState) -> None:
 # eval fallback.  The leading-character class rejects digits so we don't
 # match accidental ``[0`` sequences (which can't be commands anyway).
 _CMD_SUBST_HEAD_RE = re.compile(r"\[\s*((?:::)?[a-zA-Z_][\w:]*)")
+
+
+def _value_has_multi_command_subst(value: str) -> bool:
+    """True if *value* embeds a ``[cmd1; cmd2]`` (multi-command) substitution.
+
+    The codegen can't compile multi-command bodies inline; it routes
+    them through the eval-fallback, so the proc must keep its runtime
+    frame.  Walks every ``[…]`` in the value at top-level (skipping
+    ``{…}`` / ``"…"`` / nested ``[…]`` and backslash-escaped chars)
+    and looks for an unquoted ``;`` or ``\\n`` inside the bracketed
+    body.  Mirrors ``_contains_command_separator`` in the WASM
+    emitter.
+    """
+    n = len(value)
+    i = 0
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c == "{":
+            depth = 1
+            i += 1
+            while i < n and depth > 0:
+                if value[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if value[i] == "{":
+                    depth += 1
+                elif value[i] == "}":
+                    depth -= 1
+                i += 1
+            continue
+        if c == '"':
+            i += 1
+            while i < n and value[i] != '"':
+                if value[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                i += 1
+            i += 1
+            continue
+        if c != "[":
+            i += 1
+            continue
+        # Walk the bracketed body — at top level inside the brackets,
+        # an unescaped ``;`` / newline marks a command separator.
+        depth = 1
+        i += 1
+        body_has_sep = False
+        while i < n and depth > 0:
+            ch = value[i]
+            if ch == "\\" and i + 1 < n:
+                i += 2
+                continue
+            if ch == "{":
+                inner = 1
+                i += 1
+                while i < n and inner > 0:
+                    if value[i] == "\\" and i + 1 < n:
+                        i += 2
+                        continue
+                    if value[i] == "{":
+                        inner += 1
+                    elif value[i] == "}":
+                        inner -= 1
+                    i += 1
+                continue
+            if ch == '"':
+                i += 1
+                while i < n and value[i] != '"':
+                    if value[i] == "\\" and i + 1 < n:
+                        i += 2
+                        continue
+                    i += 1
+                i += 1
+                continue
+            if ch == "[":
+                depth += 1
+            elif ch == "]":
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    break
+            elif depth == 1 and (ch == ";" or ch == "\n"):
+                body_has_sep = True
+            i += 1
+        if body_has_sep:
+            return True
+    return False
 
 
 def _normalise_cmd_subst_head(head: str) -> str:
@@ -989,6 +1092,19 @@ def _apply_value_scan(value: str, state: _EscapeState) -> None:
                 if head and not _is_dynamic_token(head):
                     state.record_callee(head)
                 break
+        # Multi-command command-substitutions (``[cmd1; cmd2]``) cannot
+        # be compiled inline: ``_emit_command_subst_value`` routes them
+        # through the eval-fallback so the runtime parser handles both
+        # commands and returns the last one's result.  The fallback
+        # needs the proc's runtime frame to be live so locals stay
+        # visible to ``set`` / ``incr`` / ``append`` / ``lappend``
+        # inside the script.  Without this flag, a frame-elided proc
+        # whose only fallback trigger is a multi-cmd ``[…]`` would
+        # send the eval to a phantom global frame and a
+        # ``[append xxx X; set xxx]``-style cmd-sub would trip with
+        # ``can't read "xxx"``.
+        if _value_has_multi_command_subst(value):
+            state.record_fallback()
     pessimistic, names = _scan_value_for_info_hazards(value)
     if pessimistic:
         state.mark_pessimistic(Barrier(BarrierKind.INFO, detail="bracketed [info ...] in value"))
