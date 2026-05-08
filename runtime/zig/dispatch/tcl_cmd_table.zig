@@ -63,6 +63,18 @@ else
     struct {
         pub const registrations: [0]reg.CmdEntry = .{};
     };
+const tcltest_cmd_eval = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_eval.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_stubs = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_stubs.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
 
 const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration} ++
     [_]reg.CmdEntry{array_cmd.registration} ++
@@ -95,7 +107,9 @@ const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration
     exit_cmd.registrations ++
     mathop_cmd.registrations ++
     mathfunc_cmd.registrations ++
-    tcltest_cmd_obj.registrations);
+    tcltest_cmd_obj.registrations ++
+    tcltest_cmd_eval.registrations ++
+    tcltest_cmd_stubs.registrations);
 
 /// Look up a command by name in the static :data:`BUILTINS` slice.
 /// Returns the handler function pointer on hit, null on miss.  Called
