@@ -698,7 +698,18 @@ fn eval_command(words: []const i32) i32 {
             // / ``tcl::string::reverse`` directly, which would
             // otherwise miss the FQ rewrite above.  Re-dispatch via
             // the same ensemble route.
-            if (try_ensemble_rewrite_relative(cmd_s, words)) |result| return result;
+            //
+            // Restricted to the root namespace: ``namespace eval ::foo
+            // { tcl::string::reverse $s }`` should resolve relative
+            // to ``::foo`` first (``::foo::tcl::string::reverse``)
+            // per Tcl's name-resolution rules, so the fallback only
+            // fires when the caller is at ``::``.  ``current_ns``
+            // is zero-or-root in both the uninitialised and explicit
+            // root cases (see :fn:`tcl_ns.ns_current`).
+            const cur = tcl_ns.current_ns;
+            if (cur == 0 or cur == tcl_ns.ns_root()) {
+                if (try_ensemble_rewrite_relative(cmd_s, words)) |result| return result;
+            }
         }
     }
 

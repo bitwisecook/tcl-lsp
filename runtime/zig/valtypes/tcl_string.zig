@@ -699,21 +699,27 @@ pub export fn string_totitle(value: i32) i32 {
     return obj_new_string(@bitCast(buf), @bitCast(sv.len));
 }
 
-// Exported: string insert — insert ``ins`` into ``value`` at character
+// Exported: string insert — insert ``ins`` into ``value`` at byte
 // index ``index``.  Mirrors C Tcl 9.0's ``StringInsertCmd`` in
 // ``tclCmdMZ.c``: indices clamp to ``[0..len]`` (not ``[0..len-1]`` as
 // for ``string index``), so ``string insert s 0 X`` prepends, ``string
 // insert s [string length s] X`` appends, and a negative index resolves
 // to 0.  ``end`` resolves to the existing length so the insert lands
-// after the last character (vs. ``string index`` where ``end`` is the
-// last character).
+// after the last byte (vs. ``string index`` where ``end`` is the
+// last byte).
+//
+// Note: this module operates on byte indices throughout (see
+// ``string_index``, ``string_range``, ``string_length``); UTF-8
+// codepoint indexing is handled at a higher layer.  When the runtime
+// grows true codepoint indexing, this routine and its peers move
+// together.
 pub export fn string_insert(value: i32, index: i32, ins: i32) i32 {
     const sv = obj_ensure_string(value);
     const si = obj_ensure_string(ins);
     const slen: i64 = @intCast(sv.len);
     // ``string insert`` clamps to ``[0..len]`` — pass ``len + 1`` to
     // ``resolve_list_index`` so ``end`` resolves to ``len`` (append
-    // after last char) and ``end-N`` resolves to ``len - N``, matching
+    // after last byte) and ``end-N`` resolves to ``len - N``, matching
     // upstream ``TclIndexEncode(interp, objv[2], length, length, ...)``
     // in ``tclCmdMZ.c`` ``StringInsertCmd``.  Plain integer indices
     // pass straight through ``obj_get_int`` and are unaffected.
@@ -728,7 +734,12 @@ pub export fn string_insert(value: i32, index: i32, ins: i32) i32 {
     if (pos > 0) memcpy(buf, sv.ptr, pos);
     memcpy(buf + pos, si.ptr, si.len);
     if (pos < sv.len) memcpy(buf + pos + si.len, sv.ptr + pos, sv.len - pos);
-    return obj_new_string(@bitCast(buf), @bitCast(total));
+    // ``obj_new_string_take`` (vs. ``obj_new_string``) marks the
+    // result obj as the owner of *buf*, so ``OBJ_STR_CAP`` is set
+    // and the freshly-allocated slab is reclaimed when the obj's
+    // refcount drops to zero — without this the buffer leaks per
+    // call (Copilot review on PR #378).
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 // Exported: string replace — replace characters in range [first..last] with new string.

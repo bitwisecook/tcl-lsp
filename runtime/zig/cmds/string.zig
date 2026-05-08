@@ -125,6 +125,12 @@ const sub_arity_table: []const SubArityRule = &.{
         .message = "wrong # args: should be \"string replace string first last ?string?\"",
     },
     .{
+        .name = "insert",
+        .min_words = 5,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string insert string index insertString\"",
+    },
+    .{
         .name = "match",
         .min_words = 4,
         .max_words = 5,
