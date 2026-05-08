@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate } from "./helper";
+import { getDocUri, activate, waitForDiagnostics } from "./helper";
 
 /**
  * Marker-based completion probing: find ``# PROBE_X`` in the fixture,
@@ -327,5 +327,44 @@ suite("Variable Completion: TextEdit shape", () => {
     } finally {
       await vscode.commands.executeCommand("workbench.action.files.revert", doc);
     }
+  });
+});
+
+suite("Variable Completion: W215 unreachable-name diagnostic", () => {
+  const docUri = getDocUri("variableContexts.tcl");
+
+  test("W215 fires on a variable name that contains '}'", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const w215 = diagnostics.filter((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W215";
+    });
+    assert.ok(w215.length >= 2, `Expected >=2 W215 diagnostics, got ${w215.length}`);
+    // One should mention the ``}`` character, one should mention ``)``.
+    const messages = w215.map((d) => d.message);
+    assert.ok(
+      messages.some((m) => m.includes("'}'")),
+      `Expected a '}' W215 message, got: ${messages.join(" / ")}`,
+    );
+    assert.ok(
+      messages.some((m) => m.includes("')'")),
+      `Expected a ')' W215 message, got: ${messages.join(" / ")}`,
+    );
+  });
+
+  test("W215 has Warning severity", async () => {
+    await activate(docUri);
+    const diagnostics = await waitForDiagnostics(docUri, { minCount: 1 });
+    const w215 = diagnostics.find((d) => {
+      const code = typeof d.code === "object" ? d.code.value : d.code;
+      return code === "W215";
+    });
+    assert.ok(w215, "W215 diagnostic not found");
+    assert.strictEqual(
+      w215.severity,
+      vscode.DiagnosticSeverity.Warning,
+      "W215 should have Warning severity",
+    );
   });
 });

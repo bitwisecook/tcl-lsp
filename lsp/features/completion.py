@@ -38,6 +38,21 @@ def _var_needs_braces(name: str) -> bool:
     return not _BARE_VAR_NAME_RE.match(name)
 
 
+def _var_is_substitutable(name: str) -> bool:
+    """Return False for variable names that cannot be reached via Tcl's
+    ``$``-substitution syntax.
+
+    Names containing ``}`` are creatable -- ``set "weird}name" 1`` works
+    because backslash-substitution at the command-word level produces a
+    literal ``}`` in the name -- but neither ``$weird}name`` (bare form
+    stops at the first non-word char) nor ``${weird}name}`` (brace form
+    has no escape; reads up to the first ``}``) can fetch the value.
+    Such names round-trip only through ``[set "..."]``, so offering
+    them as ``$``-completion candidates would always produce broken
+    insertions."""
+    return "}" not in name
+
+
 def _root_global_scope(scope: Scope) -> Scope:
     """Walk to the root of the lexical tree (always the global scope)."""
     s = scope
@@ -407,7 +422,7 @@ def get_completions(
                 if arr_def is not None:
                     break
                 s = s.parent
-            if arr_def is not None and arr_def.array_indices:
+            if arr_def is not None and arr_def.array_indices and _var_is_substitutable(arr_name):
                 # Extend the replacement range to include any existing
                 # ``)`` after the cursor so we don't double the closer.
                 arr_end_col = cursor_col
@@ -422,6 +437,12 @@ def get_completions(
                 for elem in sorted(arr_def.array_indices):
                     if not elem:
                         continue  # ``$arr()`` is unusual; skip empty index.
+                    # Tcl's ``$arr(idx)`` parser stops at the matching
+                    # ``)``; an index containing ``)`` can be created by
+                    # ``set "arr(weird)stuff)" 1`` but isn't reachable
+                    # via $-substitution, so don't offer it.
+                    if ")" in elem:
+                        continue
                     if elem_prefix and not elem.startswith(elem_prefix):
                         continue
                     new_text = f"${arr_name}({elem})"
@@ -438,6 +459,8 @@ def get_completions(
 
         var_names = _collect_vars_from_scope(scope)
         for name in var_names:
+            if not _var_is_substitutable(name):
+                continue
             if partial and not name.startswith(partial.lstrip("{")):
                 continue
             items.append(_make_var_item(name))
@@ -452,6 +475,8 @@ def get_completions(
             label = f"${qname}"
             if label in existing:
                 continue
+            if not _var_is_substitutable(qname):
+                continue
             if partial and not qname.startswith(partial.lstrip("{")):
                 continue
             items.append(_make_var_item(qname, detail="namespace variable"))
@@ -462,6 +487,8 @@ def get_completions(
             for name in workspace_rule_init_vars:
                 label = f"${name}"
                 if label in existing_labels:
+                    continue
+                if not _var_is_substitutable(name):
                     continue
                 if partial and not name.startswith(partial.lstrip("{")):
                     continue

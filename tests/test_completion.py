@@ -183,6 +183,21 @@ class TestVariableCompletion:
         assert item.text_edit.range.end.character == 16
         assert item.text_edit.new_text == "${greeting}"
 
+    def test_dollar_completion_omits_unsubstitutable_brace_names(self):
+        """Variables whose name contains ``}`` are creatable -- e.g.
+        ``set a_\\}_closebrace 1`` -- but they cannot be reached via
+        any ``$``-substitution form (bare ``$`` stops at non-word; the
+        brace form ``${...}`` has no escape and stops at the first
+        ``}``).  Offering them as ``$``-completion candidates would
+        always produce broken insertions, so skip them."""
+        source = "set a_\\}_closebrace 1\nputs $"
+        items = get_completions(source, 1, 6)
+        labels = [i.label for i in items]
+        # The hyphenated counterpart from earlier tests is still legal
+        # via ``${foo-bar}`` -- only ``}``-bearing names are excluded.
+        for label in labels:
+            assert "}" not in label, f"Unsubstitutable name leaked into completions: {label}"
+
     def test_dollar_text_edit_brace_midword_with_hyphenated_name(self):
         """``${foo|-bar}`` -- the brace form accepts any chars except
         ``}``, so the forward scan must consume the whole ``${foo-bar}``

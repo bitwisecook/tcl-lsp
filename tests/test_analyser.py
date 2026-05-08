@@ -2458,6 +2458,32 @@ class TestCanonicalisationMatrix:
         result = analyse(source)
         return sum(1 for d in result.diagnostics if d.code == "W213")
 
+    def test_w215_brace_in_var_name_emits_warning(self):
+        # ``set "weird}name" 1`` creates a variable but no $-substitution
+        # form can read it -- W215 alerts the user.
+        source = 'set "weird}name" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert "}" in w215[0].message
+
+    def test_w215_close_paren_in_array_index_emits_warning(self):
+        # ``$arr(idx)`` reads up to the matching ``)``; an idx with ``)``
+        # is creatable via ``set "arr(weird)stuff)" 1`` but unreachable.
+        source = 'set "arr(weird)stuff)" 1'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert len(w215) == 1, f"expected one W215, got {len(w215)}"
+        assert ")" in w215[0].message
+
+    def test_w215_does_not_fire_on_normal_names(self):
+        # Sanity: hyphenated / colon-qualified names are reachable via
+        # ``${...}`` / bare $; only ``}`` and array ``)`` are flagged.
+        source = 'set "foo-bar" 1\nset normal 2\nset ::globalvar 3\nset arr(name) 4'
+        result = analyse(source)
+        w215 = [d for d in result.diagnostics if d.code == "W215"]
+        assert w215 == [], f"unexpected W215: {[d.message for d in w215]}"
+
     def test_w213_unset_bare(self):
         # ``unset $x`` on a possibly-undefined ``x`` triggers W213.
         # Bare form is the baseline.

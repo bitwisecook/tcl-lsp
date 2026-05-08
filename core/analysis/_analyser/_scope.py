@@ -20,9 +20,11 @@ from ...common.naming import (
 from ...common.ranges import position_from_relative, range_from_token
 from ...parsing.tokens import Token
 from ..semantic_model import (
+    Diagnostic,
     Range,
     RegexPattern,
     Scope,
+    Severity,
     VarDef,
 )
 
@@ -204,7 +206,8 @@ class _AnalyserScopeMixin(_Base):
 
         _base, element = _split_array_name(name)
 
-        if base_name not in scope.variables:
+        first_definition = base_name not in scope.variables
+        if first_definition:
             scope.variables[base_name] = VarDef(
                 name=base_name,
                 definition_range=definition_range or range_from_token(tok),
@@ -213,9 +216,38 @@ class _AnalyserScopeMixin(_Base):
             self.result.all_variables[f"{scope.name}::{base_name}"] = scope.variables[base_name]
             if element is not None:
                 scope.variables[base_name].array_indices.add(element)
-            return
+        else:
+            if warn_if_unused:
+                scope.variables[base_name].warn_if_unused = True
+            if element is not None:
+                scope.variables[base_name].array_indices.add(element)
 
-        if warn_if_unused:
-            scope.variables[base_name].warn_if_unused = True
-        if element is not None:
-            scope.variables[base_name].array_indices.add(element)
+        # Warn (once, at first definition) when a name contains a ``}``
+        # or array indices contain ``)`` -- such names are creatable
+        # via ``set "weird}name" 1`` (backslash-substitution at the
+        # command-word level produces the literal byte) but Tcl's
+        # ``$`` and ``${...}`` parsers can't reach them.  The variable
+        # exists; only commands that take a variable *name* (``set``,
+        # ``info exists``, ``unset``, ``upvar``, ``[set "..."]``) can
+        # access the value.
+        if first_definition:
+            unreachable_chars: list[str] = []
+            if "}" in base_name:
+                unreachable_chars.append("}")
+            if element is not None and ")" in element:
+                unreachable_chars.append(")")
+            if unreachable_chars:
+                ch_list = " or ".join(f"'{c}'" for c in unreachable_chars)
+                self.result.diagnostics.append(
+                    Diagnostic(
+                        range=definition_range or range_from_token(tok),
+                        message=(
+                            f"variable name contains {ch_list}; it can be created "
+                            f'and read via ``set name`` / ``[set "name"]`` / ``info '
+                            f"exists`` / ``upvar``, but is not reachable via $-substitution "
+                            f"(neither ``$name`` nor ``${{name}}`` can fetch it)"
+                        ),
+                        severity=Severity.WARNING,
+                        code="W215",
+                    )
+                )

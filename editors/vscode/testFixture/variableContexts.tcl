@@ -79,3 +79,10 @@ namespace eval ::ctxtests {
         # PROBE_PARTIAL
     }
 }
+
+# W215 fixture: variable names that contain ``}`` or array indices that
+# contain ``)`` are creatable but unreachable via $-substitution.  The
+# analyser should emit one W215 per offending site.
+set "weird}name" 1                                    ;# W215 on '}'
+set "arr(weird)stuff)" 2                               ;# W215 on ')'
+
