@@ -50,6 +50,7 @@ import argparse
 import io
 import json
 import multiprocessing as mp
+import multiprocessing.connection  # noqa: F401  (mp.connection isn't auto-imported)
 import os
 import re
 import sys
@@ -169,8 +170,14 @@ FAILED_TEST_LINE_RE = re.compile(r"==== ([\S]+) FAILED")
 
 
 def _tcl_quote(s: str) -> str:
-    """Quote a host filesystem path for safe interpolation into Tcl source."""
-    return "{" + s.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}") + "}"
+    """Quote a host filesystem path as a single brace-word in Tcl source.
+
+    Inside Tcl braced words, backslashes are *literal* (only ``\\<newline>``
+    is special), so we must not double them — that's exactly what would
+    mangle Windows paths.  Embedded braces still need backslash-escaping
+    so the wrapper stays balanced.
+    """
+    return "{" + s.replace("{", "\\{").replace("}", "\\}") + "}"
 
 
 @dataclass
@@ -318,8 +325,11 @@ def _run_stem_in_child(stem: str, conn) -> None:
         if cmd:
             result.missing_commands.append(cmd.group(1))
     finally:
-        # Some tests `cd` elsewhere — get back into the sandbox so its
-        # cleanup() can rmtree it without "directory not empty" / EBUSY.
+        # Some tests `cd` elsewhere; even if they don't, our own cwd is
+        # the sandbox.  Move out of it (and out of any test-chosen dir
+        # that might already be deleted) before TemporaryDirectory's
+        # cleanup() rmtrees the sandbox — otherwise the rmtree races
+        # against the still-active cwd on some platforms.
         try:
             os.chdir("/")
         except Exception:
@@ -411,10 +421,10 @@ def run_sweep(
 
     ctx = mp.get_context("fork")
     pending = list(stems)
-    in_flight: list[tuple[str, mp.Process, "mp.connection.Connection", float]] = []
+    in_flight: list[tuple[str, mp.Process, "multiprocessing.connection.Connection", float]] = []
     results: dict[str, StemResult] = {}
 
-    def launch(stem: str) -> tuple[mp.Process, "mp.connection.Connection"]:
+    def launch(stem: str) -> tuple[mp.Process, "multiprocessing.connection.Connection"]:
         parent_conn, child_conn = ctx.Pipe(duplex=False)
         p = ctx.Process(target=_run_stem_in_child, args=(stem, child_conn))
         p.start()
@@ -445,7 +455,7 @@ def run_sweep(
 
         readable_conns = [conn for _, _, conn, _ in in_flight]
         try:
-            ready = mp.connection.wait(readable_conns, timeout=wait)
+            ready = multiprocessing.connection.wait(readable_conns, timeout=wait)
         except OSError:
             ready = []
 
@@ -1007,6 +1017,13 @@ def main() -> int:
         help="Rewrite per-stem TOML baselines even if they already exist.",
     )
     args = parser.parse_args()
+
+    if args.refresh_baseline and args.no_baseline:
+        parser.error(
+            "--refresh-baseline and --no-baseline are mutually exclusive: "
+            "the first asks to rewrite baselines, the second asks to skip "
+            "writing them."
+        )
 
     stems = args.stems if args.stems else CORE_STEMS
     missing = [s for s in stems if not (TESTS_DIR / f"{s}.test").is_file()]

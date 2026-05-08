@@ -34,12 +34,28 @@ REPORT = REPO_ROOT / "tmp" / "tcl9-vm-core-report.json"
 GATE_ENV_VAR = "RUN_VM_TCL9_CORE"
 
 
-pytestmark = pytest.mark.skipif(
-    not os.environ.get(GATE_ENV_VAR),
-    reason=(
-        f"Set {GATE_ENV_VAR}=1 to run the full Tcl 9 core slice (takes 3-5 minutes wall-clock)."
+pytestmark = [
+    pytest.mark.slow,
+    pytest.mark.skipif(
+        not os.environ.get(GATE_ENV_VAR),
+        reason=(
+            f"Set {GATE_ENV_VAR}=1 to run the full Tcl 9 core slice (takes 3-5 minutes wall-clock)."
+        ),
     ),
-)
+]
+
+
+def _harness_upper_bound_seconds(num_stems: int = 68, workers: int = 4, per_stem: int = 60) -> int:
+    """Conservative ceiling for how long the harness can run.
+
+    Worst case = every stem hits its per-stem timeout, no parallelism
+    win.  We add a generous boot/parent overhead bucket on top so a
+    transient slow CI runner doesn't flake the gate.
+    """
+    serialized_worst_case = num_stems * per_stem  # all timeouts in series
+    parallel_worst_case = -(-serialized_worst_case // max(1, workers))  # ceil-div
+    boot_overhead = 60  # init.tcl + tcltest.tcl source, plus per-fork costs
+    return parallel_worst_case + boot_overhead
 
 
 def _run_harness() -> dict:
@@ -47,14 +63,36 @@ def _run_harness() -> dict:
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     if REPORT.exists():
         REPORT.unlink()
-    result = subprocess.run(
-        [sys.executable, str(HARNESS), "--no-baseline"],
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        text=True,
-        timeout=15 * 60,
-        check=False,
-    )
+    timeout = _harness_upper_bound_seconds()
+    try:
+        result = subprocess.run(
+            [sys.executable, str(HARNESS), "--no-baseline"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = (
+            (exc.stdout or b"").decode("utf-8", errors="replace")
+            if isinstance(exc.stdout, bytes)
+            else (exc.stdout or "")
+        )
+        stderr = (
+            (exc.stderr or b"").decode("utf-8", errors="replace")
+            if isinstance(exc.stderr, bytes)
+            else (exc.stderr or "")
+        )
+        pytest.fail(
+            f"Harness exceeded the gate's wall-clock ceiling ({timeout}s).\n"
+            "This is much longer than a healthy run (~3.5 min).  Likely "
+            "a new test stem is hanging — run "
+            "`make refresh-tcl9-vm-core-baseline` interactively to see "
+            "which stem is timing out.\n"
+            f"stdout (tail):\n{stdout[-2000:]}\n"
+            f"stderr (tail):\n{stderr[-2000:]}"
+        )
     if result.returncode != 0:
         pytest.fail(
             f"Harness exited {result.returncode}\n"

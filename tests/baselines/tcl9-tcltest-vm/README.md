@@ -64,21 +64,27 @@ The matching ephemeral artefacts (regenerated each run, **not committed**) are:
 ## Running the harness
 
 ```bash
-# Full sweep (~3.5 min wall-clock, 4 workers, 60 s/stem timeout):
+# Regression gate — fails if any stem regresses against summary.json
+# (~3.5 min wall-clock, 4 workers, 60 s/stem timeout).  Does NOT
+# refresh the committed baseline — it runs the harness with
+# --no-baseline and just compares against what's checked in.
 make test-tcl9-vm-core
-#   ↳ writes tmp/tcl9-vm-core-{report.json,categories.md}
-#   ↳ refreshes summary.json + categories/*.toml
+#   ↳ writes tmp/tcl9-vm-core-{report.json,categories.md} for triage
+#   ↳ exit code is non-zero on any stem regression
 
-# Subset only:
-python scripts/run_tcl9_vm_core.py --stems parse basic info string set
+# Refresh the committed baseline (use *only* after a confirmed VM fix
+# whose improvements you want to ratchet into the floor).
+make refresh-tcl9-vm-core-baseline
+#   ↳ overwrites tests/baselines/tcl9-tcltest-vm/summary.json
+#   ↳ overwrites/recreates tests/baselines/tcl9-tcltest-vm/categories/*.toml
+
+# Subset only (no gate, no baseline write):
+python scripts/run_tcl9_vm_core.py --stems parse basic info string set --no-baseline
 
 # Reproduce one stem in isolation, in a real CLI process:
 python -m vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test
 
-# Refresh baselines (use after a confirmed VM fix):
-python scripts/run_tcl9_vm_core.py --refresh-baseline
-
-# Regression gate (gated, slow):
+# Run the gate explicitly (same as `make test-tcl9-vm-core`):
 RUN_VM_TCL9_CORE=1 uv run pytest tests/test_vm_tcl9_core_baseline.py -q
 ```
 
@@ -175,18 +181,19 @@ how a future reviewer can tell whether to revisit the classification.
 5. **Mirror the contract in pytest.** Add a focused test under
    `tests/test_vm_<area>_test.py` that pins both the success path and
    (where applicable) the host-exception → `TclError` conversion.
-6. **Re-run the full sweep**: `make test-tcl9-vm-core`.  Confirm:
-   - The targeted stem now reports a higher `passed` and/or no longer
-     crashes.
-   - **No other stem regresses** — `passed` does not drop, `failed`
-     does not climb, `crashed` does not flip from `false` to `true`.
-7. **Refresh the baseline**: `python scripts/run_tcl9_vm_core.py
-   --refresh-baseline`.  Inspect the diff on `summary.json` — it
-   should be a clean improvement.
+6. **Re-run the gate**: `make test-tcl9-vm-core`.  This runs the
+   harness with `--no-baseline` and asserts no regression against the
+   currently-committed baseline.  It will *fail* the moment any stem
+   passes fewer tests than the floor — which is the point.  Inspect
+   `tmp/tcl9-vm-core-categories.md` for the live failure list.
+7. **Ratchet the baseline**: once the gate passes (or once a *better*
+   floor is achievable), run
+   `make refresh-tcl9-vm-core-baseline`.  Inspect the diff on
+   `summary.json` — it should be a clean improvement.
 8. **Commit** the source fix, the new pytest, the refreshed
    `summary.json`, and any per-stem TOML edits in a single commit.
-9. **Run** `RUN_VM_TCL9_CORE=1 uv run pytest tests/test_vm_tcl9_core_baseline.py -q`
-   one last time before opening a PR.
+9. **Run** `make test-tcl9-vm-core` one last time before opening a
+   PR.
 
 ## Snapshot of current state
 

@@ -242,10 +242,15 @@ test-tcl9-full: $(UV_STAMP) ## Full Tcl 9 suite; requires upstream source (night
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/external/run_tcl9_tests.py -q \
 		--tcl9-required --tcl9-report=tmp/tcl9-report-full.json
 
-test-tcl9-vm-core: $(UV_STAMP) ## Run the parser/interpreter/control/basic/cmd slice of Tcl 9 .test files through the VM
-	@echo "==> Running Tcl 9 core slice through the VM (real init.tcl + tcltest.tcl)"
+test-tcl9-vm-core: $(UV_STAMP) ## Run the Tcl 9 core slice regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-vm/summary.json)
+	@echo "==> Running Tcl 9 core slice regression gate (real init.tcl + tcltest.tcl)"
 	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_vm_core.py
+	cd $(ROOT) && RUN_VM_TCL9_CORE=1 $(UV) run --extra dev pytest tests/test_vm_tcl9_core_baseline.py -q
+
+refresh-tcl9-vm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-vm/ from the current VM (use after a confirmed fix)
+	@echo "==> Refreshing Tcl 9 core slice baseline"
+	@mkdir -p $(ROOT)tmp
+	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_vm_core.py --refresh-baseline
 
 check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites against the baseline (issue #276)
 	@echo "==> Running Tcl 9 I/O tcltest suites (chan / chanio / io / ioCmd) against baseline"

@@ -48,9 +48,11 @@ def main() -> None:
     args, script_args = parser.parse_known_args()
     interp = TclInterp(optimise=args.optimise, source_init=True)
     if args.enable_test_support:
+        from .commands.tcltest_cmds import setup_tcltest
         from .commands.test_support_cmds import setup_test_support
 
         setup_test_support(interp)
+        setup_tcltest(interp)
 
     # Disassemble mode
     if args.disassemble:
