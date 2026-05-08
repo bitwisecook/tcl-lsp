@@ -420,8 +420,14 @@ fn emit_int(
     const total: u32 = prefix_total + min_digits;
     const pad: u32 = if (width > total) width - total else 0;
     // Explicit precision suppresses the ``0`` flag (matches C / Tcl).
-    const use_zero_pad = zero_pad and !left_align and !explicit_precision;
-    if (!left_align and !use_zero_pad) {
+    // For integer conversions Tcl 9 honours the ``0`` flag even when
+    // ``-`` is also set — see test format-1.15.  The standard C rule
+    // (``-`` overrides ``0``) is *not* what Tcl ships with; the
+    // formatter prefers zero-pad with no left-align when both flags
+    // are present and there's no explicit precision.
+    const use_zero_pad = zero_pad and !explicit_precision;
+    const effective_left_align = left_align and !use_zero_pad;
+    if (!effective_left_align and !use_zero_pad) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = ' ';
@@ -456,7 +462,7 @@ fn emit_int(
         out[off] = digits[j];
         off += 1;
     }
-    if (left_align) {
+    if (effective_left_align) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = ' ';
@@ -535,8 +541,11 @@ fn emit_int_bignum(
     const sign_len: u32 = if (sign_ch == 0) 0 else 1;
     const total: u32 = sign_len + @as(u32, @intCast(prefix.len)) + min_digits;
     const pad: u32 = if (width > total) width - total else 0;
-    const use_zero_pad = zero_pad and !left_align and !explicit_precision;
-    if (!left_align and !use_zero_pad) {
+    // Tcl 9 honours the ``0`` flag even when ``-`` is set (see
+    // format-1.15) — same quirk as ``emit_int``.
+    const use_zero_pad = zero_pad and !explicit_precision;
+    const effective_left_align = left_align and !use_zero_pad;
+    if (!effective_left_align and !use_zero_pad) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = ' ';
@@ -567,7 +576,7 @@ fn emit_int_bignum(
         out[off] = c;
         off += 1;
     }
-    if (left_align) {
+    if (effective_left_align) {
         var k: u32 = 0;
         while (k < pad) : (k += 1) {
             out[off] = ' ';
