@@ -1,0 +1,20 @@
+# eval.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '3 of 12 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 12
+observed_passed = 9
+observed_failed = 3
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["eval-2.1", "eval-2.2", "eval-2.5"]

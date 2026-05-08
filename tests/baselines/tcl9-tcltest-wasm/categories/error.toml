@@ -1,0 +1,24 @@
+# error.test — auto-generated WASM baseline.
+# bucket = 'W0-runtime-error'
+# reason = 'error while executing at wasm backtrace:'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["error-1.3", "error-1.6", "error-1.7"]
+
+[crash]
+type = "Trap"
+msg = "error while executing at wasm backtrace:"

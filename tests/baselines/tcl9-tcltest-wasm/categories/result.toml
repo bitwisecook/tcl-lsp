@@ -1,0 +1,20 @@
+# result.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '1 of 26 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 26
+observed_passed = 6
+observed_failed = 1
+observed_skipped = 19
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["result-6.3"]

@@ -1,0 +1,20 @@
+# compile.test — auto-generated WASM baseline.
+# bucket = 'W-mixed-fail'
+# reason = '12 of 171 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 171
+observed_passed = 144
+observed_failed = 12
+observed_skipped = 15
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["compile-1.2", "compile-3.3", "compile-10.1", "compile-13.1", "compile-14.1", "compile-16.1.0", "compile-16.2.0", "compile-16.3.0", "compile-20.1", "compile-20.2", "compile-21.2", "compile-21.4"]
