@@ -477,6 +477,7 @@ impl<'r> Lowerer<'r> {
     }
 
     /// Lower a single command.
+    // Long match dispatcher over command-form lowering hooks.
     #[allow(clippy::too_many_lines)]
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {

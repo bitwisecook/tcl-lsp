@@ -50,11 +50,12 @@ pub fn esc(text: &str, limit: usize) -> String {
 /// Render a [`FunctionAsm`] to disassembly text.
 #[must_use]
 #[allow(
-    clippy::too_many_lines,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss
 )]
+// Long match dispatcher over format-spec shapes.
+#[allow(clippy::too_many_lines)]
 pub fn format_function_asm(asm: &FunctionAsm) -> String {
     let mut lines = Vec::new();
 

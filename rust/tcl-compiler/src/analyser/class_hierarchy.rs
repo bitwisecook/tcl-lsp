@@ -1,4 +1,4 @@
-#![allow(clippy::implicit_hasher, clippy::too_many_lines, clippy::doc_markdown)]
+#![allow(clippy::implicit_hasher, clippy::doc_markdown)]
 
 //! Class Hierarchy Analysis (CHA) for TclOO — Rust port of
 //! `core/analysis/class_hierarchy.py`.
@@ -89,6 +89,8 @@ impl ClassHierarchy {
 /// downstream lookups don't have to disambiguate.  Cycles in the
 /// pure-superclass hierarchy land in `result.errors`; the
 /// affected classes get a single-element MRO (themselves only).
+// Multi-pass MRO computation; phases share mutable hierarchy state.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarchy {
     // Build separate superclasses and mixins maps for the

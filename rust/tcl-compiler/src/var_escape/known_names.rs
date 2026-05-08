@@ -30,6 +30,7 @@ fn visit(stmts: &[Statement], names: &mut HashSet<String>) {
     }
 }
 
+// Sequential walker over known-name shapes.
 #[allow(clippy::too_many_lines)]
 fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
     match stmt {

@@ -244,6 +244,7 @@ fn is_eval_block(tokens: Option<&CommandTokens>) -> bool {
 /// statements aren't part of the enclosing SSA, so we tag every
 /// name escape at the caller's current version (via *defs* /
 /// `version_for`).
+// Long match dispatcher over CFG-propagation handler shapes.
 #[allow(clippy::too_many_lines)]
 pub(crate) fn escape_every_name_touched_tree(
     stmts: &[Statement],
@@ -388,6 +389,7 @@ pub(crate) fn escape_every_name_touched_tree(
 
 /// Process one [`SsaStatement`] — apply the appropriate
 /// per-Statement transfer function.
+// Long match dispatcher over CFG-propagation handler shapes.
 #[allow(clippy::too_many_lines)]
 fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
     let stmt = &ssa_stmt.statement;

@@ -3,7 +3,7 @@
 //! Builds small CFG fixtures and runs them through `codegen_function`
 //! / `codegen_module` to verify the resulting `FunctionAsm` shape.
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::cast_possible_truncation)]
 
 use std::collections::{HashMap, HashSet};
 

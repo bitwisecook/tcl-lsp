@@ -21,6 +21,7 @@ impl CodegenCtx<'_> {
     /// `tryCvtToNumeric` is **never** emitted by this method — the
     /// caller is responsible for emitting it when the return value is
     /// `false` and the context requires numeric coercion.
+    // Long match dispatcher over expression-AST shapes.
     #[allow(clippy::too_many_lines)]
     pub fn emit_expr(&mut self, node: &ExprNode) -> bool {
         match node {

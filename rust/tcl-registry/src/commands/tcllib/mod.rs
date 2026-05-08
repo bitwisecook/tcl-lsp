@@ -212,8 +212,10 @@ mod yaml__yaml2huddle;
 use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
-#[must_use]
+// Flat declarative `vec![spec(), ...]` — splitting hurts
+// readability for a one-shot table.
 #[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     vec![
         base64__decode::spec(),

@@ -2445,6 +2445,7 @@ before this value so it is treated as data, not an option."
     /// commit body): ``has_dynamic_providers`` early-return;
     /// the CONSTSET-driven interpolation suppression for
     /// ``$``-bearing command names.
+    // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
     #[allow(clippy::too_many_lines)]
     pub fn emit_unresolved_command_diagnostics(
         &mut self,
@@ -2662,6 +2663,7 @@ before this value so it is treated as data, not an option."
     /// analyser, which is a larger change than fits this strip.
     /// In-method W307 suppression and dict-with /
     /// dict-update barrier-range suppression also defer.
+    // Long-running analyser pass with many sequential phases over the CompilationUnit; splitting requires threading shared local state.
     #[allow(clippy::too_many_lines)]
     fn emit_var_command_diagnostics(
         &mut self,

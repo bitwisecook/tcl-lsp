@@ -5,12 +5,7 @@
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 //! Ported from `core/compiler/codegen/_cmd_subst.py`.
 
-#![allow(
-    clippy::too_many_lines,
-    clippy::if_not_else,
-    clippy::similar_names,
-    clippy::doc_markdown
-)]
+#![allow(clippy::if_not_else, clippy::similar_names, clippy::doc_markdown)]
 
 use super::helpers::{parse_subst_template, regexp_to_glob, SubstPart};
 use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
@@ -126,6 +121,9 @@ pub fn has_command_separator(text: &str) -> bool {
 /// `was_braced` is `true` when the original argument was wrapped
 /// in `{…}` (braces are stripped from the returned text). This
 /// lets the caller decide whether to re-wrap the value in braces.
+// Sequential character-walk parser; the brace / quote / bracket / escape
+// state machine doesn't decompose into independent phases.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let text = text.trim();
@@ -568,7 +566,6 @@ impl CodegenCtx<'_> {
     /// - `array exists`
     /// - `dict get`
     /// - `catch` (delegates to control_flow)
-    #[allow(clippy::too_many_lines)]
     pub fn emit_inline_cmd_subst(&mut self, text: &str) {
         // Multi-command scripts fall back to runtime eval.
         if has_command_separator(text) {
@@ -732,6 +729,7 @@ impl CodegenCtx<'_> {
         }
     }
 
+    // Long match dispatcher over command-substitution forms.
     #[allow(clippy::too_many_lines)]
     fn emit_inline_string(&mut self, args: &[(String, bool)]) {
         let subcmd = &args[0].0;
@@ -915,7 +913,6 @@ impl CodegenCtx<'_> {
         self.emit(Op::STR_REPLACE, vec![]);
     }
 
-    #[allow(clippy::too_many_lines)]
     fn emit_inline_string_is(&mut self, sargs: &[(String, bool)]) {
         let class_name = &sargs[0].0;
         // Detect -strict flag and value

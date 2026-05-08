@@ -4,7 +4,7 @@
 //! bytecodes for `catch` and `try` commands.
 //! Ported from `core/compiler/codegen/_control_flow.py`.
 
-#![allow(clippy::too_many_lines, clippy::similar_names, clippy::doc_markdown)]
+#![allow(clippy::similar_names, clippy::doc_markdown)]
 
 use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
@@ -300,6 +300,8 @@ impl CodegenCtx<'_> {
     // -- inline try/on error compilation --
 
     /// Emit inline `try { body } on error {var} { handler }` bytecodes.
+    // Long control-flow emitter with sequential block-emit phases.
+    #[allow(clippy::too_many_lines)]
     pub fn emit_try_on_error_inline(&mut self, args: &[(String, bool)], normal_exit: &str) {
         let try_body_text = &args[0].0;
         let handler_var = args[3].0.trim().to_owned();

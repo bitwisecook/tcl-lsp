@@ -269,8 +269,9 @@ pub enum Op {
 
 impl Op {
     /// Disassembly mnemonic.
-    #[must_use]
+    // Flat opcode → mnemonic match arm; one entry per opcode.
     #[allow(clippy::too_many_lines)]
+    #[must_use]
     pub const fn mnemonic(self) -> &'static str {
         match self {
             Self::PUSH1 => "push1",
@@ -468,8 +469,9 @@ impl Op {
     }
 
     /// Instruction size in bytes (opcode + operands).
-    #[must_use]
+    // Flat opcode → byte-size match arm; one entry per opcode.
     #[allow(clippy::too_many_lines)]
+    #[must_use]
     pub const fn size(self) -> u8 {
         match self {
             // 1-byte: opcode only

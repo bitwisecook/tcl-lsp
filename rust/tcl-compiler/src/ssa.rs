@@ -586,8 +586,9 @@ enum RenamePhase {
 /// version counters, stacks, phi versions, incoming edges, and
 /// per-statement use/def maps — splitting it would just scatter the
 /// state across many parameters.
-#[must_use]
+// Long renumbering pass with sequential block-walk phases.
 #[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
     // 1. Compute dominance information.
     let dom = compute_dominators(func);
