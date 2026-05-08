@@ -98,6 +98,7 @@ pub const string_totitle = tcl_string.string_totitle;
 pub const string_reverse = tcl_string.string_reverse;
 pub const string_repeat = tcl_string.string_repeat;
 pub const string_replace = tcl_string.string_replace;
+pub const string_insert = tcl_string.string_insert;
 pub const tcl_cmd_split = tcl_string.tcl_cmd_split;
 pub const tcl_cmd_join = tcl_string.tcl_cmd_join;
 pub const tcl_cmd_concat = tcl_string.tcl_cmd_concat;
@@ -276,6 +277,7 @@ comptime {
     _ = &tcl_string.string_tolower;
     _ = &tcl_string.string_totitle;
     _ = &tcl_string.string_replace;
+    _ = &tcl_string.string_insert;
     _ = &tcl_string.string_is_integer;
     _ = &tcl_string.string_is_wideinteger;
     _ = &tcl_string.string_is_alpha;

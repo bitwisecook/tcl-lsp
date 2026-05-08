@@ -253,6 +253,12 @@ class StringCommand(CommandDef):
                     pure=True,
                     return_type=TclType.STRING,
                     arg_types={1: ArgTypeHint(expected=TclType.INT, shimmers=True)},
+                    wasm_runtime_import=WasmRuntimeImport(
+                        import_key="tcl_string_insert",
+                        export_name="string_insert",
+                        params=("i32", "i32", "i32"),
+                        results=("i32",),
+                    ),
                 ),
                 "is": SubCommand(
                     name="is",
