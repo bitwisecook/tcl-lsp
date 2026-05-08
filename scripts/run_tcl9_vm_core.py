@@ -6,6 +6,13 @@ Sources the original ``tmp/tcl9.0.3/library/init.tcl`` and the original
 test file via ``vm.interp.TclInterp``, and records pass / skip / fail
 counts plus a categorised failure dossier.
 
+**Hard rules** (see ``tests/baselines/tcl9-tcltest-vm/README.md`` for
+the full hand-off): never edit ``tcltest.tcl``, never edit any
+``.test`` file under ``tmp/tcl9.0.3/tests/``, never edit ``init.tcl``,
+and never add a new monkey-patch — the existing ``auto_load`` /
+``parray`` shim in ``vm/commands/tcltest_cmds.py`` is technical debt
+to remove, not a pattern to extend.
+
 Compile-cost minimisation
 -------------------------
 ``init.tcl`` (~1500 lines) and ``tcltest.tcl`` (~3700 lines) dwarf the
@@ -831,19 +838,34 @@ def write_dossier(results: list[StemResult]) -> None:
     lines.append("### Permanent hand-off rules")
     lines.append("")
     lines.append(
-        "- **Never** edit `tmp/tcl9.0.3/library/tcltest/tcltest.tcl` or any "
-        "`.test` file under `tmp/tcl9.0.3/tests/`.  Fix the compiler / "
-        "runtime instead.\n"
-        "- The `auto_load` / `parray` shim in "
-        "`vm/commands/tcltest_cmds.py` is a debug breadcrumb; remove it "
-        "once the auto-load path through `init.tcl`'s `tclIndex` works "
-        "end-to-end.\n"
+        "Read `tests/baselines/tcl9-tcltest-vm/README.md` first — it is "
+        "the durable hand-off; the section below is a running summary.\n"
+        "\n"
+        "- **Never** edit `tmp/tcl9.0.3/library/tcltest/tcltest.tcl`, "
+        "`tmp/tcl9.0.3/library/init.tcl`, or any `.test` file under "
+        "`tmp/tcl9.0.3/tests/`.  Fix the compiler / runtime instead.\n"
+        "- **No new monkey-patches.**  The existing `auto_load` / "
+        "`parray` shim in `vm/commands/tcltest_cmds.py:583` "
+        "(`_setup_real_tcltest`) is a debug breadcrumb that **must be "
+        "removed** before this slice ships — it is not a pattern to "
+        "extend.  The fix is to make our auto-load path through "
+        "`init.tcl`'s `tclIndex` work end-to-end.\n"
+        "- **Don't bypass `catch`.**  Every B0-host-exception crash "
+        "below is a Python exception escaping past a Tcl-level `catch`. "
+        " The fix is always to convert the host exception to "
+        "`TclError` at the boundary, never to widen the harness's "
+        "exception filter.\n"
         "- Add a focused pytest in `tests/test_vm_<area>_test.py` for "
         "every contract you fix.  Pin both the success path and the "
-        "host-exception-conversion path.\n"
+        "host-exception → `TclError` conversion path.\n"
         "- Re-run `make test-tcl9-vm-core` after each fix; "
         "`tests/test_vm_tcl9_core_baseline.py` will pass only if no "
-        "stem regresses against `tests/baselines/tcl9-tcltest-vm/summary.json`.\n"
+        "stem regresses against "
+        "`tests/baselines/tcl9-tcltest-vm/summary.json`.\n"
+        "- Tests classified `B9-internal` (bytecode disassembly, "
+        "object-rep refcount probes, `info frame` line tables, "
+        "`info cmdcount`) are **incompatible by design** and must "
+        "never be reclassified as bugs.\n"
     )
 
     # Top crash messages

@@ -8,6 +8,12 @@ The full sweep takes 3–5 minutes wall-clock, so this test is marked
 ``slow`` and is gated behind the ``RUN_VM_TCL9_CORE`` environment
 variable.  CI does not run it on every PR; ``make test-tcl9-vm-core``
 runs it explicitly.
+
+Hand-off rules for fixing failures live in
+``tests/baselines/tcl9-tcltest-vm/README.md`` — read that before
+editing the VM in response to a regression here.  Crucially: never
+edit ``tcltest.tcl`` / ``init.tcl`` / the upstream ``.test`` files,
+and never add a new monkey-patch in lieu of a real fix.
 """
 
 from __future__ import annotations
