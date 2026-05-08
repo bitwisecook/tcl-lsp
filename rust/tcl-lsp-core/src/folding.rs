@@ -79,7 +79,7 @@ pub struct FoldingRange {
 /// dialect-specific scope semantics.
 ///
 /// Overlap normalisation runs as a post-pass via
-/// [`normalise_overlaps`] so the returned slice is always disjoint or
+/// [`normalise_overlaps`] so the returned vector is always disjoint or
 /// properly nested — VS Code's folding tree-builder rejects
 /// partially overlapping siblings, and the Rust LSP server consumes
 /// this output directly without a Python-side cleanup pass.  The

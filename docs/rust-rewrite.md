@@ -3429,19 +3429,29 @@ of truth) and the three commits above for the design rationale.
 
 ## S-progress
 
-Resume note for the next S-* session:
+Resume note for the next S-* session.  The chunk-log row above
+records the final landed state for each chunk; this section
+records the live in-flight status at the time the most recent
+chunk was opened.  Once `S-folding-extend` merges this section
+becomes a snapshot of "what was just shipped + what to start
+next" rather than a live status board, so the next session can
+read straight off the chunk-log row's `landed` marker for ground
+truth and use this section only to pick up the next chunk
+without re-doing the investigation.
 
-* **In flight:** `S-folding-extend` (claude/S-folding-extend-normalise) —
-  PR opened against `rust`, ports `_normalise_overlaps` from
-  `lsp/features/folding.py` into `tcl-lsp-core::folding` and applies
-  it as the final step of `folding_ranges()`. Closes the only
-  remaining parity gap between the Python folding provider and the
-  Rust `tcl-lsp-server` folding wiring landed in ARCH8.
-* **Last PR opened:** `S-folding-extend` (this chunk).
-* **Next chunk planned:** `S-hover` per the SYNC11 sub-plan above
-  (30 ms debounce, `(uri, version, line, char)` LRU 256,
-  `tokio::task::spawn_blocking` offload, `Ok(None)` on cache miss,
-  `[timing] hover …` debug logs). Pure provider already lives in
-  `tcl-lsp-core::hover`; chunk shape is "wire it end-to-end" plus
-  the SYNC11 cache/debounce shaping.
+* **Most recent chunk opened:** `S-folding-extend`
+  (PR #383, branch `claude/S-folding-extend-normalise`,
+  base `rust`).  Ports `_normalise_overlaps` from
+  `lsp/features/folding.py` into `tcl-lsp-core::folding` and
+  applies it as the final step of `folding_ranges()`. Closes
+  the only remaining parity gap between the Python folding
+  provider and the Rust `tcl-lsp-server` folding wiring landed
+  in ARCH8.
+* **Next chunk planned:** `S-hover` per the SYNC11 sub-plan
+  above (30 ms debounce, `(uri, version, line, char)` LRU 256,
+  `tokio::task::spawn_blocking` offload, `Ok(None)` on cache
+  miss, `[timing] hover …` debug logs). Pure provider already
+  lives in `tcl-lsp-core::hover`; chunk shape is "wire it
+  end-to-end" plus the SYNC11 cache/debounce shaping. Cut from
+  fresh `origin/rust` once `S-folding-extend` merges.
 * **Blocked:** nothing right now.
