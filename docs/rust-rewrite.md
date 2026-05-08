@@ -884,57 +884,100 @@ Two catch-up modes, picked per chunk:
 
 ### Outstanding
 
-Refreshed: 2026-05-08 (re-audited against
-`origin/main`@`015288cf`, `origin/rust`@`9c779b31`; previous audit
-was `8b68af55` / `7364fd85`).
+Refreshed: 2026-05-08 (post-`SYNC-JUN-*` sweep) — re-audited
+against `origin/main`@`a76977a2`, `origin/rust`@`43d6ae5e`;
+previous anchor was `015288cf` / `9c779b31`.
 
-`main` carries 104 commits past the last rust-side rebase point
-(`SYNC-MAY26`).  The 7 commits added since the 2026-05-07 audit
-(`#347` / `#348` / `#349` were already triaged in that audit and
-are not re-counted here; the `::tcl::unsupported::corotype`
-registry mirror from `#348` already landed in PR #355) are:
+`main` carries 111 commits past the last rust-side rebase point.
+The five non-runtime commits added since the previous audit
+anchor (`015288cf` / #356) were each triaged out-of-scope for
+the Rust analyser crate; recorded here so future sweeps don't
+re-investigate:
 
-- `#356` "Centralise frame/no-frame compiler architecture" —
-  **in scope**, new row added below
-  (`SYNC-JUN-FRAME356-interp-boundaries`).
 - `#358` pre-populate `::tcl::*` / `::oo::*` runtime namespaces
-  — out of scope (runtime).
-- `#359` non-finite float rendering — out of scope (runtime).
-- `#360` subnormal float rendering — out of scope (runtime).
+  — out of scope (touches `vm/` only — Python differential VM,
+  no Rust mirror).
+- `#359` non-finite float rendering — out of scope (Zig
+  runtime).
+- `#360` subnormal float rendering — out of scope (Zig
+  runtime).
 - `#361` / `#363` / `#364` Tcl 9 core test slice harness +
-  tcltest WASM port — out of scope (runtime/Zig).
+  tcltest WASM port — out of scope (runtime/Zig + test
+  harness).
+- `#362` LSP completion preserves leading `$` via TextEdit —
+  out of scope for the analyser crate (LSP server only;
+  closes with `S*`).
+- `#367` lazy-materialise BUILTIN namespaces for `namespace
+  import` — out of scope (Zig runtime only — touches
+  `runtime/zig/cmds/namespace.zig` /
+  `runtime/zig/dispatch/tcl_builtin_ns.zig` /
+  `runtime/zig/cmds/tcl_cmd_info.zig`; no `core/` or `rust/`
+  hunks).
+- `#369` integer-overflow fix in `lseq` with large float
+  arguments — out of scope (Zig runtime — `runtime/zig/cmds/list.zig`
+  only).
+- `#370` qualified array reads (`$::name(key)`) in nested
+  command substitutions — out of scope: the bug was reachable
+  through three independent paths but all three live outside
+  the Rust crate (Zig runtime
+  `runtime/zig/interp/tcl_expr_eval.zig::parse_var`; WASM
+  emitter `core/compiler/codegen/wasm/_scan.py` and
+  `_emitter/_expressions.py`).  The Rust analyser already
+  parses `$::name(key)` correctly (verified against the Python
+  AST via the var-refs corpus when the rust analyser library
+  was first ported under C41) — none of the rust-mirrored
+  surfaces (var refs, lowering, CFG) had the same bug.
+- `#378` `string insert` + relative-qualified ensemble
+  dispatch — out of scope: the `core/commands/registry/tcl/string.py`
+  hunk only adds a `wasm_runtime_import=WasmRuntimeImport(...)`
+  annotation to the `insert` subcommand, which is consumed by
+  the WASM emitter and has no Rust-side type at all
+  (`grep -rn 'wasm_runtime_import\|WasmRuntimeImport' rust/`
+  returns zero hits).  The Rust mirror at
+  `rust/tcl-registry/src/commands/tcl/string_.rs:108-124`
+  already carries the `insert` subcommand with arity (3),
+  return type (String), `pure: true`, `dialects:
+  Some(DialectSet::TCL90)`, and the `arg_types` `Int`-shimmer
+  for the index — every analyser-relevant field already
+  matches.  All other hunks are Zig runtime
+  (`runtime/zig/cmds/string.zig` / `interp/tcl_interp.zig` /
+  `tcl_runtime.zig` / `valtypes/tcl_string.zig`).
 
 Triage:
 
-- **Out of scope (≈ 80 commits)** — Tcl 9 runtime semantics,
+- **Out of scope (≈ 87 commits)** — Tcl 9 runtime semantics,
   WASM AOT staircase + emitter follow-ups, expr-bignum (i128 /
   bigint), runtime memory leaks, vscode per-folder config /
-  pygls 2.x migration, v1.8.0 release plumbing, ruff/style
+  pygls 2.x migration, v1.8.x release plumbing, ruff/style
   drive-bys, runtime test categorisation.  None has a Rust
   mirror; absorbed silently when the corresponding Rust crate
   ships.
-- **In scope (11 commits / 8 distinct work items)** —
-  enumerated below.  All affect a Rust-mirrored area
-  (analyser suppression, var\_escape, CFG lowering, IR /
-  lowering hooks, expression evaluator, registry).
+- **In scope** — the eight `SYNC-JUN-*` rows tracked at the
+  previous anchor (`015288cf`) all landed during the
+  2026-05-08 sweep (PRs #368 / #371 / #372 / #373 / #374 /
+  #375 / #376 / #377) and have been removed from the table
+  per the open-backlog convention; the only row that survives
+  is `SYNC-JUN-CFG-uplevel-literal-set` (open, blocked on the
+  `_UpvarInfo` prerequisite below).  The current audit
+  (`015288cf` → `a76977a2`, +5 non-runtime commits) surfaced
+  zero new in-scope work items — every new commit lives in
+  the Zig WASM runtime, the WASM emitter, or the LSP server.
+  The two new rows below (`SYNC-JUN-CFG-upvar-info`,
+  `SYNC-JUN-FRAME356-population`) carry deferred work split
+  out of the May-8 sweep, not new sync gaps.
 
 | Status | Source on `main` | Scope summary | Rust mirror to update | Suggested chunk handle |
 |---|---|---|---|---|
-| landed | `b66f8f9d` (#306) + `ceb190fc` | noqa next-line suppression covers orphaned comments and the noqa-before-comment shape; suppression dispatched from `analyse_chunked` and `analyse_commands`.  Note: the `rust` branch's Python tree predates both upstream commits, so the references below are to the upstream commit IDs, not the checked-in Python file/line numbers (which carry the pre-fix shape). **Audited 2026-05-08:** ported as a new `parse_noqa_line_suppressions` helper in `rust/tcl-compiler/src/analyser/utils.rs` plus a `merge_noqa_line_suppressions` merger in `analyser/state.rs` that runs alongside the file-level `parse_file_suppression` pre-scan in `analyse` / `analyse_chunked` / `analyse_commands` (mirrors the inline merge block upstream `b66f8f9d` adds to `Analyser.analyse` plus the duplicate `ceb190fc` adds to `Analyser.analyse_chunked` / `Analyser.analyse_commands`).  The new helper is additive — it does not replace `apply_preceding_noqa`, which still attributes per-comment-attached noqa codes to the following command's line range; together they cover both the orphan / before-comment cases and the inline form.  Carried in the same PR #371 (Copilot-flagged): `-1`-sentinel parity for file-level `# tcl-lsp: disable=` directives in `analyse_chunked` / `analyse_commands` so consumers see the file-wide suppression set via `result.suppressed_lines[-1]` regardless of which entry point dispatched the analyse (previously only `analyse` populated the sentinel).  7 unit tests on the helper + 3 integration tests on the wiring through each entry point. | `SYNC-JUN-W306-noqa` |
-| landed | `957dc1f6` (#334), parts touching `core/compiler/var_escape/_slot_resolution.py` (new 345 LOC) + `_api.py` + `_types.py` | New `var_escape` slot-resolution pass: pins proc-local slot identity across upvar / `info frame` / `interp share-variable` / coroutine boundaries.  Feeds the runtime work but the *analysis* is registry-driven and applies to the Rust analyser too. **Audited 2026-05-08:** ported as `rust/tcl-compiler/src/var_escape/slot_resolution.rs` (~370 LOC + 21 unit tests covering eligibility pre-screen, params-first slot ordering, body-locals registration, array-element / qualified-name skip, `upvar` / `eval` / dynamic-`set` / `info exists,vars,locals,level,frame` / `trace add variable` whole-proc disable + per-name ineligibility, dynamic command word, `::`-prefix normalisation, `LOCALS_ARRAY_CAP` (16) cap, `populate_local_slots` round-trip).  Adds `local_slots: BTreeMap<String, u32>` field + `with_local_slots` method on `ProcEscapeSummary` (mirrors Python's same-named field/method).  No live consumer in the Rust crate yet — like the rest of the var_escape pipeline (`solve_interprocedural_escape` / `analyse_cfg_function`), this is a building block awaiting the codegen-side wiring; the cargo tests pin its behaviour as a standalone pass.  Codex P1 fixup: `stmt_disables_slots` rejects dynamic AssignValue / AssignExpr / AssignConst / Incr names (e.g. ``set $name v`` lowering as ``AssignValue { name: "$varname", .. }``) so the slot map can't include locals the dynamic write may target at runtime. | `SYNC-JUN-VAR334-slot-resolution` |
-| n/a | `957dc1f6` (#334), part touching `core/commands/registry/tcl/trace.py` | The trace.py change in `957dc1f6` is a `wasm_runtime_import` removal (so the compiled call falls through to `eval_trace`).  No new arg roles or side-effect annotations land — the `slot_resolution` Rust port matches against the canonical command name only.  No mirror needed in `rust/tcl-registry/src/commands/tcl/trace.rs`. | `SYNC-JUN-VAR334-slot-resolution` (closed alongside) |
-| landed | `31f5357f` (#341) | Tcl 9 expression semantics: bignum-aware integer promotion, scan widening, `string is wideinteger` parity.  Touches `cfg.py`, `lowering.py`, `lowering_hooks/_var.py`, `ir.py` on the Python side. **Audited 2026-05-08:** the row title oversold the Rust-relevant scope — the bignum promotion / scan widening / `string is wideinteger` parts are all in `runtime/zig/interp/tcl_expr_eval.zig` (out-of-scope, no Rust mirror).  The Rust-mirror-relevant changes are: (1) **`Statement::Catch::tokens` field** — new `Option<CommandTokens>` populated by `lowering/structured.rs::lower_catch` and threaded through `cfg_builder/mod.rs::emit_opaque_catch` so the synthetic `Statement::Call` for catch preserves the brace-vs-bare body shape (without it, `catch {$undef} msg` would be reconstructed as `catch $undef msg` and the unset-var read would fire before catch could intercept it).  (2) **leading-zero preservation in `lowering_hooks::lower_set`** — `set arg 0005` must store `0005` verbatim, not fold to `5`; the fold guard tightened to `value.as_str() == int_val` (Copilot review on PR #376) so any whitespace / sign / spelling difference from the canonical decimal form disqualifies the fold.  3 new unit tests (catch tokens populated, leading-zero preservation via either AssignConst or AssignValue, canonical `5` still folds, leading-whitespace `{ 5}` preserved). | `SYNC-JUN-EXPR341-tcl9-semantics` |
-| landed | `342d4c7a` (#331) | Full `lsearch` option surface (`-glob` / `-regexp` / `-exact` / `-sorted` / `-index` / `-inline` / `-not` / `-all` / `-stride`) and `foreach` multi-iterator binding.  Touches `cfg.py`, `lowering.py`, `ir.py`, `passes/dce.py`, `tcl_expr_eval.py`. **Audited 2026-05-08:** `lsearch` runtime / WASM-emitter changes are out-of-scope (no Rust mirror).  The five Rust-mirror-relevant pieces all landed: (1) `Statement::Call` gains a `foreach_groups: Option<Vec<usize>>` field — populated by `cfg_builder/cfg_lower.rs::lower_foreach` with per-group var-counts so codegen can reconstruct the original `var-list` ↔ `list-arg` pairing; updates ~57 construction sites across the crate.  (2) `lowering/structured.rs::lower_catch` tightened to require a brace-literal (`Str`) body token — single-token-but-non-`Str` shapes (`$cmd`, `[build]`) now fall through to the runtime barrier instead of being mis-compiled.  (3) `optimiser/elimination.rs::collect_textual_var_references` now also recognises `[set NAME]` (1-arg read form) — without it DCE missed reads through `[set x]` and incorrectly deleted writes inside nested bodies.  (4) `tcl_expr_eval.rs::MAX_EXPONENT` bumped from `10_000` to `(1 << 28) - 1` to match C Tcl's `INST_EXPON` limit.  (5) Five new unit tests (foreach group sizes, catch dollar/bracket body fallback, DCE `[set x]` read recognition, qualified `[::set x]` form). | `SYNC-JUN-LSEARCH331-foreach-multi-iter` |
-| landed | `6c7a7c42` | `var_escape`: any non-literal `upvar LEVEL` (i.e. anything that isn't a decimal digit literal or `#N`) is treated as dynamic, blocking slot lifting. Touches `_propagation.py` + `_cfg_propagation.py` on `main` only — the `rust` branch's Python tree predates the fix, so the references below are to the upstream commit, not the checked-in Python. **Audited 2026-05-08:** ported as a new `is_dynamic_upvar_level` helper in `rust/tcl-compiler/src/var_escape/helpers.rs` consumed by both `var_escape/handlers.rs::handle_upvar` and `var_escape/cfg_propagation/handlers.rs::handle_upvar`.  The dynamic-level branch now also calls `record_unbounded_upvar` so the interprocedural pass forces every caller to spill its locals (matching the post-`6c7a7c42` Python which calls `state.record_unbounded_upvar()` after `mark_pessimistic`).  Both call-sites consolidated onto the shared `var_scoping::looks_like_level` predicate to fix a latent vacuous-`all()` edge case where `head == "#"` was treated as a literal level (Copilot review on PR #368).  9 new unit tests covering `[cmd]`, `"#${n}"`, `$::ns::level`, `#$n` shapes across both handlers + the helper's own predicate. | `SYNC-JUN-VARESC-dynamic-upvar` |
 | open (blocked on prereq) | `d5ac467c` | CFG: detect literal-target `uplevel 1 set x ...` writes so they materialise as defs in the caller's frame instead of opaque barriers. **Audit 2026-05-08 (investigation only):** the d5ac467c diff is a 75-LOC extension to Python's `_collect_upvar_targets` / `_uplevel_set_target` helper.  However the entire `_UpvarInfo` / `_collect_upvar_targets` infrastructure (including the `args_tail_upvar` / `param_targets` / `literal_targets` fields and the consumers at `cfg.py:441` / `:589` / `:602` / `:621` / `:633` / `:1253` that pre-populate caller-side `defs` from these targets) has **no Rust mirror at all** — `grep` for `UpvarInfo`, `param_targets`, `args_tail_upvar`, `scope_alias_command`, `literal_targets`, or `_collect_upvar_targets` across the whole `rust/` tree returns zero hits.  The previously-claimed mirror at `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs::lower_uplevel` does not exist either — `cfg_lower.rs` only handles structured-IR lowering (`If` / `For` / `While` / `Foreach` / `Switch` / `Catch` / `Try`).  The Rust-side analog of the Python pessimism is `var_escape::walker::handle_uplevel`, but that operates on a different concern (intra-proc escape, not caller-side def materialisation), so it isn't the right surface to land the d5ac467c logic on.  **Hidden prerequisite:** porting this row for real requires first porting the `_UpvarInfo` collection pass and its CFG-construction consumers — a much larger surface than the 75-LOC Python diff suggests. | the proper Rust home for the literal-target detection lands in a new `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` (mirroring the Python `_collect_upvar_targets` pass) plus the call-site `defs` pre-population at the `cfg_builder` proc-summary integration point.  The naïve `var_escape::walker::handle_uplevel` adaptation is **not** an equivalent fix and will not land this row. | `SYNC-JUN-CFG-uplevel-literal-set` |
-| landed (type surface only) | `015288cf` (#356) | Centralise frame/no-frame compiler architecture: extends `var_escape` with new fact surface (~700 LOC of changes across `_api.py` / `_cfg_propagation.py` / `_propagation.py` / `_types.py` / `__init__.py`); adds new `core/compiler/passes/interp_boundaries.py` pass (287 LOC) tracking interp-share / coroutine / `info frame` boundaries that block frame-routing assumptions; +34 LOC on `ir.py` and +13 on `compilation_unit.py` to thread the new fact set.  WASM-emitter hunks in the same commit are out of scope (no Rust mirror). **Audited 2026-05-08:** the type surface ported to `rust/tcl-compiler/src/var_escape/types.rs`: new `BarrierKind` enum (6 variants — `Info` / `Eval` / `Upvar` / `DynName` / `Expand` / `Unknown`); new `Barrier` struct (`kind` / `detail` / `range`) with `new` + `with_detail` constructors; new `EscapeReasonKind` enum (7 variants — `Barrier` / `InfoExists` / `UpvarSource` / `CalleeUpvar` / `EvalReference` / `DynNameResolved` / `EscapeAllKnown`); new `EscapeReason` struct with same constructors; `ProcEscapeSummary` gains `barriers: Vec<Barrier>` + `tag_reasons: HashMap<String, Vec<EscapeReason>>` fields; `wants_frame()` method (`frame_needed || has_fallback()`) as the single source of truth; `reasons_for(name)` method synthesising a `Barrier` reason from `dynamic_barrier()` when no explicit per-name reason was recorded.  Copilot fixup: `dynamic_barrier()` returns `flag || !barriers.is_empty()` so populated barriers without an explicit flag still register as pessimistic.  11 new unit tests covering the new types + methods + the `with_escapes` round-trip + the dynamic-barrier invariant.  **Deferred (own follow-up):** the analysis pipeline (`propagation` / `cfg_propagation` / `interprocedural`) does not yet populate `barriers` / `tag_reasons`; the Python diff threads `Barrier(...)` and `EscapeReason(...)` through every `state.escape()` / `state.mark_pessimistic()` callsite — that's ~500 LOC of mechanical work across the four files, tracked as a separate strip when a load-bearing consumer (LSP hover, compiler explorer surface) needs the populated data.  The `interp_boundaries.py` pass (287 LOC) is codegen-prep for the WASM emitter and has no Rust analyser consumer; absorbed silently when the Rust crate's runtime-emitter equivalent ships. | `SYNC-JUN-FRAME356-interp-boundaries` |
-All eight in-scope rows are independently shippable; suggested
-order is the table order (suppression → var\_escape → expr →
-CFG → frame-architecture), which mirrors the analyser-pipeline
-dependency graph.  Each row should land as a `SYNC-JUN-*` chunk
-PR base = `rust`, and the row should be deleted from this table
-(not just marked landed) once the matching PR merges — this
-section's purpose is the *open* backlog, not a history.
+| open (prerequisite for `uplevel-literal-set`) | `d5ac467c` (and the surrounding Python `_UpvarInfo` infrastructure that predates it) | Port the Python `_UpvarInfo` / `_collect_upvar_targets` pass to a new `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` module + wire it into the proc-summary integration point so caller-side `defs` are pre-populated from `literal_targets` / `param_targets` / `args_tail_upvar` (mirrors the consumers at Python `cfg.py:441` / `:589` / `:602` / `:621` / `:633` / `:1253`).  Estimated 200-300 LOC port + tests.  Once this lands, the 75-LOC `SYNC-JUN-CFG-uplevel-literal-set` extension follows trivially. | new `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` (no current home); plus `defs` pre-population at the `cfg_builder` proc-summary integration point. | `SYNC-JUN-CFG-upvar-info` |
+| open (deferred from `FRAME356` type-surface PR) | `015288cf` (#356) | Thread `Barrier(...)` and `EscapeReason(...)` through every `state.escape()` / `state.mark_pessimistic()` callsite in the analysis pipeline so the `barriers` / `tag_reasons` summary fields the FRAME356 type-surface PR (#377) added are actually populated.  Mechanical but wide: ~500 LOC across `var_escape::propagation::handlers`, `var_escape::cfg_propagation::handlers`, and `var_escape::interprocedural`.  No new behaviour, just populates fields that today's consumers can already read but currently always find empty.  Lower-priority until a load-bearing consumer (LSP hover, compiler explorer surface) needs the populated data. | `rust/tcl-compiler/src/var_escape/propagation/handlers.rs`; `rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs`; `rust/tcl-compiler/src/var_escape/interprocedural.rs`. | `SYNC-JUN-FRAME356-population` |
+
+The two new rows above carry deferred work split out of the
+2026-05-08 sweep, not new sync gaps.  Each row should land as a
+`SYNC-JUN-*` chunk PR base = `rust`, and the row should be
+deleted from this table (not just marked landed) once the
+matching PR merges — this section's purpose is the *open*
+backlog, not a history.
 
 When `main` next force-pushes a rebase point or when this list
 crosses the ~15-row threshold, open a fresh `SYNC*` family
@@ -956,6 +999,8 @@ to the chunk-log entry that has the full spec.
 | 4 | `C44-irules-flow` | Port `core/compiler/irules_flow.py` (~1634 LOC) — iRules control-flow checker emitting IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 / IRULE1201 / IRULE1202 / IRULE5002 / IRULE5004 / IRULE4004.  Promoted out of the C* aggregate row by the C* close-out audit (2026-05-07).  Largest of the three remaining C-prefixed ports; consumes the `connection_scope` infrastructure already landed under C28 follow-up.  Each diagnostic is its own sub-strip. |
 | 5 | `C43` | Codegen + lowering hooks port — registry-driven hook dispatch in `rust/tcl-compiler/src/lowering/mod.rs::lower_command` (currently uses string-pattern dispatch on `cmd_name`) plus the Python `lowering_hooks/` package (`_barrier_gate.py` + `_var.py` + `_control.py`, ~466 LOC).  Unblocked by ARCH1 + ARCH2.  Per the chunk-log row, each command form's hook lands as its own sub-commit. |
 | 6 | clippy-cleanup Chunk D (`too_many_lines`) | ~30 `#[allow(clippy::too_many_lines)]` allows still in the workspace, mostly in long emitter functions in `rust/tcl-compiler/src/analyser/diagnostics.rs` and `rust/tcl-compiler/src/optimiser/`.  Mechanical cleanup — split each over-long function into helpers, drop the allow.  Continues the cleanup from PRs #340 / #342 / #350 (Chunks A / B / E + var_escape bitflags), targeting the 50% allow-removal milestone. |
+| 7 | `SYNC-JUN-FRAME356-population` | Thread `Barrier(...)` / `EscapeReason(...)` through every `state.escape()` / `state.mark_pessimistic()` callsite so the `barriers` / `tag_reasons` summary fields added by the type-surface PR (#377) are actually populated.  ~500 LOC across `var_escape::propagation::handlers` / `var_escape::cfg_propagation::handlers` / `var_escape::interprocedural`.  Mechanical, no new behaviour; defer until a load-bearing consumer (LSP hover, compiler explorer) needs the populated data.  See the matching Outstanding row. |
+| 8 | `SYNC-JUN-CFG-upvar-info` | Port the Python `_UpvarInfo` / `_collect_upvar_targets` infrastructure to a new `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` module + wire into proc-summary integration so caller-side `defs` are pre-populated from `literal_targets` / `param_targets` / `args_tail_upvar`.  Prerequisite for `SYNC-JUN-CFG-uplevel-literal-set`.  ~200-300 LOC port + tests.  See the matching Outstanding row. |
 | — | `C45-uri-split` | Landed 2026-05-08 — see chunk log. |
 | — | `ARCH0` … `ARCH9` | Landed.  Initial crate-and-registry cleanup (ARCH0–ARCH4) plus the post-cleanup follow-ups (ARCH5–ARCH9): pure LSP feature crate, typed hook IDs, registry-driven hook dispatch, registry-owned diagnostics facts, codegen registry threading, `SubCommand::traits` for subcommand-shaped facts, `tcl-lsp-rust` binding-only audit, `tcl-lsp-server` bootstrap, and `tcl-lsp-py` public binding crate.  See chunk log and `docs/design/rust/current-architecture.md`. |
 | — | `S*` (LSP server) | Per-feature ports.  ARCH8 landed the `tcl-lsp-server` bootstrap with folding; subsequent providers (document symbols, hover, completion, semantic tokens, diagnostics, …) extend it one at a time, smallest first. |
@@ -982,6 +1027,12 @@ queue:
   are the next pickup-able C-family ports.
 * **Priority 6** (clippy Chunk D, `too_many_lines`) — mechanical
   hygiene continuing the cleanup from PRs #340 / #342 / #350.
+* **Priorities 7 / 8** (`SYNC-JUN-FRAME356-population`,
+  `SYNC-JUN-CFG-upvar-info`) — deferred work split out of the
+  2026-05-08 `SYNC-JUN-*` sweep.  `FRAME356-population` is
+  contained but wide (~500 LOC mechanical), defer until a
+  consumer needs the populated data; `CFG-upvar-info` is the
+  prerequisite that unblocks `SYNC-JUN-CFG-uplevel-literal-set`.
 
 After the queue drains, per-feature LSP server ports (`S*`) build
 on the `tcl-lsp-server` bootstrap.
