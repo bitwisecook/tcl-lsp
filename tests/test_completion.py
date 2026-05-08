@@ -342,6 +342,23 @@ class TestVariableCompletion:
         assert "$k" in labels
         assert "$v" in labels
 
+    def test_dollar_completion_offers_try_on_error_bindings(self):
+        """``try ... on error {msg opts} body`` registers ``msg`` and
+        ``opts`` as locals inside the handler body."""
+        source = textwrap.dedent("""\
+            proc p {} {
+                try {
+                    error boom
+                } on error {try_msg try_opts} {
+                    puts $
+                }
+            }
+        """)
+        items = get_completions(source, 4, 18)
+        labels = [i.label for i in items]
+        assert "$try_msg" in labels
+        assert "$try_opts" in labels
+
     def test_dollar_completion_offers_dict_update_aliases(self):
         """``dict update var key1 var1 ?key2 var2 ...? body`` registers
         each ``var`` as a local alias visible in the body."""
