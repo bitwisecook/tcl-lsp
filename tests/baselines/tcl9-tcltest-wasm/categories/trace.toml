@@ -1,0 +1,20 @@
+# trace.test — auto-generated WASM baseline.
+# bucket = 'W0-codegen-bug'
+# reason = "compile failed: AssertionError: var-write contract: direct local.tee to slot 6 ('::${tracevar}') in proc '::traceproc' bypasses FRAME routing — this var is non-pessimistic FRAME-tagged and must go through _emit_var_write_obj"
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[crash]
+type = "CompileFail"
+msg = "AssertionError: var-write contract: direct local.tee to slot 6 ('::${tracevar}') in proc '::traceproc' bypasses FRAME routing \u2014 this var is non-pessimistic FRAME-tagged and must go through _emit_var_write_obj"

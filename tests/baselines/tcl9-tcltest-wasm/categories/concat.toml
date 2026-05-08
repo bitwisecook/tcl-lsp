@@ -1,0 +1,16 @@
+# concat.test — auto-generated WASM baseline.
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 9
+observed_passed = 9
+observed_failed = 0
+observed_skipped = 0

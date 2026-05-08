@@ -1,0 +1,20 @@
+# list.test — auto-generated WASM baseline.
+# bucket = 'W0-runtime-error'
+# reason = 'tcl trap: site=79 can\'t read "": no such variable'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 0
+observed_passed = 0
+observed_failed = 0
+observed_skipped = 0
+
+[crash]
+type = "Trap"
+msg = "tcl trap: site=79 can't read \"\": no such variable"

@@ -252,6 +252,16 @@ refresh-tcl9-vm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tclt
 	@mkdir -p $(ROOT)tmp
 	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_vm_core.py --refresh-baseline
 
+test-tcl9-wasm-core: $(UV_STAMP) ## Run the Tcl 9 core slice WASM regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-wasm/summary.json — production ship gate)
+	@echo "==> Running Tcl 9 core slice WASM regression gate (Zig runtime + WASM codegen, real init.tcl + tcltest.tcl)"
+	@mkdir -p $(ROOT)tmp
+	cd $(ROOT) && RUN_WASM_TCL9_CORE=1 $(UV) run --extra dev pytest tests/test_wasm_tcl9_core_baseline.py -q
+
+refresh-tcl9-wasm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-wasm/ from the current WASM runtime (use after a confirmed runtime/codegen fix)
+	@echo "==> Refreshing Tcl 9 core slice WASM baseline"
+	@mkdir -p $(ROOT)tmp
+	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_wasm_core.py --refresh-baseline
+
 check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites against the baseline (issue #276)
 	@echo "==> Running Tcl 9 I/O tcltest suites (chan / chanio / io / ioCmd) against baseline"
 	@mkdir -p $(ROOT)tmp
