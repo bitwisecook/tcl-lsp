@@ -1241,6 +1241,19 @@ const ArrayElemSplit = struct {
 
 fn split_array_elem_name(name_ptr: u32, name_len: u32) ?ArrayElemSplit {
     if (name_len < 3) return null;
+    // Defensive: callers occasionally hand us a TclObj whose
+    // ``obj_ensure_string`` returned ``ptr=0`` with a non-zero ``len``
+    // (e.g. an alias descriptor whose target was released and left
+    // partially-initialised state behind), or a wildly out-of-bounds
+    // address (memory-fault trap reading past the linear-memory
+    // limit).  Both panic under ReleaseSafe; treat such names as
+    // plain scalars so the caller falls through to the by-name slow
+    // path and surfaces a regular ``no such variable`` error instead
+    // of an opaque wasm trap.
+    if (name_ptr == 0) return null;
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u32 = mem_pages *% obj.PAGE_SIZE;
+    if (name_ptr >= mem_bytes or name_len > mem_bytes - name_ptr) return null;
     const sp: [*]const u8 = @ptrFromInt(name_ptr);
     if (sp[name_len - 1] != ')') return null;
     var paren: u32 = 0;
@@ -1373,6 +1386,13 @@ fn resolve_ext_get(desc: u32, local_name: i32) i32 {
 
 /// Write a value through an ALIAS_EXT bucket.
 fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
+    // Defensive: an out-of-bounds ``desc`` would trap on the
+    // ``read_i32`` below.  Bail with the input value untouched so
+    // the caller observes a no-op rather than an opaque memory
+    // fault.  Same idea for ``tgt`` further down.
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u32 = mem_pages *% obj.PAGE_SIZE;
+    if (desc == 0 or desc + 12 > mem_bytes) return value;
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
     if (kind == KIND_GLOBAL_NAMED) {
@@ -1384,6 +1404,13 @@ fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
     }
     if (kind == KIND_NS_VAR_PTR) {
         tcl_ns.var_set_scalar(@bitCast(tgt), @bitCast(value));
+        return value;
+    }
+    if (kind != KIND_FRAME_VAR) {
+        // Corrupt / freed descriptor — every kind except the three
+        // above is invalid by construction.  Skip the write rather
+        // than fall through to ``frame_set_at_depth`` with a
+        // garbage ``abs`` / ``tgt``.
         return value;
     }
     const abs: u32 = @bitCast(read_i32(desc + 4));

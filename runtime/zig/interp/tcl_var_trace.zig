@@ -377,8 +377,11 @@ pub fn has_trace(name_ptr: u32, name_len: u32, op: u32) bool {
 /// canonical name ``name_ptr``/``name_len``.  Each callback is
 /// invoked as ``CMD name1 name2 op`` per reference Tcl semantics:
 /// for a scalar, name1 = the var, name2 = "".  For an array element,
-/// name1 = arr name, name2 = element key.  ``op_char`` is "r" / "w"
-/// / "u" / "a" matching reference Tcl.
+/// name1 = arr name, name2 = element key.  ``op_char`` is the
+/// internal single-char op code (``'r'`` / ``'w'`` / ``'u'`` /
+/// ``'a'``); :func:`invoke_cb` expands it to the full word
+/// (``read`` / ``write`` / ``unset`` / ``array``) reference Tcl
+/// passes to the callback.
 ///
 /// Re-entrancy: each Trace record carries an ``active`` flag; when
 /// firing we set it, and skip already-active records on nested fires
@@ -473,11 +476,25 @@ fn invoke_cb(
 ) void {
     const interp = @import("tcl_interp.zig");
     const cs = obj_ensure_string(cmd_prefix);
+    // Reference Tcl 9 invokes variable-trace callbacks with the full
+    // op word (``read`` / ``write`` / ``unset`` / ``array``), not the
+    // single-character internal op code we carry in ``op_char``.
+    // Without this expansion, the test ``trace add variable x read
+    // traceScalar; set x`` reports ``op = r`` to the callback and
+    // every reference-Tcl-shaped assertion fails (cf. trace.test
+    // 1.1–1.14, 2.1–2.5 in the Tcl 9 core slice).
+    const op_word: []const u8 = switch (op_char) {
+        'r' => "read",
+        'w' => "write",
+        'u' => "unset",
+        'a' => "array",
+        else => &[_]u8{op_char},
+    };
     // Worst-case expansion per element: ``2 * len + 2`` (full
     // backslash-escape mode), plus one separator byte per gap and
-    // the trailing ``op`` byte.
+    // the trailing ``op`` word.
     const total: u32 = cs.len + 1 + (name1_len * 2 + 2) + 1 +
-        (name2_len * 2 + 2) + 1 + 1 + 8;
+        (name2_len * 2 + 2) + 1 + @as(u32, @intCast(op_word.len)) + 8;
     const buf = alloc(total);
     if (buf == 0) return;
     const dst: [*]u8 = @ptrFromInt(buf);
@@ -501,10 +518,21 @@ fn invoke_cb(
     off = obj.list_elem_quote_nth(buf, off, name2_ptr, name2_len);
     dst[off] = ' ';
     off += 1;
-    dst[off] = op_char;
-    off += 1;
+    for (op_word) |b| {
+        dst[off] = b;
+        off += 1;
+    }
     const r = interp.eval_script(buf, off);
-    obj.free_sized(buf, total);
+    // Intentional leak of ``buf``: the parser's ``subst_flagged``
+    // returns non-copying ``obj_new_string`` TclObjs for word tokens
+    // that contain no substitution (the common case for the four
+    // op-word tokens we just emitted: ``read`` / ``write`` /
+    // ``unset`` / ``array``), so any TclObj the callback assigned
+    // to a long-lived variable would dangle into freed memory if we
+    // ``free_sized``-ed *buf* here.  The leak is bounded — one
+    // small allocation per trace fire — and matches the same
+    // discipline the rest of the runtime applies to script buffers
+    // whose word TclObjs may outlive the call.
     if (r != 0) tcl_obj_release(r);
 }
 
