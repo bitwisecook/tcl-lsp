@@ -23,10 +23,6 @@
 //!
 //! ## What is not yet implemented
 //!
-//! - **URI-split / IRULE3103** (`core/compiler/taint/_uri_split.py`,
-//!   ~959 LOC) — IRULE3103 detection of `*::uri` getter + manual
-//!   decomposition patterns is still Python-only.  Tracked as the
-//!   C29 follow-up in `docs/rust-rewrite.md`.
 //! - **T103 regex-injection, T104 SSRF, T105 cross-interpreter
 //!   injection** — follow-up strips once the registry gains full
 //!   taint-hint metadata.
@@ -39,6 +35,9 @@
 //!   [`find_setter_constraint_warnings`] when the dialect is
 //!   `f5-irules` / `irules`. IRULE3102 (unnormalised getter) lives
 //!   in the sibling [`crate::irules_checks`] module.
+//! - **URI-split / IRULE3103** (`*::uri` getter + manual
+//!   decomposition) — see [`crate::uri_split`].  Ported from
+//!   `core/compiler/taint/_uri_split.py` (C45).
 //!
 //! ## Source / sink / sanitiser facts live in the registry
 //!
