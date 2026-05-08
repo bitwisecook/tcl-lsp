@@ -81,6 +81,42 @@ else
     struct {
         pub const registrations: [0]reg.CmdEntry = .{};
     };
+const tcltest_cmd_expr = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_expr.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_dstring = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_dstring.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_assoc = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_assoc.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_var = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_var.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_proc = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_proc.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
+const tcltest_cmd_abslist = if (build_options.with_tcltest)
+    @import("../tcltest/cmd_abslist.zig")
+else
+    struct {
+        pub const registrations: [0]reg.CmdEntry = .{};
+    };
 const tcltest_cmd_stubs = if (build_options.with_tcltest)
     @import("../tcltest/cmd_stubs.zig")
 else
@@ -123,6 +159,12 @@ const BUILTINS: []const reg.CmdEntry = &([_]reg.CmdEntry{string_cmd.registration
     tcltest_cmd_eval.registrations ++
     tcltest_cmd_utf.registrations ++
     tcltest_cmd_misc.registrations ++
+    tcltest_cmd_expr.registrations ++
+    tcltest_cmd_dstring.registrations ++
+    tcltest_cmd_assoc.registrations ++
+    tcltest_cmd_var.registrations ++
+    tcltest_cmd_proc.registrations ++
+    tcltest_cmd_abslist.registrations ++
     tcltest_cmd_stubs.registrations);
 
 /// Look up a command by name in the static :data:`BUILTINS` slice.

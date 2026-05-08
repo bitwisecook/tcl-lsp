@@ -71,39 +71,30 @@ fn st_testasync(w: []const i32) result_mod.InterpResult { return stub_named(w, "
 // -- NOT-YET-PORTED stubs --------------------------------------------------
 
 fn st_testdel(w: []const i32) result_mod.InterpResult { return stub_named(w, "testdel", NOT_YET_PORTED); }
-fn st_testdelassocdata(w: []const i32) result_mod.InterpResult { return stub_named(w, "testdelassocdata", NOT_YET_PORTED); }
-fn st_testgetassocdata(w: []const i32) result_mod.InterpResult { return stub_named(w, "testgetassocdata", NOT_YET_PORTED); }
-fn st_testsetassocdata(w: []const i32) result_mod.InterpResult { return stub_named(w, "testsetassocdata", NOT_YET_PORTED); }
+// assoc-data — graduated to cmd_assoc.zig
 fn st_testcmdinfo(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdinfo", NOT_YET_PORTED); }
 fn st_testcmdtoken(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdtoken", NOT_YET_PORTED); }
 fn st_testcmdtrace(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdtrace", NOT_YET_PORTED); }
 fn st_testcmdobj2(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcmdobj2", NOT_YET_PORTED); }
 fn st_testcreatecommand(w: []const i32) result_mod.InterpResult { return stub_named(w, "testcreatecommand", NOT_YET_PORTED); }
 fn st_testinterpdelete(w: []const i32) result_mod.InterpResult { return stub_named(w, "testinterpdelete", NOT_YET_PORTED); }
-fn st_testdstring(w: []const i32) result_mod.InterpResult { return stub_named(w, "testdstring", NOT_YET_PORTED); }
+// testdstring — graduated to cmd_dstring.zig
 fn st_testencoding(w: []const i32) result_mod.InterpResult { return stub_named(w, "testencoding", NOT_YET_PORTED); }
 fn st_testparser(w: []const i32) result_mod.InterpResult { return stub_named(w, "testparser", NOT_YET_PORTED); }
 fn st_testparsevar(w: []const i32) result_mod.InterpResult { return stub_named(w, "testparsevar", NOT_YET_PORTED); }
 fn st_testparsevarname(w: []const i32) result_mod.InterpResult { return stub_named(w, "testparsevarname", NOT_YET_PORTED); }
 fn st_testexprparser(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprparser", NOT_YET_PORTED); }
-fn st_testexprlong(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprlong", NOT_YET_PORTED); }
-fn st_testexprlongobj(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprlongobj", NOT_YET_PORTED); }
-fn st_testexprdouble(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprdouble", NOT_YET_PORTED); }
-fn st_testexprdoubleobj(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprdoubleobj", NOT_YET_PORTED); }
-fn st_testexprstring(w: []const i32) result_mod.InterpResult { return stub_named(w, "testexprstring", NOT_YET_PORTED); }
-fn st_testconcatobj(w: []const i32) result_mod.InterpResult { return stub_named(w, "testconcatobj", NOT_YET_PORTED); }
-fn st_testgetvarfullname(w: []const i32) result_mod.InterpResult { return stub_named(w, "testgetvarfullname", NOT_YET_PORTED); }
-fn st_testupvar(w: []const i32) result_mod.InterpResult { return stub_named(w, "testupvar", NOT_YET_PORTED); }
+// expr cluster (testexprlong/testexprlongobj/testexprdouble/
+// testexprdoubleobj/testexprstring/testconcatobj) — graduated to
+// cmd_expr.zig
+// testupvar / testgetvarfullname — graduated to cmd_var.zig
 fn st_testregexp(w: []const i32) result_mod.InterpResult { return stub_named(w, "testregexp", NOT_YET_PORTED); }
 fn st_testlistrep(w: []const i32) result_mod.InterpResult { return stub_named(w, "testlistrep", NOT_YET_PORTED); }
 fn st_testinterpresolver(w: []const i32) result_mod.InterpResult { return stub_named(w, "testinterpresolver", NOT_YET_PORTED); }
 fn st_test_build_info(w: []const i32) result_mod.InterpResult { return stub_named(w, "::tcl::test::build-info", NOT_YET_PORTED); }
 fn st_test_ns_basic_createdcommand(w: []const i32) result_mod.InterpResult { return stub_named(w, "test_ns_basic::createdcommand", NOT_YET_PORTED); }
-fn st_value_at(w: []const i32) result_mod.InterpResult { return stub_named(w, "value:at:", NOT_YET_PORTED); }
-fn st_lstring(w: []const i32) result_mod.InterpResult { return stub_named(w, "lstring", NOT_YET_PORTED); }
-fn st_lgen(w: []const i32) result_mod.InterpResult { return stub_named(w, "lgen", NOT_YET_PORTED); }
-fn st_procbody_proc(w: []const i32) result_mod.InterpResult { return stub_named(w, "tcl::procbodytest::proc", NOT_YET_PORTED); }
-fn st_procbody_check(w: []const i32) result_mod.InterpResult { return stub_named(w, "tcl::procbodytest::check", NOT_YET_PORTED); }
+// abslist (lstring / lgen / value:at:) — graduated to cmd_abslist.zig
+// procbody — graduated to cmd_proc.zig
 
 pub const registrations = [_]reg.CmdEntry{
     // NOT-PORTABLE
@@ -130,29 +121,21 @@ pub const registrations = [_]reg.CmdEntry{
 
     // NOT-YET-PORTED — graduate one by one
     .{ .name = "testdel", .arity_min = 0, .arity_max = null, .handler = &st_testdel },
-    .{ .name = "testdelassocdata", .arity_min = 0, .arity_max = null, .handler = &st_testdelassocdata },
-    .{ .name = "testgetassocdata", .arity_min = 0, .arity_max = null, .handler = &st_testgetassocdata },
-    .{ .name = "testsetassocdata", .arity_min = 0, .arity_max = null, .handler = &st_testsetassocdata },
+    // assoc-data — graduated to cmd_assoc.zig
     .{ .name = "testcmdinfo", .arity_min = 0, .arity_max = null, .handler = &st_testcmdinfo },
     .{ .name = "testcmdtoken", .arity_min = 0, .arity_max = null, .handler = &st_testcmdtoken },
     .{ .name = "testcmdtrace", .arity_min = 0, .arity_max = null, .handler = &st_testcmdtrace },
     .{ .name = "testcmdobj2", .arity_min = 0, .arity_max = null, .handler = &st_testcmdobj2 },
     .{ .name = "testcreatecommand", .arity_min = 0, .arity_max = null, .handler = &st_testcreatecommand },
     .{ .name = "testinterpdelete", .arity_min = 0, .arity_max = null, .handler = &st_testinterpdelete },
-    .{ .name = "testdstring", .arity_min = 0, .arity_max = null, .handler = &st_testdstring },
+    // testdstring — graduated to cmd_dstring.zig
     .{ .name = "testencoding", .arity_min = 0, .arity_max = null, .handler = &st_testencoding },
     .{ .name = "testparser", .arity_min = 0, .arity_max = null, .handler = &st_testparser },
     .{ .name = "testparsevar", .arity_min = 0, .arity_max = null, .handler = &st_testparsevar },
     .{ .name = "testparsevarname", .arity_min = 0, .arity_max = null, .handler = &st_testparsevarname },
     .{ .name = "testexprparser", .arity_min = 0, .arity_max = null, .handler = &st_testexprparser },
-    .{ .name = "testexprlong", .arity_min = 0, .arity_max = null, .handler = &st_testexprlong },
-    .{ .name = "testexprlongobj", .arity_min = 0, .arity_max = null, .handler = &st_testexprlongobj },
-    .{ .name = "testexprdouble", .arity_min = 0, .arity_max = null, .handler = &st_testexprdouble },
-    .{ .name = "testexprdoubleobj", .arity_min = 0, .arity_max = null, .handler = &st_testexprdoubleobj },
-    .{ .name = "testexprstring", .arity_min = 0, .arity_max = null, .handler = &st_testexprstring },
-    .{ .name = "testconcatobj", .arity_min = 0, .arity_max = null, .handler = &st_testconcatobj },
-    .{ .name = "testgetvarfullname", .arity_min = 0, .arity_max = null, .handler = &st_testgetvarfullname },
-    .{ .name = "testupvar", .arity_min = 0, .arity_max = null, .handler = &st_testupvar },
+    // expr cluster — graduated to cmd_expr.zig
+    // testupvar / testgetvarfullname — graduated to cmd_var.zig
     .{ .name = "testregexp", .arity_min = 0, .arity_max = null, .handler = &st_testregexp },
     .{ .name = "testlistrep", .arity_min = 0, .arity_max = null, .handler = &st_testlistrep },
     .{ .name = "testinterpresolver", .arity_min = 0, .arity_max = null, .handler = &st_testinterpresolver },
@@ -160,15 +143,8 @@ pub const registrations = [_]reg.CmdEntry{
     // Namespace-prefixed test commands
     .{ .name = "::tcl::test::build-info", .arity_min = 0, .arity_max = null, .handler = &st_test_build_info },
     .{ .name = "test_ns_basic::createdcommand", .arity_min = 0, .arity_max = null, .handler = &st_test_ns_basic_createdcommand },
-    .{ .name = "value:at:", .arity_min = 0, .arity_max = null, .handler = &st_value_at },
-
-    // Abstract list demo (tclTestABSList.c)
-    .{ .name = "lstring", .arity_min = 0, .arity_max = null, .handler = &st_lstring },
-    .{ .name = "lgen", .arity_min = 0, .arity_max = null, .handler = &st_lgen },
-
-    // Procbody (tclTestProcBodyObj.c)
-    .{ .name = "tcl::procbodytest::proc", .arity_min = 0, .arity_max = null, .handler = &st_procbody_proc },
-    .{ .name = "tcl::procbodytest::check", .arity_min = 0, .arity_max = null, .handler = &st_procbody_check },
+    // value:at: / lstring / lgen — graduated to cmd_abslist.zig
+    // tcl::procbodytest::proc / check — graduated to cmd_proc.zig
 
     // Trivial helpers (no-op) — also registered via cmd_misc, but
     // these reach BUILTINS via cmd_stubs to keep the trivial set
