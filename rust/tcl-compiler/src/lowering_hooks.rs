@@ -154,18 +154,26 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
             }
             ArgTokenKind::Esc => {
                 // Only fold to the parsed decimal form when the
-                // source spelling already matches the canonical
-                // decimal form.  ``set arg 0005`` must store
-                // ``0005`` verbatim — Tcl preserves the source
+                // source spelling matches the canonical decimal
+                // form **exactly** — including leading / trailing
+                // whitespace.  ``set arg 0005`` must store
+                // ``0005`` verbatim, and ``set x " 5"`` must store
+                // ``" 5"`` verbatim — Tcl preserves the source
                 // string repr; the value only shimmers to int 5
                 // when used as an integer.  Folding eagerly here
-                // would destroy the leading zeros and break
+                // would destroy the original spelling and break
                 // ``puts $arg``, ``string length $arg``, and
-                // ``expr "0005"`` which all care about the
-                // original spelling.  Mirrors upstream commit
-                // ``31f5357f`` (PR #341).
+                // ``expr "0005"`` which all care about it.
+                // ``parse_decimal_int`` itself trims its input, so
+                // comparing against ``value.trim()`` would still
+                // accept leading-whitespace shapes — Copilot
+                // review on PR #376 caught this.  Tighten to
+                // ``value == int_val`` so any whitespace or sign
+                // form different from the canonical produces no
+                // fold.  Mirrors upstream commit ``31f5357f``
+                // (PR #341).
                 if let Some(int_val) = parse_decimal_int(value) {
-                    if int_val == value.trim() {
+                    if value.as_str() == int_val {
                         return Statement::AssignConst {
                             span: cmd.span,
                             name: name.clone(),
@@ -464,9 +472,32 @@ mod tests {
             Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
                 value.clone()
             }
-            other => panic!("expected AssignConst or AssignValue, got {:?}", other),
+            other => panic!("expected AssignConst or AssignValue, got {other:?}"),
         };
         assert_eq!(value, "0005");
+    }
+
+    #[test]
+    fn lower_set_preserves_leading_whitespace_in_value() {
+        // ``parse_decimal_int`` trims its input, so the
+        // ``int_val == value.trim()`` check in ``lower_set`` would
+        // still accept leading-whitespace shapes; the tightened
+        // ``value == int_val`` check rejects them and sends ``" 5"``
+        // through the ``AssignValue`` path with the spelling
+        // preserved (Copilot review on PR #376).  Use the brace
+        // form so the segmenter passes the literal text through
+        // without trimming on its end.
+        let m = crate::lowering::lower_to_ir("set arg { 5}", &CommandRegistry::build_default());
+        let value = match &m.top_level.statements[0] {
+            Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => {
+                value.clone()
+            }
+            other => panic!("expected AssignConst or AssignValue, got {other:?}"),
+        };
+        assert!(
+            value.starts_with(' '),
+            "expected leading whitespace preserved, got {value:?}",
+        );
     }
 
     #[test]
