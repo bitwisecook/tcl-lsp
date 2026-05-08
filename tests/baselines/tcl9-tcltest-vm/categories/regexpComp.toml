@@ -1,0 +1,20 @@
+# regexpComp.test — auto-generated baseline.
+# bucket = 'B0-tcl-error'
+# reason = 'escaped TclError: can\'t read "a": no such variable'
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 142
+observed_passed = 121
+observed_failed = 20
+observed_skipped = 1
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["regexpComp-6.4", "regexpComp-6.5", "regexpComp-6.9", "regexpComp-11.4", "regexpComp-11.5", "regexpComp-11.6", "regexpComp-11.8", "regexpComp-15.6", "regexpComp-16.4", "regexpComp-17.7", "regexpComp-18.7", "regexpComp-18.8", "regexpComp-18.9", "regexpComp-18.10", "regexpComp-18.12", "regexpComp-20.2", "regexpComp-21.6", "regexpComp-21.7", "regexpComp-21.10", "regexpComp-21.11"]

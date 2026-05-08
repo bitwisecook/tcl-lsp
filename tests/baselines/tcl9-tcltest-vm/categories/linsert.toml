@@ -1,0 +1,20 @@
+# linsert.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '4 of 28 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 28
+observed_passed = 24
+observed_failed = 4
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["linsert-1.8", "linsert-1.15", "linsert-1.16", "linsert-3.2"]

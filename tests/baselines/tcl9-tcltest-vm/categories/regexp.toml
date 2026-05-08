@@ -1,0 +1,20 @@
+# regexp.test — auto-generated baseline.
+# bucket = 'B-mixed-fail'
+# reason = '48 of 257 failed'
+trap_allowed = false
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 257
+observed_passed = 204
+observed_failed = 48
+observed_skipped = 5
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["regexp-2.9", "regexp-2.10", "regexp-6.4", "regexp-6.5", "regexp-6.9", "regexp-6.10", "regexp-11.4", "regexp-11.5", "regexp-11.6", "regexp-11.8", "regexp-15.6", "regexp-15.9", "regexp-15.10", "regexp-16.4", "regexp-16.7", "regexp-16.8", "regexp-16.20", "regexp-16.21", "regexp-16.22", "regexp-17.7", "regexp-18.7", "regexp-18.8", "regexp-18.9", "regexp-18.10", "regexp-18.12", "regexp-20.2", "regexp-22.4", "regexp-22.5", "regexp-23.2", "regexp-23.3", "regexp-24.1", "regexp-24.2", "regexp-24.3", "regexp-24.4", "regexp-24.5", "regexp-24.6", "regexp-24.7", "regexp-24.8", "regexp-24.9", "regexp-24.10", "regexp-25.1", "regexp-26.8", "regexp-26.9", "regexp-26.10", "regexp-26.11", "regexp-26.12", "regexp-26.13", "regexp-27.8"]

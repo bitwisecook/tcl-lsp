@@ -1,0 +1,20 @@
+# info.test — auto-generated baseline.
+# bucket = 'B0-host-exception'
+# reason = "ValueError leak: invalid literal for int() with base 10: '123a'"
+trap_allowed = true
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
+observed_total = 59
+observed_passed = 48
+observed_failed = 10
+observed_skipped = 0
+
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["info-2.3", "info-3.1", "info-3.2", "info-3.3", "info-3.4", "info-4.5", "info-7.9", "info-8.3", "info-8.4", "info-9.5"]
