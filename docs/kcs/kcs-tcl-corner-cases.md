@@ -68,6 +68,28 @@ can spot regressions if the version of Tcl ever changes.
 | `${a\}b}` | reads var named `a\}b` (4 chars, **including** the literal `\`) | tclParse.c §`Tcl_ParseVarName`: `\X` consumes 2 chars, `}` doesn't close |
 | `${a{b}c}` | reads var named `a{b}c` | inner `{...}` are tracked with brace counting |
 
+### `${name}` vs `::${name}` -- adjacency
+
+These look similar but parse very differently:
+
+| Form | Parse | Result |
+|---|---|---|
+| `${::tracevar}` | one VAR token, name = `::tracevar` | qualified-global lookup |
+| `::${tracevar}` | literal `::` + VAR(`tracevar`) | concatenation: `"::" + value` |
+| `::${::tracevar}` | literal `::` + VAR(`::tracevar`) | `"::" + value-of-::tracevar` |
+
+The `::` *outside* `${...}` is plain literal text, not part of the variable name.  Cross-checked on tclsh 9.0.3 -- ``set ::tracevar GLOB; puts "::${tracevar}"`` prints `::<value-of-local-tracevar>` (NOT the global), while ``puts ${::tracevar}`` prints `GLOB`.
+
+### Mixed bare/brace namespace forms don't compose
+
+| Form | Tcl 9.0.3 result |
+|---|---|
+| `$::myns::x` (all-bare with qualified name) | reads `::myns::x` correctly |
+| `${::myns::x}` (all-brace) | reads `::myns::x` correctly |
+| `$::myns::${suffix}` (bare prefix + brace) | **fails** -- bare form lookups `::myns::` (with trailing `::`) and errors |
+
+The bare-form parser stops at the `$` of the brace form (since `$` isn't a name char), so `$::myns::${suffix}` is two separate tokens: a bare-form lookup of `::myns::` (which fails) and a brace-form lookup of `suffix`.  To compute a qualified name dynamically, build the full name via ``set name "::myns::${suffix}"; set $name`` instead.
+
 **Key surprise:** the Tcl(n) man page says "There is no further
 substitution or modification" inside `${name}`, but in practice the
 parser **does** recognise `\X` (2-char escape) and **does** track
@@ -163,6 +185,22 @@ set "weird}name" 42
 | `{x is $x}` | no — braces are literal |
 | `"literal \$x"` | no — `\$` is escape |
 | `"[expr {2+2}] is four"` | yes — `[...]` substitutes |
+
+### Backslash counting -- quotes vs braces
+
+A subtle source of mismatches: how many backslashes survive into the runtime variable name depends on which quoting form encloses the `set` argument.
+
+| Source | Runtime var name (hex) | Why |
+|---|---|---|
+| `set "back\slash" 1` | `backslash` (9 bytes, no `\`) | quoted-arg parsing drops `\` for unknown escapes |
+| `set "back\\slash" 1` | `back\slash` (10 bytes, 1 `\`) | `\\` → `\`, then `\s` → ... wait no, actually `\\` consumed first, then `slash` is plain |
+| `set "back\\\slash" 1` | `back\slash` (10 bytes, 1 `\`) | `\\\s` parses as `\\` then `\s`: `\` + `s` = `\s` literal? No: `\\` → `\` (1 byte), then `\s` → `s` (drop `\`).  Final: `back\s slash` -- wait test says 10 bytes total = `back\slash` |
+| `set {back\slash} 1` | `back\slash` (10 bytes, 1 `\`) | braces preserve literally |
+| `set {back\\\slash} 1` | `back\\\slash` (12 bytes, 3 `\`) | braces preserve literally -- 3 in, 3 out |
+
+**Key takeaway:** `"..."` applies backslash subst (drops `\` before unknown chars, collapses `\\` to `\`).  `{...}` preserves every byte literally.  Three backslashes in a quoted arg collapse to **one**; three backslashes in a braced arg stay as **three**.
+
+Verified empirically against tclsh 9.0.3 -- see `tests/data/tcl_probes_definitive.tcl` §A.
 
 ## Known divergences in our analyser/lexer
 

@@ -254,6 +254,41 @@ class TestBracedVarSpecialChars:
         assert toks[0].type == TokenType.VAR
         assert toks[0].text == "a\\\\b"
 
+    def test_namespace_qualified_brace_form(self):
+        """``${::tracevar}`` -- the entire ``::tracevar`` is the var
+        name (qualified-global lookup).  Single VAR token."""
+        toks = lex("${::tracevar}")
+        assert toks[0].type == TokenType.VAR
+        assert toks[0].text == "::tracevar"
+
+    def test_literal_colons_then_brace_form(self):
+        """``::${tracevar}`` is two tokens -- literal ``::`` text
+        followed by a brace-form VAR(``tracevar``).  This is NOT a
+        qualified-global lookup; the ``::`` is just literal text
+        concatenated with the value of ``tracevar``.  Cross-checked
+        on tclsh 9.0.3."""
+        toks = lex("::${tracevar}")
+        assert len(toks) >= 2
+        # First token is literal ``::``, second is the VAR.
+        first_text_or_var_toks = [t for t in toks if t.type in (TokenType.ESC, TokenType.VAR)]
+        assert first_text_or_var_toks[0].type == TokenType.ESC
+        assert first_text_or_var_toks[0].text == "::"
+        assert first_text_or_var_toks[1].type == TokenType.VAR
+        assert first_text_or_var_toks[1].text == "tracevar"
+
+    def test_bare_qualified_then_brace_does_not_compose(self):
+        """``$::myns::${suffix}`` is two tokens -- bare-form VAR with
+        trailing ``::`` (which fails at runtime) plus a brace-form
+        VAR(``suffix``).  Mixed bare/brace namespace forms don't
+        compose: the bare-form parser stops at ``$`` of ``${...}``,
+        leaving a trailing ``::`` in the bare name.  Verified against
+        tclsh 9.0.3 (which errors with `can't read "::myns::"`)."""
+        toks = lex("$::myns::${suffix}")
+        var_toks = [t for t in toks if t.type == TokenType.VAR]
+        assert len(var_toks) == 2
+        assert var_toks[0].text == "::myns::"
+        assert var_toks[1].text == "suffix"
+
     def test_braced_var_with_equals_and_colons(self):
         """``${foo::bar=baz}``: all of ``::`` and ``=`` are part of name."""
         toks = lex("${foo::bar=baz}")
