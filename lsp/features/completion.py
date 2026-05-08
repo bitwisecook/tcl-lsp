@@ -247,19 +247,46 @@ def get_completions(
     items: list[types.CompletionItem] = []
 
     if trigger == "$":
-        # Variable completion
+        # Variable completion.  We always insert the leading ``$`` (and a closing
+        # ``}`` when the user typed ``${``) via an explicit TextEdit, otherwise
+        # VS Code's word-based replacement deletes the typed ``$`` (issue #357).
+        var_lines = lines if lines is not None else source.split("\n")
+        line_text_for_var = var_lines[line] if line < len(var_lines) else ""
+        dollar_col = character - 1
+        while dollar_col >= 0 and line_text_for_var[dollar_col] != "$":
+            dollar_col -= 1
+        has_open_brace = (
+            dollar_col >= 0
+            and dollar_col + 1 < len(line_text_for_var)
+            and line_text_for_var[dollar_col + 1] == "{"
+        )
+        has_close_brace = character < len(line_text_for_var) and line_text_for_var[character] == "}"
+        end_col = character + 1 if (has_open_brace and has_close_brace) else character
+        var_edit_range: types.Range | None = None
+        if dollar_col >= 0:
+            var_edit_range = types.Range(
+                start=types.Position(line=line, character=dollar_col),
+                end=types.Position(line=line, character=end_col),
+            )
+
+        def _make_var_item(name: str, *, detail: str | None = None) -> types.CompletionItem:
+            new_text = f"${{{name}}}" if has_open_brace else f"${name}"
+            item = types.CompletionItem(
+                label=f"${name}",
+                kind=types.CompletionItemKind.Variable,
+                insert_text=new_text,
+                detail=detail,
+            )
+            if var_edit_range is not None:
+                item.text_edit = types.TextEdit(range=var_edit_range, new_text=new_text)
+            return item
+
         scope = find_scope_at_line(analysis.global_scope, line)
         var_names = _collect_vars_from_scope(scope)
         for name in var_names:
             if partial and not name.startswith(partial.lstrip("{")):
                 continue
-            items.append(
-                types.CompletionItem(
-                    label=f"${name}",
-                    kind=types.CompletionItemKind.Variable,
-                    insert_text=name,
-                )
-            )
+            items.append(_make_var_item(name))
         # Cross-file RULE_INIT variables
         if workspace_rule_init_vars:
             existing = {item.label for item in items}
@@ -269,14 +296,7 @@ def get_completions(
                     continue
                 if partial and not name.startswith(partial.lstrip("{")):
                     continue
-                items.append(
-                    types.CompletionItem(
-                        label=label,
-                        kind=types.CompletionItemKind.Variable,
-                        insert_text=name,
-                        detail="RULE_INIT (cross-file)",
-                    )
-                )
+                items.append(_make_var_item(name, detail="RULE_INIT (cross-file)"))
 
     elif trigger == "sub":
         # Subcommand completion

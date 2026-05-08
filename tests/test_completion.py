@@ -84,6 +84,48 @@ class TestVariableCompletion:
         labels = [i.label for i in items]
         assert "$nsVar" in labels
 
+    def test_dollar_text_edit_replaces_dollar_sign(self):
+        """After typing '$', the completion must replace '$' with '$name' so
+        VS Code does not delete the leading dollar (issue #357)."""
+        source = "set testvar Test\nputs $"
+        items = get_completions(source, 1, 6)
+        by_label = {i.label: i for i in items}
+        assert "$testvar" in by_label
+        item = by_label["$testvar"]
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        # Edit replaces the typed '$' (col 5) up to the cursor (col 6).
+        assert item.text_edit.range.start.line == 1
+        assert item.text_edit.range.start.character == 5
+        assert item.text_edit.range.end.character == 6
+        assert item.text_edit.new_text == "$testvar"
+
+    def test_dollar_text_edit_replaces_partial_var_name(self):
+        """Typing '$gre' and completing should replace '$gre' with '$greeting'."""
+        source = "set greeting hello\nputs $gre"
+        items = get_completions(source, 1, 9)
+        by_label = {i.label: i for i in items}
+        assert "$greeting" in by_label
+        item = by_label["$greeting"]
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        assert item.text_edit.range.start.character == 5
+        assert item.text_edit.range.end.character == 9
+        assert item.text_edit.new_text == "$greeting"
+
+    def test_dollar_text_edit_brace_form(self):
+        """Typing '${gre' should complete to '${greeting}' with closing brace."""
+        source = "set greeting hello\nputs ${gre"
+        items = get_completions(source, 1, 10)
+        by_label = {i.label: i for i in items}
+        assert "$greeting" in by_label
+        item = by_label["$greeting"]
+        assert item.text_edit is not None
+        assert isinstance(item.text_edit, TextEdit)
+        assert item.text_edit.range.start.character == 5
+        assert item.text_edit.range.end.character == 10
+        assert item.text_edit.new_text == "${greeting}"
+
 
 class TestSubcommandCompletion:
     def test_string_subcommands(self):
