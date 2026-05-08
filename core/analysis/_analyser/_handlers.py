@@ -82,7 +82,11 @@ class _AnalyserHandlersMixin(_Base):
         if cmd_name == "global":
             for i, arg_text in enumerate(args):
                 if i < len(arg_tokens):
-                    self._define_var(arg_text, arg_tokens[i], scope, warn_if_unused=False)
+                    # Tcl strips any namespace qualifiers from the alias
+                    # name -- ``global ::foo`` creates a local variable
+                    # called ``foo`` (not ``::foo``).
+                    local_name = arg_text.rsplit("::", 1)[-1] or arg_text
+                    self._define_var(local_name, arg_tokens[i], scope, warn_if_unused=False)
             return
 
         i = 0

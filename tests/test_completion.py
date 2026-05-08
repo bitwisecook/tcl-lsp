@@ -283,6 +283,23 @@ class TestVariableCompletion:
         assert "$::other::baz" in labels
         assert "$foo" not in labels  # Filtered: doesn't start with ``::ot``.
 
+    def test_dollar_completion_offers_global_local_alias(self):
+        """``global foo`` and ``global ::foo`` both create a local alias
+        named ``foo`` in the proc, so completion offers both ``$foo`` (the
+        local alias / minimal form) and ``$::foo`` (qualified)."""
+        for decl in ("global myglobal", "global ::myglobal"):
+            src = textwrap.dedent(f"""\
+                set ::myglobal 9
+                proc p {{}} {{
+                    {decl}
+                    puts $
+                }}
+            """)
+            items = get_completions(src, 3, 10)
+            labels = sorted(i.label for i in items if i.label.startswith("$"))
+            assert "$myglobal" in labels, f"missing bare alias for {decl!r}: {labels}"
+            assert "$::myglobal" in labels, f"missing qualified for {decl!r}: {labels}"
+
     def test_dollar_completion_offers_upvar_alias(self):
         """``upvar 1 caller_var alias`` registers ``alias`` as a local so
         completion offers ``$alias`` even before any ``set alias ...``."""
