@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-wasmtime = pytest.importorskip("wasmtime", reason="wasmtime not installed")
+pytest.importorskip("wasmtime", reason="wasmtime not installed")
 
 from tests.test_wasm_real_tcl import _compile_tcl, _run_wasm  # noqa: E402
 

@@ -28,16 +28,19 @@ def word_piece(tok: Token) -> str:
     """
     if tok.type is TokenType.VAR:
         # Detect braced ``${...}`` vs bare ``$name`` form from the
-        # token span.  Bare ``$name`` adds one source char (the
-        # ``$``) over the text; braced ``${name}`` adds three (``${``
-        # plus closing ``}``).  Earlier this used ``span > len(text)``
-        # which is true for *both* forms — the resulting false-positive
-        # silently re-quoted bare ``$arr(key)`` as ``$={arr(key)}``,
-        # collapsing array-element reads into scalar lookups of the
-        # literal name (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)`` and
-        # every eval-fallback that re-emits the source spelling).
+        # token span.  ``Token.end.offset`` is the position of the
+        # *last* source byte covered by the token (inclusive — see
+        # ``core/parsing/lexer.py``); ``tok.text`` excludes the
+        # leading ``$`` for bare and excludes both braces for
+        # ``${…}``.  Net delta is 0 for bare and 1 for braced
+        # (the leading ``$`` and the closing ``}`` cancel against
+        # the omitted ``${``+``}`` so only one source char is
+        # un-accounted-for in the braced form).  An earlier
+        # ``>= 2`` test never fired and silently flipped braced
+        # array-shaped names into bare array-element reads
+        # (Copilot review on PR #382).
         span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
-        is_braced = span_extra >= 2
+        is_braced = span_extra >= 1
         if is_braced and "(" in tok.text and tok.text.endswith(")"):
             # Braced form with array-like name: ${a(1)} is a scalar,
             # NOT an array access.  Mark with $= prefix so codegen
@@ -45,7 +48,10 @@ def word_piece(tok: Token) -> str:
             return f"$={{{tok.text}}}"
         # Bare ``$arr(idx)`` — pass through verbatim so the array
         # element lookup keeps its substitution semantics on the
-        # eval-fallback path.
+        # eval-fallback path.  Without this, the ``${…}`` wrapper
+        # below collapses bare array refs into scalar lookups of
+        # the literal name (cmdAH-1.4 / 1.5
+        # ``$numargErrors($cmd)``).
         if not is_braced and "(" in tok.text and tok.text.endswith(")"):
             return "$" + tok.text
         # Use ${name} form only when the name doesn't contain '}'.

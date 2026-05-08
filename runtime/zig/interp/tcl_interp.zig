@@ -3313,16 +3313,24 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
         "\n    invoked from within\n\"";
     const ellipsis = "...";
     const suffix = "\"";
-    var total: u32 = cur_s.len + @as(u32, @intCast(prefix.len)) + trunc_len;
+    // ``cur_len`` collapses ``cur_s`` to the effective copyable
+    // length: the loop below skips when ``cur_s.ptr == 0`` (a stale
+    // string rep with no backing buffer).  Without folding the same
+    // skip into ``total`` the allocator reserves ``cur_s.len`` bytes
+    // we never write, and ``obj_new_string_take`` publishes those
+    // uninitialised bytes as the leading ``::errorInfo`` content
+    // (Codex P2 review on PR #382).
+    const cur_len: u32 = if (cur_s.ptr != 0) cur_s.len else 0;
+    var total: u32 = cur_len + @as(u32, @intCast(prefix.len)) + trunc_len;
     if (need_ellipsis) total += @as(u32, @intCast(ellipsis.len));
     total += @as(u32, @intCast(suffix.len));
     const buf = obj_mod.alloc(total);
     if (buf == 0) return;
     const dst: [*]u8 = @ptrFromInt(buf);
     var off: u32 = 0;
-    if (cur_s.len > 0 and cur_s.ptr != 0) {
+    if (cur_len > 0) {
         const csp: [*]const u8 = @ptrFromInt(cur_s.ptr);
-        for (0..cur_s.len) |k| {
+        for (0..cur_len) |k| {
             dst[off] = csp[k];
             off += 1;
         }
@@ -3331,7 +3339,9 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
         dst[off] = b;
         off += 1;
     }
-    if (script_ptr + cmd_start == 0) return;
+    // ``script_ptr == 0`` was already filtered at function entry,
+    // so by here ``script_ptr + cmd_start`` is non-zero and the
+    // ``@ptrFromInt`` cast cannot panic.
     const cmdp: [*]const u8 = @ptrFromInt(script_ptr + cmd_start);
     for (0..trunc_len) |k| {
         dst[off] = cmdp[k];
