@@ -198,43 +198,40 @@ impl CodegenCtx<'_> {
     /// Handles literal amounts (immediate or pushed), and variable
     /// amounts (load + incr).  For non-proc contexts, falls back to
     /// `invokeStk` when the amount is large or complex.
-    // Long match dispatcher over value-emit forms.
-    #[allow(clippy::too_many_lines)]
     pub fn emit_incr(&mut self, name: &str, amount: Option<&str>) {
         if self.is_proc && !is_qualified(name) {
-            let slot = self.lvt.intern(name);
-            match amount {
-                None => {
-                    self.emit_comment(
-                        Op::INCR_SCALAR1_IMM,
-                        vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(1)],
-                        &format!("var \"{name}\""),
-                    );
-                }
-                Some(amt) if is_integer_literal(amt) => {
-                    if let Ok(imm) = amt.parse::<i64>() {
-                        if (-128..=127).contains(&imm) {
-                            self.emit_comment(
-                                Op::INCR_SCALAR1_IMM,
-                                vec![
-                                    Operand::Imm(bytecode_imm(slot)),
-                                    Operand::Imm(
-                                        i32::try_from(imm)
-                                            .expect("incr literal fits in i32 after range check"),
-                                    ),
-                                ],
-                                &format!("var \"{name}\""),
-                            );
-                        } else {
-                            self.push_lit(amt);
-                            self.emit_comment(
-                                Op::INCR_SCALAR1,
-                                vec![Operand::Imm(bytecode_imm(slot))],
-                                &format!("var \"{name}\""),
-                            );
-                        }
+            self.emit_incr_local(name, amount);
+        } else {
+            self.emit_incr_global_or_array(name, amount);
+        }
+    }
+
+    /// `incr` against a local proc slot (LVT).
+    fn emit_incr_local(&mut self, name: &str, amount: Option<&str>) {
+        let slot = self.lvt.intern(name);
+        match amount {
+            None => {
+                self.emit_comment(
+                    Op::INCR_SCALAR1_IMM,
+                    vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(1)],
+                    &format!("var \"{name}\""),
+                );
+            }
+            Some(amt) if is_integer_literal(amt) => {
+                if let Ok(imm) = amt.parse::<i64>() {
+                    if (-128..=127).contains(&imm) {
+                        self.emit_comment(
+                            Op::INCR_SCALAR1_IMM,
+                            vec![
+                                Operand::Imm(bytecode_imm(slot)),
+                                Operand::Imm(
+                                    i32::try_from(imm)
+                                        .expect("incr literal fits in i32 after range check"),
+                                ),
+                            ],
+                            &format!("var \"{name}\""),
+                        );
                     } else {
-                        // Overflow — fall back to push + incr
                         self.push_lit(amt);
                         self.emit_comment(
                             Op::INCR_SCALAR1,
@@ -242,11 +239,9 @@ impl CodegenCtx<'_> {
                             &format!("var \"{name}\""),
                         );
                     }
-                }
-                Some(amt) => {
-                    // Variable amount — try to resolve as ${var} reference
-                    let var_ref = parse_simple_var_ref(amt);
-                    self.load_var(var_ref.unwrap_or(amt));
+                } else {
+                    // Overflow — fall back to push + incr
+                    self.push_lit(amt);
                     self.emit_comment(
                         Op::INCR_SCALAR1,
                         vec![Operand::Imm(bytecode_imm(slot))],
@@ -254,72 +249,82 @@ impl CodegenCtx<'_> {
                     );
                 }
             }
-        } else {
-            let arr = split_array_ref(name);
-            match amount {
-                None => {
-                    if let Some((base, elem)) = arr {
-                        self.push_lit(base);
-                        self.push_lit(elem);
-                        self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(1)]);
-                    } else {
-                        self.push_lit(name);
-                        self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(1)]);
-                    }
+            Some(amt) => {
+                // Variable amount — try to resolve as ${var} reference
+                let var_ref = parse_simple_var_ref(amt);
+                self.load_var(var_ref.unwrap_or(amt));
+                self.emit_comment(
+                    Op::INCR_SCALAR1,
+                    vec![Operand::Imm(bytecode_imm(slot))],
+                    &format!("var \"{name}\""),
+                );
+            }
+        }
+    }
+
+    /// `incr` against a global / qualified / array element.
+    fn emit_incr_global_or_array(&mut self, name: &str, amount: Option<&str>) {
+        let arr = split_array_ref(name);
+        match amount {
+            None => {
+                if let Some((base, elem)) = arr {
+                    self.push_lit(base);
+                    self.push_lit(elem);
+                    self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(1)]);
+                } else {
+                    self.push_lit(name);
+                    self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(1)]);
                 }
-                Some(amt) if is_integer_literal(amt) => {
-                    if let Ok(imm) = amt.parse::<i64>() {
-                        if (-128..=127).contains(&imm) {
-                            if let Some((base, elem)) = arr {
-                                self.push_lit(base);
-                                self.push_lit(elem);
-                                self.emit(
-                                    Op::INCR_ARRAY_STK_IMM,
-                                    vec![Operand::Imm(
-                                        i32::try_from(imm)
-                                            .expect("incr literal fits in i32 after range check"),
-                                    )],
-                                );
-                            } else {
-                                self.push_lit(name);
-                                self.emit(
-                                    Op::INCR_STK_IMM,
-                                    vec![Operand::Imm(
-                                        i32::try_from(imm)
-                                            .expect("incr literal fits in i32 after range check"),
-                                    )],
-                                );
-                            }
+            }
+            Some(amt) if is_integer_literal(amt) => {
+                if let Ok(imm) = amt.parse::<i64>() {
+                    if (-128..=127).contains(&imm) {
+                        if let Some((base, elem)) = arr {
+                            self.push_lit(base);
+                            self.push_lit(elem);
+                            self.emit(
+                                Op::INCR_ARRAY_STK_IMM,
+                                vec![Operand::Imm(
+                                    i32::try_from(imm)
+                                        .expect("incr literal fits in i32 after range check"),
+                                )],
+                            );
                         } else {
-                            // Large increment — fall back to invokeStk
-                            self.push_lit("incr");
                             self.push_lit(name);
-                            self.push_lit(amt);
-                            self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
+                            self.emit(
+                                Op::INCR_STK_IMM,
+                                vec![Operand::Imm(
+                                    i32::try_from(imm)
+                                        .expect("incr literal fits in i32 after range check"),
+                                )],
+                            );
                         }
                     } else {
-                        // Overflow — fall back to invokeStk
-                        self.push_lit("incr");
-                        self.push_lit(name);
-                        self.push_lit(amt);
-                        self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
+                        self.invoke_incr_fallback(name, amt);
                     }
+                } else {
+                    self.invoke_incr_fallback(name, amt);
                 }
-                Some(amt) => {
-                    let var_ref = parse_simple_var_ref(amt);
-                    if let (None, Some(vr)) = (arr, var_ref) {
-                        self.push_lit(name);
-                        self.load_var(vr);
-                        self.emit(Op::INCR_STK, vec![]);
-                    } else {
-                        self.push_lit("incr");
-                        self.push_lit(name);
-                        self.push_lit(amt);
-                        self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
-                    }
+            }
+            Some(amt) => {
+                let var_ref = parse_simple_var_ref(amt);
+                if let (None, Some(vr)) = (arr, var_ref) {
+                    self.push_lit(name);
+                    self.load_var(vr);
+                    self.emit(Op::INCR_STK, vec![]);
+                } else {
+                    self.invoke_incr_fallback(name, amt);
                 }
             }
         }
+    }
+
+    /// Fallback: emit `incr name amt` as a generic invokeStk1.
+    fn invoke_incr_fallback(&mut self, name: &str, amt: &str) {
+        self.push_lit("incr");
+        self.push_lit(name);
+        self.push_lit(amt);
+        self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
     }
 }
 

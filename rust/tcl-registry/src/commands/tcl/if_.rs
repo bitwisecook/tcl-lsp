@@ -76,6 +76,7 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY,
         arity: Arity::at_least(2),
         arg_role_resolver: Some(if_arg_roles),
+        lowering_hook: Some(crate::hooks::LoweringHookId::If),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,

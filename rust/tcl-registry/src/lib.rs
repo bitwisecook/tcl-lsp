@@ -32,6 +32,7 @@
 
 pub mod arg_role;
 pub mod arity;
+pub mod body_kind;
 pub mod commands;
 pub mod dialects;
 pub mod events;
@@ -53,6 +54,7 @@ pub mod types;
 pub mod prelude {
     pub use crate::arg_role::ArgRole;
     pub use crate::arity::Arity;
+    pub use crate::body_kind::BodyKind;
     pub use crate::dialects::DialectSet;
     pub use crate::forms::{CommandForm, SubCommandForm};
     pub use crate::hooks::{ArgTypeHint, CodegenHookId, LoweringHookId, WasmCodegenHookId};
@@ -66,6 +68,7 @@ pub mod prelude {
 // Re-export key types at crate root.
 pub use arg_role::ArgRole;
 pub use arity::Arity;
+pub use body_kind::BodyKind;
 pub use registry::{CommandRegistry, ResolvedTerminator};
 pub use spec::{CommandSpec, SubCommand};
 pub use traits::Traits;

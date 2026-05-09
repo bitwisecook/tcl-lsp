@@ -18,6 +18,7 @@ use crate::ir::{Module, Script, Statement};
 use crate::ir_helpers::defs_from_ir_script;
 
 mod cfg_lower;
+pub mod upvar_info;
 
 /// Mutable block used during construction, frozen into [`Block`] at the end.
 struct MutableBlock {
@@ -148,6 +149,7 @@ impl CfgBuilder {
                                 span: *span,
                                 reason: "frozen for (cmd-subst condition)".into(),
                                 command: "for".into(),
+                                canonical_command: None,
                                 args: raw_args.clone(),
                                 tokens: None,
                             });
@@ -169,6 +171,7 @@ impl CfgBuilder {
                                 span: *span,
                                 reason: "frozen while (cmd-subst condition)".into(),
                                 command: "while".into(),
+                                canonical_command: None,
                                 args: raw_args.clone(),
                                 tokens: None,
                             });
@@ -251,6 +254,7 @@ impl CfgBuilder {
                 span: *span,
                 reason: "dict for/map".into(),
                 command: qual_cmd,
+                canonical_command: None,
                 args: raw_args[1..].to_vec(),
                 tokens: None,
             });
@@ -267,6 +271,7 @@ impl CfgBuilder {
             self.block_mut(current).statements.push(Statement::Call {
                 span: *span,
                 command: cmd.into(),
+                canonical_command: None,
                 args: raw_args.clone(),
                 defs: loop_vars,
                 reads: vec![],
@@ -315,6 +320,7 @@ impl CfgBuilder {
         self.block_mut(current).statements.push(Statement::Call {
             span: *span,
             command: "catch".into(),
+            canonical_command: None,
             args: raw_args.clone(),
             defs: catch_defs,
             reads: vec![],
@@ -361,6 +367,7 @@ impl CfgBuilder {
             self.block_mut(current).statements.push(Statement::Call {
                 span: *span,
                 command: "try".into(),
+                canonical_command: None,
                 args: raw_args.clone(),
                 defs: try_defs,
                 reads: vec![],

@@ -732,6 +732,7 @@ mod tests {
         Statement::Call {
             span: tcl_lexer::Span::new(0, 0),
             command: cmd.into(),
+            canonical_command: None,
             args: args.iter().map(|s| (*s).into()).collect(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -747,6 +748,7 @@ mod tests {
             span: tcl_lexer::Span::new(0, 0),
             reason: "test".into(),
             command: cmd.into(),
+            canonical_command: None,
             args: args.iter().map(|s| (*s).into()).collect(),
             tokens: None,
         }

@@ -270,8 +270,8 @@ pub enum Op {
 impl Op {
     /// Disassembly mnemonic.
     // Flat opcode → mnemonic match arm; one entry per opcode.
-    #[allow(clippy::too_many_lines)]
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub const fn mnemonic(self) -> &'static str {
         match self {
             Self::PUSH1 => "push1",

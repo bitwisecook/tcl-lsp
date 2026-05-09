@@ -106,6 +106,7 @@ fn call_generates_invoke() {
     let cfg = toplevel_with(vec![Statement::Call {
         span: sp(),
         command: "puts".into(),
+        canonical_command: None,
         args: vec!["hello".into()],
         defs: vec![],
         reads: vec![],
@@ -370,6 +371,7 @@ fn foreach_emits_native_opcodes() {
         .push(Statement::Call {
             span: sp(),
             command: "foreach".into(),
+            canonical_command: None,
             args: vec!["${lst}".into()],
             defs: vec!["i".into()],
             reads: vec![],
@@ -425,6 +427,7 @@ fn foreach_emits_native_opcodes() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn complex_foreach_body_emits_step_at_end() {
     // Build a foreach whose body is a branch (if condition → break).
     //   foreach_header_1 ─branch─→ foreach_body_1 (empty, if cond)
@@ -457,6 +460,7 @@ fn complex_foreach_body_emits_step_at_end() {
         .push(Statement::Call {
             span: sp(),
             command: "foreach".into(),
+            canonical_command: None,
             args: vec!["${lst}".into()],
             defs: vec!["i".into()],
             reads: vec![],
@@ -495,6 +499,7 @@ fn complex_foreach_body_emits_step_at_end() {
         .push(Statement::Call {
             span: sp(),
             command: "break".into(),
+            canonical_command: None,
             args: vec![],
             defs: vec![],
             reads: vec![],
@@ -633,6 +638,8 @@ fn codegen_module_with_no_procs() {
         redefined_procedures: HashSet::new(),
         namespace_imports: Vec::new(),
         namespace_exports: Vec::new(),
+        traced_commands: std::collections::BTreeSet::new(),
+        has_dynamic_trace: false,
     };
     let registry = CommandRegistry::build_default();
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry);

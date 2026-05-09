@@ -243,9 +243,151 @@ fn is_eval_block(tokens: Option<&CommandTokens>) -> bool {
 /// Tree-walk variant used inside literal `eval` bodies. The
 /// statements aren't part of the enclosing SSA, so we tag every
 /// name escape at the caller's current version (via *defs* /
-/// `version_for`).
-// Long match dispatcher over CFG-propagation handler shapes.
-#[allow(clippy::too_many_lines)]
+fn tree_assign_or_incr(
+    stmt: &Statement,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) -> bool {
+    match stmt {
+        Statement::AssignConst { name, value, .. }
+        | Statement::AssignValue { name, value, .. } => {
+            if name.is_empty() || is_dynamic_name(name) {
+                state.mark_pessimistic();
+                return true;
+            }
+            state.escape(name, defs);
+            apply_value_scan(value, state, defs);
+            true
+        }
+        Statement::AssignExpr { name, expr, .. } => {
+            if name.is_empty() || is_dynamic_name(name) {
+                state.mark_pessimistic();
+                return true;
+            }
+            state.escape(name, defs);
+            apply_expr_scan(Some(expr), state, defs);
+            true
+        }
+        Statement::Incr { name, amount, .. } => {
+            if name.is_empty() || is_dynamic_name(name) {
+                state.mark_pessimistic();
+                return true;
+            }
+            state.escape(name, defs);
+            if let Some(a) = amount {
+                apply_value_scan(a, state, defs);
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+fn tree_call_or_barrier(
+    stmt: &Statement,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) -> bool {
+    match stmt {
+        Statement::Call {
+            defs: call_defs,
+            reads,
+            ..
+        } => {
+            for n in call_defs.iter().chain(reads.iter()) {
+                if !n.is_empty() && !is_dynamic_token(n) {
+                    state.escape(n, defs);
+                }
+            }
+            handle_call(stmt, state, defs);
+            true
+        }
+        Statement::Barrier { command, args, .. } => {
+            handle_barrier(command, args, state, defs);
+            true
+        }
+        Statement::UpFrame { tokens, .. } => {
+            let args = synthesise_uplevel_args(tokens.as_ref());
+            handle_barrier("uplevel", &args, state, defs);
+            true
+        }
+        Statement::Block { body, tokens, .. } => {
+            if is_eval_block(tokens.as_ref()) {
+                let args = synthesise_eval_args(tokens.as_ref());
+                handle_barrier("eval", &args, state, defs);
+            } else {
+                escape_every_name_touched_tree(&body.statements, state, defs);
+            }
+            true
+        }
+        Statement::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                apply_value_scan(v, state, defs);
+            }
+            apply_expr_scan(expr.as_ref(), state, defs);
+            true
+        }
+        Statement::ExprEval { expr, .. } => {
+            apply_expr_scan(Some(expr), state, defs);
+            true
+        }
+        _ => false,
+    }
+}
+
+fn tree_structural(stmt: &Statement, state: &mut CfgState, defs: &HashMap<String, Version>) {
+    match stmt {
+        Statement::If { clauses, else_body, .. } => {
+            for c in clauses {
+                apply_expr_scan(Some(&c.condition), state, defs);
+                escape_every_name_touched_tree(&c.body.statements, state, defs);
+            }
+            if let Some(b) = else_body {
+                escape_every_name_touched_tree(&b.statements, state, defs);
+            }
+        }
+        Statement::For { init, condition, next, body, .. } => {
+            escape_every_name_touched_tree(&init.statements, state, defs);
+            apply_expr_scan(Some(condition), state, defs);
+            escape_every_name_touched_tree(&next.statements, state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs);
+        }
+        Statement::While { condition, body, .. } => {
+            apply_expr_scan(Some(condition), state, defs);
+            escape_every_name_touched_tree(&body.statements, state, defs);
+        }
+        Statement::Foreach { iterators, body, .. } => {
+            for it in iterators {
+                apply_value_scan(&it.list_arg, state, defs);
+            }
+            escape_every_name_touched_tree(&body.statements, state, defs);
+        }
+        Statement::Catch { body, .. } => {
+            escape_every_name_touched_tree(&body.statements, state, defs);
+        }
+        Statement::Try { body, handlers, finally_body, .. } => {
+            escape_every_name_touched_tree(&body.statements, state, defs);
+            for h in handlers {
+                escape_every_name_touched_tree(&h.body.statements, state, defs);
+            }
+            if let Some(f) = finally_body {
+                escape_every_name_touched_tree(&f.statements, state, defs);
+            }
+        }
+        Statement::Switch { arms, default_body, .. } => {
+            for a in arms {
+                if let Some(b) = &a.body {
+                    escape_every_name_touched_tree(&b.statements, state, defs);
+                }
+            }
+            if let Some(d) = default_body {
+                escape_every_name_touched_tree(&d.statements, state, defs);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(crate) fn escape_every_name_touched_tree(
     stmts: &[Statement],
     state: &mut CfgState,
@@ -255,153 +397,51 @@ pub(crate) fn escape_every_name_touched_tree(
         if state.dynamic_barrier() {
             return;
         }
-        match stmt {
-            Statement::AssignConst { name, value, .. }
-            | Statement::AssignValue { name, value, .. } => {
-                if name.is_empty() || is_dynamic_name(name) {
-                    state.mark_pessimistic();
-                    return;
-                }
-                state.escape(name, defs);
-                apply_value_scan(value, state, defs);
-            }
-            Statement::AssignExpr { name, expr, .. } => {
-                if name.is_empty() || is_dynamic_name(name) {
-                    state.mark_pessimistic();
-                    return;
-                }
-                state.escape(name, defs);
-                apply_expr_scan(Some(expr), state, defs);
-            }
-            Statement::Incr { name, amount, .. } => {
-                if name.is_empty() || is_dynamic_name(name) {
-                    state.mark_pessimistic();
-                    return;
-                }
-                state.escape(name, defs);
-                if let Some(a) = amount {
-                    apply_value_scan(a, state, defs);
-                }
-            }
-            Statement::Call {
-                defs: call_defs,
-                reads,
-                ..
-            } => {
-                for n in call_defs.iter().chain(reads.iter()) {
-                    if !n.is_empty() && !is_dynamic_token(n) {
-                        state.escape(n, defs);
-                    }
-                }
-                handle_call(stmt, state, defs);
-            }
-            Statement::Barrier { command, args, .. } => {
-                handle_barrier(command, args, state, defs);
-            }
-            Statement::UpFrame { tokens, .. } => {
-                let args = synthesise_uplevel_args(tokens.as_ref());
-                handle_barrier("uplevel", &args, state, defs);
-            }
-            Statement::Block { body, tokens, .. } => {
-                if is_eval_block(tokens.as_ref()) {
-                    let args = synthesise_eval_args(tokens.as_ref());
-                    handle_barrier("eval", &args, state, defs);
-                } else {
-                    escape_every_name_touched_tree(&body.statements, state, defs);
-                }
-            }
-            Statement::Return { value, expr, .. } => {
-                if let Some(v) = value {
-                    apply_value_scan(v, state, defs);
-                }
-                apply_expr_scan(expr.as_ref(), state, defs);
-            }
-            Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state, defs),
-            Statement::If {
-                clauses, else_body, ..
-            } => {
-                for c in clauses {
-                    apply_expr_scan(Some(&c.condition), state, defs);
-                    escape_every_name_touched_tree(&c.body.statements, state, defs);
-                }
-                if let Some(b) = else_body {
-                    escape_every_name_touched_tree(&b.statements, state, defs);
-                }
-            }
-            Statement::For {
-                init,
-                condition,
-                next,
-                body,
-                ..
-            } => {
-                escape_every_name_touched_tree(&init.statements, state, defs);
-                apply_expr_scan(Some(condition), state, defs);
-                escape_every_name_touched_tree(&next.statements, state, defs);
-                escape_every_name_touched_tree(&body.statements, state, defs);
-            }
-            Statement::While {
-                condition, body, ..
-            } => {
-                apply_expr_scan(Some(condition), state, defs);
-                escape_every_name_touched_tree(&body.statements, state, defs);
-            }
-            Statement::Foreach {
-                iterators, body, ..
-            } => {
-                for it in iterators {
-                    apply_value_scan(&it.list_arg, state, defs);
-                }
-                escape_every_name_touched_tree(&body.statements, state, defs);
-            }
-            Statement::Catch { body, .. } => {
-                escape_every_name_touched_tree(&body.statements, state, defs);
-            }
-            Statement::Try {
-                body,
-                handlers,
-                finally_body,
-                ..
-            } => {
-                escape_every_name_touched_tree(&body.statements, state, defs);
-                for h in handlers {
-                    escape_every_name_touched_tree(&h.body.statements, state, defs);
-                }
-                if let Some(f) = finally_body {
-                    escape_every_name_touched_tree(&f.statements, state, defs);
-                }
-            }
-            Statement::Switch {
-                arms, default_body, ..
-            } => {
-                for a in arms {
-                    if let Some(b) = &a.body {
-                        escape_every_name_touched_tree(&b.statements, state, defs);
-                    }
-                }
-                if let Some(d) = default_body {
-                    escape_every_name_touched_tree(&d.statements, state, defs);
-                }
-            }
+        if tree_assign_or_incr(stmt, state, defs) {
+            continue;
         }
+        if tree_call_or_barrier(stmt, state, defs) {
+            continue;
+        }
+        tree_structural(stmt, state, defs);
     }
 }
 
-/// Process one [`SsaStatement`] — apply the appropriate
-/// per-Statement transfer function.
-// Long match dispatcher over CFG-propagation handler shapes.
-#[allow(clippy::too_many_lines)]
-fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
-    let stmt = &ssa_stmt.statement;
-    let defs = &ssa_stmt.defs;
-    state.remember_versions(ssa_stmt);
+/// Resolve a (possibly-dynamic) variable name and call `escape` on
+/// the resolved literal — or spill all known names when the dynamic
+/// name can't be resolved.  Used by the assign / incr arms.
+fn dynamic_name_escape(
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    name: &str,
+) {
+    if let Some(literal) = state.resolve_literal(name) {
+        state.escape(&literal, defs);
+    } else {
+        state.escape_all_known(defs);
+    }
+}
 
+/// Handle the call / barrier / block / upframe / return / exprEval
+/// arms of `handle_statement`.  Returns `true` when *stmt* matched.
+fn handle_stmt_call_or_barrier(
+    stmt: &Statement,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) -> bool {
     match stmt {
-        Statement::Call { .. } => handle_call(stmt, state, defs),
-        Statement::Barrier { command, args, .. } => handle_barrier(command, args, state, defs),
+        Statement::Call { .. } => {
+            handle_call(stmt, state, defs);
+            true
+        }
+        Statement::Barrier { command, args, .. } => {
+            handle_barrier(command, args, state, defs);
+            true
+        }
         Statement::UpFrame { tokens, .. } => {
             let args = synthesise_uplevel_args(tokens.as_ref());
             handle_barrier("uplevel", &args, state, defs);
+            true
         }
         Statement::Block { body, tokens, .. } => {
             if is_eval_block(tokens.as_ref()) {
@@ -410,59 +450,91 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
             } else {
                 escape_every_name_touched_tree(&body.statements, state, defs);
             }
+            true
         }
+        Statement::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                apply_value_scan(v, state, defs);
+            }
+            apply_expr_scan(expr.as_ref(), state, defs);
+            true
+        }
+        Statement::ExprEval { expr, .. } => {
+            apply_expr_scan(Some(expr), state, defs);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Handle the assign / incr arms of `handle_statement`.  Returns
+/// `true` when *stmt* matched.
+fn handle_stmt_assign_or_incr(
+    stmt: &Statement,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+) -> bool {
+    match stmt {
         Statement::AssignConst { name, value, .. } => {
             if is_dynamic_name(name) {
-                if let Some(literal) = state.resolve_literal(name) {
-                    state.escape(&literal, defs);
-                } else {
-                    state.escape_all_known(defs);
-                }
+                dynamic_name_escape(state, defs, name);
             } else {
                 state.note_literal_assign(name, value);
             }
             apply_value_scan(value, state, defs);
+            true
         }
         Statement::AssignValue { name, value, .. } => {
             if is_dynamic_name(name) {
-                if let Some(literal) = state.resolve_literal(name) {
-                    state.escape(&literal, defs);
-                } else {
-                    state.escape_all_known(defs);
-                }
+                dynamic_name_escape(state, defs, name);
             } else if !value.is_empty() && !is_dynamic_token(value) {
                 state.note_literal_assign(name, value);
             } else {
                 state.invalidate_literal(name);
             }
             apply_value_scan(value, state, defs);
+            true
         }
         Statement::AssignExpr { name, expr, .. } => {
             if is_dynamic_name(name) {
-                if let Some(literal) = state.resolve_literal(name) {
-                    state.escape(&literal, defs);
-                } else {
-                    state.escape_all_known(defs);
-                }
+                dynamic_name_escape(state, defs, name);
             } else {
                 state.invalidate_literal(name);
             }
             apply_expr_scan(Some(expr), state, defs);
+            true
         }
         Statement::Incr { name, amount, .. } => {
             if is_dynamic_name(name) {
-                if let Some(literal) = state.resolve_literal(name) {
-                    state.escape(&literal, defs);
-                } else {
-                    state.escape_all_known(defs);
-                }
+                dynamic_name_escape(state, defs, name);
             } else {
                 state.invalidate_literal(name);
             }
             if let Some(a) = amount {
                 apply_value_scan(a, state, defs);
             }
+            true
         }
+        _ => false,
+    }
+}
+
+/// Process one [`SsaStatement`] — apply the appropriate
+/// per-Statement transfer function.
+fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
+    let stmt = &ssa_stmt.statement;
+    let defs = &ssa_stmt.defs;
+    state.remember_versions(ssa_stmt);
+
+    if handle_stmt_call_or_barrier(stmt, state, defs) {
+        return;
+    }
+    if handle_stmt_assign_or_incr(stmt, state, defs) {
+        return;
+    }
+    // Structured statements: recurse via the tree walker.  Closure
+    // wraps to avoid duplicating the arm patterns.
+    match stmt {
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {
                 apply_value_scan(v, state, defs);
@@ -540,6 +612,9 @@ fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
                 escape_every_name_touched_tree(&d.statements, state, defs);
             }
         }
+        // All other Statement variants (Call / Barrier / etc.) are
+        // handled by the early-return helpers above.
+        _ => {}
     }
 }
 

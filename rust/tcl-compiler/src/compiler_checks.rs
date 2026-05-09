@@ -14,7 +14,10 @@ use tcl_lexer::Span;
 
 use crate::compilation_unit::CompilationUnit;
 use crate::gvn::{find_loop_invariants, find_partial_redundancies, find_redundancies};
-use crate::irules_checks::{find_unnormalised_getter_warnings, IrulesCheckWarning};
+use crate::irules_checks::{
+    find_collect_flow_warnings, find_hoistable_set_warnings, find_http_flow_warnings,
+    find_unguarded_drop_warnings, find_unnormalised_getter_warnings, IrulesCheckWarning,
+};
 use crate::path_concat::{find_path_concat_warnings, PathConcatWarning};
 use crate::sccp::ConstantBranch;
 use crate::shimmer::{
@@ -269,8 +272,26 @@ pub fn run_all_checks(
         }
     }
 
-    // iRules-dialect non-taint checks.
+    // iRules-dialect non-taint checks.  Each of these is dialect-
+    // gated inside the helper (returns empty for non-iRules
+    // dialects), so calling them unconditionally is correct.
     for w in find_unnormalised_getter_warnings(cu, registry, dialect) {
+        out.push(Diagnostic::from_irules_check(&w));
+    }
+    // C44-irules-flow: control-flow checks (IRULE5002/5004 +
+    // IRULE1005-1008/1201/1202/4004).  Without these the helpers
+    // landed but never reached users via `run_all_checks` /
+    // LSP flows; addresses Codex review on PR #389.
+    for w in find_unguarded_drop_warnings(cu, dialect) {
+        out.push(Diagnostic::from_irules_check(&w));
+    }
+    for w in find_collect_flow_warnings(cu, dialect) {
+        out.push(Diagnostic::from_irules_check(&w));
+    }
+    for w in find_http_flow_warnings(cu, dialect) {
+        out.push(Diagnostic::from_irules_check(&w));
+    }
+    for w in find_hoistable_set_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
 

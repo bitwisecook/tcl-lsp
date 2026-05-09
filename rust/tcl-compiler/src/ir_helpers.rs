@@ -366,6 +366,7 @@ mod tests {
         let script = Script::from_statements(vec![Statement::Call {
             span: Span::new(0, 10),
             command: "set".into(),
+            canonical_command: None,
             args: vec!["x".into(), "1".into()],
             defs: vec!["x".into()],
             reads: vec![],

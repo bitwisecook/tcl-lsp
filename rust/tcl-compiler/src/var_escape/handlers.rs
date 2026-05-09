@@ -11,6 +11,7 @@ use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
 use crate::var_escape::state::EscapeState;
+use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 use crate::var_scoping::{
     global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
     variable_declaration_indices,
@@ -46,13 +47,22 @@ pub fn handle_upvar(args: &[String], state: &mut EscapeState) {
         // reaches the mirror. Mirrors the matching block in
         // ``core/compiler/var_escape/_propagation.py`` as of
         // upstream commit ``6c7a7c42``.
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Upvar,
+            format!("upvar {head}"),
+        ));
         state.record_unbounded_upvar();
         return;
     }
     for idx in upvar_local_declaration_indices("upvar", args) {
         if let Some(name) = args.get(idx) {
-            state.escape(name);
+            state.escape_with_reason(
+                name,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::UpvarSource,
+                    format!("upvar {head} {name}"),
+                ),
+            );
         }
     }
 
@@ -118,15 +128,24 @@ pub fn handle_info(args: &[String], state: &mut EscapeState) {
     let Some(sub) = args.first() else {
         // ``info`` with no subcommand: usage error at runtime —
         // be safe.
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Info,
+            "info (no subcommand)",
+        ));
         return;
     };
     if is_dynamic_token(sub) {
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Info,
+            format!("info {sub} (dynamic subcommand)"),
+        ));
         return;
     }
     if is_frame_inspecting_info_subcommand(sub) {
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Info,
+            format!("info {sub}"),
+        ));
         return;
     }
     if sub == "exists" {
@@ -134,19 +153,31 @@ pub fn handle_info(args: &[String], state: &mut EscapeState) {
             return;
         };
         if is_dynamic_token(target) {
-            state.mark_pessimistic();
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!("info exists {target}"),
+            ));
             return;
         }
         // ``info exists name`` reads the name by string lookup —
         // escape it.
-        state.escape(target);
+        state.escape_with_reason(
+            target,
+            EscapeReason::with_detail(
+                EscapeReasonKind::InfoExists,
+                format!("info exists {target}"),
+            ),
+        );
         return;
     }
     if is_safe_info_subcommand(sub) {
         return;
     }
     // Unknown subcommand — be conservative.
-    state.mark_pessimistic();
+    state.record_barrier(Barrier::with_detail(
+        BarrierKind::Info,
+        format!("info {sub} (unknown)"),
+    ));
 }
 
 /// Handle `set` / `incr` / `append` / `lappend` / `unset` whose
@@ -163,8 +194,21 @@ pub fn handle_dynamic_name_first(cmd: &str, args: &[String], state: &mut EscapeS
         return;
     }
     if let Some(literal) = state.resolve_literal(name) {
-        state.escape(&literal);
+        state.escape_with_reason(
+            &literal,
+            EscapeReason::with_detail(
+                EscapeReasonKind::DynNameResolved,
+                format!("{cmd} {name} (resolved to {literal})"),
+            ),
+        );
     } else {
+        // Fallback: spill every known proc-local *and* record the
+        // dynamic-name barrier so consumers can render the
+        // specific trigger.
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::DynName,
+            format!("{cmd} {name}"),
+        ));
         state.escape_all_known();
     }
 }

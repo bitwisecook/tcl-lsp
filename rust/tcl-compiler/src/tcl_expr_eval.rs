@@ -174,45 +174,104 @@ fn eval_call(function: &str, args: &[ExprNode], env: &Env) -> Option<TclValue> {
     dispatch_math(&name, &vals)
 }
 
-// Long match dispatcher over math operators.
-#[allow(clippy::too_many_lines)]
-fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
-    // Helpers for common argument shapes.
-    let one = || -> Option<TclValue> {
-        if vals.len() == 1 {
-            Some(vals[0])
+/// Math: variadic `min` / `max` — never shrink integer width.
+fn dispatch_min_max(name: &str, vals: &[TclValue]) -> Option<TclValue> {
+    if vals.is_empty() {
+        return None;
+    }
+    let all_int = vals.iter().all(|v| matches!(v, TclValue::Int(_)));
+    if all_int {
+        let ints: Vec<i64> = vals
+            .iter()
+            .map(|v| match v {
+                TclValue::Int(i) => *i,
+                TclValue::Float(_) => unreachable!(),
+            })
+            .collect();
+        let r = if name == "min" {
+            *ints.iter().min().unwrap()
         } else {
-            None
+            *ints.iter().max().unwrap()
+        };
+        Some(TclValue::Int(r))
+    } else {
+        let mut best = vals[0].as_f64();
+        for v in &vals[1..] {
+            let f = v.as_f64();
+            let take = if name == "min" { f < best } else { f > best };
+            if take {
+                best = f;
+            }
         }
-    };
-    let unary_float = |f: fn(f64) -> f64| -> Option<TclValue> {
-        let v = one()?;
-        let r = f(v.as_f64());
-        if r.is_nan() && !v.as_f64().is_nan() {
-            None // domain error (e.g. log(-1))
-        } else {
-            Some(TclValue::Float(r))
-        }
-    };
-    let binary_float = |f: fn(f64, f64) -> f64| -> Option<TclValue> {
-        if vals.len() != 2 {
-            return None;
-        }
-        let r = f(vals[0].as_f64(), vals[1].as_f64());
-        if r.is_nan() {
-            None
-        } else {
-            Some(TclValue::Float(r))
-        }
-    };
+        Some(TclValue::Float(best))
+    }
+}
 
+/// Math: unary float wrappers (`sqrt`, `sin`, `log`, ...).
+fn dispatch_unary_float(name: &str, vals: &[TclValue]) -> Option<TclValue> {
+    if vals.len() != 1 {
+        return None;
+    }
+    let f: fn(f64) -> f64 = match name {
+        "sqrt" => f64::sqrt,
+        "exp" => f64::exp,
+        "log" => f64::ln,
+        "log10" => f64::log10,
+        "sin" => f64::sin,
+        "cos" => f64::cos,
+        "tan" => f64::tan,
+        "asin" => f64::asin,
+        "acos" => f64::acos,
+        "atan" => f64::atan,
+        "sinh" => f64::sinh,
+        "cosh" => f64::cosh,
+        "tanh" => f64::tanh,
+        _ => return None,
+    };
+    let v = vals[0];
+    let r = f(v.as_f64());
+    if r.is_nan() && !v.as_f64().is_nan() {
+        None
+    } else {
+        Some(TclValue::Float(r))
+    }
+}
+
+/// Math: binary float wrappers (`atan2`, `hypot`, `fmod`, `pow`).
+fn dispatch_binary_float(name: &str, vals: &[TclValue]) -> Option<TclValue> {
+    if vals.len() != 2 {
+        return None;
+    }
+    let f: fn(f64, f64) -> f64 = match name {
+        "atan2" => f64::atan2,
+        "hypot" => f64::hypot,
+        "fmod" => |a, b| a % b,
+        "pow" => f64::powf,
+        _ => return None,
+    };
+    let r = f(vals[0].as_f64(), vals[1].as_f64());
+    if r.is_nan() {
+        None
+    } else {
+        Some(TclValue::Float(r))
+    }
+}
+
+/// Math: type conversion + classification (`abs`, `int`, `double`,
+/// `bool`, `round`, `ceil`, `floor`, `isqrt`, `isinf`, `isnan`,
+/// `isfinite`).
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn dispatch_type_conv(name: &str, vals: &[TclValue]) -> Option<TclValue> {
+    if vals.len() != 1 {
+        return None;
+    }
+    let v = vals[0];
     match name {
-        // Type conversion.
-        "abs" => match one()? {
+        "abs" => match v {
             TclValue::Int(i) => i.checked_abs().map(TclValue::Int),
             TclValue::Float(f) => Some(TclValue::Float(f.abs())),
         },
-        "int" | "entier" | "wide" => match one()? {
+        "int" | "entier" | "wide" => match v {
             TclValue::Int(i) => Some(TclValue::Int(i)),
             TclValue::Float(f) => {
                 if f.is_finite() {
@@ -222,12 +281,9 @@ fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
                 }
             }
         },
-        "double" => Some(TclValue::Float(one()?.as_f64())),
-        "bool" => Some(TclValue::Int(i64::from(one()?.is_truthy()))),
-
-        // Rounding — Tcl `round` ties away from zero; `ceil` / `floor`
-        // return doubles, matching C Tcl.
-        "round" => match one()? {
+        "double" => Some(TclValue::Float(v.as_f64())),
+        "bool" => Some(TclValue::Int(i64::from(v.is_truthy()))),
+        "round" => match v {
             TclValue::Int(i) => Some(TclValue::Int(i)),
             TclValue::Float(f) => {
                 if !f.is_finite() {
@@ -239,87 +295,34 @@ fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
                 }
             }
         },
-        "ceil" => {
-            let v = one()?;
-            Some(TclValue::Float(v.as_f64().ceil()))
-        }
-        "floor" => {
-            let v = one()?;
-            Some(TclValue::Float(v.as_f64().floor()))
-        }
-
-        // Variadic min/max — never shrink width.
-        "min" | "max" => {
-            if vals.is_empty() {
-                return None;
-            }
-            let all_int = vals.iter().all(|v| matches!(v, TclValue::Int(_)));
-            if all_int {
-                let ints: Vec<i64> = vals
-                    .iter()
-                    .map(|v| match v {
-                        TclValue::Int(i) => *i,
-                        TclValue::Float(_) => unreachable!(),
-                    })
-                    .collect();
-                let r = if name == "min" {
-                    *ints.iter().min().unwrap()
-                } else {
-                    *ints.iter().max().unwrap()
-                };
-                Some(TclValue::Int(r))
-            } else {
-                let mut best = vals[0].as_f64();
-                for v in &vals[1..] {
-                    let f = v.as_f64();
-                    let take = if name == "min" { f < best } else { f > best };
-                    if take {
-                        best = f;
-                    }
-                }
-                Some(TclValue::Float(best))
-            }
-        }
-
-        // Integer sqrt.
-        "isqrt" => match one()? {
+        "ceil" => Some(TclValue::Float(v.as_f64().ceil())),
+        "floor" => Some(TclValue::Float(v.as_f64().floor())),
+        "isqrt" => match v {
             TclValue::Int(i) if i >= 0 => Some(TclValue::Int((i as f64).sqrt() as i64)),
             _ => None,
         },
-
-        // Classification (returns int 0/1).
         "isinf" => Some(TclValue::Int(i64::from(
-            matches!(one()?, TclValue::Float(f) if f.is_infinite()),
+            matches!(v, TclValue::Float(f) if f.is_infinite()),
         ))),
         "isnan" => Some(TclValue::Int(i64::from(
-            matches!(one()?, TclValue::Float(f) if f.is_nan()),
+            matches!(v, TclValue::Float(f) if f.is_nan()),
         ))),
-        "isfinite" => match one()? {
+        "isfinite" => match v {
             TclValue::Int(_) => Some(TclValue::Int(1)),
             TclValue::Float(f) => Some(TclValue::Int(i64::from(f.is_finite()))),
         },
+        _ => None,
+    }
+}
 
-        // Unary float.
-        "sqrt" => unary_float(f64::sqrt),
-        "exp" => unary_float(f64::exp),
-        "log" => unary_float(f64::ln),
-        "log10" => unary_float(f64::log10),
-        "sin" => unary_float(f64::sin),
-        "cos" => unary_float(f64::cos),
-        "tan" => unary_float(f64::tan),
-        "asin" => unary_float(f64::asin),
-        "acos" => unary_float(f64::acos),
-        "atan" => unary_float(f64::atan),
-        "sinh" => unary_float(f64::sinh),
-        "cosh" => unary_float(f64::cosh),
-        "tanh" => unary_float(f64::tanh),
-
-        // Binary float.
-        "atan2" => binary_float(f64::atan2),
-        "hypot" => binary_float(f64::hypot),
-        "fmod" => binary_float(|a, b| a % b),
-        "pow" => binary_float(f64::powf),
-
+fn dispatch_math(name: &str, vals: &[TclValue]) -> Option<TclValue> {
+    match name {
+        "min" | "max" => dispatch_min_max(name, vals),
+        "sqrt" | "exp" | "log" | "log10" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan"
+        | "sinh" | "cosh" | "tanh" => dispatch_unary_float(name, vals),
+        "atan2" | "hypot" | "fmod" | "pow" => dispatch_binary_float(name, vals),
+        "abs" | "int" | "entier" | "wide" | "double" | "bool" | "round" | "ceil" | "floor"
+        | "isqrt" | "isinf" | "isnan" | "isfinite" => dispatch_type_conv(name, vals),
         _ => None,
     }
 }

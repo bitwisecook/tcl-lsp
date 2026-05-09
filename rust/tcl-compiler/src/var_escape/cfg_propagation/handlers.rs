@@ -21,6 +21,7 @@ use crate::var_escape::helpers::{
 use crate::var_escape::info_subcommands::{
     is_frame_inspecting_info_subcommand, is_safe_info_subcommand,
 };
+use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 use crate::var_scoping::{
     global_declaration_indices, looks_like_level, upvar_local_declaration_indices,
     variable_declaration_indices,
@@ -39,13 +40,23 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
         // [`super::super::handlers::handle_upvar`] for the
         // unbounded-upvar rationale (mirrors upstream commit
         // ``6c7a7c42``).
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Upvar,
+            format!("upvar {head}"),
+        ));
         state.record_unbounded_upvar();
         return;
     }
     for idx in upvar_local_declaration_indices("upvar", args) {
         if let Some(name) = args.get(idx) {
-            state.escape(name, defs);
+            state.escape_with_reason(
+                name,
+                defs,
+                EscapeReason::with_detail(
+                    EscapeReasonKind::UpvarSource,
+                    format!("upvar {head} {name}"),
+                ),
+            );
         }
     }
 
@@ -121,15 +132,24 @@ pub(crate) fn handle_namespace_call(
 /// Classify `info <subcmd> ...` against the allow-list.
 pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<String, Version>) {
     let Some(sub) = args.first() else {
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Info,
+            "info (no subcommand)",
+        ));
         return;
     };
     if is_dynamic_token(sub) {
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Info,
+            format!("info {sub} (dynamic subcommand)"),
+        ));
         return;
     }
     if is_frame_inspecting_info_subcommand(sub) {
-        state.mark_pessimistic();
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::Info,
+            format!("info {sub}"),
+        ));
         return;
     }
     if sub == "exists" {
@@ -137,16 +157,29 @@ pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<
             return;
         };
         if is_dynamic_token(target) {
-            state.mark_pessimistic();
+            state.record_barrier(Barrier::with_detail(
+                BarrierKind::Info,
+                format!("info exists {target}"),
+            ));
             return;
         }
-        state.escape(target, defs);
+        state.escape_with_reason(
+            target,
+            defs,
+            EscapeReason::with_detail(
+                EscapeReasonKind::InfoExists,
+                format!("info exists {target}"),
+            ),
+        );
         return;
     }
     if is_safe_info_subcommand(sub) {
         return;
     }
-    state.mark_pessimistic();
+    state.record_barrier(Barrier::with_detail(
+        BarrierKind::Info,
+        format!("info {sub} (unknown)"),
+    ));
 }
 
 /// Handle `set` / `incr` / `append` / `lappend` / `unset` whose
@@ -165,8 +198,19 @@ pub(crate) fn handle_dynamic_name_first(
         return;
     }
     if let Some(literal) = state.resolve_literal(name) {
-        state.escape(&literal, defs);
+        state.escape_with_reason(
+            &literal,
+            defs,
+            EscapeReason::with_detail(
+                EscapeReasonKind::DynNameResolved,
+                format!("{cmd} {name} (resolved to {literal})"),
+            ),
+        );
     } else {
+        state.record_barrier(Barrier::with_detail(
+            BarrierKind::DynName,
+            format!("{cmd} {name}"),
+        ));
         state.escape_all_known(defs);
     }
 }

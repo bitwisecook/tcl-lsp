@@ -119,5 +119,13 @@ bitflags! {
         /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
         /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
         const IRULES_DATA_GETTER        = 1 << 39;
+
+        /// SYNC5: Creates a runtime scope-alias barrier whose VarWrite
+        /// args are vararg lists (`global x y z`, `variable a b c`,
+        /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
+        /// handles the per-arg list; SSA must not produce partial
+        /// defs from `arg_roles[0]`.  Mirrors Python's
+        /// `creates_dynamic_barrier` field set by `f87bc090`.
+        const CREATES_DYNAMIC_BARRIER   = 1 << 40;
     }
 }

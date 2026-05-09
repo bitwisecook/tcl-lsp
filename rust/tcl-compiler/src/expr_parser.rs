@@ -22,6 +22,9 @@
 //! 13. unary `+ - ~ ! not`
 //! 14. atoms, function calls, parenthesised sub-expressions
 
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex, OnceLock};
+
 use tcl_lexer::{tokenise_expr_checked, ExprToken, ExprTokenType};
 
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
@@ -371,6 +374,141 @@ pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
             text: source.to_owned(),
         },
     }
+}
+
+// -- SYNC10: LRU-cached parse_expr -------------------------------
+//
+// Mirrors Python `5056effe` (parse_expr LRU cache, 4096 entries
+// keyed on `(source, dialect)`).  Python saw 17.10s → 5.04s
+// (3.4x) on a 10k-iter `for` loop after the cache landed.  The
+// Rust analyser callers are once-per-source, so the existing
+// `parse_expr` stays uncached; this sibling is for the future
+// VM port (`VM*`) which re-evaluates loop conditions on every
+// iteration.
+//
+// Key shape: `(source, dialect)` — same as Python.  The cache is
+// process-global (a `OnceLock<Mutex<…>>`) and capped at 4096
+// entries with simple LRU eviction (move-to-back on hit, evict
+// front on capacity overflow).  Entries return `Arc<ExprNode>`
+// so multiple callers can share the parsed tree without cloning
+// the AST.
+
+/// Cache capacity — matches Python `5056effe`.  4096 entries was
+/// empirically large enough to hold every distinct expression a
+/// 10k-iter loop encounters (typically <10 distinct expressions
+/// per proc); larger workloads stress the LRU eviction path.
+const EXPR_CACHE_CAPACITY: usize = 4096;
+
+type ExprCacheKey = (String, Option<String>);
+
+struct ExprCache {
+    map: HashMap<ExprCacheKey, Arc<ExprNode>>,
+    order: VecDeque<ExprCacheKey>,
+}
+
+impl ExprCache {
+    fn new() -> Self {
+        Self {
+            map: HashMap::with_capacity(EXPR_CACHE_CAPACITY),
+            order: VecDeque::with_capacity(EXPR_CACHE_CAPACITY),
+        }
+    }
+
+    fn get(&mut self, key: &ExprCacheKey) -> Option<Arc<ExprNode>> {
+        let value = self.map.get(key)?.clone();
+        // Move-to-back on hit (LRU recency update).  Linear scan
+        // of the deque; per-entry O(N) but N is bounded at 4096
+        // and the alternative (a doubly-linked-list-with-cursors
+        // shape) needs `unsafe` or a third-party LRU crate.
+        if let Some(pos) = self.order.iter().position(|k| k == key) {
+            if pos + 1 < self.order.len() {
+                if let Some(k) = self.order.remove(pos) {
+                    self.order.push_back(k);
+                }
+            }
+        }
+        Some(value)
+    }
+
+    fn insert(&mut self, key: ExprCacheKey, value: Arc<ExprNode>) {
+        if self.map.contains_key(&key) {
+            self.map.insert(key.clone(), value);
+            // Refresh recency.
+            if let Some(pos) = self.order.iter().position(|k| k == &key) {
+                if let Some(k) = self.order.remove(pos) {
+                    self.order.push_back(k);
+                }
+            }
+            return;
+        }
+        if self.map.len() >= EXPR_CACHE_CAPACITY {
+            if let Some(old) = self.order.pop_front() {
+                self.map.remove(&old);
+            }
+        }
+        self.map.insert(key.clone(), value);
+        self.order.push_back(key);
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.map.len()
+    }
+}
+
+fn expr_cache() -> &'static Mutex<ExprCache> {
+    static CACHE: OnceLock<Mutex<ExprCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(ExprCache::new()))
+}
+
+/// LRU-cached `parse_expr`.
+///
+/// Identical semantics to [`parse_expr`] — same `(source, dialect)`
+/// inputs return the same `ExprNode` shape — but cached on the
+/// process-global LRU.  Two calls with the same key return
+/// `Arc::ptr_eq` results; eviction is FIFO once 4096 entries are
+/// reached (oldest evicted first).
+///
+/// Use this from VM-loop hot paths (re-evaluating `expr {$i < N}`
+/// on every iteration); use the un-cached [`parse_expr`] from
+/// once-per-invocation analyser sites.
+///
+/// Mirrors Python `core/parsing/expr_parser.py::parse_expr`'s
+/// `@lru_cache(maxsize=4096)` decoration after `5056effe`.
+#[must_use]
+pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
+    let key: ExprCacheKey = (source.to_owned(), dialect.map(str::to_owned));
+    {
+        let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
+        if let Some(hit) = cache.get(&key) {
+            return hit;
+        }
+    }
+    let parsed = Arc::new(parse_expr(source, dialect));
+    {
+        let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
+        // A concurrent caller may have populated the same key
+        // between our miss and re-lock.  `insert` overwrites,
+        // which is fine — the parsed AST is deterministic.
+        cache.insert(key, parsed.clone());
+    }
+    parsed
+}
+
+#[cfg(test)]
+#[doc(hidden)]
+pub fn expr_cache_reset_for_tests() {
+    let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");
+    cache.map.clear();
+    cache.order.clear();
+}
+
+#[cfg(test)]
+#[doc(hidden)]
+#[must_use]
+pub fn expr_cache_len_for_tests() -> usize {
+    let cache = expr_cache().lock().expect("expr cache mutex poisoned");
+    cache.len()
 }
 
 #[cfg(test)]
@@ -919,5 +1057,89 @@ mod tests {
         let node = parse("-$x");
         let rendered = crate::expr_ast::render_expr(&node);
         assert_eq!(rendered, "-$x");
+    }
+
+    // -- SYNC10: parse_expr_cached -----------------------------------
+    //
+    // The global cache is shared across the whole test binary, so
+    // tests that assert on cache state (length / eviction) run
+    // against the [`ExprCache`] type directly to stay isolated.  The
+    // one integration test exercising [`parse_expr_cached`]
+    // serialises through a local mutex so concurrent tests don't
+    // race on the global cache.
+
+    fn test_serial_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    #[test]
+    fn parse_expr_cached_identity() {
+        let _guard = test_serial_lock();
+        super::expr_cache_reset_for_tests();
+        let a = super::parse_expr_cached("$x + 1", None);
+        let b = super::parse_expr_cached("$x + 1", None);
+        assert!(
+            std::sync::Arc::ptr_eq(&a, &b),
+            "two cached calls with identical key should return ptr_eq Arcs",
+        );
+    }
+
+    #[test]
+    fn parse_expr_cached_dialect_distinct() {
+        let _guard = test_serial_lock();
+        super::expr_cache_reset_for_tests();
+        let plain = super::parse_expr_cached("$x", None);
+        let irules = super::parse_expr_cached("$x", Some("f5-irules"));
+        assert!(
+            !std::sync::Arc::ptr_eq(&plain, &irules),
+            "different dialect should produce distinct cache entries",
+        );
+    }
+
+    #[test]
+    fn parse_expr_cached_whitespace_sensitive() {
+        let _guard = test_serial_lock();
+        super::expr_cache_reset_for_tests();
+        let tight = super::parse_expr_cached("$x + 1", None);
+        let loose = super::parse_expr_cached("$x  +  1", None);
+        assert!(
+            !std::sync::Arc::ptr_eq(&tight, &loose),
+            "different source strings (even when AST-equivalent) should be distinct cache entries",
+        );
+    }
+
+    /// Test eviction directly on `ExprCache` rather than through the
+    /// global `parse_expr_cached` to avoid racing other tests on the
+    /// process-wide cache.  The eviction logic under test is the
+    /// same — `parse_expr_cached` is a thin wrapper.
+    #[test]
+    fn expr_cache_capacity_eviction_isolated() {
+        let mut cache = super::ExprCache::new();
+        let cap = super::EXPR_CACHE_CAPACITY;
+        // Fill exactly to capacity.
+        for i in 0..cap {
+            let key = (format!("expr_seed_{i}"), None);
+            cache.insert(key, std::sync::Arc::new(crate::expr_ast::ExprNode::Raw {
+                text: format!("expr_seed_{i}"),
+            }));
+        }
+        assert_eq!(cache.len(), cap);
+        let first_key = ("expr_seed_0".to_owned(), None);
+        assert!(cache.map.contains_key(&first_key));
+        // One more insert evicts the front (the LRU entry).
+        cache.insert(
+            ("expr_seed_extra".to_owned(), None),
+            std::sync::Arc::new(crate::expr_ast::ExprNode::Raw {
+                text: "expr_seed_extra".to_owned(),
+            }),
+        );
+        assert_eq!(cache.len(), cap);
+        assert!(
+            !cache.map.contains_key(&first_key),
+            "front (LRU) entry should have been evicted",
+        );
     }
 }

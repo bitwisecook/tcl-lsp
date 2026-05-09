@@ -220,8 +220,6 @@ pub struct SccpResult {
 /// - Branch decisions are resolved via [`evaluate_branch`] below,
 ///   which consults the lattice environment and then the C22
 ///   evaluator.
-// Long match dispatcher over IR opcodes.
-#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn sccp(
     cfg: &CfgFunction,
@@ -308,54 +306,102 @@ pub fn sccp(
             }
 
             // Terminator.
-            if let Some(term) = &cfg.blocks[bn].terminator {
-                match term {
-                    Terminator::Goto { target, .. } => {
-                        let edge = (bn.clone(), target.clone());
-                        if !executable_edges.contains(&edge) {
-                            executable_edges.insert(edge);
-                            changed = true;
-                        }
-                        if cfg.blocks.contains_key(target)
-                            && executable_blocks.insert(target.clone())
-                        {
-                            changed = true;
-                        }
-                    }
-                    Terminator::Branch {
-                        condition,
-                        true_target,
-                        false_target,
-                        ..
-                    } => {
-                        let decision = evaluate_branch(ssa_block, condition, &values);
-                        let targets: Vec<&str> = match decision {
-                            Some(true) => vec![true_target.as_str()],
-                            Some(false) => vec![false_target.as_str()],
-                            None => vec![true_target.as_str(), false_target.as_str()],
-                        };
-                        for tgt in targets {
-                            let edge = (bn.clone(), tgt.to_owned());
-                            if !executable_edges.contains(&edge) {
-                                executable_edges.insert(edge);
-                                changed = true;
-                            }
-                            if cfg.blocks.contains_key(tgt)
-                                && executable_blocks.insert(tgt.to_owned())
-                            {
-                                changed = true;
-                            }
-                        }
-                    }
-                    Terminator::Return { .. } => {}
-                }
+            if sccp_process_terminator(
+                bn,
+                cfg,
+                ssa,
+                &values,
+                &mut executable_blocks,
+                &mut executable_edges,
+            ) {
+                changed = true;
             }
         }
     }
 
-    // Post-fixed-point sweep for constant-branch annotations.
+    let constant_branches =
+        collect_constant_branches(cfg, ssa, &values, &executable_blocks, &order);
+
+    SccpResult {
+        values,
+        executable_blocks,
+        executable_edges,
+        constant_branches,
+    }
+}
+
+/// Process a block's terminator: mark the matching outgoing edges
+/// as executable.  Returns `true` when any new edge / block was
+/// added.  Extracted from [`sccp`].
+fn sccp_process_terminator(
+    bn: &str,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue>,
+    executable_blocks: &mut HashSet<String>,
+    executable_edges: &mut HashSet<(String, String)>,
+) -> bool {
+    let mut changed = false;
+    let Some(block) = cfg.blocks.get(bn) else {
+        return false;
+    };
+    let Some(term) = &block.terminator else {
+        return false;
+    };
+    match term {
+        Terminator::Goto { target, .. } => {
+            let edge = (bn.to_owned(), target.clone());
+            if !executable_edges.contains(&edge) {
+                executable_edges.insert(edge);
+                changed = true;
+            }
+            if cfg.blocks.contains_key(target) && executable_blocks.insert(target.clone()) {
+                changed = true;
+            }
+        }
+        Terminator::Branch {
+            condition,
+            true_target,
+            false_target,
+            ..
+        } => {
+            let Some(ssa_block) = ssa.blocks.get(bn) else {
+                return changed;
+            };
+            let decision = evaluate_branch(ssa_block, condition, values);
+            let targets: Vec<&str> = match decision {
+                Some(true) => vec![true_target.as_str()],
+                Some(false) => vec![false_target.as_str()],
+                None => vec![true_target.as_str(), false_target.as_str()],
+            };
+            for tgt in targets {
+                let edge = (bn.to_owned(), tgt.to_owned());
+                if !executable_edges.contains(&edge) {
+                    executable_edges.insert(edge);
+                    changed = true;
+                }
+                if cfg.blocks.contains_key(tgt) && executable_blocks.insert(tgt.to_owned()) {
+                    changed = true;
+                }
+            }
+        }
+        Terminator::Return { .. } => {}
+    }
+    changed
+}
+
+/// Post-fixpoint sweep that records every reachable branch whose
+/// condition evaluated to a constant lattice value.  Extracted
+/// from [`sccp`].
+fn collect_constant_branches(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue>,
+    executable_blocks: &HashSet<String>,
+    order: &[String],
+) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
-    for bn in &order {
+    for bn in order {
         if !executable_blocks.contains(bn) {
             continue;
         }
@@ -375,7 +421,7 @@ pub fn sccp(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = evaluate_branch(ssa_block, condition, &values);
+        let decision = evaluate_branch(ssa_block, condition, values);
         let cond_text = crate::expr_ast::expr_text(condition);
         match decision {
             Some(true) => constant_branches.push(ConstantBranch {
@@ -397,13 +443,7 @@ pub fn sccp(
             None => {}
         }
     }
-
-    SccpResult {
-        values,
-        executable_blocks,
-        executable_edges,
-        constant_branches,
-    }
+    constant_branches
 }
 
 /// Evaluate the lattice value produced by an SSA statement's
@@ -1331,6 +1371,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(0, 0),
                 command: "foreach".into(),
+                canonical_command: None,
                 args: vec![list.into()],
                 defs: vec![var.into()],
                 reads: Vec::new(),

@@ -1526,6 +1526,7 @@ mod tests {
         let eval_call = Statement::Call {
             span: Span::new(13, 20),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["$x".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -1679,6 +1680,7 @@ mod tests {
         let regexp_call = Statement::Call {
             span: Span::new(26, 50),
             command: "regexp".into(),
+            canonical_command: None,
             args: vec!["$pattern".into(), "haystack_value".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -1775,6 +1777,7 @@ mod tests {
         let regexp_call = Statement::Call {
             span: Span::new(26, 55),
             command: "regexp".into(),
+            canonical_command: None,
             args: vec!["--".into(), "$pattern".into(), "haystack_value".into()],
             defs: Vec::new(),
             reads: Vec::new(),

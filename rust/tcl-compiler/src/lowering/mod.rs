@@ -229,6 +229,97 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// structured IR and barriers conservatively clear the whole map
 /// because their child scopes (or runtime side effects) could
 /// touch any tracked name. Mirrors Python's `_invalidate_const_map_for`.
+/// C43 / barrier-gate: token-level check that a relaxed-eval /
+/// relaxed-uplevel body is free of nested dynamic-shape barriers.
+///
+/// Mirrors `core/compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
+/// When the eval/uplevel hooks consider relaxing a braced-literal
+/// body to inline IR, they first walk the body's command words and
+/// reject any nested `eval`/`uplevel` whose own body argument is
+/// substitution-bearing (`$var` / `[cmd]` / multi-token).  Without
+/// this gate, a static braced `eval {uplevel 1 $x}` would relax to
+/// IR that runs a compiled `uplevel` with a still-dynamic body.
+///
+/// The walk is deliberately shallow and token-based:
+///
+/// 1. Segment the body into commands.
+/// 2. For each command whose name is in the dynamic-barrier set,
+///    inspect its own body-shaped argument (last arg).  If it isn't
+///    a `Str` token (a braced literal), poison.
+/// 3. Recurse into nested braced bodies and into braced-arg shapes
+///    of non-barrier commands so a nested
+///    `if { … } { eval $x }` still trips the gate.
+///
+/// Returns `true` when the body contains a nested dynamic-shape
+/// barrier (the caller should fall back to `IRBarrier`); `false`
+/// when the body is safe to relax.
+fn body_has_dynamic_barrier(body_text: &str) -> bool {
+    use tcl_lexer::TokenType;
+    let commands = segment_commands(body_text);
+    for sc in &commands {
+        if sc.argv.is_empty() || sc.texts.is_empty() {
+            continue;
+        }
+        let name = sc.texts[0].as_str();
+        let is_barrier = matches!(name, "eval" | "uplevel" | "::eval" | "::uplevel");
+        if !is_barrier {
+            // Recurse into braced args of non-barrier commands so
+            // nested barriers still trip the gate.
+            for (i, tok) in sc.argv.iter().enumerate() {
+                if i == 0 {
+                    continue;
+                }
+                if tok.kind != TokenType::Str {
+                    continue;
+                }
+                let arg_text = sc.texts.get(i).map_or("", String::as_str);
+                if body_has_dynamic_barrier(arg_text) {
+                    return true;
+                }
+            }
+            continue;
+        }
+        // Name is a barrier — inspect its own body.
+        let args = &sc.texts[1..];
+        let arg_tokens = &sc.argv[1..];
+        if args.is_empty() {
+            // Malformed: no body. Poison so the outer hook falls
+            // back to IRBarrier (runtime can report the error).
+            return true;
+        }
+        // For ``uplevel`` skip the level arg if literal.
+        let body_idx = if name == "uplevel" || name == "::uplevel" {
+            let level = &args[0];
+            let level_is_int = !level.is_empty()
+                && (level.starts_with('#')
+                    || level.trim_start_matches('-').chars().all(|c| c.is_ascii_digit()));
+            if level_is_int {
+                if args.len() < 2 {
+                    return true;
+                }
+                let level_tok = &arg_tokens[0];
+                if level_tok.kind != TokenType::Esc {
+                    return true;
+                }
+                args.len() - 1
+            } else {
+                args.len() - 1
+            }
+        } else {
+            args.len() - 1
+        };
+        let body_tok_nested = &arg_tokens[body_idx];
+        if body_tok_nested.kind != TokenType::Str {
+            return true;
+        }
+        // Recurse into the literal nested body.
+        if body_has_dynamic_barrier(&args[body_idx]) {
+            return true;
+        }
+    }
+    false
+}
+
 fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String>) {
     match stmt {
         Statement::AssignConst { name, .. }
@@ -380,6 +471,7 @@ impl<'r> Lowerer<'r> {
                     span: seg.span,
                     reason: "incomplete command".into(),
                     command: String::new(),
+                    canonical_command: None,
                     args: vec![],
                     tokens: None,
                 });
@@ -476,9 +568,92 @@ impl<'r> Lowerer<'r> {
             .collect()
     }
 
+    /// C38a / C38b: detect ``namespace import ?-force? pattern...``
+    /// and ``namespace export pattern...``. Records absolute
+    /// patterns only.  Skips `{*}`-expanded calls and statically-
+    /// dead branches.
+    fn record_namespace_directives(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) {
+        if cmd_name != "namespace" || args.len() < 2 || self.dead_code_depth != 0 {
+            return;
+        }
+        let no_expand = seg
+            .expand_word
+            .as_ref()
+            .map_or(true, |ew| !ew.iter().any(|&e| e));
+        if !no_expand {
+            return;
+        }
+        if args[0] == "import" {
+            let mut i = 1usize;
+            while i < args.len() && args[i].starts_with('-') {
+                i += 1;
+            }
+            for pat in &args[i..] {
+                if pat.starts_with("::") && pat[2..].contains("::") {
+                    self.namespace_imports
+                        .push((namespace.to_string(), pat.clone()));
+                }
+            }
+        } else if args[0] == "export" {
+            let mut i = 1usize;
+            // ``-clear`` is the only flag for ``namespace export``.
+            while i < args.len() && args[i].starts_with('-') {
+                i += 1;
+            }
+            for pat in &args[i..] {
+                self.namespace_exports
+                    .push((namespace.to_string(), pat.clone()));
+            }
+        }
+    }
+
+    /// `{*}` expansion on structured commands lowers to a barrier so
+    /// downstream analyses can't reason about the expanded form.
+    /// Returns `Some(barrier)` when the gate trips; `None` otherwise.
+    fn structured_expand_barrier(
+        cmd_name: &str,
+        args: &[String],
+        seg: &SegmentedCommand,
+    ) -> Option<Statement> {
+        let structured = matches!(
+            cmd_name,
+            "proc"
+                | "when"
+                | "namespace"
+                | "if"
+                | "switch"
+                | "for"
+                | "while"
+                | "foreach"
+                | "foreach_in_collection"
+        );
+        if !structured {
+            return None;
+        }
+        if !seg
+            .expand_word
+            .as_ref()
+            .is_some_and(|ew| ew.iter().any(|&e| e))
+        {
+            return None;
+        }
+        Some(Statement::Barrier {
+            span: seg.span,
+            reason: format!("{cmd_name} with argument expansion"),
+            command: cmd_name.into(),
+            canonical_command: None,
+            args: args.to_vec(),
+            tokens: Some(Self::cmd_tokens(seg)),
+        })
+    }
+
     /// Lower a single command.
-    // Long match dispatcher over command-form lowering hooks.
-    #[allow(clippy::too_many_lines)]
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {
             return None;
@@ -493,42 +668,7 @@ impl<'r> Lowerer<'r> {
             self.aliases.insert(qualified, (target, prepended));
         }
 
-        // C38a / C38b: detect ``namespace import ?-force? pattern...``
-        // and ``namespace export pattern...``. Records absolute
-        // patterns only — relative patterns require runtime
-        // namespace-path walking we don't model. Skips
-        // ``{*}``-expanded calls because the actual import /
-        // export list is dynamic. C38c: directives inside
-        // statically-dead branches (``if {0} {…}`` etc.) are
-        // ignored — gated on ``dead_code_depth == 0``.
-        if cmd_name == "namespace" && args.len() >= 2 && self.dead_code_depth == 0 {
-            let no_expand = seg
-                .expand_word
-                .as_ref()
-                .map_or(true, |ew| !ew.iter().any(|&e| e));
-            if no_expand && args[0] == "import" {
-                let mut i = 1usize;
-                while i < args.len() && args[i].starts_with('-') {
-                    i += 1;
-                }
-                for pat in &args[i..] {
-                    if pat.starts_with("::") && pat[2..].contains("::") {
-                        self.namespace_imports
-                            .push((namespace.to_string(), pat.clone()));
-                    }
-                }
-            } else if no_expand && args[0] == "export" {
-                let mut i = 1usize;
-                // ``-clear`` is the only flag for ``namespace export``.
-                while i < args.len() && args[i].starts_with('-') {
-                    i += 1;
-                }
-                for pat in &args[i..] {
-                    self.namespace_exports
-                        .push((namespace.to_string(), pat.clone()));
-                }
-            }
-        }
+        self.record_namespace_directives(cmd_name, args, seg, namespace);
 
         // Try registered lowering hooks first.
         let hook_cmd = LoweringCommand {
@@ -544,35 +684,26 @@ impl<'r> Lowerer<'r> {
             return Some(stmt);
         }
 
-        // {*} expansion on structured commands → barrier.
-        let structured = matches!(
-            cmd_name,
-            "proc"
-                | "when"
-                | "namespace"
-                | "if"
-                | "switch"
-                | "for"
-                | "while"
-                | "foreach"
-                | "foreach_in_collection"
-        );
-        if structured
-            && seg
-                .expand_word
-                .as_ref()
-                .is_some_and(|ew| ew.iter().any(|&e| e))
-        {
-            return Some(Statement::Barrier {
-                span: seg.span,
-                reason: format!("{cmd_name} with argument expansion"),
-                command: cmd_name.into(),
-                args: args.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
-            });
+        if let Some(barrier) = Self::structured_expand_barrier(cmd_name, args, seg) {
+            return Some(barrier);
         }
 
-        // Command-specific dispatch.
+        // C43 status: the registry now declares a typed
+        // `LoweringHookId` for every structured command spec
+        // (Proc / When / NamespaceEval / If / Switch / For /
+        // While / Foreach / Lmap / Catch / Try / Dict / Eval /
+        // Uplevel).  Downstream consumers (LSP, compiler explorer,
+        // coverage audit) can read the canonical hook from the
+        // registry instead of re-parsing names.  Runtime dispatch
+        // still flows through the string-pattern match below — the
+        // structured methods need `&mut self` access to the const-
+        // map / proc-depth / dead-code-depth state, and switching
+        // to a registry-driven runtime path requires the iRules
+        // dialect to always be loaded (test harnesses use
+        // `build_default()` without `load_irules()`, so `when`
+        // isn't registered there).  The migration to a
+        // hook-ID-driven runtime dispatch lands as a follow-up
+        // sub-strip once the registry-load path is unified.
         match cmd_name {
             "proc" if args.len() == 3 && seg.arg_tokens().len() >= 3 => {
                 Some(self.lower_proc(seg, namespace))
@@ -652,6 +783,7 @@ impl<'r> Lowerer<'r> {
                     span: seg.span,
                     reason: "dynamic proc name".into(),
                     command: "proc".into(),
+                    canonical_command: None,
                     args: args_borrow.to_vec(),
                     tokens: Some(Self::cmd_tokens(seg)),
                 };
@@ -725,6 +857,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: "proc".into(),
+            canonical_command: None,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],
@@ -794,6 +927,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: "when".into(),
+            canonical_command: None,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],
@@ -830,6 +964,15 @@ impl<'r> Lowerer<'r> {
             _ => return None,
         };
         let body_tok = arg_tokens.get(body_tok_idx)?;
+        // C43 / barrier-gate: see `try_lower_eval_static` for the
+        // rationale.  A static-body `uplevel 1 {eval $x}` would
+        // relax to inline IR with a still-dynamic `eval`; reject.
+        if body_tok.kind == TokenType::Str {
+            let body_text = &args[body_tok_idx];
+            if body_has_dynamic_barrier(body_text) {
+                return None;
+            }
+        }
         let body = if body_tok.kind == TokenType::Str {
             let body_text = &args[body_tok_idx];
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
@@ -937,12 +1080,28 @@ impl<'r> Lowerer<'r> {
             return None;
         }
         let body_tok = arg_tokens[0];
+        // C43 / barrier-gate: a braced literal body might contain a
+        // nested ``eval $x`` / ``uplevel $lvl {...}`` whose own body
+        // is still dynamic.  Relaxing the outer barrier in that case
+        // produces IR that runs a compiled inner barrier with a
+        // still-dynamic shape — we'd lose the runtime barrier without
+        // gaining static knowledge.  Reject and fall back to the
+        // default IRBarrier dispatch.
+        if body_tok.kind == TokenType::Str {
+            let body_text = &args[0];
+            if body_has_dynamic_barrier(body_text) {
+                return None;
+            }
+        }
         let body = if body_tok.kind == TokenType::Str {
             let body_text = &args[0];
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
             let literal = self.const_map_lookup(&args[0])?;
+            if body_has_dynamic_barrier(&literal) {
+                return None;
+            }
             self.lower_script(&literal, namespace)
         } else if body_tok.kind == TokenType::Cmd {
             // C35c: ``eval [list lit1 lit2 ...]`` — synthesise the
@@ -985,6 +1144,7 @@ impl<'r> Lowerer<'r> {
             span: seg.span,
             reason: "namespace eval".into(),
             command: "namespace".into(),
+            canonical_command: None,
             args: args.to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
         }
@@ -995,11 +1155,25 @@ impl<'r> Lowerer<'r> {
         let cmd_name = seg.name();
         let args = seg.args();
 
-        // Resolve alias for arg role lookups.
+        // Resolve alias for arg role lookups.  When `cmd_name`
+        // resolves to a different alias target, populate
+        // `canonical_command` with the resolved name so downstream
+        // dispatch (codegen hook lookup, side-effect classification,
+        // GVN purity, var-escape) can key off the canonical target
+        // instead of re-resolving from the source spelling.
+        // Mirrors Python's post-`a042271a` IRCall.canonical_command
+        // population.  Addresses Copilot review on PR #389.
         let mut role_cmd = cmd_name.to_owned();
         let mut role_args: Vec<String> = args.to_vec();
         let mut prepend_n: usize = 0;
+        let mut canonical: Option<String> = None;
         if let Some((target, prepended)) = resolve_alias(cmd_name, &self.aliases, namespace) {
+            // Only record canonical_command when the alias resolved
+            // to a different target — ``cmd_name == target`` means
+            // the source already names the canonical form.
+            if target != cmd_name {
+                canonical = Some(target.clone());
+            }
             role_cmd = target;
             let mut new_args: Vec<String> = prepended;
             new_args.extend_from_slice(args);
@@ -1023,6 +1197,7 @@ impl<'r> Lowerer<'r> {
                 span: seg.span,
                 reason: "unsupported body command".into(),
                 command: cmd_name.into(),
+                canonical_command: canonical.clone(),
                 args: args.to_vec(),
                 tokens: Some(Self::cmd_tokens(seg)),
             };
@@ -1046,6 +1221,7 @@ impl<'r> Lowerer<'r> {
             return Statement::Call {
                 span: seg.span,
                 command: cmd_name.into(),
+                canonical_command: canonical.clone(),
                 args: args.to_vec(),
                 defs: var_defs,
                 reads: var_reads,
@@ -1059,6 +1235,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: cmd_name.into(),
+            canonical_command: canonical,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],
@@ -1079,7 +1256,104 @@ impl<'r> Lowerer<'r> {
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
     let mut lowerer = Lowerer::new(registry);
     lowerer.lower(source);
-    lowerer.module
+    let mut module = lowerer.module;
+    populate_trace_facts(&mut module);
+    module
+}
+
+/// SYNC9: post-lower scan for `trace add execution NAME enter|leave …`
+/// that populates `Module::traced_commands` / `has_dynamic_trace`.
+///
+/// Runs over the top-level script + every procedure body.  Literal
+/// command names land in `traced_commands` (`::`-stripped to match
+/// the canonical key); non-literal targets (`$cmd`, `[expr ...]`,
+/// command substitutions) flip `has_dynamic_trace` so GVN treats
+/// every call as potentially traced.
+///
+/// Mirrors Python's IR-builder pass added by `8a6f4d58` (closes `#251`).
+fn populate_trace_facts(module: &mut Module) {
+    let top_level = module.top_level.clone();
+    walk_for_trace(&top_level, module);
+    let proc_bodies: Vec<Script> = module
+        .procedures
+        .values()
+        .map(|p| p.body.clone())
+        .collect();
+    for body in &proc_bodies {
+        walk_for_trace(body, module);
+    }
+}
+
+fn walk_for_trace(script: &Script, module: &mut Module) {
+    use crate::ir::Statement;
+    for stmt in &script.statements {
+        match stmt {
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+                if command == "trace"
+                    && args.len() >= 4
+                    && args[0] == "add"
+                    && args[1] == "execution"
+                {
+                    let target = &args[2];
+                    if is_literal_trace_target(target) {
+                        let canonical = target.trim_start_matches("::").to_string();
+                        if !canonical.is_empty() {
+                            module.traced_commands.insert(canonical);
+                        }
+                    } else {
+                        module.has_dynamic_trace = true;
+                    }
+                }
+            }
+            Statement::If { clauses, else_body, .. } => {
+                for c in clauses {
+                    walk_for_trace(&c.body, module);
+                }
+                if let Some(e) = else_body {
+                    walk_for_trace(e, module);
+                }
+            }
+            Statement::For { init, next, body, .. } => {
+                walk_for_trace(init, module);
+                walk_for_trace(next, module);
+                walk_for_trace(body, module);
+            }
+            Statement::While { body, .. }
+            | Statement::Foreach { body, .. }
+            | Statement::Catch { body, .. }
+            | Statement::Block { body, .. }
+            | Statement::UpFrame { body, .. } => walk_for_trace(body, module),
+            Statement::Switch { arms, default_body, .. } => {
+                for arm in arms {
+                    if let Some(b) = &arm.body {
+                        walk_for_trace(b, module);
+                    }
+                }
+                if let Some(b) = default_body {
+                    walk_for_trace(b, module);
+                }
+            }
+            Statement::Try { body, handlers, finally_body, .. } => {
+                walk_for_trace(body, module);
+                for h in handlers {
+                    walk_for_trace(&h.body, module);
+                }
+                if let Some(f) = finally_body {
+                    walk_for_trace(f, module);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn is_literal_trace_target(s: &str) -> bool {
+    !s.is_empty()
+        && !s.contains('$')
+        && !s.contains('[')
+        && !s.contains('{')
+        && !s.contains('"')
+        && !s.contains(' ')
 }
 
 #[cfg(test)]
@@ -1653,5 +1927,119 @@ mod tests {
                 "expected UpFrame inside catch body, got {body:?}",
             );
         }
+    }
+
+    // -- SYNC9: trace add execution module-fact population -----------
+
+    #[test]
+    fn trace_add_execution_literal_recorded() {
+        let m = lower_to_ir("trace add execution foo enter handler", &reg());
+        assert!(m.traced_commands.contains("foo"));
+        assert!(!m.has_dynamic_trace);
+    }
+
+    #[test]
+    fn trace_add_execution_dynamic_widens() {
+        let m = lower_to_ir("trace add execution $cmd enter handler", &reg());
+        assert!(m.has_dynamic_trace);
+        assert!(m.traced_commands.is_empty());
+    }
+
+    #[test]
+    fn trace_add_execution_qualified_canonicalised() {
+        let m = lower_to_ir("trace add execution ::ns::foo enter h", &reg());
+        // Stripped of leading ``::`` so the GVN gate's
+        // `command.trim_start_matches("::")` lookup hits.
+        assert!(m.traced_commands.contains("ns::foo"));
+    }
+
+    #[test]
+    fn trace_add_variable_does_not_record_execution_trace() {
+        // `trace add variable` is a separate channel — should not
+        // populate `traced_commands` (those are command traces only).
+        let m = lower_to_ir("trace add variable x write h", &reg());
+        assert!(m.traced_commands.is_empty());
+        assert!(!m.has_dynamic_trace);
+    }
+
+    #[test]
+    fn trace_add_execution_inside_proc_recorded() {
+        let m = lower_to_ir(
+            "proc init {} { trace add execution foo enter h }",
+            &reg(),
+        );
+        assert!(
+            m.traced_commands.contains("foo"),
+            "traced_commands={:?}",
+            m.traced_commands,
+        );
+    }
+
+    // -- C43 / barrier-gate ------------------------------------------
+
+    #[test]
+    fn body_has_dynamic_barrier_clean() {
+        // No barriers at all.
+        assert!(!body_has_dynamic_barrier("set x 1"));
+        // Barrier with a fully literal body.
+        assert!(!body_has_dynamic_barrier("eval { set x 1 }"));
+        // Nested literal.
+        assert!(!body_has_dynamic_barrier(
+            "if { 1 } { eval { set x 1 } }"
+        ));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_dynamic_eval_body() {
+        // ``eval $x`` inside the outer body — dynamic.
+        assert!(body_has_dynamic_barrier("eval $x"));
+        // Same shape nested.
+        assert!(body_has_dynamic_barrier("if { 1 } { eval $x }"));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_dynamic_uplevel_body() {
+        assert!(body_has_dynamic_barrier("uplevel 1 $body"));
+        assert!(body_has_dynamic_barrier("uplevel #0 $b"));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_uplevel_with_literal_body_clean() {
+        // ``uplevel $lvl {body}`` with a literal body is OK — the
+        // gate only poisons when the BODY is substitution-bearing.
+        // Mirrors Python parity.
+        assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}"));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_qualified_eval_uplevel() {
+        // ``::eval`` and ``::uplevel`` are also caught.
+        assert!(body_has_dynamic_barrier("::eval $x"));
+        assert!(body_has_dynamic_barrier("::uplevel 1 $body"));
+    }
+
+    #[test]
+    fn try_lower_eval_static_rejects_nested_dynamic_barrier() {
+        // The relaxer would normally promote ``eval { ... }`` to a
+        // ``Statement::Block``; with the barrier gate, the nested
+        // ``eval $x`` poisons the relaxation and we fall back to
+        // ``Statement::Barrier``.
+        let m = lower_to_ir(r"eval { eval $x }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Barrier { .. }),
+            "expected Barrier (gate triggered), got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn try_lower_eval_static_clean_body_relaxes() {
+        // No nested barrier — relaxes to Block.
+        let m = lower_to_ir("eval { set x 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Block { .. }),
+            "expected Block (relaxed), got {stmt:?}",
+        );
     }
 }

@@ -213,9 +213,10 @@ use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
 // Flat declarative `vec![spec(), ...]` — splitting hurts
-// readability for a one-shot table.
-#[allow(clippy::too_many_lines)]
+// readability for a one-shot table.  See `stdlib_command_specs`
+// for the same justification on the parallel registry list.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     vec![
         base64__decode::spec(),

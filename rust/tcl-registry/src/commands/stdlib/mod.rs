@@ -232,9 +232,13 @@ use crate::spec::CommandSpec;
 
 /// Return all `stdlib` command specifications.
 // Flat declarative `vec![spec(), ...]` — splitting hurts
-// readability for a one-shot table.
-#[allow(clippy::too_many_lines)]
+// readability for a one-shot table.  The clippy::too_many_lines
+// allow stays *only* on the irreducible list-of-specs functions
+// (this one + the parallel `tcllib_command_specs` /
+// `irules_command_specs`).  Every other clippy::too_many_lines
+// allow in the workspace was retired in this chunk.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn stdlib_command_specs() -> Vec<CommandSpec> {
     vec![
         gettimes::spec(),

@@ -432,7 +432,50 @@ impl Lowerer<'_> {
     // Sequential `switch` lowering: option parsing, list-form
     // unpacking, body recursion, and case-list build all share
     // local arena state.
-    #[allow(clippy::too_many_lines)]
+    /// Build the `(arms, default_body, default_span)` triple from
+    /// collected `SwitchPair` entries.  Extracted from
+    /// [`Self::lower_switch`] to keep the dispatcher under threshold.
+    fn build_switch_arms(
+        &mut self,
+        pairs: &[SwitchPair],
+        arg_tokens: &[tcl_lexer::Token],
+        namespace: &str,
+    ) -> (Vec<SwitchArm>, Option<crate::ir::Script>, Option<Span>) {
+        let mut arms = Vec::new();
+        let mut default_body = None;
+        let mut default_span = None;
+
+        for (pair_idx, pair) in pairs.iter().enumerate() {
+            if pair.body_text == "-" {
+                arms.push(SwitchArm {
+                    pattern: pair.pattern.clone(),
+                    pattern_span: pair.pattern_span,
+                    body: None,
+                    body_span: None,
+                    fallthrough: true,
+                });
+                continue;
+            }
+
+            let body_tok = pair.body_arg_idx.and_then(|idx| arg_tokens.get(idx));
+            let body = self.lower_body_from_tok(&pair.body_text, body_tok, namespace);
+
+            if pair.pattern == "default" && pair_idx == pairs.len() - 1 {
+                default_body = Some(body);
+                default_span = pair.body_span;
+            } else {
+                arms.push(SwitchArm {
+                    pattern: pair.pattern.clone(),
+                    pattern_span: pair.pattern_span,
+                    body: Some(body),
+                    body_span: pair.body_span,
+                    fallthrough: false,
+                });
+            }
+        }
+        (arms, default_body, default_span)
+    }
+
     pub(super) fn lower_switch(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
@@ -516,38 +559,8 @@ impl Lowerer<'_> {
             }
         }
 
-        let mut arms = Vec::new();
-        let mut default_body = None;
-        let mut default_span = None;
-
-        for (pair_idx, pair) in pairs.iter().enumerate() {
-            if pair.body_text == "-" {
-                arms.push(SwitchArm {
-                    pattern: pair.pattern.clone(),
-                    pattern_span: pair.pattern_span,
-                    body: None,
-                    body_span: None,
-                    fallthrough: true,
-                });
-                continue;
-            }
-
-            let body_tok = pair.body_arg_idx.and_then(|idx| arg_tokens.get(idx));
-            let body = self.lower_body_from_tok(&pair.body_text, body_tok, namespace);
-
-            if pair.pattern == "default" && pair_idx == pairs.len() - 1 {
-                default_body = Some(body);
-                default_span = pair.body_span;
-            } else {
-                arms.push(SwitchArm {
-                    pattern: pair.pattern.clone(),
-                    pattern_span: pair.pattern_span,
-                    body: Some(body),
-                    body_span: pair.body_span,
-                    fallthrough: false,
-                });
-            }
-        }
+        let (arms, default_body, default_span) =
+            self.build_switch_arms(&pairs, arg_tokens, namespace);
 
         Statement::Switch {
             span: seg.span,
@@ -601,6 +614,7 @@ impl Lowerer<'_> {
                 Statement::Call {
                     span: seg.span,
                     command: seg.name().into(),
+                    canonical_command: None,
                     args: args.to_vec(),
                     defs: vec![var_name],
                     reads: vec![],
@@ -615,6 +629,7 @@ impl Lowerer<'_> {
                 span: seg.span,
                 reason: format!("dict {sub}"),
                 command: seg.name().into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 tokens: Some(Self::cmd_tokens(seg)),
             },
@@ -622,6 +637,7 @@ impl Lowerer<'_> {
             _ => Statement::Call {
                 span: seg.span,
                 command: seg.name().into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 defs: vec![],
                 reads: vec![],
@@ -641,6 +657,7 @@ impl Lowerer<'_> {
             span: seg.span,
             reason: reason.into(),
             command: seg.name().into(),
+            canonical_command: None,
             args: seg.args().to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
         }

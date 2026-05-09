@@ -13,6 +13,7 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY,
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Expr), (1, ArgRole::Body)],
+        lowering_hook: Some(crate::hooks::LoweringHookId::While),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,

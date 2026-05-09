@@ -40,6 +40,7 @@ impl CfgBuilder {
                 self.block_mut(&dispatch).statements.push(Statement::Call {
                     span: *span,
                     command: "<cond>".into(),
+                    canonical_command: None,
                     args: Vec::new(),
                     defs: Vec::new(),
                     reads: Vec::new(),
@@ -103,6 +104,7 @@ impl CfgBuilder {
             self.block_mut(block_name).statements.push(Statement::Call {
                 span: *init_span,
                 command: "<empty_clause>".into(),
+                canonical_command: None,
                 args: vec![],
                 defs: vec![],
                 reads: vec![],
@@ -139,6 +141,7 @@ impl CfgBuilder {
                 .push(Statement::Call {
                     span: *next_span,
                     command: "<empty_clause>".into(),
+                    canonical_command: None,
                     args: vec![],
                     defs: vec![],
                     reads: vec![],
@@ -243,6 +246,7 @@ impl CfgBuilder {
         self.block_mut(&header).statements.push(Statement::Call {
             span: *span,
             command: fe_cmd.into(),
+            canonical_command: None,
             args: list_args,
             defs: all_vars,
             reads: vec![],
@@ -298,6 +302,7 @@ impl CfgBuilder {
                     span: *span,
                     reason: format!("switch -{}", mode.as_str()),
                     command: "switch".into(),
+                    canonical_command: None,
                     args: raw_args.clone(),
                     tokens: None,
                 });
@@ -438,6 +443,7 @@ impl CfgBuilder {
                     .push(Statement::Call {
                         span: *span,
                         command: "try".into(),
+                        canonical_command: None,
                         args: vec![],
                         defs: var_defs,
                         reads: vec![],
@@ -650,6 +656,7 @@ mod tests {
             finally_body: Some(Script::from_statements(vec![Statement::Call {
                 span: Span::new(20, 35),
                 command: "cleanup".into(),
+                canonical_command: None,
                 args: vec![],
                 defs: vec![],
                 reads: vec![],

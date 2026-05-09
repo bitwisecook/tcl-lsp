@@ -6,6 +6,7 @@
 //! lookups (folding, document symbols, …) keep finding the body at
 //! index 2 instead of falling off because the iRules override
 //! shadows the Tcl spec with empty roles.
+use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -18,6 +19,8 @@ pub fn spec() -> CommandSpec {
             (1, ArgRole::ParamList),
             (2, ArgRole::Body),
         ],
+        lowering_hook: Some(LoweringHookId::Proc),
+        body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet::brief(
             "Define an iRule proc.",
             &["proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT"],

@@ -35,6 +35,49 @@ pub enum LoweringHookId {
     Variable,
     /// `upvar ?level? otherVar localVar ...`.
     Upvar,
+    /// `proc name params body` — defines a procedure.  Lowered to a
+    /// nested IR script + `Statement::Call` at the proc declaration
+    /// site.  Mirrors `core/compiler/lowering.py::_lower_proc`.
+    Proc,
+    /// `when EVENT ?priority N? body` — iRules event handler.
+    /// Lowered the same shape as `proc` but indexed by event name.
+    When,
+    /// `namespace eval ns body` — runs the body in a separate
+    /// namespace scope.
+    NamespaceEval,
+    /// `if cond body ?elseif cond body ...? ?else body?` — typed
+    /// conditional with `IfClause` arms + optional else body.
+    If,
+    /// `switch ?options? subject pattern body ...` — typed multi-
+    /// arm dispatch.
+    Switch,
+    /// `for init cond next body` — typed loop with init / cond /
+    /// next / body scripts.
+    For,
+    /// `while cond body` — typed loop.
+    While,
+    /// `foreach varList listExpr body` — typed loop with iterator
+    /// groups.
+    Foreach,
+    /// `lmap varList listExpr body` — like `foreach` but collects
+    /// each iteration's body result into a list.
+    Lmap,
+    /// `catch body ?resultVarName? ?optionsVarName?` — typed
+    /// exception barrier.
+    Catch,
+    /// `try body ?on/trap handlers? ?finally body?` — typed try
+    /// with handler clauses + optional finally.
+    Try,
+    /// `dict <subcommand> ...` — dispatches to a per-subcommand
+    /// emitter (see `CodegenHookId::Dict` for the codegen side).
+    Dict,
+    /// `eval ?arg ...?` — runtime barrier with optional static-body
+    /// relaxation when the body is a brace-literal that passes the
+    /// `body_has_dynamic_barrier` gate.
+    Eval,
+    /// `uplevel ?level? ?arg ...?` — runtime barrier with optional
+    /// static-body relaxation under the same gate.
+    Uplevel,
 }
 
 /// Typed identifier for a `TclVM` bytecode codegen specialisation.

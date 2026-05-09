@@ -25,6 +25,7 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(3),
         arg_role_resolver: Some(lmap_arg_roles),
+        lowering_hook: Some(crate::hooks::LoweringHookId::Lmap),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet::brief(
             "Iterate over all elements in one or more lists and collect results.",

@@ -603,6 +603,37 @@ pub fn is_pure_command(
     effect.pure
 }
 
+/// SYNC8: trace-aware purity gate.
+///
+/// Same purity classification as [`is_pure_command`] but additionally
+/// returns `false` for any command targeted by an active execution
+/// trace (`trace add execution NAME enter|leave HANDLER`) AND for
+/// every command when [`Module::has_dynamic_trace`] is set.  Mirrors
+/// `core/compiler/gvn.py:151-158`.
+///
+/// Calls to a command with an active execution trace are never pure
+/// because the trace body composes side-effects in (issue `#251`).
+/// GVN, partial-redundancy, and loop-invariant passes thread the
+/// module's trace facts through this gate so optimisations don't
+/// silently delete a second invocation that the trace re-armed.
+#[must_use]
+pub fn is_pure_command_with_traces(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    dialect: Option<&str>,
+    traced_commands: &std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+) -> bool {
+    if has_dynamic_trace {
+        return false;
+    }
+    if traced_commands.contains(command.trim_start_matches("::")) {
+        return false;
+    }
+    is_pure_command(registry, command, args, dialect)
+}
+
 /// Return `true` if a redundant use of `command` is worth
 /// flagging. Built-ins marked `CSE_CANDIDATE` qualify; user-proc
 /// redundancy (interprocedural) is deferred.
@@ -1271,45 +1302,28 @@ fn transfer_occurrence_keys(
 ///
 /// Matches the Python `gvn.py::_find_partial_redundancies`
 /// pipeline on a per-function basis.
-// Long match dispatcher over IR opcodes.
-#[allow(clippy::too_many_lines)]
-#[must_use]
-pub fn find_partial_redundancies(
-    registry: &CommandRegistry,
+/// Maps tracked by the partial-redundancy dataflow fixpoint.
+type ExprKeySetMap =
+    std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
+
+/// Run the partial-redundancy may/must-availability dataflow
+/// fixpoint.  Returns `(may_in, may_out, must_in, must_out)` after
+/// convergence.  Extracted from [`find_partial_redundancies`] to
+/// keep the dispatcher under threshold.
+fn run_partial_redundancy_fixpoint(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    dialect: Option<&str>,
-) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, &ssa.entry);
-    if !executable.contains(&ssa.entry) {
-        return Vec::new();
-    }
-    let (events_by_block, all_occurrences) =
-        collect_function_occurrence_events(registry, cfg, ssa, dialect);
-    if all_occurrences.is_empty() {
-        return Vec::new();
-    }
-    let universe: std::collections::HashSet<ExprKey> =
-        all_occurrences.iter().map(|o| o.key.clone()).collect();
+    executable: &std::collections::HashSet<String>,
+    events_by_block: &std::collections::HashMap<String, Vec<OccurrenceEvent>>,
+    universe: &std::collections::HashSet<ExprKey>,
+    order: &[String],
+) -> (ExprKeySetMap, ExprKeySetMap, ExprKeySetMap, ExprKeySetMap) {
     let preds = cfg.predecessors();
-
-    let mut order: Vec<String> = cfg.reverse_postorder();
-    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
-    for name in &executable {
-        if !seen.contains(name) {
-            order.push(name.clone());
-        }
-    }
-
-    let mut may_in: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    let mut may_out: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    let mut must_in: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    let mut must_out: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    for bn in &executable {
+    let mut may_in: ExprKeySetMap = std::collections::HashMap::new();
+    let mut may_out: ExprKeySetMap = std::collections::HashMap::new();
+    let mut must_in: ExprKeySetMap = std::collections::HashMap::new();
+    let mut must_out: ExprKeySetMap = std::collections::HashMap::new();
+    for bn in executable {
         may_in.insert(bn.clone(), std::collections::HashSet::new());
         may_out.insert(bn.clone(), std::collections::HashSet::new());
         must_in.insert(
@@ -1322,7 +1336,7 @@ pub fn find_partial_redundancies(
         );
     }
     // Seed must_out from initial must_in + events.
-    for bn in &executable {
+    for bn in executable {
         let initial_must_in = must_in[bn].clone();
         let out = transfer_occurrence_keys(
             events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
@@ -1334,7 +1348,7 @@ pub fn find_partial_redundancies(
     let mut changed = true;
     while changed {
         changed = false;
-        for bn in &order {
+        for bn in order {
             if !executable.contains(bn) {
                 continue;
             }
@@ -1389,6 +1403,50 @@ pub fn find_partial_redundancies(
             }
         }
     }
+    (may_in, may_out, must_in, must_out)
+}
+
+/// Find partial redundancies — expressions that occur multiple
+/// times where one occurrence dominates another along some path
+/// but not on every path.  Uses the may/must-availability
+/// bidirectional dataflow from
+/// [`run_partial_redundancy_fixpoint`].  Mirrors Python's
+/// `gvn.find_partial_redundancies` (see `core/compiler/gvn.py`).
+#[must_use]
+pub fn find_partial_redundancies(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let executable = reachable_from(cfg, &ssa.entry);
+    if !executable.contains(&ssa.entry) {
+        return Vec::new();
+    }
+    let (events_by_block, all_occurrences) =
+        collect_function_occurrence_events(registry, cfg, ssa, dialect);
+    if all_occurrences.is_empty() {
+        return Vec::new();
+    }
+    let universe: std::collections::HashSet<ExprKey> =
+        all_occurrences.iter().map(|o| o.key.clone()).collect();
+
+    let mut order: Vec<String> = cfg.reverse_postorder();
+    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
+    for name in &executable {
+        if !seen.contains(name) {
+            order.push(name.clone());
+        }
+    }
+
+    let (may_in, _may_out, must_in, _must_out) = run_partial_redundancy_fixpoint(
+        cfg,
+        ssa,
+        &executable,
+        &events_by_block,
+        &universe,
+        &order,
+    );
 
     // Build first-occurrence map by source offset.
     let mut sorted = all_occurrences.clone();
@@ -1675,6 +1733,7 @@ mod tests {
         Statement::Call {
             span: Span::new(0, 0),
             command: cmd.into(),
+            canonical_command: None,
             args: args.iter().map(|s| (*s).into()).collect(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -1704,6 +1763,83 @@ mod tests {
         ));
     }
 
+    /// SYNC8: a pure command (`expr`) gates to non-pure once its
+    /// canonical name appears in `traced_commands`.
+    #[test]
+    fn is_pure_command_with_traces_traced_command_not_pure() {
+        let registry = CommandRegistry::build_default();
+        let mut traced = std::collections::BTreeSet::new();
+        traced.insert("foo".to_string());
+        // `foo` is unknown to the registry but in the trace set —
+        // never pure.
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "foo",
+            &["arg".into()],
+            None,
+            &traced,
+            false,
+        ));
+    }
+
+    /// SYNC8: `has_dynamic_trace=true` widens the gate to *every*
+    /// command (even ones the registry marks PURE).
+    #[test]
+    fn is_pure_command_with_traces_dynamic_trace_inhibits_all() {
+        let registry = CommandRegistry::build_default();
+        let traced = std::collections::BTreeSet::new();
+        // `expr` is PURE per the registry, but `has_dynamic_trace=true`
+        // means any call could have a trace registered at runtime.
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "expr",
+            &["{1 + 2}".into()],
+            None,
+            &traced,
+            true,
+        ));
+    }
+
+    /// SYNC8: regression — untraced pure commands stay pure.
+    #[test]
+    fn is_pure_command_with_traces_untraced_command_still_pure() {
+        let registry = CommandRegistry::build_default();
+        let traced = std::collections::BTreeSet::new();
+        assert!(is_pure_command_with_traces(
+            &registry,
+            "expr",
+            &["{1 + 2}".into()],
+            None,
+            &traced,
+            false,
+        ));
+    }
+
+    /// SYNC8: `::ns::foo` and `ns::foo` look up identically in the
+    /// trace set (mirrors `populate_trace_facts`'s `::`-strip).
+    #[test]
+    fn is_pure_command_with_traces_qualified_name_canonicalised() {
+        let registry = CommandRegistry::build_default();
+        let mut traced = std::collections::BTreeSet::new();
+        traced.insert("ns::foo".to_string());
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "::ns::foo",
+            &[],
+            None,
+            &traced,
+            false,
+        ));
+        assert!(!is_pure_command_with_traces(
+            &registry,
+            "ns::foo",
+            &[],
+            None,
+            &traced,
+            false,
+        ));
+    }
+
     #[test]
     fn statement_writes_state_true_for_barrier() {
         let registry = CommandRegistry::build_default();
@@ -1711,6 +1847,7 @@ mod tests {
             span: Span::new(0, 0),
             reason: "eval".into(),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["script".into()],
             tokens: None,
         };
@@ -1784,6 +1921,7 @@ mod tests {
         Statement::Call {
             span: Span::new(0, 0),
             command: "llength".into(),
+            canonical_command: None,
             args: vec!["$x".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -1902,6 +2040,7 @@ mod tests {
         entry_blk.statements.push(Statement::Call {
             span: Span::new(0, 0),
             command: "set".into(),
+            canonical_command: None,
             args: vec!["::g".into(), "1".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2047,6 +2186,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(0, 0),
                 command: "set".into(),
+                canonical_command: None,
                 args: vec!["x".into(), "[llength $y]".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2186,6 +2326,7 @@ mod tests {
         let llength_on_i = Statement::Call {
             span: Span::new(0, 0),
             command: "llength".into(),
+            canonical_command: None,
             args: vec!["$i".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2311,6 +2452,7 @@ mod tests {
             .push(Statement::Call {
                 span: Span::new(100, 110),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2334,6 +2476,7 @@ mod tests {
             .push(Statement::Call {
                 span: Span::new(200, 210),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2371,6 +2514,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(100, 110),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2388,6 +2532,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(200, 210),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2527,6 +2672,7 @@ mod tests {
                 span: Span::new(0, 0),
                 reason: "eval".into(),
                 command: "eval".into(),
+                canonical_command: None,
                 args: vec!["script".into()],
                 tokens: None,
             }],
@@ -2543,6 +2689,7 @@ mod tests {
             vec![Statement::Call {
                 span: Span::new(0, 0),
                 command: "set".into(),
+                canonical_command: None,
                 args: vec!["::g".into(), "1".into()],
                 defs: vec!["::g".into()],
                 reads: Vec::new(),
@@ -2562,6 +2709,7 @@ mod tests {
         let call_b = Statement::Call {
             span: Span::new(0, 0),
             command: "::b".into(),
+            canonical_command: None,
             args: Vec::new(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2573,6 +2721,7 @@ mod tests {
         let call_a = Statement::Call {
             span: Span::new(0, 0),
             command: "::a".into(),
+            canonical_command: None,
             args: Vec::new(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2594,12 +2743,14 @@ mod tests {
             span: Span::new(0, 0),
             reason: "eval".into(),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["$x".into()],
             tokens: None,
         };
         let call_tainted = Statement::Call {
             span: Span::new(0, 0),
             command: "::tainted".into(),
+            canonical_command: None,
             args: Vec::new(),
             defs: Vec::new(),
             reads: Vec::new(),

@@ -89,15 +89,12 @@ impl ClassHierarchy {
 /// downstream lookups don't have to disambiguate.  Cycles in the
 /// pure-superclass hierarchy land in `result.errors`; the
 /// affected classes get a single-element MRO (themselves only).
-// Multi-pass MRO computation; phases share mutable hierarchy state.
-#[allow(clippy::too_many_lines)]
-#[must_use]
-pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarchy {
-    // Build separate superclasses and mixins maps for the
-    // TclOO DFS algorithm.
+/// Build the supers/mixins maps used by the MRO algorithm.
+fn build_supers_mixins_maps(
+    classes: &HashMap<String, ClassDef>,
+) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
     let mut supers_map: HashMap<String, Vec<String>> = HashMap::new();
     let mut mixins_map: HashMap<String, Vec<String>> = HashMap::new();
-
     let normalise = |names: &[String], classes: &HashMap<String, ClassDef>| -> Vec<String> {
         names
             .iter()
@@ -115,13 +112,68 @@ pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarc
             })
             .collect()
     };
-
-    for (qname, cd) in &classes {
-        supers_map.insert(qname.clone(), normalise(&cd.superclasses, &classes));
+    for (qname, cd) in classes {
+        supers_map.insert(qname.clone(), normalise(&cd.superclasses, classes));
         if !cd.mixins.is_empty() {
-            mixins_map.insert(qname.clone(), normalise(&cd.mixins, &classes));
+            mixins_map.insert(qname.clone(), normalise(&cd.mixins, classes));
         }
     }
+    (supers_map, mixins_map)
+}
+
+/// Build the method-provider map: `(class, method) -> first ancestor
+/// in MRO order that provides the method`.
+fn build_method_providers(
+    classes: &HashMap<String, ClassDef>,
+    mro_map: &HashMap<String, Vec<String>>,
+) -> HashMap<(String, String), String> {
+    let mut method_providers: HashMap<(String, String), String> = HashMap::new();
+    for (qname, cd) in classes {
+        let mro = mro_map
+            .get(qname)
+            .cloned()
+            .unwrap_or_else(|| vec![qname.clone()]);
+        let mut all_methods: HashSet<String> = HashSet::new();
+        for n in cd.methods.keys() {
+            all_methods.insert(n.clone());
+        }
+        for n in cd.class_methods.keys() {
+            all_methods.insert(n.clone());
+        }
+        for ancestor_name in &mro {
+            if let Some(ancestor) = classes.get(ancestor_name) {
+                for n in ancestor.methods.keys() {
+                    all_methods.insert(n.clone());
+                }
+                for n in ancestor.class_methods.keys() {
+                    all_methods.insert(n.clone());
+                }
+            }
+        }
+        for method_name in all_methods {
+            for ancestor_name in &mro {
+                if let Some(ancestor) = classes.get(ancestor_name) {
+                    if ancestor.methods.contains_key(&method_name)
+                        || ancestor.class_methods.contains_key(&method_name)
+                    {
+                        method_providers
+                            .insert((qname.clone(), method_name.clone()), ancestor_name.clone());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    method_providers
+}
+
+/// Build the [`ClassHierarchy`] from a flat class-def index.  Runs
+/// MRO linearisation, computes direct + transitive subclass sets, and
+/// resolves method-provider chains.  Mirrors Python's
+/// `class_hierarchy.build_class_hierarchy`.
+#[must_use]
+pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarchy {
+    let (supers_map, mixins_map) = build_supers_mixins_maps(&classes);
 
     // Compute MRO for every class.  ``build_mro_map`` walks
     // ``supers_map.keys()`` only; classes that appear as parents
@@ -202,46 +254,7 @@ pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarc
         transitive.insert(qname.clone(), visited);
     }
 
-    // Build method-provider map.  For each class, collect every
-    // method name reachable via the MRO chain, then walk the MRO
-    // again to find the first provider.
-    let mut method_providers: HashMap<(String, String), String> = HashMap::new();
-    for (qname, cd) in &classes {
-        let mro = mro_map
-            .get(qname)
-            .cloned()
-            .unwrap_or_else(|| vec![qname.clone()]);
-        let mut all_methods: HashSet<String> = HashSet::new();
-        for n in cd.methods.keys() {
-            all_methods.insert(n.clone());
-        }
-        for n in cd.class_methods.keys() {
-            all_methods.insert(n.clone());
-        }
-        for ancestor_name in &mro {
-            if let Some(ancestor) = classes.get(ancestor_name) {
-                for n in ancestor.methods.keys() {
-                    all_methods.insert(n.clone());
-                }
-                for n in ancestor.class_methods.keys() {
-                    all_methods.insert(n.clone());
-                }
-            }
-        }
-        for method_name in all_methods {
-            for ancestor_name in &mro {
-                if let Some(ancestor) = classes.get(ancestor_name) {
-                    if ancestor.methods.contains_key(&method_name)
-                        || ancestor.class_methods.contains_key(&method_name)
-                    {
-                        method_providers
-                            .insert((qname.clone(), method_name.clone()), ancestor_name.clone());
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    let method_providers = build_method_providers(&classes, &mro_map);
 
     ClassHierarchy {
         classes,

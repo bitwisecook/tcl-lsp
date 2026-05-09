@@ -548,6 +548,168 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
+    /// SYNC4: `trace add variable name ops body` declares arg 1
+    /// (the variable name) as `VarWrite` via the registry.
+    #[test]
+    fn arg_indices_for_role_trace_add_variable_var_write() {
+        let reg = CommandRegistry::build_default();
+        let writes = reg.arg_indices_for_role(
+            "trace",
+            &["add", "variable", "x", "write", "body"],
+            ArgRole::VarWrite,
+        );
+        // +1 for subcommand offset.  arg "x" is at idx 2 in the
+        // full args list (sub args[1] + 1).
+        assert!(writes.contains(&2), "VarWrite writes={writes:?}");
+    }
+
+    /// SYNC4: `trace add execution` does NOT declare `VarWrite`
+    /// (the second arg is a command name, not a variable).
+    #[test]
+    fn arg_indices_for_role_trace_add_execution_no_var_write() {
+        let reg = CommandRegistry::build_default();
+        let writes = reg.arg_indices_for_role(
+            "trace",
+            &["add", "execution", "foo", "enter", "body"],
+            ArgRole::VarWrite,
+        );
+        assert!(writes.is_empty(), "VarWrite writes={writes:?}");
+    }
+
+    /// SYNC4: `trace remove variable` mirrors `trace add variable`
+    /// for registry parity (alias spellings flow through the same
+    /// `VarWrite` query).
+    #[test]
+    fn arg_indices_for_role_trace_remove_variable_var_write() {
+        let reg = CommandRegistry::build_default();
+        let writes = reg.arg_indices_for_role(
+            "trace",
+            &["remove", "variable", "y", "write", "body"],
+            ArgRole::VarWrite,
+        );
+        assert!(writes.contains(&2), "VarWrite writes={writes:?}");
+    }
+
+    /// SYNC5: `global` / `variable` / `upvar` carry
+    /// `CREATES_DYNAMIC_BARRIER` so SSA's barrier-def walk knows the
+    /// per-arg list belongs to `var_scoping`, not the role-driven
+    /// `VarWrite` query.
+    #[test]
+    fn creates_dynamic_barrier_trait_marks_scope_aliases() {
+        let reg = CommandRegistry::build_default();
+        for cmd in &["global", "variable", "upvar"] {
+            assert!(
+                reg.get(cmd)
+                    .unwrap()
+                    .traits
+                    .contains(Traits::CREATES_DYNAMIC_BARRIER),
+                "{cmd} should carry CREATES_DYNAMIC_BARRIER",
+            );
+        }
+        // `set` does NOT carry the trait — its VarWrite at arg 0 is
+        // a single-target def, not a vararg list.
+        assert!(
+            !reg.get("set")
+                .unwrap()
+                .traits
+                .contains(Traits::CREATES_DYNAMIC_BARRIER),
+        );
+    }
+
+    /// SYNC1 acceptance: `dict with` / `dict update` arg 0 (the dict
+    /// variable) plays both `VarRead` and `VarWrite` roles. Mirrors
+    /// Python's `frozenset({VAR_READ, VAR_WRITE})` post-`8c95c2ee`.
+    /// The Rust port emits this via duplicate `(idx, role)` rows in
+    /// the resolver; the type widening to an explicit `ArgRoleSet`
+    /// is deferred (the multi-role observable behaviour is already
+    /// what consumers query).
+    /// SYNC2: every spec defaults to `BodyKind::Plain` unless it
+    /// opts into `Structural`.
+    #[test]
+    fn body_kind_default_plain() {
+        use crate::body_kind::BodyKind;
+        let reg = CommandRegistry::build_default();
+        assert_eq!(reg.get("set").unwrap().body_kind, BodyKind::Plain);
+        assert_eq!(reg.get("if").unwrap().body_kind, BodyKind::Plain);
+        assert_eq!(reg.get("while").unwrap().body_kind, BodyKind::Plain);
+        assert_eq!(reg.get("foreach").unwrap().body_kind, BodyKind::Plain);
+    }
+
+    /// SYNC2: `proc` / `oo::class` / `oo::define` / `oo::objdefine`
+    /// stamp `Structural` so SSA skips their body args from the
+    /// enclosing block's data flow.
+    #[test]
+    fn body_kind_structural_marks() {
+        use crate::body_kind::BodyKind;
+        let reg = CommandRegistry::build_default();
+        assert_eq!(reg.get("proc").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("oo::class").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("oo::define").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("oo::objdefine").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("snit::method").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("snit::typemethod").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("uri::register").unwrap().body_kind, BodyKind::Structural);
+    }
+
+    /// SYNC2: iRules `when` event handler bodies are structural.
+    #[test]
+    fn body_kind_irules_when_structural() {
+        use crate::body_kind::BodyKind;
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        assert_eq!(reg.get("when").unwrap().body_kind, BodyKind::Structural);
+    }
+
+    /// SYNC3: `body_arg_implicit_args` defaults to 0 and is set on
+    /// `fileutil::updateInPlace` (which appends file contents to
+    /// the body's first command at runtime).
+    #[test]
+    fn body_arg_implicit_args_defaults_zero_except_fileutil_updateinplace() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(reg.get("set").unwrap().body_arg_implicit_args, 0);
+        assert_eq!(reg.get("proc").unwrap().body_arg_implicit_args, 0);
+        assert_eq!(
+            reg.get("fileutil::updateInPlace")
+                .unwrap()
+                .body_arg_implicit_args,
+            1,
+        );
+    }
+
+    #[test]
+    fn arg_indices_for_role_dict_with_multirole() {
+        let reg = CommandRegistry::build_default();
+        let reads = reg.arg_indices_for_role(
+            "dict",
+            &["with", "$var", "body"],
+            ArgRole::VarRead,
+        );
+        let writes = reg.arg_indices_for_role(
+            "dict",
+            &["with", "$var", "body"],
+            ArgRole::VarWrite,
+        );
+        assert!(reads.contains(&1), "VarRead reads={reads:?}");
+        assert!(writes.contains(&1), "VarWrite writes={writes:?}");
+    }
+
+    #[test]
+    fn arg_indices_for_role_dict_update_multirole() {
+        let reg = CommandRegistry::build_default();
+        let reads = reg.arg_indices_for_role(
+            "dict",
+            &["update", "$var", "k", "vname", "body"],
+            ArgRole::VarRead,
+        );
+        let writes = reg.arg_indices_for_role(
+            "dict",
+            &["update", "$var", "k", "vname", "body"],
+            ArgRole::VarWrite,
+        );
+        assert!(reads.contains(&1), "VarRead reads={reads:?}");
+        assert!(writes.contains(&1), "VarWrite writes={writes:?}");
+    }
+
     #[test]
     fn dynamic_arg_role_resolution() {
         let reg = CommandRegistry::build_default();

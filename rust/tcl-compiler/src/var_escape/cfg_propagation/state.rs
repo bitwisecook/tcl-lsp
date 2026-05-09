@@ -40,6 +40,13 @@ pub struct CfgEscapeResult {
     pub direct_callees: BTreeSet<String>,
     /// Every name the analysis saw (params + assigns + reads).
     pub known_names: HashSet<String>,
+    /// SYNC-JUN-FRAME356-population: structured barrier triggers
+    /// recorded by the CFG walk.
+    pub barriers: Vec<crate::var_escape::types::Barrier>,
+    /// SYNC-JUN-FRAME356-population: per-name escape reasons
+    /// recorded by the CFG walk.
+    pub tag_reasons:
+        HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
 impl CfgEscapeResult {
@@ -89,6 +96,11 @@ pub struct CfgState {
     literal_assigns: HashMap<String, LiteralBinding>,
     /// Most recent SSA version observed per name.
     ssa_for_name: HashMap<String, Version>,
+    /// SYNC-JUN-FRAME356-population: structured barrier triggers.
+    pub barriers: Vec<crate::var_escape::types::Barrier>,
+    /// SYNC-JUN-FRAME356-population: per-name escape reasons.
+    pub tag_reasons:
+        HashMap<String, Vec<crate::var_escape::types::EscapeReason>>,
 }
 
 impl CfgState {
@@ -180,6 +192,36 @@ impl CfgState {
     /// Mark the whole proc as needing a dynamic-barrier fallback.
     pub fn mark_pessimistic(&mut self) {
         self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
+    }
+
+    /// SYNC-JUN-FRAME356-population: record a structured barrier
+    /// (sets [`EscapeFlags::DYNAMIC_BARRIER`] AND appends the
+    /// barrier to [`Self::barriers`] for downstream rendering).
+    pub fn record_barrier(&mut self, barrier: crate::var_escape::types::Barrier) {
+        self.flags.insert(EscapeFlags::DYNAMIC_BARRIER);
+        self.barriers.push(barrier);
+    }
+
+    /// SYNC-JUN-FRAME356-population: escape *name* at its current
+    /// SSA version and record the triggering reason.
+    pub fn escape_with_reason(
+        &mut self,
+        name: &str,
+        defs: &HashMap<String, Version>,
+        reason: crate::var_escape::types::EscapeReason,
+    ) {
+        if name.is_empty() || is_dynamic_name(name) {
+            return;
+        }
+        let version = self.version_for(name, defs);
+        self.ssa_tags
+            .insert((name.to_string(), version), EscapeTag::Frame);
+        self.known_names.insert(name.to_string());
+        self.ssa_for_name.entry(name.to_string()).or_insert(version);
+        self.tag_reasons
+            .entry(name.to_string())
+            .or_default()
+            .push(reason);
     }
 
     /// Record a literal caller-frame name reached via `upvar`.
@@ -284,6 +326,8 @@ impl CfgState {
             upvar_source_names: self.upvar_source_names,
             direct_callees: self.direct_callees,
             known_names: self.known_names,
+            barriers: self.barriers,
+            tag_reasons: self.tag_reasons,
         }
     }
 }

@@ -54,6 +54,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Evaluate a script in a namespace context.",
         synopsis: "namespace eval namespace arg ?arg ...?",
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
+        lowering_hook: Some(crate::hooks::LoweringHookId::NamespaceEval),
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },

@@ -122,9 +122,17 @@ use crate::spec::CommandSpec;
 /// Return all Tcl core command specifications.
 // Flat declarative `vec![spec(), ...]` — splitting hurts
 // readability for a one-shot table.
-#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn tcl_command_specs() -> Vec<CommandSpec> {
+    let mut specs = tcl_specs_a_through_l();
+    specs.extend(tcl_specs_m_through_z());
+    specs
+}
+
+/// `tcl` dialect specs for commands `a` through `l` (~half of the
+/// table).  Split out from [`tcl_command_specs`] so neither half
+/// trips clippy's `too_many_lines`.
+fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
     vec![
         after_::spec(),
         append_::spec(),
@@ -185,6 +193,13 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
         lseq::spec(),
         lset::spec(),
         lsort_::spec(),
+    ]
+}
+
+/// `tcl` dialect specs for commands `m` through `z`.  Sister of
+/// [`tcl_specs_a_through_l`].
+fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
+    vec![
         mathop::spec(),
         namespace_::spec(),
         oo_abstract::spec(),

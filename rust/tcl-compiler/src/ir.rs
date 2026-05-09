@@ -205,8 +205,22 @@ pub enum Statement {
     Call {
         /// Source span.
         span: Span,
-        /// Command name.
+        /// Command name as it appeared in source — preserves the
+        /// original spelling for diagnostics ("unknown command
+        /// `Foo`" reads better than "unknown command `::Foo`").
         command: String,
+        /// SYNC7: canonical command name resolved against the
+        /// registry.  `None` when the lowerer hasn't (yet)
+        /// populated it or when the command is unknown to the
+        /// registry; downstream dispatch sites use
+        /// [`Statement::canonical_command_or_source`] so a `None`
+        /// canonical falls back to `command`.  Mirrors Python's
+        /// `IRCall.canonical_command` field added by `a042271a`
+        /// (closes `#246`).  The lowerer populates it when an
+        /// alias resolves (`interp alias {} foo {} ::ns::bar; foo
+        /// 1 2` lowers to a `Call` with `command="foo"` and
+        /// `canonical_command=Some("::ns::bar")`).
+        canonical_command: Option<String>,
         /// Argument texts.
         args: Vec<String>,
         /// Variables defined by this command.
@@ -253,8 +267,11 @@ pub enum Statement {
         span: Span,
         /// Human-readable reason for the barrier.
         reason: String,
-        /// Original command name.
+        /// Original command name (source-surface spelling).
         command: String,
+        /// SYNC7: canonical command name resolved against the
+        /// registry.  See [`Statement::Call::canonical_command`].
+        canonical_command: Option<String>,
         /// Original argument texts.
         args: Vec<String>,
         /// Command tokens for downstream analysis.
@@ -466,6 +483,32 @@ impl Statement {
             | Self::Switch { span, .. } => *span,
         }
     }
+
+    /// SYNC7: dispatch helper that returns the canonical command name
+    /// when populated, falling back to the source-surface `command`
+    /// otherwise.  Use from downstream dispatch sites (codegen hook
+    /// lookup, side-effect classification, GVN purity) so a single
+    /// canonical key drives every consumer; use the bare `command`
+    /// field directly when rendering source-surface text in
+    /// diagnostics.
+    ///
+    /// Returns `""` for non-Call / non-Barrier statements.
+    #[must_use]
+    pub fn canonical_command_or_source(&self) -> &str {
+        match self {
+            Self::Call {
+                command,
+                canonical_command,
+                ..
+            }
+            | Self::Barrier {
+                command,
+                canonical_command,
+                ..
+            } => canonical_command.as_deref().unwrap_or(command.as_str()),
+            _ => "",
+        }
+    }
 }
 
 /// Switch matching mode.
@@ -617,6 +660,19 @@ pub struct Module {
     /// `::foo` actually exports. Mirrors Python's
     /// `IRModule.namespace_exports` (main commit `2f5cb008`).
     pub namespace_exports: Vec<(String, String)>,
+    /// SYNC9: literal command names that have an execution trace
+    /// registered (`trace add execution NAME enter|leave HANDLER`).
+    /// GVN consults this set to gate purity (a traced call is
+    /// never pure because the trace handler composes side effects
+    /// in).  Mirrors Python's `IRModule.traced_commands` field
+    /// added by `8a6f4d58` (closes `#251`).
+    pub traced_commands: std::collections::BTreeSet<String>,
+    /// SYNC9: `true` when a `trace add execution` was seen with a
+    /// non-literal command target (`trace add execution $cmd ...`).
+    /// Forces GVN / partial-redundancy / loop-invariant passes to
+    /// treat *every* call as potentially traced.  Mirrors Python's
+    /// `IRModule.has_dynamic_trace`.
+    pub has_dynamic_trace: bool,
 }
 
 /// Extract the event name from a `::when::` qualified name.
@@ -660,6 +716,7 @@ mod tests {
         let stmt = Statement::Call {
             span: Span::new(5, 20),
             command: "puts".into(),
+            canonical_command: None,
             args: vec!["hello".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -700,6 +757,7 @@ mod tests {
             span: Span::new(0, 10),
             reason: "eval".into(),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["body".into()],
             tokens: Some(tokens.clone()),
         };
@@ -727,6 +785,7 @@ mod tests {
                 body: Script::from_statements(vec![Statement::Call {
                     span: Span::new(6, 15),
                     command: "puts".into(),
+                    canonical_command: None,
                     args: vec!["yes".into()],
                     defs: Vec::new(),
                     reads: Vec::new(),
@@ -837,6 +896,7 @@ mod tests {
             body: Script::from_statements(vec![Statement::Call {
                 span: Span::new(20, 40),
                 command: "puts".into(),
+                canonical_command: None,
                 args: vec!["Hello $name".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -1012,5 +1072,64 @@ mod tests {
             let vars = e.vars();
             assert!(vars.contains("a"));
         }
+    }
+
+    // -- SYNC7: canonical_command_or_source helper -------------------
+
+    #[test]
+    fn canonical_command_or_source_falls_back_to_source_when_none() {
+        let stmt = Statement::Call {
+            span: Span::new(0, 3),
+            command: "foo".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        assert_eq!(stmt.canonical_command_or_source(), "foo");
+    }
+
+    #[test]
+    fn canonical_command_or_source_returns_canonical_when_some() {
+        let stmt = Statement::Call {
+            span: Span::new(0, 3),
+            command: "foo".into(),
+            canonical_command: Some("::ns::bar".into()),
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        };
+        assert_eq!(stmt.canonical_command_or_source(), "::ns::bar");
+    }
+
+    #[test]
+    fn canonical_command_or_source_works_on_barrier() {
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 6),
+            reason: "eval".into(),
+            command: "eval".into(),
+            canonical_command: Some("eval".into()),
+            args: vec!["body".into()],
+            tokens: None,
+        };
+        assert_eq!(stmt.canonical_command_or_source(), "eval");
+    }
+
+    #[test]
+    fn canonical_command_or_source_returns_empty_for_non_call_non_barrier() {
+        let stmt = Statement::AssignConst {
+            span: Span::new(0, 5),
+            name: "x".into(),
+            value: "1".into(),
+        };
+        assert_eq!(stmt.canonical_command_or_source(), "");
     }
 }

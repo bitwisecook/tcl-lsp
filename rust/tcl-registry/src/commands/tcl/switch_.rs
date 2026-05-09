@@ -65,6 +65,7 @@ pub fn spec() -> CommandSpec {
             | Traits::HAS_SWITCH_BODY,
         arity: Arity::at_least(2),
         arg_role_resolver: Some(switch_arg_roles),
+        lowering_hook: Some(crate::hooks::LoweringHookId::Switch),
         return_type: Some(TclType::String),
         options: &[
             OptionSpec {

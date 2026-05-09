@@ -36,6 +36,7 @@ pub fn spec() -> CommandSpec {
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(try_arg_roles),
+        lowering_hook: Some(crate::hooks::LoweringHookId::Try),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet::brief(
             "Trap and process errors and exceptions.",

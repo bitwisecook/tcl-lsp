@@ -358,39 +358,11 @@ fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
 /// function's own CFG extent now that the segmenter emits
 /// absolute spans for proc bodies — so false-positive
 /// suppression across proc boundaries no longer applies.
-// Sequential textual-reference scan over command tokens.
-#[allow(clippy::too_many_lines)]
+/// Scan a slice for `$var` and `${var}` references, inserting names
+/// into *out*.  Extracted from `collect_textual_var_references`.
 #[allow(clippy::many_single_char_names)]
-pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
-    // Absolute spans now cover the function's own source range.
-    // Union every statement span plus every terminator span
-    // (which includes Return-value reads) and scan the enclosing
-    // slice. Proc boundaries no longer bleed into one another.
-    let span_iter = cfg.blocks.values().flat_map(|b| {
-        let stmts = b.statements.iter().map(crate::ir::Statement::span);
-        let term = b.terminator.as_ref().and_then(crate::cfg::Terminator::span);
-        stmts.chain(term)
-    });
-    let Some((lo, hi)) = span_iter.fold(None, |acc: Option<(u32, u32)>, span| {
-        let s = span.start();
-        let e = span.end();
-        match acc {
-            None => Some((s, e)),
-            Some((l, h)) => Some((l.min(s), h.max(e))),
-        }
-    }) else {
-        return HashSet::new();
-    };
-    let start = usize::try_from(lo).unwrap_or(0);
-    let end = usize::try_from(hi)
-        .unwrap_or(source.len())
-        .min(source.len());
-    if start >= end {
-        return HashSet::new();
-    }
-    let slice = &source[start..end];
+fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
     let bytes = slice.as_bytes();
-    let mut out: HashSet<String> = HashSet::new();
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] != b'$' {
@@ -440,14 +412,14 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
             }
         }
     }
-    // Also recognise ``[set varname]`` (the 1-arg read form) as a
-    // variable read.  Without this, DCE saw 0 reads on ``varname``
-    // and incorrectly deleted writes inside nested bodies (catch /
-    // foreach / while) even when the outer scope read them via the
-    // ``[set varname]`` substitution.  Mirrors upstream commit
-    // ``342d4c7a`` (PR #331).
-    let mut j = 0;
+}
+
+/// Scan a slice for `[set NAME]` (1-arg read form) references.
+/// Mirrors upstream commit `342d4c7a` (PR #331).
+#[allow(clippy::many_single_char_names)]
+fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
     let bs = slice.as_bytes();
+    let mut j = 0;
     while j < bs.len() {
         if bs[j] != b'[' {
             j += 1;
@@ -455,11 +427,9 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
         }
         let open = j;
         let mut k = j + 1;
-        // Skip whitespace after `[`.
         while k < bs.len() && (bs[k] == b' ' || bs[k] == b'\t') {
             k += 1;
         }
-        // Match `set` or `::set` followed by whitespace.
         if slice[k..].starts_with("::") {
             k += 2;
         }
@@ -476,7 +446,6 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
         while m < bs.len() && (bs[m] == b' ' || bs[m] == b'\t') {
             m += 1;
         }
-        // Capture identifier up to the next whitespace or `]`.
         let name_start = m;
         while m < bs.len() {
             let b = bs[m];
@@ -492,13 +461,10 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
             j = open + 1;
             continue;
         }
-        // Skip trailing whitespace.
         let mut n = m;
         while n < bs.len() && (bs[n] == b' ' || bs[n] == b'\t') {
             n += 1;
         }
-        // Only the 1-arg read form (`[set NAME ]`) — anything other
-        // than `]` here means the 2-arg write form.
         if n < bs.len() && bs[n] == b']' {
             if let Ok(name) = std::str::from_utf8(&bs[name_start..m]) {
                 if !name.is_empty() {
@@ -508,6 +474,36 @@ pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) ->
         }
         j = m;
     }
+}
+
+pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
+    // Absolute spans now cover the function's own source range.
+    let span_iter = cfg.blocks.values().flat_map(|b| {
+        let stmts = b.statements.iter().map(crate::ir::Statement::span);
+        let term = b.terminator.as_ref().and_then(crate::cfg::Terminator::span);
+        stmts.chain(term)
+    });
+    let Some((lo, hi)) = span_iter.fold(None, |acc: Option<(u32, u32)>, span| {
+        let s = span.start();
+        let e = span.end();
+        match acc {
+            None => Some((s, e)),
+            Some((l, h)) => Some((l.min(s), h.max(e))),
+        }
+    }) else {
+        return HashSet::new();
+    };
+    let start = usize::try_from(lo).unwrap_or(0);
+    let end = usize::try_from(hi)
+        .unwrap_or(source.len())
+        .min(source.len());
+    if start >= end {
+        return HashSet::new();
+    }
+    let slice = &source[start..end];
+    let mut out: HashSet<String> = HashSet::new();
+    scan_dollar_refs(slice, &mut out);
+    scan_set_read_refs(slice, &mut out);
     out
 }
 

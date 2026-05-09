@@ -122,8 +122,87 @@ pub fn has_command_separator(text: &str) -> bool {
 /// in `{…}` (braces are stripped from the returned text). This
 /// lets the caller decide whether to re-wrap the value in braces.
 // Sequential character-walk parser; the brace / quote / bracket / escape
-// state machine doesn't decompose into independent phases.
-#[allow(clippy::too_many_lines)]
+/// Skip past a balanced `[...]` substitution starting at *i*.
+/// Returns the new cursor position past the matching `]`.
+fn skip_cmd_subst(bytes: &[u8], n: usize, mut i: usize) -> usize {
+    let mut depth: i32 = 0;
+    while i < n {
+        if bytes[i] == b'[' {
+            depth += 1;
+        } else if bytes[i] == b']' {
+            depth -= 1;
+            if depth == 0 {
+                i += 1;
+                break;
+            }
+        }
+        i += 1;
+    }
+    i
+}
+
+/// Parse one quoted-string `"..."` part starting at *i* (which
+/// points at the opening `"`).  Returns `(part_text, new_i)`.
+fn parse_quoted_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
+    i += 1;
+    let start = i;
+    while i < n && bytes[i] != b'"' {
+        if bytes[i] == b'\\' {
+            i += 1;
+        }
+        i += 1;
+    }
+    let part = text[start..i].to_owned();
+    if i < n {
+        i += 1; // skip closing "
+    }
+    (part, i)
+}
+
+/// Parse one braced `{...}` part starting at *i*.
+fn parse_braced_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
+    let mut depth: i32 = 1;
+    i += 1;
+    let start = i;
+    while i < n && depth > 0 {
+        if bytes[i] == b'\\' {
+            i += 2;
+            continue;
+        }
+        if bytes[i] == b'{' {
+            depth += 1;
+        } else if bytes[i] == b'}' {
+            depth -= 1;
+        }
+        if depth > 0 {
+            i += 1;
+        }
+    }
+    let part = text[start..i].to_owned();
+    if i < n {
+        i += 1; // skip closing }
+    }
+    (part, i)
+}
+
+/// Parse one bare word or `[cmd]`-substitution-rooted word starting
+/// at *i*.  Bare-word handling reads non-whitespace bytes;
+/// `[cmd]` mid-word is consumed as an opaque substitution.
+fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
+    let start = i;
+    while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
+        if bytes[i] == b'[' {
+            i = skip_cmd_subst(bytes, n, i);
+        } else {
+            i += 1;
+        }
+    }
+    (text[start..i].to_owned(), i)
+}
+
+/// Parse a command-substitution body into `(text, braced)` parts.
+/// `braced=true` means the text was a `{...}` literal — the caller
+/// should not interpolate it.  Strips the outer `[...]` if present.
 #[must_use]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let text = text.trim();
@@ -138,112 +217,41 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let mut i = 0;
 
     while i < n {
-        // Skip whitespace
         while i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
             i += 1;
         }
         if i >= n {
             break;
         }
-
-        if bytes[i] == b'"' {
-            // Quoted string
-            i += 1;
-            let start = i;
-            while i < n && bytes[i] != b'"' {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
+        match bytes[i] {
+            b'"' => {
+                let (part, new_i) = parse_quoted_part(text, bytes, n, i);
+                parts.push((part, false));
+                i = new_i;
             }
-            parts.push((text[start..i].to_owned(), false));
-            if i < n {
-                i += 1; // skip closing "
+            b'{' => {
+                let (part, new_i) = parse_braced_part(text, bytes, n, i);
+                parts.push((part, true));
+                i = new_i;
             }
-        } else if bytes[i] == b'{' {
-            // Braced string
-            let mut depth: i32 = 1;
-            i += 1;
-            let start = i;
-            while i < n && depth > 0 {
-                if bytes[i] == b'\\' {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'{' {
-                    depth += 1;
-                } else if bytes[i] == b'}' {
-                    depth -= 1;
-                }
-                if depth > 0 {
-                    i += 1;
-                }
-            }
-            parts.push((text[start..i].to_owned(), true));
-            if i < n {
-                i += 1; // skip closing }
-            }
-        } else if bytes[i] == b'[' {
-            // Command substitution (may have trailing non-ws suffix)
-            let start = i;
-            let mut depth: i32 = 0;
-            while i < n {
-                if bytes[i] == b'[' {
-                    depth += 1;
-                } else if bytes[i] == b']' {
-                    depth -= 1;
-                    if depth == 0 {
-                        i += 1;
-                        break;
-                    }
-                }
-                i += 1;
-            }
-            // Continue reading non-whitespace after ']' (e.g. [namespace current]::foo)
-            while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
-                if bytes[i] == b'[' {
-                    let mut inner_depth: i32 = 0;
-                    while i < n {
-                        if bytes[i] == b'[' {
-                            inner_depth += 1;
-                        } else if bytes[i] == b']' {
-                            inner_depth -= 1;
-                            if inner_depth == 0 {
-                                i += 1;
-                                break;
-                            }
-                        }
+            b'[' => {
+                let start = i;
+                i = skip_cmd_subst(bytes, n, i);
+                // Continue past trailing non-ws (e.g. ``[ns current]::foo``).
+                while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
+                    if bytes[i] == b'[' {
+                        i = skip_cmd_subst(bytes, n, i);
+                    } else {
                         i += 1;
                     }
-                } else {
-                    i += 1;
                 }
+                parts.push((text[start..i].to_owned(), false));
             }
-            parts.push((text[start..i].to_owned(), false));
-        } else {
-            // Bare word
-            let start = i;
-            while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
-                if bytes[i] == b'[' {
-                    // Command substitution mid-word
-                    let mut inner_depth: i32 = 0;
-                    while i < n {
-                        if bytes[i] == b'[' {
-                            inner_depth += 1;
-                        } else if bytes[i] == b']' {
-                            inner_depth -= 1;
-                            if inner_depth == 0 {
-                                i += 1;
-                                break;
-                            }
-                        }
-                        i += 1;
-                    }
-                } else {
-                    i += 1;
-                }
+            _ => {
+                let (part, new_i) = parse_bareword_part(text, bytes, n, i);
+                parts.push((part, false));
+                i = new_i;
             }
-            parts.push((text[start..i].to_owned(), false));
         }
     }
     parts
@@ -729,8 +737,101 @@ impl CodegenCtx<'_> {
         }
     }
 
-    // Long match dispatcher over command-substitution forms.
-    #[allow(clippy::too_many_lines)]
+    /// Emit the `string equal {-nocase}? a b` / `string compare
+    /// {-nocase|-length}? ...` forms via `INVOKE_REPLACE` against
+    /// the FQN sub-emitter.  `flag_args` is the per-form prefix
+    /// pushed before the operand args.  `total_argc` is the total
+    /// argument count including the operand args; helper computes
+    /// `INVOKE_REPLACE 0 1` operands as `(total_argc, 2)`.
+    fn emit_inline_string_invoke_replace(
+        &mut self,
+        prev_inline: bool,
+        target_subcmd: &str,
+        flag_args: &[&str],
+        operand_args: &[(String, bool)],
+    ) {
+        self.used_inline_cmd_subst = prev_inline;
+        let sc_end = self.fresh_label("subcmd_end");
+        self.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
+            "",
+        );
+        self.push_lit("string");
+        self.push_lit(target_subcmd);
+        for f in flag_args {
+            self.push_lit(f);
+        }
+        for (a, b) in operand_args {
+            self.emit_cmd_subst_arg(a, *b);
+        }
+        self.push_lit(&format!("::tcl::string::{target_subcmd}"));
+        let argc = bytecode_imm(2 + flag_args.len() + operand_args.len());
+        self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(argc), Operand::Imm(2)]);
+        self.place_label(&sc_end);
+        self.seen_generic_invoke = true;
+    }
+
+    /// Emit a 2-arg `string equal a b` / `string compare a b` —
+    /// shares the `is_proc ? no-START_CMD : with-START_CMD-wrap`
+    /// scaffold.  `op` is the resulting bytecode opcode.
+    fn emit_inline_string_2arg_op(
+        &mut self,
+        prev_inline: bool,
+        sargs: &[(String, bool)],
+        op: Op,
+    ) {
+        let sc_end = if self.is_proc {
+            None
+        } else {
+            self.used_inline_cmd_subst = prev_inline;
+            let label = self.fresh_label("subcmd_end");
+            self.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(label.clone()), Operand::Imm(1)],
+                "",
+            );
+            Some(label)
+        };
+        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
+        self.emit(op, vec![]);
+        if let Some(label) = sc_end {
+            self.place_label(&label);
+        }
+    }
+
+    /// Fall-through path: invoke `::tcl::string::<subcmd>` via
+    /// `INVOKE_STK1`/`STK4`.
+    fn emit_inline_string_fqn_invoke(
+        &mut self,
+        prev_inline: bool,
+        subcmd: &str,
+        sargs: &[(String, bool)],
+    ) {
+        self.used_inline_cmd_subst = prev_inline;
+        let sc_end = self.fresh_label("subcmd_end");
+        self.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
+            "",
+        );
+        let fqn = format!("::tcl::string::{subcmd}");
+        self.push_lit(&fqn);
+        for (a, b) in sargs {
+            self.emit_cmd_subst_arg(a, *b);
+        }
+        let argc = bytecode_imm(1 + sargs.len());
+        let invoke_op = if argc < 256 {
+            Op::INVOKE_STK1
+        } else {
+            Op::INVOKE_STK4
+        };
+        self.emit(invoke_op, vec![Operand::Imm(argc)]);
+        self.place_label(&sc_end);
+        self.seen_generic_invoke = true;
+    }
+
     fn emit_inline_string(&mut self, args: &[(String, bool)]) {
         let subcmd = &args[0].0;
         let sargs = &args[1..];
@@ -756,99 +857,19 @@ impl CodegenCtx<'_> {
                 }
             }
             "equal" if sargs.len() == 2 => {
-                let sc_end = if self.is_proc {
-                    None
-                } else {
-                    self.used_inline_cmd_subst = prev_inline;
-                    let label = self.fresh_label("subcmd_end");
-                    self.emit_comment(
-                        Op::START_CMD,
-                        vec![Operand::Label(label.clone()), Operand::Imm(1)],
-                        "",
-                    );
-                    Some(label)
-                };
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit(Op::STR_EQ, vec![]);
-                if let Some(label) = sc_end {
-                    self.place_label(&label);
-                }
+                self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_EQ);
             }
             "equal" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.push_lit("string");
-                self.push_lit("equal");
-                self.push_lit("-nocase");
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-                self.push_lit("::tcl::string::equal");
-                self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(5), Operand::Imm(2)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_invoke_replace(prev_inline, "equal", &["-nocase"], &sargs[1..]);
             }
             "compare" if sargs.len() == 2 => {
-                let sc_end = if self.is_proc {
-                    None
-                } else {
-                    self.used_inline_cmd_subst = prev_inline;
-                    let label = self.fresh_label("subcmd_end");
-                    self.emit_comment(
-                        Op::START_CMD,
-                        vec![Operand::Label(label.clone()), Operand::Imm(1)],
-                        "",
-                    );
-                    Some(label)
-                };
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit(Op::STR_CMP, vec![]);
-                if let Some(label) = sc_end {
-                    self.place_label(&label);
-                }
+                self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_CMP);
             }
             "compare" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.push_lit("string");
-                self.push_lit("compare");
-                self.push_lit("-nocase");
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-                self.push_lit("::tcl::string::compare");
-                self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(5), Operand::Imm(2)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_invoke_replace(prev_inline, "compare", &["-nocase"], &sargs[1..]);
             }
             "compare" if sargs.len() == 4 && sargs[0].0 == "-length" => {
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.push_lit("string");
-                self.push_lit("compare");
-                self.push_lit("-length");
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-                self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
-                self.push_lit("::tcl::string::compare");
-                self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(6), Operand::Imm(2)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_invoke_replace(prev_inline, "compare", &["-length"], &sargs[1..]);
             }
             "replace" if sargs.len() == 4 => {
                 self.emit_inline_string_replace(sargs);
@@ -861,28 +882,7 @@ impl CodegenCtx<'_> {
                 self.emit_inline_string_is(sargs);
             }
             _ => {
-                // Unhandled string subcommand: use FQN invoke
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                let fqn = format!("::tcl::string::{subcmd}");
-                self.push_lit(&fqn);
-                for (a, b) in sargs {
-                    self.emit_cmd_subst_arg(a, *b);
-                }
-                let argc = bytecode_imm(1 + sargs.len());
-                let invoke_op = if argc < 256 {
-                    Op::INVOKE_STK1
-                } else {
-                    Op::INVOKE_STK4
-                };
-                self.emit(invoke_op, vec![Operand::Imm(argc)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
             }
         }
     }

@@ -113,11 +113,36 @@ pub struct SsaFunction {
 
 /// Extract variable names defined by an IR statement.
 ///
-/// Handles assignments (`set`, `incr`), call defs, `trace add variable`,
-/// and `dict for`/`dict map` barriers. This is the Rust equivalent of
-/// the Python `_defs()` function in `ssa.py`.
+/// Handles assignments (`set`, `incr`), call defs, `trace add variable`
+/// (via registry roles when `registry` is supplied), and `dict for`/
+/// `dict map` barriers. This is the Rust equivalent of the Python
+/// `_defs()` function in `ssa.py`.
+///
+/// Pass `Some(&CommandRegistry)` when available so barrier defs route
+/// through the registry's `ArgRole::VarWrite` query (SYNC4); pass
+/// `None` for the legacy string-match path used by the unit-test
+/// helpers.
 #[must_use]
 pub fn defs_of(stmt: &Statement) -> Vec<String> {
+    defs_of_with_registry(stmt, None)
+}
+
+/// SYNC4: registry-aware `defs_of`.
+///
+/// Mirrors Python's post-`01326b40` shape — barrier defs route through
+/// `ArgRole::VarWrite` instead of a hardcoded string-match.  The
+/// registry-aware path also covers `::trace` and any future trace
+/// alias spellings without code edits, plus skips
+/// `creates_dynamic_barrier` specs (SYNC5: `global` / `variable` /
+/// `upvar` are handled by `var_scoping`, not by SSA's per-arg
+/// `VarWrite` walk).
+#[must_use]
+pub fn defs_of_with_registry(
+    stmt: &Statement,
+    registry: Option<&CommandRegistry>,
+) -> Vec<String> {
+    use tcl_registry::{ArgRole, Traits};
+
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
@@ -127,13 +152,41 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
         }
         Statement::Call { defs, .. } if !defs.is_empty() => defs.clone(),
         Statement::Barrier { command, args, .. } => {
-            // trace add variable $var → defines $var
-            if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
-                return vec![normalise_var_name(&args[2]).to_owned()];
-            }
             // dict for/map barriers: extract iteration variable names
+            // (these come from a structured-body scan, not from a
+            // role-tagged arg, so they stay as a separate path).
             if (command.ends_with("::for") || command.ends_with("::map")) && !args.is_empty() {
                 return args[0].split_whitespace().map(String::from).collect();
+            }
+            // SYNC4 + SYNC5: registry-driven VarWrite walk.  Skips
+            // specs whose dynamic-barrier trait says the analyser's
+            // `var_scoping` pass handles the per-arg list (`global`,
+            // `variable`, `upvar`); without the skip we'd produce
+            // partial defs for the vararg forms (`global x y z`
+            // would mark only `x`).
+            if let Some(reg) = registry {
+                if let Some(spec) = reg.get(command) {
+                    if spec.traits.contains(Traits::CREATES_DYNAMIC_BARRIER) {
+                        return Vec::new();
+                    }
+                }
+                let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+                let indices = reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite);
+                if !indices.is_empty() {
+                    return indices
+                        .into_iter()
+                        .filter_map(|idx| {
+                            args.get(idx).map(|s| normalise_var_name(s).to_owned())
+                        })
+                        .filter(|n| !n.is_empty())
+                        .collect();
+                }
+            }
+            // Legacy string-match fallback for callers without a
+            // registry (test helpers).  Mirrors the pre-SYNC4 shape
+            // so existing fixtures keep their expected defs.
+            if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
+                return vec![normalise_var_name(&args[2]).to_owned()];
             }
             Vec::new()
         }
@@ -304,6 +357,7 @@ pub(crate) fn build_dom_tree(
 pub(crate) fn compute_phi_vars(
     func: &cfg::Function,
     df: &HashMap<String, HashSet<String>>,
+    registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<String>> {
     let reachable = func.reachable_blocks();
 
@@ -312,7 +366,7 @@ pub(crate) fn compute_phi_vars(
     for name in &reachable {
         if let Some(block) = func.blocks.get(name) {
             for stmt in &block.statements {
-                for var in defs_of(stmt) {
+                for var in defs_of_with_registry(stmt, Some(registry)) {
                     defsites.entry(var).or_default().insert(name.clone());
                 }
             }
@@ -390,15 +444,33 @@ fn structural_body_indices(
     tokens: Option<&CommandTokens>,
     registry: &CommandRegistry,
 ) -> HashSet<usize> {
-    use tcl_registry::ArgRole;
+    use tcl_registry::{ArgRole, BodyKind};
 
-    if command == "when" || command == "proc" {
+    // SYNC2: the registry-declared `body_kind` on each spec /
+    // subcommand tells us whether body args run in the caller's
+    // frame (`Plain`) or in a separate definition / dispatch context
+    // (`Structural`).  Only `Structural` body args belong in this
+    // skip set — `if`, `while`, `for`, `foreach`, `catch`, `try`,
+    // … bodies share the caller's frame and SSA must scan them as
+    // part of the enclosing block's data flow.
+    if let Some(spec) = registry.get(command) {
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let candidates = registry.arg_indices_for_role(command, &arg_strs, ArgRole::Body);
-        return candidates
-            .into_iter()
-            .filter(|&idx| idx < args.len() && is_braced_arg(tokens, idx))
-            .collect();
+        // Subcommand body_kind (if the call dispatches to a sub).
+        let sub_body_kind = if spec.subcommands.is_empty() {
+            None
+        } else {
+            args.first()
+                .and_then(|first| spec.subcommand(first))
+                .map(|sub| sub.body_kind)
+        };
+        let body_kind = sub_body_kind.unwrap_or(spec.body_kind);
+        if body_kind == BodyKind::Structural {
+            let candidates = registry.arg_indices_for_role(command, &arg_strs, ArgRole::Body);
+            return candidates
+                .into_iter()
+                .filter(|&idx| idx < args.len() && is_braced_arg(tokens, idx))
+                .collect();
+        }
     }
 
     if command == "test" || command == "tcltest::test" {
@@ -531,10 +603,27 @@ pub fn uses_of(
             }
             // dict with/update: the dict variable name is a plain string,
             // not a $-substitution, so scan_word misses it.
+            //
+            // SYNC6: arg 0 carries both VarRead and VarWrite roles
+            // (mirrors Python's `frozenset({VAR_READ, VAR_WRITE})` post
+            // `8c95c2ee`).  When SYNC4 routes barrier defs through the
+            // registry, the same name will land in `defs` from the
+            // VarWrite query.  The closing filter at line ~553
+            // (`!defs.contains(v) || reads_own_def.contains(v)`) would
+            // then drop the dict var unless we mark it as reads-own-def
+            // here.  Without this, a proc whose only reference to a
+            // parameter is `dict with $param {}` would produce a
+            // false unused-parameter diagnostic.  Preemptive fix: the
+            // line is a no-op today (SYNC4 hasn't routed dict with
+            // through the registry yet) but matches Python parity and
+            // sequences cleanly with the SYNC4 follow-up.  See
+            // ssa.py::_uses for the Python-side comment.
             if command == "dict" && args.len() >= 2 && (args[0] == "with" || args[0] == "update") {
                 let dict_var = normalise_var_name(&args[1]);
                 if !dict_var.is_empty() {
-                    vars_found.insert(dict_var.to_owned());
+                    let owned = dict_var.to_owned();
+                    vars_found.insert(owned.clone());
+                    reads_own_def.insert(owned);
                 }
             }
         }
@@ -546,8 +635,12 @@ pub fn uses_of(
     }
 
     // Exclude variables defined by this statement, unless they're
-    // read-before-write.
-    let defs: HashSet<String> = defs_of(stmt).into_iter().collect();
+    // read-before-write.  SYNC4: route through the registry so
+    // `trace add variable` defs come from the registry's VarWrite
+    // role rather than a string match.
+    let defs: HashSet<String> = defs_of_with_registry(stmt, Some(registry))
+        .into_iter()
+        .collect();
     vars_found
         .into_iter()
         .filter(|v| !v.is_empty() && (!defs.contains(v) || reads_own_def.contains(v)))
@@ -587,15 +680,15 @@ enum RenamePhase {
 /// per-statement use/def maps — splitting it would just scatter the
 /// state across many parameters.
 // Long renumbering pass with sequential block-walk phases.
-#[allow(clippy::too_many_lines)]
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunction {
     // 1. Compute dominance information.
     let dom = compute_dominators(func);
     let idom = compute_idom(func, &dom);
     let df = compute_dominance_frontier(func, &idom);
     let tree = build_dom_tree(&idom);
-    let phi_vars = compute_phi_vars(func, &df);
+    let phi_vars = compute_phi_vars(func, &df, registry);
 
     // 2. Set up rename state.
     let mut version_counter: HashMap<String, Version> = HashMap::new();
@@ -700,7 +793,7 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
                         }
 
                         let mut defs_map: HashMap<String, Version> = HashMap::new();
-                        for var in defs_of(stmt) {
+                        for var in defs_of_with_registry(stmt, Some(registry)) {
                             let ver = push_new(&mut version_counter, &mut stacks, &var);
                             frame.pushed_vars.push(var.clone());
                             defs_map.insert(var, ver);
@@ -989,6 +1082,7 @@ mod tests {
         let stmt = Statement::Call {
             span: Span::new(0, 20),
             command: "lappend".into(),
+            canonical_command: None,
             args: vec!["list".into(), "item".into()],
             defs: vec!["list".into()],
             reads: vec![],
@@ -1005,6 +1099,7 @@ mod tests {
         let stmt = Statement::Call {
             span: Span::new(0, 10),
             command: "puts".into(),
+            canonical_command: None,
             args: vec!["hello".into()],
             defs: vec![],
             reads: vec![],
@@ -1033,6 +1128,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "trace".into(),
             command: "trace".into(),
+            canonical_command: None,
             args: vec!["add".into(), "variable".into(), "$x".into()],
             tokens: None,
         };
@@ -1045,10 +1141,77 @@ mod tests {
             span: Span::new(0, 30),
             reason: "dict for".into(),
             command: "dict::for".into(),
+            canonical_command: None,
             args: vec!["k v".into(), "$d".into()],
             tokens: None,
         };
         assert_eq!(defs_of(&stmt), vec!["k", "v"]);
+    }
+
+    /// SYNC4: `trace add variable` defs route through the registry's
+    /// `ArgRole::VarWrite` query rather than a string match.
+    #[test]
+    fn defs_of_barrier_trace_via_registry() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "trace".into(),
+            command: "trace".into(),
+            canonical_command: None,
+            args: vec!["add".into(), "variable".into(), "$x".into()],
+            tokens: None,
+        };
+        assert_eq!(defs_of_with_registry(&stmt, Some(&reg)), vec!["x"]);
+    }
+
+    /// SYNC4: `trace add execution` does NOT define a variable — the
+    /// command name being traced is not a `VarWrite` target.
+    #[test]
+    fn defs_of_barrier_trace_add_execution_no_def() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "trace".into(),
+            command: "trace".into(),
+            canonical_command: None,
+            args: vec!["add".into(), "execution".into(), "foo".into()],
+            tokens: None,
+        };
+        assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
+    }
+
+    /// SYNC5: `global x y z` produces NO defs from the registry path
+    /// (`var_scoping` handles the per-arg list).  Without the
+    /// `CREATES_DYNAMIC_BARRIER` skip, the role-driven walk would
+    /// only mark `x` (partial defs) and miss `y` / `z`.
+    #[test]
+    fn defs_of_barrier_global_vararg_no_partial_defs() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "global".into(),
+            command: "global".into(),
+            canonical_command: None,
+            args: vec!["x".into(), "y".into(), "z".into()],
+            tokens: None,
+        };
+        assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
+    }
+
+    /// SYNC5 sibling: `variable a b c` — same vararg-list shape as
+    /// `global`, same skip.
+    #[test]
+    fn defs_of_barrier_variable_vararg_no_partial_defs() {
+        let reg = CommandRegistry::build_default();
+        let stmt = Statement::Barrier {
+            span: Span::new(0, 30),
+            reason: "variable".into(),
+            command: "variable".into(),
+            canonical_command: None,
+            args: vec!["a".into(), "b".into(), "c".into()],
+            tokens: None,
+        };
+        assert!(defs_of_with_registry(&stmt, Some(&reg)).is_empty());
     }
 
     // Dominator tests
@@ -1187,7 +1350,7 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
 
         assert!(phi["end"].contains("x"), "x should need a phi at 'end'");
         assert!(
@@ -1213,7 +1376,7 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
 
         for vars in phi.values() {
             assert!(!vars.contains("x"), "x should not need a phi anywhere");
@@ -1247,7 +1410,7 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
 
         assert!(
             phi["header"].contains("i"),
@@ -1261,7 +1424,7 @@ mod tests {
         let dom = compute_dominators(&func);
         let idom = compute_idom(&func, &dom);
         let df = compute_dominance_frontier(&func, &idom);
-        let phi = compute_phi_vars(&func, &df);
+        let phi = compute_phi_vars(&func, &df, &CommandRegistry::build_default());
 
         for vars in phi.values() {
             assert!(vars.is_empty(), "no defs → no phis");

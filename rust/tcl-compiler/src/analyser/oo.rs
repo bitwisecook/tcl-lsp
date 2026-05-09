@@ -310,8 +310,59 @@ fn walk_unknown_stmt(stmt: &Statement, first_param: &str, info: &mut UnknownProc
 ///
 /// `texts` and `argv` are parallel: `texts[0]` / `argv[0]` is
 /// the subcommand name (``superclass`` / ``method`` / etc.).
-// Long match dispatcher over OO command/subcommand shapes.
-#[allow(clippy::too_many_lines)]
+/// `oo::define Cls private <subcmd> ...` — wraps a method-defining
+/// subcommand with `visibility = "private"`.  Extracted from
+/// [`apply_oo_subcommand`] to keep the dispatch under threshold.
+fn apply_oo_private(sub_args: &[String], sub_tokens: &[Token], class_def: &mut ClassDef) {
+    if sub_args.is_empty() {
+        return;
+    }
+    let inner_subcmd = sub_args[0].as_str();
+    let inner_args: &[String] = &sub_args[1..];
+    let inner_tokens: &[Token] = if sub_tokens.len() > 1 {
+        &sub_tokens[1..]
+    } else {
+        &[]
+    };
+    match inner_subcmd {
+        "method" => {
+            if let Some(md) =
+                extract_method_def(inner_args, inner_tokens, "method", "private", "")
+            {
+                class_def.methods.insert(md.name.clone(), md);
+            }
+        }
+        "classmethod" => {
+            if let Some(md) =
+                extract_method_def(inner_args, inner_tokens, "classmethod", "private", "")
+            {
+                class_def.class_methods.insert(md.name.clone(), md);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// `oo::define Cls forward name target ...` — records a forward
+/// alias as a method.
+fn apply_oo_forward(sub_args: &[String], sub_tokens: &[Token], class_def: &mut ClassDef) {
+    if let Some(name) = sub_args.first() {
+        let span = sub_tokens
+            .first()
+            .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span);
+        let md = MethodDef {
+            name: name.clone(),
+            params: Vec::new(),
+            name_span: span,
+            body_span: span,
+            kind: "forward".to_string(),
+            visibility: "public".to_string(),
+            doc: String::new(),
+        };
+        class_def.methods.insert(md.name.clone(), md);
+    }
+}
+
 fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDef) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;
@@ -376,55 +427,8 @@ fn apply_oo_subcommand(texts: &[String], argv: &[Token], class_def: &mut ClassDe
         "property" => {
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
-        "forward" => {
-            if let Some(name) = sub_args.first() {
-                let span = sub_tokens
-                    .first()
-                    .map_or_else(|| tcl_lexer::Span::new(0, 0), |t| t.span);
-                let md = MethodDef {
-                    name: name.clone(),
-                    params: Vec::new(),
-                    name_span: span,
-                    body_span: span,
-                    kind: "forward".to_string(),
-                    visibility: "public".to_string(),
-                    doc: String::new(),
-                };
-                class_def.methods.insert(md.name.clone(), md);
-            }
-        }
-        "private" => {
-            // ``private`` wraps another definition subcommand.
-            // The wrapped subcommand fires with ``visibility =
-            // "private"``.
-            if sub_args.is_empty() {
-                return;
-            }
-            let inner_subcmd = sub_args[0].as_str();
-            let inner_args: &[String] = &sub_args[1..];
-            let inner_tokens: &[Token] = if sub_tokens.len() > 1 {
-                &sub_tokens[1..]
-            } else {
-                &[]
-            };
-            match inner_subcmd {
-                "method" => {
-                    if let Some(md) =
-                        extract_method_def(inner_args, inner_tokens, "method", "private", "")
-                    {
-                        class_def.methods.insert(md.name.clone(), md);
-                    }
-                }
-                "classmethod" => {
-                    if let Some(md) =
-                        extract_method_def(inner_args, inner_tokens, "classmethod", "private", "")
-                    {
-                        class_def.class_methods.insert(md.name.clone(), md);
-                    }
-                }
-                _ => {}
-            }
-        }
+        "forward" => apply_oo_forward(sub_args, sub_tokens, class_def),
+        "private" => apply_oo_private(sub_args, sub_tokens, class_def),
         // ``initialise`` / ``initialize`` are class-level
         // initialisation scripts; the body is recorded by the
         // Python analyser via ``_analyse_body`` (it walks the
