@@ -594,9 +594,14 @@ _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null
+	# Completion scripts are bundled and printable from inside the zipapp.
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion bash > $(BUILD_DIR)/smoke-tcl.bash
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion fish > $(BUILD_DIR)/smoke-tcl.fish
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion zsh  > $(BUILD_DIR)/smoke-tcl.zsh
+	bash -n $(BUILD_DIR)/smoke-tcl.bash
 	ln -sfn smoke-tcl.pyz $(BUILD_DIR)/irule
 	$(PYTHON) $(BUILD_DIR)/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
-	@rm -f $(BUILD_DIR)/smoke-tcl.pyz
+	@rm -f $(BUILD_DIR)/smoke-tcl.pyz $(BUILD_DIR)/smoke-tcl.bash $(BUILD_DIR)/smoke-tcl.fish $(BUILD_DIR)/smoke-tcl.zsh
 	@rm -f $(BUILD_DIR)/irule
 
 _smoke-zipapp-cli: $(BUILD_INFO)

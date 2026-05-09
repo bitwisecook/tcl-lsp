@@ -1255,6 +1255,88 @@ When invoked as `irule`, the CLI uses `f5-irules` as the default dialect.
 For source builds, run `make kcs-db` before packaging zipapps so `tcl.pyz help`
 can query the bundled KCS SQLite database.
 
+**Install the `tcl` CLI** — the released artefact is a single-file zipapp
+(`tcl-<version>.pyz`) that needs only Python 3.10+ on the host.  Download
+it from the
+[GitHub Releases page](https://github.com/bitwisecook/tcl-lsp/releases)
+and put it on `PATH`:
+
+```sh
+# Per-user install on ~/.local/bin (no sudo).
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/tcl \
+  https://github.com/bitwisecook/tcl-lsp/releases/latest/download/tcl-<version>.pyz
+chmod +x ~/.local/bin/tcl
+
+# Optional: symlink as `irule` so the CLI defaults to the f5-irules dialect.
+ln -sf ~/.local/bin/tcl ~/.local/bin/irule
+
+# Confirm: should print "tcl <verb> [options] [inputs...]"
+tcl --help
+```
+
+The downloaded `.pyz` is self-contained — no `pip install`, no virtualenv.
+For a system-wide install, drop the same file into `/usr/local/bin/tcl`
+(and symlink `/usr/local/bin/irule`) and `chmod 755` it.
+
+**From source (development)** — clone the repo and use
+`python -m explorer.tcl_cli` directly, or build a fresh zipapp with
+`make zipapp-tcl` (output lands in `build/tcl-<version>.pyz`):
+
+```sh
+git clone https://github.com/bitwisecook/tcl-lsp
+cd tcl-lsp
+uv sync --extra dev
+python -m explorer.tcl_cli lint samples/
+# or:
+make zipapp-tcl && ./build/tcl-*.pyz lint samples/
+```
+
+**Shell completion** — the `tcl completion <shell>` verb prints a
+ready-to-install completion script for **bash**, **fish**, or **zsh**.
+The script is bundled inside the zipapp, so it's the same with the
+local source build or the released `.pyz`, and the same script
+covers both `tcl` and `irule` invocations.  Run the snippet for your
+shell **after** `tcl` is on `PATH`:
+
+```sh
+# bash (per-user)
+mkdir -p ~/.local/share/bash-completion/completions
+tcl completion bash > ~/.local/share/bash-completion/completions/tcl
+tcl completion bash > ~/.local/share/bash-completion/completions/irule
+# Or eagerly source from ~/.bashrc:
+#   source <(tcl completion bash)
+
+# fish
+mkdir -p ~/.config/fish/completions
+tcl completion fish > ~/.config/fish/completions/tcl.fish
+tcl completion fish > ~/.config/fish/completions/irule.fish
+# Then start a new fish session.
+
+# zsh (per-user)
+mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
+tcl completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl"
+tcl completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_irule"
+# Then add to ~/.zshrc, before `compinit`:
+#   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
+#   autoload -Uz compinit && compinit
+```
+
+For a system-wide zsh install on hosts whose `$fpath` already covers
+it, write straight to `site-functions`:
+
+```sh
+sudo sh -c 'tcl completion zsh > /usr/share/zsh/site-functions/_tcl'
+sudo sh -c 'tcl completion zsh > /usr/share/zsh/site-functions/_irule'
+```
+
+Pass `--hint` to print the install instructions for the chosen shell
+to stderr alongside the script (`tcl completion bash --hint`).
+Completion covers verb names, every flag, dialect choices, optimiser
+profiles, `pkg` / `venv` / `docker` actions, and Tcl/iRules source
+paths (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
+`*.iapp`, `*.iappimpl`).
+
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
 
 ### Compiler explorer (CLI)

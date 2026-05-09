@@ -1,7 +1,7 @@
-"""Shell-completion script bundle for the ``f5`` CLI.
+"""Shell-completion script bundles for the ``tcl`` and ``f5`` CLIs.
 
-Each ``f5.<shell>`` file in this package is plain text — bash, fish, or
-zsh completion script — distributed alongside the Python sources so
-the zipapp can ``importlib.resources``-read them when the user runs
-``f5 completion <shell>``.
+Each ``<cli>.<shell>`` file in this package is plain text — bash, fish, or
+zsh completion script — distributed alongside the Python sources so the
+zipapp can ``importlib.resources``-read them when the user runs
+``tcl completion <shell>`` or ``f5 completion <shell>``.
 """
