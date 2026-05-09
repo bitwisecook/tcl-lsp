@@ -49,6 +49,7 @@ here is ready before Claude starts taking instructions — **no manual
 | Tcl 8.6 source   | 8.6.16        | `tmp/tcl8.6.16/`                | —                         |
 | Tcl 9.0 source   | 9.0.3         | `tmp/tcl9.0.3/`                 | —                         |
 | tcllib           | 2.0           | `tmp/tcllib-2.0/`               | —                         |
+| Tcl regex engine | 9.0.3         | `runtime/zig/vendor/tcl-regex/` | —                         |
 
 Notes on the fetched sources:
 
@@ -62,6 +63,12 @@ Notes on the fetched sources:
   the hook shuffles the pool, falls back to `ziglang.org` as the last resort,
   and verifies the x86_64-linux tarball against the published SHA-256.
 - The hook is idempotent — warm containers re-run it and finish in seconds.
+- The Tcl regex engine sources (14 `.c`/`.h` files, ~150 KB) are fetched into
+  `runtime/zig/vendor/tcl-regex/` by `scripts/fetch_tcl_regex.sh`. They are
+  not vendored in the repo. The WASM runtime build (`zig build`) **does not**
+  fetch them itself — local developers must run the script once after
+  cloning. Re-fetch by deleting `runtime/zig/vendor/tcl-regex/.stamp` and
+  re-running.
 
 To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)

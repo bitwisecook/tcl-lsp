@@ -375,10 +375,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
 // (b) the suffix in ``raise_class_error`` quotes the same list
 // verbatim.
 const IS_CLASSES: []const []const u8 = &.{
-    "alnum",       "alpha",     "ascii", "control",  "boolean", "dict",
-    "digit",       "double",    "entier", "false",   "graph",   "integer",
-    "list",        "lower",     "print",  "punct",   "space",   "true",
-    "upper",       "wideinteger", "wordchar", "xdigit",
+    "alnum", "alpha",       "ascii",    "control", "boolean", "dict",
+    "digit", "double",      "entier",   "false",   "graph",   "integer",
+    "list",  "lower",       "print",    "punct",   "space",   "true",
+    "upper", "wideinteger", "wordchar", "xdigit",
 };
 
 /// Match the candidate class name against the canonical class list
@@ -524,51 +524,51 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
     // pair; ``fail_index`` is < 0 when the class accepts the input.
     var fail_index: i64 = -1;
     var ok: bool = false;
-    if (slice_eq(class_name.ptr, @intCast(class_name.len),"alnum")) {
+    if (slice_eq(class_name.ptr, @intCast(class_name.len), "alnum")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isAlnum);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"alpha")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "alpha")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isAlpha);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"ascii")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "ascii")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isAscii);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"control")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "control")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isControl);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"digit")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "digit")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isDigit);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"graph")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "graph")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isGraph);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"lower")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "lower")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isLower);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"print")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "print")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isPrint);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"punct")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "punct")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isPunct);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"space")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "space")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isSpace);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"upper")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "upper")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isUpper);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"wordchar")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "wordchar")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isWordchar);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"xdigit")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "xdigit")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isXdigit);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"boolean")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "boolean")) {
         ok = check_boolean(svp, sv.len);
         if (!ok) fail_index = 0;
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"true")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "true")) {
         ok = check_boolean_value(svp, sv.len, true);
         if (!ok) fail_index = 0;
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"false")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "false")) {
         ok = check_boolean_value(svp, sv.len, false);
         if (!ok) fail_index = 0;
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"integer") or
-        slice_eq(class_name.ptr, @intCast(class_name.len),"wideinteger") or
-        slice_eq(class_name.ptr, @intCast(class_name.len),"entier"))
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "integer") or
+        slice_eq(class_name.ptr, @intCast(class_name.len), "wideinteger") or
+        slice_eq(class_name.ptr, @intCast(class_name.len), "entier"))
     {
         ok = check_integer(svp, sv.len, &fail_index);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"double")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "double")) {
         ok = check_double(svp, sv.len, &fail_index);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"list")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "list")) {
         ok = check_list(sv.ptr, sv.len, &fail_index);
-    } else if (slice_eq(class_name.ptr, @intCast(class_name.len),"dict")) {
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "dict")) {
         ok = check_dict(sv.ptr, sv.len, &fail_index);
     } else {
         ok = false;
