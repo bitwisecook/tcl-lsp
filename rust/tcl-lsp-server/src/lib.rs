@@ -26,6 +26,7 @@ use tcl_lsp_core::completion::{
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
+use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
@@ -45,17 +46,17 @@ use tower_lsp::lsp_types::{
     },
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DeclarationCapability, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange,
-    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
-    Location, MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel,
-    Position, Range, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
-    Url, WorkDoneProgressOptions, WorkspaceEdit,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind,
+    DocumentHighlightParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
+    DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
+    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, Location, MarkupContent, MarkupKind,
+    MessageType, OneOf, ParameterInformation, ParameterLabel, Position, Range, ReferenceParams,
+    RenameParams, SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
+    SignatureInformation, SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -220,6 +221,8 @@ impl LanguageServer for Backend {
                 document_highlight_provider: Some(OneOf::Left(true)),
                 rename_provider: Some(OneOf::Left(true)),
                 selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
+                document_formatting_provider: Some(OneOf::Left(true)),
+                document_range_formatting_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -491,6 +494,56 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(highlights))
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let edits = core_formatting::formatting(&doc.text);
+        if edits.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(
+            edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect(),
+        ))
+    }
+
+    async fn range_formatting(
+        &self,
+        params: DocumentRangeFormattingParams,
+    ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let range = CoreLspRange {
+            start_line: params.range.start.line,
+            start_character: params.range.start.character,
+            end_line: params.range.end.line,
+            end_character: params.range.end.character,
+        };
+        let edits = core_formatting::range_formatting(&doc.text, range);
+        if edits.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(
+            edits
+                .into_iter()
+                .map(|e| TextEdit {
+                    range: lift_lsp_range(e.range),
+                    new_text: e.new_text,
+                })
+                .collect(),
+        ))
     }
 
     async fn selection_range(
