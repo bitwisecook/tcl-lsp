@@ -152,11 +152,14 @@ def redact_secrets(
     mode: str = "direct",
     seed: str = "",
     explicit_source_cidrs: tuple[str, ...] = (),
+    existing_map: "RedactionMap | None" = None,
 ) -> RedactReport:
     """Redact secrets in *source*; optionally remap public IPs.
 
-    Returns the rewritten text plus the :class:`RedactionMap` so callers
-    can persist it to a sidecar file (and later reverse the mapping).
+    When *existing_map* is supplied, prior assignments are reused so the
+    same IP keeps mapping to the same redacted address across runs —
+    essential for iterative support workflows.  Returns the rewritten
+    text plus the (possibly extended) :class:`RedactionMap`.
     """
     from .redact_map import (
         DEFAULT_TARGET_CIDRS_V4,
@@ -176,6 +179,7 @@ def redact_secrets(
             mode=mode,
             seed=seed,
             explicit_source_cidrs=explicit_source_cidrs,
+            existing=existing_map,
         )
         out, ips = apply_map(rm, out, reverse=False)
     else:

@@ -201,6 +201,30 @@ class Allocator:
             return target
         raise RuntimeError(f"target pool exhausted for v6 /{prefix}")
 
+    def consume(self, target: _IPNet) -> None:
+        """Mark *target* as already-issued so future allocations skip past it.
+
+        Used when extending an existing :class:`RedactionMap`: every prior
+        target CIDR is replayed through the allocator before any new IPs
+        are mapped, so we never hand out the same target twice.
+        """
+        if isinstance(target, ipaddress.IPv4Network):
+            for pool in self._pools_v4:
+                if target.subnet_of(pool):
+                    high = int(target.network_address) + target.num_addresses
+                    used_offset = high - int(pool.network_address)
+                    if used_offset > self._used_v4[pool]:
+                        self._used_v4[pool] = used_offset
+                    return
+        else:
+            for pool in self._pools_v6:
+                if target.subnet_of(pool):
+                    high = int(target.network_address) + target.num_addresses
+                    used_offset = high - int(pool.network_address)
+                    if used_offset > self._used_v6[pool]:
+                        self._used_v6[pool] = used_offset
+                    return
+
 
 # ── Permutation (shuffle mode) ──────────────────────────────────────
 
@@ -312,25 +336,59 @@ def build_map(
     source_cidr_v4_prefix: int = 24,
     source_cidr_v6_prefix: int = 64,
     explicit_source_cidrs: Iterable[str] = (),
+    existing: RedactionMap | None = None,
 ) -> RedactionMap:
-    """Build a fresh :class:`RedactionMap` covering every public IP in *text*.
+    """Build (or extend) a :class:`RedactionMap` covering every public IP in *text*.
 
     Per-CIDR allocation is greedy by first-seen order so the same input
     text always produces the same map.
+
+    When *existing* is supplied, every prior CIDR assignment, IP mapping,
+    target pool, mode, and seed is reused — only IPs / CIDRs not seen
+    before get fresh assignments.  This makes a sequence of
+    redactions stable: the IP a customer sees in week-1 keeps mapping
+    to the same redacted address in week-2, so support emails continue
+    to round-trip cleanly.
     """
     if mode not in {"direct", "shuffle"}:
         raise ValueError(f"unknown mode {mode!r}")
 
-    rm = RedactionMap(
-        target_pool_v4=tuple(target_pool_v4),
-        target_pool_v6=tuple(target_pool_v6),
-        mode=mode,
-        seed=seed,
-    )
+    if existing is not None:
+        # Inherit settings from the prior map; ignore any conflicting
+        # arguments so the user can't accidentally desync a continuation.
+        rm = RedactionMap(
+            cidr_assignments=list(existing.cidr_assignments),
+            forward=dict(existing.forward),
+            reverse=dict(existing.reverse),
+            target_pool_v4=existing.target_pool_v4,
+            target_pool_v6=existing.target_pool_v6,
+            mode=existing.mode,
+            seed=existing.seed,
+        )
+        target_pool_v4 = existing.target_pool_v4
+        target_pool_v6 = existing.target_pool_v6
+        mode = existing.mode
+        seed = existing.seed
+    else:
+        rm = RedactionMap(
+            target_pool_v4=tuple(target_pool_v4),
+            target_pool_v6=tuple(target_pool_v6),
+            mode=mode,
+            seed=seed,
+        )
     allocator = Allocator(target_pool_v4, target_pool_v6)
 
+    # Replay prior CIDR assignments through the allocator so new ones
+    # don't collide with already-issued targets.
+    cidr_for: dict[_IPNet, _IPNet] = {}
+    for assignment in rm.cidr_assignments:
+        src = ipaddress.ip_network(assignment.source, strict=False)
+        tgt = ipaddress.ip_network(assignment.target, strict=False)
+        cidr_for[src] = tgt
+        # Bump allocator past this target so we don't double-issue.
+        allocator.consume(tgt)
+
     explicit: list[_IPNet] = [ipaddress.ip_network(c, strict=False) for c in explicit_source_cidrs]
-    cidr_for: dict[_IPNet, _IPNet] = {}  # source-CIDR -> target-CIDR
 
     def _source_cidr_for(addr: _IPAddr) -> _IPNet:
         for net in explicit:

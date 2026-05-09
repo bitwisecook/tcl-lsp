@@ -326,6 +326,39 @@ def test_unredact_verb_recovers_originals(tmp_path, capsys):
     assert "unredacted:" in err
 
 
+def test_redact_reuses_existing_map_for_stable_round_trips(tmp_path, capsys):
+    """Re-running redact with the same --map-file must keep prior IPs stable
+    AND extend the map with any new IPs encountered.  This is what makes
+    iterative work with F5 support sane."""
+    body_v1 = "ltm node /Common/n1 { address 8.8.8.8 }\n"
+    p1 = _write(tmp_path, "v1.conf", body_v1)
+    out1 = tmp_path / "v1.redacted"
+    map_path = tmp_path / "shared.redact.toml"
+    code, _o, _e = _run(["redact", str(p1), "-o", str(out1), "--map-file", str(map_path)], capsys)
+    assert code == 0
+    redacted_v1 = out1.read_text()
+
+    # Second run: SAME source IP plus a NEW one. Old IP must keep its
+    # prior mapping; new IP must get a fresh assignment.
+    body_v2 = "ltm node /Common/n1 { address 8.8.8.8 }\nltm node /Common/n2 { address 1.2.3.4 }\n"
+    p2 = _write(tmp_path, "v2.conf", body_v2)
+    out2 = tmp_path / "v2.redacted"
+    code, _o, _e = _run(["redact", str(p2), "-o", str(out2), "--map-file", str(map_path)], capsys)
+    assert code == 0
+    redacted_v2 = out2.read_text()
+
+    # Pull the redacted IPs out of each output and assert 8.8.8.8 maps
+    # to the same fake in both runs.
+    import re
+
+    addrs_v1 = re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", redacted_v1)
+    addrs_v2 = re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", redacted_v2)
+    assert len(addrs_v1) == 1
+    assert len(addrs_v2) == 2
+    assert addrs_v1[0] == addrs_v2[0]  # 8.8.8.8 -> same fake on both runs
+    assert addrs_v2[1] != addrs_v1[0]  # 1.2.3.4 got a different fake
+
+
 def test_unredact_works_on_external_text(tmp_path, capsys):
     """Unredacting a support email containing only redacted IPs must work."""
     body = "ltm node /Common/n1 { address 1.2.3.42 }\n"

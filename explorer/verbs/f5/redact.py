@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.bigip.redact_map import DEFAULT_TARGET_CIDRS_V4, DEFAULT_TARGET_CIDRS_V6
+from core.bigip.redact_map import DEFAULT_TARGET_CIDRS_V4, DEFAULT_TARGET_CIDRS_V6, RedactionMap
 from core.bigip.rewrite import redact_secrets
 
 from ._paths import read_path
@@ -71,7 +71,11 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         help=(
             "Write the redaction map TOML here.  Defaults to "
             "<output>.redact.toml when --output is set, otherwise required "
-            "for any meaningful round-trip."
+            "for any meaningful round-trip.  If the file already exists, "
+            "its assignments are loaded and reused so that IPs from prior "
+            "redactions stay mapped to the same redacted addresses — "
+            "essential when iterating with F5 support across multiple "
+            "redacted captures."
         ),
     )
     p.add_argument(
@@ -112,6 +116,15 @@ def _run_redact(args: argparse.Namespace) -> int:
 
     target_v4, target_v6 = _split_pools(args.target_cidr)
 
+    map_path = _resolve_map_path(args.map_file, args.output)
+    existing_map: RedactionMap | None = None
+    if map_path is not None and map_path.is_file():
+        try:
+            existing_map = RedactionMap.from_toml(map_path.read_text(encoding="utf-8"))
+        except (ValueError, RuntimeError) as exc:
+            print(f"error: cannot load existing map {map_path}: {exc}", file=sys.stderr)
+            return 2
+
     report = redact_secrets(
         source,
         remap_ips=not args.keep_ips,
@@ -120,6 +133,7 @@ def _run_redact(args: argparse.Namespace) -> int:
         mode="shuffle" if args.shuffle else "direct",
         seed=args.seed,
         explicit_source_cidrs=tuple(args.source_cidr),
+        existing_map=existing_map,
     )
 
     if args.output:
@@ -127,7 +141,6 @@ def _run_redact(args: argparse.Namespace) -> int:
     else:
         sys.stdout.write(report.new_source)
 
-    map_path = _resolve_map_path(args.map_file, args.output)
     if not args.keep_ips and map_path is not None:
         map_path.parent.mkdir(parents=True, exist_ok=True)
         map_path.write_text(report.redaction_map.to_toml(), encoding="utf-8")  # type: ignore[union-attr]
