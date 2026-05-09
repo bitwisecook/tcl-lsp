@@ -635,7 +635,6 @@ def on_extract_linked_objects(
 
 def on_bigip_cleanup(
     uris: list | None = None,
-    *,
     keep: list | None = None,
     no_keep_common: bool = False,
 ) -> dict | None:
@@ -646,6 +645,9 @@ def on_bigip_cleanup(
     is included.  Returns a JSON-serialisable report (see
     :func:`core.bigip.cleanup.report_to_dict`) or ``None`` if no BIG-IP
     config is loaded.
+
+    All parameters are positional because ``workspace/executeCommand``
+    unpacks the JSON ``arguments`` array positionally.
     """
     from core.bigip.cleanup import compute_cleanup, report_to_dict
 
