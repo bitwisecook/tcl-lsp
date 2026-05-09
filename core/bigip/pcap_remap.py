@@ -106,6 +106,21 @@ def _ipv4_header_checksum(packet: bytearray, ip_off: int, ihl_bytes: int) -> int
     return cksum
 
 
+def _is_ipv4_fragment(packet: bytes | bytearray, ip_off: int) -> bool:
+    """True if the IPv4 packet at *ip_off* is a fragment (any but the
+    last *and* offset 0 alone — both fragmented and reassembling cases).
+
+    The L4 checksum is meaningful only over the entire L4 segment, which
+    only the first fragment fully contains and only after reassembly.
+    For continuation fragments there is no L4 header at all, so we must
+    not write to that offset.
+    """
+    flags_frag = _u16(packet, ip_off + 6)
+    mf = (flags_frag >> 13) & 0x1
+    frag_off = flags_frag & 0x1FFF
+    return mf == 1 or frag_off != 0
+
+
 def _l4_checksum(
     packet: bytearray,
     ip_off: int,
@@ -113,14 +128,24 @@ def _l4_checksum(
     proto: int,
     is_v6: bool,
 ) -> int | None:
-    """Recompute and return the L4 checksum for TCP/UDP/ICMP/ICMPv6."""
+    """Recompute and return the L4 checksum for TCP/UDP/ICMP/ICMPv6.
+
+    Returns ``None`` when no recompute is possible (unsupported proto,
+    fragmented packet, truncated capture, or invalid header lengths).
+    """
     if proto not in (6, 17, 1, 58):  # TCP, UDP, ICMP, ICMPv6
         return None
+    if not is_v6 and ihl_bytes < 20:
+        return None  # malformed IPv4 header
+    if not is_v6 and _is_ipv4_fragment(packet, ip_off):
+        return None  # cannot recompute over partial L4 segment
     if is_v6:
         src = bytes(packet[ip_off + 8 : ip_off + 24])
         dst = bytes(packet[ip_off + 24 : ip_off + 40])
         l4_off = ip_off + 40
-        # Total length
+        # IPv6 payload length covers everything past the fixed header,
+        # including extension headers.  We only handle the no-ext-header
+        # case (proto already validated above for TCP/UDP/ICMPv6).
         payload_len = _u16(packet, ip_off + 4)
     else:
         src = bytes(packet[ip_off + 12 : ip_off + 16])
@@ -128,6 +153,17 @@ def _l4_checksum(
         l4_off = ip_off + ihl_bytes
         total_len = _u16(packet, ip_off + 2)
         payload_len = total_len - ihl_bytes
+
+    if payload_len <= 0:
+        return None
+
+    # Truncated capture: the packet record holds fewer bytes than the IP
+    # header claims.  Computing a checksum over the truncated tail would
+    # produce a wrong-but-plausible-looking value that's worse than
+    # leaving the original (which the receiver will reject anyway).
+    available = len(packet) - l4_off
+    if available < payload_len:
+        return None
 
     l4_data = bytes(packet[l4_off : l4_off + payload_len])
     if not l4_data:
@@ -332,17 +368,22 @@ def _byte_replace_known_ips_in_range(
     return changed
 
 
-_PACKED_LOOKUP_MEMO: dict[tuple[int, bool], tuple[dict[bytes, bytes], dict[bytes, bytes]]] = {}
+# Keyed by (id(rm), reverse, len(table)).  The length component invalidates
+# the cache whenever new IPs are appended to rm.forward/rm.reverse during
+# packet processing — without it, an IP first seen on packet N would be
+# missing from the lookup table when packet N+1's trailer is swept, even
+# though the IP layer just added it.
+_PACKED_LOOKUP_MEMO: dict[tuple[int, bool, int], tuple[dict[bytes, bytes], dict[bytes, bytes]]] = {}
 
 
 def _packed_lookup_for(
     rm: RedactionMap, *, reverse: bool
 ) -> tuple[dict[bytes, bytes], dict[bytes, bytes]]:
-    key = (id(rm), reverse)
+    table = rm.reverse if reverse else rm.forward
+    key = (id(rm), reverse, len(table))
     cached = _PACKED_LOOKUP_MEMO.get(key)
     if cached is not None:
         return cached
-    table = rm.reverse if reverse else rm.forward
     v4: dict[bytes, bytes] = {}
     v6: dict[bytes, bytes] = {}
     for src, dst in table.items():
@@ -355,6 +396,11 @@ def _packed_lookup_for(
             v4[addr.packed] = tgt.packed
         else:
             v6[addr.packed] = tgt.packed
+    # Drop any prior entries for this (id, reverse) so the memo doesn't
+    # accumulate stale tables forever during a long capture rewrite.
+    for stale in list(_PACKED_LOOKUP_MEMO):
+        if stale[0] == key[0] and stale[1] == key[1] and stale[2] != key[2]:
+            del _PACKED_LOOKUP_MEMO[stale]
     _PACKED_LOOKUP_MEMO[key] = (v4, v6)
     return v4, v6
 
@@ -369,16 +415,20 @@ def remap_pcap(
     header = in_fh.read(24)
     if len(header) != 24:
         raise ValueError("pcap: file too short to contain a global header")
+    # Both classic-pcap magics (0xa1b2c3d4 and its byte-swapped twin
+    # 0xd4c3b2a1) appear in the table, so a single LE read covers both
+    # endianness cases.  PCAPNG starts with the Section Header Block
+    # type 0x0a0d0d0a — detect it specifically so the error message
+    # points at the right fix.
     magic = struct.unpack("<I", header[:4])[0]
-    if magic in _PCAP_MAGICS:
-        endian, _ns = _PCAP_MAGICS[magic]
-    else:
-        magic_be = struct.unpack(">I", header[:4])[0]
-        if magic_be in _PCAP_MAGICS:
-            endian, _ns = _PCAP_MAGICS[magic_be]
-            magic = magic_be
-        else:
-            raise ValueError(f"pcap: unrecognised magic 0x{magic:08x}")
+    if magic == 0x0A0D0D0A or magic == 0x0D0D0A0A:
+        raise ValueError(
+            "pcap: file appears to be PCAPNG, which is not supported by f5 pcap-remap. "
+            "Convert with `editcap -F pcap input.pcapng output.pcap` first."
+        )
+    if magic not in _PCAP_MAGICS:
+        raise ValueError(f"pcap: unrecognised magic 0x{magic:08x}")
+    endian, _ns = _PCAP_MAGICS[magic]
     out_fh.write(header)
 
     linktype = struct.unpack(endian + "I", header[20:24])[0]

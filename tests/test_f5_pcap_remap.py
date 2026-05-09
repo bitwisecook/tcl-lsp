@@ -230,3 +230,85 @@ def test_pcap_remap_rejects_bad_magic(tmp_path, capsys):
     code, _o, err = _run(["pcap-remap", str(map_path), str(junk), str(out)], capsys)
     assert code == 2
     assert "magic" in err
+
+
+# ── regression tests for issues found in PCAP code review ──────────
+
+
+def test_remap_pcap_trailer_picks_up_ips_added_in_later_packets():
+    """Regression: the packed-lookup cache used to be keyed by id(rm)
+    only.  When packet 1's IP layer added a new entry to rm.forward,
+    packet 2's trailer sweep used the cached lookup from packet 1 and
+    missed any reference to the freshly-added IP.  The cache is now
+    keyed by len(forward) too."""
+    # Packet 1: src 1.2.3.4, no trailer.
+    p1 = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08")
+    # Packet 2: src 7.7.7.7, AND a trailer containing 1.2.3.4 (which
+    # was first seen on packet 1).  The trailer reference must be
+    # rewritten consistent with the IP-layer rewrite from packet 1.
+    p2_base = _build_tcp_packet(b"\x07\x07\x07\x07", b"\x08\x08\x08\x08")
+    p2 = p2_base + b"\xab\xcd\x01\x02\x03\x04\xff\xee"
+
+    rm = build_map(text="1.2.3.4 5.6.7.8 7.7.7.7 8.8.8.8")
+    pcap_in = _build_pcap([p1, p2])
+    out = io.BytesIO()
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm)
+    assert result.packets_total == 2
+    # 1.2.3.4 must NOT appear anywhere in the rewritten output —
+    # neither in packet 1's IP header nor in packet 2's trailer.
+    assert b"\x01\x02\x03\x04" not in out.getvalue()[24:]
+
+
+def test_remap_pcap_detects_pcapng_with_clear_error():
+    """PCAPNG input should produce a directed error message, not a
+    cryptic 'unrecognised magic' that sends the user hunting."""
+    pcapng_header = b"\x0a\x0d\x0d\x0a" + b"\x00" * 28
+    rm = build_map(text="")
+    out = io.BytesIO()
+    try:
+        remap_pcap(io.BytesIO(pcapng_header), out, rm)
+    except ValueError as exc:
+        assert "PCAPNG" in str(exc)
+        assert "editcap" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for PCAPNG input")
+
+
+def test_remap_pcap_skips_l4_checksum_on_ipv4_fragment():
+    """First-fragment packet (MF=1) — we must not write a TCP checksum
+    derived from a partial L4 segment.  The L4 cksum bytes should
+    survive untouched while src/dst still get rewritten."""
+    src = b"\x01\x02\x03\x04"
+    dst = b"\x05\x06\x07\x08"
+    # Build an IPv4 packet with MF=1 and a fake small TCP header
+    # (just to give us bytes at the cksum offset to compare).
+    fake_l4 = bytes([0x12, 0x34] * 10)  # 20 bytes of "TCP-like" data
+    ip_total = 20 + len(fake_l4)
+    flags_frag_more = struct.pack(">H", 0x2000)  # MF=1, frag offset 0
+    ip = bytearray(
+        bytes([0x45, 0x00])
+        + struct.pack(">H", ip_total)
+        + bytes([0, 1])  # id
+        + flags_frag_more
+        + bytes([0x40, 0x06, 0x00, 0x00])  # ttl, proto=TCP, cksum
+        + src
+        + dst
+    )
+    cksum = _ipv4_checksum(bytes(ip))
+    ip[10], ip[11] = (cksum >> 8) & 0xFF, cksum & 0xFF
+    eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x08\x00"
+    packet = eth + bytes(ip) + fake_l4
+    pcap_in = _build_pcap([packet])
+
+    rm = build_map(text="1.2.3.4 5.6.7.8")
+    out = io.BytesIO()
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm)
+
+    rewritten = out.getvalue()
+    ip_off = 24 + 16 + 14
+    # IP src/dst should still be rewritten…
+    assert rewritten[ip_off + 12 : ip_off + 16] != src
+    # …but the fake TCP cksum bytes must be left as the original.
+    tcp_cksum_off = ip_off + 20 + 16  # offset of TCP cksum within fake L4
+    assert rewritten[tcp_cksum_off : tcp_cksum_off + 2] == fake_l4[16:18]
+    assert result.addresses_rewritten == 2  # only the IP layer
