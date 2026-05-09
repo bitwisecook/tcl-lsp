@@ -1,11 +1,10 @@
-#compdef tcl tcl.pyz irule irule.pyz
+#compdef tcl tcl.pyz
 #
-# zsh completion for the unified `tcl` / `irule` CLI.
+# zsh completion for the `tcl` CLI.
 #
 # Install (per-user):
 #   mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
 #   tcl completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl"
-#   tcl completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_irule"
 #
 #   # Then add to .zshrc, before `compinit`:
 #   #   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
@@ -16,6 +15,9 @@
 # Or system-wide on systems where ``$fpath`` already covers it
 # (e.g. /usr/share/zsh/site-functions):
 #   sudo tcl completion zsh > /usr/share/zsh/site-functions/_tcl
+#
+# iRules-specific verbs (event-order, event-info) live on the `f5` CLI
+# under `f5 irule <subverb>` — install `f5 completion zsh` for those.
 
 _tcl() {
     local context curcontext="$curcontext" state line
@@ -68,10 +70,6 @@ _tcl() {
                 'symbolgraph:Build symbol relationship graph data'
                 'symbol-graph:Alias for symbolgraph'
                 'dataflow:Build taint/effect data-flow graph data'
-                'event-order:Show iRules events in canonical firing order'
-                'eventorder:Alias for event-order'
-                'event-info:Look up iRules event metadata and valid commands'
-                'eventinfo:Alias for event-info'
                 'command-info:Look up command registry metadata'
                 'commandinfo:Alias for command-info'
                 'cmd-info:Alias for command-info'
@@ -188,7 +186,7 @@ _tcl() {
                         "--show[Views to render (comma-separated)]:views:_values -s , 'view' $explore_views" \
                         '*:input:_files'
                     ;;
-                event-order|eventorder|event-info|eventinfo|command-info|commandinfo|cmd-info)
+                command-info|commandinfo|cmd-info)
                     _arguments \
                         "--dialect[Dialect profile]:dialect:($dialects)" \
                         '--json[Emit results as JSON]' \

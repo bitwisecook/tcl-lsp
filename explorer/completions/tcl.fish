@@ -1,11 +1,13 @@
-# fish completion for the unified `tcl` / `irule` CLI.
+# fish completion for the `tcl` CLI.
 #
 # Install:
 #   mkdir -p ~/.config/fish/completions
 #   tcl completion fish > ~/.config/fish/completions/tcl.fish
-#   tcl completion fish > ~/.config/fish/completions/irule.fish
 #
 # Then start a new shell.
+#
+# iRules-specific verbs (event-order, event-info) live on the `f5` CLI
+# under `f5 irule <subverb>` — install `f5 completion fish` for those.
 
 function __tcl_uses_subcommand
     set -l cmd (commandline -opc)
@@ -42,7 +44,7 @@ set -l __tcl_dialects cadence-eda-tcl expect f5-bigip f5-iapps f5-irules \
     tcl8.4 tcl8.5 tcl8.6 tcl9.0 xilinx-eda-tcl
 
 # Apply identical completions to every binary name we ship.
-for prog in tcl tcl.pyz irule irule.pyz
+for prog in tcl tcl.pyz
     complete -c $prog -f
 
     # Top-level verbs.
@@ -67,10 +69,6 @@ for prog in tcl tcl.pyz irule irule.pyz
     complete -c $prog -n __tcl_no_subcommand -a symbolgraph -d 'Build symbol relationship graph'
     complete -c $prog -n __tcl_no_subcommand -a symbol-graph -d 'Alias for symbolgraph'
     complete -c $prog -n __tcl_no_subcommand -a dataflow -d 'Build taint/effect data-flow graph'
-    complete -c $prog -n __tcl_no_subcommand -a event-order -d 'Show iRules events in firing order'
-    complete -c $prog -n __tcl_no_subcommand -a eventorder -d 'Alias for event-order'
-    complete -c $prog -n __tcl_no_subcommand -a event-info -d 'Look up iRules event metadata'
-    complete -c $prog -n __tcl_no_subcommand -a eventinfo -d 'Alias for event-info'
     complete -c $prog -n __tcl_no_subcommand -a command-info -d 'Look up command registry metadata'
     complete -c $prog -n __tcl_no_subcommand -a commandinfo -d 'Alias for command-info'
     complete -c $prog -n __tcl_no_subcommand -a cmd-info -d 'Alias for command-info'
@@ -145,8 +143,7 @@ for prog in tcl tcl.pyz irule irule.pyz
     # ── diag/lint/validate/symbols/etc — JSON + diagnostic toggles ─────
     set -l __tcl_json_verbs diag diagnostics lint validate symbols syms \
         diagram callgraph call-graph symbolgraph symbol-graph dataflow \
-        convert diff event-order eventorder event-info eventinfo \
-        command-info commandinfo cmd-info help docs
+        convert diff command-info commandinfo cmd-info help docs
     complete -c $prog -n "__tcl_uses_subcommand $__tcl_json_verbs" -l json -d 'Emit results as JSON'
 
     set -l __tcl_diag_verbs diag diagnostics lint validate
@@ -164,9 +161,8 @@ for prog in tcl tcl.pyz irule irule.pyz
         -a 'ir cfg ssa interproc types opt gvn shimmer taint irules callouts asm wasm all compiler optimiser' \
         -d 'Views to render (comma-separated)'
 
-    # ── lookup verbs (event-order, event-info, command-info, help) ─────
-    set -l __tcl_lookup_verbs event-order eventorder event-info eventinfo \
-        command-info commandinfo cmd-info help docs
+    # ── lookup verbs (command-info, help) ──────────────────────────────
+    set -l __tcl_lookup_verbs command-info commandinfo cmd-info help docs
     complete -c $prog -n "__tcl_uses_subcommand $__tcl_lookup_verbs" -l dialect -x -a "$__tcl_dialects" -d 'Dialect profile'
     complete -c $prog -n '__tcl_uses_subcommand help docs' -l limit -x -d 'Maximum number of results'
 

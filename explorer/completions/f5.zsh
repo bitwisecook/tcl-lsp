@@ -34,6 +34,7 @@ _f5() {
                 'cleanup:Generate tmsh delete commands for objects unreferenced by any virtual'
                 'clean:Alias for cleanup'
                 'completion:Print shell completion script for bash/fish/zsh'
+                'irule:iRules-specific analysis (event-order, event-info, ...)'
             )
             _describe -t verbs 'verb' verbs
             ;;
@@ -50,6 +51,37 @@ _f5() {
                     ;;
                 completion)
                     _arguments '1:shell:(bash fish zsh)'
+                    ;;
+                irule)
+                    if (( CURRENT == 2 )); then
+                        local -a irule_actions
+                        irule_actions=(
+                            'event-order:Show iRules events in canonical firing order'
+                            'eventorder:Alias for event-order'
+                            'event-info:Look up iRules event metadata and valid commands'
+                            'eventinfo:Alias for event-info'
+                        )
+                        _describe -t irule_actions 'action' irule_actions
+                    else
+                        case "$line[2]" in
+                            event-order|eventorder)
+                                _arguments \
+                                    '*--source[Inline iRules source text (repeatable)]:source text' \
+                                    '*--package-path[Directory to scan for pkgIndex.tcl]:dir:_files -/' \
+                                    '--no-recursive[Do not recurse into directory inputs]' \
+                                    '--dialect[Dialect profile]:dialect:(f5-irules)' \
+                                    '(-o --output)'{-o,--output}'[Output path (- for stdout)]:output file:_files' \
+                                    '--json[Emit event ordering as JSON]' \
+                                    '*:input:_files'
+                                ;;
+                            event-info|eventinfo)
+                                _arguments \
+                                    '--json[Emit event metadata as JSON]' \
+                                    '(-o --output)'{-o,--output}'[Output path]:output file:_files' \
+                                    '1:event:'
+                                ;;
+                        esac
+                    fi
                     ;;
             esac
             ;;

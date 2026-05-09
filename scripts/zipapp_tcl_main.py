@@ -1,6 +1,6 @@
 """Unified Tcl tools zipapp entry point.
 
-Usage: <tcl|irule> <verb> [args...]
+Usage: tcl <verb> [args...]
 
 Verbs:
   opt         optimise source text
@@ -13,8 +13,6 @@ Verbs:
   callgraph   build procedure call graph data
   symbolgraph build symbol relationship graph data
   dataflow    build taint/effect data-flow graph data
-  event-order show iRules events in canonical firing order
-  event-info  lookup iRules event metadata
   command-info lookup command registry metadata
   convert     detect legacy modernisation patterns
   dis         emit bytecode disassembly
@@ -23,6 +21,9 @@ Verbs:
   diff        diff two sources via AST/IR/CFG
   explore     compiler-explorer views (IR/CFG/SSA/optimiser/etc.)
   help        search KCS docs
+
+iRules-specific verbs (event-order, event-info) live on the f5 CLI
+under `f5 irule <subverb>`.
 """
 
 from __future__ import annotations
@@ -45,8 +46,6 @@ def _infer_prog_name(argv0: str) -> str:
         return "tcl"
     if lowered.startswith("tcl-"):
         return "tcl"
-    if lowered.startswith("irule-"):
-        return "irule"
     return stem
 
 
@@ -78,8 +77,6 @@ def main() -> int:
         print("  callgraph   build procedure call graph data")
         print("  symbolgraph build symbol relationship graph data")
         print("  dataflow    build taint/effect data-flow graph data")
-        print("  event-order show iRules events in canonical firing order")
-        print("  event-info  lookup iRules event metadata")
         print("  command-info lookup command registry metadata")
         print("  convert     detect legacy modernisation patterns")
         print("  dis         emit bytecode disassembly")

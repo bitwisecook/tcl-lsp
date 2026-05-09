@@ -1,4 +1,4 @@
-# bash completion for the unified `tcl` / `irule` CLI.
+# bash completion for the `tcl` CLI.
 #
 # Install (system-wide):
 #   sudo cp tcl.bash /etc/bash_completion.d/tcl
@@ -6,10 +6,12 @@
 # Install (user):
 #   mkdir -p ~/.local/share/bash-completion/completions
 #   tcl completion bash > ~/.local/share/bash-completion/completions/tcl
-#   tcl completion bash > ~/.local/share/bash-completion/completions/irule
 #
 # Or source it directly from your ~/.bashrc:
 #   source <(tcl completion bash)
+#
+# iRules-specific verbs (event-order, event-info) live on the `f5` CLI
+# under `f5 irule <subverb>` — install `f5 completion bash` for those.
 
 _tcl_complete() {
     local cur prev words cword
@@ -25,10 +27,9 @@ _tcl_complete() {
     local verbs="opt optimise optimize diag diagnostics lint validate \
         format fmt minify min unminify-error umerr \
         symbols syms diagram callgraph call-graph symbolgraph symbol-graph \
-        dataflow event-order eventorder event-info eventinfo \
-        command-info commandinfo cmd-info convert dis asm disassemble \
-        compwasm wasm highlight hl diff explore help docs completion \
-        pkg venv docker"
+        dataflow command-info commandinfo cmd-info convert \
+        dis asm disassemble compwasm wasm highlight hl diff explore \
+        help docs completion pkg venv docker"
     local global_opts="-h --help --help-all --version"
 
     local common_opts="--source --package-path --no-recursive --dialect \
@@ -205,7 +206,7 @@ _tcl_complete() {
                 COMPREPLY+=( $(compgen -A directory -- "$cur") )
             fi
             ;;
-        event-order|eventorder|event-info|eventinfo|command-info|commandinfo|cmd-info)
+        command-info|commandinfo|cmd-info)
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=( $(compgen -W "$lookup_opts" -- "$cur") )
             fi
@@ -294,5 +295,3 @@ _tcl_complete() {
 
 complete -F _tcl_complete tcl
 complete -F _tcl_complete tcl.pyz
-complete -F _tcl_complete irule
-complete -F _tcl_complete irule.pyz

@@ -21,10 +21,14 @@ _f5_complete() {
         cword=$COMP_CWORD
     fi
 
-    local verbs="cleanup clean completion"
+    local verbs="cleanup clean completion irule"
     local global_opts="-h --help --help-all --version"
     local cleanup_opts="--json --keep --no-keep-common -o --output -h --help"
     local completion_shells="bash fish zsh"
+    local irule_actions="event-order eventorder event-info eventinfo"
+    local irule_event_order_opts="--source --package-path --no-recursive \
+        --dialect --output -o --json -h --help"
+    local irule_event_info_opts="--json --output -o -h --help"
 
     # First positional after the command name: pick a verb.
     if [[ $cword -eq 1 ]]; then
@@ -67,6 +71,28 @@ _f5_complete() {
             ;;
         completion)
             COMPREPLY=( $(compgen -W "$completion_shells" -- "$cur") )
+            ;;
+        irule)
+            # f5 irule <action> [opts...]
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=( $(compgen -W "$irule_actions" -- "$cur") )
+                return
+            fi
+            case "${words[2]}" in
+                event-order|eventorder)
+                    if [[ "$cur" == -* ]]; then
+                        COMPREPLY=( $(compgen -W "$irule_event_order_opts" -- "$cur") )
+                    else
+                        COMPREPLY=( $(compgen -A file -- "$cur") )
+                        COMPREPLY+=( $(compgen -A directory -- "$cur") )
+                    fi
+                    ;;
+                event-info|eventinfo)
+                    if [[ "$cur" == -* ]]; then
+                        COMPREPLY=( $(compgen -W "$irule_event_info_opts" -- "$cur") )
+                    fi
+                    ;;
+            esac
             ;;
     esac
 }
