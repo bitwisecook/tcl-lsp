@@ -210,6 +210,44 @@ def test_invalid_direction_raises() -> None:
         _run(source, "vs", direction="sideways")
 
 
+def test_invalid_regex_pattern_raises_value_error() -> None:
+    """Bad regex must surface as a user error, not a silent zero-match result."""
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    with pytest.raises(ValueError, match="invalid regex pattern"):
+        _run(source, "[unclosed", use_regex=True)
+
+
+def test_max_nodes_below_one_raises() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    with pytest.raises(ValueError):
+        _run(source, "vs", max_nodes=0)
+
+
+def test_max_depth_negative_raises() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    with pytest.raises(ValueError):
+        _run(source, "vs", max_depth=-1)
+
+
+def test_max_nodes_truncates_seeds_when_pattern_matches_too_many() -> None:
+    """When more seeds match than max_nodes allows, the result is capped strictly."""
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+        ltm pool /Common/p2 { members { /Common/n1:81 { address 10.0.0.1 } } }
+        ltm pool /Common/p3 { members { /Common/n1:82 { address 10.0.0.1 } } }
+        ltm pool /Common/p4 { members { /Common/n1:83 { address 10.0.0.1 } } }
+        ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }
+        """
+    )
+    # Pattern matches every pool (4 seeds), but cap is 2.
+    report = _run(source, "/Common/p", direction="forward", max_nodes=2)
+    total = len(report.seeds) + len(report.related)
+    assert total <= 2
+    assert len(report.seeds) == 2
+
+
 def test_compute_grep_restores_signature_profile() -> None:
     saved = active_signature_profile()
     source = textwrap.dedent(
@@ -241,6 +279,27 @@ def test_report_to_dict_round_trips_through_json() -> None:
     assert {item["fullPath"] for item in again["seeds"]} == {"/Common/p1"}
     assert {item["fullPath"] for item in again["related"]} >= {"/Common/n1", "/Common/vs"}
     assert isinstance(again["edges"], list)
+    # By default, body is omitted to keep the JSON payload compact.
+    assert "body" not in again["seeds"][0]
+
+
+def test_report_to_dict_with_include_body_emits_object_bodies() -> None:
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+        ltm virtual /Common/vs {
+            destination /Common/10.0.0.10:80
+            pool /Common/p1
+        }
+        """
+    )
+    report = _run(source, "/Common/p1", direction="both")
+    payload = report_to_dict(report, include_body=True)
+    assert "body" in payload["seeds"][0]
+    assert payload["seeds"][0]["body"]
+    for item in payload["related"]:
+        assert "body" in item
 
 
 def test_text_report_marks_seed_and_related_objects() -> None:
@@ -273,7 +332,7 @@ def test_include_body_emits_object_body_in_text_report() -> None:
     assert "address 10.0.0.1" in report.text_report
 
 
-def test_sample_bigip_conf_grep_returns_full_neighbourhood(tmp_path: Path) -> None:
+def test_sample_bigip_conf_grep_returns_full_neighbourhood() -> None:
     sample = Path(__file__).parent.parent / "samples" / "bigip" / "bigip.conf"
     src = sample.read_text(encoding="utf-8")
     cfg = parse_bigip_conf(src)
@@ -295,7 +354,7 @@ def test_sample_bigip_conf_grep_returns_full_neighbourhood(tmp_path: Path) -> No
 # CLI integration tests
 
 
-def test_cli_grep_prints_text_report(tmp_path: Path, capsys, monkeypatch) -> None:
+def test_cli_grep_prints_text_report(tmp_path: Path, capsys) -> None:
     conf = tmp_path / "x.conf"
     conf.write_text(
         textwrap.dedent(
@@ -394,3 +453,39 @@ def test_cli_grep_alias_related_works(tmp_path: Path, capsys) -> None:
     captured = capsys.readouterr()
     assert rc == 0
     assert "/Common/vs" in captured.out
+
+
+def test_cli_grep_invalid_regex_reports_error(tmp_path: Path, capsys) -> None:
+    """A bad regex must fail loudly with a non-zero exit code."""
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n",
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "--regex", "[unclosed", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "invalid regex pattern" in captured.err
+
+
+def test_cli_grep_full_json_emits_object_bodies(tmp_path: Path, capsys) -> None:
+    """`--full` with `--json` must include each object's body in the payload."""
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        textwrap.dedent(
+            """\
+            ltm node /Common/n1 { address 10.0.0.1 }
+            ltm virtual /Common/vs {
+                destination /Common/10.0.0.10:80
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "--json", "--full", "/Common/n1", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    data = json.loads(captured.out)
+    assert data["seeds"][0]["fullPath"] == "/Common/n1"
+    assert "body" in data["seeds"][0]
+    assert "address 10.0.0.1" in data["seeds"][0]["body"]

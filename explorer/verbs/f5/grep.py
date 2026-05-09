@@ -71,7 +71,11 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.add_argument(
         "--full",
         action="store_true",
-        help="Print each object's full body, not just its header / path.",
+        help=(
+            "Include each object's full body in the output.  In the text "
+            "report bodies appear under each header; in JSON output bodies "
+            "are embedded under the `body` key on every object."
+        ),
     )
     p.add_argument(
         "--json",
@@ -121,7 +125,7 @@ def _run_grep(args: argparse.Namespace) -> int:
     )
 
     if args.json:
-        output = json.dumps(report_to_dict(report), indent=2) + "\n"
+        output = json.dumps(report_to_dict(report, include_body=args.full), indent=2) + "\n"
     else:
         output = report.text_report
         if not output.endswith("\n"):

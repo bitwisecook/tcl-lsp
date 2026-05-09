@@ -71,13 +71,15 @@ class GrepReport:
     text_report: str = ""
 
 
-def _matches_pattern(identifier: str, pattern: str, *, use_regex: bool) -> bool:
+def _build_matcher(pattern: str, *, use_regex: bool):
+    """Return a ``(identifier) -> bool`` matcher; raises ValueError on bad regex."""
     if use_regex:
         try:
-            return re.search(pattern, identifier) is not None
-        except re.error:
-            return False
-    return pattern in identifier
+            compiled = re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"invalid regex pattern {pattern!r}: {exc}") from exc
+        return lambda identifier: compiled.search(identifier) is not None
+    return lambda identifier: pattern in identifier
 
 
 def _to_grep_object(node: BigipObjectNode, *, depth: int, is_seed: bool) -> GrepObject:
@@ -176,6 +178,14 @@ def compute_grep(
     """
     if direction not in DIRECTIONS:
         raise ValueError(f"direction must be one of {sorted(DIRECTIONS)}, got {direction!r}")
+    if max_nodes < 1:
+        raise ValueError(f"max_nodes must be >= 1, got {max_nodes}")
+    if max_depth is not None and max_depth < 0:
+        raise ValueError(f"max_depth must be >= 0 or None, got {max_depth}")
+
+    # Validate the pattern before walking the graph so a bad regex surfaces
+    # as a user error rather than a silent zero-match result.
+    matches = _build_matcher(pattern, use_regex=use_regex)
 
     saved = active_signature_profile()
     configure_signatures(dialect="f5-irules")
@@ -202,13 +212,15 @@ def compute_grep(
         return (node.kind or "", node.identifier)
 
     seed_ids: list[str] = sorted(
-        (
-            nid
-            for nid, node in all_nodes.items()
-            if _matches_pattern(node.identifier, pattern, use_regex=use_regex)
-        ),
+        (nid for nid, node in all_nodes.items() if matches(node.identifier)),
         key=_sort_key,
     )
+
+    # Honour max_nodes as a strict cap on total collected objects: when more
+    # seeds match the pattern than the cap allows, truncate before any BFS
+    # expansion so the cap is never silently exceeded.
+    if len(seed_ids) > max_nodes:
+        seed_ids = seed_ids[:max_nodes]
 
     depths: dict[str, int] = {sid: 0 for sid in seed_ids}
     queue: deque[str] = deque(seed_ids)
@@ -300,11 +312,16 @@ def compute_grep(
     )
 
 
-def report_to_dict(report: GrepReport) -> dict:
-    """Render *report* as a JSON-serialisable dict (LSP / CLI / AI consumers)."""
+def report_to_dict(report: GrepReport, *, include_body: bool = False) -> dict:
+    """Render *report* as a JSON-serialisable dict (LSP / CLI / AI consumers).
+
+    Pass ``include_body=True`` to embed each object's full body — this mirrors
+    the CLI's ``--full`` flag for callers that want JSON instead of the text
+    report.  Bodies are otherwise omitted to keep the JSON payload compact.
+    """
 
     def _obj_to_dict(obj: GrepObject) -> dict:
-        return {
+        d: dict = {
             "nodeId": obj.node_id,
             "uri": obj.uri,
             "module": obj.module,
@@ -325,6 +342,9 @@ def report_to_dict(report: GrepReport) -> dict:
                 },
             },
         }
+        if include_body:
+            d["body"] = obj.body
+        return d
 
     return {
         "pattern": report.pattern,
