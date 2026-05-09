@@ -28,6 +28,7 @@ except ImportError:
 
 from explorer.verbs.f5 import load_verbs
 from explorer.verbs.f5._registry import apply_verb_registrations, get_verb_catalogue
+from explorer.verbs.f5.irule import add_irule_subparser
 
 
 def _version_string() -> str:
@@ -51,6 +52,11 @@ def _infer_prog_name(argv0: str) -> str:
     return stem
 
 
+_GROUP_VERBS: tuple[tuple[str, str], ...] = (
+    ("irule", "iRules-specific analysis (event-order, event-info, ...)."),
+)
+
+
 class _BriefHelpAction(argparse.Action):
     """Print a compact help overview and exit."""
 
@@ -64,6 +70,8 @@ class _BriefHelpAction(argparse.Action):
             alias_str = f" ({alias})" if alias else ""
             label = f"{name}{alias_str}"
             lines.append(f"  {label:<22s} {desc}")
+        for name, desc in _GROUP_VERBS:
+            lines.append(f"  {name:<22s} {desc}")
         lines.append("")
         lines.append("Options:")
         lines.append("  -h, --help              Show this help and exit.")
@@ -122,6 +130,7 @@ def _build_parser(prog_name: str) -> argparse.ArgumentParser:
 
     load_verbs()
     apply_verb_registrations(sub, prog_name=prog_name, default_dialect="f5-bigip")
+    add_irule_subparser(sub, prog_name=prog_name, default_dialect="f5-irules")
     return parser
 
 

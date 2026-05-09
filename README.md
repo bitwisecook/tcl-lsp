@@ -768,8 +768,17 @@ skip it and return only the objects that directly match the
 pattern (`-r` / `--recurse` toggle it explicitly back on).  This
 applies to every match mode: substring, `--regex`, and `--cidr`.
 
-`f5` is a separate CLI from `tcl` and `irule`; today it ships three
-verbs (`cleanup`, `grep`, `completion`).
+**`f5 irule` verb group** — iRules-specific analysis with
+`event-order` and `event-info` sub-actions, defaulting to the
+`f5-irules` dialect:
+
+```sh
+f5 irule event-order samples/irules/policy.irule
+f5 irule event-info HTTP_REQUEST --json
+```
+
+`f5` is a separate CLI from `tcl`; today it ships four top-level
+verbs (`cleanup`, `grep`, `completion`, `irule`).
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
@@ -1200,8 +1209,6 @@ A single verb-based CLI that aggregates common local workflows:
 - `callgraph` — build procedure call graph data
 - `symbolgraph` — build symbol relationship graph data
 - `dataflow` — build taint/effect data-flow graph data
-- `event-order` — show iRules events in canonical firing order
-- `event-info` — look up iRules event metadata and valid commands
 - `command-info` — look up command registry metadata
 - `convert` — detect legacy modernisation patterns
 - `dis` — bytecode disassembly
@@ -1238,16 +1245,18 @@ python tcl.pyz minify script.tcl -o minified.tcl
 # Aggressive minify (optimise + static substring folding via SCCP + name compaction)
 python tcl.pyz minify --aggressive script.tcl -o minified.tcl --symbol-map map.txt
 
-# Symbol/graph/event/convert analysis verbs
+# Symbol/graph/convert analysis verbs
 python tcl.pyz symbols script.tcl --json
 python tcl.pyz diagram script.tcl --json
 python tcl.pyz callgraph script.tcl --json
 python tcl.pyz symbolgraph script.tcl --json
 python tcl.pyz dataflow script.tcl --json
-python tcl.pyz event-order rule.irule --dialect f5-irules --json
-python tcl.pyz event-info HTTP_REQUEST --json
 python tcl.pyz command-info HTTP::uri --dialect f5-irules --json
 python tcl.pyz convert rule.irule --json
+
+# iRules-specific lookups live on the f5 CLI:
+python f5.pyz irule event-order rule.irule --json
+python f5.pyz irule event-info HTTP_REQUEST --json
 
 # Emit bytecode disassembly
 python tcl.pyz dis script.tcl
@@ -1274,17 +1283,94 @@ python tcl.pyz help --help
 python tcl.pyz help taint --json
 ```
 
-You can symlink the same zipapp as `irule`:
+For iRules input, pass `--dialect f5-irules` explicitly:
 
 ```sh
-ln -sf ./tcl.pyz ./irule
-./irule lint rules/
+tcl.pyz lint rules/ --dialect f5-irules
 ```
 
-When invoked as `irule`, the CLI uses `f5-irules` as the default dialect.
+iRules-specific verbs (`event-order`, `event-info`) live on the separate
+`f5` CLI under the `irule` verb group — see the F5 BIG-IP CLI section.
 
 For source builds, run `make kcs-db` before packaging zipapps so `tcl.pyz help`
 can query the bundled KCS SQLite database.
+
+**Install the `tcl` CLI** — the released artefact is a single-file zipapp
+(`tcl-<version>.pyz`) that needs only Python 3.10+ on the host.  Download
+it from the
+[GitHub Releases page](https://github.com/bitwisecook/tcl-lsp/releases)
+and put it on `PATH`:
+
+```sh
+# Per-user install on ~/.local/bin (no sudo).
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/tcl \
+  https://github.com/bitwisecook/tcl-lsp/releases/latest/download/tcl-<version>.pyz
+chmod +x ~/.local/bin/tcl
+
+# Confirm: should print "tcl <verb> [options] [inputs...]"
+tcl --help
+```
+
+The downloaded `.pyz` is self-contained — no `pip install`, no virtualenv.
+For a system-wide install, drop the same file into `/usr/local/bin/tcl`
+and `chmod 755` it.
+
+**From source (development)** — clone the repo and use
+`python -m explorer.tcl_cli` directly, or build a fresh zipapp with
+`make zipapp-tcl` (output lands in `build/tcl-<version>.pyz`):
+
+```sh
+git clone https://github.com/bitwisecook/tcl-lsp
+cd tcl-lsp
+uv sync --extra dev
+python -m explorer.tcl_cli lint samples/
+# or:
+make zipapp-tcl && ./build/tcl-*.pyz lint samples/
+```
+
+**Shell completion** — the `tcl completion <shell>` verb prints a
+ready-to-install completion script for **bash**, **fish**, or **zsh**.
+The script is bundled inside the zipapp, so it's the same with the
+local source build or the released `.pyz`.  Run the snippet for your
+shell **after** `tcl` is on `PATH`:
+
+```sh
+# bash (per-user)
+mkdir -p ~/.local/share/bash-completion/completions
+tcl completion bash > ~/.local/share/bash-completion/completions/tcl
+# Or eagerly source from ~/.bashrc:
+#   source <(tcl completion bash)
+
+# fish
+mkdir -p ~/.config/fish/completions
+tcl completion fish > ~/.config/fish/completions/tcl.fish
+# Then start a new fish session.
+
+# zsh (per-user)
+mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
+tcl completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl"
+# Then add to ~/.zshrc, before `compinit`:
+#   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
+#   autoload -Uz compinit && compinit
+```
+
+For a system-wide zsh install on hosts whose `$fpath` already covers
+it, write straight to `site-functions`:
+
+```sh
+sudo sh -c 'tcl completion zsh > /usr/share/zsh/site-functions/_tcl'
+```
+
+iRules-specific completion (the `f5 irule …` sub-verbs) is shipped by
+the separate `f5 completion <shell>` verb — install it the same way.
+
+Pass `--hint` to print the install instructions for the chosen shell
+to stderr alongside the script (`tcl completion bash --hint`).
+Completion covers verb names, every flag, dialect choices, optimiser
+profiles, `pkg` / `venv` / `docker` actions, and Tcl/iRules source
+paths (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
+`*.iapp`, `*.iappimpl`).
 
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
 
