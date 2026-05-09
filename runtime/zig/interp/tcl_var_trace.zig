@@ -475,7 +475,7 @@ fn invoke_cb(
     op_char: u8,
 ) void {
     const interp = @import("tcl_interp.zig");
-    const cs = obj_ensure_string(cmd_prefix);
+    const list_parse = @import("../valtypes/tcl_list_parse.zig");
     // Reference Tcl 9 invokes variable-trace callbacks with the full
     // op word (``read`` / ``write`` / ``unset`` / ``array``), not the
     // single-character internal op code we carry in ``op_char``.
@@ -490,49 +490,88 @@ fn invoke_cb(
         'a' => "array",
         else => &[_]u8{op_char},
     };
-    // Worst-case expansion per element: ``2 * len + 2`` (full
-    // backslash-escape mode), plus one separator byte per gap and
-    // the trailing ``op`` word.
-    const total: u32 = cs.len + 1 + (name1_len * 2 + 2) + 1 +
-        (name2_len * 2 + 2) + 1 + @as(u32, @intCast(op_word.len)) + 8;
-    const buf = alloc(total);
-    if (buf == 0) return;
-    const dst: [*]u8 = @ptrFromInt(buf);
-    const cp: [*]const u8 = @ptrFromInt(cs.ptr);
-    var off: u32 = 0;
-    // The command prefix is already a syntactically-valid script
-    // fragment (caller passes ``trace add variable NAME OPS CMD``'s
-    // ``CMD`` argument verbatim) — copy it as-is.
-    for (0..cs.len) |i| {
-        dst[off] = cp[i];
-        off += 1;
+    // Build argv directly (one TclObj per word) and dispatch through
+    // ``eval_command``.  The previous implementation built a script
+    // string ``<cmd> <name1> <name2> <op>`` and called ``eval_script``;
+    // ``eval_script`` parses the bytes back into TclObjs whose
+    // ``str_ptr`` aliased into the script buffer (``obj_new_string``
+    // is a non-copying constructor), so freeing the buffer left any
+    // TclObj a callback captured into a long-lived variable
+    // dangling.  The earlier workaround leaked the buffer on every
+    // fire — fine for one-shot traces but a per-fire linear-memory
+    // leak in trace-heavy workloads (variables traced inside loops,
+    // tcltest's ``::errorInfo`` write trace fired by every test).
+    //
+    // ``cmd_prefix`` is a list TclObj — the verbatim ``CMD`` argument
+    // from ``trace add variable NAME OPS CMD``.  Parse it as a list
+    // and concatenate its elements with the three trace-supplied
+    // arguments to form the dispatched argv.  Each argv element is
+    // an owned ``obj_new_string_copy`` so the TclObjs survive the
+    // full callback lifetime even if the callback assigns one to a
+    // long-lived variable.
+    const cs = obj_ensure_string(cmd_prefix);
+    if (cs.len == 0 and cs.ptr == 0) return;
+    const n_prefix = list_parse.count_elements(cs.ptr, cs.len);
+    if (n_prefix < 0) return;
+    const total_args: u32 = @as(u32, @intCast(n_prefix)) + 3;
+    // Cap argv at a sensible upper bound — runaway list parsing on a
+    // corrupted prefix shouldn't drive us into a multi-megabyte alloc.
+    const MAX_TRACE_ARGV: u32 = 512;
+    if (total_args > MAX_TRACE_ARGV) return;
+    const argv_bytes: u32 = total_args * @sizeOf(i32);
+    const argv_buf = alloc(argv_bytes);
+    if (argv_buf == 0) return;
+    defer obj.free_sized(argv_buf, argv_bytes);
+    var argv_slice: [*]i32 = @ptrFromInt(argv_buf);
+    // Collect prefix words.
+    var i: u32 = 0;
+    var cursor: list_parse.Cursor = .{ .pos = 0 };
+    while (i < @as(u32, @intCast(n_prefix))) : (i += 1) {
+        const elem = list_parse.cursor_next(cs.ptr, cs.len, &cursor);
+        if (elem.braced) {
+            argv_slice[i] = obj.obj_new_string_copy(cs.ptr + elem.start, elem.len);
+        } else {
+            // Process backslash escapes for unbraced elements via the
+            // same path ``tcl_cmd_list_index`` uses.
+            const buf = obj.alloc(elem.len);
+            if (buf == 0) {
+                // OOM — release everything we've built and bail.
+                var j: u32 = 0;
+                while (j < i) : (j += 1) {
+                    if (argv_slice[j] != 0) tcl_obj_release(argv_slice[j]);
+                }
+                return;
+            }
+            const out_len = list_parse.copy_unbraced_elem(buf, cs.ptr + elem.start, elem.len);
+            argv_slice[i] = obj.obj_new_string_take(buf, out_len, elem.len);
+        }
     }
-    dst[off] = ' ';
-    off += 1;
-    // name1 — quote-as-list-element so binary-safe names round-trip.
-    off = obj.list_elem_quote_nth(buf, off, name1_ptr, name1_len);
-    dst[off] = ' ';
-    off += 1;
-    // name2 — same.  When ``name2_len == 0`` (whole-array trace
-    // fire) ``list_elem_quote_nth`` emits ``{}`` correctly.
-    off = obj.list_elem_quote_nth(buf, off, name2_ptr, name2_len);
-    dst[off] = ' ';
-    off += 1;
-    for (op_word) |b| {
-        dst[off] = b;
-        off += 1;
+    // name1 — copy bytes so we own the TclObj.  ``name1_ptr`` may
+    // alias into a hash-table key buffer that gets reused on the
+    // next array op; we can't borrow it across the callback.
+    argv_slice[i] = obj.obj_new_string_copy(name1_ptr, name1_len);
+    i += 1;
+    // name2 — same ownership story.  When ``name2_len == 0`` (whole-
+    // array fire) we still pass an empty string TclObj rather than
+    // 0, matching reference Tcl's ``Tcl_TraceVar2``.
+    argv_slice[i] = obj.obj_new_string_copy(name2_ptr, name2_len);
+    i += 1;
+    // op_word — copy from a stack-resident slice into an owned
+    // TclObj so the callback can assign ``$op`` to a variable
+    // without hitting freed memory.
+    argv_slice[i] = obj.obj_new_string_copy(@intFromPtr(op_word.ptr), @intCast(op_word.len));
+    i += 1;
+    // Dispatch.  ``eval_command`` runs the command synchronously and
+    // returns the result handle (or 0 on error / no-result).
+    const argv_view: []const i32 = (@as([*]const i32, @ptrCast(argv_slice)))[0..total_args];
+    const r = interp.eval_command(argv_view);
+    // Release every argv TclObj we built — ``eval_command`` retains
+    // any it stores into a long-lived slot via the normal var-set
+    // refcount discipline.
+    var k: u32 = 0;
+    while (k < total_args) : (k += 1) {
+        if (argv_slice[k] != 0) tcl_obj_release(argv_slice[k]);
     }
-    const r = interp.eval_script(buf, off);
-    // Intentional leak of ``buf``: the parser's ``subst_flagged``
-    // returns non-copying ``obj_new_string`` TclObjs for word tokens
-    // that contain no substitution (the common case for the four
-    // op-word tokens we just emitted: ``read`` / ``write`` /
-    // ``unset`` / ``array``), so any TclObj the callback assigned
-    // to a long-lived variable would dangle into freed memory if we
-    // ``free_sized``-ed *buf* here.  The leak is bounded — one
-    // small allocation per trace fire — and matches the same
-    // discipline the rest of the runtime applies to script buffers
-    // whose word TclObjs may outlive the call.
     if (r != 0) tcl_obj_release(r);
 }
 

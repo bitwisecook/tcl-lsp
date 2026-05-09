@@ -182,6 +182,13 @@ class _WasmEmitterBase:
         # The cache is per-emitter (per-proc), so the body walk
         # runs at most once per compilation unit.
         self._var_trace_target_set_cache: tuple[set[str], bool] | None = None
+        # Lazy cache for :meth:`_proc_rebinds_array_name` — same
+        # ``(literal_set, dynamic_seen)`` shape as the var-trace
+        # cache above.  Tracks names declared in ``global`` /
+        # ``upvar`` / ``variable`` anywhere in the proc body so the
+        # array-name resolver cache (see :meth:`_emit_array_name_obj`)
+        # can opt out of stickiness for those names.
+        self._scope_rebound_names_cache: tuple[set[str], bool] | None = None
         # S5.1 — set of slot indices that have been written at least
         # once during this emitter's body emission.  At the first
         # write (slot not yet in the set) the prior value is provably

@@ -1285,9 +1285,15 @@ fn split_array_elem_name(name_ptr: u32, name_len: u32) ?ArrayElemSplit {
     // path and surfaces a regular ``no such variable`` error instead
     // of an opaque wasm trap.
     if (name_ptr == 0) return null;
+    // Compute the memory ceiling in u64 so the multiplication doesn't
+    // wrap when the wasm32 instance has the maximum 65536 pages
+    // (4 GiB).  ``mem_pages *% PAGE_SIZE`` in u32 wraps to 0 at that
+    // limit, which would make the subsequent bounds check treat
+    // every pointer as out-of-range and route legitimate
+    // ``arr(key)`` parses through the no-op fallback.
     const mem_pages: u32 = @intCast(@wasmMemorySize(0));
-    const mem_bytes: u32 = mem_pages *% obj.PAGE_SIZE;
-    if (name_ptr >= mem_bytes or name_len > mem_bytes - name_ptr) return null;
+    const mem_bytes: u64 = @as(u64, mem_pages) * @as(u64, obj.PAGE_SIZE);
+    if (name_ptr >= mem_bytes or @as(u64, name_len) > mem_bytes - @as(u64, name_ptr)) return null;
     const sp: [*]const u8 = @ptrFromInt(name_ptr);
     if (sp[name_len - 1] != ')') return null;
     var paren: u32 = 0;
@@ -1424,9 +1430,14 @@ fn resolve_ext_set(desc: u32, local_name: i32, value: i32) i32 {
     // ``read_i32`` below.  Bail with the input value untouched so
     // the caller observes a no-op rather than an opaque memory
     // fault.  Same idea for ``tgt`` further down.
+    //
+    // Compute the memory ceiling in u64 so the multiplication
+    // doesn't wrap to 0 when the wasm32 instance has the maximum
+    // 65536 pages (4 GiB).  The previous u32 ``*%`` form wrapped
+    // there and made the guard reject every descriptor.
     const mem_pages: u32 = @intCast(@wasmMemorySize(0));
-    const mem_bytes: u32 = mem_pages *% obj.PAGE_SIZE;
-    if (desc == 0 or desc + 12 > mem_bytes) return value;
+    const mem_bytes: u64 = @as(u64, mem_pages) * @as(u64, obj.PAGE_SIZE);
+    if (desc == 0 or @as(u64, desc) + 12 > mem_bytes) return value;
     const kind = read_i32(desc);
     const tgt = read_i32(desc + 8);
     if (kind == KIND_GLOBAL_NAMED) {
