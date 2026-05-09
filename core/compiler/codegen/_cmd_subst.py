@@ -252,11 +252,13 @@ class _CmdSubstMixin:
 
     def _emit_generic_cmd_subst(self: _Emitter, cmd: str, args: list[tuple[str, bool]]) -> None:
         """Emit a generic command substitution as push + invokeStk."""
-        # Dynamic command word: ``[$var arg ...]`` resolves the
-        # command at runtime via variable substitution.  Push name +
-        # loadStk so the resolved value drives dispatch instead of
-        # the literal source bytes.
-        if cmd.startswith("$"):
+        # Dynamic command word: ``[$var arg ...]`` or ``[[cmd] arg]``.
+        # In both cases the command word resolves at runtime — for
+        # ``\$var`` via variable substitution, for ``[…]`` via a
+        # nested command substitution.  Route through ``_emit_value``
+        # so the resolved value drives dispatch instead of the
+        # literal source bytes.
+        if cmd.startswith("$") or (cmd.startswith("[") and cmd.endswith("]")):
             self._emit_value(cmd, interpolate=True)
         else:
             self._push_lit(cmd)

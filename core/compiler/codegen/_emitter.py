@@ -823,6 +823,41 @@ class _Emitter(
                 _foreach_backedge = True
 
             next_block = block_order[i + 1] if i + 1 < len(block_order) else None
+
+            # Top-level / proc-body if statement: tclsh wraps the
+            # whole ``if {…} {…}`` invocation in a ``startCommand``
+            # that spans from the condition through the join block's
+            # ``pop``.  Detect a CFGBranch terminator whose
+            # true_target is an ``if_then_*`` block converging on an
+            # ``if_end_*`` join, and emit the wrap here — between
+            # the block's already-emitted statements and the
+            # terminator's condition evaluation.  The for-body /
+            # foreach paths emit their own wraps elsewhere; skip
+            # those contexts to avoid double-wrapping.
+            if (
+                isinstance(blk.terminator, CFGBranch)
+                and self._cmd_index > 0
+                and not bname.startswith(("for_body_", "while_body_", "switch_"))
+                and bname not in foreach_body_blocks
+                and blk.terminator.true_target.startswith("if_then_")
+                # Constant-folded conditions get their own SC emission
+                # path through ``_pending_join_labels`` — skip the
+                # generic wrap to avoid a duplicate / overlapping SC.
+                and self._fold_const_branch(blk.terminator.condition) is None
+            ):
+                _tt_b = blk.terminator.true_target
+                _tt_b_blk = self._cfg.blocks.get(_tt_b)
+                _join_b: str | None = None
+                if _tt_b_blk and isinstance(_tt_b_blk.terminator, CFGGoto):
+                    _cand = _tt_b_blk.terminator.target
+                    if _cand.startswith("if_end_"):
+                        _join_b = _cand
+                if _join_b is not None and _join_b not in for_body_end_labels:
+                    _if_end_label = self._fresh_label("if_cmd_end")
+                    self._emit(Op.START_CMD, _if_end_label, 1)
+                    for_body_end_labels[_join_b] = _if_end_label
+                    self._cmd_index += 1
+
             if blk.terminator is not None and not _skip_while_term and not _foreach_backedge:
                 if self._try_emit_jump_table(blk, next_block, skip_blocks):
                     # Switch dispatch counts as a command so the first
