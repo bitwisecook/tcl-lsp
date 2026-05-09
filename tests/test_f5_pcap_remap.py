@@ -134,8 +134,10 @@ def test_remap_pcap_recomputes_ipv4_checksum():
 
 
 def _legacy_high_trailer(remote_v4: bytes, local_v4: bytes) -> bytes:
-    """Build a legacy F5 HIGH v0 trailer (length=42) carrying two IPv4
-    peer addresses in IPv4-mapped IPv6 form."""
+    """Build a legacy F5 HIGH v0 trailer (total 42 bytes) carrying two IPv4
+    peer addresses in IPv4-mapped IPv6 form.  Wire length byte = 40
+    (Wireshark adds 2 to compute total entry size — see
+    packet-f5ethtrailer.c line 2763)."""
     ipv4_mapped_remote = bytes(10) + b"\xff\xff" + remote_v4
     ipv4_mapped_local = bytes(10) + b"\xff\xff" + local_v4
     body = (
@@ -146,7 +148,7 @@ def _legacy_high_trailer(remote_v4: bytes, local_v4: bytes) -> bytes:
         + struct.pack(">H", 12345)
         + struct.pack(">H", 80)
     )
-    return bytes([3, 42, 0]) + body  # type=HIGH, length=42, version=0
+    return bytes([3, 40, 0]) + body  # type=HIGH, wire-len=40 (total=42), ver=0
 
 
 def test_remap_pcap_rewrites_peer_ips_in_legacy_trailer():
@@ -180,7 +182,7 @@ def test_remap_pcap_unknown_trailer_errors_by_default():
     from core.bigip.pcap_remap import UnknownTrailerError
 
     # type=HIGH but version=99 — not in the schema registry.
-    weird = bytes([3, 42, 99]) + b"\x00" * 39
+    weird = bytes([3, 40, 99]) + b"\x00" * 39
     packet = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08") + weird
     pcap_in = _build_pcap([packet])
     rm = build_map(text="1.2.3.4 5.6.7.8")
@@ -196,7 +198,7 @@ def test_remap_pcap_unknown_trailer_errors_by_default():
 
 def test_remap_pcap_unknown_trailer_preserve_policy_leaves_bytes():
     weird_value = b"\xde\xad\xbe\xef" + b"\x01\x02\x03\x04" + b"\x00" * 31
-    weird = bytes([3, 42, 99]) + weird_value
+    weird = bytes([3, 40, 99]) + weird_value
     packet = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08") + weird
     pcap_in = _build_pcap([packet])
     rm = build_map(text="1.2.3.4 5.6.7.8")
@@ -210,7 +212,7 @@ def test_remap_pcap_unknown_trailer_preserve_policy_leaves_bytes():
 
 def test_remap_pcap_unknown_trailer_sweep_policy_replaces_known_ips():
     weird_value = b"\xde\xad\xbe\xef" + b"\x01\x02\x03\x04" + b"\x00" * 31
-    weird = bytes([3, 42, 99]) + weird_value
+    weird = bytes([3, 40, 99]) + weird_value
     packet = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08") + weird
     pcap_in = _build_pcap([packet])
     rm = build_map(text="1.2.3.4 5.6.7.8")
@@ -312,7 +314,7 @@ def test_remap_pcap_trailer_lookup_invalidates_across_packets():
     was missing from packet N+1's sweep.  Cache is now keyed by
     len(forward) too."""
     p1 = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08")
-    weird = bytes([3, 42, 99]) + b"\x00" * 4 + b"\x01\x02\x03\x04" + b"\x00" * 31
+    weird = bytes([3, 40, 99]) + b"\x00" * 4 + b"\x01\x02\x03\x04" + b"\x00" * 31
     p2 = _build_tcp_packet(b"\x07\x07\x07\x07", b"\x08\x08\x08\x08") + weird
     pcap_in = _build_pcap([p1, p2])
     rm = build_map(text="1.2.3.4 5.6.7.8 7.7.7.7 8.8.8.8")

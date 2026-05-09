@@ -32,7 +32,10 @@ def _ipv4_mapped(addr: str) -> bytes:
 
 
 def _legacy_high_v0(remote_v4: str, local_v4: str) -> bytes:
-    """Build a legacy HIGH v0 entry (length=42) from two IPv4 addresses."""
+    """Build a legacy HIGH v0 entry (total 42 bytes) from two IPv4 addresses.
+
+    The on-wire length byte is total_size - 2 (Wireshark convention).
+    """
     body = (
         bytes([0x06])  # ipproto = TCP
         + struct.pack(">H", 0)  # vlan
@@ -42,15 +45,15 @@ def _legacy_high_v0(remote_v4: str, local_v4: str) -> bytes:
         + struct.pack(">H", 80)  # local port
     )
     assert len(body) == 39  # 1+2+16+16+2+2
-    return bytes([LEGACY_TYPE_HIGH, 42, 0]) + body
+    return bytes([LEGACY_TYPE_HIGH, 40, 0]) + body  # wire len = 42 - 2
 
 
-def _legacy_low(length: int = 22) -> bytes:
-    return bytes([LEGACY_TYPE_LOW, length, 0]) + b"\x00" * (length - 3)
+def _legacy_low(total_length: int = 22) -> bytes:
+    return bytes([LEGACY_TYPE_LOW, total_length - 2, 0]) + b"\x00" * (total_length - 3)
 
 
-def _legacy_med(length: int = 8) -> bytes:
-    return bytes([LEGACY_TYPE_MED, length, 0]) + b"\x00" * (length - 3)
+def _legacy_med(total_length: int = 8) -> bytes:
+    return bytes([LEGACY_TYPE_MED, total_length - 2, 0]) + b"\x00" * (total_length - 3)
 
 
 def _dpt_hdr(payload: bytes) -> bytes:
@@ -155,7 +158,8 @@ def test_dpt_high_v1_ip_fields_at_known_offsets():
 
 def test_unknown_tlv_marked_schema_unknown():
     """A type/version not in the registry should still parse but be flagged."""
-    weird = bytes([LEGACY_TYPE_HIGH, 8, 99]) + b"\x00" * 5  # bogus version 99
+    # Wire length 8 -> total 10 bytes; 7 body bytes; bogus version 99.
+    weird = bytes([LEGACY_TYPE_HIGH, 8, 99]) + b"\x00" * 7
     parse = parse_trailer(weird)
     assert parse.fmt == "legacy"
     assert len(parse.tlvs) == 1
@@ -199,6 +203,7 @@ def test_classify_f5_route_domain_treated_as_v4():
 
 
 def test_load_schema_overlay_round_trips_via_toml():
+    # Total entry size = 12 -> wire length byte = 10, body = 9 bytes.
     overlay = """
     [[legacy]]
     type = 99
@@ -218,7 +223,7 @@ def test_load_schema_overlay_round_trips_via_toml():
     """
     load_schema_overlay(overlay)
 
-    legacy_data = bytes([99, 12, 7]) + b"\x01\x02\x03\x04" + b"\x00" * 5
+    legacy_data = bytes([99, 10, 7]) + b"\x01\x02\x03\x04" + b"\x00" * 5
     parse = parse_trailer(legacy_data)
     assert parse.fmt == "legacy"
     assert parse.tlvs[0].schema_known
@@ -227,8 +232,9 @@ def test_load_schema_overlay_round_trips_via_toml():
 
 
 def test_register_legacy_schema_directly():
+    # Total 7 -> wire length 5; 4-byte body.
     register_legacy_schema(LEGACY_TYPE_LOW, 0, 7, [(5, "v4")])
-    parse = parse_trailer(bytes([LEGACY_TYPE_LOW, 7, 0]) + b"\x01\x02\x03\x04")
+    parse = parse_trailer(bytes([LEGACY_TYPE_LOW, 5, 0]) + b"\x01\x02\x03\x04")
     assert parse.tlvs[0].schema_known
     assert parse.tlvs[0].ip_fields[0].offset == 5
 

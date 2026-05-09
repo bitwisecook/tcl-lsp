@@ -194,7 +194,11 @@ register_legacy_schema(LEGACY_TYPE_MED, 0, 8, [])  # F5_MEDV94_LEN
 register_legacy_schema(LEGACY_TYPE_MED, 0, 21, [])  # F5_MEDV10_LEN
 register_legacy_schema(LEGACY_TYPE_MED, 0, 29, [])  # F5_MEDV11_LEN
 register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_LOW, 1, [])
+register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_LOW, 2, [])
+register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_LOW, 3, [])
+register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_LOW, 4, [])
 register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_MED, 1, [])
+register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_MED, 4, [])
 
 
 # ── parsing ────────────────────────────────────────────────────────
@@ -226,31 +230,44 @@ def parse_trailer(data: bytes) -> TrailerParse:
     if len(data) >= DPT_HDR_LEN and struct.unpack(">I", data[:4])[0] == DPT_HDR_MAGIC:
         return _parse_dpt(data)
 
-    # Legacy format: first byte is a known legacy type, length is sane.
+    # Legacy format: first byte is a known legacy type, total entry
+    # length (wire-length + 2 — see _parse_legacy) is sane.
     if data[0] in _legacy_known_types():
-        if LEGACY_MIN_SANE <= data[1] <= LEGACY_MAX_SANE:
+        total = data[1] + 2
+        if LEGACY_MIN_SANE <= total <= LEGACY_MAX_SANE:
             return _parse_legacy(data)
 
     return TrailerParse(fmt=None)
 
 
 def _parse_legacy(data: bytes) -> TrailerParse:
+    """Walk a legacy-format trailer chain.
+
+    The on-wire length byte excludes the leading ``[type][length]``
+    pair — Wireshark's dissector (``packet-f5ethtrailer.c`` line 2763,
+    ``len = tvb_get_uint8(tvb, offset + F5_OFF_LENGTH) + F5_OFF_VERSION``)
+    adds 2 back to compute the full entry size.  We do the same so
+    schema keys match the Wireshark-defined constants
+    (``F5_HIV0_LEN=42``, ``F5_LOWV94_LEN=35``, etc.), which are all
+    full entry sizes including the 3-byte type/length/version header.
+    """
     out = TrailerParse(fmt="legacy")
     pos = 0
     known_types = _legacy_known_types()
     while pos + 3 <= len(data):
         type_ = data[pos]
-        length = data[pos + 1]
+        wire_length = data[pos + 1]
         version = data[pos + 2]
-        # Termination conditions (mirroring Wireshark):
+        total_length = wire_length + 2
+        # Termination conditions (mirroring dissect_old_trailer):
         if type_ not in known_types:
             break
-        if length < LEGACY_MIN_SANE or length > LEGACY_MAX_SANE:
+        if total_length < LEGACY_MIN_SANE or total_length > LEGACY_MAX_SANE:
             break
-        if pos + length > len(data):
+        if pos + total_length > len(data):
             break
 
-        schema = _LEGACY_SCHEMAS.get((type_, version, length))
+        schema = _LEGACY_SCHEMAS.get((type_, version, total_length))
         ip_fields = (
             [IpFieldRef(offset=pos + rel_off, kind=kind) for rel_off, kind in (schema or [])]
             if schema is not None
@@ -261,13 +278,13 @@ def _parse_legacy(data: bytes) -> TrailerParse:
                 fmt="legacy",
                 type_=type_,
                 version=version,
-                length=length,
+                length=total_length,
                 offset=pos,
                 ip_fields=ip_fields,
                 schema_known=schema is not None,
             )
         )
-        pos += length
+        pos += total_length
     out.bytes_consumed = pos
     return out
 
