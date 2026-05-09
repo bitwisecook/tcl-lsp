@@ -399,7 +399,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         # remove an entry as each snippet's instruction stream
         # converges.
         "145_uplevel_caller_local",
-        "228_catch_sets_error_msg",
     }
 )
 
@@ -410,7 +409,6 @@ _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
         # tracked separately from instruction convergence so a fix on
         # one side surfaces immediately.
         "145_uplevel_caller_local",
-        "228_catch_sets_error_msg",
     }
 )
 

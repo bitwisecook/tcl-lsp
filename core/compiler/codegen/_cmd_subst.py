@@ -18,6 +18,55 @@ if TYPE_CHECKING:
     from ._emitter import _Emitter
 
 
+# Tcl-level commands tclsh's compiler will inline at top level
+# when used as a single-command catch body.  All compile to
+# specialised opcodes (no ``invokeStk``), so the catch body is
+# self-contained.  More involved bodies (``set …``, ``[catch …]``
+# nested, ``foreach …``) keep the generic ``catch`` invoke shape
+# at script scope; the inline path handles them correctly inside
+# proc bodies, where catch is always inlined.
+_TOP_LEVEL_CATCH_INLINE_HEADS = frozenset(
+    {"error", "return", "break", "continue"}
+)
+
+
+def _catch_body_is_simple_inline(body_text: str) -> bool:
+    """Return True when the catch body is a single Tcl command whose
+    head identifier compiles to a specialised opcode at script scope
+    (``error msg``, ``return …``, ``break``, ``continue``).  Used to
+    enable the top-level catch-inline path for the
+    ``[catch {error MSG} var]`` shape that tclsh inlines at script
+    scope; more complex bodies stay on the generic-invoke path.
+    """
+    body = body_text.strip()
+    if body.startswith("{") and body.endswith("}"):
+        body = body[1:-1].strip()
+    # Reject multi-command bodies (any ``;`` or newline outside
+    # braces / quotes).
+    depth_brace = 0
+    depth_bracket = 0
+    in_dq = False
+    for ch in body:
+        if in_dq:
+            if ch == '"':
+                in_dq = False
+            continue
+        if ch == "{":
+            depth_brace += 1
+        elif ch == "}":
+            depth_brace -= 1
+        elif ch == "[":
+            depth_bracket += 1
+        elif ch == "]":
+            depth_bracket -= 1
+        elif ch == '"' and depth_brace == 0 and depth_bracket == 0:
+            in_dq = True
+        elif ch in (";", "\n") and depth_brace == 0 and depth_bracket == 0:
+            return False
+    head = body.split(None, 1)[0] if body else ""
+    return head in _TOP_LEVEL_CATCH_INLINE_HEADS
+
+
 class _CmdSubstMixin:
     """Mixin: command substitution parsing and emission."""
 
@@ -892,7 +941,17 @@ class _CmdSubstMixin:
                 self._emit_cmd_subst_arg(a)
             self._emit(Op.INVOKE_STK1, 1 + len(sub_args))
             self._seen_generic_invoke = True
-        elif cmd == "catch" and self._is_proc and 1 <= len(args) <= 3:
+        elif cmd == "catch" and 1 <= len(args) <= 3 and (
+            self._is_proc
+            or (
+                # tclsh inlines top-level ``[catch {body}]`` only for
+                # the no-result-var, no-options-var shape (1-arg
+                # catch).  With a result var the catch goes through
+                # the generic ``invokeStk`` path; mirror that.
+                len(args) == 1
+                and _catch_body_is_simple_inline(args[0][0])
+            )
+        ):
             result_var = args[1][0] if len(args) > 1 else None
             if result_var and result_var.startswith("::"):
                 # Global result var: fall back to generic invoke.
@@ -902,7 +961,27 @@ class _CmdSubstMixin:
                 self._used_inline_cmd_subst = True
                 body_text = args[0][0]
                 options_var = args[2][0] if len(args) > 2 else None
+                # At top level tclsh wraps the catch substitution
+                # itself in a ``startCommand``: the catch is a
+                # separate Cmd starting after the surrounding
+                # ``set``'s ``push <var>``.  Inside proc bodies
+                # the inline path is wrapped by the per-statement
+                # ``_emit_stmt_with_start_cmd`` machinery.
+                _outer_sc: str | None = None
+                if not self._is_proc:
+                    _outer_sc = self._fresh_label("catch_subst_end")
+                    self._emit(Op.START_CMD, _outer_sc, 1)
                 self._emit_catch_inline(body_text, result_var, options_var)
+                if _outer_sc is not None:
+                    self._place_label(_outer_sc)
+                # At top level the inlined catch's first opcode
+                # (``beginCatch4``) starts at a different PC than
+                # the surrounding ``set``'s ``push <var>``, so
+                # tclsh keeps the outer SC's ``count`` at 1.
+                # Suppress the per-statement inline-cmd-subst flag
+                # that would otherwise patch the wrap to ``count=2``.
+                if not self._is_proc:
+                    self._used_inline_cmd_subst = False
         else:
             self._used_inline_cmd_subst = False
             self._emit_generic_cmd_subst(cmd, args)

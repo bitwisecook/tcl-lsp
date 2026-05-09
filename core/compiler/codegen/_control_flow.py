@@ -83,7 +83,13 @@ class _ControlFlowMixin:
 
         # Stack: [result, code] (or [result, code, opts] for 3-arg).
         if options_var:
-            # Store opts, then swap result/code.
+            # Store opts, then swap result/code.  At top level the
+            # ``storeStk`` consumer expects the var name pushed
+            # underneath, so flip the stack to put the name below
+            # the value.
+            if not self._is_proc:
+                self._push_var_ref(options_var)
+                self._emit(Op.REVERSE, 2)
             self._store_var(options_var)
             self._emit(Op.POP)
 
@@ -91,6 +97,9 @@ class _ControlFlowMixin:
 
         # Store result in result_var (2-arg or 3-arg catch).
         if result_var:
+            if not self._is_proc:
+                self._push_var_ref(result_var)
+                self._emit(Op.REVERSE, 2)
             self._store_var(result_var)
             self._emit(Op.POP)
         else:
