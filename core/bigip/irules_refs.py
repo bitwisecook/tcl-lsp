@@ -1,12 +1,18 @@
-"""Parser-backed iRules object reference extraction."""
+"""Parser-backed iRules object reference extraction.
+
+The actual mapping of iRule commands to BIG-IP object kinds lives in
+:mod:`core.bigip.irules_object_refs` as a declarative table.  This
+module is a walker: it segments the iRule body into commands, asks the
+table for each command's object-reference arg positions, and resolves
+those positions to literal object names — including names that flow
+through ``set <var> <literal>`` bindings.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 
 from core.analysis.semantic_model import Range
-from core.bigip.registry.data import OBJECT_KIND_SPECS
 from core.commands.registry.runtime import ArgRole, arg_indices_for_role
 from core.common.ranges import position_from_relative
 from core.parsing.command_segmenter import SegmentedCommand, segment_commands
@@ -14,33 +20,7 @@ from core.parsing.lexer import TclLexer
 from core.parsing.token_positions import token_content_base
 from core.parsing.tokens import Token, TokenType
 
-_CLASS_OPERATORS = frozenset(
-    {"equals", "starts_with", "ends_with", "contains", "matches_glob", "matches_regex"}
-)
-
-_PERSIST_NON_REFERENCE_KEYWORDS = frozenset(
-    {
-        "add",
-        "delete",
-        "lookup",
-        "replace",
-        "none",
-        "simple",
-        "sticky",
-        "source_addr",
-        "dest_addr",
-        "hash",
-        "cookie",
-        "ssl",
-        "msrdp",
-        "sip",
-        "uie",
-        "carp",
-        "universal",
-    }
-)
-
-_POOL_NON_REFERENCE_KEYWORDS = frozenset({"member", "members"})
+from .irules_object_refs import resolve_object_ref_args
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,22 +34,31 @@ class IrulesObjectReference:
     range: Range
 
 
-@lru_cache(maxsize=1)
-def _gtm_pool_kinds() -> tuple[str, ...]:
-    """Return all GTM pool object kinds from the object registry."""
-    kinds: list[str] = []
-    for kind, spec in OBJECT_KIND_SPECS.items():
-        if spec.module != "gtm":
-            continue
-        if any(obj_type.startswith("pool ") for obj_type in spec.object_types):
-            kinds.append(kind)
-    return tuple(sorted(kinds))
+# Variable-name → (literal_value, range) bindings carried through linear
+# copy-propagation within an event-handler scope.  Branching control
+# flow widens the binding to ``None`` (overdefined) so we don't emit
+# false positives.  Each nested body inherits a snapshot of its parent
+# scope, then mutations stay local to the child.
+@dataclass(slots=True)
+class _BindingScope:
+    bindings: dict[str, tuple[str, Range] | None]
 
+    @classmethod
+    def empty(cls) -> "_BindingScope":
+        return cls(bindings={})
 
-def _pool_kinds_for_module(rule_module: str | None) -> tuple[str, ...]:
-    if rule_module == "gtm":
-        return _gtm_pool_kinds()
-    return ("ltm_pool",)
+    def child(self) -> "_BindingScope":
+        return _BindingScope(bindings=dict(self.bindings))
+
+    def set_const(self, var: str, value: str, rng: Range) -> None:
+        self.bindings[var] = (value, rng)
+
+    def widen(self, var: str) -> None:
+        # Mark the binding as overdefined so downstream lookups fail-closed.
+        self.bindings[var] = None
+
+    def lookup(self, var: str) -> tuple[str, Range] | None:
+        return self.bindings.get(var)
 
 
 def _normalise_literal_name(text: str) -> str | None:
@@ -126,17 +115,116 @@ def _literal_arg_value(cmd: SegmentedCommand, arg_index: int) -> tuple[str, Rang
     return (name, Range(start=start, end=end))
 
 
+def _var_token_name(tok: Token) -> str | None:
+    """Return the variable name when *tok* is a single ``$var`` substitution.
+
+    The lexer strips the leading ``$`` from a ``VAR`` token, so the
+    token text already holds the variable name (or ``${name}`` form).
+    Returns ``None`` for array-element references (``foo(bar)``) — we
+    don't currently track array slots in the binding scope.
+    """
+    if tok.type is not TokenType.VAR:
+        return None
+    text = tok.text.strip()
+    if not text:
+        return None
+    name = text
+    if name.startswith("{") and name.endswith("}"):
+        name = name[1:-1]
+    if not name:
+        return None
+    if "(" in name:
+        return None
+    return name
+
+
+def _resolve_arg_value(
+    cmd: SegmentedCommand,
+    arg_index: int,
+    scope: _BindingScope,
+) -> tuple[str, Range] | None:
+    """Resolve a command argument to ``(literal_name, range)`` if possible.
+
+    Tries the literal value first; if the arg is a pure ``$var``
+    substitution, falls back to the binding scope's most recent
+    constant assignment for that variable.  Returns ``None`` for
+    everything else (command substitutions, mixed literal-plus-var,
+    overdefined bindings, ...).
+    """
+    literal = _literal_arg_value(cmd, arg_index)
+    if literal is not None:
+        return literal
+
+    word_index = arg_index + 1
+    if word_index >= len(cmd.argv):
+        return None
+    if word_index >= len(cmd.single_token_word) or not cmd.single_token_word[word_index]:
+        return None
+    tok = cmd.argv[word_index]
+    var_name = _var_token_name(tok)
+    if var_name is None:
+        return None
+    binding = scope.lookup(var_name)
+    if binding is None:
+        return None
+    value, _decl_range = binding
+    # Anchor the resolved reference to the use site (the $var token), not
+    # the declaration site, so editors highlight where the cleanup script
+    # would land.
+    base_offset, base_line, base_col = token_content_base(tok)
+    raw = tok.text
+    use_range = Range(
+        start=position_from_relative(
+            raw,
+            0,
+            base_line=base_line,
+            base_col=base_col,
+            base_offset=base_offset,
+        ),
+        end=position_from_relative(
+            raw,
+            len(raw) - 1,
+            base_line=base_line,
+            base_col=base_col,
+            base_offset=base_offset,
+        ),
+    )
+    return (value, use_range)
+
+
+def _record_set_binding(cmd: SegmentedCommand, scope: _BindingScope) -> None:
+    """If *cmd* is ``set <var> <literal>`` (single-token), record the binding."""
+    if cmd.name != "set" or len(cmd.args) < 2:
+        return
+    # `set var` (one arg) is a read, not a write.
+    var = cmd.args[0]
+    if not var or any(ch.isspace() for ch in var) or var.startswith("$"):
+        return
+    if "(" in var:
+        # Array element — not tracked.
+        return
+    literal = _literal_arg_value(cmd, 1)
+    if literal is None:
+        # Non-literal RHS: widen any existing binding so later lookups
+        # don't pick up a stale value.
+        scope.widen(var)
+        return
+    value, rng = literal
+    scope.set_const(var, value, rng)
+
+
 def _append_reference(
     out: list[IrulesObjectReference],
     cmd: SegmentedCommand,
+    scope: _BindingScope,
     *,
     arg_index: int,
     kinds: tuple[str, ...],
 ) -> None:
-    literal = _literal_arg_value(cmd, arg_index)
-    if literal is None:
+    resolved = _resolve_arg_value(cmd, arg_index, scope)
+    if resolved is None:
         return
-    name, rng = literal
+    name, rng = resolved
     out.append(
         IrulesObjectReference(
             name=name,
@@ -148,133 +236,31 @@ def _append_reference(
     )
 
 
-def _collect_class_references(cmd: SegmentedCommand, out: list[IrulesObjectReference]) -> None:
-    args = cmd.args
-    if not args:
-        return
-    sub = args[0].lower()
-    dg_kinds = ("ltm_data_group_internal", "ltm_data_group_external")
-
-    if sub in {"match", "search"}:
-        idx = 1
-        while idx < len(args) and args[idx].startswith("-"):
-            idx += 1
-        if idx < len(args) and args[idx] == "--":
-            idx += 1
-        idx += 1  # item
-        if idx >= len(args) or args[idx].lower() not in _CLASS_OPERATORS:
-            return
-        idx += 1
-        if idx < len(args):
-            _append_reference(out, cmd, arg_index=idx, kinds=dg_kinds)
-        return
-
-    if sub == "lookup":
-        idx = 1
-        if idx < len(args) and args[idx] == "--":
-            idx += 1
-        idx += 1  # key argument
-        if idx < len(args):
-            _append_reference(out, cmd, arg_index=idx, kinds=dg_kinds)
-        return
-
-    if sub in {"exists", "size", "type", "get", "startsearch"} and len(args) >= 2:
-        _append_reference(out, cmd, arg_index=1, kinds=dg_kinds)
-
-
-def _collect_command_references(
-    cmd: SegmentedCommand,
-    out: list[IrulesObjectReference],
-    *,
-    rule_module: str | None,
-) -> None:
-    name = cmd.name
-    lower_name = name.lower()
-    args = cmd.args
-    if not args:
-        return
-    pool_kinds = _pool_kinds_for_module(rule_module)
-
-    match lower_name:
-        case "pool":
-            if args[0].lower() not in _POOL_NON_REFERENCE_KEYWORDS:
-                _append_reference(out, cmd, arg_index=0, kinds=pool_kinds)
-        case "active_members" | "members":
-            _append_reference(out, cmd, arg_index=0, kinds=pool_kinds)
-        case "snatpool":
-            if rule_module != "gtm":
-                _append_reference(out, cmd, arg_index=0, kinds=("ltm_snatpool",))
-        case "virtual":
-            if rule_module != "gtm":
-                _append_reference(out, cmd, arg_index=0, kinds=("ltm_virtual",))
-        case "node":
-            if rule_module != "gtm":
-                _append_reference(out, cmd, arg_index=0, kinds=("ltm_node",))
-        case "clone":
-            _append_reference(out, cmd, arg_index=0, kinds=pool_kinds)
-            if len(args) >= 2:
-                _append_reference(out, cmd, arg_index=1, kinds=pool_kinds)
-        case "snat":
-            if rule_module != "gtm" and len(args) >= 2 and args[0].lower() == "pool":
-                _append_reference(out, cmd, arg_index=1, kinds=("ltm_snatpool",))
-        case "persist":
-            if rule_module != "gtm":
-                head = args[0].lower()
-                if head not in _PERSIST_NON_REFERENCE_KEYWORDS or args[0].startswith("/"):
-                    _append_reference(
-                        out,
-                        cmd,
-                        arg_index=0,
-                        kinds=(
-                            "ltm_persistence_cookie",
-                            "ltm_persistence_dest_addr",
-                            "ltm_persistence_global_settings",
-                            "ltm_persistence_hash",
-                            "ltm_persistence_host",
-                            "ltm_persistence_msrdp",
-                            "ltm_persistence_persist_records",
-                            "ltm_persistence_sip",
-                            "ltm_persistence_source_addr",
-                            "ltm_persistence_ssl",
-                            "ltm_persistence_universal",
-                        ),
-                    )
-        case "class":
-            _collect_class_references(cmd, out)
-        case "matchclass":
-            if len(args) >= 2:
-                _append_reference(
-                    out,
-                    cmd,
-                    arg_index=len(args) - 1,
-                    kinds=("ltm_data_group_internal", "ltm_data_group_external"),
-                )
-        case "lb::reselect":
-            if len(args) >= 2:
-                sub = args[0].lower()
-                if sub == "pool":
-                    _append_reference(out, cmd, arg_index=1, kinds=pool_kinds)
-                elif sub == "snatpool" and rule_module != "gtm":
-                    _append_reference(out, cmd, arg_index=1, kinds=("ltm_snatpool",))
-                elif sub == "virtual" and rule_module != "gtm":
-                    _append_reference(out, cmd, arg_index=1, kinds=("ltm_virtual",))
-        case "lb::status":
-            if len(args) >= 2 and args[0].lower() == "pool":
-                _append_reference(out, cmd, arg_index=1, kinds=pool_kinds)
-        case _:
-            return
-
-
 def _walk_irules_commands(
     source: str,
     out: list[IrulesObjectReference],
     *,
     body_token: Token | None = None,
     rule_module: str | None = None,
+    scope: _BindingScope | None = None,
 ) -> None:
+    if scope is None:
+        scope = _BindingScope.empty()
+
     commands = segment_commands(source, body_token=body_token)
     for cmd in commands:
-        _collect_command_references(cmd, out, rule_module=rule_module)
+        # Resolve declared references before mutating the binding table —
+        # the references must see the bindings that were live *at* this
+        # call, not after any same-line ``set`` re-bind it might do.
+        for arg_index, kinds in resolve_object_ref_args(
+            cmd.name, cmd.args, rule_module=rule_module
+        ):
+            _append_reference(out, cmd, scope, arg_index=arg_index, kinds=kinds)
+
+        # Update the binding table *after* the references are recorded so
+        # ``set p /Common/foo; pool $p`` and ``pool $p; set p /Common/foo``
+        # are handled as Tcl semantics dictate (linearly).
+        _record_set_binding(cmd, scope)
 
         body_indices = arg_indices_for_role(cmd.name, cmd.args, ArgRole.BODY)
         expr_indices = arg_indices_for_role(cmd.name, cmd.args, ArgRole.EXPR)
@@ -288,7 +274,15 @@ def _walk_irules_commands(
                 continue
             if not tok.text.strip():
                 continue
-            _walk_irules_commands(tok.text, out, body_token=tok, rule_module=rule_module)
+            # Each body opens a child scope that inherits parent bindings.
+            # Mutations inside the body do not leak back to the parent.
+            _walk_irules_commands(
+                tok.text,
+                out,
+                body_token=tok,
+                rule_module=rule_module,
+                scope=scope.child(),
+            )
             if tok.type is TokenType.CMD:
                 recursed_cmd_tokens.add((tok.start.offset, tok.end.offset))
 
@@ -316,7 +310,13 @@ def _walk_irules_commands(
                 if key in recursed_cmd_tokens:
                     continue
                 recursed_cmd_tokens.add(key)
-                _walk_irules_commands(inner.text, out, body_token=inner, rule_module=rule_module)
+                _walk_irules_commands(
+                    inner.text,
+                    out,
+                    body_token=inner,
+                    rule_module=rule_module,
+                    scope=scope.child(),
+                )
 
         for tok in cmd.all_tokens:
             if tok.type is not TokenType.CMD:
@@ -326,7 +326,13 @@ def _walk_irules_commands(
                 continue
             if not tok.text.strip():
                 continue
-            _walk_irules_commands(tok.text, out, body_token=tok, rule_module=rule_module)
+            _walk_irules_commands(
+                tok.text,
+                out,
+                body_token=tok,
+                rule_module=rule_module,
+                scope=scope.child(),
+            )
 
 
 def extract_irules_object_references(
@@ -335,7 +341,16 @@ def extract_irules_object_references(
     body_token: Token | None = None,
     rule_module: str | None = None,
 ) -> list[IrulesObjectReference]:
-    """Extract BIG-IP object references from iRules source using Tcl parsing."""
+    """Extract BIG-IP object references from iRules source using Tcl parsing.
+
+    Resolves both literal arguments (``pool /Common/foo``) and
+    constant variables propagated through ``set`` (``set p /Common/foo;
+    pool $p``).  Variable resolution operates per scope: each event
+    handler / nested body owns a binding table that inherits from its
+    parent and is widened to "overdefined" when a re-assignment from a
+    non-literal source (e.g. ``set p [HTTP::host]``) makes the binding
+    unsafe to trust.
+    """
     refs: list[IrulesObjectReference] = []
     _walk_irules_commands(source, refs, body_token=body_token, rule_module=rule_module)
     refs.sort(

@@ -229,6 +229,83 @@ def test_report_to_dict_round_trip_is_json_serialisable() -> None:
     assert again["tmshScript"].startswith("# tcl-lsp BIG-IP cleanup")
 
 
+def test_variable_propagation_resolves_pool_name_through_set() -> None:
+    """`set p /Common/foo; pool $p` — the variable should be resolved."""
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/used_via_var {
+            members { /Common/n1:80 { address 10.0.0.1 } }
+        }
+        ltm rule /Common/r1 {
+        when HTTP_REQUEST {
+            set p /Common/used_via_var
+            pool $p
+        }
+        }
+        ltm virtual /Common/vs {
+            destination /Common/10.0.0.10:80
+            rules { /Common/r1 }
+        }
+        """
+    )
+    # If the cleanup resolves $p → /Common/used_via_var, the pool stays kept.
+    report = _run(source, keep_partitions=frozenset())
+    candidates = {c.full_path for c in report.candidates}
+    assert "/Common/used_via_var" not in candidates
+    assert "/Common/n1" not in candidates
+
+
+def test_variable_propagation_widens_to_overdefined_on_dynamic_assignment() -> None:
+    """`set p [HTTP::host]; pool $p` should NOT spuriously keep any pool."""
+    source = textwrap.dedent(
+        """\
+        ltm pool /Common/orphan_pool {
+            members { /Common/n1:80 { } }
+        }
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm rule /Common/r1 {
+        when HTTP_REQUEST {
+            set p [HTTP::host]
+            pool $p
+        }
+        }
+        ltm virtual /Common/vs {
+            destination /Common/10.0.0.10:80
+            rules { /Common/r1 }
+        }
+        """
+    )
+    # $p is dynamic, so the pool stays orphaned and shows up as a candidate.
+    report = _run(source, keep_partitions=frozenset())
+    paths = {c.full_path for c in report.candidates}
+    assert "/Common/orphan_pool" in paths
+
+
+def test_variable_propagation_in_nested_scopes() -> None:
+    """Bindings flow into nested `if` / `when` bodies."""
+    source = textwrap.dedent(
+        """\
+        ltm pool /Common/scope_pool { }
+        ltm rule /Common/r1 {
+        when HTTP_REQUEST {
+            set p /Common/scope_pool
+            if {1} {
+                pool $p
+            }
+        }
+        }
+        ltm virtual /Common/vs {
+            destination /Common/10.0.0.10:80
+            rules { /Common/r1 }
+        }
+        """
+    )
+    report = _run(source, keep_partitions=frozenset())
+    paths = {c.full_path for c in report.candidates}
+    assert "/Common/scope_pool" not in paths
+
+
 def test_compute_cleanup_restores_signature_profile() -> None:
     """compute_cleanup must not leak the f5-irules switch to the caller."""
     saved = active_signature_profile()
