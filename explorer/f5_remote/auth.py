@@ -128,11 +128,19 @@ def resolve_credentials(
         if not resolved_password:
             raise ValueError("password is required")
 
-    resolved_port_raw = pick("port", "F5_PORT", port)
-    resolved_port = int(resolved_port_raw) if resolved_port_raw is not None else 443
+    # CLI port overrides take precedence; only fall back to env / config if
+    # the caller didn't pass an explicit value.
+    if port is not None:
+        resolved_port = int(port)
+    else:
+        resolved_port_raw = pick("port", "F5_PORT", None)
+        resolved_port = int(resolved_port_raw) if resolved_port_raw is not None else 443
 
-    resolved_ssh_port_raw = pick("ssh_port", "F5_SSH_PORT", ssh_port)
-    resolved_ssh_port = int(resolved_ssh_port_raw) if resolved_ssh_port_raw is not None else 22
+    if ssh_port is not None:
+        resolved_ssh_port = int(ssh_port)
+    else:
+        resolved_ssh_port_raw = pick("ssh_port", "F5_SSH_PORT", None)
+        resolved_ssh_port = int(resolved_ssh_port_raw) if resolved_ssh_port_raw is not None else 22
 
     return Credentials(
         host=resolved_host,

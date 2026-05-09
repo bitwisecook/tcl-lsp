@@ -65,6 +65,19 @@ def test_resolve_via_hosts_alias(isolated_xdg):
     assert creds.port == 8443
 
 
+def test_resolve_explicit_port_overrides_env(isolated_xdg, monkeypatch):
+    """CLI port must beat F5_PORT — see PR #392 review."""
+    monkeypatch.setenv("F5_HOST", "h")
+    monkeypatch.setenv("F5_USER", "u")
+    monkeypatch.setenv("F5_PASSWORD", "p")
+    monkeypatch.setenv("F5_PORT", "9999")
+    monkeypatch.setenv("F5_SSH_PORT", "8888")
+
+    creds = resolve_credentials(port=4443, ssh_port=2222, interactive=False)
+    assert creds.port == 4443
+    assert creds.ssh_port == 2222
+
+
 def test_resolve_explicit_overrides_env(isolated_xdg, monkeypatch):
     monkeypatch.setenv("F5_HOST", "from-env")
     monkeypatch.setenv("F5_USER", "from-env")

@@ -62,6 +62,31 @@ def all_rules(category: str | None = None) -> list[LintRule]:
     return [r for r in _RULES if r.CATEGORY == category]
 
 
+def _merge_configs(configs: dict[str, BigipConfig]) -> BigipConfig:
+    """Return a single :class:`BigipConfig` that unions every input.
+
+    Rules that reason about references (orphan-monitor, pool-without-
+    monitor, etc.) need to see cross-file links — a monitor declared in
+    one split file may be referenced by a pool in another.  Without this
+    merge, ``f5 validate split/*.conf`` would emit false-positive
+    orphan findings.  Later configs win on key collisions, matching the
+    order the user passed them on the CLI.
+    """
+    merged = BigipConfig()
+    for cfg in configs.values():
+        merged.data_groups.update(cfg.data_groups)
+        merged.pools.update(cfg.pools)
+        merged.virtual_servers.update(cfg.virtual_servers)
+        merged.nodes.update(cfg.nodes)
+        merged.profiles.update(cfg.profiles)
+        merged.monitors.update(cfg.monitors)
+        merged.snat_pools.update(cfg.snat_pools)
+        merged.persistence.update(cfg.persistence)
+        merged.rules.update(cfg.rules)
+        merged.generic_objects.update(cfg.generic_objects)
+    return merged
+
+
 def run_lint(
     *,
     sources: dict[str, str],
@@ -69,14 +94,18 @@ def run_lint(
     category: str | None = None,
     severity: str | None = None,
 ) -> list[Finding]:
-    """Run every registered rule across *configs* and return all findings."""
+    """Run every registered rule against the union of *configs* and return findings.
+
+    Inputs are merged so rules see cross-file references; passing one
+    file or many is otherwise equivalent.
+    """
+    merged = _merge_configs(configs) if len(configs) > 1 else next(iter(configs.values()))
     findings: list[Finding] = []
     for rule in all_rules(category=category):
-        for cfg in configs.values():
-            for finding in rule.check(cfg, sources=sources, configs=configs):
-                if severity is not None and finding.severity != severity:
-                    continue
-                findings.append(finding)
+        for finding in rule.check(merged, sources=sources, configs=configs):
+            if severity is not None and finding.severity != severity:
+                continue
+            findings.append(finding)
     return findings
 
 

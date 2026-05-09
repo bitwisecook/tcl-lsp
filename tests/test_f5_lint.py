@@ -235,3 +235,40 @@ def test_irule_lint_clean_returns_zero(tmp_path, capsys):
     p = _write(tmp_path, "c.conf", body)
     code, _out, _err = _run(["irule", "lint", str(p)], capsys)
     assert code == 0
+
+
+def test_validate_cross_file_monitor_reference(tmp_path, capsys):
+    """Multi-file inputs must merge: a monitor in file A used by a pool in
+    file B must NOT be reported as orphan.  See PR #392 review."""
+    file_a = _write(
+        tmp_path,
+        "a.conf",
+        textwrap.dedent(
+            """
+            ltm monitor http /Common/m_shared { send "GET / HTTP/1.0" }
+            """
+        ).strip()
+        + "\n",
+    )
+    file_b = _write(
+        tmp_path,
+        "b.conf",
+        textwrap.dedent(
+            """
+            ltm pool /Common/p {
+                members { /Common/n:80 { } }
+                monitor /Common/m_shared
+            }
+            """
+        ).strip()
+        + "\n",
+    )
+    code, out, _err = _run(["validate", str(file_a), str(file_b), "--format", "json"], capsys)
+    payload = json.loads(out)
+    rule_ids_for_monitor = [
+        f["ruleId"] for f in payload["findings"] if f["fullPath"] == "/Common/m_shared"
+    ]
+    assert "orphan-monitor" not in rule_ids_for_monitor
+    # Pool with cross-file monitor reference should NOT trigger pool-without-monitor either
+    rule_ids_for_pool = [f["ruleId"] for f in payload["findings"] if f["fullPath"] == "/Common/p"]
+    assert "pool-without-monitor" not in rule_ids_for_pool
