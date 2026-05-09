@@ -403,8 +403,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         "208_oo_instance_vars",
         "212_line_continuation",
         "216_string_totitle",
-        "217_lsort_with_options",
-        "218_lreverse_lrepeat",
         "219_linsert_lreplace",
         "220_expr_base_prefixed_literals",
         "221_expr_in_ni",
@@ -429,15 +427,12 @@ _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
         "145_uplevel_caller_local",
         "212_line_continuation",
         "216_string_totitle",
-        "217_lsort_with_options",
-        "218_lreverse_lrepeat",
         "220_expr_base_prefixed_literals",
         "225_dict_create",
         "228_catch_sets_error_msg",
         "229_string_cat",
         "231_dict_merge",
         "232_nested_catch_and_dict_create_quoting",
-        "233_list_value_quoting",
     }
 )
 

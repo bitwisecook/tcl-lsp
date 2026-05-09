@@ -598,6 +598,11 @@ class _CmdSubstMixin:
                 self._emit(Op.INVOKE_STK1, argc)
                 self._place_label(sc_end)
                 self._seen_generic_invoke = True
+        elif cmd == "llength" and len(args) == 1:
+            # ``[llength $lst]`` → emit the list value, then ``listLength``.
+            self._used_inline_cmd_subst = True
+            self._emit_cmd_subst_arg(args[0])
+            self._emit(Op.LIST_LENGTH)
         elif cmd == "lindex" and len(args) >= 2:
             # ``[lindex $lst idx ...]``
             self._used_inline_cmd_subst = True

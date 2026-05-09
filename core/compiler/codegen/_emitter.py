@@ -885,8 +885,22 @@ class _Emitter(
                     and _join_b not in for_body_end_labels
                     and _join_pops
                 ):
+                    # ``count=2`` when the if's condition contains an
+                    # inline-specialised cmd subst tclsh treats as a
+                    # second Cmd starting at the same bytecode PC
+                    # (``listLength`` for ``[llength]``, ``strLen``
+                    # for ``[string length …]`` …).  Generic invokes
+                    # keep ``count=1`` because the inner Cmd starts
+                    # 9 bytes after the SC.
+                    _sc_count = (
+                        2
+                        if _branch_cond_has_inline_specialised_subst(
+                            blk.terminator.condition
+                        )
+                        else 1
+                    )
                     _if_end_label = self._fresh_label("if_cmd_end")
-                    self._emit(Op.START_CMD, _if_end_label, 1)
+                    self._emit(Op.START_CMD, _if_end_label, _sc_count)
                     for_body_end_labels[_join_b] = _if_end_label
                     self._cmd_index += 1
 
@@ -994,6 +1008,50 @@ class _Emitter(
 
 
 # Public API
+
+
+def _branch_cond_has_inline_specialised_subst(cond: ExprNode) -> bool:
+    """Return True when *cond* references a ``[cmd …]`` subst whose
+    inline specialisation produces an opcode at the same bytecode PC
+    as the surrounding command (``listLength`` for ``[llength]``,
+    ``existScalar`` for ``[info exists]``, …).  See
+    ``_INLINE_SPECIALISED_SUBST_NAMES`` for the table.
+    """
+    if isinstance(cond, ExprCommand):
+        text = cond.text
+        if text.startswith("[") and text.endswith("]"):
+            inner = text[1:-1].lstrip()
+            head = inner.split(None, 1)[0] if inner else ""
+            if head in _INLINE_SPECIALISED_SUBST_NAMES:
+                return True
+        return False
+    for attr in ("left", "right", "operand"):
+        sub = getattr(cond, attr, None)
+        if isinstance(sub, ExprNode) and _branch_cond_has_inline_specialised_subst(sub):
+            return True
+    return False
+
+
+# Names of cmd-subst commands that ``_emit_inline_cmd_subst``
+# compiles to specialised opcodes (``listLength``, ``existScalar``,
+# ``strLen``, ``listIndex``, ``dictGet`` …).  When such a subst
+# appears inside an if-condition tclsh tags the surrounding
+# ``startCommand`` with ``count=2`` because the inner Cmd starts at
+# the same bytecode PC as the outer ``if``.  Generic invokes (e.g.
+# ``[lreverse {a b c}]``) keep ``count=1``.
+_INLINE_SPECIALISED_SUBST_NAMES = frozenset(
+    {
+        "expr",
+        "incr",
+        "info",
+        "string",
+        "lindex",
+        "lrange",
+        "lreplace",
+        "linsert",
+        "llength",
+    }
+)
 
 
 def codegen_function(
