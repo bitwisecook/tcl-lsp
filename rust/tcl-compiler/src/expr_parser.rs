@@ -434,7 +434,7 @@ impl ExprCache {
         if self.map.contains_key(&key) {
             self.map.insert(key.clone(), value);
             // Refresh recency.
-            if let Some(pos) = self.order.iter().position(|k| *k == key) {
+            if let Some(pos) = self.order.iter().position(|k| k == &key) {
                 if let Some(k) = self.order.remove(pos) {
                     self.order.push_back(k);
                 }

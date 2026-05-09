@@ -171,8 +171,13 @@ fn is_drop_command(cmd: &str) -> bool {
     matches!(cmd, "drop" | "reject" | "discard")
 }
 
-fn is_dns_return(cmd: &str, args: &[String]) -> bool {
-    cmd == "DNS::return" && (args.is_empty() || args.iter().all(|a| !a.starts_with('-')))
+fn is_dns_return(cmd: &str, _args: &[String]) -> bool {
+    // Any `DNS::return` (with or without options) requires a
+    // following `return`; option-bearing forms (`DNS::return -...`)
+    // are valid Tcl and equally affected by the missing-`return`
+    // hazard.  Mirrors Python `irules_flow.py` parity (no
+    // option-prefix gate) — addresses Codex review on PR #389.
+    cmd == "DNS::return"
 }
 
 /// `event disable all` is a drop guard: the subsequent statements

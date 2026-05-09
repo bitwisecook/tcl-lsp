@@ -1155,11 +1155,25 @@ impl<'r> Lowerer<'r> {
         let cmd_name = seg.name();
         let args = seg.args();
 
-        // Resolve alias for arg role lookups.
+        // Resolve alias for arg role lookups.  When `cmd_name`
+        // resolves to a different alias target, populate
+        // `canonical_command` with the resolved name so downstream
+        // dispatch (codegen hook lookup, side-effect classification,
+        // GVN purity, var-escape) can key off the canonical target
+        // instead of re-resolving from the source spelling.
+        // Mirrors Python's post-`a042271a` IRCall.canonical_command
+        // population.  Addresses Copilot review on PR #389.
         let mut role_cmd = cmd_name.to_owned();
         let mut role_args: Vec<String> = args.to_vec();
         let mut prepend_n: usize = 0;
+        let mut canonical: Option<String> = None;
         if let Some((target, prepended)) = resolve_alias(cmd_name, &self.aliases, namespace) {
+            // Only record canonical_command when the alias resolved
+            // to a different target — ``cmd_name == target`` means
+            // the source already names the canonical form.
+            if target != cmd_name {
+                canonical = Some(target.clone());
+            }
             role_cmd = target;
             let mut new_args: Vec<String> = prepended;
             new_args.extend_from_slice(args);
@@ -1183,7 +1197,7 @@ impl<'r> Lowerer<'r> {
                 span: seg.span,
                 reason: "unsupported body command".into(),
                 command: cmd_name.into(),
-                canonical_command: None,
+                canonical_command: canonical.clone(),
                 args: args.to_vec(),
                 tokens: Some(Self::cmd_tokens(seg)),
             };
@@ -1207,7 +1221,7 @@ impl<'r> Lowerer<'r> {
             return Statement::Call {
                 span: seg.span,
                 command: cmd_name.into(),
-                canonical_command: None,
+                canonical_command: canonical.clone(),
                 args: args.to_vec(),
                 defs: var_defs,
                 reads: var_reads,
@@ -1221,7 +1235,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: cmd_name.into(),
-            canonical_command: None,
+            canonical_command: canonical,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],
