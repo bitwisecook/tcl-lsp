@@ -517,13 +517,21 @@ class _Emitter(
                 self._current_source_range = _term_range
                 self._current_source_line = _term_range.start.line + 1
 
-            # Entering an if-then / if-next / switch-arm body counts
-            # as crossing a command boundary as far as ``startCommand``
-            # wrapping is concerned: tclsh emits SC for every compiled
-            # command inside these arms even when the outer ``if`` /
-            # ``switch`` is the first statement of the script.  Bump
-            # ``_cmd_index`` so the per-statement wrapper fires.
-            if bname.startswith(("if_then_", "if_next_")) and self._cmd_index == 0:
+            # Entering an if-then / if-next body counts as crossing a
+            # command boundary for ``startCommand`` wrapping when
+            # tclsh's compiler has already seen a generic ``invokeStk``
+            # in the unit — once any generic invoke fires, every later
+            # compiled command (including the bodies of an ``if`` whose
+            # condition came after a generic invoke) gets its own SC.
+            # Without a prior generic invoke (e.g. the if condition is
+            # purely inline-specialised like ``[expr {0x10}] != 16``),
+            # tclsh suppresses the inner SC.  Mirror that gate so we
+            # don't over-emit SCs in 220-style snippets while still
+            # firing for 217-style ones.
+            if (
+                bname.startswith(("if_then_", "if_next_"))
+                and self._cmd_index == 0
+            ):
                 self._cmd_index += 1
 
             # try/finally inline compilation: emit the entire
@@ -892,12 +900,8 @@ class _Emitter(
                     # for ``[string length …]`` …).  Generic invokes
                     # keep ``count=1`` because the inner Cmd starts
                     # 9 bytes after the SC.
-                    _sc_count = (
-                        2
-                        if _branch_cond_has_inline_specialised_subst(
-                            blk.terminator.condition
-                        )
-                        else 1
+                    _sc_count = 1 + _count_inline_specialised_subst(
+                        blk.terminator.condition
                     )
                     _if_end_label = self._fresh_label("if_cmd_end")
                     self._emit(Op.START_CMD, _if_end_label, _sc_count)
@@ -1010,26 +1014,63 @@ class _Emitter(
 # Public API
 
 
-def _branch_cond_has_inline_specialised_subst(cond: ExprNode) -> bool:
-    """Return True when *cond* references a ``[cmd …]`` subst whose
-    inline specialisation produces an opcode at the same bytecode PC
-    as the surrounding command (``listLength`` for ``[llength]``,
-    ``existScalar`` for ``[info exists]``, …).  See
-    ``_INLINE_SPECIALISED_SUBST_NAMES`` for the table.
-    """
+def _count_inline_specialised_subst(cond: ExprNode) -> int:
+    """Return the number of inline-specialised cmd substitutions
+    nested in *cond*.  tclsh tags the surrounding ``startCommand``
+    with ``count = 1 + N`` where *N* is the number of inline
+    specialised commands at the same bytecode PC (the if itself plus
+    each ``[llength]`` / ``[info exists]`` / ``[linsert]`` / … in
+    the condition tree)."""
+    n = 0
     if isinstance(cond, ExprCommand):
         text = cond.text
         if text.startswith("[") and text.endswith("]"):
             inner = text[1:-1].lstrip()
             head = inner.split(None, 1)[0] if inner else ""
             if head in _INLINE_SPECIALISED_SUBST_NAMES:
-                return True
-        return False
+                n += 1
+                # Walk the inner text for further nested ``[…]``
+                # specialised commands.  Cheap brace-aware scan: split
+                # on ``[`` and check the head identifier.
+                depth = 0
+                i = 0
+                length = len(inner)
+                while i < length:
+                    ch = inner[i]
+                    if ch == "[" and depth == 0:
+                        # Find the matching ``]`` (depth-tracked).
+                        d = 1
+                        j = i + 1
+                        while j < length and d > 0:
+                            if inner[j] == "[":
+                                d += 1
+                            elif inner[j] == "]":
+                                d -= 1
+                            j += 1
+                        sub_text = inner[i : j]
+                        # Recurse via a synthetic ExprCommand.
+                        n += _count_inline_specialised_subst(
+                            ExprCommand(text=sub_text, start=0, end=0)
+                        )
+                        i = j
+                        continue
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                    i += 1
+        return n
     for attr in ("left", "right", "operand"):
         sub = getattr(cond, attr, None)
-        if isinstance(sub, ExprNode) and _branch_cond_has_inline_specialised_subst(sub):
-            return True
-    return False
+        if isinstance(sub, ExprNode):
+            n += _count_inline_specialised_subst(sub)
+    return n
+
+
+def _branch_cond_has_inline_specialised_subst(cond: ExprNode) -> bool:
+    """Backwards-compatible wrapper: ``True`` when at least one
+    inline-specialised cmd subst sits in *cond*."""
+    return _count_inline_specialised_subst(cond) > 0
 
 
 # Names of cmd-subst commands that ``_emit_inline_cmd_subst``

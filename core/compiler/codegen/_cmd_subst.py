@@ -304,6 +304,13 @@ class _CmdSubstMixin:
         argc = 1 + len(args)
         op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4
         self._emit(op, argc)
+        # Mark that a generic ``invokeStk`` has been emitted in this
+        # unit.  Downstream peepholes (and the in-block SC wrap that
+        # decides whether to bump ``_cmd_index`` on entering an
+        # if-arm) read ``_seen_generic_invoke`` to mirror tclsh's
+        # post-fact rule "every compiled command after a generic
+        # invoke gets its own ``startCommand``".
+        self._seen_generic_invoke = True
 
     def _emit_inline_cmd_subst(self: _Emitter, text: str) -> None:  # noqa: C901
         """Inline-compile a ``[cmd arg ...]`` command substitution.
@@ -338,7 +345,19 @@ class _CmdSubstMixin:
             # Inline the expression body
             expr_body = args[0][0]
             node = _parse_expr_ast(expr_body)
-            self._emit_expr(node)
+            # tclsh keeps a bare ``[expr {LITERAL}]`` round-trip
+            # through ``tryCvtToNumeric`` — the literal is preserved
+            # in the literal table (so ``0x10`` stays as ``"0x10"``,
+            # not the folded ``"16"``) and converted at runtime.
+            # ``_emit_expr``'s constant-folding step would otherwise
+            # collapse the prefixed form to its decimal value.
+            from core.compiler.expr_ast import ExprLiteral as _ExprLit
+
+            if isinstance(node, _ExprLit):
+                self._push_lit(node.text)
+                self._emit(Op.TRY_CVT_TO_NUMERIC)
+            else:
+                self._emit_expr(node)
         elif cmd == "incr" and 1 <= len(args) <= 2:
             # In proc context with a local variable, use LVT-based incr:
             #   ``[incr var]`` → incrScalar1Imm %vN +1

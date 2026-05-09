@@ -158,13 +158,14 @@ class _PeepholeMixin:
             Op.INVOKE_REPLACE,
         }
         # Opcodes that replace a generic invoke — startCommands must survive.
+        # Note: ``RETURN_IMM`` (from ``error`` / ``return -code error``) is
+        # *not* counted here.  tclsh strips SCs even when the unit's only
+        # specialised commands are ``error`` / ``return``; mirror that to
+        # match the captured 9.0 disassembly for snippets like 220 where
+        # the entire script lowers to ``tryCvtToNumeric`` + ``returnImm``.
         replaced_ops = {Op.UPVAR, Op.NSUPVAR}
         has_generic = any(
-            i.op in generic_ops
-            or i.op in replaced_ops
-            # returnImm with non-0,0 (from error/return -code) replaces a generic invoke.
-            or (i.op == Op.RETURN_IMM and i.operands != (0, 0))
-            for i in self._instrs
+            i.op in generic_ops or i.op in replaced_ops for i in self._instrs
         )
         if has_generic:
             return
