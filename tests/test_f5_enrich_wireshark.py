@@ -155,11 +155,20 @@ def test_wireshark_profile_empty_when_no_inputs():
 def test_services_includes_bigip_control_plane_ports():
     cfg = parse_bigip_conf(SAMPLE_CONFIG)
     profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
-    assert profile.services == list(_BIGIP_CONTROL_SERVICES)
-    # And the well-known F5 iQuery / cmi mappings end up in there.
+    # Static control-plane entries always come first.
+    head = profile.services[: len(_BIGIP_CONTROL_SERVICES)]
+    assert head == list(_BIGIP_CONTROL_SERVICES)
     names = {name for name, _port, _proto in profile.services}
     assert "f5-iquery" in names
     assert "f5-icontrol-rest" in names
+
+
+def test_services_emits_vs_and_pool_member_ports():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    names = {name: (port, proto) for name, port, proto in profile.services}
+    assert names["vs-common-vs1"] == (443, "tcp")
+    assert names["pool-common-web1-80"] == (80, "tcp")
 
 
 def test_extract_arp_entries_normalises_mac_and_strips_route_domain():
@@ -178,10 +187,12 @@ def test_colorfilters_emit_proxy_side_groups_in_priority_order():
     profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
 
     names = [rule.name for rule in profile.colorfilters]
-    # SNAT must appear before the broader server/client-side rules so
-    # Wireshark's first-match-wins selects the most specific role.
-    assert names.index("BIG-IP SNAT") < names.index("BIG-IP server side")
-    assert names.index("BIG-IP self IP") < names.index("BIG-IP client side")
+    # Data-plane labels must beat the administrative ones — a BIG-IP →
+    # pool-member packet has self-IP src + pool-member dst; we want
+    # ``server side`` to win, not ``self``.
+    assert names.index("BIG-IP server side") < names.index("BIG-IP self IP")
+    assert names.index("BIG-IP client side") < names.index("BIG-IP self IP")
+    assert names.index("BIG-IP server side") < names.index("BIG-IP SNAT")
     # Filter expressions reference the right addresses.
     by_name = {rule.name: rule for rule in profile.colorfilters}
     assert "10.0.0.1" in by_name["BIG-IP client side"].filter

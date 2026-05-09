@@ -10,6 +10,10 @@
 #     compile checks (``editors/vscode/node_modules/.bin/tsc``).
 #   * ``kotlinc`` — the JetBrains plugin's DiagnosticCatalog.kt compile
 #     check.
+#   * ``tshark`` — Wireshark's CLI, used by the slow integration tests
+#     that validate the ``f5 enrich-wireshark`` profile by feeding it
+#     into a real Wireshark and confirming the rules / column / hosts
+#     mappings parse and apply.
 #
 # Supported platforms: Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma
 # (dnf or yum), and macOS (Homebrew).  Anything else falls through with a
@@ -25,7 +29,7 @@
 #   bash scripts/ensure-test-deps.sh --check   # only report what's missing
 #
 # Skip individual tools with the matching env var, e.g. ``SKIP_TCLSH=1``,
-# ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``.
+# ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_TSHARK=1``.
 
 set -euo pipefail
 
@@ -68,8 +72,9 @@ fi
 # If the caller has opted out of every installable tool, there's
 # nothing for the platform-specific package manager to do — succeed
 # without ever needing one.
-if [ "${SKIP_TCLSH:-}" = "1" ] && [ "${SKIP_NODE:-}" = "1" ] && [ "${SKIP_KOTLINC:-}" = "1" ]; then
-    echo "ensure-test-deps: SKIP_TCLSH=SKIP_NODE=SKIP_KOTLINC=1 — nothing to do."
+if [ "${SKIP_TCLSH:-}" = "1" ] && [ "${SKIP_NODE:-}" = "1" ] && \
+   [ "${SKIP_KOTLINC:-}" = "1" ] && [ "${SKIP_TSHARK:-}" = "1" ]; then
+    echo "ensure-test-deps: SKIP_TCLSH=SKIP_NODE=SKIP_KOTLINC=SKIP_TSHARK=1 — nothing to do."
     exit 0
 fi
 
@@ -314,11 +319,28 @@ install_kotlinc_zip() {
     info "Installed kotlinc → /usr/local/bin/kotlinc"
 }
 
+# ---------------------------------------------------------------- tshark
+
+ensure_tshark() {
+    if [ "${SKIP_TSHARK:-}" = "1" ]; then info "SKIP_TSHARK=1 — skipping tshark"; return 0; fi
+    if command -v tshark >/dev/null 2>&1; then
+        info "tshark already on PATH ($(tshark --version 2>/dev/null | head -1))"
+        return 0
+    fi
+    case "$PKG" in
+        apt-get) run_install "tshark (apt)" tshark ;;
+        dnf|yum) run_install "tshark (dnf)" wireshark-cli ;;
+        brew)    run_install "Wireshark (Homebrew)" wireshark ;;
+    esac
+}
+
+
 # ---------------------------------------------------------------- main
 
 ensure_tclsh
 ensure_node
 ensure_kotlinc
+ensure_tshark
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "${#missing[@]}" -gt 0 ]; then
     echo
