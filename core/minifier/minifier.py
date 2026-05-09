@@ -578,9 +578,40 @@ def _compact_names(
     Returns (renamed_source, symbol_map).
     """
     from core.analysis import analyse
-    from core.analysis.semantic_model import Scope
+    from core.analysis.semantic_model import AnalysisResult, Range, Scope
     from core.commands.registry import REGISTRY
-    from lsp.features.references import find_proc_call_sites
+
+    # Inlined helper (formerly `lsp.features.references.find_proc_call_sites`).
+    # Folded in here as part of PYTHON-RETIRE-LSP so the
+    # minifier no longer depends on the retiring LSP feature
+    # tree.  Algorithm is unchanged.
+    def find_proc_call_sites(
+        name: str, qualified_name: str, analysis: AnalysisResult
+    ) -> list[Range]:
+        qualified_no_prefix = (
+            qualified_name[2:] if qualified_name.startswith("::") else qualified_name
+        )
+        call_forms = {name, qualified_name, qualified_no_prefix}
+        locations: list[Range] = []
+        seen: set[tuple[int, int, int, int]] = set()
+        for invocation in analysis.command_invocations:
+            resolved_name = invocation.resolved_qualified_name
+            if resolved_name is not None:
+                matches_target = resolved_name == qualified_name
+            else:
+                matches_target = invocation.name in call_forms
+            if matches_target:
+                key = (
+                    invocation.range.start.line,
+                    invocation.range.start.character,
+                    invocation.range.end.line,
+                    invocation.range.end.character,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                locations.append(invocation.range)
+        return locations
 
     analysis = analyse(source)
     symbol_map = SymbolMap()
