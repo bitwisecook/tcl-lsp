@@ -1,6 +1,6 @@
 # apply.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '21 of 42 failed'
+# reason = '18 of 42 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 42
-observed_passed = 21
-observed_failed = 21
+observed_passed = 24
+observed_failed = 18
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["apply-2.2", "apply-2.3", "apply-2.4", "apply-2.5", "apply-5.1", "apply-6.2", "apply-6.3", "apply-7.2", "apply-7.3", "apply-7.6", "apply-7.7", "apply-8.1", "apply-8.2", "apply-8.3", "apply-8.4", "apply-8.5", "apply-8.6", "apply-8.7", "apply-8.8", "apply-8.9", "apply-8.10"]
+ids = ["apply-2.2", "apply-2.3", "apply-2.4", "apply-2.5", "apply-5.1", "apply-6.2", "apply-6.3", "apply-7.2", "apply-7.3", "apply-7.6", "apply-7.7", "apply-8.4", "apply-8.5", "apply-8.6", "apply-8.7", "apply-8.8", "apply-8.9", "apply-8.10"]

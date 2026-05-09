@@ -96,6 +96,19 @@ class _WasmEmitterCtrlMixin(_Base):
         # continue → br to inner block end (skips rest of body, runs next)
         # break → br to outer block (exits loop entirely)
         self._emit(WasmOp.BLOCK, bytes([_BLOCK_VOID]), label="for break")  # break target
+        # Init-clause flow control (``tclCmdAH.c`` Tcl_ForObjCmd
+        # ~line 2598): if init raised BREAK / CONTINUE / ERROR /
+        # RETURN, propagate the code as the for command's own exit
+        # without entering the loop.  Leave every flag intact so
+        # the surrounding ``catch`` / proc dispatcher reports the
+        # original code.  Inside the IF, the only enclosing label
+        # is the break BLOCK we just opened, so depth ``1`` exits.
+        any_sig = self._shared_imports.get("tcl_flow_check_any_signal")
+        if any_sig is not None:
+            self._emit_call(any_sig)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(1)
+            self._emit(WasmOp.END)
         self._emit(WasmOp.LOOP, bytes([_BLOCK_VOID]), label="for")  # loop restart
 
         self._emit_expr(condition)
@@ -113,7 +126,44 @@ class _WasmEmitterCtrlMixin(_Base):
         self._loop_depth -= 1
         self._emit(WasmOp.END)  # end continue block
 
+        # Body-side flow control: a ``break`` raised by an eval-
+        # fallback inside the body sets ``break_flag`` but doesn't
+        # emit a wasm ``br``, so we must probe + br here before the
+        # next-clause runs.  Mirror the optimised CFG path's depths
+        # in ``_optimisation.py::_emit_loop_in_block``: the call site
+        # sits inside the LOOP (depth 0) with the outer break BLOCK
+        # at depth 1, and the ``IF`` body shifts those by one — so
+        # ``br 2`` is the wasm-level branch that exits the LOOP and
+        # lands at the outer break-BLOCK end.  The ``continue`` flag
+        # gets drained so the next iteration starts clean.
+        bbreak = self._shared_imports.get("tcl_flow_consume_break")
+        bcont = self._shared_imports.get("tcl_flow_consume_continue")
+        if bbreak is not None:
+            self._emit_call(bbreak)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(2)
+            self._emit(WasmOp.END)
+        if bcont is not None:
+            self._emit_call(bcont)
+            self._emit(WasmOp.DROP)
+
         self._emit_script(next_script)
+        # Next-clause-side flow control: mirrors ``tclCmdAH.c``
+        # ForPostNextCallback (Tcl 9.0.3 line ~2713).  BREAK from
+        # the next clause collapses to TCL_OK and exits the loop;
+        # CONTINUE / ERROR / RETURN exit the loop with their flag
+        # left set so the for command's caller (``catch`` / proc
+        # dispatcher) reports the original code.  Without this
+        # branch ``for {} {1} {break} {}`` (upstream for-6.17)
+        # span-locks the wasm loop because next-clause BREAK from
+        # an eval-fallback never becomes a wasm ``br``.  Depth ``2``
+        # for the same reason as above (LOOP=1 outside IF, +1 for IF).
+        post_check = self._shared_imports.get("tcl_flow_for_next_post_check")
+        if post_check is not None:
+            self._emit_call(post_check)
+            self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+            self._emit_br(2)
+            self._emit(WasmOp.END)
         self._emit_br(0)  # back to loop
 
         self._emit(WasmOp.END)  # end loop

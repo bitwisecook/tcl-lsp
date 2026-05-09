@@ -163,20 +163,25 @@ def _scan_needed_imports_ir_only(ir_module: IRModule, needed: set[str]) -> None:
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
                 _scan_s(body)
-            case IRFor(init=init, body=body, next=next_script):
+            case IRFor(init=init, condition=condition, body=body, next=next_script):
                 needed.add("tcl_catch_has_error")
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
+                needed.add("tcl_flow_for_next_post_check")
+                needed.add("tcl_flow_check_any_signal")
                 _scan_s(init)
+                _scan_expr_body_imports_from_node(condition, needed)
                 _scan_s(body)
                 _scan_s(next_script)
-            case IRWhile(body=body):
+            case IRWhile(condition=condition, body=body):
                 needed.add("tcl_catch_has_error")
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
+                _scan_expr_body_imports_from_node(condition, needed)
                 _scan_s(body)
             case IRIf(clauses=clauses, else_body=else_body):
                 for clause in clauses:
+                    _scan_expr_body_imports_from_node(clause.condition, needed)
                     _scan_s(clause.body)
                 if else_body:
                     _scan_s(else_body)
@@ -1308,6 +1313,8 @@ def _scan_needed_imports(
                 _scan_script(next_s)
                 needed.add("tcl_flow_consume_break")
                 needed.add("tcl_flow_consume_continue")
+                needed.add("tcl_flow_for_next_post_check")
+                needed.add("tcl_flow_check_any_signal")
             case IRWhile(condition=condition, body=body):
                 _scan_expr(condition)
                 _scan_script(body)

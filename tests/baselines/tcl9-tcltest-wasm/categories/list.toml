@@ -1,6 +1,6 @@
 # list.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '1 of 78 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 78
-observed_passed = 77
-observed_failed = 1
+observed_passed = 78
+observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["list-4.1"]

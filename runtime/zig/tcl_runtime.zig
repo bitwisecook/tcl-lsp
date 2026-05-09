@@ -143,6 +143,8 @@ pub const flow_consume_break = tcl_catch.flow_consume_break;
 pub const flow_consume_continue = tcl_catch.flow_consume_continue;
 pub const flow_check_return = tcl_catch.flow_check_return;
 pub const flow_take_return = tcl_catch.flow_take_return;
+pub const flow_for_next_post_check = tcl_catch.flow_for_next_post_check;
+pub const flow_check_any_signal = tcl_catch.flow_check_any_signal;
 
 // Frames
 pub const frame_push = tcl_frames.frame_push;
@@ -319,6 +321,8 @@ comptime {
     _ = &tcl_catch.flow_consume_continue;
     _ = &tcl_catch.flow_check_return;
     _ = &tcl_catch.flow_take_return;
+    _ = &tcl_catch.flow_for_next_post_check;
+    _ = &tcl_catch.flow_check_any_signal;
     _ = &tcl_catch.tcl_cmd_error;
     _ = &tcl_catch.tcl_return_set;
     _ = &tcl_catch.var_unset_error;

@@ -1163,7 +1163,41 @@ pub fn eval_for(words: []const i32) i32 {
             .ERROR, .RETURN => return result,
         }
         const next_res = eval_script(next_s.ptr, next_s.len);
-        if (next_res != 0) obj_mod.tcl_obj_release(next_res);
+        // Mirror ``tclCmdAH.c`` ForPostNextCallback (Tcl 9.0.3 line
+        // ~2713): the next-clause's BREAK collapses to TCL_OK and
+        // terminates the loop; CONTINUE / ERROR / RETURN propagate
+        // unchanged.  Without this branch ``for {} {1} {break} {}``
+        // span-locks because the BREAK signal never gets observed
+        // (the cond is a bare literal so eval_expr_str ignores it),
+        // and ``for {} {1} {continue} {}`` ditto for CONTINUE — both
+        // appear as Tier-3 timeouts in the upstream for.test slice
+        // (for-6.17 / for-6.18).
+        //
+        // Result-obj handling: upstream's ``Tcl_EvalObjv`` resets the
+        // interp result before invoking each command, so by the time
+        // next-clause's ``continue``/``break``/``return``/``error``
+        // command runs, the body's prior result is already gone.  We
+        // model this by returning ``next_res`` (the next-clause's own
+        // result) for the propagating codes, not the body's prior
+        // ``result`` — otherwise ``catch {for {} {1} {continue} {set
+        // x foo}} msg`` would set ``msg`` to "foo" instead of the
+        // empty string upstream produces (Codex P1 review on
+        // PR #384).
+        const next_ir = result_mod.snapshot(0);
+        switch (next_ir.code) {
+            .OK => {
+                if (next_res != 0) obj_mod.tcl_obj_release(next_res);
+            },
+            .BREAK => {
+                if (next_res != 0) obj_mod.tcl_obj_release(next_res);
+                result_mod.consume(.BREAK);
+                break;
+            },
+            .CONTINUE, .ERROR, .RETURN => {
+                if (result != 0) obj_mod.tcl_obj_release(result);
+                return next_res;
+            },
+        }
     }
     return result;
 }
