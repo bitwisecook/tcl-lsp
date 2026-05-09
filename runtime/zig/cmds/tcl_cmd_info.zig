@@ -1518,6 +1518,22 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "level")) return info_level(arg);
     if (str_eq(sp, sub.len, "script")) return info_script();
     if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub.len, "locals")) {
+        // ``info locals`` returns only local variables of the current
+        // proc frame (no globals).  Outside a proc, an empty string.
+        // Matches Tcl 9 semantics for info-12.x.
+        if (frames.frame_depth == 0) return obj_new_string(0, 0);
+        var pat_ptr: u32 = 0;
+        var pat_len: u32 = 0;
+        var has_pattern = false;
+        if (arg != 0) {
+            const ps = obj_ensure_string(arg);
+            pat_ptr = ps.ptr;
+            pat_len = ps.len;
+            has_pattern = true;
+        }
+        return frame_locals_names_matching(pat_ptr, pat_len, has_pattern);
+    }
     if (str_eq(sp, sub.len, "frame")) return info_frame(arg);
     if (str_eq(sp, sub.len, "cmdcount")) {
         // Mirrors C Tcl ``Interp.cmdCount`` — incremented per

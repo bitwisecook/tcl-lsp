@@ -92,12 +92,14 @@ test "tcl_cmd_format — %o octal" {
     try testing.expectEqualStrings("0", fmt1("%o", i(0)));
 }
 
-test "tcl_cmd_format — %c char from code point (ASCII)" {
+test "tcl_cmd_format — %c char from code point" {
     try testing.expectEqualStrings("A", fmt1("%c", i(65)));
     try testing.expectEqualStrings("z", fmt1("%c", i(122)));
-    // Out-of-range (negative or >127) drops silently.
-    try testing.expectEqualStrings("", fmt1("%c", i(200)));
-    try testing.expectEqualStrings("", fmt1("%c", i(-1)));
+    // Code points above U+10FFFF round to U+FFFD (matches Tcl 9
+    // ``TCL_COMBINE`` handling — see test format-8.28).
+    try testing.expectEqualStrings("\u{fffd}", fmt1("%c", i(-1)));
+    // BMP codepoint above 0x7F → multi-byte UTF-8.
+    try testing.expectEqualStrings("\u{c8}", fmt1("%c", i(0xC8)));
 }
 
 // ---- width + precision ---------------------------------------------
@@ -257,11 +259,11 @@ const UnknownVerbCtx = struct {
     }
 };
 
-test "tcl_cmd_format — unknown conversion raises via stubs.unsupported_sub" {
+test "tcl_cmd_format — unknown conversion raises bad-field-specifier" {
     captured_err_msg_len = 0;
     fixture.with_interp(&UnknownVerbCtx.outer);
     try testing.expectEqualStrings(
-        "unsupported command: format %y",
+        "bad field specifier \"y\"",
         captured_err_msg[0..captured_err_msg_len],
     );
 }
@@ -279,7 +281,7 @@ test "tcl_cmd_format — unknown uppercase conversion raises with verb" {
     captured_err_msg_len = 0;
     fixture.with_interp(&UnknownVerbCapsCtx.outer);
     try testing.expectEqualStrings(
-        "unsupported command: format %Q",
+        "bad field specifier \"Q\"",
         captured_err_msg[0..captured_err_msg_len],
     );
 }

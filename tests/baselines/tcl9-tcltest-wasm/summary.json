@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T21:17:07Z",
+  "generated_at": "2026-05-09T07:19:21Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -15,8 +15,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 21,
-      "passed_min": 21,
+      "failed_max": 18,
+      "passed_min": 24,
       "skipped": 0,
       "total": 42
     },
@@ -177,8 +177,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 68,
-      "passed_min": 182,
+      "failed_max": 21,
+      "passed_min": 229,
       "skipped": 19,
       "total": 269
     },
@@ -222,8 +222,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 70,
-      "passed_min": 216,
+      "failed_max": 67,
+      "passed_min": 219,
       "skipped": 1,
       "total": 287
     },
@@ -255,11 +255,11 @@
       "total": 28
     },
     "list": {
-      "bucket": "W-mixed-fail",
+      "bucket": "clean",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 1,
-      "passed_min": 77,
+      "failed_max": 0,
+      "passed_min": 78,
       "skipped": 0,
       "total": 78
     },
@@ -384,8 +384,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 55,
-      "passed_min": 71,
+      "failed_max": 54,
+      "passed_min": 72,
       "skipped": 0,
       "total": 126
     },
@@ -510,8 +510,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 294,
-      "passed_min": 404,
+      "failed_max": 243,
+      "passed_min": 455,
       "skipped": 7,
       "total": 705
     },
