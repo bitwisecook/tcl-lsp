@@ -18,6 +18,7 @@ from ..expr_ast import (
     ExprTernary,
     ExprUnary,
     ExprVar,
+    UnaryOp,
     render_expr,
 )
 from ..tcl_expr_eval import _parse_literal, eval_tcl_expr, format_tcl_value
@@ -281,7 +282,15 @@ class _ExpressionsMixin:
             return False
 
         # Emit: push subject, jumpTable, jump default
-        self._emit_expr(subject)
+        # ``ExprRaw`` for a plain literal subject (no ``\$`` / ``[``)
+        # would route through ``_emit_expr`` and tack on ``exprStk``
+        # to evaluate the text as a Tcl expression.  The switch
+        # subject is just a value, not an expression — match tclsh's
+        # ``push <literal>`` shape by special-casing literal raws here.
+        if isinstance(subject, ExprRaw) and "$" not in subject.text and "[" not in subject.text:
+            self._push_lit(subject.text)
+        else:
+            self._emit_expr(subject)
 
         # Tcl 9.0's jumpTable entries appear in Tcl hash-table iteration
         # order (bucket-then-LIFO within each bucket).
@@ -349,34 +358,71 @@ class _ExpressionsMixin:
                     if ft != next_block:
                         self._emit(Op.JUMP4, ft, comment=f"-> {ft}")
                 else:
+                    # tclsh canonicalises ``if {![cond]}`` by emitting
+                    # the inner condition and swapping the
+                    # ``jumpFalse`` / ``jumpTrue`` polarity, replacing
+                    # the eliminated ``not`` opcode with a placeholder
+                    # ``nop`` so the bytecode offsets stay stable.
+                    flipped = False
+                    if isinstance(cond, ExprUnary) and cond.op in (
+                        UnaryOp.NOT,
+                        UnaryOp.WORD_NOT,
+                    ):
+                        cond = cond.operand
+                        flipped = True
                     self._emit_expr(cond)
                     # tclsh emits a nop between a simple variable condition
                     # and the conditional jump (placeholder for tryCvtToNumeric).
                     # Inline catch also leaves a raw return code on the stack
-                    # that needs the same treatment.
-                    if isinstance(cond, (ExprVar, ExprRaw)):
+                    # that needs the same treatment.  The same nop also
+                    # stands in for the elided ``not`` when we flipped a
+                    # negated condition above.
+                    if flipped:
+                        self._emit(Op.NOP)
+                    elif isinstance(cond, (ExprVar, ExprRaw)):
                         self._emit(Op.NOP)
                     elif isinstance(cond, ExprCommand):
                         inner = cond.text.strip()
                         if inner.startswith("["):
                             inner = inner[1:]
-                        if inner.startswith("catch "):
+                        # ``catch`` and ``expr`` cmd substitutions both
+                        # leave a value tclsh treats as needing a
+                        # ``tryCvtToNumeric`` placeholder before the
+                        # conditional jump — emitted as ``nop`` since
+                        # the explicit op is elided at compile time.
+                        if inner.startswith("catch ") or inner.startswith("expr "):
                             self._emit(Op.NOP)
-                    if ft == next_block:
-                        self._emit(Op.JUMP_TRUE4, tt, comment=f"-> {tt}")
-                    elif tt == next_block:
-                        self._emit(Op.JUMP_FALSE4, ft, comment=f"-> {ft}")
+                    _tt_eff, _ft_eff = (ft, tt) if flipped else (tt, ft)
+                    if _ft_eff == next_block:
+                        self._emit(Op.JUMP_TRUE4, _tt_eff, comment=f"-> {_tt_eff}")
+                    elif _tt_eff == next_block:
+                        self._emit(Op.JUMP_FALSE4, _ft_eff, comment=f"-> {_ft_eff}")
                     else:
-                        self._emit(Op.JUMP_FALSE4, ft, comment=f"!-> {ft}")
-                        self._emit(Op.JUMP4, tt, comment=f"-> {tt}")
+                        self._emit(Op.JUMP_FALSE4, _ft_eff, comment=f"!-> {_ft_eff}")
+                        self._emit(Op.JUMP4, _tt_eff, comment=f"-> {_tt_eff}")
 
             case CFGReturn(value=value):
                 val = value if value is not None else ""
-                self._emit_return_value(val)
                 if self._is_proc:
+                    self._emit_return_value(val)
                     self._emit(Op.DONE)
                 else:
-                    self._emit(Op.RETURN_IMM, 0, 0)
+                    # Top-level ``return value`` — tclsh 9 wraps the
+                    # command in ``startCommand`` (when it isn't the
+                    # first command), pushes the value plus an empty
+                    # options dict, and emits ``returnImm 0 1``
+                    # (code=TCL_OK, level=1).  A trailing ``done`` is
+                    # appended by the script epilogue.
+                    end_label: str | None = None
+                    if self._cmd_index > 0:
+                        end_label = self._fresh_label("ret_end")
+                        self._emit(Op.START_CMD, end_label, 1)
+                    self._cmd_index += 1
+                    self._emit_return_value(val)
+                    self._push_lit("")
+                    self._emit(Op.RETURN_IMM, 0, 1)
+                    if end_label is not None:
+                        self._place_label(end_label)
 
     def _emit_proc_return(
         self: _Emitter,

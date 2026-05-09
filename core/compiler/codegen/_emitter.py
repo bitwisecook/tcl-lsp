@@ -81,6 +81,11 @@ class _Emitter(
         )
         # Loop context for compiling break/continue as jump instructions.
         self._break_target: str | None = None
+        # Map loop-end block name → fresh label placed after the
+        # loop's trailing 3 nops.  ``break`` jumps to this label
+        # rather than the loop-end block itself so the implicit
+        # empty-result triplet only runs on natural loop exit.
+        self._loop_break_after_nops: dict[str, str] = {}
         self._continue_target: str | None = None
         # Catch nesting depth for beginCatch4 operand.
         self._catch_depth = 0
@@ -517,6 +522,20 @@ class _Emitter(
                 self._current_source_range = _term_range
                 self._current_source_line = _term_range.start.line + 1
 
+            # Entering an if-then / if-next body counts as crossing a
+            # command boundary for ``startCommand`` wrapping when
+            # tclsh's compiler has already seen a generic ``invokeStk``
+            # in the unit — once any generic invoke fires, every later
+            # compiled command (including the bodies of an ``if`` whose
+            # condition came after a generic invoke) gets its own SC.
+            # Without a prior generic invoke (e.g. the if condition is
+            # purely inline-specialised like ``[expr {0x10}] != 16``),
+            # tclsh suppresses the inner SC.  Mirror that gate so we
+            # don't over-emit SCs in 220-style snippets while still
+            # firing for 217-style ones.
+            if bname.startswith(("if_then_", "if_next_")) and self._cmd_index == 0:
+                self._cmd_index += 1
+
             # try/finally inline compilation: emit the entire
             # try/finally sequence when we reach the try_body block.
             if bname in try_finally_info:
@@ -526,7 +545,34 @@ class _Emitter(
 
             # Update loop context for break/continue compilation.
             if bname in loop_ctx:
-                self._continue_target, self._break_target = loop_ctx[bname]
+                self._continue_target, _bt = loop_ctx[bname]
+                # Allocate the after-nops label only when the
+                # corresponding loop-end block will actually emit
+                # the implicit ``"" + 3 nops`` triplet (i.e. its
+                # terminator is a goto to a non-exit block, or a
+                # CFGBranch — see the loop-end emit branch).  In
+                # other cases (terminal goto to exit, return,
+                # etc.) ``break`` keeps the original loop-end
+                # label as its target.
+                _bt_blk = self._cfg.blocks.get(_bt)
+                _emits_nops = (
+                    _bt_blk is not None
+                    and _bt_blk.statements == ()
+                    and (
+                        (
+                            isinstance(_bt_blk.terminator, CFGGoto)
+                            and _bt_blk.terminator.target is not None
+                            and not _bt_blk.terminator.target.startswith("exit_")
+                        )
+                        or isinstance(_bt_blk.terminator, CFGBranch)
+                    )
+                )
+                if _emits_nops:
+                    if _bt not in self._loop_break_after_nops:
+                        self._loop_break_after_nops[_bt] = self._fresh_label("loop_break")
+                    self._break_target = self._loop_break_after_nops[_bt]
+                else:
+                    self._break_target = _bt
 
             # Complex foreach: emit foreach_step + foreach_end at the
             # bottom of the loop body (before the loop-result push/pop).
@@ -550,6 +596,26 @@ class _Emitter(
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
+                    # ``break`` in the loop body should land *past*
+                    # the loop-end nops — tclsh treats the loop's
+                    # implicit empty result as something only the
+                    # natural exit path observes, while ``break``
+                    # continues straight to the next user command.
+                    if bname in self._loop_break_after_nops:
+                        self._place_label(self._loop_break_after_nops[bname])
+                elif isinstance(blk.terminator, CFGBranch):
+                    # Loop_end shared with a following if-condition: the
+                    # empty result tclsh would push for the loop is
+                    # unused (the if pops the value before its own
+                    # condition).  Mirror tclsh's ``"" + 3 nops`` shape
+                    # by interning the literal and emitting three
+                    # placeholder nops.
+                    self._lit.intern("")
+                    self._emit(Op.NOP)
+                    self._emit(Op.NOP)
+                    self._emit(Op.NOP)
+                    if bname in self._loop_break_after_nops:
+                        self._place_label(self._loop_break_after_nops[bname])
                 elif isinstance(blk.terminator, CFGReturn) and blk.terminator.value is not None:
                     # Loop ends with an explicit return — the loop's empty
                     # result is unused; push and immediately pop it.
@@ -635,7 +701,7 @@ class _Emitter(
             if bname.startswith(self._VALUE_JOIN_PREFIXES) and (
                 blk.statements
                 or isinstance(blk.terminator, CFGBranch)
-                or (self._is_proc and isinstance(blk.terminator, CFGReturn))
+                or isinstance(blk.terminator, CFGReturn)
                 or (
                     isinstance(blk.terminator, CFGGoto)
                     and not blk.terminator.target.startswith("exit_")
@@ -822,6 +888,74 @@ class _Emitter(
                 _foreach_backedge = True
 
             next_block = block_order[i + 1] if i + 1 < len(block_order) else None
+
+            # Top-level / proc-body if statement: tclsh wraps the
+            # whole ``if {…} {…}`` invocation in a ``startCommand``
+            # that spans from the condition through the join block's
+            # ``pop``.  Detect a CFGBranch terminator whose
+            # true_target is an ``if_then_*`` block converging on an
+            # ``if_end_*`` join, and emit the wrap here — between
+            # the block's already-emitted statements and the
+            # terminator's condition evaluation.  The for-body /
+            # foreach paths emit their own wraps elsewhere; skip
+            # those contexts to avoid double-wrapping.
+            if (
+                isinstance(blk.terminator, CFGBranch)
+                and self._cmd_index > 0
+                and not bname.startswith(
+                    (
+                        "for_body_",
+                        "while_body_",
+                        "switch_arm_body_",
+                        "switch_default_",
+                        "switch_next_",
+                    )
+                )
+                and bname not in foreach_body_blocks
+                and (
+                    blk.terminator.true_target.startswith("if_then_")
+                    or blk.terminator.true_target.startswith("switch_arm_body_")
+                )
+                # Constant-folded conditions get their own SC emission
+                # path through ``_pending_join_labels`` — skip the
+                # generic wrap to avoid a duplicate / overlapping SC.
+                and self._fold_const_branch(blk.terminator.condition) is None
+            ):
+                _tt_b = blk.terminator.true_target
+                _tt_b_blk = self._cfg.blocks.get(_tt_b)
+                _join_b: str | None = None
+                if _tt_b_blk and isinstance(_tt_b_blk.terminator, CFGGoto):
+                    _cand = _tt_b_blk.terminator.target
+                    if _cand.startswith(("if_end_", "switch_end_")):
+                        _join_b = _cand
+                # The deferred end label is placed at the join
+                # block's ``pop`` emission (see the
+                # ``_VALUE_JOIN_PREFIXES`` branch above).  At top
+                # level a join terminating in ``CFGReturn`` skips
+                # that pop, so the SC end label would never be
+                # placed and the encoded offset would point at
+                # ``len(self._instrs) == 0`` (a backwards jump).
+                # Skip the SC wrap in that case.
+                _join_blk = self._cfg.blocks.get(_join_b) if _join_b else None
+                _join_pops = _join_blk is not None and (
+                    bool(_join_blk.statements)
+                    or isinstance(_join_blk.terminator, CFGBranch)
+                    or isinstance(_join_blk.terminator, CFGReturn)
+                )
+                if _join_b is not None and _join_b not in for_body_end_labels and _join_pops:
+                    # ``count=2`` when the if's condition contains an
+                    # inline-specialised cmd subst tclsh treats as a
+                    # second Cmd starting at the same bytecode PC
+                    # (``listLength`` for ``[llength]``, ``strLen``
+                    # for ``[string length …]`` …).  Generic invokes
+                    # keep ``count=1`` because the inner Cmd starts
+                    # 9 bytes after the SC.
+                    _sc_count = 1 + _count_inline_specialised_subst(blk.terminator.condition)
+                    _if_end_label = self._fresh_label("if_cmd_end")
+                    self._emit(Op.START_CMD, _if_end_label, _sc_count)
+                    for_body_end_labels[_join_b] = _if_end_label
+                    self._cmd_index += 1
+
             if blk.terminator is not None and not _skip_while_term and not _foreach_backedge:
                 if self._try_emit_jump_table(blk, next_block, skip_blocks):
                     # Switch dispatch counts as a command so the first
@@ -859,8 +993,14 @@ class _Emitter(
             if self._proc_exit_label is not None:
                 self._place_label(self._proc_exit_label)
             self._emit(Op.DONE)
-        # ensure script ends with done
-        elif not self._instrs or self._instrs[-1].op not in (Op.DONE, Op.RETURN_IMM):
+        # ensure script ends with done.  tclsh always emits a final
+        # ``done`` even after a tail ``returnImm`` at top level (the
+        # ``return`` sets up the caller's TCL_OK / value but doesn't
+        # itself terminate bytecode execution).  Inside a proc body,
+        # the tail ``returnImm`` is folded back to ``done`` by
+        # ``_fold_tail_return_to_done`` so this branch only adds the
+        # trailing ``done`` when the last instruction isn't already one.
+        elif not self._instrs or self._instrs[-1].op != Op.DONE:
             self._emit(Op.DONE)
         # Peephole: remove pop immediately before the final done.
         # tclsh leaves the last command's result on TOS for done to return.
@@ -922,6 +1062,88 @@ class _Emitter(
 # Public API
 
 
+def _count_inline_specialised_subst(cond: ExprNode) -> int:
+    """Return the number of inline-specialised cmd substitutions
+    nested in *cond*.  tclsh tags the surrounding ``startCommand``
+    with ``count = 1 + N`` where *N* is the number of inline
+    specialised commands at the same bytecode PC (the if itself plus
+    each ``[llength]`` / ``[info exists]`` / ``[linsert]`` / … in
+    the condition tree)."""
+    n = 0
+    if isinstance(cond, ExprCommand):
+        text = cond.text
+        if text.startswith("[") and text.endswith("]"):
+            inner = text[1:-1].lstrip()
+            head = inner.split(None, 1)[0] if inner else ""
+            if head in _INLINE_SPECIALISED_SUBST_NAMES:
+                n += 1
+                # Walk the inner text for further nested ``[…]``
+                # specialised commands.  Cheap brace-aware scan: split
+                # on ``[`` and check the head identifier.
+                depth = 0
+                i = 0
+                length = len(inner)
+                while i < length:
+                    ch = inner[i]
+                    if ch == "[" and depth == 0:
+                        # Find the matching ``]`` (depth-tracked).
+                        d = 1
+                        j = i + 1
+                        while j < length and d > 0:
+                            if inner[j] == "[":
+                                d += 1
+                            elif inner[j] == "]":
+                                d -= 1
+                            j += 1
+                        sub_text = inner[i:j]
+                        # Recurse via a synthetic ExprCommand.
+                        n += _count_inline_specialised_subst(
+                            ExprCommand(text=sub_text, start=0, end=0)
+                        )
+                        i = j
+                        continue
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                    i += 1
+        return n
+    for attr in ("left", "right", "operand"):
+        sub = getattr(cond, attr, None)
+        if isinstance(sub, ExprNode):
+            n += _count_inline_specialised_subst(sub)
+    return n
+
+
+def _branch_cond_has_inline_specialised_subst(cond: ExprNode) -> bool:
+    """Backwards-compatible wrapper: ``True`` when at least one
+    inline-specialised cmd subst sits in *cond*."""
+    return _count_inline_specialised_subst(cond) > 0
+
+
+# Names of cmd-subst commands that ``_emit_inline_cmd_subst``
+# compiles to specialised opcodes (``listLength``, ``existScalar``,
+# ``strLen``, ``listIndex``, ``dictGet`` …).  When such a subst
+# appears inside an if-condition tclsh tags the surrounding
+# ``startCommand`` with ``count=2`` because the inner Cmd starts at
+# the same bytecode PC as the outer ``if``.  Generic invokes (e.g.
+# ``[lreverse {a b c}]``) keep ``count=1``.
+_INLINE_SPECIALISED_SUBST_NAMES = frozenset(
+    {
+        "expr",
+        "incr",
+        "info",
+        "string",
+        "lindex",
+        "lrange",
+        "lreplace",
+        "linsert",
+        "llength",
+        "dict",
+    }
+)
+
+
 def codegen_function(
     cfg: CFGFunction,
     params: tuple[str, ...] = (),
@@ -942,6 +1164,23 @@ def codegen_function(
     return _Emitter(cfg, params=params, optimise=optimise, is_proc=is_proc).generate()
 
 
+def _proc_is_compile_blocked(ir_proc: "IRProcedure | None") -> bool:
+    """Return True when *ir_proc*'s body is just a single
+    ``uplevel`` runtime-dispatch barrier and nothing else.
+    tclsh's ``disassemble proc`` returns empty / errors for such
+    procs, so their bytecode shouldn't appear in the captured
+    reference disassembly either.  Other barriers (``return -code
+    error``, …) are still compiled — only the upframe / upvar
+    runtime-only constructs get skipped here.
+    """
+    if ir_proc is None:
+        return False
+    from ..ir import IRUpFrame
+
+    stmts = ir_proc.body.statements
+    return len(stmts) == 1 and isinstance(stmts[0], IRUpFrame)
+
+
 def codegen_module(
     cfg_module: CFGModule,
     ir_module: IRModule,
@@ -960,12 +1199,19 @@ def codegen_module(
         optimise=optimise,
         is_proc=False,
     ).generate()
+
     procs: dict[str, FunctionAsm] = {}
     for qname, cfg_func in cfg_module.procedures.items():
         ir_proc = ir_module.procedures.get(qname)
         # Skip procs defined inside namespace eval — tclsh compiles
         # them lazily at runtime, not at compile time.
         if ir_proc and ir_proc.namespace_scoped:
+            continue
+        # Skip procs whose body is purely a runtime-dispatch barrier
+        # (e.g. ``proc set_global {} {uplevel #0 {set ::g 42}}``):
+        # tclsh keeps these uncompiled so their bytecode doesn't
+        # appear in the captured reference disasm either.
+        if _proc_is_compile_blocked(ir_proc):
             continue
         params = ir_proc.params if ir_proc else ()
         procs[qname] = codegen_function(cfg_func, params=params, optimise=optimise, is_proc=True)

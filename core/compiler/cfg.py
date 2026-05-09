@@ -515,6 +515,7 @@ class _CFGBuilder:
         inline_loops: bool = True,
         upvar_procs: dict[str, _UpvarInfo] | None = None,
         proc_params: dict[str, tuple[str, ...]] | None = None,
+        expand_fallthrough_switch: bool = False,
     ) -> None:
         self._counter = 0
         self._blocks: dict[str, _MutableBlock] = {}
@@ -522,6 +523,13 @@ class _CFGBuilder:
         self._inline_loops = inline_loops
         self._upvar_procs = upvar_procs or {}
         self._proc_params = proc_params or {}
+        # When True, ``-exact`` switches whose arms include
+        # fallthrough (``a - b - c {body}``) are lowered to a real
+        # STR_EQ dispatch chain so the bytecode codegen can fold it
+        # into a ``jumpTable``.  WASM keeps the IRSwitch statement
+        # form because the multi-predecessor shared-body topology
+        # can't be expressed in structured control flow there.
+        self._expand_fallthrough_switch = expand_fallthrough_switch
 
     def _new_block(self, prefix: str) -> str:
         self._counter += 1
@@ -968,7 +976,10 @@ class _CFGBuilder:
         # because the CFG's multi-predecessor shared-body topology can't
         # be lowered to valid WASM structured control flow in general;
         # ``_emit_switch`` handles OR-matching for fallthrough groups.
-        if stmt.mode == "glob" or any(arm.fallthrough for arm in stmt.arms):
+        if stmt.mode == "glob":
+            self._block(block_name).statements.append(stmt)
+            return block_name
+        if any(arm.fallthrough for arm in stmt.arms) and not self._expand_fallthrough_switch:
             self._block(block_name).statements.append(stmt)
             return block_name
 
@@ -1283,7 +1294,12 @@ def prepare_cfg_context(
     return upvar_procs, proc_params
 
 
-def build_cfg(module: IRModule, *, defer_top_level: bool = False) -> CFGModule:
+def build_cfg(
+    module: IRModule,
+    *,
+    defer_top_level: bool = False,
+    expand_fallthrough_switch: bool = False,
+) -> CFGModule:
     """Build CFG for top-level script and each lowered proc.
 
     When *defer_top_level* is True, foreach/catch/try at the top level
@@ -1298,6 +1314,7 @@ def build_cfg(module: IRModule, *, defer_top_level: bool = False) -> CFGModule:
         inline_loops=not defer_top_level,
         upvar_procs=upvar_procs,
         proc_params=proc_params,
+        expand_fallthrough_switch=expand_fallthrough_switch,
     )
 
     proc_cfgs: dict[str, CFGFunction] = {}
@@ -1307,6 +1324,7 @@ def build_cfg(module: IRModule, *, defer_top_level: bool = False) -> CFGModule:
             proc.body,
             upvar_procs=upvar_procs,
             proc_params=proc_params,
+            expand_fallthrough_switch=expand_fallthrough_switch,
         )
 
     return CFGModule(top_level=top_cfg, procedures=proc_cfgs)
@@ -1319,11 +1337,13 @@ def build_cfg_function(
     inline_loops: bool = True,
     upvar_procs: dict[str, _UpvarInfo] | None = None,
     proc_params: dict[str, tuple[str, ...]] | None = None,
+    expand_fallthrough_switch: bool = False,
 ) -> CFGFunction:
     """Build CFG for a single function/script body."""
     builder = _CFGBuilder(
         inline_loops=inline_loops,
         upvar_procs=upvar_procs,
         proc_params=proc_params,
+        expand_fallthrough_switch=expand_fallthrough_switch,
     )
     return builder.build_function(name, script)

@@ -86,7 +86,7 @@ def codegen_tailcall(emitter: _Emitter, args: tuple[str, ...]) -> bool:
 
 def codegen_error(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     """Compile ``error`` to specialised opcodes."""
-    if not (emitter._is_proc and 1 <= len(args) <= 3):
+    if not (1 <= len(args) <= 3):
         return False
     # error msg ?info? ?code?
     # Tcl 9.0: push msg; {-errorinfo info -errorcode code} list; returnImm 1 0
@@ -106,7 +106,13 @@ def codegen_error(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     else:
         emitter._push_lit("")
     emitter._emit(Op.RETURN_IMM, 1, 0)
-    emitter._emit(Op.POP)
+    if emitter._is_proc:
+        # Proc body: tclsh emits a trailing ``pop`` so the dead-code
+        # path that follows ``returnImm`` keeps stack-balance with the
+        # surrounding command sequence.
+        emitter._emit(Op.POP)
+    # At top level the surrounding if/while/script frame supplies the
+    # result-pop, so don't emit a structural pop here.
     # Replaces a generic invoke — keep startCommand markers.
     emitter._seen_generic_invoke = True
     return True

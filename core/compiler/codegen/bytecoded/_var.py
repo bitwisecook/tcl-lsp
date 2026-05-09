@@ -47,10 +47,12 @@ def codegen_lappend(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     if len(args) < 2:
         return False
 
-    # tclsh 9.0: multi-value lappend (3+ args) at top level
-    # uses ``list N; lappendListStk`` (or lappendListArrayStk
-    # for array variables).
-    if not emitter._is_proc and len(args) > 2:
+    # tclsh 9.0 at top level: ``list N; lappendListStk`` (or
+    # ``lappendListArrayStk`` for array variables).  Used for both
+    # single-value and multi-value lappend so the appended object
+    # is always wrapped in a list — matches the canonical compiled
+    # shape regardless of arg count.
+    if not emitter._is_proc:
         arr = emitter._split_array_ref(args[0])
         if arr is not None:
             emitter._push_lit(arr[0])
@@ -58,7 +60,7 @@ def codegen_lappend(emitter: _Emitter, args: tuple[str, ...]) -> bool:
         else:
             emitter._push_lit(args[0])
         for a in args[1:]:
-            emitter._emit_value(a)
+            emitter._emit_value(a, interpolate=True)
         emitter._emit(Op.LIST, len(args) - 1)
         if arr is not None:
             emitter._emit(Op.LAPPEND_LIST_ARRAY_STK)
@@ -99,8 +101,29 @@ def codegen_lappend(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     return True
 
 
+def codegen_set(emitter: _Emitter, args: tuple[str, ...]) -> bool:
+    """Compile the read form ``set var`` (no value) to a variable load."""
+    if len(args) != 1:
+        return False
+    var_name = args[0]
+    # Skip cases where the var name itself is dynamic — those go
+    # through the generic invoke path so the runtime resolves the
+    # name at call time.
+    if var_name.startswith("$") or var_name.startswith("["):
+        return False
+    # Delegate to ``_load_var`` for both proc-local and top-level
+    # paths.  ``_load_var`` already handles array references
+    # (``set arr(key)``, including dynamic ``$i`` indices) by
+    # routing through ``LOAD_ARRAY_STK`` / ``LOAD_ARRAY1``;
+    # bypassing it would emit a scalar ``LOAD_STK`` for the entire
+    # ``arr(key)`` string and silently load the wrong variable.
+    emitter._load_var(var_name)
+    return True
+
+
 def register() -> None:
     from core.commands.registry import REGISTRY
 
     REGISTRY.register_codegen("append", codegen_append)
     REGISTRY.register_codegen("lappend", codegen_lappend)
+    REGISTRY.register_codegen("set", codegen_set)
