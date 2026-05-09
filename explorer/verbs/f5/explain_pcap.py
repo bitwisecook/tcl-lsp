@@ -51,8 +51,18 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.add_argument(
         "--tshark",
         action="store_true",
-        help="Enrich flows via tshark (HTTP method/Host/URI, TLS SNI).  "
+        help="Enrich flows via tshark (HTTP method/Host/URI/response code, "
+        "TLS SNI/version/cipher/ALPN, TLS alerts, F5 reset cause).  "
         "Requires `tshark` on PATH; silently no-ops otherwise.",
+    )
+    p.add_argument(
+        "--keylog",
+        metavar="FILE",
+        default="",
+        help="NSS-format TLS keylog file (SSLKEYLOGFILE).  When supplied, "
+        "passed to tshark as `-o tls.keylog_file:<FILE>` so HTTPS "
+        "payloads decrypt and HTTP request/response decoding works on "
+        "TLS-wrapped sessions.  Implies --tshark.",
     )
     p.add_argument(
         "--no-event-bodies",
@@ -86,18 +96,22 @@ def _run_explain_pcap(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    if args.tshark and not tshark_available():
+    use_tshark = args.tshark or bool(args.keylog)
+    if use_tshark and not tshark_available():
         print(
-            "warning: --tshark requested but `tshark` not on PATH; "
+            "warning: --tshark/--keylog requested but `tshark` not on PATH; "
             "continuing with built-in walker only.",
             file=sys.stderr,
         )
+    if args.keylog and not Path(args.keylog).is_file():
+        print(f"warning: keylog file not found: {args.keylog}", file=sys.stderr)
 
     try:
         report = compute_explain_pcap(
             pcap_path,
             configs,
-            use_tshark=args.tshark,
+            use_tshark=use_tshark,
+            keylog_path=args.keylog,
             show_event_bodies=not args.no_event_bodies,
             max_event_body_lines=args.max_event_lines,
         )

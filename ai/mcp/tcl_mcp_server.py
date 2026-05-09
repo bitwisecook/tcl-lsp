@@ -658,7 +658,15 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
         "use_tshark": {
             "type": "boolean",
             "description": "If true, enrich flows via tshark when available "
-            "(adds HTTP method/Host/URI, TLS SNI). Defaults to false.",
+            "(adds HTTP method/Host/URI/response code, TLS SNI/version/"
+            "cipher/ALPN, TLS alerts, F5 reset cause). Defaults to false.",
+        },
+        "keylog_path": {
+            **_STR,
+            "description": "NSS-format TLS keylog file (SSLKEYLOGFILE). "
+            "When supplied, passed to tshark so HTTPS payloads decrypt "
+            "and HTTP fields populate for TLS-wrapped sessions. Implies "
+            "use_tshark=true.",
         },
         "show_event_bodies": {
             "type": "boolean",
@@ -673,6 +681,7 @@ def _tool_explain_pcap(
     config_text: str = "",
     config_paths: list | None = None,
     use_tshark: bool = False,
+    keylog_path: str = "",
     show_event_bodies: bool = True,
 ) -> str:
     from pathlib import Path
@@ -694,7 +703,8 @@ def _tool_explain_pcap(
     report = compute_explain_pcap(
         Path(pcap_path),
         configs,
-        use_tshark=use_tshark,
+        use_tshark=use_tshark or bool(keylog_path),
+        keylog_path=keylog_path,
         show_event_bodies=show_event_bodies,
     )
     return json.dumps(report_to_dict(report))
