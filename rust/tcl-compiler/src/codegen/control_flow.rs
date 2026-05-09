@@ -299,9 +299,50 @@ impl CodegenCtx<'_> {
 
     // -- inline try/on error compilation --
 
+    /// Emit the `-during` merge sequence: load saved opts, prepend
+    /// the new error opts, dict-set `-during` key, store back to
+    /// temps slot.  Extracted from
+    /// [`Self::emit_try_on_error_inline`].
+    fn emit_try_during_merge(&mut self, temp_opts_slot: i32) {
+        self.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(temp_opts_slot)],
+            &format!("temp var {temp_opts_slot}"),
+        );
+        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+        self.emit_comment(
+            Op::STORE_SCALAR1,
+            vec![Operand::Imm(temp_opts_slot)],
+            &format!("temp var {temp_opts_slot}"),
+        );
+        self.emit(Op::POP, vec![]);
+        self.push_lit("-during");
+        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+        self.emit_comment(
+            Op::DICT_SET,
+            vec![Operand::Imm(1), Operand::Imm(temp_opts_slot)],
+            &format!("temp var {temp_opts_slot}"),
+        );
+    }
+
+    /// Emit the no-match (code != 1) re-raise path: pop the
+    /// dispatch flag, reload saved opts + result, and `RETURN_STK`.
+    fn emit_try_no_match_reraise(&mut self, temp_opts_slot: i32, temp_result_slot: i32) {
+        self.emit(Op::POP, vec![]);
+        self.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(temp_opts_slot)],
+            &format!("temp var {temp_opts_slot}"),
+        );
+        self.emit_comment(
+            Op::LOAD_SCALAR1,
+            vec![Operand::Imm(temp_result_slot)],
+            &format!("temp var {temp_result_slot}"),
+        );
+        self.emit(Op::RETURN_STK, vec![]);
+    }
+
     /// Emit inline `try { body } on error {var} { handler }` bytecodes.
-    // Long control-flow emitter with sequential block-emit phases.
-    #[allow(clippy::too_many_lines)]
     pub fn emit_try_on_error_inline(&mut self, args: &[(String, bool)], normal_exit: &str) {
         let try_body_text = &args[0].0;
         let handler_var = args[3].0.trim().to_owned();
@@ -417,25 +458,7 @@ impl CodegenCtx<'_> {
         );
 
         // -during merge
-        self.emit_comment(
-            Op::LOAD_SCALAR1,
-            vec![Operand::Imm(temp_opts_slot)],
-            &format!("temp var {temp_opts_slot}"),
-        );
-        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
-        self.emit_comment(
-            Op::STORE_SCALAR1,
-            vec![Operand::Imm(temp_opts_slot)],
-            &format!("temp var {temp_opts_slot}"),
-        );
-        self.emit(Op::POP, vec![]);
-        self.push_lit("-during");
-        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
-        self.emit_comment(
-            Op::DICT_SET,
-            vec![Operand::Imm(1), Operand::Imm(temp_opts_slot)],
-            &format!("temp var {temp_opts_slot}"),
-        );
+        self.emit_try_during_merge(temp_opts_slot);
 
         // Shared cleanup
         self.place_label(&shared_cleanup);
@@ -449,18 +472,7 @@ impl CodegenCtx<'_> {
 
         // No match (code != 1): re-raise
         self.place_label(&no_match);
-        self.emit(Op::POP, vec![]);
-        self.emit_comment(
-            Op::LOAD_SCALAR1,
-            vec![Operand::Imm(temp_opts_slot)],
-            &format!("temp var {temp_opts_slot}"),
-        );
-        self.emit_comment(
-            Op::LOAD_SCALAR1,
-            vec![Operand::Imm(temp_result_slot)],
-            &format!("temp var {temp_result_slot}"),
-        );
-        self.emit(Op::RETURN_STK, vec![]);
+        self.emit_try_no_match_reraise(temp_opts_slot, temp_result_slot);
 
         // Restore catch depth
         self.catch_depth = initial_depth;
