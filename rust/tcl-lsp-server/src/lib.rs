@@ -29,6 +29,7 @@ use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
+use tcl_lsp_core::selection_range as core_selection_range;
 use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
@@ -50,7 +51,8 @@ use tower_lsp::lsp_types::{
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
     Location, MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel,
-    Position, Range, ReferenceParams, RenameParams, ServerCapabilities, ServerInfo, SignatureHelp,
+    Position, Range, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
+    SelectionRangeProviderCapability, ServerCapabilities, ServerInfo, SignatureHelp,
     SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolKind,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
     Url, WorkDoneProgressOptions, WorkspaceEdit,
@@ -217,6 +219,7 @@ impl LanguageServer for Backend {
                 references_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: Some(OneOf::Left(true)),
                 rename_provider: Some(OneOf::Left(true)),
+                selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -490,6 +493,38 @@ impl LanguageServer for Backend {
         Ok(Some(highlights))
     }
 
+    async fn selection_range(
+        &self,
+        params: SelectionRangeParams,
+    ) -> jsonrpc::Result<Option<Vec<SelectionRange>>> {
+        let uri = params.text_document.uri.clone();
+        let positions = params.positions;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let result = tokio::task::spawn_blocking(move || {
+            positions
+                .into_iter()
+                .map(|pos| {
+                    let chain =
+                        core_selection_range::selection_range(&doc.text, pos.line, pos.character);
+                    materialise_selection_range(&chain)
+                })
+                .collect::<Vec<Option<SelectionRange>>>()
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("selection_range worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted: Vec<SelectionRange> = result.into_iter().flatten().collect();
+        if lifted.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(lifted))
+    }
+
     async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
         let uri = params.text_document_position.text_document.uri.clone();
         let pos = params.text_document_position.position;
@@ -597,6 +632,35 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         insert_text: Some(item.insert_text),
         ..CompletionItem::default()
     }
+}
+
+/// Materialise the `tcl-lsp-core::selection_range` flat-vector
+/// representation into a `tower_lsp` `SelectionRange` tree.
+///
+/// The chain in `core` is innermost first, with each link
+/// pointing at its parent index; the LSP wire shape recurses
+/// outward via `parent: Option<Box<SelectionRange>>`.
+fn materialise_selection_range(
+    chain: &[core_selection_range::SelectionRange],
+) -> Option<SelectionRange> {
+    if chain.is_empty() {
+        return None;
+    }
+    // Build LSP records bottom-up so the parent box for index
+    // `i` is already constructed when we wrap index `i-1`.
+    let mut wrapped: Vec<Option<SelectionRange>> = chain.iter().map(|_| None).collect();
+    // Process in reverse (outermost first) so each link's
+    // parent — at a higher index — is already populated.
+    for (i, link) in chain.iter().enumerate().rev() {
+        let parent_box = link
+            .parent_index
+            .and_then(|p| wrapped[p].clone().map(Box::new));
+        wrapped[i] = Some(SelectionRange {
+            range: lift_lsp_range(link.range),
+            parent: parent_box,
+        });
+    }
+    wrapped.into_iter().next().flatten()
 }
 
 fn lift_lsp_range(r: CoreLspRange) -> Range {

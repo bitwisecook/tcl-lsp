@@ -18,6 +18,7 @@ pub mod folding;
 pub mod hover;
 pub mod references;
 pub mod rename;
+pub mod selection_range;
 pub mod signature_help;
 
 /// Crate version string.
