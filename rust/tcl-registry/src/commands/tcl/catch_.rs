@@ -13,6 +13,7 @@ pub fn spec() -> CommandSpec {
             (1, ArgRole::VarWrite),
             (2, ArgRole::VarWrite),
         ],
+        lowering_hook: Some(crate::hooks::LoweringHookId::Catch),
         return_type: Some(TclType::Int),
         hover: Some(HoverSnippet::brief(
             "Evaluate script and trap exceptional returns.",

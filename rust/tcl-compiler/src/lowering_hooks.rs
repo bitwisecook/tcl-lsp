@@ -107,6 +107,37 @@ pub fn dispatch_lowering_hook(
         LoweringHookId::Global => lower_global(cmd),
         LoweringHookId::Variable => Some(lower_variable(cmd)),
         LoweringHookId::Upvar => lower_upvar(cmd),
+        // C43 structured-command hooks: the lowerer's per-command
+        // methods (`lower_proc`, `lower_when`, `lower_if`,
+        // `lower_switch`, `lower_for`, `lower_while`,
+        // `lower_foreach`, `lower_catch`, `lower_try`, `lower_dict`,
+        // `try_lower_eval_static`, `try_lower_uplevel_static`,
+        // `lower_namespace_eval`) require `&mut self` to thread the
+        // const-map / proc-depth / dead-code-depth / module state
+        // through; the static dispatcher here can't call them.
+        // Return `None` so `lower_command` falls back to its
+        // existing string-pattern dispatch, which calls the
+        // matching method directly.  The registry-typed
+        // `LoweringHookId` lands so downstream consumers (LSP /
+        // compiler explorer / coverage audit) can discover the
+        // canonical hook for each spec without re-parsing names;
+        // the wiring step that routes runtime dispatch through the
+        // hook ID instead of the string match is the next C43
+        // sub-strip.
+        LoweringHookId::Proc
+        | LoweringHookId::When
+        | LoweringHookId::NamespaceEval
+        | LoweringHookId::If
+        | LoweringHookId::Switch
+        | LoweringHookId::For
+        | LoweringHookId::While
+        | LoweringHookId::Foreach
+        | LoweringHookId::Lmap
+        | LoweringHookId::Catch
+        | LoweringHookId::Try
+        | LoweringHookId::Dict
+        | LoweringHookId::Eval
+        | LoweringHookId::Uplevel => None,
     }
 }
 
@@ -661,6 +692,50 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let spec = registry.get("incr").expect("incr is registered");
         assert_eq!(spec.lowering_hook, Some(LoweringHookId::Incr));
+    }
+
+    /// C43: structured-command specs declare their canonical
+    /// `LoweringHookId` so downstream consumers (LSP / compiler
+    /// explorer / coverage audit) can dispatch through the
+    /// registry-typed identifier rather than re-parsing names.
+    /// The dispatcher returns `None` for these hooks (the lowerer's
+    /// per-command methods need `&mut self`); runtime dispatch
+    /// continues to flow through `lower_command`'s string-pattern
+    /// match until the wiring follow-up.
+    #[test]
+    fn structured_specs_declare_lowering_hook_ids() {
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
+        let pairs: &[(&str, LoweringHookId)] = &[
+            ("proc", LoweringHookId::Proc),
+            ("when", LoweringHookId::When),
+            ("if", LoweringHookId::If),
+            ("switch", LoweringHookId::Switch),
+            ("for", LoweringHookId::For),
+            ("while", LoweringHookId::While),
+            ("foreach", LoweringHookId::Foreach),
+            ("lmap", LoweringHookId::Lmap),
+            ("catch", LoweringHookId::Catch),
+            ("try", LoweringHookId::Try),
+            ("dict", LoweringHookId::Dict),
+            ("eval", LoweringHookId::Eval),
+            ("uplevel", LoweringHookId::Uplevel),
+        ];
+        for (name, hook) in pairs {
+            let spec = registry.get(name).expect("registered");
+            assert_eq!(
+                spec.lowering_hook,
+                Some(*hook),
+                "{name} should declare {hook:?}",
+            );
+        }
+        // `namespace eval` is subcommand-scoped.
+        let ns = registry.get("namespace").expect("namespace registered");
+        let eval_sub = ns.subcommand("eval").expect("namespace eval");
+        assert_eq!(
+            eval_sub.lowering_hook,
+            Some(LoweringHookId::NamespaceEval),
+        );
     }
 
     /// End-to-end: routing `set` through `try_lower_hook` returns

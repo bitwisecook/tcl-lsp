@@ -310,6 +310,7 @@ pub fn spec() -> CommandSpec {
             "Tcl dict(1)",
         )),
         codegen_hook: Some(CodegenHookId::Dict),
+        lowering_hook: Some(crate::hooks::LoweringHookId::Dict),
         ..CommandSpec::DEFAULT
     }
 }

@@ -24,6 +24,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LOOP_LIST_HEADER,
         arity: Arity::at_least(3),
         arg_role_resolver: Some(foreach_arg_roles),
+        lowering_hook: Some(crate::hooks::LoweringHookId::Foreach),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet::brief(
             "Iterate over one or more lists.",

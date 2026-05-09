@@ -12,6 +12,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TAINT_SINK
             | Traits::UNSAFE,
         arity: Arity::at_least(1),
+        lowering_hook: Some(crate::hooks::LoweringHookId::Uplevel),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet::brief(
             "Execute a script in a different stack frame.",

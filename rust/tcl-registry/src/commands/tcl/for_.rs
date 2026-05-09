@@ -18,6 +18,7 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::Body),
             (3, ArgRole::Body),
         ],
+        lowering_hook: Some(crate::hooks::LoweringHookId::For),
         return_type: Some(TclType::String),
         arg_types: &[(
             1,
