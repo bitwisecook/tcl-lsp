@@ -23,6 +23,7 @@ from core.bigip.pcap_enrich import (
     build_merged_name_index,
     build_name_index,
     collect_observed_ips,
+    enrich_capture_file,
     enrich_pcapng,
 )
 from core.bigip.pcapng import (
@@ -484,3 +485,65 @@ def test_enrich_pcapng_cli_writes_pcapng_with_nrb(tmp_path, capsys):
     blocks = _parse_blocks(pcap_out.read_bytes())
     assert any(b.block_type == BLOCK_TYPE_NRB for b in blocks)
     assert "label" in err
+
+
+def test_enrich_capture_file_overwrites_input_in_place_safely(tmp_path):
+    """``f5 enrich-pcapng in.pcapng in.pcapng`` (same path) must not destroy the input.
+
+    Earlier the output ``open(path, "wb")`` ran before ``enrich_pcapng()``
+    started reading, so the input was truncated to zero before we got to
+    parse it.  ``enrich_capture_file`` now stages writes in a temp file
+    next to the destination and renames atomically once the enrich
+    succeeds — so even when ``in_path == out_path`` the original file
+    survives any failure and ends up enriched on success.
+    """
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    name_index = build_name_index(config, source=SAMPLE_CONFIG)
+
+    pcap = tmp_path / "shared.pcapng"
+    original = _build_minimal_pcapng()
+    pcap.write_bytes(original)
+
+    result = enrich_capture_file(pcap, pcap, name_index)
+
+    # File still exists (didn't get nuked by an early-truncated wb open).
+    assert pcap.exists()
+    blocks = _parse_blocks(pcap.read_bytes())
+    types = {b.block_type for b in blocks}
+    assert BLOCK_TYPE_NRB in types  # enrichment did happen.
+    assert result.ipv4_records >= 1
+    # No leftover ``.partial`` staging files in the directory.
+    leftover = [p.name for p in tmp_path.iterdir() if p.name.endswith(".partial")]
+    assert leftover == [], leftover
+
+
+def test_enrich_pcapng_records_are_byte_stable_across_runs():
+    """Two enrichments of the same input must produce byte-identical NRB blocks.
+
+    Without sorting the observed-IP sets, Python's hash randomisation
+    would shuffle NRB record order between processes; this test asserts
+    determinism by running the pipeline twice in a row.
+    """
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    name_index = build_name_index(config, source=SAMPLE_CONFIG)
+
+    pcapng_in = _build_minimal_pcapng()
+    out_a = io.BytesIO()
+    out_b = io.BytesIO()
+    enrich_pcapng(io.BytesIO(pcapng_in), out_a, name_index)
+    enrich_pcapng(io.BytesIO(pcapng_in), out_b, name_index)
+    assert out_a.getvalue() == out_b.getvalue()
+
+
+def test_build_merged_name_index_does_not_duplicate_subnet_rows():
+    """Merging the same ``(config, source)`` twice must not double subnet rows.
+
+    ``build_merged_name_index`` passes the combined source to every
+    per-config call; without dedup in ``add_subnet`` each ``net self``
+    block would land in ``v4_subnets`` once per input.
+    """
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    merged = build_merged_name_index(
+        [(config, SAMPLE_CONFIG), (config, SAMPLE_CONFIG)]
+    )
+    assert merged.v4_subnets == list(dict.fromkeys(merged.v4_subnets))

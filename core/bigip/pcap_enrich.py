@@ -37,8 +37,8 @@ because libpcap can't carry NRB/DSB blocks.
 
 from __future__ import annotations
 
-import io
 import ipaddress
+import os
 import re
 import shutil
 import subprocess
@@ -105,10 +105,14 @@ class NameIndex:
     ) -> None:
         if not name:
             return
-        if isinstance(network, _V4Net):
-            self.v4_subnets.append((network, name))
-        else:
-            self.v6_subnets.append((network, name))
+        bucket = self.v4_subnets if isinstance(network, _V4Net) else self.v6_subnets
+        entry = (network, name)
+        # Dedupe by exact ``(network, name)`` so multi-config merges don't
+        # accumulate identical subnet rows; ``build_merged_name_index``
+        # passes the same ``combined_source`` to every per-config call,
+        # which would otherwise re-add every ``net self`` block N times.
+        if entry not in bucket:
+            bucket.append(entry)
 
     def update(self, other: NameIndex) -> None:
         """Merge *other* into ``self`` — used to combine multi-config inventories."""
@@ -669,36 +673,47 @@ def _build_packed_records(
     record if they fall inside a known subnet (self-IP CIDR).  For the
     full-inventory mode we keep emitting only exact entries — subnet
     labels apply to specific hosts, not to ``the whole subnet network``.
+
+    The output dict is built in a stable, sorted order so two
+    enrichment runs on the same input produce byte-identical NRB
+    blocks (Python's set hash randomisation would otherwise shuffle
+    record order between processes).
     """
     v4_packed: dict[bytes, list[str]] = {}
     v6_packed: dict[bytes, list[str]] = {}
 
     if observed_v4 is not None or observed_v6 is not None:
-        for addr in observed_v4 or ():
+        for addr in sorted(
+            observed_v4 or (),
+            key=lambda a: ipaddress.IPv4Address(a).packed,
+        ):
             names = name_index.lookup(addr)
             if names:
                 v4_packed[_packed(addr, v6=False)] = names
-        for addr in observed_v6 or ():
+        for addr in sorted(
+            observed_v6 or (),
+            key=lambda a: ipaddress.IPv6Address(a).packed,
+        ):
             names = name_index.lookup(addr)
             if names:
                 v6_packed[_packed(addr, v6=True)] = names
         return v4_packed, v6_packed
 
-    for addr, names in name_index.v4.items():
+    for addr in sorted(
+        name_index.v4.keys(),
+        key=lambda a: ipaddress.IPv4Address(a).packed,
+    ):
+        names = name_index.v4[addr]
         if names:
             v4_packed[_packed(addr, v6=False)] = list(names)
-    for addr, names in name_index.v6.items():
+    for addr in sorted(
+        name_index.v6.keys(),
+        key=lambda a: ipaddress.IPv6Address(a).packed,
+    ):
+        names = name_index.v6[addr]
         if names:
             v6_packed[_packed(addr, v6=True)] = list(names)
     return v4_packed, v6_packed
-
-
-def _read_all_for_two_pass(in_fh: BinaryIO) -> bytes:
-    """Snapshot *in_fh* so we can iterate it twice (rewind if seekable)."""
-    if in_fh.seekable():
-        in_fh.seek(0)
-        return in_fh.read()
-    return in_fh.read()
 
 
 def enrich_pcapng(
@@ -723,17 +738,15 @@ def enrich_pcapng(
     NRB record for every exact-IP entry in *name_index* regardless of
     whether it appears in the capture.
 
+    Seekable inputs are walked in place (``seek(0)`` between the two
+    passes) so multi-GB captures don't have to land in RAM.  Pipes
+    and other non-seekable streams are spooled to a temporary file
+    on disk for the second pass.
+
     Raises :class:`ValueError` if *in_fh* is libpcap; convert to PCAPNG
     first via :func:`_try_libpcap_to_pcapng` (the verb does this
     automatically when ``editcap`` / ``tshark`` is on PATH).
     """
-    data = _read_all_for_two_pass(in_fh)
-    if not _pcapng.is_pcapng_magic(data[:4]):
-        raise ValueError(
-            "enrich requires PCAPNG input (libpcap can't carry NRB/DSB blocks); "
-            "install wireshark/editcap or convert manually first."
-        )
-
     keylog_bytes_blob: bytes | None = None
     if keylog_text is not None:
         if isinstance(keylog_text, str):
@@ -743,50 +756,80 @@ def enrich_pcapng(
         if not keylog_bytes_blob:
             keylog_bytes_blob = None
 
-    observed_v4: set[str] | None = None
-    observed_v6: set[str] | None = None
-    if not include_unobserved:
-        observed_v4, observed_v6 = collect_observed_ips(io.BytesIO(data))
+    # Acquire a seekable handle for two-pass reading without buffering
+    # the whole capture if we don't have to.  Seekable file handles
+    # rewind in place; non-seekable streams (named pipes, network
+    # sockets) get spooled to a SpooledTemporaryFile that flips to
+    # disk once it crosses 8 MiB so a multi-GB pipe still works.
+    spooled: tempfile.SpooledTemporaryFile | None = None
+    if in_fh.seekable():
+        in_fh.seek(0)
+        magic = in_fh.read(4)
+        in_fh.seek(0)
+        seekable_input: BinaryIO = in_fh
+    else:
+        spooled = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+        shutil.copyfileobj(in_fh, spooled)
+        spooled.seek(0)
+        magic = spooled.read(4)
+        spooled.seek(0)
+        seekable_input = spooled  # type: ignore[assignment]
 
-    v4_packed, v6_packed = _build_packed_records(
-        name_index, observed_v4=observed_v4, observed_v6=observed_v6
-    )
+    try:
+        if not _pcapng.is_pcapng_magic(magic):
+            raise ValueError(
+                "enrich requires PCAPNG input (libpcap can't carry NRB/DSB blocks); "
+                "install wireshark/editcap or convert manually first."
+            )
 
-    inserted = False
-    pending_section_endian: str | None = None
+        observed_v4: set[str] | None = None
+        observed_v6: set[str] | None = None
+        if not include_unobserved:
+            observed_v4, observed_v6 = collect_observed_ips(seekable_input)
+            seekable_input.seek(0)
 
-    for block in _pcapng.read_blocks(io.BytesIO(data)):
-        _pcapng.write_block(out_fh, block)
-        if not inserted and block.block_type == _pcapng.BLOCK_TYPE_SHB:
-            pending_section_endian = block.endian
-        elif (
-            not inserted
-            and pending_section_endian is not None
-            and block.block_type == _pcapng.BLOCK_TYPE_IDB
-        ):
-            endian = block.endian
-            if v4_packed or v6_packed:
-                nrb = _pcapng.build_nrb_block(endian, v4_packed, v6_packed)
-                _pcapng.write_block(out_fh, nrb)
-            if keylog_bytes_blob is not None:
-                dsb = _pcapng.build_dsb_block(
-                    endian, _pcapng.DSB_SECRETS_TYPE_TLS, keylog_bytes_blob
-                )
-                _pcapng.write_block(out_fh, dsb)
-            inserted = True
+        v4_packed, v6_packed = _build_packed_records(
+            name_index, observed_v4=observed_v4, observed_v6=observed_v6
+        )
 
-    if not inserted:
-        # No IDB ever appeared (degenerate input).  Append at end of section.
-        if v4_packed or v6_packed or keylog_bytes_blob is not None:
-            endian = pending_section_endian or "<"
-            if v4_packed or v6_packed:
-                nrb = _pcapng.build_nrb_block(endian, v4_packed, v6_packed)
-                _pcapng.write_block(out_fh, nrb)
-            if keylog_bytes_blob is not None:
-                dsb = _pcapng.build_dsb_block(
-                    endian, _pcapng.DSB_SECRETS_TYPE_TLS, keylog_bytes_blob
-                )
-                _pcapng.write_block(out_fh, dsb)
+        inserted = False
+        pending_section_endian: str | None = None
+
+        for block in _pcapng.read_blocks(seekable_input):
+            _pcapng.write_block(out_fh, block)
+            if not inserted and block.block_type == _pcapng.BLOCK_TYPE_SHB:
+                pending_section_endian = block.endian
+            elif (
+                not inserted
+                and pending_section_endian is not None
+                and block.block_type == _pcapng.BLOCK_TYPE_IDB
+            ):
+                endian = block.endian
+                if v4_packed or v6_packed:
+                    nrb = _pcapng.build_nrb_block(endian, v4_packed, v6_packed)
+                    _pcapng.write_block(out_fh, nrb)
+                if keylog_bytes_blob is not None:
+                    dsb = _pcapng.build_dsb_block(
+                        endian, _pcapng.DSB_SECRETS_TYPE_TLS, keylog_bytes_blob
+                    )
+                    _pcapng.write_block(out_fh, dsb)
+                inserted = True
+
+        if not inserted:
+            # No IDB ever appeared (degenerate input).  Append at end of section.
+            if v4_packed or v6_packed or keylog_bytes_blob is not None:
+                endian = pending_section_endian or "<"
+                if v4_packed or v6_packed:
+                    nrb = _pcapng.build_nrb_block(endian, v4_packed, v6_packed)
+                    _pcapng.write_block(out_fh, nrb)
+                if keylog_bytes_blob is not None:
+                    dsb = _pcapng.build_dsb_block(
+                        endian, _pcapng.DSB_SECRETS_TYPE_TLS, keylog_bytes_blob
+                    )
+                    _pcapng.write_block(out_fh, dsb)
+    finally:
+        if spooled is not None:
+            spooled.close()
 
     names_total = sum(len(v) for v in v4_packed.values()) + sum(
         len(v) for v in v6_packed.values()
@@ -813,6 +856,12 @@ def enrich_capture_file(
     """Enrich a capture file on disk; auto-converts libpcap → pcapng.
 
     Wraps :func:`enrich_pcapng` with the libpcap conversion fallback.
+    The output is staged in a temporary file alongside *out_path* and
+    renamed into place atomically once the enrich step succeeds — so
+    a crash mid-write can't half-overwrite the destination, and an
+    invocation like ``f5 enrich-pcapng in.pcapng in.pcapng`` (same
+    path for input and output) doesn't truncate the input before we
+    read it.
     """
     with open(in_path, "rb") as fh:
         magic = fh.read(4)
@@ -820,6 +869,20 @@ def enrich_capture_file(
     converted = False
     pcapng_input: Path = in_path
     tmp_dir: tempfile.TemporaryDirectory[str] | None = None
+
+    out_path = Path(out_path)
+    # Stage in the output's parent so the final rename stays on the
+    # same filesystem (rename across filesystems isn't atomic).  Use a
+    # ``.partial`` suffix so the file is recognisable as in-progress.
+    out_dir = out_path.parent if out_path.parent != Path("") else Path(".")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    staging_fd, staging_name = tempfile.mkstemp(
+        prefix=out_path.name + ".",
+        suffix=".partial",
+        dir=str(out_dir),
+    )
+    staging_path = Path(staging_name)
+
     try:
         if not _pcapng.is_pcapng_magic(magic):
             tmp_dir = tempfile.TemporaryDirectory(prefix="enrich-pcapng-")
@@ -832,7 +895,7 @@ def enrich_capture_file(
             pcapng_input = converted_path
             converted = True
 
-        with open(pcapng_input, "rb") as in_fh, open(out_path, "wb") as out_fh:
+        with open(pcapng_input, "rb") as in_fh, os.fdopen(staging_fd, "wb") as out_fh:
             result = enrich_pcapng(
                 in_fh,
                 out_fh,
@@ -840,6 +903,15 @@ def enrich_capture_file(
                 keylog_text=keylog_text,
                 include_unobserved=include_unobserved,
             )
+        # Atomic replace — works on POSIX and Windows alike.
+        os.replace(staging_path, out_path)
+    except BaseException:
+        # Drop the half-written staging file; never touch out_path on failure.
+        try:
+            staging_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     finally:
         if tmp_dir is not None:
             tmp_dir.cleanup()

@@ -74,14 +74,14 @@ fi
 # without ever needing one.
 if [ "${SKIP_TCLSH:-}" = "1" ] && [ "${SKIP_NODE:-}" = "1" ] && \
    [ "${SKIP_KOTLINC:-}" = "1" ] && [ "${SKIP_TSHARK:-}" = "1" ]; then
-    echo "ensure-test-deps: SKIP_TCLSH=SKIP_NODE=SKIP_KOTLINC=SKIP_TSHARK=1 — nothing to do."
+    echo "ensure-test-deps: SKIP_TCLSH=1 SKIP_NODE=1 SKIP_KOTLINC=1 SKIP_TSHARK=1 — nothing to do."
     exit 0
 fi
 
 if [ -z "$PKG" ]; then
     echo "ensure-test-deps: unsupported platform ($OS / ${DISTRO:-unknown})." >&2
-    echo "Install tclsh9.0, node/npm, and kotlinc manually, or set the" >&2
-    echo "SKIP_TCLSH / SKIP_NODE / SKIP_KOTLINC env vars to bypass." >&2
+    echo "Install tclsh9.0, node/npm, kotlinc, and tshark manually, or set the" >&2
+    echo "SKIP_TCLSH / SKIP_NODE / SKIP_KOTLINC / SKIP_TSHARK env vars to bypass." >&2
     exit 2
 fi
 
@@ -328,7 +328,27 @@ ensure_tshark() {
         return 0
     fi
     case "$PKG" in
-        apt-get) run_install "tshark (apt)" tshark ;;
+        apt-get)
+            # ``apt-get install tshark`` pulls in wireshark-common, whose
+            # postinst pops a debconf prompt asking whether non-superusers
+            # should be allowed to capture packets.  In a non-interactive
+            # CI run that prompt blocks forever, so we pre-seed the
+            # answer (``false`` keeps the safer default — only root can
+            # capture) and force noninteractive frontend before running
+            # the install.
+            if [ "$CHECK_ONLY" -eq 1 ]; then
+                note_missing "tshark (would: apt-get install tshark, debconf preseed)"
+            else
+                refresh_pkg_index
+                if command -v debconf-set-selections >/dev/null 2>&1; then
+                    echo "wireshark-common wireshark-common/install-setuid boolean false" \
+                        | $SUDO debconf-set-selections
+                fi
+                info "Installing tshark (apt, noninteractive)"
+                $SUDO env DEBIAN_FRONTEND=noninteractive \
+                    apt-get install -y --no-install-recommends tshark
+            fi
+            ;;
         dnf|yum) run_install "tshark (dnf)" wireshark-cli ;;
         brew)    run_install "Wireshark (Homebrew)" wireshark ;;
     esac
