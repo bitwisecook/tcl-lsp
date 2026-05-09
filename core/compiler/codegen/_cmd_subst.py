@@ -741,6 +741,27 @@ class _CmdSubstMixin:
             else:
                 self._used_inline_cmd_subst = False
                 self._emit_generic_cmd_subst(cmd, args)
+        elif cmd == "concat":
+            # ``[concat …]`` returns its arguments joined with single
+            # spaces and each arg's leading/trailing whitespace
+            # trimmed.  When every argument is a constant literal
+            # tclsh folds the whole call to a single ``push`` of the
+            # joined result.  Variable / cmd-subst args fall through
+            # to the generic invoke path.
+            if all("$" not in a and "[" not in a for a, _b in args):
+                # Apply Tcl backslash subst so a ``\<newline>`` line
+                # continuation collapses to a single space (and other
+                # ``\x`` escapes resolve) before whitespace trimming.
+                resolved = [
+                    _tcl_backslash_subst(a) if "\\" in a else a
+                    for a, _b in args
+                ]
+                folded = " ".join(filter(None, (a.strip() for a in resolved)))
+                self._used_inline_cmd_subst = True
+                self._push_lit(folded)
+            else:
+                self._used_inline_cmd_subst = False
+                self._emit_generic_cmd_subst(cmd, args)
         elif cmd == "list" and args and "{*}" not in text:
             # tclsh wraps a top-level ``[list …]`` substitution in
             # its own ``startCommand`` whenever the args contain a
