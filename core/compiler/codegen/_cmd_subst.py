@@ -521,6 +521,12 @@ class _CmdSubstMixin:
             elif subcmd == "length" and len(sargs) == 1:
                 self._emit_cmd_subst_arg(sargs[0])
                 self._emit(Op.STR_LEN)
+            elif subcmd == "totitle" and len(sargs) == 1:
+                self._emit_cmd_subst_arg(sargs[0])
+                self._emit(Op.STR_TITLE)
+            elif subcmd in ("toupper", "tolower") and len(sargs) == 1:
+                self._emit_cmd_subst_arg(sargs[0])
+                self._emit(Op.STR_UPPER if subcmd == "toupper" else Op.STR_LOWER)
             elif subcmd == "is" and len(sargs) >= 2:
                 class_name = sargs[0][0]
                 # Detect -strict flag and value
