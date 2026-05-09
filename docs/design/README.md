@@ -28,6 +28,12 @@ rules for the KCS/documentation split live in
   strong cross-linking between KCS pages, the glossary, and the
   design docs. Tracks scope, naming, templates, and the quality bar.
 
+## F5 BIG-IP CLI
+
+- [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,
+  reference graph, IP-redaction model, tmsh emitter, file layout, and
+  the recipe for adding a new verb.
+
 ## tclpkg package manager
 
 - [tclpkg-architecture.md](tclpkg-architecture.md) — architecture overview,

@@ -114,6 +114,7 @@ combine them when more than one form helps:
 - [kcs-feature-irule-review.md](kcs-feature-irule-review.md)
 - [kcs-feature-bigip-cleanup.md](kcs-feature-bigip-cleanup.md)
 - [kcs-feature-bigip-grep.md](kcs-feature-bigip-grep.md)
+- [kcs-feature-f5-cli.md](kcs-feature-f5-cli.md)
 
 ## AI features
 
