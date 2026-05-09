@@ -170,13 +170,25 @@ test "tcl_cmd_format — %N$d positional with int" {
     );
 }
 
-test "tcl_cmd_format — out-of-range positional → empty slot" {
-    // ``%4$s`` indexes past the 3-arg dispatch; the implementation
-    // falls through to the 0 / empty-string sentinel rather than
-    // raising.
+const OutOfRangeCtx = struct {
+    fn inner() void {
+        _ = fmt.tcl_cmd_format(s("[%4$s]"), s("only"), 0, 0);
+    }
+    fn outer() void {
+        capture(fixture.with_catch(&inner));
+    }
+};
+
+test "tcl_cmd_format — out-of-range positional raises argument-index error" {
+    // Tcl 9 ``format "[%4$s]" only`` raises ``"%n$" argument index out
+    // of range`` (see tclStringObj.c badIndex[1]).  Earlier revisions
+    // of this test asserted a silent empty slot, but the runtime
+    // correctly mirrors tclsh's strict behaviour.
+    captured_err_msg_len = 0;
+    fixture.with_interp(&OutOfRangeCtx.outer);
     try testing.expectEqualStrings(
-        "[]",
-        fmt1("[%4$s]", s("only")),
+        "\"%n$\" argument index out of range",
+        captured_err_msg[0..captured_err_msg_len],
     );
 }
 
@@ -214,10 +226,25 @@ test "tcl_cmd_format — fmt with no conversions passes through verbatim" {
     try testing.expectEqualStrings("hello world", fmt0("hello world"));
 }
 
-test "tcl_cmd_format — trailing %% with no conversion is dropped" {
-    // ``%`` at the very end falls out of the parse loop without
-    // emitting anything (no spec, no conversion byte).
-    try testing.expectEqualStrings("abc", fmt0("abc%"));
+const TrailingPercentCtx = struct {
+    fn inner() void {
+        _ = fmt.tcl_cmd_format(s("abc%"), 0, 0, 0);
+    }
+    fn outer() void {
+        capture(fixture.with_catch(&inner));
+    }
+};
+
+test "tcl_cmd_format — trailing %% with no conversion raises incomplete-field error" {
+    // Tcl 9 raises ``format string ended in middle of field specifier``
+    // when ``%`` is the last byte of the format string (see
+    // tclStringObj.c case '\0' in the conversion-character switch).
+    captured_err_msg_len = 0;
+    fixture.with_interp(&TrailingPercentCtx.outer);
+    try testing.expectEqualStrings(
+        "format string ended in middle of field specifier",
+        captured_err_msg[0..captured_err_msg_len],
+    );
 }
 
 // ---- error paths (need #266 fixture) -------------------------------

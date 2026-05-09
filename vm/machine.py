@@ -1514,7 +1514,17 @@ class BytecodeVM:
 
                 case Op.RETURN_IMM:
                     self.interp._error_line = instr.source_line
-                    value = stack[-1] if stack else last_result
+                    # tclsh INST_RETURN_IMM stack contract: result value at
+                    # OBJ_UNDER_TOS, options dict at OBJ_AT_TOS.
+                    if len(stack) >= 2:
+                        value = stack[-2]
+                        opts_val = stack[-1]
+                    elif stack:
+                        value = stack[-1]
+                        opts_val = ""
+                    else:
+                        value = last_result
+                        opts_val = ""
                     ret_code = instr.operands[0] if instr.operands else 0
                     ret_level = instr.operands[1] if len(instr.operands) > 1 else 1
                     if isinstance(ret_code, str):
@@ -1523,8 +1533,7 @@ class BytecodeVM:
                         ret_level = int(ret_level)
                     if ret_code == ReturnCode.ERROR and ret_level == 0:
                         # Compiled ``error`` command — extract errorInfo/errorCode
-                        # from the options value on the stack.
-                        opts_val = stack[-2] if len(stack) >= 2 else ""
+                        # from the options dict at OBJ_AT_TOS.
                         ei_parts: list[str] = []
                         ec = "NONE"
                         ei_raw = ""

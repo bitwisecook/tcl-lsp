@@ -425,12 +425,12 @@ class _ValuesMixin:
         if not parts or parts[0][0] != "list":
             return False
         args = parts[1:]  # skip "list"
-        has_bc = any(a in ("[break]", "[continue]") for a, _ in args)
+        has_bc = any(a in ("[break]", "[continue]") for a, *_ in args)
         if not has_bc:
             return False
 
         n_pushed = 0
-        for arg, _braced in args:
+        for arg, _braced, *_ in args:
             if arg == "[break]" and self._break_target is not None:
                 end_label = self._fresh_label("cmd_end")
                 self._emit(Op.START_CMD, end_label, 1)

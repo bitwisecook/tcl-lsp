@@ -193,7 +193,7 @@ class _StatementsMixin:
                         # parts[0]=dict, parts[1]=create, parts[2:]=args
                         cmd_args = parts[2:]
                         self._push_lit("::tcl::dict::create")
-                        for arg, braced in cmd_args:
+                        for arg, _braced, *_ in cmd_args:
                             self._emit_value(arg, interpolate=True)
                         self._emit(Op.INVOKE_STK1, 1 + len(cmd_args))
                         self._labels[end_label] = len(self._instrs)

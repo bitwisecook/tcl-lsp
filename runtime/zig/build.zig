@@ -45,18 +45,16 @@ pub fn build(b: *std.Build) void {
     // comptime.
     build_options.addOption(bool, "with_tcltest", false);
 
-    // Fetch Tcl 9.0.3's regex engine sources on demand (idempotent
-    // via a stamp file; see scripts/fetch_tcl_regex.sh).  Running
-    // the script from the repo root keeps its REPO_ROOT resolution
-    // correct regardless of the cwd ``zig build`` was invoked from.
-    //
-    // ``b.build_root.path`` is ``runtime/zig`` here; we climb one
-    // level to reach the repo root where ``scripts/`` lives.
-    const fetch_regex = b.addSystemCommand(&.{
-        "bash",
-        "../../scripts/fetch_tcl_regex.sh",
-    });
-    fetch_regex.setCwd(b.path("."));
+    // The Tcl 9.0.3 regex engine sources live under
+    // ``vendor/tcl-regex/`` and are populated out-of-band — by the
+    // SessionStart hook on cloud sessions, or via ``bash
+    // scripts/fetch_tcl_regex.sh`` for local developers.  The fetch
+    // used to be wired in here as a build-graph dependency, but that
+    // raced under pytest-xdist (four parallel ``zig build`` invocations
+    // colliding on the same ``.tmp`` filenames in the vendor dir).
+    // The C compile below now expects the files to be present and
+    // produces a normal "file not found" build error if they aren't,
+    // pointing the developer at the fetch script.
 
     // Zig 0.16 split module creation from Compile: the executable
     // wraps a ``root_module`` that carries source/target/link info.
@@ -118,14 +116,6 @@ pub fn build(b: *std.Build) void {
         .name = "tcl_runtime",
         .root_module = root_module,
     });
-
-    // Make the C compilation depend on the fetch step — the regex
-    // sources must exist before the compiler reads them.  The paths
-    // passed to ``addCSourceFiles`` are resolved lazily at the
-    // build-graph execution phase, so the files only need to exist
-    // by the time the C compile runs, not at ``build.zig`` parse
-    // time.
-    exe.step.dependOn(&fetch_regex.step);
 
     // Export all pub/export functions and mark as reactor.
     // ``wasi_exec_model = .reactor`` tells Zig/wasm-ld to wire
@@ -197,7 +187,6 @@ pub fn build(b: *std.Build) void {
     tcltest_exe.rdynamic = true;
     tcltest_exe.entry = .disabled;
     tcltest_exe.wasi_exec_model = .reactor;
-    tcltest_exe.step.dependOn(&fetch_regex.step);
 
     if (asyncify) {
         // Both the lean and tcltest-enabled runtimes need the
@@ -305,8 +294,6 @@ pub fn build(b: *std.Build) void {
         .linkage = .static,
         .root_module = test_regex_lib_module,
     });
-    test_regex_lib.step.dependOn(&fetch_regex.step);
-
     for (test_files) |file| {
         const t_module = b.createModule(.{
             .root_source_file = b.path(file),
