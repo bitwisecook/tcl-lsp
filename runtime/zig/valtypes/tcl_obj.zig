@@ -126,12 +126,15 @@ pub const OBJ_SIZE: u32 = 32;
 //
 // Why the range is positive-only (PR #237 review): the frame
 // layer's local-variable bucket value field shares the same i32
-// space, and uses negative sentinels to mark variable aliases:
+// space, and uses sentinel bit patterns to mark variable aliases:
 //
 //   * ``ALIAS_GLOBAL`` = ``-1``  (bucket value -1 means "alias to
 //     a same-named global").
-//   * ``ALIAS_EXT``    = ``v <= -2`` (bucket value is the negated
-//     descriptor heap address).
+//   * ``ALIAS_EXT``    = bit 0 set on the bucket value, where
+//     ``(value & ~1)`` decodes to the descriptor heap address.
+//     Descriptors and TclObj headers come from an 8-byte-aligned
+//     allocator, so bit 0 is always clear on a real pointer; the
+//     encoding sets it to distinguish.
 //
 // A tagged immediate of ``-1`` encodes as ``(0xFFFFFFFE | 1) =
 // 0xFFFFFFFF = -1`` — the same bit pattern as ``ALIAS_GLOBAL``.

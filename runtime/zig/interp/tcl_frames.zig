@@ -15,15 +15,31 @@
 // Variable aliasing
 // -----------------
 // Each frame bucket stores one of:
-//   value >= 0          : TclObj pointer (0 = unset/null)
+//   value == 0          : unset/null
 //   value == -1         : ALIAS_GLOBAL — same-name global alias (``global x``)
-//   value < -1          : ALIAS_EXT   — heap-allocated 12-byte descriptor at
-//                         address (-value).  Descriptor layout:
+//   (value & 1) != 0    : ALIAS_EXT   — heap-allocated 12-byte descriptor at
+//                         (value & ~1).  Descriptor layout:
 //                           [0..3]  kind  (i32): 0=global_named, 1=frame_var
 //                           [4..7]  param (i32): frame_var → abs frame depth
 //                           [8..11] target_name (i32): TclObj* for target name
-//                         heap_ptr starts at 65536 so (-heap_addr) <= -65536 < -1,
-//                         never colliding with ALIAS_GLOBAL (-1).
+//                         Heap allocations (TclObj headers, descriptors,
+//                         hash-table buffers) all come from a size-class /
+//                         libc allocator that returns at least 8-byte-
+//                         aligned addresses, so a real pointer always has
+//                         the low 3 bits clear.  The encoding sets bit 0
+//                         to mark a value as an alias-descriptor address;
+//                         decoding masks it off.  Stays correct for the
+//                         full 32-bit address range — the previous
+//                         "value < -1" sign-bit scheme collapsed once a
+//                         TclObj header landed at addr ≥ 0x80000000
+//                         (i32 reinterpretation makes the handle look
+//                         like an alias and ``frame_find`` chases a
+//                         garbage descriptor address out of the obj
+//                         header bytes — observed as ``$body``/``$match``/
+//                         ``$result`` in ``tcltest::test`` reading
+//                         "-preservecore" once the cumulative trace.test
+//                         run grew the heap past the 2 GiB mark).
+//   else                : TclObj pointer (8-byte aligned, low bit clear)
 
 const obj = @import("../valtypes/tcl_obj.zig");
 const alloc = obj.alloc;
@@ -99,37 +115,55 @@ inline fn capacity_for_base(base: u32) u32 {
 
 /// Sentinel: alias to a global variable with the same local name.
 const ALIAS_GLOBAL: i32 = -1;
-/// Descriptor-based alias: value = -(heap_ptr).  See module comment.
-/// Any value < -1 is an ALIAS_EXT (heap_ptr >= 65536 => value <= -65536).
-const ALIAS_EXT_THRESHOLD: i32 = -2;
 
+/// Bucket VALUE field encoding (Phase 2 hardening — Stream 1's
+/// trace.test cumulative-state run grows the heap past the 2 GiB
+/// mark, after which TclObj handles land in [-0x80000000, -1] when
+/// reinterpreted as i32).  The previous "value < -1 means ALIAS_EXT"
+/// scheme used the SIGN BIT to distinguish aliases from regular obj
+/// handles.  That scheme collapses once a TclObj header is allocated
+/// at ``addr >= 0x80000000``: the handle bit-casts to a negative i32
+/// indistinguishable from an ALIAS_EXT encoding, so ``frame_find`` /
+/// ``local_get`` for an unaliased proc-local mistakes the body /
+/// match / result TclObj handle for an alias descriptor and chases
+/// it through ``resolve_ext_get`` into garbage memory — observed as
+/// every scalar local in ``tcltest::test`` reading "-preservecore"
+/// (the bytes the bogus alias path picks up) on trace-2.7.
+///
+/// New scheme: an ALIAS_EXT bucket value has BOTH bit 31 (sign) AND
+/// bit 0 set — i.e. ``(v & 0x80000001) == 0x80000001 && v != -1``.
+/// Heap allocations are ≥8-byte aligned (size-class allocator and
+/// libc malloc both honour this), so a real obj handle / descriptor
+/// address has bit 0 = 0; tagged-immediate encodings have bit 0 = 1
+/// but are restricted to non-negative values (bit 31 = 0); and
+/// ``ALIAS_GLOBAL = -1`` is excluded explicitly.  None of the four
+/// other domains can therefore collide with the ALIAS_EXT pattern.
+///
+/// To keep the descriptor address bits intact across the encoding,
+/// the address — which has its low 3 bits clear — is shifted right
+/// once before being merged with the marker bits.  Decoding masks
+/// off the markers and shifts back.  This costs one bit of address
+/// space (the shift loses a high bit), but a 30-bit address range
+/// is still 8 GiB after factoring in the 8-byte alignment, more
+/// than enough for our heap ceiling.
 inline fn is_alias_ext(v: i32) bool {
-    return v < ALIAS_EXT_THRESHOLD or v == ALIAS_EXT_THRESHOLD;
+    if (v == ALIAS_GLOBAL) return false;
+    const u: u32 = @bitCast(v);
+    return (u & 0x80000001) == 0x80000001;
 }
 
-/// Recover the descriptor heap address from an ALIAS_EXT bucket value.
-///
-/// The encoding is ``value = -(heap_addr)`` (see module comment).  We
-/// can't compute ``-v`` directly for ``v == i32_MIN`` because the
-/// negation overflows the i32 range — instead, reinterpret the i32 as
-/// a u32 and take the two's-complement negation in the unsigned
-/// domain, which yields the original heap address even for the
-/// boundary case.  Without this, any TclObj whose handle happens to
-/// land at WASM address ``0x80000000`` (i.e. exactly at the 2 GiB
-/// mark) would panic the runtime here under ReleaseSafe — Stream 1's
-/// trace.test cumulative test run grew the heap past that mark.
 inline fn alias_desc_ptr(v: i32) u32 {
     const u: u32 = @bitCast(v);
-    return ~u +% 1;
+    // Strip both marker bits, then shift back to recover the address.
+    return (u & 0x7FFFFFFE) << 1;
 }
 
-/// Pack a descriptor heap address into the ALIAS_EXT bucket value
-/// (``value = -(heap_addr)``).  Same boundary-safe construction as
-/// :func:`alias_desc_ptr`: compute the negation in the u32 domain so
-/// a heap address at exactly ``0x80000000`` doesn't panic the
-/// ``i32 = -@intCast(u32)`` conversion under ReleaseSafe.
 inline fn encode_alias_ext(desc: u32) i32 {
-    return @bitCast(~desc +% 1);
+    // 8-byte alignment guarantees ``desc & 0x7 == 0`` and in
+    // particular ``desc & 1 == 0``, so ``desc >> 1`` is lossless.
+    // The OR then sets bit 0 and bit 31 to mark the value as an
+    // alias-descriptor encoding.
+    return @bitCast((desc >> 1) | 0x80000001);
 }
 
 // -- Frame-alias descriptor kinds --
