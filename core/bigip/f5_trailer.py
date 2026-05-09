@@ -200,6 +200,26 @@ register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_LOW, 4, [])
 register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_MED, 1, [])
 register_dpt_schema(DPT_PROVIDER_NOISE, LEGACY_TYPE_MED, 4, [])
 
+# DPT provider 4 = TLS keylog data (F5_DPT_PROVIDER_TLS).  Carries
+# master_secret / client_random / hash bytes for SSL keylog injection;
+# no IP fields but it has multiple sub-types we recognise so they
+# don't trigger UnknownTrailerError under ``--on-unknown=error``.
+DPT_PROVIDER_TLS = 4
+for _tls_subtype in (0, 1, 2, 3):  # PRE13_STD, PRE13_EXT, 13_STD, 13_EXT
+    register_dpt_schema(DPT_PROVIDER_TLS, _tls_subtype, 0, [])
+    register_dpt_schema(DPT_PROVIDER_TLS, _tls_subtype, 1, [])
+del _tls_subtype
+
+# DPT provider 5 — observed in real-world TMOS captures
+# (Wireshark issues 17171 and 16898) but not yet upstreamed into
+# packet-f5ethtrailer.c at the time we ported the schema.  Register it
+# as "no IP fields" so packets carrying it round-trip cleanly without
+# triggering UnknownTrailerError.  When F5 publishes the layout we'll
+# add real IP-field offsets here.
+DPT_PROVIDER_5 = 5
+register_dpt_schema(DPT_PROVIDER_5, 1, 1, [])
+register_dpt_schema(DPT_PROVIDER_5, 1, 0, [])
+
 
 # ── parsing ────────────────────────────────────────────────────────
 

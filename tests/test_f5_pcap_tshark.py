@@ -284,3 +284,130 @@ def test_remap_rewrites_peer_ips_in_both_trailer_formats(synthetic_pcap, tmp_pat
     peer_round = _read_peer_ips(round_path)
     assert ("9.9.9.9", "11.11.11.11") in peer_round
     assert ("8.8.8.8", "12.12.12.12") in peer_round
+
+
+# ── Real fixture validation ────────────────────────────────────────
+
+
+_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "f5_pcaps"
+
+
+def _peer_ips_via_tshark(pcap_path: Path) -> set[str]:
+    """Run tshark and return the set of IP addresses it sees anywhere
+    in the IP layer or the F5 trailer peer fields.  Used to verify
+    that real-world fixtures redact correctly end-to-end."""
+    cmd = [
+        "tshark",
+        "-r",
+        str(pcap_path),
+        *_TSHARK_PREFS,
+        "-T",
+        "fields",
+        "-e",
+        "ip.src",
+        "-e",
+        "ip.dst",
+        "-e",
+        "ipv6.src",
+        "-e",
+        "ipv6.dst",
+        "-e",
+        "f5ethtrailer.peerremoteaddr",
+        "-e",
+        "f5ethtrailer.peerlocaladdr",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    seen: set[str] = set()
+    for line in proc.stdout.splitlines():
+        for cell in line.split("\t"):
+            if cell.strip():
+                seen.add(cell.strip())
+    return seen
+
+
+def test_real_fixture_short_frames_redact_round_trips():
+    """short-frames.pcap is a real F5 capture with FILEINFO + DPT
+    NOISE LOW v2 / MED v4 / HIGH v1 trailers.  Redact, verify with
+    tshark that originals are gone, then unredact and verify originals
+    are back."""
+    from core.bigip.pcap_remap import remap_pcap
+    from core.bigip.redact_map import build_map
+
+    src_pcap = _FIXTURES_DIR / "short-frames.pcap"
+    if not src_pcap.is_file():  # pragma: no cover
+        import pytest as _pt
+
+        _pt.skip("fixture not available")
+
+    originals = _peer_ips_via_tshark(src_pcap)
+    real_ips = {ip for ip in originals if ip and not ip.startswith(("0.", "::"))}
+    # Build the map from the discovered IPs.  --remap-private because
+    # the fixture uses RFC1918 (10.x.x.x).
+    rm = build_map(text=" ".join(real_ips), remap_private=True)
+
+    out_path = src_pcap.parent / "_redacted-short-frames.pcap"
+    try:
+        with src_pcap.open("rb") as in_fh, out_path.open("wb") as out_fh:
+            remap_pcap(in_fh, out_fh, rm, unknown_policy="preserve")
+
+        after = _peer_ips_via_tshark(out_path)
+        # No real IP from the original should remain in the rewritten capture.
+        assert real_ips.isdisjoint(after), f"real IPs leaked through redaction: {real_ips & after}"
+    finally:
+        out_path.unlink(missing_ok=True)
+
+
+def test_real_fixture_fcs0_pcapng_redact_round_trips():
+    """fcs0.pcap (PCAPNG) tests the modern format path end-to-end."""
+    from core.bigip.pcap_remap import remap_pcap
+    from core.bigip.redact_map import build_map
+
+    src_pcap = _FIXTURES_DIR / "fcs0.pcap"
+    if not src_pcap.is_file():  # pragma: no cover
+        import pytest as _pt
+
+        _pt.skip("fixture not available")
+
+    originals = _peer_ips_via_tshark(src_pcap)
+    real_ips = {ip for ip in originals if ip}
+    rm = build_map(text=" ".join(real_ips), remap_private=True)
+
+    out_path = src_pcap.parent / "_redacted-fcs0.pcap"
+    try:
+        with src_pcap.open("rb") as in_fh, out_path.open("wb") as out_fh:
+            remap_pcap(in_fh, out_fh, rm, unknown_policy="preserve")
+
+        # Output must still be PCAPNG (round-trip preserves format).
+        with out_path.open("rb") as fh:
+            assert fh.read(4) == b"\x0a\x0d\x0d\x0a"
+
+        after = _peer_ips_via_tshark(out_path)
+        assert real_ips.isdisjoint(after), f"real IPs leaked through redaction: {real_ips & after}"
+    finally:
+        out_path.unlink(missing_ok=True)
+
+
+def test_real_fixture_trailer_sample_unknown_provider():
+    """trailer-sample.pcap has DPT provider=5/type=1 trailers, which
+    are now in the schema as no-IP-fields entries.  unknown_policy=
+    'error' must NOT fire on them."""
+    from core.bigip.pcap_remap import remap_pcap
+    from core.bigip.redact_map import build_map
+
+    src_pcap = _FIXTURES_DIR / "trailer-sample.pcap"
+    if not src_pcap.is_file():  # pragma: no cover
+        import pytest as _pt
+
+        _pt.skip("fixture not available")
+
+    rm = build_map(text="")  # empty map; no IPs to rewrite
+    out_path = src_pcap.parent / "_redacted-trailer-sample.pcap"
+    try:
+        with src_pcap.open("rb") as in_fh, out_path.open("wb") as out_fh:
+            # error policy — would raise if provider 5 wasn't registered.
+            result = remap_pcap(in_fh, out_fh, rm, unknown_policy="error")
+        assert result.trailer_tlvs_unknown == 0, (
+            f"unexpected unknown trailer TLVs: {result.trailer_tlvs_unknown}"
+        )
+    finally:
+        out_path.unlink(missing_ok=True)

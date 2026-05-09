@@ -639,6 +639,48 @@ class _PerPacketCounts:
     tlvs_unknown: int = 0
 
 
+# F5 FILEINFO pseudo-packet magic (Wireshark: fileinfomagic1).
+# tcpdump -i 0.0 emits one of these as the first frame of a capture
+# carrying CMD/VER/HOST/PLAT/PROD/SESS metadata about the BIG-IP.
+# It looks like an Ethernet frame (12 zero MAC + ethertype 0x05ff)
+# but the body is null-terminated ASCII strings.  We rewrite any IP
+# literals in the CMD line (typically a `tcpdump host A or host B`
+# filter) so the metadata stays consistent with the rest of the
+# redacted capture.
+_FILEINFO_MAGIC = bytes(12) + b"\x05\xff" + b"F5-Pseudo-pkt\x00"
+
+
+def _rewrite_fileinfo_packet(
+    packet: bytearray,
+    rm: RedactionMap,
+    *,
+    reverse: bool,
+) -> int:
+    """Rewrite IP literals inside a FILEINFO pseudo-packet.
+
+    The packet body (after the magic) is null-terminated ASCII strings
+    keyed by ``CMD: ``, ``VER: ``, ``HOST: ``, etc.  Only the CMD
+    string typically contains IP literals, but rewriting any string
+    is safe — :func:`_apply_map` only changes bytes that exactly
+    match a known real IP from the map.
+    """
+    from .redact_map import apply_map
+
+    if not packet.startswith(_FILEINFO_MAGIC):
+        return 0
+    body_off = len(_FILEINFO_MAGIC)
+    body_text = bytes(packet[body_off:]).decode("utf-8", errors="replace")
+    rewritten, count = apply_map(rm, body_text, reverse=reverse)
+    if count == 0:
+        return 0
+    rewritten_bytes = rewritten.encode("utf-8", errors="replace")
+    if len(rewritten_bytes) != len(body_text.encode("utf-8", errors="replace")):
+        # Length-changing rewrite — bail rather than corrupt the frame.
+        return 0
+    packet[body_off : body_off + len(rewritten_bytes)] = rewritten_bytes
+    return count
+
+
 def _rewrite_one_packet(
     packet: bytearray,
     linktype: int,
@@ -649,6 +691,15 @@ def _rewrite_one_packet(
 ) -> _PerPacketCounts:
     """Rewrite one packet in place; return counts.  Shared by libpcap + pcapng paths."""
     counts = _PerPacketCounts()
+
+    # FILEINFO pseudo-packet: Ethernet ethertype 0x05ff with the F5
+    # capture metadata.  No IP layer; rewrite IPs in the CMD string.
+    if packet.startswith(_FILEINFO_MAGIC):
+        n = _rewrite_fileinfo_packet(packet, rm, reverse=reverse)
+        counts.addresses_rewritten = n
+        counts.rewrote_anything = bool(n)
+        return counts
+
     ip_pos = _find_ip_offset(bytes(packet), linktype)
     if ip_pos is None:
         return counts
