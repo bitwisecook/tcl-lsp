@@ -13,6 +13,16 @@ if TYPE_CHECKING:
     from ._emitter import _Emitter
 
 
+# Cmd names that compile to a ``::tcl::<ensemble>::<sub>`` FQ-name
+# push followed by ``invokeStk1`` even at top level.  When such a
+# substitution is nested inside a strcat-style string interpolation
+# tclsh wraps it in its own ``startCommand``; plain cmds (``lreverse``,
+# ``puts``) inline without a wrap.  Restricted to ``dict`` for now —
+# extend as more ensembles get the same treatment in the reference
+# corpus.
+_ENSEMBLE_INTERP_HEADS = frozenset({"dict"})
+
+
 class _ValuesMixin:
     """Mixin: variable loading/storing, value emission."""
 
@@ -525,23 +535,63 @@ class _ValuesMixin:
         # Try interpolated string: "Hello, $name!" or "Result: [expr {1+2}]"
         if interpolate and ("$" in value or "[" in value):
             parts = _parse_subst_template(value)
-            if parts is not None and len(parts) > 1:
-                for kind, part_val in parts:
-                    if kind == "lit":
-                        # Use raw push so braces/dollars in the literal
-                        # part are not confused with brace-wrapping or
-                        # runtime substitution markers.
-                        self._push_raw_lit(part_val)
-                    elif kind == "cmd":
+            if parts is not None:
+                # A single-part subst (a bare ``[cmd]`` or ``$var``)
+                # still needs unwrapping — without this, the value is
+                # pushed as the literal source text instead of the
+                # substituted value.
+                if len(parts) == 1:
+                    kind, part_val = parts[0]
+                    if kind == "cmd":
                         self._emit_inline_cmd_subst(part_val)
-                    elif kind == "scalar":
-                        # Braced scalar: push name + loadStk.
+                        return
+                    if kind == "scalar":
                         self._push_lit(part_val)
                         self._emit(Op.LOAD_STK)
-                    else:
+                        return
+                    if kind == "var":
                         self._load_var(part_val)
-                self._emit(Op.STR_CONCAT1, len(parts))
-                return
+                        return
+                if len(parts) > 1:
+                    for kind, part_val in parts:
+                        if kind == "lit":
+                            # Use raw push so braces/dollars in the literal
+                            # part are not confused with brace-wrapping or
+                            # runtime substitution markers.
+                            self._push_raw_lit(part_val)
+                        elif kind == "cmd":
+                            # tclsh wraps the inline ``[cmd]`` inside
+                            # a strcat-style interpolation in its own
+                            # ``startCommand`` only when the resolved
+                            # command name is a fully-qualified
+                            # ensemble call (``::tcl::dict::merge``,
+                            # ``::tcl::string::equal`` …).  Plain
+                            # cmds (``[lreverse $lst]``) inline
+                            # directly without an inner SC.  We
+                            # cheaply detect the FQ-ensemble shape by
+                            # parsing the head of *part_val*.
+                            head = ""
+                            inner_text = part_val.lstrip()
+                            if inner_text.startswith("[") and inner_text.endswith("]"):
+                                inner_inner = inner_text[1:-1].lstrip()
+                                head = inner_inner.split(None, 1)[0] if inner_inner else ""
+                            if head in _ENSEMBLE_INTERP_HEADS:
+                                _prev_inline_used = self._used_inline_cmd_subst
+                                sc_end = self._fresh_label("interp_cmd_end")
+                                self._emit(Op.START_CMD, sc_end, 1)
+                                self._emit_inline_cmd_subst(part_val)
+                                self._place_label(sc_end)
+                                self._used_inline_cmd_subst = _prev_inline_used
+                            else:
+                                self._emit_inline_cmd_subst(part_val)
+                        elif kind == "scalar":
+                            # Braced scalar: push name + loadStk.
+                            self._push_lit(part_val)
+                            self._emit(Op.LOAD_STK)
+                        else:
+                            self._load_var(part_val)
+                    self._emit(Op.STR_CONCAT1, len(parts))
+                    return
         # If the value looks like a braced string (starts/ends with {/}),
         # push with the raw prefix so the PUSH handler doesn't strip
         # another brace level — the parser already de-braced once.

@@ -194,13 +194,18 @@ class _StatementsMixin:
                         cmd_args = parts[2:]
                         self._push_lit("::tcl::dict::create")
                         for arg, braced in cmd_args:
-                            self._emit_value(arg)
+                            self._emit_value(arg, interpolate=True)
                         self._emit(Op.INVOKE_STK1, 1 + len(cmd_args))
                         self._labels[end_label] = len(self._instrs)
                         self._store_var(name)
                         self._emit(Op.POP)
-                        self._used_generic_invoke = True
                     # Trigger startCommand for all subsequent commands.
+                    # The cmd subst itself uses ``invokeStk1`` but the
+                    # outer ``set`` is a compiled ``storeStk`` — only
+                    # the inner generic dispatch should propagate;
+                    # ``_used_generic_invoke`` is left clear so
+                    # ``_fixup_top_level_start_cmd`` keeps the
+                    # outer ``set``'s startCommand wrapper.
                     self._seen_generic_invoke = True
                 elif (
                     not self._is_proc
@@ -317,7 +322,7 @@ class _StatementsMixin:
                         ew = (False,) + ew[1:]
                     if not any(ew):
                         # No expansion remaining — normal call.
-                        self._emit_call(cmd, args)
+                        self._emit_call(cmd, args, tokens)
                     elif cmd == "list" and not ew[0]:
                         if self._try_list_expand_call(args, ew):
                             pass  # handled
@@ -326,7 +331,7 @@ class _StatementsMixin:
                     else:
                         self._emit_expanded_call(cmd, args, ew)
                 else:
-                    self._emit_call(cmd, args)
+                    self._emit_call(cmd, args, tokens)
                 # Tag the last INVOKE instruction with original source text
                 # for accurate errorInfo "invoked from within" frames.
                 if tokens and tokens.argv_texts:
@@ -475,7 +480,12 @@ class _StatementsMixin:
         self._emit(Op.POP)
         self._used_generic_invoke = True
 
-    def _emit_call(self: _Emitter, cmd: str, args: tuple[str, ...]) -> None:
+    def _emit_call(
+        self: _Emitter,
+        cmd: str,
+        args: tuple[str, ...],
+        tokens: "CommandTokens | None" = None,
+    ) -> None:
         # break/continue inside loops: emit jump4 instead of invokeStk.
         if cmd == "continue" and self._continue_target is not None and not args:
             self._emit(Op.JUMP4, self._continue_target, comment="continue")
@@ -485,14 +495,48 @@ class _StatementsMixin:
             return
         if self._try_bytecoded(cmd, args):
             return
-        self._push_lit(cmd)
-        for a in args:
-            self._emit_value(a)
+        # Dynamic command name: ``$var arg1 arg2 ...`` resolves the
+        # command at runtime by substituting ``$var``.  tclsh emits
+        # ``push "var"; loadStk; <args>; invokeStk1 N`` so the same
+        # invocation site sees the resolved value as the command word.
+        if self._is_dynamic_command_name(cmd):
+            self._emit_value(cmd, interpolate=True)
+        else:
+            self._push_lit(cmd)
+        from core.parsing.tokens import TokenType
+
+        for i, a in enumerate(args):
+            # When the matching token is a real ``[cmd]`` substitution,
+            # inline-compile it so the resolved value drives the
+            # invocation instead of pushing the literal source bytes.
+            arg_tok = None
+            if tokens is not None and tokens.argv is not None:
+                # ``tokens.argv`` is indexed from the command word
+                # (argv[0] is *cmd*); arg *i* lives at argv[i + 1].
+                if (
+                    tokens.single_token_word
+                    and i + 1 < len(tokens.single_token_word)
+                    and tokens.single_token_word[i + 1]
+                    and i + 1 < len(tokens.argv)
+                ):
+                    arg_tok = tokens.argv[i + 1]
+            if arg_tok is not None and arg_tok.type is TokenType.CMD:
+                self._emit_inline_cmd_subst(a)
+            else:
+                self._emit_value(a)
         argc = 1 + len(args)
         op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4
         self._emit(op, argc, comment=cmd)
         self._emit(Op.POP)
         self._used_generic_invoke = True
+
+    @staticmethod
+    def _is_dynamic_command_name(cmd: str) -> bool:
+        # Cheap check: a leading ``$`` (or its braced ``${`` form) or
+        # ``[cmd]`` substitution means the lowering kept the dynamic
+        # word as the literal token, and the runtime needs to evaluate
+        # it before dispatch.
+        return cmd.startswith("$") or (cmd.startswith("[") and cmd.endswith("]"))
 
     def _tag_last_invoke_source(
         self: _Emitter,

@@ -353,8 +353,10 @@ class TestBytecodedCommands:
     def test_lappend(self):
         fa = _top_asm("set x {}; lappend x foo")
         ops = _opcodes(fa)
-        # Top-level uses stack-based lappend
-        assert Op.LAPPEND_STK in ops
+        # Top-level wraps the value in a list and uses
+        # ``lappendListStk`` — matches tclsh 9 for both single-value
+        # and multi-value lappend at script scope.
+        assert Op.LAPPEND_LIST_STK in ops
 
     def test_string_length(self):
         fa = _top_asm('string length "hello"')
