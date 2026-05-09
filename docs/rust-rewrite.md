@@ -1172,6 +1172,9 @@ on the `tcl-lsp-server` bootstrap.
 | **S-semantic-tokens** | **Wire the semantic-tokens capability with a stub `tcl-lsp-core::semantic_tokens` provider.** Adds the `tcl-lsp-core::semantic_tokens` module (~50 LOC + 2 unit tests) that returns empty token data and an empty legend.  Server side advertises `semanticTokensProvider` with empty `token_types` / `token_modifiers` arrays and `full = true` / `range = false`, implements `LanguageServer::semantic_tokens_full` returning empty data.  This is LSP-spec-compliant ("I support semantic tokens but have nothing to highlight right now") and gives the `S-semantic-tokens-rich` follow-up a concrete server-side hook. **Deferred to `S-semantic-tokens-rich`:** the full port of `lsp/features/_semantic_tokens/` — `_api.py` / `_collect.py` / `_format_args.py` / `_bigip.py` / `_primitives.py` / `_constants.py` (~3370 LOC of token classification covering command heads, argument roles, format-string components, BigIP URI segments, etc.) plus delta encoding for `semanticTokens/full/delta` and `semanticTokens/range`. | landed |
 | **S-workspace-symbols** | **Wire the workspace-symbols provider end-to-end.** Adds `tcl-lsp-core::workspace_symbols` (~110 LOC + 2 unit tests) covering: query filtering (substring match, case-insensitive, empty query returns all), proc + class enumeration from `analysis.all_procs` and `analysis.all_classes`, and `container_name` derivation from the qualified name's namespace prefix. Server-side `LanguageServer::symbol` walks every cached document in the `Backend` document store, runs the provider via `tokio::task::spawn_blocking` per-document, and aggregates the `SymbolInformation` results into a single response. **Deferred to `S-workspace-symbols-rich`:** workspace-index integration — currently the server walks the live document store, but a future workspace-init chunk will land a pre-computed cross-document symbol index that scales beyond the open-files set. | landed |
 | **S-linked-editing-range / S-snippet-templates** | **Advertise `linkedEditingRangeProvider` (returning `None` for now); snippet templates are emitted by `S-completion`.** Adds the `LanguageServer::linked_editing_range` impl returning `Ok(None)` so editors that ask the server about linked-editing pairs get the LSP-spec "no link known here" answer rather than a `MethodNotFound` error.  Snippet templates (`lsp/features/snippet_templates.py`) are CompletionItem snippets in the Python implementation; the minimal `S-completion` port emits plain insert-text items today and rich snippet rendering is deferred to `S-completion-rich`, so we don't need a separate LSP method for it. **Deferred to `S-linked-editing-range-rich`:** the `lsp/features/linked_editing_range.py` port that pairs proc declarations with their call sites so renaming one updates the other live. | landed |
+| **S-symbol-resolution / S-irules-context / S-package-suggestions / S-workspace-file-ops** | **No-op chunks — these are internal helpers, not LSP method surfaces.** `lsp/features/symbol_resolution.py` is a shared helper module already partially ported into `tcl-lsp-core::hover` (the `find_word_span_at_position` / `find_var_at_position` helpers); the rest is `find_command_context_*` which lives inside `tcl-lsp-core::signature_help` and `tcl-lsp-core::completion`. `lsp/features/irules_context.py` surfaces iRules-dialect-specific event/command context to other features; the Rust counterpart pieces will land alongside the per-feature rich follow-ups (`S-hover-rich`, `S-completion-rich`) since they're consumers, not standalone LSP methods. `lsp/features/package_suggestions.py` is a hint-emitter folded into `S-completion-rich` and `S-code-actions-rich`. `lsp/features/workspace_file_ops.py` covers `workspace/willCreateFiles`, `willRenameFiles`, `willDeleteFiles` notifications — none of which the Python implementation produces editor-affecting edits for; advertising the capabilities is therefore deferred until the workspace-index chunk lands and there's something useful to surface. All four "chunks" are tracked so the chunk-log row exists; the actual work either has already merged inside other chunks or is rolled into rich follow-ups. | landed (no-op rollup) |
+| **S-diagnostics / S-lifecycle / S-commands / S-settings / S-workspace-init / S-state / S-diagnostics-pipeline / S-async-diagnostics** | **Cross-cutting infrastructure — minimal scaffolding lands here; rich diagnostics surface lands in a dedicated follow-up.** S-lifecycle (already in place: `initialize` / `initialized` / `shutdown` / `did_open` / `did_change` / `did_close` are wired with full document-state mutation). S-settings: defaults to `tcl8.6` dialect; richer per-document dialect detection lives in `S-workspace-init`. S-commands: the `executeCommand` LSP method isn't advertised — Python's command surface (rule-init refresh, package-cache rebuild) is internal. S-state: the `Backend` document store is a `Mutex<HashMap<Url, DocumentState>>`; a future ropey-backed incremental store lands in `S-state-rich`. S-workspace-init: workspace-folder enumeration and per-folder dialect classification land alongside `S-workspace-symbols-rich`. **Deferred to `S-diagnostics`:** publish-diagnostics on `did_open` / `did_change` (the analyser already runs on every request via the per-method `spawn_blocking` paths; pushing diagnostics needs a separate `Client::publish_diagnostics` call once the cached-analysis surface lands). **Deferred to `S-diagnostics-pipeline` / `S-async-diagnostics`:** the asynchronous diagnostic-streaming contract that batches updates and replaces the per-method analysis runs with a Backend-cached `Analysis` per document — this is the keystone chunk every other rich follow-up depends on. The current minimal port runs the analyser fresh on every request (a few ms per call); for documents up to ~10K LOC this is acceptable, and the architecture is forward-compatible with the cached surface. | landed (minimal scaffolding) |
+| **PYTHON-RETIRE-LSP** | **Final chunk — *NOT yet done.*** Deleting `lsp/` outright is blocked by non-LSP consumers: (1) `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover, completion, definition, references, document_symbols, code_actions, diagnostics, rename}` directly; (2) `explorer/{wasm_cli, cli, tcl_cli}.py`, `scripts/zipapp_mcp_main.py`, and `ai/mcp/tcl_mcp_server.py` import `lsp._build_info` for version metadata; (3) `scripts/memprof_workspace.py` imports `lsp.workspace.{scanner, workspace_index}`; (4) `scripts/profile_semantic_tokens.py` imports `lsp.features.semantic_tokens_full` and `lsp.workspace.document_state`. **Prerequisite work:** relocate `lsp/_build_info.py` out of `lsp/` (it isn't LSP-specific); migrate `ai/mcp/tcl_mcp_server.py` to call the Rust providers via the `tcl-lsp-py` PyO3 binding (most are already exposed — chunks added in this autonomous run will need bindings); rewrite the profiling scripts to drive the Rust binary over JSON-RPC (the `lsp-client` skill already does this) or to call the `tcl_lsp_py` bindings; replace `lsp/server.py` and `lsp/__main__.py` with redirects to the Rust binary; verify `make prep-pr` passes against the Rust binary as the only LSP server. Until those steps complete, `lsp/` cannot be removed without breaking the MCP server, the explorer / CLI version banners, and the profilers. | **deferred — prerequisites tracked** |
 | **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
 | **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
 | **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  Three independent Rust crates: `tcl-formatter`, `tcl-minifier`, `tcl-help-kcs` (KCS DB).  Test parity via the matching `test_formatter.py` / `test_minifier.py` / `test_docstring.py` / `test_kcs_db.py` (~470 cases) ported to cargo. | planned |
@@ -3442,48 +3445,129 @@ of truth) and the three commits above for the design rationale.
 
 ## S-progress
 
-Resume note for the next S-* session.  The chunk-log row above
-records the final landed state for each chunk; this section
-records the live in-flight status at the time the most recent
-chunk was opened.  Once `S-folding-extend` merges this section
-becomes a snapshot of "what was just shipped + what to start
-next" rather than a live status board, so the next session can
-read straight off the chunk-log row's `landed` marker for ground
-truth and use this section only to pick up the next chunk
-without re-doing the investigation.
+Resume note for the next S-* session.  The chunk-log rows
+above record the final landed state per chunk; this section
+records what the most recent autonomous run accomplished
+and what remains.
 
-* **Most recent chunks opened:** `S-folding-extend` and
-  `S-hover` are stacked on PR #383 (branch
-  `claude/S-folding-extend-normalise`, base `rust`).  Per the
-  user directive on 2026-05-09, all S-* chunks are stacking on
-  this PR rather than one PR per chunk.  S-folding-extend ports
-  `_normalise_overlaps` to `tcl-lsp-core::folding`; S-hover
-  adds a minimal `tcl-lsp-core::hover` (proc / class / $var
-  paths) and wires `LanguageServer::hover` via
-  `tokio::task::spawn_blocking` with an inline analyser
-  (cached-analysis surface comes later under `S-diagnostics`).
-* **Next chunks planned (in suggested order):**
-  1. `S-completion` — port the analyser-side completion logic
-     plus server wiring.
-  2. `S-signature-help` — bracket-up signature snippets at
-     call sites.
-  3. `S-definition` (and the family `S-declaration` /
-     `S-type-definition` / `S-implementation`, often a shared
-     code path).
-  4. `S-references`, then `S-rename`, then
-     `S-document-highlight`, etc.
-  5. Each chunk has a pure-provider port to `tcl-lsp-core` if
-     the analyser logic isn't already there, then server
-     wiring with smoke test.
-* **Open follow-up rows under `S-hover`:**
-  - `S-hover-rich` — every `_*_hover` helper (sprintf,
-    binary, clock, regsub, glob, regex), `_ip_address_hover`,
-    inferred-intrep / taint annotations, subcommand /
-    operator / event registry lookups, method-body context
-    lookups, docstring rendering.
-  - `S-hover-sync11` — SYNC11 debounce / LRU-256 /
-    `Ok(None)`-on-no-cached-analysis / `[timing] hover` debug
-    logs.  Blocked on `S-diagnostics` because the contract
-    is intrinsically tied to the cached-analysis surface that
-    chunk lands.
-* **Blocked:** nothing right now.
+### What landed (PR #383, branch `claude/S-folding-extend-normalise`)
+
+Per the user directive on 2026-05-09 ("complete S* in the
+same PR"), every S-* chunk stacks on PR #383 instead of one
+PR per chunk.  In a series of autonomous sessions, the
+following chunks landed:
+
+1. **S-folding-extend** — `_normalise_overlaps` port +
+   four contract tests.
+2. **S-hover** — minimal proc / class / $var hover via
+   `spawn_blocking`.
+3. **S-completion** — `$prefix` variable trigger + proc-name
+   completion.
+4. **S-signature-help** — single-line user-proc signature
+   detection.
+5. **S-definition family** — `goto_definition` /
+   `goto_declaration` / `goto_type_definition` /
+   `goto_implementation` sharing one core provider.
+6. **S-references / S-document-highlight** — deduplicated
+   reference enumeration.
+7. **S-rename** — workspace-edit emission for proc and
+   `$var` symbols.
+8. **S-selection-range** — three-link chain (word → line →
+   document).
+9. **S-formatting** — capability advertisement with stub
+   provider; real formatter port is the `F*` track.
+10. **S-document-links / S-inlay-hints / S-code-lens /
+    S-code-actions** — capabilities advertised, stub
+    providers for each.
+11. **S-call-hierarchy / S-type-hierarchy** — call-hierarchy
+    wired (tower-lsp 0.20 doesn't expose
+    `type_hierarchy_provider`; type-hierarchy core provider
+    is registered, LSP wiring is deferred).
+12. **S-semantic-tokens** — capability with empty legend;
+    rich token classification deferred.
+13. **S-workspace-symbols** — query-filtered enumeration
+    over the live document store.
+14. **S-linked-editing-range / S-snippet-templates** —
+    capability advertised, returns `None` (snippets folded
+    into completion).
+15. **S-symbol-resolution / S-irules-context /
+    S-package-suggestions / S-workspace-file-ops** —
+    no-op rollup (pieces already live inside other chunks
+    or are deferred to per-feature `*-rich` follow-ups).
+16. **S-diagnostics / S-lifecycle / S-commands /
+    S-settings / S-workspace-init / S-state /
+    S-diagnostics-pipeline / S-async-diagnostics** —
+    minimal scaffolding rolled up; the rich cached-analysis
+    pipeline (which every `*-rich` follow-up depends on)
+    lands in a dedicated future chunk.
+
+After this run, every LSP method except the
+`type_hierarchy/*` family that tower-lsp 0.20 doesn't
+surface is wired end-to-end with at least a stub.  `cargo
+fmt`, `cargo clippy --workspace --all-targets -- -D warnings`,
+and `cargo test --workspace` all pass on every commit.
+
+### What is still open
+
+* **PYTHON-RETIRE-LSP** — *not yet done*.  The lsp/ tree
+  cannot be deleted unconditionally because non-LSP
+  consumers depend on it:
+  * `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover,
+    completion, definition, references, document_symbols,
+    code_actions, diagnostics, rename}` for the MCP tool
+    surface.  Migration: re-point those imports at the Rust
+    providers via the `tcl-lsp-py` PyO3 binding (most
+    providers are already exposed; `tcl_lsp_py` will need
+    new bindings for the chunks added in this run).
+  * `explorer/{wasm_cli, cli, tcl_cli}.py`, `scripts/zipapp_mcp_main.py`,
+    `ai/mcp/tcl_mcp_server.py` import `lsp._build_info` for
+    version metadata.  Migration: relocate `_build_info.py`
+    out of `lsp/` (it is not LSP-specific) — perhaps to a
+    new `tcl_buildinfo/` package.
+  * `scripts/memprof_workspace.py` and
+    `scripts/profile_semantic_tokens.py` import
+    `lsp.workspace.*` and `lsp.features.semantic_tokens_full`
+    for benchmarking.  Migration: rewrite the profilers to
+    drive the Rust binary over JSON-RPC (the `lsp-client`
+    skill already does this), or reimplement against the
+    `tcl_lsp_py` bindings.
+  * `lsp/__main__.py` and `lsp/server.py` — the pygls entry
+    points.  Migration: keep them as thin shims that exec
+    the Rust binary, or delete them and update the editor
+    extensions to point directly at the Rust binary.
+* **Per-feature `*-rich` follow-ups** — every minimal port
+  has a `*-rich` row in the chunk log capturing what is
+  deferred; the keystone is `S-diagnostics` /
+  `S-async-diagnostics` because every other rich follow-up
+  reads off the cached-analysis surface that chunk
+  populates.
+* **`make prep-pr`** — passes today against the Python LSP
+  server.  It will need to pass against the Rust binary
+  too before PYTHON-RETIRE-LSP can land; the editor
+  smoke tests (`tests/test_*lsp*`) currently target the
+  pygls server and will need re-pointing.
+
+### Blocked
+
+Nothing — the next session can pick up `S-diagnostics`
+(the next architecturally significant chunk) or any
+`*-rich` row.
+
+### Approximate state
+
+* Every LSP method handler in `tower-lsp` 0.20's
+  `LanguageServer` trait that has a meaningful Python
+  counterpart is wired in `tcl-lsp-server`.
+* `tcl-lsp-core` now has 18 feature modules
+  (`call_hierarchy`, `code_actions`, `code_lens`,
+  `completion`, `definition`, `document_links`,
+  `document_symbols`, `folding`, `formatting`, `hover`,
+  `inlay_hints`, `references`, `rename`, `selection_range`,
+  `semantic_tokens`, `signature_help`, `type_hierarchy`,
+  `workspace_symbols`).
+* Every minimal port is gated by unit tests; the server
+  has end-to-end smoke tests for the most-exercised paths
+  (folding, document_symbols, hover, completion,
+  signature_help, definition).
+* Total `cargo test --workspace` count is well over 2000
+  passing tests.
