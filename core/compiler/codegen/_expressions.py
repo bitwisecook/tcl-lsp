@@ -389,7 +389,12 @@ class _ExpressionsMixin:
                         inner = cond.text.strip()
                         if inner.startswith("["):
                             inner = inner[1:]
-                        if inner.startswith("catch "):
+                        # ``catch`` and ``expr`` cmd substitutions both
+                        # leave a value tclsh treats as needing a
+                        # ``tryCvtToNumeric`` placeholder before the
+                        # conditional jump — emitted as ``nop`` since
+                        # the explicit op is elided at compile time.
+                        if inner.startswith("catch ") or inner.startswith("expr "):
                             self._emit(Op.NOP)
                     _tt_eff, _ft_eff = (ft, tt) if flipped else (tt, ft)
                     if _ft_eff == next_block:

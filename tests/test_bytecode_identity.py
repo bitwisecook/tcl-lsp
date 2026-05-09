@@ -403,7 +403,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         "208_oo_instance_vars",
         "212_line_continuation",
         "216_string_totitle",
-        "221_expr_in_ni",
         "225_dict_create",
         "226_continue_runs_step",
         "228_catch_sets_error_msg",

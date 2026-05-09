@@ -567,6 +567,17 @@ class _Emitter(
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
+                elif isinstance(blk.terminator, CFGBranch):
+                    # Loop_end shared with a following if-condition: the
+                    # empty result tclsh would push for the loop is
+                    # unused (the if pops the value before its own
+                    # condition).  Mirror tclsh's ``"" + 3 nops`` shape
+                    # by interning the literal and emitting three
+                    # placeholder nops.
+                    self._lit.intern("")
+                    self._emit(Op.NOP)
+                    self._emit(Op.NOP)
+                    self._emit(Op.NOP)
                 elif isinstance(blk.terminator, CFGReturn) and blk.terminator.value is not None:
                     # Loop ends with an explicit return — the loop's empty
                     # result is unused; push and immediately pop it.
