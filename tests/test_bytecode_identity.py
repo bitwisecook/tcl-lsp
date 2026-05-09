@@ -292,7 +292,7 @@ def _extract_sections(disasm_text: str) -> dict[str, str]:
 def _our_disasm(source: str) -> str:
     """Compile source with our pipeline and return disassembly text."""
     ir = lower_to_ir(source)
-    cfg = build_cfg(ir, defer_top_level=True)
+    cfg = build_cfg(ir, defer_top_level=True, expand_fallthrough_switch=True)
     module = codegen_module(cfg, ir)
     return format_module_asm(module)
 
@@ -393,13 +393,6 @@ _REF_DIR = _find_reference_dir()
 # the match going forward (any unexpected regression becomes a failure).
 _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
     {
-        # ``switch -exact`` with fallthrough arms (a - b - c {body}) uses
-        # ``_emit_switch``'s OR-group if/else chain instead of the CFG's
-        # STR_EQ/jumpTable path because the multi-predecessor shared-body
-        # CFG topology can't be lowered to valid WASM structured control
-        # flow.  The emitted ``invokeStk1`` diverges from tclsh's
-        # ``jumpTable`` but is semantically correct.
-        "71_switch_fallthrough",
         # Snippets newly added to the bytecode_snippets corpus where the
         # 9.0 reference disasm has now been captured but our codegen
         # does not yet match.  Tracked here so the gap is visible —
@@ -447,8 +440,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
 # Snippets where our literal table does not yet match tclsh 9.0.
 _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
     {
-        # ``switch -exact`` fallthrough — same root cause as above.
-        "71_switch_fallthrough",
         # Newly captured 9.0 references; literal table convergence
         # tracked separately from instruction convergence so a fix on
         # one side surfaces immediately.

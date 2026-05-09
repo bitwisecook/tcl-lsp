@@ -2051,24 +2051,40 @@ class _Lowerer:
                     proc_name = substituted
                 # Dynamic body (``proc inner {} $body``): the body
                 # SOURCE TOKEN is a ``$var`` / ``[cmd]`` reference,
-                # not braced literal bytes.  Lifting it as a static
-                # proc would compile the LITERAL ``${body}`` text as
-                # the proc body, which then re-substitutes at every
-                # call — surfaces as ``unknown command: <substituted-
-                # value>``.  Bail to a runtime ``proc`` call so the
-                # interpreter substitutes once at registration time.
-                # Same treatment for dynamic params (rare in
-                # practice but symmetric).
-                #
-                # We check the TOKEN TYPE rather than scanning the
-                # source string because braced bodies legitimately
-                # contain ``$`` and ``[`` (every ``puts $x`` etc.).
-                # Only VAR / CMD / ESC-with-subst tokens are truly
-                # dynamic at this position.
-                body_tok_type = arg_tokens[2].type
+                # not braced literal bytes.  Naively lifting it as a
+                # static proc would compile the LITERAL ``${body}``
+                # text as the proc body, which then re-substitutes
+                # at every call — surfaces as ``unknown command:
+                # <substituted-value>``.  Before bailing to a
+                # runtime ``proc`` call, try to materialise the body
+                # at compile time:
+                #   * VAR — look up the const-map for ``$var``
+                #     bound to a braced literal.
+                #   * CMD — evaluate ``[subst -nocommands {…}]`` if
+                #     every template ``$var`` is const-tracked.
+                # If materialisation succeeds, fold the resolved
+                # script in place of the dynamic token; otherwise
+                # bail.  Dynamic params have no such materialisation
+                # path so they always bail.
+                body_tok = arg_tokens[2]
+                body_tok_type = body_tok.type
                 params_tok_type = arg_tokens[1].type
-                if body_tok_type in (TokenType.VAR, TokenType.CMD) or (
-                    params_tok_type in (TokenType.VAR, TokenType.CMD)
+                materialised_body: str | None = None
+                if body_tok_type is TokenType.CMD:
+                    materialised_body = self._eval_subst_nocommands_body(body_tok.text)
+                elif body_tok_type is TokenType.VAR:
+                    materialised_body = self._const_map_lookup(body_tok)
+                body_is_dynamic = body_tok_type in (TokenType.VAR, TokenType.CMD)
+                # Bail when params is dynamic — there's no static
+                # arg-list to build a real IRProcedure from.  When
+                # the body is dynamic but the name resolved through
+                # the const-map, we still register the IRProcedure
+                # (with an empty body when we couldn't materialise
+                # the script) so static analysis sees the proc; the
+                # IRCall emitted below carries the correct dynamic
+                # body to the runtime ``proc`` command.
+                if params_tok_type in (TokenType.VAR, TokenType.CMD) or (
+                    body_is_dynamic and proc_name == args[0]
                 ):
                     return IRBarrier(
                         range=cmd.range,
@@ -2083,18 +2099,6 @@ class _Lowerer:
                 except Exception:
                     params = ()
                 qualified = _qualify_proc_name(namespace, proc_name)
-                body_tok = arg_tokens[2]
-                # P7.3: if the body is a ``[subst -nocommands
-                # {template}]`` command sub and every ``$var``
-                # inside the template is in the const-map, evaluate
-                # the subst at compile time and lower the resulting
-                # string as a normal script.  Catches the tcltest
-                # ``Option`` factory shape where the accessor body
-                # is built from a template plus const-known option
-                # name / default / description.
-                materialised_body: str | None = None
-                if body_tok.type is TokenType.CMD:
-                    materialised_body = self._eval_subst_nocommands_body(body_tok.text)
                 # Fresh const-map frame for the nested proc body.
                 # Without this, ``_lower_script`` would inherit the
                 # enclosing scope's tracked scalars — which is
@@ -2116,6 +2120,16 @@ class _Lowerer:
                         body = self._lower_script(
                             materialised_body, namespace=namespace, body_token=None
                         )
+                    elif body_is_dynamic:
+                        # Dynamic body that we couldn't materialise
+                        # (e.g. ``proc $name {x} $body`` where
+                        # ``$body`` is a parameter, not a const-mapped
+                        # literal).  The runtime ``proc`` IRCall
+                        # below carries the actual body bytes; the
+                        # IRProcedure body stays empty so static
+                        # analysis doesn't try to compile the literal
+                        # ``$body`` text as a script.
+                        body = IRScript()
                     else:
                         body = self._lower_body_arg(args[2], body_tok, namespace=namespace)
                 finally:
