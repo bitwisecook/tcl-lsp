@@ -737,15 +737,48 @@ f5 cleanup --keep /Common/critical_pool bigip.conf
 f5 cleanup --json bigip.conf > report.json
 ```
 
-`f5` is a separate CLI from `tcl`; today it ships three verbs:
-`cleanup`, `completion`, and the `irule` verb group (with
-`event-order` and `event-info` sub-actions for iRules-specific
-analysis):
+**`f5 grep` verb** — find every BIG-IP object related to a given
+object name (or regex, or CIDR) by walking the same
+forward-and-reverse reference graph the cleanup analysis uses.  By
+default the BFS traverses both directions, so a single command
+surfaces the seed's full neighbourhood: forward edges (objects the
+seed depends on) and reverse edges (objects that depend on the seed).
+
+`--cidr` switches the seed selector from "match the object's full
+path" to "match an IP address or CIDR mentioned anywhere inside the
+object — header, body, or iRule script".  Multiple networks may be
+passed at once as a comma- or whitespace-separated list, and an
+object qualifies when any IP/CIDR token in its text overlaps any
+requested network.  This catches addresses buried deep inside iRule
+bodies (`if { [IP::addr [IP::client_addr] equals "10.0.0.5"] }`,
+`class match … "10.0.0.0/8"`, …) that a plain path grep can't reach.
+
+```
+f5 grep /Common/web_pool bigip.conf
+f5 grep --direction reverse /Common/web1 bigip.conf
+f5 grep --regex '^/Common/(web|api)_pool$' bigip.conf
+f5 grep --json --max-depth 2 web_pool bigip.conf
+f5 grep --cidr 10.0.0.0/8 bigip.conf
+f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
+f5 grep --no-recurse --cidr 10.0.0.0/8 bigip.conf
+```
+
+The related-object BFS is on by default; pass `--no-recurse` to
+skip it and return only the objects that directly match the
+pattern (`-r` / `--recurse` toggle it explicitly back on).  This
+applies to every match mode: substring, `--regex`, and `--cidr`.
+
+**`f5 irule` verb group** — iRules-specific analysis with
+`event-order` and `event-info` sub-actions, defaulting to the
+`f5-irules` dialect:
 
 ```sh
 f5 irule event-order samples/irules/policy.irule
 f5 irule event-info HTTP_REQUEST --json
 ```
+
+`f5` is a separate CLI from `tcl`; today it ships four top-level
+verbs (`cleanup`, `grep`, `completion`, `irule`).
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
