@@ -477,9 +477,92 @@ impl<'r> Lowerer<'r> {
             .collect()
     }
 
+    /// C38a / C38b: detect ``namespace import ?-force? pattern...``
+    /// and ``namespace export pattern...``. Records absolute
+    /// patterns only.  Skips `{*}`-expanded calls and statically-
+    /// dead branches.
+    fn record_namespace_directives(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) {
+        if cmd_name != "namespace" || args.len() < 2 || self.dead_code_depth != 0 {
+            return;
+        }
+        let no_expand = seg
+            .expand_word
+            .as_ref()
+            .map_or(true, |ew| !ew.iter().any(|&e| e));
+        if !no_expand {
+            return;
+        }
+        if args[0] == "import" {
+            let mut i = 1usize;
+            while i < args.len() && args[i].starts_with('-') {
+                i += 1;
+            }
+            for pat in &args[i..] {
+                if pat.starts_with("::") && pat[2..].contains("::") {
+                    self.namespace_imports
+                        .push((namespace.to_string(), pat.clone()));
+                }
+            }
+        } else if args[0] == "export" {
+            let mut i = 1usize;
+            // ``-clear`` is the only flag for ``namespace export``.
+            while i < args.len() && args[i].starts_with('-') {
+                i += 1;
+            }
+            for pat in &args[i..] {
+                self.namespace_exports
+                    .push((namespace.to_string(), pat.clone()));
+            }
+        }
+    }
+
+    /// `{*}` expansion on structured commands lowers to a barrier so
+    /// downstream analyses can't reason about the expanded form.
+    /// Returns `Some(barrier)` when the gate trips; `None` otherwise.
+    fn structured_expand_barrier(
+        cmd_name: &str,
+        args: &[String],
+        seg: &SegmentedCommand,
+    ) -> Option<Statement> {
+        let structured = matches!(
+            cmd_name,
+            "proc"
+                | "when"
+                | "namespace"
+                | "if"
+                | "switch"
+                | "for"
+                | "while"
+                | "foreach"
+                | "foreach_in_collection"
+        );
+        if !structured {
+            return None;
+        }
+        if !seg
+            .expand_word
+            .as_ref()
+            .is_some_and(|ew| ew.iter().any(|&e| e))
+        {
+            return None;
+        }
+        Some(Statement::Barrier {
+            span: seg.span,
+            reason: format!("{cmd_name} with argument expansion"),
+            command: cmd_name.into(),
+            canonical_command: None,
+            args: args.to_vec(),
+            tokens: Some(Self::cmd_tokens(seg)),
+        })
+    }
+
     /// Lower a single command.
-    // Long match dispatcher over command-form lowering hooks.
-    #[allow(clippy::too_many_lines)]
     fn lower_command(&mut self, seg: &SegmentedCommand, namespace: &str) -> Option<Statement> {
         if seg.texts.is_empty() {
             return None;
@@ -494,42 +577,7 @@ impl<'r> Lowerer<'r> {
             self.aliases.insert(qualified, (target, prepended));
         }
 
-        // C38a / C38b: detect ``namespace import ?-force? pattern...``
-        // and ``namespace export pattern...``. Records absolute
-        // patterns only — relative patterns require runtime
-        // namespace-path walking we don't model. Skips
-        // ``{*}``-expanded calls because the actual import /
-        // export list is dynamic. C38c: directives inside
-        // statically-dead branches (``if {0} {…}`` etc.) are
-        // ignored — gated on ``dead_code_depth == 0``.
-        if cmd_name == "namespace" && args.len() >= 2 && self.dead_code_depth == 0 {
-            let no_expand = seg
-                .expand_word
-                .as_ref()
-                .map_or(true, |ew| !ew.iter().any(|&e| e));
-            if no_expand && args[0] == "import" {
-                let mut i = 1usize;
-                while i < args.len() && args[i].starts_with('-') {
-                    i += 1;
-                }
-                for pat in &args[i..] {
-                    if pat.starts_with("::") && pat[2..].contains("::") {
-                        self.namespace_imports
-                            .push((namespace.to_string(), pat.clone()));
-                    }
-                }
-            } else if no_expand && args[0] == "export" {
-                let mut i = 1usize;
-                // ``-clear`` is the only flag for ``namespace export``.
-                while i < args.len() && args[i].starts_with('-') {
-                    i += 1;
-                }
-                for pat in &args[i..] {
-                    self.namespace_exports
-                        .push((namespace.to_string(), pat.clone()));
-                }
-            }
-        }
+        self.record_namespace_directives(cmd_name, args, seg, namespace);
 
         // Try registered lowering hooks first.
         let hook_cmd = LoweringCommand {
@@ -545,33 +593,8 @@ impl<'r> Lowerer<'r> {
             return Some(stmt);
         }
 
-        // {*} expansion on structured commands → barrier.
-        let structured = matches!(
-            cmd_name,
-            "proc"
-                | "when"
-                | "namespace"
-                | "if"
-                | "switch"
-                | "for"
-                | "while"
-                | "foreach"
-                | "foreach_in_collection"
-        );
-        if structured
-            && seg
-                .expand_word
-                .as_ref()
-                .is_some_and(|ew| ew.iter().any(|&e| e))
-        {
-            return Some(Statement::Barrier {
-                span: seg.span,
-                reason: format!("{cmd_name} with argument expansion"),
-                command: cmd_name.into(),
-                canonical_command: None,
-                args: args.to_vec(),
-                tokens: Some(Self::cmd_tokens(seg)),
-            });
+        if let Some(barrier) = Self::structured_expand_barrier(cmd_name, args, seg) {
+            return Some(barrier);
         }
 
         // Command-specific dispatch.
