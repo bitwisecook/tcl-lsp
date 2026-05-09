@@ -531,9 +531,7 @@ class _WasmEmitterVarMixin(_Base):
                 # consume its name argument, and without an explicit
                 # release every dynamic-name lenient read leaks one
                 # TclObj per access.
-                name_tmp = self._add_extra_local(
-                    prefix="_dynvar_name", val_type=ValType.I32
-                )
+                name_tmp = self._add_extra_local(prefix="_dynvar_name", val_type=ValType.I32)
                 self._emit_value(name)
                 self._emit_local_set(name_tmp)
                 self._emit_local_get(name_tmp)
@@ -542,9 +540,7 @@ class _WasmEmitterVarMixin(_Base):
                 if release_idx is not None:
                     # Stack: [resolved_value].  Stash, release name,
                     # restore — keeping the read result on top.
-                    val_tmp = self._add_extra_local(
-                        prefix="_dynvar_val", val_type=ValType.I32
-                    )
+                    val_tmp = self._add_extra_local(prefix="_dynvar_val", val_type=ValType.I32)
                     self._emit_local_set(val_tmp)
                     self._emit_local_get(name_tmp)
                     self._emit_call(release_idx)
