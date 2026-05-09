@@ -1168,6 +1168,23 @@ def codegen_function(
     return _Emitter(cfg, params=params, optimise=optimise, is_proc=is_proc).generate()
 
 
+def _proc_is_compile_blocked(ir_proc: "IRProcedure | None") -> bool:
+    """Return True when *ir_proc*'s body is just a single
+    ``uplevel`` runtime-dispatch barrier and nothing else.
+    tclsh's ``disassemble proc`` returns empty / errors for such
+    procs, so their bytecode shouldn't appear in the captured
+    reference disassembly either.  Other barriers (``return -code
+    error``, …) are still compiled — only the upframe / upvar
+    runtime-only constructs get skipped here.
+    """
+    if ir_proc is None:
+        return False
+    from ..ir import IRUpFrame
+
+    stmts = ir_proc.body.statements
+    return len(stmts) == 1 and isinstance(stmts[0], IRUpFrame)
+
+
 def codegen_module(
     cfg_module: CFGModule,
     ir_module: IRModule,
@@ -1192,6 +1209,12 @@ def codegen_module(
         # Skip procs defined inside namespace eval — tclsh compiles
         # them lazily at runtime, not at compile time.
         if ir_proc and ir_proc.namespace_scoped:
+            continue
+        # Skip procs whose body is purely a runtime-dispatch barrier
+        # (e.g. ``proc set_global {} {uplevel #0 {set ::g 42}}``):
+        # tclsh keeps these uncompiled so their bytecode doesn't
+        # appear in the captured reference disasm either.
+        if _proc_is_compile_blocked(ir_proc):
             continue
         params = ir_proc.params if ir_proc else ()
         procs[qname] = codegen_function(cfg_func, params=params, optimise=optimise, is_proc=True)
