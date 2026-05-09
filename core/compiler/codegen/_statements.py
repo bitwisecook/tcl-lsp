@@ -322,7 +322,7 @@ class _StatementsMixin:
                         ew = (False,) + ew[1:]
                     if not any(ew):
                         # No expansion remaining — normal call.
-                        self._emit_call(cmd, args)
+                        self._emit_call(cmd, args, tokens)
                     elif cmd == "list" and not ew[0]:
                         if self._try_list_expand_call(args, ew):
                             pass  # handled
@@ -331,7 +331,7 @@ class _StatementsMixin:
                     else:
                         self._emit_expanded_call(cmd, args, ew)
                 else:
-                    self._emit_call(cmd, args)
+                    self._emit_call(cmd, args, tokens)
                 # Tag the last INVOKE instruction with original source text
                 # for accurate errorInfo "invoked from within" frames.
                 if tokens and tokens.argv_texts:
@@ -480,7 +480,12 @@ class _StatementsMixin:
         self._emit(Op.POP)
         self._used_generic_invoke = True
 
-    def _emit_call(self: _Emitter, cmd: str, args: tuple[str, ...]) -> None:
+    def _emit_call(
+        self: _Emitter,
+        cmd: str,
+        args: tuple[str, ...],
+        tokens: "CommandTokens | None" = None,
+    ) -> None:
         # break/continue inside loops: emit jump4 instead of invokeStk.
         if cmd == "continue" and self._continue_target is not None and not args:
             self._emit(Op.JUMP4, self._continue_target, comment="continue")
@@ -498,8 +503,27 @@ class _StatementsMixin:
             self._emit_value(cmd, interpolate=True)
         else:
             self._push_lit(cmd)
-        for a in args:
-            self._emit_value(a)
+        from core.parsing.tokens import TokenType
+
+        for i, a in enumerate(args):
+            # When the matching token is a real ``[cmd]`` substitution,
+            # inline-compile it so the resolved value drives the
+            # invocation instead of pushing the literal source bytes.
+            arg_tok = None
+            if tokens is not None and tokens.argv is not None:
+                # ``tokens.argv`` is indexed from the command word
+                # (argv[0] is *cmd*); arg *i* lives at argv[i + 1].
+                if (
+                    tokens.single_token_word
+                    and i + 1 < len(tokens.single_token_word)
+                    and tokens.single_token_word[i + 1]
+                    and i + 1 < len(tokens.argv)
+                ):
+                    arg_tok = tokens.argv[i + 1]
+            if arg_tok is not None and arg_tok.type is TokenType.CMD:
+                self._emit_inline_cmd_subst(a)
+            else:
+                self._emit_value(a)
         argc = 1 + len(args)
         op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4
         self._emit(op, argc, comment=cmd)
