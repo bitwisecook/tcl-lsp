@@ -416,6 +416,11 @@
         "category": "Tcl"
       },
       {
+        "command": "tclLsp.bigipCleanup",
+        "title": "Generate BIG-IP Cleanup Script",
+        "category": "Tcl"
+      },
+      {
         "command": "tclLsp.toggleAi",
         "title": "Toggle AI Features",
         "category": "Tcl"
@@ -685,6 +690,10 @@
         {
           "command": "tclLsp.extractLinkedObjects",
           "when": "editorLangId == 'tcl-bigip'"
+        },
+        {
+          "command": "tclLsp.bigipCleanup",
+          "when": "editorLangId == 'tcl-bigip'"
         }
       ],
       "editor/context": [
@@ -792,6 +801,11 @@
         },
         {
           "command": "tclLsp.extractLinkedObjects",
+          "when": "editorLangId == 'tcl-bigip'",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.bigipCleanup",
           "when": "editorLangId == 'tcl-bigip'",
           "group": "4_tools"
         }

@@ -25,6 +25,7 @@
 #   make compile       Compile the TypeScript extension
 #   make zipapp-tcl    Build the unified Tcl tools zipapp
 #   make zipapp-cli    Build the CLI compiler explorer zipapp
+#   make zipapp-f5     Build the F5 BIG-IP CLI zipapp
 #   make zipapp-gui    Build the standalone GUI zipapp (bundles Pyodide)
 #   make zipapp-gui-cdn Build the CDN GUI zipapp (loads Pyodide from CDN)
 #   make zipapp-lsp    Build the LSP server zipapp
@@ -111,6 +112,7 @@ BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
 # Zipapps
 ZIPAPP_TCL     := $(BUILD_DIR)/tcl-$(VERSION).pyz
 ZIPAPP_CLI     := $(BUILD_DIR)/tcl-lsp-explorer-cli-$(VERSION).pyz
+ZIPAPP_F5      := $(BUILD_DIR)/f5-$(VERSION).pyz
 ZIPAPP_GUI     := $(BUILD_DIR)/tcl-lsp-explorer-gui-$(VERSION).pyz
 ZIPAPP_GUI_CDN := $(BUILD_DIR)/tcl-lsp-explorer-gui-cdn-$(VERSION).pyz
 ZIPAPP_LSP     := $(BUILD_DIR)/tcl-lsp-server-$(VERSION).pyz
@@ -130,7 +132,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -603,7 +605,20 @@ _smoke-zipapp-cli: $(BUILD_INFO)
 	$(PYTHON) $(BUILD_DIR)/smoke-cli.pyz --help > /dev/null
 	@rm -f $(BUILD_DIR)/smoke-cli.pyz
 
-smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-cli ## Build and smoke-test all zipapps
+_smoke-zipapp-f5: $(BUILD_INFO)
+	@echo "==> Smoke-testing F5 BIG-IP zipapp"
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py f5 --version $(VERSION) --output $(BUILD_DIR)/smoke-f5.pyz
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz --help > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup samples/bigip/bigip.conf > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup --json samples/bigip/bigip.conf > /dev/null
+	# Completion scripts are bundled and printable from inside the zipapp.
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion bash > $(BUILD_DIR)/smoke-f5.bash
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion fish > $(BUILD_DIR)/smoke-f5.fish
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion zsh  > $(BUILD_DIR)/smoke-f5.zsh
+	bash -n $(BUILD_DIR)/smoke-f5.bash
+	@rm -f $(BUILD_DIR)/smoke-f5.pyz $(BUILD_DIR)/smoke-f5.bash $(BUILD_DIR)/smoke-f5.fish $(BUILD_DIR)/smoke-f5.zsh
+
+smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-cli _smoke-zipapp-f5 ## Build and smoke-test all zipapps
 	@echo "All zipapp smoke tests passed."
 
 smoke-vsix: compile $(BUILD_INFO) ## Build and verify the VSIX packages without error
@@ -802,7 +817,7 @@ explorer-build-cdn: $(UV_STAMP) $(BUILD_INFO_JSON) ## Build the CDN compiler exp
 
 # Zipapp targets
 
-zipapps: zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build all zipapps
+zipapps: zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm ## Build all zipapps
 
 zipapp-tcl: $(ZIPAPP_TCL) ## Build the unified Tcl tools zipapp
 
@@ -817,6 +832,14 @@ zipapp-cli: $(ZIPAPP_CLI) ## Build the CLI compiler explorer zipapp
 $(ZIPAPP_CLI): $(PY_SRCS) $(BUILD_INFO)
 	@echo "==> Building CLI zipapp"
 	$(PYTHON) $(ROOT)scripts/build_zipapp.py cli \
+		--version $(VERSION) \
+		--output $@
+
+zipapp-f5: $(ZIPAPP_F5) ## Build the F5 BIG-IP CLI zipapp
+
+$(ZIPAPP_F5): $(PY_SRCS) $(BUILD_INFO)
+	@echo "==> Building F5 BIG-IP CLI zipapp"
+	$(PYTHON) $(ROOT)scripts/build_zipapp.py f5 \
 		--version $(VERSION) \
 		--output $@
 
@@ -1015,7 +1038,7 @@ publish-zed: zed ## Publish Zed extension (via GitHub Release)
 
 # Release
 
-release: package-vsix zipapp-cli zipapp-tcl zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
