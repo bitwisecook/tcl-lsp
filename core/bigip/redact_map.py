@@ -62,8 +62,17 @@ DEFAULT_TARGET_CIDRS_V4: tuple[str, ...] = (
 DEFAULT_TARGET_CIDRS_V6: tuple[str, ...] = ("fd00::/8",)
 
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# IPv6 literal regex.  Permissive — accepts leading/trailing empty
+# groups so the ``::`` compressed form parses (``2001:db8::``,
+# ``::1``, ``fe80::abcd``).  Tokens are validated via
+# :func:`ipaddress.IPv6Address`, so a few false-positive matches
+# (e.g. ``:::``) are filtered out at parse time.
 _IPV6_RE = re.compile(
-    r"(?<![A-Za-z0-9:])(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{0,4}(?![A-Za-z0-9:])"
+    r"(?<![A-Za-z0-9:])"
+    # 2+ colon-separated groups of up to 4 hex digits each;
+    # any group may be empty to allow ``::`` compression.
+    r"(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}"
+    r"(?![A-Za-z0-9:])"
 )
 
 

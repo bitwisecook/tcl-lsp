@@ -324,19 +324,19 @@ def test_remap_pcap_trailer_lookup_invalidates_across_packets():
     assert b"\x01\x02\x03\x04" not in out.getvalue()[24:]
 
 
-def test_remap_pcap_detects_pcapng_with_clear_error():
-    """PCAPNG input should produce a directed error message, not a
-    cryptic 'unrecognised magic' that sends the user hunting."""
+def test_remap_pcap_handles_truncated_pcapng_gracefully():
+    """Malformed PCAPNG SHB (correct block-type but no valid byte-order
+    magic) should produce a clear error rather than a crash or silent
+    success."""
     pcapng_header = b"\x0a\x0d\x0d\x0a" + b"\x00" * 28
     rm = build_map(text="")
     out = io.BytesIO()
     try:
         remap_pcap(io.BytesIO(pcapng_header), out, rm)
     except ValueError as exc:
-        assert "PCAPNG" in str(exc)
-        assert "editcap" in str(exc)
+        assert "pcapng" in str(exc).lower() or "byte-order" in str(exc).lower()
     else:
-        raise AssertionError("expected ValueError for PCAPNG input")
+        raise AssertionError("expected ValueError for malformed PCAPNG input")
 
 
 def test_remap_pcap_skips_l4_checksum_on_ipv4_fragment():
@@ -377,3 +377,118 @@ def test_remap_pcap_skips_l4_checksum_on_ipv4_fragment():
     tcp_cksum_off = ip_off + 20 + 16  # offset of TCP cksum within fake L4
     assert rewritten[tcp_cksum_off : tcp_cksum_off + 2] == fake_l4[16:18]
     assert result.addresses_rewritten == 2  # only the IP layer
+
+
+# ── IPv6 extension headers ─────────────────────────────────────────
+
+
+def _ipv6_packet_with_hop_by_hop(src: bytes, dst: bytes) -> bytes:
+    """Build IPv6+HopByHop+UDP frame.  HopByHop is 8 bytes of pad, then
+    UDP src/dst ports + length + checksum + 0 bytes payload."""
+    eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x86\xdd"  # ethertype IPv6
+    udp = (
+        struct.pack(">HH", 12345, 53)  # src/dst port
+        + struct.pack(">H", 8)  # length (header only)
+        + struct.pack(">H", 0)  # checksum (placeholder)
+    )
+    # Hop-by-Hop ext header: next(1)=UDP(17), hdr_ext_len(1)=0 (=> 8 bytes total),
+    # then 6 bytes of options (PadN=1, len=4, 4 zero bytes).
+    hop_by_hop = bytes([17, 0, 1, 4, 0, 0, 0, 0])
+    ipv6_payload = hop_by_hop + udp
+    ipv6 = (
+        bytes([0x60, 0, 0, 0])  # version=6, tc=0, flowlabel=0
+        + struct.pack(">H", len(ipv6_payload))  # payload length
+        + bytes([0])  # next header = HopByHop
+        + bytes([64])  # hop limit
+        + src
+        + dst
+    )
+    return eth + ipv6 + ipv6_payload
+
+
+def test_remap_pcap_walks_ipv6_extension_headers():
+    """An IPv6 packet with a Hop-by-Hop options header before the UDP
+    layer must still get its UDP checksum recomputed correctly after
+    src/dst rewrite."""
+    src = b"\x20\x01\x0d\xb8" + bytes(12)  # 2001:db8::
+    dst = b"\x20\x01\x0d\xb8" + bytes(11) + b"\x01"  # 2001:db8::1
+    packet = _ipv6_packet_with_hop_by_hop(src, dst)
+    pcap_in = _build_pcap([packet])
+
+    # 2001:db8::/32 is the RFC3849 documentation prefix — flagged as
+    # is_private by ipaddress, so we need remap_private=True.
+    rm = build_map(
+        text="2001:db8:: 2001:db8::1",
+        target_pool_v6=("fd00::/8",),
+        remap_private=True,
+    )
+    out = io.BytesIO()
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm)
+    assert result.addresses_rewritten == 2
+
+    rewritten = out.getvalue()
+    # IPv6 header at: pcap-global(24) + record(16) + eth(14) = 54.
+    ip_off = 24 + 16 + 14
+    # src/dst rewritten
+    assert rewritten[ip_off + 8 : ip_off + 24] != src
+    assert rewritten[ip_off + 24 : ip_off + 40] != dst
+
+    # UDP starts at ip_off + 40 (IPv6 fixed) + 8 (HopByHop) = ip_off + 48.
+    udp_off = ip_off + 48
+    new_src = rewritten[ip_off + 8 : ip_off + 24]
+    new_dst = rewritten[ip_off + 24 : ip_off + 40]
+    udp_len = struct.unpack(">H", rewritten[udp_off + 4 : udp_off + 6])[0]
+
+    # Recompute the UDP+pseudo-header checksum independently and compare.
+    pseudo = new_src + new_dst + struct.pack(">I", udp_len) + b"\x00\x00\x00" + bytes([17])
+    udp_bytes_zerocsum = (
+        rewritten[udp_off : udp_off + 6] + b"\x00\x00" + rewritten[udp_off + 8 : udp_off + udp_len]
+    )
+
+    def _csum(data: bytes) -> int:
+        if len(data) % 2:
+            data = data + b"\x00"
+        total = 0
+        for i in range(0, len(data), 2):
+            total += (data[i] << 8) | data[i + 1]
+            total = (total & 0xFFFF) + (total >> 16)
+        return (~total) & 0xFFFF
+
+    expected = _csum(pseudo + udp_bytes_zerocsum)
+    if expected == 0:
+        expected = 0xFFFF
+    actual = struct.unpack(">H", rewritten[udp_off + 6 : udp_off + 8])[0]
+    assert actual == expected, f"UDP cksum: expected 0x{expected:04x}, got 0x{actual:04x}"
+
+
+def test_remap_pcap_skips_l4_checksum_on_ipv6_fragment():
+    """IPv6 packet with Fragment extension header (next-header 44).
+    L4 segment is partial — skip cksum recompute; src/dst still rewritten."""
+    src = b"\x20\x01\x0d\xb8" + bytes(12)
+    dst = b"\x20\x01\x0d\xb8" + bytes(11) + b"\x01"
+    eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x86\xdd"
+    # Fragment ext header (8 bytes): next=UDP(17), reserved(1), offset+M(2)=0|MF, id(4).
+    frag_more = struct.pack(">H", 0x0001)  # MF=1, offset=0
+    fragment = bytes([17, 0]) + frag_more + bytes([0, 0, 0, 1])
+    fake_udp_partial = bytes(4)  # truncated
+    payload = fragment + fake_udp_partial
+    ipv6 = bytes([0x60, 0, 0, 0]) + struct.pack(">H", len(payload)) + bytes([44, 64]) + src + dst
+    packet = eth + ipv6 + payload
+    pcap_in = _build_pcap([packet])
+
+    rm = build_map(
+        text="2001:db8:: 2001:db8::1",
+        target_pool_v6=("fd00::/8",),
+        remap_private=True,
+    )
+    out = io.BytesIO()
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm)
+    # Only the IP-layer src/dst — no L4 cksum because the fragment is
+    # partial.
+    assert result.addresses_rewritten == 2
+
+    rewritten = out.getvalue()
+    ip_off = 24 + 16 + 14
+    # The "fake UDP" bytes after the Fragment ext header must be untouched.
+    fake_off = ip_off + 40 + 8
+    assert rewritten[fake_off : fake_off + 4] == fake_udp_partial

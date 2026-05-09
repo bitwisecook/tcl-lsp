@@ -35,15 +35,15 @@ PCAP format support
 -------------------
 
 - Classic libpcap (magic 0xa1b2c3d4 little-endian, 0xd4c3b2a1
-  big-endian, plus the µs-precision variants).
-- Link-layer types: Ethernet (1), Raw IPv4 (101 / 12), Raw IPv6 (229),
-  Linux SLL (113), F5 capture (147 / DLT_USER0; treated as a thin
-  shim — the inner IP layer is searched for at byte 0 of the
-  packet payload, with a small heuristic offset scan).
-
-PCAPNG is not supported in this revision; an upgrade path is to
-swap the file reader for a PCAPNG one and keep the rewrite layer
-unchanged.
+  big-endian, plus the µs/ns-precision variants).
+- PCAPNG (Wireshark's modern default; via :mod:`core.bigip.pcapng`).
+  Auto-detected by the SHB block-type magic; per-block round-trip
+  preserves SHB / IDB / NRB / ISB and other unknown blocks
+  byte-for-byte; only EPB packet bytes are touched.
+- Link-layer types: Ethernet (1), Raw IPv4 (101 / 228), Raw IPv6 (229),
+  Linux SLL (113), Linux SLL2 (276), F5 capture (147 / DLT_USER0;
+  treated as a thin shim — the inner IP layer is searched for at
+  byte 0 of the packet payload, with a small heuristic offset scan).
 """
 
 from __future__ import annotations
@@ -130,6 +130,73 @@ def _ipv4_header_checksum(packet: bytearray, ip_off: int, ihl_bytes: int) -> int
     return cksum
 
 
+# IPv6 extension-header next_header values that we walk past to find
+# the actual L4 header.  ESP (50) and AH (51) wrap the L4 in cryptographic
+# state; we can't recompute those checksums.  Fragment (44) is walked
+# past only if this packet IS the first fragment (offset == 0).
+_IPV6_EXT_HEADERS: frozenset[int] = frozenset(
+    {
+        0,  # Hop-by-Hop Options
+        43,  # Routing
+        60,  # Destination Options
+        135,  # Mobility
+        139,  # HIP (RFC 5201)
+        140,  # Shim6
+    }
+)
+_IPV6_FRAGMENT = 44
+_IPV6_ESP = 50
+_IPV6_AH = 51
+
+
+def _ipv6_l4_locator(packet: bytes | bytearray, ip_off: int) -> tuple[int, int, int] | None:
+    """Walk IPv6 extension headers past *ip_off* to find the L4 header.
+
+    Returns ``(final_next_header, l4_off, l4_len)`` or ``None`` when the
+    L4 isn't recompute-safe (encrypted / fragmented continuation /
+    truncated capture).
+
+    *l4_len* is the number of bytes from *l4_off* through the end of the
+    IPv6 packet, i.e. ``ip_payload_length - (extension-header bytes)``.
+    """
+    if ip_off + 40 > len(packet):
+        return None
+    ip_payload_len = _u16(packet, ip_off + 4)
+    next_header = packet[ip_off + 6]
+    cursor = ip_off + 40  # past fixed IPv6 header
+    end_of_ip = ip_off + 40 + ip_payload_len
+    if end_of_ip > len(packet):
+        return None  # truncated capture
+    # Walk at most a few headers (RFC 8200 implicitly bounds the chain;
+    # 16 is safely past anything that occurs in practice).
+    for _ in range(16):
+        if next_header in _IPV6_EXT_HEADERS:
+            if cursor + 2 > end_of_ip:
+                return None
+            ext_len_bytes = (packet[cursor + 1] + 1) * 8
+            if cursor + ext_len_bytes > end_of_ip:
+                return None
+            next_next = packet[cursor]
+            cursor += ext_len_bytes
+            next_header = next_next
+            continue
+        if next_header == _IPV6_FRAGMENT:
+            # Fragment header is fixed 8 bytes: next(1) reserved(1)
+            # offset+M(2) id(4).  Continuation fragments (offset != 0)
+            # have no L4 header at all; even first fragments have a
+            # truncated L4 segment, so we don't recompute the checksum.
+            if cursor + 8 > end_of_ip:
+                return None
+            return None
+        if next_header in (_IPV6_ESP, _IPV6_AH):
+            # Encrypted / authenticated payloads — checksum lives in
+            # cleartext form that we don't have.
+            return None
+        # Not a recognised extension header — assume L4 starts here.
+        return next_header, cursor, end_of_ip - cursor
+    return None  # extension chain too long; bail rather than guess
+
+
 def _is_ipv4_fragment(packet: bytes | bytearray, ip_off: int) -> bool:
     """True if the IPv4 packet at *ip_off* is a fragment (any but the
     last *and* offset 0 alone — both fragmented and reassembling cases).
@@ -151,11 +218,17 @@ def _l4_checksum(
     ihl_bytes: int,
     proto: int,
     is_v6: bool,
+    *,
+    v6_l4_off: int | None = None,
+    v6_l4_len: int | None = None,
 ) -> int | None:
     """Recompute and return the L4 checksum for TCP/UDP/ICMP/ICMPv6.
 
     Returns ``None`` when no recompute is possible (unsupported proto,
-    fragmented packet, truncated capture, or invalid header lengths).
+    fragmented packet, encrypted, truncated capture, or invalid header
+    lengths).  For IPv6 packets with extension headers the caller
+    passes the resolved L4 offset and length from
+    :func:`_ipv6_l4_locator`; *proto* is the post-extension next-header.
     """
     if proto not in (6, 17, 1, 58):  # TCP, UDP, ICMP, ICMPv6
         return None
@@ -164,13 +237,12 @@ def _l4_checksum(
     if not is_v6 and _is_ipv4_fragment(packet, ip_off):
         return None  # cannot recompute over partial L4 segment
     if is_v6:
+        if v6_l4_off is None or v6_l4_len is None:
+            return None
         src = bytes(packet[ip_off + 8 : ip_off + 24])
         dst = bytes(packet[ip_off + 24 : ip_off + 40])
-        l4_off = ip_off + 40
-        # IPv6 payload length covers everything past the fixed header,
-        # including extension headers.  We only handle the no-ext-header
-        # case (proto already validated above for TCP/UDP/ICMPv6).
-        payload_len = _u16(packet, ip_off + 4)
+        l4_off = v6_l4_off
+        payload_len = v6_l4_len
     else:
         src = bytes(packet[ip_off + 12 : ip_off + 16])
         dst = bytes(packet[ip_off + 16 : ip_off + 20])
@@ -291,6 +363,9 @@ def _rewrite_ip_layer(
     convert = unmap_address if reverse else map_address
     changed = 0
 
+    v6_l4_off: int | None = None
+    v6_l4_len: int | None = None
+
     if is_v6:
         src_b = bytes(packet[ip_off + 8 : ip_off + 24])
         dst_b = bytes(packet[ip_off + 24 : ip_off + 40])
@@ -305,7 +380,14 @@ def _rewrite_ip_layer(
             packet[ip_off + 24 : ip_off + 40] = ipaddress.IPv6Address(new_dst).packed
             changed += 1
         ihl_bytes = 40
-        proto = packet[ip_off + 6]
+        # Walk extension headers to find the actual L4 protocol; if
+        # we hit ESP/AH/Fragment-continuation, locator returns None
+        # and we'll skip the L4 cksum recompute below.
+        located = _ipv6_l4_locator(packet, ip_off)
+        if located is not None:
+            proto, v6_l4_off, v6_l4_len = located
+        else:
+            proto = packet[ip_off + 6]
     else:
         src_b = bytes(packet[ip_off + 12 : ip_off + 16])
         dst_b = bytes(packet[ip_off + 16 : ip_off + 20])
@@ -327,16 +409,30 @@ def _rewrite_ip_layer(
         if not is_v6:
             new_cksum = _ipv4_header_checksum(packet, ip_off, ihl_bytes)
             _set_u16(packet, ip_off + 10, new_cksum)
-        new_l4 = _l4_checksum(packet, ip_off, ihl_bytes, proto, is_v6)
+        new_l4 = _l4_checksum(
+            packet,
+            ip_off,
+            ihl_bytes,
+            proto,
+            is_v6,
+            v6_l4_off=v6_l4_off,
+            v6_l4_len=v6_l4_len,
+        )
         if new_l4 is not None:
+            # L4 checksum offsets within the L4 header:
+            #   TCP cksum at +16, UDP at +6, ICMPv4/ICMPv6 at +2.
+            if is_v6:
+                l4_base = v6_l4_off if v6_l4_off is not None else ip_off + ihl_bytes
+            else:
+                l4_base = ip_off + ihl_bytes
             if proto == 6:  # TCP
-                cksum_off = ip_off + ihl_bytes + 16 if is_v6 else ip_off + ihl_bytes + 16
+                cksum_off = l4_base + 16
             elif proto == 17:  # UDP
-                cksum_off = ip_off + ihl_bytes + 6
+                cksum_off = l4_base + 6
             elif proto == 1:  # ICMPv4
-                cksum_off = ip_off + ihl_bytes + 2
+                cksum_off = l4_base + 2
             elif proto == 58:  # ICMPv6
-                cksum_off = ip_off + ihl_bytes + 2
+                cksum_off = l4_base + 2
             else:
                 cksum_off = -1
             if cksum_off > 0:
@@ -534,6 +630,62 @@ def _packed_lookup_for(
     return v4, v6
 
 
+@dataclass(slots=True)
+class _PerPacketCounts:
+    addresses_rewritten: int = 0
+    rewrote_anything: bool = False
+    tlvs_total: int = 0
+    tlvs_rewritten: int = 0
+    tlvs_unknown: int = 0
+
+
+def _rewrite_one_packet(
+    packet: bytearray,
+    linktype: int,
+    rm: RedactionMap,
+    *,
+    reverse: bool,
+    unknown_policy: str,
+) -> _PerPacketCounts:
+    """Rewrite one packet in place; return counts.  Shared by libpcap + pcapng paths."""
+    counts = _PerPacketCounts()
+    ip_pos = _find_ip_offset(bytes(packet), linktype)
+    if ip_pos is None:
+        return counts
+
+    ip_off, is_v6 = ip_pos
+    ip_changed = _rewrite_ip_layer(packet, ip_off, is_v6, rm, reverse=reverse)
+
+    # F5 HSB trailer lives past `IP total_length` from ip_off.  Parse it
+    # as a TLV chain (legacy or DPT) and rewrite IPs at schema-known
+    # offsets.  L4 payload bytes are never scanned.
+    if is_v6:
+        payload_len = _u16(packet, ip_off + 4)
+        trailer_off = ip_off + 40 + payload_len
+    else:
+        total_len = _u16(packet, ip_off + 2)
+        trailer_off = ip_off + total_len
+
+    trailer_changed = 0
+    if 0 < trailer_off < len(packet):
+        (
+            trailer_changed,
+            counts.tlvs_total,
+            counts.tlvs_rewritten,
+            counts.tlvs_unknown,
+        ) = _rewrite_trailer(
+            packet,
+            trailer_off,
+            rm,
+            reverse=reverse,
+            unknown_policy=unknown_policy,
+        )
+
+    counts.addresses_rewritten = ip_changed + trailer_changed
+    counts.rewrote_anything = bool(ip_changed or trailer_changed)
+    return counts
+
+
 def remap_pcap(
     in_fh: BinaryIO,
     out_fh: BinaryIO,
@@ -542,7 +694,12 @@ def remap_pcap(
     reverse: bool = False,
     unknown_policy: str = "error",
 ) -> PcapRemapResult:
-    """Stream-rewrite a libpcap file from *in_fh* to *out_fh*.
+    """Stream-rewrite a libpcap *or* PCAPNG file from *in_fh* to *out_fh*.
+
+    File format is detected by the first 4 bytes of magic.  PCAPNG
+    captures (Wireshark's modern default) and classic libpcap (both
+    endianness variants, microsecond and nanosecond precision) are
+    both supported.
 
     *unknown_policy* controls behaviour when an F5 trailer TLV is
     structurally valid but its (type, version) has no registered IP
@@ -553,25 +710,37 @@ def remap_pcap(
     - ``"sweep"``    — fall back to byte-replacement of known IPs
       *within that single TLV's data section only*.
 
-    Both file handles must be binary-mode.  Returns a
-    :class:`PcapRemapResult` summarising packet and trailer counts.
+    Both file handles must be binary-mode.
     """
     if unknown_policy not in {"error", "preserve", "sweep"}:
         raise ValueError(f"unknown_policy must be error/preserve/sweep, got {unknown_policy!r}")
+
+    # Peek at the first 4 bytes to pick the format.
+    first4 = in_fh.read(4)
+    if len(first4) < 4:
+        raise ValueError("pcap: file too short")
+    in_fh.seek(0)
+
+    from . import pcapng as _pcapng
+
+    if _pcapng.is_pcapng_magic(first4):
+        return _remap_pcapng(in_fh, out_fh, rm, reverse=reverse, unknown_policy=unknown_policy)
+    return _remap_libpcap(in_fh, out_fh, rm, reverse=reverse, unknown_policy=unknown_policy)
+
+
+def _remap_libpcap(
+    in_fh: BinaryIO,
+    out_fh: BinaryIO,
+    rm: RedactionMap,
+    *,
+    reverse: bool,
+    unknown_policy: str,
+) -> PcapRemapResult:
+    """Classic libpcap rewriter (24-byte global header + 16-byte records)."""
     header = in_fh.read(24)
     if len(header) != 24:
         raise ValueError("pcap: file too short to contain a global header")
-    # Both classic-pcap magics (0xa1b2c3d4 and its byte-swapped twin
-    # 0xd4c3b2a1) appear in the table, so a single LE read covers both
-    # endianness cases.  PCAPNG starts with the Section Header Block
-    # type 0x0a0d0d0a — detect it specifically so the error message
-    # points at the right fix.
     magic = struct.unpack("<I", header[:4])[0]
-    if magic == 0x0A0D0D0A or magic == 0x0D0D0A0A:
-        raise ValueError(
-            "pcap: file appears to be PCAPNG, which is not supported by f5 pcap-remap. "
-            "Convert with `editcap -F pcap input.pcapng output.pcap` first."
-        )
     if magic not in _PCAP_MAGICS:
         raise ValueError(f"pcap: unrecognised magic 0x{magic:08x}")
     endian, _ns = _PCAP_MAGICS[magic]
@@ -593,51 +762,93 @@ def remap_pcap(
             break
         if len(rec_hdr) != 16:
             raise ValueError("pcap: truncated record header")
-        _ts_sec, _ts_usec, incl_len, orig_len = struct.unpack(rec_fmt, rec_hdr)
+        _ts_sec, _ts_usec, incl_len, _orig_len = struct.unpack(rec_fmt, rec_hdr)
         body = in_fh.read(incl_len)
         if len(body) != incl_len:
             raise ValueError(f"pcap: truncated packet body ({len(body)}/{incl_len})")
         total += 1
 
         packet = bytearray(body)
-        ip_pos = _find_ip_offset(bytes(packet), linktype)
-        ip_changed = 0
-        trailer_changed = 0
-        if ip_pos is not None:
-            ip_off, is_v6 = ip_pos
-            ip_changed = _rewrite_ip_layer(packet, ip_off, is_v6, rm, reverse=reverse)
-            # F5 HSB trailer lives past `IP total_length` from ip_off.
-            # We parse it as a TLV chain (legacy or DPT) and rewrite
-            # IPs at schema-known offsets.  L4 payload is never touched.
-            if is_v6:
-                payload_len = _u16(packet, ip_off + 4)
-                trailer_off = ip_off + 40 + payload_len
-            else:
-                total_len = _u16(packet, ip_off + 2)
-                trailer_off = ip_off + total_len
-            if 0 < trailer_off < len(packet):
-                (
-                    trailer_changed,
-                    pkt_tlvs,
-                    pkt_tlvs_rew,
-                    pkt_tlvs_unk,
-                ) = _rewrite_trailer(
-                    packet,
-                    trailer_off,
-                    rm,
-                    reverse=reverse,
-                    unknown_policy=unknown_policy,
-                )
-                tlvs_total += pkt_tlvs
-                tlvs_rewritten += pkt_tlvs_rew
-                tlvs_unknown += pkt_tlvs_unk
-        if ip_changed or trailer_changed:
+        counts = _rewrite_one_packet(
+            packet, linktype, rm, reverse=reverse, unknown_policy=unknown_policy
+        )
+        if counts.rewrote_anything:
             rewritten_packets += 1
-        rewritten_addrs += ip_changed + trailer_changed
+        rewritten_addrs += counts.addresses_rewritten
+        tlvs_total += counts.tlvs_total
+        tlvs_rewritten += counts.tlvs_rewritten
+        tlvs_unknown += counts.tlvs_unknown
 
-        # incl_len doesn't change because all rewrites are length-preserving.
         out_fh.write(rec_hdr)
         out_fh.write(bytes(packet))
+
+    return PcapRemapResult(
+        packets_total=total,
+        packets_rewritten=rewritten_packets,
+        addresses_rewritten=rewritten_addrs,
+        trailer_tlvs_total=tlvs_total,
+        trailer_tlvs_rewritten=tlvs_rewritten,
+        trailer_tlvs_unknown=tlvs_unknown,
+    )
+
+
+def _remap_pcapng(
+    in_fh: BinaryIO,
+    out_fh: BinaryIO,
+    rm: RedactionMap,
+    *,
+    reverse: bool,
+    unknown_policy: str,
+) -> PcapRemapResult:
+    """PCAPNG rewriter.
+
+    Walks the block stream, mutates EPB packet data via the shared
+    per-packet rewriter, and writes every block (including SHB / IDB /
+    NRB / etc.) back byte-for-byte except the EPBs we touched.  Each
+    EPB carries an interface_id pointing at an IDB; we track per-IDB
+    link-layer types within the current section so we know how to walk
+    each packet to its IP layer.
+    """
+    from . import pcapng as _pcapng
+
+    total = 0
+    rewritten_packets = 0
+    rewritten_addrs = 0
+    tlvs_total = 0
+    tlvs_rewritten = 0
+    tlvs_unknown = 0
+
+    # Per-section state: list of linktypes indexed by IDB declaration order.
+    interface_linktypes: list[int] = []
+
+    for block in _pcapng.read_blocks(in_fh):
+        if block.block_type == _pcapng.BLOCK_TYPE_SHB:
+            interface_linktypes = []
+        elif block.block_type == _pcapng.BLOCK_TYPE_IDB:
+            interface_linktypes.append(block.linktype or 0)
+        elif block.block_type == _pcapng.BLOCK_TYPE_EPB and block.packet_data is not None:
+            total += 1
+            iface_idx = block.interface_id or 0
+            if iface_idx < len(interface_linktypes):
+                linktype = interface_linktypes[iface_idx]
+            else:
+                # Malformed EPB pointing at an undeclared interface — skip.
+                _pcapng.write_block(out_fh, block)
+                continue
+
+            packet = bytearray(block.packet_data)
+            counts = _rewrite_one_packet(
+                packet, linktype, rm, reverse=reverse, unknown_policy=unknown_policy
+            )
+            if counts.rewrote_anything:
+                rewritten_packets += 1
+            rewritten_addrs += counts.addresses_rewritten
+            tlvs_total += counts.tlvs_total
+            tlvs_rewritten += counts.tlvs_rewritten
+            tlvs_unknown += counts.tlvs_unknown
+            block.packet_data = bytes(packet)
+
+        _pcapng.write_block(out_fh, block)
 
     return PcapRemapResult(
         packets_total=total,
