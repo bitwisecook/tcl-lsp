@@ -429,7 +429,16 @@ def _l4_payload(packet: bytes, ip_off: int, is_v6: bool, proto: int) -> bytes:
     return bytes(packet[start:end])
 
 
-_HTTP_METHODS = (b"GET ", b"POST ", b"PUT ", b"DELETE ", b"HEAD ", b"OPTIONS ", b"PATCH ", b"CONNECT ")
+_HTTP_METHODS = (
+    b"GET ",
+    b"POST ",
+    b"PUT ",
+    b"DELETE ",
+    b"HEAD ",
+    b"OPTIONS ",
+    b"PATCH ",
+    b"CONNECT ",
+)
 _HTTP_RESPONSE_PREFIX = b"HTTP/"
 
 
@@ -442,7 +451,9 @@ def _peek_http(payload: bytes) -> tuple[str, str, str, bool]:
     for method in _HTTP_METHODS:
         if payload.startswith(method):
             try:
-                head, _ = payload.split(b"\r\n\r\n", 1) if b"\r\n\r\n" in payload else (payload, b"")
+                head, _ = (
+                    payload.split(b"\r\n\r\n", 1) if b"\r\n\r\n" in payload else (payload, b"")
+                )
                 first_line, _, rest = head.partition(b"\r\n")
                 parts = first_line.split(b" ")
                 m = parts[0].decode("ascii", errors="replace")
@@ -506,7 +517,9 @@ def _peek_tls_clienthello(payload: bytes) -> tuple[bool, str, str]:
                     name_type = payload[cur + 2]
                     name_len = (payload[cur + 3] << 8) | payload[cur + 4]
                     if name_type == 0 and cur + 5 + name_len <= cur + ext_len:
-                        sni = payload[cur + 5 : cur + 5 + name_len].decode("ascii", errors="replace")
+                        sni = payload[cur + 5 : cur + 5 + name_len].decode(
+                            "ascii", errors="replace"
+                        )
                         return True, version_text, sni
             cur += ext_len
         return True, version_text, ""
@@ -577,11 +590,7 @@ def _extract_peer_tuple_from_trailer(
             length = _s.unpack(">H", trailer_bytes[pos + 4 : pos + 6])[0]
             if length < DPT_TLV_HDR_LEN or pos + length > end:
                 break
-            if (
-                provider == DPT_PROVIDER_NOISE
-                and type_ == LEGACY_TYPE_HIGH
-                and pos + 47 <= end
-            ):
+            if provider == DPT_PROVIDER_NOISE and type_ == LEGACY_TYPE_HIGH and pos + 47 <= end:
                 r_addr = trailer_bytes[pos + 11 : pos + 27]
                 l_addr = trailer_bytes[pos + 27 : pos + 43]
                 r_port = (trailer_bytes[pos + 43] << 8) | trailer_bytes[pos + 44]
@@ -671,13 +680,16 @@ def extract_flows(pcap_path: Path) -> dict[tuple[str, int, str, int, int], Flow]
         else:
             total_len = (packet[ip_off + 2] << 8) | packet[ip_off + 3]
             trailer_off = ip_off + total_len
-        trailer_bytes = (
-            bytes(packet[trailer_off:]) if 0 < trailer_off < len(packet) else b""
-        )
+        trailer_bytes = bytes(packet[trailer_off:]) if 0 < trailer_off < len(packet) else b""
         if trailer_bytes and not flow.peer_remote_ip:
             peer = _extract_peer_tuple_from_trailer(trailer_bytes)
             if peer is not None:
-                flow.peer_remote_ip, flow.peer_remote_port, flow.peer_local_ip, flow.peer_local_port = peer
+                (
+                    flow.peer_remote_ip,
+                    flow.peer_remote_port,
+                    flow.peer_local_ip,
+                    flow.peer_local_port,
+                ) = peer
 
         if proto == 6:
             if tcp_flags & 0x02:  # SYN
@@ -846,9 +858,7 @@ _TLS_VERSION_NAMES = {
 }
 
 
-def enrich_with_tshark(
-    flows: dict, pcap_path: Path, *, keylog_path: str = ""
-) -> bool:
+def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -> bool:
     """Run tshark and overlay decoded L7 fields onto *flows*.
 
     Returns True if tshark ran successfully.  Silently returns False if
@@ -878,9 +888,7 @@ def enrich_with_tshark(
     for f in _TSHARK_FIELDS:
         cmd += ["-e", f]
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=60, check=False
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     if result.returncode != 0:
@@ -1076,11 +1084,12 @@ def _expected_event_sequence(
     saw_tls = client.tls_clienthello or has_client_ssl
     saw_http_req = client.http_request_seen or (has_http and client.proto == 6)
     saw_http_resp = (
-        (server is not None and (server.http_response_seen or server.http_response_code))
-        or client.http_response_seen
-    )
-    saw_close = client.tcp_fin or client.tcp_rst or (
-        server is not None and (server.tcp_fin or server.tcp_rst)
+        server is not None and (server.http_response_seen or server.http_response_code)
+    ) or client.http_response_seen
+    saw_close = (
+        client.tcp_fin
+        or client.tcp_rst
+        or (server is not None and (server.tcp_fin or server.tcp_rst))
     )
 
     candidate: list[str] = ["RULE_INIT", "CLIENT_ACCEPTED"]
@@ -1104,14 +1113,24 @@ def _expected_event_sequence(
 
 
 def _ltm_policies_for(cfg: BigipConfig, vs: BigipVirtualServer) -> list[str]:
-    """Return ``ltm policy`` paths whose body references the VS, or attached."""
+    """Return ``ltm policy`` paths attached to *vs* via its ``policies { … }`` block.
+
+    Listed in attach order; resolved against the parsed generic_objects
+    so the operator sees the canonical full path even when the VS
+    referenced a short name.  Policies that don't appear in
+    ``vs.policies`` are not returned — listing every policy in the
+    config would mislead per-session troubleshooting.
+    """
+    if not vs.policies:
+        return []
     out: list[str] = []
-    for key, obj in cfg.generic_objects.items():
-        if obj.module != "ltm" or obj.object_type != "policy":
-            continue
-        # Best-effort: include the policy if its identifier appears in vs.profiles
-        # or vs name appears in the policy's header (we don't keep policy bodies).
-        out.append(obj.identifier or key)
+    for ref in vs.policies:
+        resolved = cfg.resolve_generic_object(ref, module="ltm", object_types=("policy",))
+        if resolved is not None:
+            obj = cfg.generic_objects[resolved]
+            out.append(obj.identifier or resolved)
+        else:
+            out.append(f"{ref} (unresolved)")
     return out
 
 
@@ -1121,7 +1140,11 @@ def _gtm_wide_ips_for(cfg: BigipConfig, vs: BigipVirtualServer) -> list[str]:
     for key, obj in cfg.generic_objects.items():
         if obj.module != "gtm":
             continue
-        if obj.object_type.startswith("wideip") or obj.object_type == "wideip-a" or "wideip" in obj.object_type:
+        if (
+            obj.object_type.startswith("wideip")
+            or obj.object_type == "wideip-a"
+            or "wideip" in obj.object_type
+        ):
             out.append(obj.identifier or key)
     return out
 
@@ -1133,7 +1156,9 @@ def _apm_profile_for(cfg: BigipConfig, vs: BigipVirtualServer) -> str:
             return resolved
         # generic apm profile
         for key, obj in cfg.generic_objects.items():
-            if obj.module == "apm" and (resolved == obj.identifier or resolved.endswith(obj.identifier)):
+            if obj.module == "apm" and (
+                resolved == obj.identifier or resolved.endswith(obj.identifier)
+            ):
                 return resolved
     return ""
 
@@ -1242,9 +1267,7 @@ def compute_explain_pcap(
             vs_path = _match_virtual(cfg, front.client.dst_ip, front.client.dst_port)
             if vs_path is None and front.server is not None:
                 # Capture might only have the response side of the front.
-                vs_path = _match_virtual(
-                    cfg, front.server.src_ip, front.server.src_port
-                )
+                vs_path = _match_virtual(cfg, front.server.src_ip, front.server.src_port)
             if vs_path is not None:
                 cfg_hit = cfg
                 break
@@ -1276,9 +1299,7 @@ def compute_explain_pcap(
             if rule is None:
                 continue
             blocks = _extract_event_blocks(rule.source)
-            ordered_events = _expected_event_sequence(
-                cfg_hit, vs, front, set(blocks.keys())
-            )
+            ordered_events = _expected_event_sequence(cfg_hit, vs, front, set(blocks.keys()))
             for ev in ordered_events:
                 sequence.append(f"{resolved_rule}::{ev}")
                 if show_event_bodies:
@@ -1462,9 +1483,7 @@ def report_to_dict(report: ExplainPcapReport) -> dict:
                 "pool_selected": se.pool_selected,
                 "snat_observed": se.snat_observed,
                 "event_sequence": list(se.event_sequence),
-                "event_blocks": [
-                    {"rule": r, "event": e, "body": b} for r, e, b in se.event_blocks
-                ],
+                "event_blocks": [{"rule": r, "event": e, "body": b} for r, e, b in se.event_blocks],
                 "ltm_policies": list(se.ltm_policies),
                 "apm_profile": se.apm_profile,
                 "gtm_wide_ips": list(se.gtm_wide_ips),

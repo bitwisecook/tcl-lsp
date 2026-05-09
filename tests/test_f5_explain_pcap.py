@@ -73,7 +73,9 @@ def _build_packet(
     return eth + bytes(ip) + tcp + trailer
 
 
-def _legacy_high_trailer(remote_v4: bytes, local_v4: bytes, remote_port: int, local_port: int) -> bytes:
+def _legacy_high_trailer(
+    remote_v4: bytes, local_v4: bytes, remote_port: int, local_port: int
+) -> bytes:
     """Build a legacy F5 HIGH v0 trailer carrying a peer 5-tuple."""
     ipv4_mapped_remote = bytes(10) + b"\xff\xff" + remote_v4
     ipv4_mapped_local = bytes(10) + b"\xff\xff" + local_v4
@@ -267,9 +269,7 @@ def test_explain_pcap_cli_json(tmp_path, capsys):
 
 def test_extract_peer_tuple_from_trailer_legacy():
     """Legacy HIGH v0 trailer yields a peer 5-tuple."""
-    trailer = _legacy_high_trailer(
-        b"\x09\x09\x09\x09", b"\x0a\x0a\x0a\x0a", 12345, 8080
-    )
+    trailer = _legacy_high_trailer(b"\x09\x09\x09\x09", b"\x0a\x0a\x0a\x0a", 12345, 8080)
     peer = _extract_peer_tuple_from_trailer(trailer)
     assert peer == ("9.9.9.9", 12345, "10.10.10.10", 8080)
 
@@ -294,13 +294,9 @@ def test_pair_sessions_links_front_and_back_via_trailer(tmp_path):
     # Front side: client 1.2.3.4:11111 -> VIP 5.6.7.8:443.  Trailer
     # carries the proxied peer-side 5-tuple: TMM 10.0.0.5:22222
     # talking to pool member 10.0.0.10:8080.
-    front_trailer = _legacy_high_trailer(
-        b"\x0a\x00\x00\x0a", b"\x0a\x00\x00\x05", 8080, 22222
-    )
+    front_trailer = _legacy_high_trailer(b"\x0a\x00\x00\x0a", b"\x0a\x00\x00\x05", 8080, 22222)
     # Back side trailer points at the front peer.
-    back_trailer = _legacy_high_trailer(
-        b"\x01\x02\x03\x04", b"\x05\x06\x07\x08", 11111, 443
-    )
+    back_trailer = _legacy_high_trailer(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08", 11111, 443)
     pcap = _build_pcap(
         [
             _build_packet(
@@ -349,6 +345,7 @@ def test_pair_sessions_links_front_and_back_via_trailer(tmp_path):
     sess = paired[0]
     assert sess.front.client.dst_ip == "5.6.7.8"
     assert sess.front.client.dst_port == 443
+    assert sess.back is not None
     assert sess.back.client.dst_ip == "10.0.0.10"
     assert sess.back.client.dst_port == 8080
 
@@ -371,12 +368,8 @@ when CLIENT_ACCEPTED { log local0. "ok" }
 def test_explain_pcap_session_includes_pool_and_snat(tmp_path):
     """`:np` capture should surface the chosen pool member and SNAT IP."""
     cfg = parse_bigip_conf(_CONF_NP)
-    front_trailer = _legacy_high_trailer(
-        b"\x0a\x00\x00\x0a", b"\x0a\x00\x00\x05", 8080, 22222
-    )
-    back_trailer = _legacy_high_trailer(
-        b"\x01\x02\x03\x04", b"\x05\x06\x07\x08", 11111, 443
-    )
+    front_trailer = _legacy_high_trailer(b"\x0a\x00\x00\x0a", b"\x0a\x00\x00\x05", 8080, 22222)
+    back_trailer = _legacy_high_trailer(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08", 11111, 443)
     pcap = _build_pcap(
         [
             _build_packet(
@@ -420,3 +413,36 @@ def test_reset_analysis_describes_termination(tmp_path):
     report = compute_explain_pcap(p, {"u://x": cfg})
     se = report.sessions[0]
     assert "RST" in se.reset_analysis
+
+
+_CONF_POLICIES = """\
+ltm virtual /Common/vs_with_policy {
+    destination /Common/5.6.7.8:443
+    pool /Common/pool_app
+    policies {
+        /Common/policy_attached { }
+    }
+}
+ltm pool /Common/pool_app {
+    members { /Common/10.0.0.1:8080 { } }
+}
+ltm policy /Common/policy_attached { }
+ltm policy /Common/policy_unrelated { }
+"""
+
+
+def test_ltm_policies_only_lists_attached(tmp_path):
+    """Only policies in the VS's `policies { }` block should appear."""
+    cfg = parse_bigip_conf(_CONF_POLICIES)
+    pcap = _build_pcap(
+        [_build_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08", 12345, 443, syn=True)]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+    report = compute_explain_pcap(p, {"u://x": cfg})
+    se = report.sessions[0]
+    assert se.matched_vs == "/Common/vs_with_policy"
+    # Only the attached policy is listed; the unrelated one is not.
+    policy_blob = " ".join(se.ltm_policies)
+    assert "policy_attached" in policy_blob
+    assert "policy_unrelated" not in policy_blob

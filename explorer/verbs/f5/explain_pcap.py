@@ -78,9 +78,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         help="Truncate each event body after N lines (default 40).",
     )
     p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
-    p.add_argument(
-        "-o", "--output", metavar="FILE", help="Write report here (default: stdout)."
-    )
+    p.add_argument("-o", "--output", metavar="FILE", help="Write report here (default: stdout).")
     p.set_defaults(handler=_run_explain_pcap)
 
 

@@ -693,12 +693,14 @@ def _tool_explain_pcap(
     if config_text:
         configs["inline://config"] = parse_bigip_conf(config_text)
     for p in config_paths or []:
-        path = Path(p)
-        configs[path.as_uri()] = parse_bigip_conf(path.read_text(encoding="utf-8", errors="replace"))
-    if not configs:
-        return json.dumps(
-            {"error": "explain_pcap requires either config_text or config_paths"}
+        path = Path(p).resolve()
+        if not path.is_file():
+            return json.dumps({"error": f"config path not found: {p}"})
+        configs[path.as_uri()] = parse_bigip_conf(
+            path.read_text(encoding="utf-8", errors="replace")
         )
+    if not configs:
+        return json.dumps({"error": "explain_pcap requires either config_text or config_paths"})
 
     report = compute_explain_pcap(
         Path(pcap_path),

@@ -502,6 +502,11 @@ def _parse_virtual(
     if persist_block:
         persist = _parse_list_block(persist_block)
 
+    policies: list[str] = []
+    policies_block = props.get("policies")
+    if policies_block:
+        policies = _parse_list_block(policies_block)
+
     source_addr_translation = ""
     sat_block = props.get("source-address-translation")
     if sat_block:
@@ -518,6 +523,7 @@ def _parse_virtual(
         rules=tuple(rules),
         profiles=tuple(profiles),
         persist=tuple(persist),
+        policies=tuple(policies),
         snatpool=snatpool,
         source_address_translation=source_addr_translation,
         pool_range=pool_range,
