@@ -403,7 +403,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         "212_line_continuation",
         "226_continue_runs_step",
         "228_catch_sets_error_msg",
-        "229_string_cat",
     }
 )
 
@@ -416,7 +415,6 @@ _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
         "145_uplevel_caller_local",
         "212_line_continuation",
         "228_catch_sets_error_msg",
-        "229_string_cat",
     }
 )
 

@@ -411,7 +411,7 @@ class _CmdSubstMixin:
             else:
                 self._push_lit(var_name)
                 self._emit(Op.EXIST_STK)
-        elif cmd == "string" and len(args) >= 2:
+        elif cmd == "string" and args:
             subcmd = args[0][0]
             sargs = args[1:]  # string subcommand args
             _prev_inline = self._used_inline_cmd_subst
@@ -518,6 +518,43 @@ class _CmdSubstMixin:
                     self._emit_cmd_subst_arg(sargs[2])
                     self._emit_cmd_subst_arg(sargs[3])
                     self._emit(Op.STR_REPLACE)
+            elif subcmd == "cat":
+                # ``[string cat]`` concatenates its arguments with no
+                # separator.  Zero args fold to ``""``; the all-
+                # constant case folds to a single literal.  Otherwise
+                # pre-merge consecutive literal args (tclsh's compiler
+                # does the same: ``[string cat \$x - world]`` becomes
+                # ``\$x; loadStk; "- world"; strcat 2``) before
+                # emitting the runtime push/strcat sequence.
+                self._used_inline_cmd_subst = True
+                if not sargs:
+                    self._push_lit("")
+                elif all(
+                    "$" not in a and "[" not in a for a, _b in sargs
+                ):
+                    folded = "".join(a for a, _b in sargs)
+                    self._push_lit(folded)
+                else:
+                    # Group runs of all-constant args into a single
+                    # literal segment.  Each segment becomes one push.
+                    groups: list[tuple[bool, list[tuple[str, bool]]]] = []
+                    for a, b in sargs:
+                        is_const = "$" not in a and "[" not in a
+                        if groups and groups[-1][0] == is_const:
+                            groups[-1][1].append((a, b))
+                        else:
+                            groups.append((is_const, [(a, b)]))
+                    for is_const, items in groups:
+                        if is_const:
+                            self._push_lit("".join(a for a, _ in items))
+                        else:
+                            for a in items:
+                                self._emit_cmd_subst_arg(a)
+                    n_segments = sum(
+                        1 if is_const else len(items) for is_const, items in groups
+                    )
+                    if n_segments > 1:
+                        self._emit(Op.STR_CONCAT1, n_segments)
             elif subcmd == "length" and len(sargs) == 1:
                 self._emit_cmd_subst_arg(sargs[0])
                 self._emit(Op.STR_LEN)
