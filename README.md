@@ -738,29 +738,76 @@ f5 cleanup --json bigip.conf > report.json
 ```
 
 `f5` is a separate CLI from `tcl` and `irule`; today it ships two
-verbs (`cleanup`, `completion`) and is invocable as
-`python -m explorer.f5_cli cleanup …` in dev (the zipapp build wires
-up the bare `f5` console-script).
+verbs (`cleanup`, `completion`).
+
+**Install the `f5` CLI** — the released artefact is a single-file
+zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
+Download it from the
+[GitHub Releases page](https://github.com/bitwisecook/tcl-lsp/releases)
+and put it on `PATH`:
+
+```sh
+# Per-user install on ~/.local/bin (no sudo).
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/f5 \
+  https://github.com/bitwisecook/tcl-lsp/releases/latest/download/f5-<version>.pyz
+chmod +x ~/.local/bin/f5
+
+# Confirm: should print "f5 <verb> [options] [inputs...]"
+f5 --help
+```
+
+The downloaded `.pyz` is self-contained — no `pip install`, no
+virtualenv.  If you'd rather not rely on the embedded shebang, invoke
+it explicitly: `python3 ~/.local/bin/f5 cleanup …`.
+
+For a system-wide install, drop the same file into `/usr/local/bin/f5`
+and `chmod 755` it.
+
+**From source (development)** — clone the repo and use
+`python -m explorer.f5_cli` directly, or build a fresh zipapp with
+`make zipapp-f5` (output lands in `build/f5-<version>.pyz`):
+
+```sh
+git clone https://github.com/bitwisecook/tcl-lsp
+cd tcl-lsp
+uv sync --extra dev
+python -m explorer.f5_cli cleanup samples/bigip/bigip.conf
+# or:
+make zipapp-f5 && ./build/f5-*.pyz cleanup samples/bigip/bigip.conf
+```
 
 **Shell completion** — the `f5 completion <shell>` verb prints a
 ready-to-install completion script for **bash**, **fish**, or **zsh**.
 The script is bundled inside the zipapp, so it's the same with the
-local source build or the released `.pyz`:
+local source build or the released `.pyz`.  Run the snippet for your
+shell **after** `f5` is on `PATH`:
 
-```
-# bash
+```sh
+# bash (per-user)
 mkdir -p ~/.local/share/bash-completion/completions
 f5 completion bash > ~/.local/share/bash-completion/completions/f5
+# Or eagerly source from ~/.bashrc:
+#   source <(f5 completion bash)
 
 # fish
 mkdir -p ~/.config/fish/completions
 f5 completion fish > ~/.config/fish/completions/f5.fish
+# Then start a new fish session.
 
-# zsh
+# zsh (per-user)
 mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
 f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
-# then add to ~/.zshrc, before `compinit`:
+# Then add to ~/.zshrc, before `compinit`:
 #   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
+#   autoload -Uz compinit && compinit
+```
+
+For a system-wide zsh install on hosts whose `$fpath` already covers
+it, write straight to `site-functions`:
+
+```sh
+sudo sh -c 'f5 completion zsh > /usr/share/zsh/site-functions/_f5'
 ```
 
 Pass `--hint` to print the install instructions for the chosen shell
