@@ -23,6 +23,7 @@ use tcl_lsp_core::completion::{
     self as core_completion, CompletionItem as CoreCompletionItem,
     CompletionKind as CoreCompletionKind,
 };
+use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
@@ -35,15 +36,21 @@ use tcl_registry::CommandRegistry;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
+    request::{
+        GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
+        GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
+    },
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange,
-    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability, Hover, HoverContents,
-    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
-    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
-    Range, ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions,
-    SignatureHelpParams, SignatureInformation, SymbolKind, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url, WorkDoneProgressOptions,
+    DeclarationCapability, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
+    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
+    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, Location, MarkupContent, MarkupKind,
+    MessageType, OneOf, ParameterInformation, ParameterLabel, Position, Range, ServerCapabilities,
+    ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams, SignatureInformation,
+    SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability,
+    Url, WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -114,6 +121,30 @@ impl Backend {
         self.documents.lock().await.get(url).cloned()
     }
 
+    /// Shared helper for the goto-definition family — runs the
+    /// pure-CPU `tcl_lsp_core::definition::definition` provider
+    /// off the LSP event loop and returns the matched ranges.
+    async fn compute_definition(
+        &self,
+        uri: &Url,
+        pos: Position,
+    ) -> jsonrpc::Result<Vec<CoreLspRange>> {
+        let Some(doc) = self.read_document(uri).await else {
+            return Ok(Vec::new());
+        };
+        tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_definition::definition(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("definition worker panicked: {err}").into(),
+            data: None,
+        })
+    }
+
     /// Return an `Arc<CommandRegistry>` with `dialect` loaded on
     /// top of the default Tcl + stdlib + tcllib specs.
     ///
@@ -176,6 +207,10 @@ impl LanguageServer for Backend {
                     retrigger_characters: None,
                     work_done_progress_options: WorkDoneProgressOptions::default(),
                 }),
+                definition_provider: Some(OneOf::Left(true)),
+                declaration_provider: Some(DeclarationCapability::Simple(true)),
+                type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+                implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -278,6 +313,102 @@ impl LanguageServer for Backend {
         Ok(Some(CompletionResponse::Array(lifted)))
     }
 
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let ranges = self.compute_definition(&uri, pos).await?;
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        Ok(Some(GotoDefinitionResponse::Array(locations)))
+    }
+
+    async fn goto_declaration(
+        &self,
+        params: GotoDeclarationParams,
+    ) -> jsonrpc::Result<Option<GotoDeclarationResponse>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let ranges = self.compute_definition(&uri, pos).await?;
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        Ok(Some(GotoDeclarationResponse::Array(locations)))
+    }
+
+    async fn goto_type_definition(
+        &self,
+        params: GotoTypeDefinitionParams,
+    ) -> jsonrpc::Result<Option<GotoTypeDefinitionResponse>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let ranges = self.compute_definition(&uri, pos).await?;
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        Ok(Some(GotoTypeDefinitionResponse::Array(locations)))
+    }
+
+    async fn goto_implementation(
+        &self,
+        params: GotoImplementationParams,
+    ) -> jsonrpc::Result<Option<GotoImplementationResponse>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let ranges = self.compute_definition(&uri, pos).await?;
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        Ok(Some(GotoImplementationResponse::Array(locations)))
+    }
+
     async fn signature_help(
         &self,
         params: SignatureHelpParams,
@@ -347,6 +478,19 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
         ..CompletionItem::default()
+    }
+}
+
+fn lift_lsp_range(r: CoreLspRange) -> Range {
+    Range {
+        start: Position {
+            line: r.start_line,
+            character: r.start_character,
+        },
+        end: Position {
+            line: r.end_line,
+            character: r.end_character,
+        },
     }
 }
 
