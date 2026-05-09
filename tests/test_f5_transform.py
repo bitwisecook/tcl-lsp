@@ -265,6 +265,81 @@ def test_redact_keeps_private_ips_unchanged():
     assert report.ips_remapped == 0
 
 
+def test_redact_remap_private_does_remap_rfc1918():
+    """With --remap-private, RFC1918 addresses are eligible too."""
+    body = "ltm node /Common/a { address 10.0.0.5 }\nltm node /Common/b { address 192.168.1.20 }\n"
+    report = redact_secrets(
+        body,
+        remap_ips=True,
+        remap_private=True,
+        target_pool_v4=("100.64.0.0/10",),  # carrier-grade NAT, definitely won't collide
+    )
+    # Both originals should be gone; both occurrences mapped.
+    assert "10.0.0.5" not in report.new_source
+    assert "192.168.1.20" not in report.new_source
+    assert report.ips_remapped == 2
+
+
+def test_redact_loopback_and_multicast_never_remapped():
+    """Loopback / link-local / multicast / unspecified always pass through."""
+    body = (
+        "ltm node /Common/lb { address 127.0.0.1 }\n"
+        "ltm node /Common/ll { address 169.254.10.20 }\n"
+        "ltm node /Common/mc { address 224.0.0.5 }\n"
+    )
+    report = redact_secrets(body, remap_ips=True, remap_private=True)
+    assert "127.0.0.1" in report.new_source
+    assert "169.254.10.20" in report.new_source
+    assert "224.0.0.5" in report.new_source
+    assert report.ips_remapped == 0
+
+
+def test_redact_no_overlap_between_source_and_target():
+    """Even when --remap-private picks RFC1918 sources AND the target
+    pool is also RFC1918, no source CIDR can be allocated as a target.
+    Otherwise an IP from the source range and the redacted form of an
+    address in another source range would be indistinguishable."""
+    import ipaddress
+
+    body = "ltm node /Common/a { address 10.0.0.5 }\nltm node /Common/b { address 8.8.8.8 }\n"
+    report = redact_secrets(
+        body,
+        remap_ips=True,
+        remap_private=True,
+        target_pool_v4=("10.0.0.0/8",),
+    )
+    rm = report.redaction_map
+    assert rm is not None
+    sources = {ipaddress.ip_network(a.source) for a in rm.cidr_assignments}
+    targets = {ipaddress.ip_network(a.target) for a in rm.cidr_assignments}
+    # No target CIDR may equal any source CIDR.
+    assert sources.isdisjoint(targets), (
+        f"target CIDRs must not overlap any source CIDR: sources={sources}, targets={targets}"
+    )
+    # And the rewritten addresses must each be unique across the whole
+    # forward map (no two reals map to the same fake).
+    assert len(rm.forward) == len(set(rm.forward.values()))
+
+
+def test_redact_target_pool_exhaustion_raises():
+    """If the target pool is fully covered by forbidden source CIDRs,
+    allocation must raise rather than silently produce a bad map."""
+    from core.bigip.redact_map import TargetCollisionError, build_map
+
+    # Source: 10.0.0.5 -> /24 of 10.0.0.0/24.
+    # Pool: 10.0.0.0/24 — exactly the source CIDR, nothing else available.
+    try:
+        build_map(
+            text="10.0.0.5 10.0.0.6",
+            target_pool_v4=("10.0.0.0/24",),
+            remap_private=True,
+        )
+    except TargetCollisionError as exc:
+        assert "v4" in str(exc)
+    else:
+        raise AssertionError("expected TargetCollisionError")
+
+
 # ── redact verb ──────────────────────────────────────────────────────
 
 

@@ -61,6 +61,18 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     p.add_argument(
+        "--remap-private",
+        action="store_true",
+        help=(
+            "Also remap RFC1918 / fc00::/7 (private) addresses.  By default "
+            "those are left alone.  Loopback / link-local / multicast / "
+            "unspecified are always preserved (they have protocol semantics).  "
+            "Source CIDRs are guaranteed not to overlap target CIDRs even "
+            "when both pools are RFC1918, so source 10.0.0.0/24 is never "
+            "allocated 10.0.0.0/24 as its target."
+        ),
+    )
+    p.add_argument(
         "--seed",
         default="",
         help="Seed for --shuffle (deterministic; recorded in the map file).",
@@ -134,6 +146,7 @@ def _run_redact(args: argparse.Namespace) -> int:
         seed=args.seed,
         explicit_source_cidrs=tuple(args.source_cidr),
         existing_map=existing_map,
+        remap_private=args.remap_private,
     )
 
     if args.output:

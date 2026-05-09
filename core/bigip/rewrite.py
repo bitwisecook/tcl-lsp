@@ -153,6 +153,7 @@ def redact_secrets(
     seed: str = "",
     explicit_source_cidrs: tuple[str, ...] = (),
     existing_map: "RedactionMap | None" = None,
+    remap_private: bool = False,
 ) -> RedactReport:
     """Redact secrets in *source*; optionally remap public IPs.
 
@@ -180,6 +181,7 @@ def redact_secrets(
             seed=seed,
             explicit_source_cidrs=explicit_source_cidrs,
             existing=existing_map,
+            remap_private=remap_private,
         )
         out, ips = apply_map(rm, out, reverse=False)
     else:

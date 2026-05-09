@@ -149,16 +149,60 @@ _IPNet = ipaddress.IPv4Network | ipaddress.IPv6Network
 _IPAddr = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
+def _should_skip(addr: _IPAddr, *, remap_private: bool) -> bool:
+    """True if *addr* should NOT be remapped.
+
+    Loopback / link-local / multicast / unspecified addresses always
+    have protocol semantics that survive an IP-by-IP rename, so we
+    leave them alone unconditionally.  Private (RFC1918 / fc00::/7)
+    addresses are skipped by default but get remapped when
+    *remap_private* is set — useful when an operator wants to scrub
+    internal subnets too before sharing.
+    """
+    if addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified:
+        return True
+    if not remap_private and addr.is_private:
+        return True
+    return False
+
+
+# Backwards-compatible alias.  `_is_already_private` was the only
+# external-ish predicate; keep it exported until the next major version
+# in case anything else imported it.
 def _is_already_private(addr: _IPAddr) -> bool:
-    return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast
+    return _should_skip(addr, remap_private=False)
 
 
 def _enclosing_cidr(addr: _IPAddr, prefix: int) -> _IPNet:
     return ipaddress.ip_network(f"{addr}/{prefix}", strict=False)
 
 
+class TargetCollisionError(RuntimeError):
+    """Raised when no non-overlapping target CIDR can be allocated."""
+
+
 class Allocator:
-    """Allocate target CIDRs out of one or more pools, deterministically."""
+    """Allocate target CIDRs out of one or more pools, deterministically.
+
+    The allocator guarantees:
+
+    1. Every issued target is fully contained in one of the configured
+       pools.
+    2. Issued targets never overlap each other (via greedy carving with
+       per-pool offset bookkeeping).
+    3. Issued targets never overlap any *forbidden* network — typically
+       the set of source CIDRs we'll be remapping FROM, plus targets
+       inherited from a prior :class:`RedactionMap`.  Without this
+       guarantee, ``--remap-private`` would happily allocate
+       ``10.0.0.0/24`` as a target while ``10.0.0.0/24`` was also a
+       source CIDR being remapped, leaving some addresses
+       indistinguishable from real ones.
+
+    Forbidden networks are checked against each candidate carve-out;
+    on overlap we skip past the conflicting region (rounded up to the
+    block-size alignment) and try again.  Pool exhaustion raises
+    :class:`TargetCollisionError`.
+    """
 
     def __init__(self, pools_v4: Sequence[str], pools_v6: Sequence[str]) -> None:
         self._pools_v4 = [ipaddress.IPv4Network(p) for p in pools_v4]
@@ -167,39 +211,104 @@ class Allocator:
         # space) at which to carve the next sub-CIDR.
         self._used_v4: dict[ipaddress.IPv4Network, int] = {p: 0 for p in self._pools_v4}
         self._used_v6: dict[ipaddress.IPv6Network, int] = {p: 0 for p in self._pools_v6}
+        # Forbidden ranges: candidate carves overlapping these must be
+        # skipped.  Stored as half-open [low, high) integer ranges per
+        # version for cheap interval lookup.
+        self._forbidden_v4: list[tuple[int, int]] = []
+        self._forbidden_v6: list[tuple[int, int]] = []
+
+    def forbid(self, network: _IPNet) -> None:
+        """Mark *network* as off-limits for future allocations."""
+        low = int(network.network_address)
+        high = low + network.num_addresses
+        if isinstance(network, ipaddress.IPv4Network):
+            self._forbidden_v4.append((low, high))
+            self._forbidden_v4.sort()
+        else:
+            self._forbidden_v6.append((low, high))
+            self._forbidden_v6.sort()
 
     def allocate(self, prefix: int, version: int) -> _IPNet:
         if version == 4:
             return self._allocate_v4(prefix)
         return self._allocate_v6(prefix)
 
+    def _next_safe_offset(
+        self,
+        pool_base: int,
+        offset: int,
+        block_size: int,
+        forbidden: list[tuple[int, int]],
+        pool_capacity: int,
+    ) -> int | None:
+        """Return the smallest ``offset`` >= the input that yields a
+        ``[base+offset, base+offset+block_size)`` range disjoint from
+        every forbidden interval and still inside the pool, or ``None``
+        if no such offset exists.
+        """
+        while offset + block_size <= pool_capacity:
+            low = pool_base + offset
+            high = low + block_size
+            collided = False
+            for forb_low, forb_high in forbidden:
+                if forb_low >= high:
+                    break  # forbidden list is sorted; no further overlaps
+                if forb_high <= low:
+                    continue
+                # Overlap — bump offset to past forbidden range, aligned
+                # to block_size.
+                new_low = ((forb_high - pool_base + block_size - 1) // block_size) * block_size
+                if new_low <= offset:
+                    new_low = offset + block_size
+                offset = new_low
+                collided = True
+                break
+            if not collided:
+                return offset
+        return None
+
     def _allocate_v4(self, prefix: int) -> ipaddress.IPv4Network:
         for pool in self._pools_v4:
             if prefix < pool.prefixlen:
                 continue
-            offset = self._used_v4[pool]
             block_size = 1 << (pool.max_prefixlen - prefix)
-            if offset + block_size > pool.num_addresses:
+            base = int(pool.network_address)
+            safe = self._next_safe_offset(
+                base,
+                self._used_v4[pool],
+                block_size,
+                self._forbidden_v4,
+                pool.num_addresses,
+            )
+            if safe is None:
                 continue
-            net_int = int(pool.network_address) + offset
-            target = ipaddress.IPv4Network((net_int, prefix), strict=False)
-            self._used_v4[pool] = offset + block_size
+            target = ipaddress.IPv4Network((base + safe, prefix), strict=False)
+            self._used_v4[pool] = safe + block_size
             return target
-        raise RuntimeError(f"target pool exhausted for v4 /{prefix}")
+        raise TargetCollisionError(
+            f"no non-overlapping target available for v4 /{prefix} "
+            f"(every pool exhausted or fully covered by forbidden ranges)"
+        )
 
     def _allocate_v6(self, prefix: int) -> ipaddress.IPv6Network:
         for pool in self._pools_v6:
             if prefix < pool.prefixlen:
                 continue
-            offset = self._used_v6[pool]
             block_size = 1 << (pool.max_prefixlen - prefix)
-            if offset + block_size > pool.num_addresses:
+            base = int(pool.network_address)
+            safe = self._next_safe_offset(
+                base,
+                self._used_v6[pool],
+                block_size,
+                self._forbidden_v6,
+                pool.num_addresses,
+            )
+            if safe is None:
                 continue
-            net_int = int(pool.network_address) + offset
-            target = ipaddress.IPv6Network((net_int, prefix), strict=False)
-            self._used_v6[pool] = offset + block_size
+            target = ipaddress.IPv6Network((base + safe, prefix), strict=False)
+            self._used_v6[pool] = safe + block_size
             return target
-        raise RuntimeError(f"target pool exhausted for v6 /{prefix}")
+        raise TargetCollisionError(f"no non-overlapping target available for v6 /{prefix}")
 
     def consume(self, target: _IPNet) -> None:
         """Mark *target* as already-issued so future allocations skip past it.
@@ -305,14 +414,21 @@ def _normalise_ipv6_token(token: str) -> ipaddress.IPv6Address | None:
         return None
 
 
-def collect_addresses(text: str) -> tuple[list[ipaddress.IPv4Address], list[ipaddress.IPv6Address]]:
-    """Find every IPv4 and IPv6 literal in *text* in order of first appearance."""
+def collect_addresses(
+    text: str, *, remap_private: bool = False
+) -> tuple[list[ipaddress.IPv4Address], list[ipaddress.IPv6Address]]:
+    """Find every IPv4 and IPv6 literal in *text* in order of first appearance.
+
+    When *remap_private* is true, RFC1918 / fc00::/7 addresses are
+    included; loopback / link-local / multicast / unspecified are
+    always skipped (they have protocol semantics).
+    """
     seen_v4: dict[ipaddress.IPv4Address, None] = {}
     for token in _IPV4_RE.findall(text):
         addr = _normalise_ipv4_token(token)
         if addr is None:
             continue
-        if _is_already_private(addr):
+        if _should_skip(addr, remap_private=remap_private):
             continue
         seen_v4.setdefault(addr, None)
     seen_v6: dict[ipaddress.IPv6Address, None] = {}
@@ -320,7 +436,7 @@ def collect_addresses(text: str) -> tuple[list[ipaddress.IPv4Address], list[ipad
         addr = _normalise_ipv6_token(token)
         if addr is None:
             continue
-        if _is_already_private(addr):
+        if _should_skip(addr, remap_private=remap_private):
             continue
         seen_v6.setdefault(addr, None)
     return list(seen_v4), list(seen_v6)
@@ -337,6 +453,7 @@ def build_map(
     source_cidr_v6_prefix: int = 64,
     explicit_source_cidrs: Iterable[str] = (),
     existing: RedactionMap | None = None,
+    remap_private: bool = False,
 ) -> RedactionMap:
     """Build (or extend) a :class:`RedactionMap` covering every public IP in *text*.
 
@@ -409,7 +526,19 @@ def build_map(
         )
         return _enclosing_cidr(addr, prefix)
 
-    addresses_v4, addresses_v6 = collect_addresses(text)
+    addresses_v4, addresses_v6 = collect_addresses(text, remap_private=remap_private)
+
+    # Pre-scan: every source CIDR we'll need is forbidden as a target.
+    # This is what guarantees we never allocate, say, 10.0.0.0/24 as a
+    # target while 10.0.0.0/24 is also a source we'll be remapping.
+    # Both new and existing-map source CIDRs are forbidden.
+    for addr in [*addresses_v4, *addresses_v6]:
+        allocator.forbid(_source_cidr_for(addr))
+    for assignment in rm.cidr_assignments:
+        allocator.forbid(ipaddress.ip_network(assignment.source, strict=False))
+    for net in explicit:
+        allocator.forbid(net)
+
     for addr in [*addresses_v4, *addresses_v6]:
         source_net = _source_cidr_for(addr)
         if source_net not in cidr_for:
