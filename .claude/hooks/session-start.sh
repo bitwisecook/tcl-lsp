@@ -355,6 +355,23 @@ install_tcllib() {
 }
 
 # ---------------------------------------------------------------------------
+# 5c. Tcl regex engine sources — vendored at runtime/zig/vendor/tcl-regex/.
+#     The WASM runtime build expects these files to be present (they're
+#     compiled into the runtime); fetching once here keeps ``zig build``
+#     hermetic and avoids the xdist race we'd otherwise hit if four
+#     parallel worker processes each tried to fetch into the same dir.
+# ---------------------------------------------------------------------------
+install_tcl_regex() {
+    local fetcher="${REPO_ROOT}/scripts/fetch_tcl_regex.sh"
+    if [ ! -f "$fetcher" ]; then
+        echo "session-start: fetch_tcl_regex.sh missing at $fetcher" >&2
+        return 1
+    fi
+    echo "session-start: ensuring Tcl regex engine sources"
+    bash "$fetcher"
+}
+
+# ---------------------------------------------------------------------------
 # 6. Rust toolchain — rustup + stable (pinned).
 #    Uses the official rust-lang.org installer so we get signed binaries.
 # ---------------------------------------------------------------------------
@@ -471,5 +488,6 @@ install_binaryen
 install_rust
 install_tcl_sources
 install_tcllib
+install_tcl_regex
 
 echo "session-start: done"

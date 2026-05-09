@@ -1,21 +1,26 @@
 #!/bin/bash
-# fetch_tcl_regex.sh — Download the regex engine sources from Tcl 9.0.3.
+# fetch_tcl_regex.sh — Fetch the Tcl regex engine sources into vendor/.
 #
 # The WASM runtime links Tcl's own Henry-Spencer regex engine so
 # ``regexp``/``regsub`` semantics match tclsh exactly.  The sources
-# are not vendored in the repo — this script fetches them into
-# ``runtime/zig/vendor/tcl-regex/`` on demand.  ``runtime/zig/build.zig``
-# invokes this as a pre-compile dependency, and it is idempotent:
-# re-runs are no-ops when the stamp file matches the pinned version.
+# are NOT vendored in the repo (they'd add ~150 KB of upstream code
+# to every checkout) and the build no longer fetches them
+# automatically — that was racing under pytest-xdist when several
+# ``zig build`` workers shared the same vendor dir.
+#
+# Instead the SessionStart hook (cloud / Claude Code on the web) runs
+# this script once at session boot, and local developers run it once
+# after cloning.  ``runtime/zig/build.zig`` then assumes the files are
+# already present.  Idempotent: re-runs are no-ops when the stamp file
+# matches the pinned version.
 #
 # Usage: bash scripts/fetch_tcl_regex.sh
 #
 # Env:
 #   TCL_REGEX_VERSION  — override the pinned Tcl version (default: 9.0.3)
 #
-# CI/CD: works on any runner with curl.  No git clone is required
-# (individual raw files total ~150 KB).  Retry with exponential
-# backoff on network failure.
+# Network: works on any runner with curl.  Individual raw files
+# total ~150 KB.  Retries with exponential backoff on failure.
 
 set -euo pipefail
 
