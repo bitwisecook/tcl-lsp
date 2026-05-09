@@ -122,9 +122,88 @@ pub fn has_command_separator(text: &str) -> bool {
 /// in `{…}` (braces are stripped from the returned text). This
 /// lets the caller decide whether to re-wrap the value in braces.
 // Sequential character-walk parser; the brace / quote / bracket / escape
-// state machine doesn't decompose into independent phases.
+/// Skip past a balanced `[...]` substitution starting at *i*.
+/// Returns the new cursor position past the matching `]`.
+fn skip_cmd_subst(bytes: &[u8], n: usize, mut i: usize) -> usize {
+    let mut depth: i32 = 0;
+    while i < n {
+        if bytes[i] == b'[' {
+            depth += 1;
+        } else if bytes[i] == b']' {
+            depth -= 1;
+            if depth == 0 {
+                i += 1;
+                break;
+            }
+        }
+        i += 1;
+    }
+    i
+}
+
+/// Parse one quoted-string `"..."` part starting at *i* (which
+/// points at the opening `"`).  Returns `(part_text, new_i)`.
+fn parse_quoted_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
+    i += 1;
+    let start = i;
+    while i < n && bytes[i] != b'"' {
+        if bytes[i] == b'\\' {
+            i += 1;
+        }
+        i += 1;
+    }
+    let part = text[start..i].to_owned();
+    if i < n {
+        i += 1; // skip closing "
+    }
+    (part, i)
+}
+
+/// Parse one braced `{...}` part starting at *i*.
+fn parse_braced_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
+    let mut depth: i32 = 1;
+    i += 1;
+    let start = i;
+    while i < n && depth > 0 {
+        if bytes[i] == b'\\' {
+            i += 2;
+            continue;
+        }
+        if bytes[i] == b'{' {
+            depth += 1;
+        } else if bytes[i] == b'}' {
+            depth -= 1;
+        }
+        if depth > 0 {
+            i += 1;
+        }
+    }
+    let part = text[start..i].to_owned();
+    if i < n {
+        i += 1; // skip closing }
+    }
+    (part, i)
+}
+
+/// Parse one bare word or `[cmd]`-substitution-rooted word starting
+/// at *i*.  Bare-word handling reads non-whitespace bytes;
+/// `[cmd]` mid-word is consumed as an opaque substitution.
+fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
+    let start = i;
+    while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
+        if bytes[i] == b'[' {
+            i = skip_cmd_subst(bytes, n, i);
+        } else {
+            i += 1;
+        }
+    }
+    (text[start..i].to_owned(), i)
+}
+
+/// Parse a command-substitution body into `(text, braced)` parts.
+/// `braced=true` means the text was a `{...}` literal — the caller
+/// should not interpolate it.  Strips the outer `[...]` if present.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let text = text.trim();
     let text = if text.starts_with('[') && text.ends_with(']') {
@@ -138,112 +217,41 @@ pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let mut i = 0;
 
     while i < n {
-        // Skip whitespace
         while i < n && (bytes[i] == b' ' || bytes[i] == b'\t') {
             i += 1;
         }
         if i >= n {
             break;
         }
-
-        if bytes[i] == b'"' {
-            // Quoted string
-            i += 1;
-            let start = i;
-            while i < n && bytes[i] != b'"' {
-                if bytes[i] == b'\\' {
-                    i += 1;
-                }
-                i += 1;
+        match bytes[i] {
+            b'"' => {
+                let (part, new_i) = parse_quoted_part(text, bytes, n, i);
+                parts.push((part, false));
+                i = new_i;
             }
-            parts.push((text[start..i].to_owned(), false));
-            if i < n {
-                i += 1; // skip closing "
+            b'{' => {
+                let (part, new_i) = parse_braced_part(text, bytes, n, i);
+                parts.push((part, true));
+                i = new_i;
             }
-        } else if bytes[i] == b'{' {
-            // Braced string
-            let mut depth: i32 = 1;
-            i += 1;
-            let start = i;
-            while i < n && depth > 0 {
-                if bytes[i] == b'\\' {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'{' {
-                    depth += 1;
-                } else if bytes[i] == b'}' {
-                    depth -= 1;
-                }
-                if depth > 0 {
-                    i += 1;
-                }
-            }
-            parts.push((text[start..i].to_owned(), true));
-            if i < n {
-                i += 1; // skip closing }
-            }
-        } else if bytes[i] == b'[' {
-            // Command substitution (may have trailing non-ws suffix)
-            let start = i;
-            let mut depth: i32 = 0;
-            while i < n {
-                if bytes[i] == b'[' {
-                    depth += 1;
-                } else if bytes[i] == b']' {
-                    depth -= 1;
-                    if depth == 0 {
-                        i += 1;
-                        break;
-                    }
-                }
-                i += 1;
-            }
-            // Continue reading non-whitespace after ']' (e.g. [namespace current]::foo)
-            while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
-                if bytes[i] == b'[' {
-                    let mut inner_depth: i32 = 0;
-                    while i < n {
-                        if bytes[i] == b'[' {
-                            inner_depth += 1;
-                        } else if bytes[i] == b']' {
-                            inner_depth -= 1;
-                            if inner_depth == 0 {
-                                i += 1;
-                                break;
-                            }
-                        }
+            b'[' => {
+                let start = i;
+                i = skip_cmd_subst(bytes, n, i);
+                // Continue past trailing non-ws (e.g. ``[ns current]::foo``).
+                while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
+                    if bytes[i] == b'[' {
+                        i = skip_cmd_subst(bytes, n, i);
+                    } else {
                         i += 1;
                     }
-                } else {
-                    i += 1;
                 }
+                parts.push((text[start..i].to_owned(), false));
             }
-            parts.push((text[start..i].to_owned(), false));
-        } else {
-            // Bare word
-            let start = i;
-            while i < n && bytes[i] != b' ' && bytes[i] != b'\t' {
-                if bytes[i] == b'[' {
-                    // Command substitution mid-word
-                    let mut inner_depth: i32 = 0;
-                    while i < n {
-                        if bytes[i] == b'[' {
-                            inner_depth += 1;
-                        } else if bytes[i] == b']' {
-                            inner_depth -= 1;
-                            if inner_depth == 0 {
-                                i += 1;
-                                break;
-                            }
-                        }
-                        i += 1;
-                    }
-                } else {
-                    i += 1;
-                }
+            _ => {
+                let (part, new_i) = parse_bareword_part(text, bytes, n, i);
+                parts.push((part, false));
+                i = new_i;
             }
-            parts.push((text[start..i].to_owned(), false));
         }
     }
     parts

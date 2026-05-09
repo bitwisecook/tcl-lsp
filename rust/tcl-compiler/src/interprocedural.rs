@@ -582,8 +582,79 @@ fn scan_script(
     }
 }
 
-// Long match dispatcher over Statement variants.
-#[allow(clippy::too_many_lines)]
+/// Process a `Statement::Call` for interprocedural facts: side-
+/// effects classification, internal-call resolution, and param
+/// trait inference.  Extracted from [`scan_statement`].
+#[allow(clippy::too_many_arguments)]
+fn scan_call_facts(
+    command: &str,
+    args: &[String],
+    caller: &str,
+    known: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&str>,
+    facts: &mut LocalFacts,
+    params: &HashSet<String>,
+) {
+    let ci = classify_side_effects(registry, command, args, dialect, None);
+    if ci.dynamic_barrier {
+        facts.has_barrier = true;
+        facts.local_pure = false;
+        facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+        facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+    }
+    let (r, w) = ci.to_effect_regions();
+    facts.effect_reads |= r;
+    facts.effect_writes |= w;
+    if w.intersects(EffectRegion::GLOBAL_STATE) {
+        facts.writes_global = true;
+    }
+    if !ci.pure {
+        facts.local_pure = false;
+    }
+
+    // Resolve internal-proc call targets. Special case
+    // for iRules' ``call <proc>`` indirection: when the
+    // command is literally ``call`` and the first arg is
+    // a plain identifier, treat it as a direct invocation
+    // of that proc. Matches the Python
+    // ``_unused_procs._collect_callees`` handling.
+    let internal_target =
+        if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
+            resolve_internal_call(&args[0], caller, known)
+        } else {
+            resolve_internal_call(command, caller, known)
+        };
+    if let Some(target) = &internal_target {
+        facts.direct_calls.insert(target.clone());
+    } else if registry.get(command).is_none() {
+        facts.has_unknown_calls = true;
+        facts.local_pure = false;
+    }
+
+    // Param-trait observation: any param whose `$p`
+    // appears in an argument text is "used"; when the
+    // call resolves to another internal proc, classify
+    // it as ForwardedToCallee.
+    for arg in args {
+        for param in params {
+            if text_references_name(arg, param) {
+                let trait_kind = if internal_target.is_some() {
+                    ProcArgTrait::ForwardedToCallee
+                } else {
+                    ProcArgTrait::Passthrough
+                };
+                facts
+                    .param_trait_flags
+                    .entry(param.clone())
+                    .or_default()
+                    .insert(trait_kind);
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 fn scan_statement(
     stmt: &crate::ir::Statement,
     caller: &str,
@@ -637,62 +708,7 @@ fn scan_statement(
             facts.returns.push(kind);
         }
         Statement::Call { command, args, .. } => {
-            let ci = classify_side_effects(registry, command, args, dialect, None);
-            if ci.dynamic_barrier {
-                facts.has_barrier = true;
-                facts.local_pure = false;
-                facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
-                facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
-            }
-            let (r, w) = ci.to_effect_regions();
-            facts.effect_reads |= r;
-            facts.effect_writes |= w;
-            if w.intersects(EffectRegion::GLOBAL_STATE) {
-                facts.writes_global = true;
-            }
-            if !ci.pure {
-                facts.local_pure = false;
-            }
-
-            // Resolve internal-proc call targets. Special case
-            // for iRules' ``call <proc>`` indirection: when the
-            // command is literally ``call`` and the first arg is
-            // a plain identifier, treat it as a direct invocation
-            // of that proc. Matches the Python
-            // ``_unused_procs._collect_callees`` handling.
-            let internal_target =
-                if command == "call" && !args.is_empty() && is_plain_proc_name(&args[0]) {
-                    resolve_internal_call(&args[0], caller, known)
-                } else {
-                    resolve_internal_call(command, caller, known)
-                };
-            if let Some(target) = &internal_target {
-                facts.direct_calls.insert(target.clone());
-            } else if registry.get(command).is_none() {
-                facts.has_unknown_calls = true;
-                facts.local_pure = false;
-            }
-
-            // Param-trait observation: any param whose `$p`
-            // appears in an argument text is "used"; when the
-            // call resolves to another internal proc, classify
-            // it as ForwardedToCallee.
-            for arg in args {
-                for param in params {
-                    if text_references_name(arg, param) {
-                        let trait_kind = if internal_target.is_some() {
-                            ProcArgTrait::ForwardedToCallee
-                        } else {
-                            ProcArgTrait::Passthrough
-                        };
-                        facts
-                            .param_trait_flags
-                            .entry(param.clone())
-                            .or_default()
-                            .insert(trait_kind);
-                    }
-                }
-            }
+            scan_call_facts(command, args, caller, known, registry, dialect, facts, params);
         }
         Statement::If {
             clauses, else_body, ..

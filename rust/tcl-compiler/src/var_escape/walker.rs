@@ -446,13 +446,70 @@ fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
     }
 }
 
+/// Resolve a (possibly-dynamic) name and call `escape` — used by
+/// the `walk` arms.
+fn walk_dynamic_name_escape(state: &mut EscapeState, name: &str) {
+    if let Some(literal) = state.resolve_literal(name) {
+        state.escape(&literal);
+    } else {
+        state.escape_all_known();
+    }
+}
+
+fn walk_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
+    match stmt {
+        Statement::AssignConst { name, value, .. } => {
+            if is_dynamic_name(name) {
+                walk_dynamic_name_escape(state, name);
+            } else {
+                state.note_literal_assign(name, value);
+            }
+            apply_value_scan(value, state);
+            true
+        }
+        Statement::AssignValue { name, value, .. } => {
+            if is_dynamic_name(name) {
+                walk_dynamic_name_escape(state, name);
+            } else if !value.is_empty() && !is_dynamic_token(value) {
+                state.note_literal_assign(name, value);
+            } else {
+                state.invalidate_literal(name);
+            }
+            apply_value_scan(value, state);
+            true
+        }
+        Statement::AssignExpr { name, expr, .. } => {
+            if is_dynamic_name(name) {
+                walk_dynamic_name_escape(state, name);
+            } else {
+                state.invalidate_literal(name);
+            }
+            apply_expr_scan(Some(expr), state);
+            true
+        }
+        Statement::Incr { name, amount, .. } => {
+            if is_dynamic_name(name) {
+                walk_dynamic_name_escape(state, name);
+            } else {
+                state.invalidate_literal(name);
+            }
+            if let Some(a) = amount {
+                apply_value_scan(a, state);
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
 /// Walk *stmts* with the standard escape-rule transfer functions.
-// Long match dispatcher over Statement variants in the var_escape walker.
-#[allow(clippy::too_many_lines)]
 fn walk(stmts: &[Statement], state: &mut EscapeState) {
     for stmt in stmts {
         if state.dynamic_barrier() {
             return;
+        }
+        if walk_assign_or_incr(stmt, state) {
+            continue;
         }
         match stmt {
             Statement::Call { .. } => handle_call(stmt, state),
@@ -460,58 +517,6 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
             Statement::UpFrame { tokens, .. } => {
                 let args = synthesise_uplevel_args(tokens.as_ref());
                 handle_barrier("uplevel", &args, state);
-            }
-            Statement::AssignConst { name, value, .. } => {
-                if is_dynamic_name(name) {
-                    if let Some(literal) = state.resolve_literal(name) {
-                        state.escape(&literal);
-                    } else {
-                        state.escape_all_known();
-                    }
-                } else {
-                    state.note_literal_assign(name, value);
-                }
-                apply_value_scan(value, state);
-            }
-            Statement::AssignValue { name, value, .. } => {
-                if is_dynamic_name(name) {
-                    if let Some(literal) = state.resolve_literal(name) {
-                        state.escape(&literal);
-                    } else {
-                        state.escape_all_known();
-                    }
-                } else if !value.is_empty() && !is_dynamic_token(value) {
-                    state.note_literal_assign(name, value);
-                } else {
-                    state.invalidate_literal(name);
-                }
-                apply_value_scan(value, state);
-            }
-            Statement::AssignExpr { name, expr, .. } => {
-                if is_dynamic_name(name) {
-                    if let Some(literal) = state.resolve_literal(name) {
-                        state.escape(&literal);
-                    } else {
-                        state.escape_all_known();
-                    }
-                } else {
-                    state.invalidate_literal(name);
-                }
-                apply_expr_scan(Some(expr), state);
-            }
-            Statement::Incr { name, amount, .. } => {
-                if is_dynamic_name(name) {
-                    if let Some(literal) = state.resolve_literal(name) {
-                        state.escape(&literal);
-                    } else {
-                        state.escape_all_known();
-                    }
-                } else {
-                    state.invalidate_literal(name);
-                }
-                if let Some(a) = amount {
-                    apply_value_scan(a, state);
-                }
             }
             Statement::Return { value, expr, .. } => {
                 if let Some(v) = value {
@@ -592,6 +597,9 @@ fn walk(stmts: &[Statement], state: &mut EscapeState) {
                     walk(&body.statements, state);
                 }
             }
+            // Assignment / incr arms handled by `walk_assign_or_incr`
+            // above (continue path).
+            _ => {}
         }
     }
 }
