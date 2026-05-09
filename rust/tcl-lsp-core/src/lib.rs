@@ -11,12 +11,16 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod code_actions;
+pub mod code_lens;
 pub mod completion;
 pub mod definition;
+pub mod document_links;
 pub mod document_symbols;
 pub mod folding;
 pub mod formatting;
 pub mod hover;
+pub mod inlay_hints;
 pub mod references;
 pub mod rename;
 pub mod selection_range;

@@ -19,15 +19,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tcl_compiler::analyser::Analyser;
+use tcl_lsp_core::code_actions as core_code_actions;
+use tcl_lsp_core::code_lens as core_code_lens;
 use tcl_lsp_core::completion::{
     self as core_completion, CompletionItem as CoreCompletionItem,
     CompletionKind as CoreCompletionKind,
 };
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
+use tcl_lsp_core::document_links as core_document_links;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
@@ -44,14 +48,17 @@ use tower_lsp::lsp_types::{
         GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
         GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
     },
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    DeclarationCapability, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind,
-    DocumentHighlightParams, DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams,
-    DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
-    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, Location, MarkupContent, MarkupKind,
+    CodeAction, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability, CodeLens,
+    CodeLensOptions, CodeLensParams, CompletionItem, CompletionItemKind, CompletionOptions,
+    CompletionParams, CompletionResponse, DeclarationCapability, DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, DocumentLink,
+    DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol,
+    DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind,
+    FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location, MarkupContent, MarkupKind,
     MessageType, OneOf, ParameterInformation, ParameterLabel, Position, Range, ReferenceParams,
     RenameParams, SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
     ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
@@ -223,6 +230,15 @@ impl LanguageServer for Backend {
                 selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_range_formatting_provider: Some(OneOf::Left(true)),
+                document_link_provider: Some(DocumentLinkOptions {
+                    resolve_provider: Some(false),
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                }),
+                inlay_hint_provider: Some(OneOf::Left(true)),
+                code_lens_provider: Some(CodeLensOptions {
+                    resolve_provider: Some(false),
+                }),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -494,6 +510,129 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(highlights))
+    }
+
+    async fn document_link(
+        &self,
+        params: DocumentLinkParams,
+    ) -> jsonrpc::Result<Option<Vec<DocumentLink>>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let links = core_document_links::document_links(&doc.text);
+        if links.is_empty() {
+            return Ok(None);
+        }
+        let lifted = links
+            .into_iter()
+            .map(|l| DocumentLink {
+                range: Range {
+                    start: Position {
+                        line: l.start_line,
+                        character: l.start_character,
+                    },
+                    end: Position {
+                        line: l.end_line,
+                        character: l.end_character,
+                    },
+                },
+                target: Url::parse(&l.target).ok(),
+                tooltip: None,
+                data: None,
+            })
+            .collect();
+        Ok(Some(lifted))
+    }
+
+    async fn inlay_hint(&self, params: InlayHintParams) -> jsonrpc::Result<Option<Vec<InlayHint>>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let range = CoreLspRange {
+            start_line: params.range.start.line,
+            start_character: params.range.start.character,
+            end_line: params.range.end.line,
+            end_character: params.range.end.character,
+        };
+        let hints = core_inlay_hints::inlay_hints(&doc.text, range);
+        if hints.is_empty() {
+            return Ok(None);
+        }
+        let lifted = hints
+            .into_iter()
+            .map(|h| InlayHint {
+                position: Position {
+                    line: h.position_line,
+                    character: h.position_character,
+                },
+                label: InlayHintLabel::String(h.label),
+                kind: Some(InlayHintKind::PARAMETER),
+                text_edits: None,
+                tooltip: None,
+                padding_left: None,
+                padding_right: None,
+                data: None,
+            })
+            .collect();
+        Ok(Some(lifted))
+    }
+
+    async fn code_lens(&self, params: CodeLensParams) -> jsonrpc::Result<Option<Vec<CodeLens>>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let lenses = core_code_lens::code_lenses(&doc.text);
+        if lenses.is_empty() {
+            return Ok(None);
+        }
+        let lifted = lenses
+            .into_iter()
+            .map(|l| CodeLens {
+                range: lift_lsp_range(l.range),
+                command: Some(tower_lsp::lsp_types::Command {
+                    title: l.command_title,
+                    command: l.command,
+                    arguments: None,
+                }),
+                data: None,
+            })
+            .collect();
+        Ok(Some(lifted))
+    }
+
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> jsonrpc::Result<Option<Vec<CodeActionOrCommand>>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let range = CoreLspRange {
+            start_line: params.range.start.line,
+            start_character: params.range.start.character,
+            end_line: params.range.end.line,
+            end_character: params.range.end.character,
+        };
+        let actions = core_code_actions::code_actions(&doc.text, range);
+        if actions.is_empty() {
+            return Ok(None);
+        }
+        let lifted = actions
+            .into_iter()
+            .map(|a| {
+                CodeActionOrCommand::CodeAction(CodeAction {
+                    title: a.title,
+                    kind: None,
+                    diagnostics: None,
+                    edit: None,
+                    command: None,
+                    is_preferred: None,
+                    disabled: None,
+                    data: None,
+                })
+            })
+            .collect();
+        Ok(Some(lifted))
     }
 
     async fn formatting(
