@@ -82,6 +82,19 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         help="Stop the BFS after N hops from each seed (default: unlimited).",
     )
     p.add_argument(
+        "-r",
+        "--recurse",
+        dest="recurse",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "Walk the related-object BFS from each seed (default).  "
+            "Pass --no-recurse to skip the BFS and report only the "
+            "objects that directly match PATTERN; --direction and "
+            "--max-depth are then ignored."
+        ),
+    )
+    p.add_argument(
         "--max-nodes",
         type=int,
         default=1000,
@@ -143,6 +156,7 @@ def _run_grep(args: argparse.Namespace) -> int:
         max_depth=args.max_depth,
         max_nodes=args.max_nodes,
         include_body=args.full,
+        recurse=args.recurse,
     )
 
     if args.json:

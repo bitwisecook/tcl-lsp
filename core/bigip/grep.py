@@ -75,6 +75,7 @@ class GrepReport:
     summary: dict[str, int] = field(default_factory=dict)
     text_report: str = ""
     use_cidr: bool = False
+    recurse: bool = True
 
 
 def _parse_cidr_pattern(pattern: str) -> tuple[_IPNetwork, ...]:
@@ -201,13 +202,18 @@ def _format_text_report(
         mode_suffix = " (regex)"
     else:
         mode_suffix = ""
+    related_line = (
+        f"# Related: {len(related)} object(s)"
+        if report_meta.get("recurse", True)
+        else "# Related: 0 object(s) (skipped — --no-recurse)"
+    )
     lines: list[str] = [
         "# tcl-lsp BIG-IP grep",
         f"# Pattern: {report_meta['pattern']}" + mode_suffix,
         f"# Direction: {report_meta['direction']}",
         f"# Sources: {', '.join(report_meta['source_uris']) or '(none)'}",
         f"# Seeds: {len(seeds)} matched object(s)",
-        f"# Related: {len(related)} object(s)",
+        related_line,
     ]
     if summary:
         for kind in sorted(summary):
@@ -255,6 +261,7 @@ def compute_grep(
     max_depth: int | None = None,
     max_nodes: int = 1000,
     include_body: bool = False,
+    recurse: bool = True,
 ) -> GrepReport:
     """Find every BIG-IP object related to seeds whose identifiers match *pattern*.
 
@@ -276,6 +283,14 @@ def compute_grep(
     ``reverse``: incoming edges only, ``both``: union) until either every
     reachable object has been visited, *max_depth* hops are exhausted (when
     set), or *max_nodes* total objects have been collected.
+
+    *recurse* is ``True`` by default — the related-object BFS runs and
+    the report includes everything reachable from the seeds.  Pass
+    ``recurse=False`` to skip the BFS entirely and return only the
+    objects that directly match *pattern* — *direction* and *max_depth*
+    are then ignored, and the ``related`` tuple in the report is empty.
+    This is the right mode when the question is "which objects mention
+    X?" rather than "what is the neighbourhood around X?".
 
     The iRule body scan inside :mod:`core.bigip.link_extract` relies on
     the ``f5-irules`` command registry being active; this function
@@ -331,28 +346,29 @@ def compute_grep(
         seed_ids = seed_ids[:max_nodes]
 
     depths: dict[str, int] = {sid: 0 for sid in seed_ids}
-    queue: deque[str] = deque(seed_ids)
-    while queue and len(depths) < max_nodes:
-        nid = queue.popleft()
-        depth = depths[nid]
-        if max_depth is not None and depth >= max_depth:
-            continue
-
-        neighbours: list[str] = []
-        if direction in {"forward", "both"}:
-            for edge in outgoing.get(nid, ()):
-                neighbours.append(edge.target_id)
-        if direction in {"reverse", "both"}:
-            for edge in incoming.get(nid, ()):
-                neighbours.append(edge.source_id)
-
-        for neighbour in neighbours:
-            if neighbour in depths:
+    if recurse:
+        queue: deque[str] = deque(seed_ids)
+        while queue and len(depths) < max_nodes:
+            nid = queue.popleft()
+            depth = depths[nid]
+            if max_depth is not None and depth >= max_depth:
                 continue
-            depths[neighbour] = depth + 1
-            queue.append(neighbour)
-            if len(depths) >= max_nodes:
-                break
+
+            neighbours: list[str] = []
+            if direction in {"forward", "both"}:
+                for edge in outgoing.get(nid, ()):
+                    neighbours.append(edge.target_id)
+            if direction in {"reverse", "both"}:
+                for edge in incoming.get(nid, ()):
+                    neighbours.append(edge.source_id)
+
+            for neighbour in neighbours:
+                if neighbour in depths:
+                    continue
+                depths[neighbour] = depth + 1
+                queue.append(neighbour)
+                if len(depths) >= max_nodes:
+                    break
 
     seed_set = set(seed_ids)
     visited = set(depths)
@@ -401,6 +417,7 @@ def compute_grep(
             "use_regex": use_regex,
             "use_cidr": use_cidr,
             "direction": direction,
+            "recurse": recurse,
             "source_uris": tuple(sorted(sources)),
         },
         seeds_tuple,
@@ -419,6 +436,7 @@ def compute_grep(
         edges=tuple(edge_items),
         summary=summary_dict,
         text_report=text_report,
+        recurse=recurse,
     )
 
 
@@ -460,6 +478,7 @@ def report_to_dict(report: GrepReport, *, include_body: bool = False) -> dict:
         "pattern": report.pattern,
         "useRegex": report.use_regex,
         "useCidr": report.use_cidr,
+        "recurse": report.recurse,
         "direction": report.direction,
         "seeds": [_obj_to_dict(o) for o in report.seeds],
         "related": [_obj_to_dict(o) for o in report.related],

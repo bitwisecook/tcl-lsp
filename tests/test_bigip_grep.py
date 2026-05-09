@@ -468,6 +468,132 @@ def test_cli_grep_invalid_regex_reports_error(tmp_path: Path, capsys) -> None:
     assert "invalid regex pattern" in captured.err
 
 
+# Recurse / --no-recurse (skip related-object BFS)
+
+
+def test_recurse_default_includes_related_objects() -> None:
+    """The BFS is on by default — related objects are surfaced."""
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 {
+            members { /Common/n1:80 { address 10.0.0.1 } }
+        }
+        """
+    )
+    report = _run(source, "/Common/p1", direction="forward")
+    assert _full_paths(report.seeds) == ["/Common/p1"]
+    assert _full_paths(report.related) == ["/Common/n1"]
+    assert report.recurse is True
+
+
+def test_no_recurse_returns_seeds_only() -> None:
+    """``recurse=False`` skips the BFS — only matching seeds are returned."""
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 {
+            members { /Common/n1:80 { address 10.0.0.1 } }
+        }
+        ltm virtual /Common/vs {
+            destination /Common/10.0.0.10:80
+            pool /Common/p1
+        }
+        """
+    )
+    report = _run(source, "/Common/p1", direction="both", recurse=False)
+    assert _full_paths(report.seeds) == ["/Common/p1"]
+    assert report.related == ()
+    assert report.recurse is False
+
+
+def test_no_recurse_with_cidr_keeps_only_directly_matching_objects() -> None:
+    """CIDR + recurse=False yields every object that mentions the network, no neighbours."""
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 {
+            members { /Common/n1:80 { address 10.0.0.1 } }
+        }
+        ltm virtual /Common/vs_outside { destination /Common/192.168.1.1:80 }
+        """
+    )
+    report = _run(source, "10.0.0.0/8", use_cidr=True, recurse=False)
+    paths = set(_full_paths(report.seeds))
+    # Every node and pool member that mentions an address in 10.0.0.0/8.
+    assert "/Common/n1" in paths
+    assert "/Common/p1" in paths
+    assert "/Common/vs_outside" not in paths
+    assert report.related == ()
+
+
+def test_no_recurse_text_report_explains_skip() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    report = _run(source, "/Common/vs", recurse=False)
+    assert "(skipped — --no-recurse)" in report.text_report
+
+
+def test_recurse_round_trips_through_report_to_dict() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    payload_on = report_to_dict(_run(source, "/Common/vs"))
+    payload_off = report_to_dict(_run(source, "/Common/vs", recurse=False))
+    assert payload_on["recurse"] is True
+    assert payload_off["recurse"] is False
+
+
+def test_cli_grep_defaults_to_recursive(tmp_path: Path, capsys) -> None:
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        textwrap.dedent(
+            """\
+            ltm node /Common/n1 { address 10.0.0.1 }
+            ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+            """
+        ),
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "--direction", "forward", "/Common/p1", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "/Common/n1" in captured.out
+
+
+def test_cli_grep_no_recurse_skips_bfs(tmp_path: Path, capsys) -> None:
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        textwrap.dedent(
+            """\
+            ltm node /Common/n1 { address 10.0.0.1 }
+            ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+            """
+        ),
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "--no-recurse", "--direction", "forward", "/Common/p1", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "/Common/n1" not in captured.out
+    assert "(skipped — --no-recurse)" in captured.out
+
+
+def test_cli_grep_recurse_short_flag_is_default(tmp_path: Path, capsys) -> None:
+    """``-r`` is the same as the default; provided for symmetry with --no-recurse."""
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        textwrap.dedent(
+            """\
+            ltm node /Common/n1 { address 10.0.0.1 }
+            ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+            """
+        ),
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "-r", "--direction", "forward", "/Common/p1", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "/Common/n1" in captured.out
+
+
 # CIDR mode
 
 

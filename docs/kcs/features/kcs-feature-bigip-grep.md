@@ -44,6 +44,7 @@ f5 related /Common/web_pool bigip.conf
 
 - `-e, --regex` — treat PATTERN as a Python regular expression (default: substring match against the object's full path).  Mutually exclusive with `--cidr`.
 - `-c, --cidr` — treat PATTERN as one or more whitespace- or comma-separated IPv4/IPv6 addresses or CIDR ranges.  An object qualifies when any IP literal or CIDR mentioned in its full path, header, or body — including iRule script bodies — overlaps any requested network.  Mutually exclusive with `--regex`.
+- `-r, --recurse` / `--no-recurse` — walk the related-object BFS from each seed (the default), or skip the BFS and return only the objects that directly match PATTERN.  Applies to every match mode (substring, regex, CIDR).  When `--no-recurse` is in effect, `--direction` and `--max-depth` are ignored and the report's `related` list is empty.
 - `--direction {forward,reverse,both}` — which edges to walk from each seed.  `forward` follows outgoing references (what the seed depends on); `reverse` follows incoming references (what depends on the seed); `both` (default) walks both.
 - `--max-depth N` — stop the BFS after N hops from each seed.  Default: unlimited.
 - `--max-nodes N` — cap the result at N objects (default: 1000) to keep the output tractable on very large configurations.

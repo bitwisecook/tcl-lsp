@@ -760,7 +760,13 @@ f5 grep --regex '^/Common/(web|api)_pool$' bigip.conf
 f5 grep --json --max-depth 2 web_pool bigip.conf
 f5 grep --cidr 10.0.0.0/8 bigip.conf
 f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
+f5 grep --no-recurse --cidr 10.0.0.0/8 bigip.conf
 ```
+
+The related-object BFS is on by default; pass `--no-recurse` to
+skip it and return only the objects that directly match the
+pattern (`-r` / `--recurse` toggle it explicitly back on).  This
+applies to every match mode: substring, `--regex`, and `--cidr`.
 
 `f5` is a separate CLI from `tcl` and `irule`; today it ships three
 verbs (`cleanup`, `grep`, `completion`).
