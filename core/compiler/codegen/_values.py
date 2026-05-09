@@ -87,7 +87,16 @@ class _ValuesMixin:
             # Bare variable reference: $::a(1) — strip $ and load
             self._load_var(elem[1:])
         elif "$" in elem or "[" in elem:
-            self._emit_value(elem)
+            # Pass interpolate=True so a mixed-substitution index like
+            # ``[format x]\ y [format z]`` decomposes into push/cmd
+            # pieces + strcat instead of being pushed as a literal.
+            # ``_emit_value`` only kicks the interpolate path in for
+            # multi-part templates, so a single ``[cmd]`` index needs
+            # the explicit short-circuit below.
+            if elem.startswith("[") and elem.endswith("]") and "[" not in elem[1:-1]:
+                self._emit_inline_cmd_subst(elem)
+            else:
+                self._emit_value(elem, interpolate=True)
         else:
             self._push_lit(elem)
 
@@ -297,6 +306,10 @@ class _ValuesMixin:
         substitution semantics survive.  Returns ``arr(idx)`` (without
         the leading ``$``), or ``None`` if *value* is not a bare
         array reference covering its entire span.
+
+        ``$`` and ``[`` indices are both supported — ``_push_array_key``
+        inlines the substitution at runtime so the index byte string
+        seen by ``LOAD_ARRAY_STK`` is the resolved value.
         """
         if not value.startswith("$") or value.startswith("${") or value.startswith("$="):
             return None

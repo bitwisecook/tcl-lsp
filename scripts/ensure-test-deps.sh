@@ -65,6 +65,14 @@ elif [ "$OS" = "Linux" ]; then
     if [ "$(id -u)" != "0" ]; then SUDO="sudo"; fi
 fi
 
+# If the caller has opted out of every installable tool, there's
+# nothing for the platform-specific package manager to do — succeed
+# without ever needing one.
+if [ "${SKIP_TCLSH:-}" = "1" ] && [ "${SKIP_NODE:-}" = "1" ] && [ "${SKIP_KOTLINC:-}" = "1" ]; then
+    echo "ensure-test-deps: SKIP_TCLSH=SKIP_NODE=SKIP_KOTLINC=1 — nothing to do."
+    exit 0
+fi
+
 if [ -z "$PKG" ]; then
     echo "ensure-test-deps: unsupported platform ($OS / ${DISTRO:-unknown})." >&2
     echo "Install tclsh9.0, node/npm, and kotlinc manually, or set the" >&2
@@ -77,6 +85,21 @@ case "$PKG" in
     dnf|yum) PKG_INSTALL="$SUDO $PKG install -y" ;;
     brew)    PKG_INSTALL="brew install" ;;
 esac
+
+# Best-effort installer for a baseline tool the kotlinc downloader
+# needs (curl) — no-op when already present.
+ensure_baseline() {
+    local cmd="$1"; shift
+    if command -v "$cmd" >/dev/null 2>&1; then return 0; fi
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        note_missing "$cmd (would install via $PKG)"
+        return 1
+    fi
+    case "$PKG" in
+        apt-get|dnf|yum) run_install "$cmd ($PKG)" "$cmd" ;;
+        brew)            run_install "$cmd (Homebrew)" "$cmd" ;;
+    esac
+}
 
 PKG_REFRESHED=0
 refresh_pkg_index() {
@@ -266,13 +289,22 @@ install_kotlinc_zip() {
     local url="https://github.com/JetBrains/kotlin/releases/download/v${ver}/kotlin-compiler-${ver}.zip"
     local tmpzip
     tmpzip="$(mktemp -t kotlinc.XXXXXX.zip)"
-    info "Downloading kotlinc $ver from JetBrains release"
+    # ``curl`` and ``unzip`` are missing on minimal images — install
+    # them before we rely on them or the script aborts mid-download.
+    if ! command -v curl >/dev/null 2>&1; then
+        case "$PKG" in
+            apt-get) run_install "curl" curl ca-certificates ;;
+            dnf|yum) run_install "curl" curl ca-certificates ;;
+            brew)    run_install "curl (Homebrew)" curl ;;
+        esac
+    fi
     if ! command -v unzip >/dev/null 2>&1; then
         case "$PKG" in
             apt-get) run_install "unzip" unzip ;;
             dnf|yum) run_install "unzip" unzip ;;
         esac
     fi
+    info "Downloading kotlinc $ver from JetBrains release"
     curl -fsSL "$url" -o "$tmpzip"
     $SUDO rm -rf /opt/kotlinc
     $SUDO mkdir -p /opt

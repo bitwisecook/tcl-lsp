@@ -501,8 +501,14 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 # Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust
 # workspace tests (when present).
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
-	@echo "==> test-slow: ensuring optional test dependencies (tclsh9.0, node, kotlinc)"
-	@bash $(ROOT)scripts/ensure-test-deps.sh
+	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
+		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
+		bash $(ROOT)scripts/ensure-test-deps.sh; \
+	else \
+		echo "==> test-slow: dependency check (set AUTO_INSTALL_DEPS=1 to install missing tools)"; \
+		bash $(ROOT)scripts/ensure-test-deps.sh --check || \
+			echo "    -> proceeding; the missing tools above will turn into pytest skips"; \
+	fi
 	@$(MAKE) capture-bytecode-refs
 	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
 	@$(MAKE) prep-pr
@@ -530,9 +536,10 @@ capture-bytecode-refs: ## Capture missing tests/bytecode_reference/<ver>/*.disas
 		exit 0; \
 	fi; \
 	if ! command -v tclsh9.0 >/dev/null 2>&1; then \
-		echo "ERROR: $$missing reference disasm files missing and tclsh9.0 not on PATH."; \
-		echo "       Run 'bash scripts/ensure-test-deps.sh' first, then 'make capture-bytecode-refs'."; \
-		exit 1; \
+		echo "==> capture-bytecode-refs: $$missing reference disasm files missing, but tclsh9.0 isn't on PATH."; \
+		echo "    Run 'AUTO_INSTALL_DEPS=1 make ensure-test-deps' (or install tclsh9.0 manually), then re-run this target."; \
+		echo "    Skipping for now — affected snippets will pytest-skip with 'no reference file: ...'."; \
+		exit 0; \
 	fi; \
 	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture_reference_bytecode.sh"; \
 	bash $(ROOT)scripts/capture_reference_bytecode.sh
