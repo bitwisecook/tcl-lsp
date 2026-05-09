@@ -89,9 +89,7 @@ def _ipv4_checksum(header: bytes) -> int:
     return (~total) & 0xFFFF
 
 
-def _build_tcp_packet(
-    src_ip: bytes, dst_ip: bytes, src_port: int, dst_port: int
-) -> bytes:
+def _build_tcp_packet(src_ip: bytes, dst_ip: bytes, src_port: int, dst_port: int) -> bytes:
     eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x08\x00"
     ip_total = 40
     ip = bytearray(
@@ -283,9 +281,7 @@ def test_tshark_services_file_resolves_bigip_port_names(tshark_profile):
     # BIG-IP-prefixed service name, not "https".
     first_info = info_lines[0]
     assert "https" not in first_info, first_info
-    assert any(
-        marker in first_info for marker in ("vs-", "self-", "policy-")
-    ), first_info
+    assert any(marker in first_info for marker in ("vs-", "self-", "policy-")), first_info
 
 
 def test_tshark_dfilters_file_parses(tshark_profile):

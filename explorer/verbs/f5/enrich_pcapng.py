@@ -175,9 +175,7 @@ def _run_enrich_pcapng(args: argparse.Namespace) -> int:
         return 2
 
     converted_note = " (libpcap input converted to pcapng)" if result.converted_from_libpcap else ""
-    keylog_note = (
-        f", keylog {result.keylog_bytes} byte(s) embedded" if result.keylog_bytes else ""
-    )
+    keylog_note = f", keylog {result.keylog_bytes} byte(s) embedded" if result.keylog_bytes else ""
     observed_note = (
         f" out of {result.observed_ipv4} v4 / {result.observed_ipv6} v6 observed"
         if not args.include_unobserved

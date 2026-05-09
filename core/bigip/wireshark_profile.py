@@ -336,15 +336,15 @@ def _extract_vlans(source: str) -> list[tuple[str, int]]:
 # stomp on standard ``http`` / ``https`` / ``dns`` / ``ssh`` mappings
 # that Wireshark already ships in its built-in ``services`` file.
 _BIGIP_CONTROL_SERVICES: tuple[tuple[str, int, str], ...] = (
-    ("f5-iquery", 4353, "tcp"),         # GTM iQuery / sync between GTM peers
+    ("f5-iquery", 4353, "tcp"),  # GTM iQuery / sync between GTM peers
     ("f5-iquery", 4353, "udp"),
-    ("f5-cmi", 6699, "tcp"),            # config sync (cluster master)
+    ("f5-cmi", 6699, "tcp"),  # config sync (cluster master)
     ("f5-cmi-conf-replicator", 6700, "tcp"),
     ("f5-cmi-config", 6701, "tcp"),
     ("f5-cmi-mcpd", 6702, "tcp"),
     ("f5-cmi-statedb", 6703, "tcp"),
     ("f5-icontrol-rest", 8443, "tcp"),  # iControl REST
-    ("f5-tmsh", 22, "tcp"),             # tmsh over SSH
+    ("f5-tmsh", 22, "tcp"),  # tmsh over SSH
     ("f5-snmp", 161, "udp"),
     ("f5-snmp-trap", 162, "udp"),
 )
@@ -403,11 +403,7 @@ def _dfilters_for_self_ips(source: str) -> list[tuple[str, str]]:
         if self_ip.network is None:
             continue
         net = self_ip.network
-        field_name = (
-            "ipv6.addr"
-            if isinstance(net, ipaddress.IPv6Network)
-            else "ip.addr"
-        )
+        field_name = "ipv6.addr" if isinstance(net, ipaddress.IPv6Network) else "ip.addr"
         label = _label("net", self_ip.full_path)
         out.append((label, f"{field_name} == {net}"))
     return out
@@ -537,9 +533,7 @@ def _services_from_gtm_servers(source: str) -> list[tuple[str, int, str]]:
         if len(parts) < 3 or parts[0] != "gtm" or parts[1] != "server":
             continue
         server_path = parts[2]
-        vs_block_match = re.search(
-            r"virtual-servers\s*\{(.*)\}\s*$", block.body, re.DOTALL
-        )
+        vs_block_match = re.search(r"virtual-servers\s*\{(.*)\}\s*$", block.body, re.DOTALL)
         if vs_block_match is None:
             continue
         from .parser import _parse_properties
@@ -802,12 +796,9 @@ def build_wireshark_profile(
         hosts=_hosts_from_index(index),
         subnets=_subnets_from_index(index),
         vlans=[
-            (tag, _label("vlan", full_path))
-            for full_path, tag in _extract_vlans(combined_source)
+            (tag, _label("vlan", full_path)) for full_path, tag in _extract_vlans(combined_source)
         ],
-        dfilters=(
-            _build_proxy_side_dfilters(index) + _dfilters_for_self_ips(combined_source)
-        ),
+        dfilters=(_build_proxy_side_dfilters(index) + _dfilters_for_self_ips(combined_source)),
         services=list(_BIGIP_CONTROL_SERVICES),
         ethers=_ethers_from_arp(combined_source),
         colorfilters=_build_proxy_side_color_rules(index),

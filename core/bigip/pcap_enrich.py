@@ -619,9 +619,7 @@ def collect_observed_ips(in_fh: BinaryIO) -> tuple[set[str], set[str]]:
         elif block.block_type == _pcapng.BLOCK_TYPE_EPB and block.packet_data:
             iface = block.interface_id or 0
             if iface < len(interface_linktypes):
-                _scan_packet_ips(
-                    bytes(block.packet_data), interface_linktypes[iface], v4, v6
-                )
+                _scan_packet_ips(bytes(block.packet_data), interface_linktypes[iface], v4, v6)
     return v4, v6
 
 
@@ -831,9 +829,7 @@ def enrich_pcapng(
         if spooled is not None:
             spooled.close()
 
-    names_total = sum(len(v) for v in v4_packed.values()) + sum(
-        len(v) for v in v6_packed.values()
-    )
+    names_total = sum(len(v) for v in v4_packed.values()) + sum(len(v) for v in v6_packed.values())
     return EnrichResult(
         ipv4_records=len(v4_packed),
         ipv6_records=len(v6_packed),

@@ -80,14 +80,9 @@ def _run_enrich_wireshark(args: argparse.Namespace) -> int:
         print(f"error: not a directory: {args.output}", file=sys.stderr)
         return 2
 
-    if (
-        out_dir.exists()
-        and any(out_dir.iterdir())
-        and not args.force
-    ):
+    if out_dir.exists() and any(out_dir.iterdir()) and not args.force:
         print(
-            f"error: {args.output} already exists and is not empty; "
-            f"pass --force to overwrite",
+            f"error: {args.output} already exists and is not empty; pass --force to overwrite",
             file=sys.stderr,
         )
         return 2

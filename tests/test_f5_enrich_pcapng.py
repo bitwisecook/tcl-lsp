@@ -363,9 +363,7 @@ def test_enrich_pcapng_include_unobserved_emits_full_inventory():
     name_index = build_name_index(config, source=SAMPLE_CONFIG)
 
     out = io.BytesIO()
-    result = enrich_pcapng(
-        io.BytesIO(pcapng_in), out, name_index, include_unobserved=True
-    )
+    result = enrich_pcapng(io.BytesIO(pcapng_in), out, name_index, include_unobserved=True)
 
     # With --all every exact-IP entry from the inventory is emitted, even
     # ones that never appeared as a packet src/dst.
@@ -394,10 +392,11 @@ def test_enrich_pcapng_subnet_label_applied_to_observed_host():
         out.write(struct.pack("<I", 12 + len(idb_body)))
         for src in addrs:
             eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x08\x00"
-            ipv4 = bytes(
-                [0x45, 0x00, 0x00, 0x14]
-                + [0, 1, 0x40, 0x00, 0x40, 0x06, 0, 0]
-            ) + src + bytes([10, 0, 9, 9])
+            ipv4 = (
+                bytes([0x45, 0x00, 0x00, 0x14] + [0, 1, 0x40, 0x00, 0x40, 0x06, 0, 0])
+                + src
+                + bytes([10, 0, 9, 9])
+            )
             packet = eth + ipv4
             cap_len = len(packet)
             epb_body = struct.pack("<IIIII", 0, 0, 0, cap_len, cap_len) + packet
@@ -476,9 +475,7 @@ def test_enrich_pcapng_cli_writes_pcapng_with_nrb(tmp_path, capsys):
     pcap_in.write_bytes(_build_minimal_pcapng())
     pcap_out = tmp_path / "out.pcapng"
 
-    code, _out, err = _run(
-        ["enrich-pcapng", "-c", str(cfg), str(pcap_in), str(pcap_out)], capsys
-    )
+    code, _out, err = _run(["enrich-pcapng", "-c", str(cfg), str(pcap_in), str(pcap_out)], capsys)
 
     assert code == 0
     assert pcap_out.exists()
@@ -543,7 +540,5 @@ def test_build_merged_name_index_does_not_duplicate_subnet_rows():
     block would land in ``v4_subnets`` once per input.
     """
     config = parse_bigip_conf(SAMPLE_CONFIG)
-    merged = build_merged_name_index(
-        [(config, SAMPLE_CONFIG), (config, SAMPLE_CONFIG)]
-    )
+    merged = build_merged_name_index([(config, SAMPLE_CONFIG), (config, SAMPLE_CONFIG)])
     assert merged.v4_subnets == list(dict.fromkeys(merged.v4_subnets))

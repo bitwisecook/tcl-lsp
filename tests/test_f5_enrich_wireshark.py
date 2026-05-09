@@ -261,9 +261,11 @@ def test_write_to_lists_every_generated_file(tmp_path):
 
 def test_proxy_side_color_rules_handle_empty_index():
     """No labels -> no rules; we shouldn't crash building empty filters."""
-    rules = _build_proxy_side_color_rules.__wrapped__ if hasattr(
-        _build_proxy_side_color_rules, "__wrapped__"
-    ) else _build_proxy_side_color_rules
+    rules = (
+        _build_proxy_side_color_rules.__wrapped__
+        if hasattr(_build_proxy_side_color_rules, "__wrapped__")
+        else _build_proxy_side_color_rules
+    )
     from core.bigip.pcap_enrich import NameIndex
 
     assert rules(NameIndex()) == []
@@ -278,9 +280,7 @@ def test_enrich_wireshark_cli_writes_directory(tmp_path, capsys):
     cfg.write_text(SAMPLE_CONFIG)
     out_dir = tmp_path / "profile"
 
-    code, _out, err = _run(
-        ["enrich-wireshark", "-c", str(cfg), str(out_dir)], capsys
-    )
+    code, _out, err = _run(["enrich-wireshark", "-c", str(cfg), str(out_dir)], capsys)
 
     assert code == 0
     assert (out_dir / "hosts").is_file()
@@ -298,9 +298,7 @@ def test_enrich_wireshark_cli_refuses_to_overwrite_without_force(tmp_path, capsy
     out_dir.mkdir()
     (out_dir / "leftover").write_text("preexisting")
 
-    code, _out, err = _run(
-        ["enrich-wireshark", "-c", str(cfg), str(out_dir)], capsys
-    )
+    code, _out, err = _run(["enrich-wireshark", "-c", str(cfg), str(out_dir)], capsys)
     assert code == 2
     assert "already exists" in err
     # The pre-existing file should still be there.
@@ -314,9 +312,7 @@ def test_enrich_wireshark_cli_force_overwrites(tmp_path, capsys):
     out_dir.mkdir()
     (out_dir / "stale_hosts").write_text("# unrelated")
 
-    code, _out, _err = _run(
-        ["enrich-wireshark", "--force", "-c", str(cfg), str(out_dir)], capsys
-    )
+    code, _out, _err = _run(["enrich-wireshark", "--force", "-c", str(cfg), str(out_dir)], capsys)
     assert code == 0
     assert (out_dir / "hosts").is_file()
 
