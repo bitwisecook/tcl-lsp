@@ -688,7 +688,22 @@ impl<'r> Lowerer<'r> {
             return Some(barrier);
         }
 
-        // Command-specific dispatch.
+        // C43 status: the registry now declares a typed
+        // `LoweringHookId` for every structured command spec
+        // (Proc / When / NamespaceEval / If / Switch / For /
+        // While / Foreach / Lmap / Catch / Try / Dict / Eval /
+        // Uplevel).  Downstream consumers (LSP, compiler explorer,
+        // coverage audit) can read the canonical hook from the
+        // registry instead of re-parsing names.  Runtime dispatch
+        // still flows through the string-pattern match below — the
+        // structured methods need `&mut self` access to the const-
+        // map / proc-depth / dead-code-depth state, and switching
+        // to a registry-driven runtime path requires the iRules
+        // dialect to always be loaded (test harnesses use
+        // `build_default()` without `load_irules()`, so `when`
+        // isn't registered there).  The migration to a
+        // hook-ID-driven runtime dispatch lands as a follow-up
+        // sub-strip once the registry-load path is unified.
         match cmd_name {
             "proc" if args.len() == 3 && seg.arg_tokens().len() >= 3 => {
                 Some(self.lower_proc(seg, namespace))
