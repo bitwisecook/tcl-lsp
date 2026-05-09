@@ -1968,6 +1968,58 @@ def _build_test_script_with_metadata(
     return script, {"cfg_paths": cfg_paths, "multi_tmm_detected": multi_tmm}
 
 
+def cmd_bigip_cleanup(
+    paths: list[str],
+    *,
+    keep: list[str] | None = None,
+    no_keep_common: bool = False,
+) -> None:
+    """Generate ``tmsh delete`` commands for unreferenced BIG-IP objects."""
+    from pathlib import Path
+
+    from core.bigip.cleanup import compute_cleanup, report_to_dict
+    from core.bigip.parser import parse_bigip_conf
+    from core.commands.registry.runtime import configure_signatures
+
+    # The iRule body scan inside core.bigip.link_extract requires the
+    # ``f5-irules`` dialect to recognise event handlers (``when``) as
+    # ArgRole.BODY so it walks into the rule body.
+    configure_signatures(dialect="f5-irules")
+
+    sources: dict[str, str] = {}
+    configs = {}
+    for path_str in paths:
+        path = Path(path_str).resolve()
+        if not path.is_file():
+            print(f"Error: not a file: {path_str}", file=sys.stderr)
+            sys.exit(1)
+        uri = path.as_uri()
+        src = path.read_text(encoding="utf-8", errors="replace")
+        sources[uri] = src
+        configs[uri] = parse_bigip_conf(src)
+
+    keep_paths: set[str] = set()
+    extra_prefixes: set[str] = set()
+    for entry in keep or []:
+        if entry.endswith("/"):
+            extra_prefixes.add(entry)
+        else:
+            keep_paths.add(entry)
+    if no_keep_common:
+        keep_partitions = frozenset(extra_prefixes)
+    else:
+        keep_partitions = frozenset(extra_prefixes | {"/Common/"})
+
+    report = compute_cleanup(
+        sources=sources,
+        configs=configs,
+        keep_paths=frozenset(keep_paths),
+        keep_partitions=keep_partitions,
+    )
+
+    print(json.dumps(report_to_dict(report), indent=2))
+
+
 # CLI
 
 
@@ -2101,6 +2153,28 @@ examples:
     p.add_argument("--style", default="doxygen", choices=["doxygen", "plain"], help="Tag style")
     p.add_argument("--decoration", action="store_true", help="Add decoration borders")
 
+    p = sub.add_parser(
+        "bigip-cleanup",
+        help="Generate `tmsh delete` commands for objects unreferenced by any virtual.",
+    )
+    p.add_argument(
+        "paths",
+        nargs="+",
+        help="bigip.conf / SCF files to analyse (one or more).",
+    )
+    p.add_argument(
+        "--keep",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="Object full-path or partition prefix (ends with '/') to retain.",
+    )
+    p.add_argument(
+        "--no-keep-common",
+        action="store_true",
+        help="Do not auto-keep /Common/* (delete factory-shipped objects too).",
+    )
+
     p = sub.add_parser("help", help="Show available features and how to use them")
     p.add_argument(
         "topic",
@@ -2120,6 +2194,13 @@ examples:
         return
     if args.command == "command-info":
         cmd_command_info(args.name)
+        return
+    if args.command == "bigip-cleanup":
+        cmd_bigip_cleanup(
+            args.paths,
+            keep=args.keep,
+            no_keep_common=args.no_keep_common,
+        )
         return
 
     # Commands that need a file

@@ -112,6 +112,7 @@ combine them when more than one form helps:
 - [kcs-feature-semantic-graphs.md](kcs-feature-semantic-graphs.md)
 - [kcs-feature-control-flow-diagrams.md](kcs-feature-control-flow-diagrams.md)
 - [kcs-feature-irule-review.md](kcs-feature-irule-review.md)
+- [kcs-feature-bigip-cleanup.md](kcs-feature-bigip-cleanup.md)
 
 ## AI features
 

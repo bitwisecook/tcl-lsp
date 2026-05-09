@@ -733,6 +733,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.extractRulePick", extractRulePick),
     commands.registerCommand("tclLsp.extractAllRules", extractAllRules),
     commands.registerCommand("tclLsp.extractLinkedObjects", extractLinkedObjectsAtCursor),
+    commands.registerCommand("tclLsp.bigipCleanup", generateBigipCleanupScript),
     commands.registerCommand(
       "tclLsp.renameSymbolAtPosition",
       async (line: number, startChar: number, endChar: number) => {
@@ -2081,6 +2082,62 @@ async function extractLinkedObjectsAtCursor(): Promise<void> {
     content: JSON.stringify(result, null, 2),
   });
   await vscode.window.showTextDocument(doc, { preview: false });
+}
+
+/**
+ * Generate a tmsh script that deletes BIG-IP objects unreferenced by any
+ * virtual server.  Walks the active config, opens the resulting script
+ * (and a JSON metadata report) side-by-side for review.
+ */
+interface BigipCleanupResult {
+  candidates: Array<{
+    fullPath: string;
+    kind: string | null;
+    deleteCommand: string;
+    [key: string]: unknown;
+  }>;
+  summary: Record<string, number>;
+  tmshScript: string;
+  [key: string]: unknown;
+}
+
+async function generateBigipCleanupScript(): Promise<void> {
+  const editor = window.activeTextEditor;
+  if (!editor || !client) {
+    window.showWarningMessage("Open a BIG-IP configuration file first.");
+    return;
+  }
+
+  const uri = editor.document.uri.toString();
+  const result: BigipCleanupResult | null = await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.bigipCleanup",
+    arguments: [[uri], null, false],
+  });
+
+  if (!result) {
+    window.showWarningMessage(
+      "No BIG-IP configuration loaded in the workspace.  Open a bigip.conf and try again.",
+    );
+    return;
+  }
+
+  const scriptDoc = await vscode.workspace.openTextDocument({
+    language: "tcl-bigip",
+    content: result.tmshScript,
+  });
+  await vscode.window.showTextDocument(scriptDoc, {
+    preview: false,
+    viewColumn: vscode.ViewColumn.One,
+  });
+
+  const reportDoc = await vscode.workspace.openTextDocument({
+    language: "json",
+    content: JSON.stringify(result, null, 2),
+  });
+  await vscode.window.showTextDocument(reportDoc, {
+    preview: false,
+    viewColumn: vscode.ViewColumn.Beside,
+  });
 }
 
 // Listen for saves on scratch documents and write changes back to the

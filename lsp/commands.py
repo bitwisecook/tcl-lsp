@@ -633,6 +633,74 @@ def on_extract_linked_objects(
     )
 
 
+def on_bigip_cleanup(
+    uris: list | None = None,
+    *,
+    keep: list | None = None,
+    no_keep_common: bool = False,
+) -> dict | None:
+    """Generate a tmsh cleanup script for unreferenced BIG-IP objects.
+
+    *uris* selects which workspace BIG-IP configurations to analyse.  When
+    empty / ``None`` every BIG-IP config the workspace scanner has parsed
+    is included.  Returns a JSON-serialisable report (see
+    :func:`core.bigip.cleanup.report_to_dict`) or ``None`` if no BIG-IP
+    config is loaded.
+    """
+    from core.bigip.cleanup import compute_cleanup, report_to_dict
+
+    configs = _state.background_scanner.bigip_configs
+    if not configs:
+        return None
+
+    selected_uris: list[str]
+    if uris:
+        selected_uris = [u for u in uris if u in configs]
+        if not selected_uris:
+            return None
+    else:
+        selected_uris = list(configs.keys())
+
+    sources: dict[str, str] = {}
+    selected_configs = {}
+    for cfg_uri in selected_uris:
+        try:
+            sources[cfg_uri] = _state._get_doc_source(cfg_uri)
+        except Exception:
+            path = uri_to_path(cfg_uri)
+            if not path:
+                continue
+            try:
+                with open(path, encoding="utf-8", errors="replace") as handle:
+                    sources[cfg_uri] = handle.read()
+            except OSError:
+                continue
+        selected_configs[cfg_uri] = configs[cfg_uri]
+
+    if not sources:
+        return None
+
+    keep_paths: set[str] = set()
+    extra_prefixes: set[str] = set()
+    for entry in keep or []:
+        if isinstance(entry, str) and entry.endswith("/"):
+            extra_prefixes.add(entry)
+        elif isinstance(entry, str):
+            keep_paths.add(entry)
+    if no_keep_common:
+        keep_partitions = frozenset(extra_prefixes)
+    else:
+        keep_partitions = frozenset(extra_prefixes | {"/Common/"})
+
+    report = compute_cleanup(
+        sources=sources,
+        configs=selected_configs,
+        keep_paths=frozenset(keep_paths),
+        keep_partitions=keep_partitions,
+    )
+    return report_to_dict(report)
+
+
 def on_write_rule_back(
     uri: str,
     body_start_offset: int,
@@ -839,6 +907,7 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.command("tcl-lsp.extractRule")(on_extract_rule)
     server_instance.command("tcl-lsp.listRules")(on_list_rules)
     server_instance.command("tcl-lsp.extractLinkedObjects")(on_extract_linked_objects)
+    server_instance.command("tcl-lsp.bigipCleanup")(on_bigip_cleanup)
     server_instance.command("tcl-lsp.writeRuleBack")(on_write_rule_back)
     server_instance.command("tcl-lsp.tclpkg.install")(on_tclpkg_install)
     server_instance.command("tcl-lsp.tclpkg.search")(on_tclpkg_search)
