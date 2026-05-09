@@ -41,7 +41,9 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         help="Skip TLS certificate verification (default: yes).",
     )
     p.add_argument("--json", action="store_true", help="Emit raw iControl REST JSON.")
-    p.add_argument("--timeout", type=float, default=60.0, help="Per-request timeout (default: 60s).")
+    p.add_argument(
+        "--timeout", type=float, default=60.0, help="Per-request timeout (default: 60s)."
+    )
     p.set_defaults(handler=_run_pull)
 
 

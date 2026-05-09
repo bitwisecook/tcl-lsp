@@ -7,7 +7,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pytest
 
 from explorer.f5_cli import main
 from explorer.f5_remote.ucs import is_ucs_bytes, make_test_ucs, ucs_to_scf

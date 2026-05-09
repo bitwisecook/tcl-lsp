@@ -12,4 +12,4 @@ pools, nodes, monitors, iRules); anything else is reported in the
 
 from __future__ import annotations
 
-from .as3 import scf_to_as3, AS3ConversionReport  # noqa: F401  (re-export)
+from .as3 import AS3ConversionReport, scf_to_as3  # noqa: F401  (re-export)

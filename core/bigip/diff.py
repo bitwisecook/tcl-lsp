@@ -9,7 +9,7 @@ changes inside modified objects are reported field by field.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .model import BigipConfig
 
@@ -81,7 +81,7 @@ _SPECIALISED_GENERIC_TYPES: frozenset[tuple[str, str]] = frozenset(
 
 def _kind_inventories(cfg: BigipConfig) -> dict[str, dict[str, object]]:
     """Return a mapping of ``kind -> {full_path: object}`` for every kind."""
-    generic = {
+    generic: dict[str, object] = {
         key: obj
         for key, obj in cfg.generic_objects.items()
         if (obj.module, obj.object_type) not in _SPECIALISED_GENERIC_TYPES
@@ -190,8 +190,7 @@ def report_to_dict(report: DiffReport) -> dict:
         }
         if change.fields:
             out["fields"] = [
-                {"field": fc.field, "before": fc.before, "after": fc.after}
-                for fc in change.fields
+                {"field": fc.field, "before": fc.before, "after": fc.after} for fc in change.fields
             ]
         return out
 

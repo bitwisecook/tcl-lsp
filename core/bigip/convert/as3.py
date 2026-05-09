@@ -103,9 +103,7 @@ def _convert_virtual(cfg: BigipConfig, name: str) -> dict:
         pool_name = _short_name(cfg.resolve_pool(vs.pool) or vs.pool)
         out["pool"] = pool_name
     if vs.rules:
-        out["iRules"] = [
-            _short_name(cfg.resolve_rule(r) or r) for r in vs.rules
-        ]
+        out["iRules"] = [_short_name(cfg.resolve_rule(r) or r) for r in vs.rules]
     if vs.persist:
         out["persistenceMethods"] = [
             _short_name(cfg.resolve_persistence(p) or p) for p in vs.persist

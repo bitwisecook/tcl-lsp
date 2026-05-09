@@ -9,16 +9,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pytest
 
 from explorer.f5_cli import main
-
 
 SAMPLE_CONF = Path(__file__).resolve().parent.parent / "samples" / "bigip" / "bigip.conf"
 
 
-SMALL = textwrap.dedent(
-    """
+SMALL = (
+    textwrap.dedent(
+        """
     ltm node /Common/n1 {
         address 10.0.0.1
     }
@@ -43,7 +42,9 @@ SMALL = textwrap.dedent(
         }
     }
     """
-).strip() + "\n"
+    ).strip()
+    + "\n"
+)
 
 
 def _run(args, capsys):
@@ -134,9 +135,7 @@ def test_graph_seed_subgraph(tmp_path, capsys):
 
 def test_graph_seed_with_no_match_yields_empty(tmp_path, capsys):
     p = _write(tmp_path, "c.conf", SMALL)
-    code, out, _err = _run(
-        ["graph", str(p), "--format", "json", "--seed", "/Common/nope"], capsys
-    )
+    code, out, _err = _run(["graph", str(p), "--format", "json", "--seed", "/Common/nope"], capsys)
     assert code == 0
     payload = json.loads(out)
     assert payload["nodes"] == []
@@ -242,9 +241,7 @@ def test_diff_json(tmp_path, capsys):
 
 def test_diff_irule_body_change(tmp_path, capsys):
     a = _write(tmp_path, "a.conf", SMALL)
-    new_body = SMALL.replace(
-        "pool /Common/p1\n", 'pool /Common/p1\n            log local0. "hi"\n'
-    )
+    new_body = SMALL.replace("pool /Common/p1\n", 'pool /Common/p1\n            log local0. "hi"\n')
     b = _write(tmp_path, "b.conf", new_body)
     code, out, _err = _run(["diff", str(a), str(b), "--json"], capsys)
     assert code == 1

@@ -9,7 +9,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pytest
 
 from explorer.f5_cli import main
 
@@ -30,8 +29,9 @@ def _write(tmp_path: Path, name: str, body: str) -> Path:
 
 
 def test_validate_clean_config_returns_zero(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm node /Common/n1 { address 10.0.0.1 }
         ltm monitor http /Common/m1 { send "GET / HTTP/1.0" }
         ltm pool /Common/p1 {
@@ -43,7 +43,9 @@ def test_validate_clean_config_returns_zero(tmp_path, capsys):
             pool /Common/p1
         }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p)], capsys)
     assert code == 0, out
@@ -60,12 +62,15 @@ def test_validate_empty_pool_warns(tmp_path, capsys):
 
 
 def test_validate_orphan_monitor(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm monitor http /Common/orphan_mon { send "GET /" }
         ltm pool /Common/p { members { /Common/n:80 { } } }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p), "--category", "config"], capsys)
     assert code in (0, 1)  # /Common/ monitors are info-level, not warning
@@ -73,11 +78,14 @@ def test_validate_orphan_monitor(tmp_path, capsys):
 
 
 def test_validate_pool_without_monitor_warns(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm pool /Common/p { members { /Common/n:80 { } } }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p)], capsys)
     assert code == 1
@@ -85,11 +93,14 @@ def test_validate_pool_without_monitor_warns(tmp_path, capsys):
 
 
 def test_validate_virtual_without_pool_info(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm virtual /Common/vs_naked { destination /Common/10.0.0.1:80 }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p)], capsys)
     # info findings only -> exit 0
@@ -101,13 +112,16 @@ def test_validate_virtual_without_pool_info(tmp_path, capsys):
 
 
 def test_validate_irule_unknown_event(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm rule /Common/r_bad {
             when NOT_A_REAL_EVENT { return }
         }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p), "--category", "irule"], capsys)
     assert code == 1
@@ -116,13 +130,16 @@ def test_validate_irule_unknown_event(tmp_path, capsys):
 
 
 def test_validate_irule_empty_when_block_info(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm rule /Common/r {
             when HTTP_REQUEST { }
         }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p), "--category", "irule"], capsys)
     assert code == 0  # info only
@@ -154,12 +171,15 @@ def test_validate_sarif_format(tmp_path, capsys):
 
 
 def test_validate_severity_filter(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm pool /Common/empty { }
         ltm virtual /Common/vs_naked { destination /Common/10.0.0.1:80 }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["validate", str(p), "--severity", "info", "--format", "json"], capsys)
     payload = json.loads(out)
@@ -178,14 +198,17 @@ def test_validate_lint_alias(tmp_path, capsys):
 
 
 def test_irule_lint_filters_to_irule_rules(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm pool /Common/empty { }
         ltm rule /Common/r {
             when HTTP_REQUEST { log_local0 "hi" }
         }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, out, _err = _run(["irule", "lint", str(p), "--json"], capsys)
     payload = json.loads(out)
@@ -197,15 +220,18 @@ def test_irule_lint_filters_to_irule_rules(tmp_path, capsys):
 
 
 def test_irule_lint_clean_returns_zero(tmp_path, capsys):
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         ltm rule /Common/r {
             when HTTP_REQUEST {
                 pool /Common/p1
             }
         }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     p = _write(tmp_path, "c.conf", body)
     code, _out, _err = _run(["irule", "lint", str(p)], capsys)
     assert code == 0

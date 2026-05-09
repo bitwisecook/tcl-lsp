@@ -9,9 +9,9 @@ source.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from .link_extract import BigipObjectEdge, BigipObjectNode, build_bigip_object_graph
+from .link_extract import BigipObjectNode, build_bigip_object_graph
 from .model import BigipConfig
 
 
@@ -108,7 +108,7 @@ def compute_stats(
             break
 
     # Orphan = a non-root, deletable-eligible node with zero incoming refs.
-    from .cleanup import _deletable_kinds, _is_root_kind  # type: ignore[attr-defined]
+    from .cleanup import _deletable_kinds, _is_root_kind
 
     deletable = _deletable_kinds()
     orphans = 0

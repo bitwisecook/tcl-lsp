@@ -27,7 +27,9 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "remain valid."
     )
     p.add_argument("path", help="bigip.conf / SCF file (`-` for stdin).")
-    p.add_argument("-o", "--output", metavar="FILE", help="Write redacted config here (default: stdout).")
+    p.add_argument(
+        "-o", "--output", metavar="FILE", help="Write redacted config here (default: stdout)."
+    )
     p.add_argument(
         "--keep-ips",
         action="store_true",

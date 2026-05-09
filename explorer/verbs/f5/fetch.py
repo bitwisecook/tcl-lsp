@@ -127,7 +127,10 @@ def _run_fetch(args: argparse.Namespace) -> int:
     if args.print_path:
         print(str(out_dir))
     else:
-        print(f"fetched {result.fmt} from {result.host} via {result.transport} -> {out_dir}", file=sys.stderr)
+        print(
+            f"fetched {result.fmt} from {result.host} via {result.transport} -> {out_dir}",
+            file=sys.stderr,
+        )
     return 0
 
 

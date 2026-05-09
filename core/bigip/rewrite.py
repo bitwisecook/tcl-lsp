@@ -61,7 +61,9 @@ def rename_object(source: str, old: str, new: str) -> RenameReport:
         old_short = old.removeprefix("/Common/")
         new_short = new.removeprefix("/Common/")
         if old_short and old_short != new_short and "/" not in old_short:
-            short_pattern = re.compile(rf"(?<![A-Za-z0-9_/.\-]){re.escape(old_short)}(?![A-Za-z0-9_/.\-])")
+            short_pattern = re.compile(
+                rf"(?<![A-Za-z0-9_/.\-]){re.escape(old_short)}(?![A-Za-z0-9_/.\-])"
+            )
             # Only rewrite short refs where they look like references, not
             # part of arbitrary text.  The bounded-token pattern above is
             # already conservative enough; we accept any match here.

@@ -11,15 +11,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from core.bigip.emit import emit_split_by_partition, emit_merged, partition_of
+from core.bigip.emit import emit_merged, emit_split_by_partition, partition_of
 from core.bigip.parser import parse_bigip_conf
 from core.bigip.rewrite import redact_secrets, rename_object
 from explorer.f5_cli import main
 from explorer.f5_remote.ucs import make_test_ucs
 
-
-SMALL = textwrap.dedent(
-    """
+SMALL = (
+    textwrap.dedent(
+        """
     ltm node /Common/n1 { address 10.0.0.1 }
     ltm pool /Common/p1 {
         members { /Common/n1:80 { address 10.0.0.1 } }
@@ -36,7 +36,9 @@ SMALL = textwrap.dedent(
         rules { /Common/r1 }
     }
     """
-).strip() + "\n"
+    ).strip()
+    + "\n"
+)
 
 
 def _run(args, capsys):
@@ -128,9 +130,7 @@ def test_rename_verb_dry_run_emits_diff(tmp_path, capsys):
 
 def test_rename_verb_in_place(tmp_path, capsys):
     p = _write(tmp_path, "c.conf", SMALL)
-    code, _out, _err = _run(
-        ["rename", "/Common/p1", "/Common/q1", str(p), "--in-place"], capsys
-    )
+    code, _out, _err = _run(["rename", "/Common/p1", "/Common/q1", str(p), "--in-place"], capsys)
     assert code == 0
     assert "/Common/q1" in p.read_text()
     assert "/Common/p1 " not in p.read_text()
@@ -138,9 +138,7 @@ def test_rename_verb_in_place(tmp_path, capsys):
 
 def test_rename_verb_warns_when_no_match(tmp_path, capsys):
     p = _write(tmp_path, "c.conf", SMALL)
-    code, _out, err = _run(
-        ["rename", "/Common/nope", "/Common/x", str(p)], capsys
-    )
+    code, _out, err = _run(["rename", "/Common/nope", "/Common/x", str(p)], capsys)
     assert code == 1
     assert "no occurrences" in err
 
@@ -149,8 +147,9 @@ def test_rename_verb_warns_when_no_match(tmp_path, capsys):
 
 
 def test_redact_replaces_password_field():
-    body = textwrap.dedent(
-        """
+    body = (
+        textwrap.dedent(
+            """
         auth user /Common/admin {
             encrypted-password $6$abcdef$realhashvalue
         }
@@ -158,7 +157,9 @@ def test_redact_replaces_password_field():
             community public
         }
         """
-    ).strip() + "\n"
+        ).strip()
+        + "\n"
+    )
     report = redact_secrets(body, remap_ips=False)
     assert "<REDACTED>" in report.new_source
     assert "realhashvalue" not in report.new_source
@@ -169,9 +170,9 @@ def test_redact_replaces_password_field():
 def test_redact_replaces_pem_block():
     body = (
         "sys file ssl-cert /Common/c {\n"
-        "    cert-text \"-----BEGIN CERTIFICATE-----\\n"
+        '    cert-text "-----BEGIN CERTIFICATE-----\\n'
         "MIIDxxxxxxxxxxxxxxxxxxxxxxx\\n"
-        "-----END CERTIFICATE-----\"\n"
+        '-----END CERTIFICATE-----"\n'
         "}\n"
     )
     report = redact_secrets(body, remap_ips=False)
@@ -283,15 +284,19 @@ def test_convert_scf2as3_basic(tmp_path, capsys):
     assert "p1" in app
     assert app["p1"]["class"] == "Pool"
     assert "vs_app" in app
-    assert app["vs_app"]["class"] in {"Service_HTTP", "Service_TCP", "Service_L4", "Service_HTTPS", "Service_UDP"}
+    assert app["vs_app"]["class"] in {
+        "Service_HTTP",
+        "Service_TCP",
+        "Service_L4",
+        "Service_HTTPS",
+        "Service_UDP",
+    }
 
 
 def test_convert_scf2as3_report_lists_unmapped(tmp_path, capsys):
     body = SMALL + "ltm profile http /Common/h_profile { }\n"
     p = _write(tmp_path, "c.conf", body)
-    code, _out, err = _run(
-        ["convert", "scf2as3", str(p), "--report"], capsys
-    )
+    code, _out, err = _run(["convert", "scf2as3", str(p), "--report"], capsys)
     assert code == 0
     assert "unmapped" in err
     assert "profile:/Common/h_profile" in err

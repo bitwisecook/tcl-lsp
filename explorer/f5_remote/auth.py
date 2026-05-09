@@ -14,9 +14,13 @@ from __future__ import annotations
 import getpass
 import os
 import sys
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover — repo runs on 3.11+ in CI; 3.10 falls back to tomli
+    import tomli as tomllib  # type: ignore[no-redef]
 
 
 @dataclass(frozen=True, slots=True)

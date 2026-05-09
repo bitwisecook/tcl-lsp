@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.lint import CATEGORIES, Finding, SEVERITIES, run_lint
+from core.bigip.lint import CATEGORIES, SEVERITIES, Finding, run_lint
 
 from ._paths import load_paths
 from ._registry import verb

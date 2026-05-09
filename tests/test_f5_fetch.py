@@ -176,8 +176,6 @@ def test_fetch_verb_writes_cache(rest_server, tmp_path, capsys, monkeypatch):
         capsys,
     )
     assert code == 0, err
-    captured_out = capsys.readouterr  # already consumed; out from _run
-    # _run already captured; we need the path: read fixture
     cache_root = tmp_path / "cache" / "f5"
     host_dirs = list(cache_root.iterdir())
     assert len(host_dirs) == 1

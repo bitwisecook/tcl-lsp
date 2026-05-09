@@ -36,8 +36,9 @@ def _write(tmp_path, name, body):
     return path
 
 
-SAMPLE = textwrap.dedent(
-    """
+SAMPLE = (
+    textwrap.dedent(
+        """
     ltm rule /Common/r_http {
         when HTTP_REQUEST {
             log local0. "incoming"
@@ -54,7 +55,9 @@ SAMPLE = textwrap.dedent(
         }
     }
     """
-).strip() + "\n"
+    ).strip()
+    + "\n"
+)
 
 
 # ── object_io unit tests ─────────────────────────────────────────────
@@ -150,12 +153,22 @@ def _generate_self_signed(tmp_path):
     out.mkdir()
     subprocess.run(
         [
-            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
-            "-keyout", str(out / "key.pem"),
-            "-out", str(out / "cert.pem"),
-            "-days", "1",
-            "-subj", "/CN=127.0.0.1",
-            "-addext", "subjectAltName=IP:127.0.0.1",
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-keyout",
+            str(out / "key.pem"),
+            "-out",
+            str(out / "cert.pem"),
+            "-days",
+            "1",
+            "-subj",
+            "/CN=127.0.0.1",
+            "-addext",
+            "subjectAltName=IP:127.0.0.1",
         ],
         check=True,
         capture_output=True,
@@ -208,7 +221,9 @@ def test_push_object_create(stub_server):
     creds = Credentials(host=host, user="u", password="p", port=port)
     payload = {"name": "p_new", "loadBalancingMode": "round-robin"}
 
-    result = push_object(creds, kind="pool", payload=payload, create=True, insecure=True, timeout=10.0)
+    result = push_object(
+        creds, kind="pool", payload=payload, create=True, insecure=True, timeout=10.0
+    )
 
     assert result == {"created": True}
     assert _Stub.last_method == "POST"
@@ -256,9 +271,7 @@ def test_push_verb_dry_run(tmp_path, capsys):
         "p.json",
         json.dumps({"fullPath": "/Common/p", "loadBalancingMode": "round-robin"}),
     )
-    code, out, err = _run(
-        ["push", "pool", str(payload_path), "--dry-run"], capsys
-    )
+    code, out, err = _run(["push", "pool", str(payload_path), "--dry-run"], capsys)
     assert code == 0
     assert "would PUT" in err
     assert json.loads(out)["fullPath"] == "/Common/p"

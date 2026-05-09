@@ -9,7 +9,7 @@ resolve_* helpers and the reference graph from
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .model import BigipConfig, BigipPool, BigipVirtualServer
 
@@ -122,12 +122,15 @@ def _explain_pool_lines(cfg: BigipConfig, pool: BigipPool) -> list[str]:
     return lines
 
 
-def compute_explain(
-    cfg: BigipConfig, target: str, *, kind: str | None = None
-) -> ExplainReport:
+def compute_explain(cfg: BigipConfig, target: str, *, kind: str | None = None) -> ExplainReport:
     resolved = _resolve_target(cfg, target, kind)
     if resolved is None:
-        return ExplainReport(target=target, kind=kind or "?", found=False, text_report=f"no virtual or pool found for {target!r}")
+        return ExplainReport(
+            target=target,
+            kind=kind or "?",
+            found=False,
+            text_report=f"no virtual or pool found for {target!r}",
+        )
 
     actual_kind, obj = resolved
     if actual_kind == _KIND_VIRTUAL:

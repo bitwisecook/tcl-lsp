@@ -97,8 +97,7 @@ def _run_scf2as3(args: argparse.Namespace) -> int:
         sys.stdout.write(output)
     if args.report:
         print(
-            f"as3: mapped {report.mapped} object(s); "
-            f"{len(report.unmapped)} unmapped",
+            f"as3: mapped {report.mapped} object(s); {len(report.unmapped)} unmapped",
             file=sys.stderr,
         )
         for entry in report.unmapped:

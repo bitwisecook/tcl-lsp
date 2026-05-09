@@ -84,7 +84,7 @@ def run_lint(
 
 
 def _is_root_kind(kind: str | None) -> bool:
-    from ..cleanup import _is_root_kind as impl  # type: ignore[attr-defined]
+    from ..cleanup import _is_root_kind as impl
 
     return impl(kind)
 

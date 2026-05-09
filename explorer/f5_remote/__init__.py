@@ -67,9 +67,7 @@ def fetch_scf(
     fetched_at = datetime.now(timezone.utc)
 
     def _via_rest() -> FetchResult:
-        scf_text, ucs_bytes = rest.fetch(
-            credentials, fmt=fmt, insecure=insecure, timeout=timeout
-        )
+        scf_text, ucs_bytes = rest.fetch(credentials, fmt=fmt, insecure=insecure, timeout=timeout)
         return FetchResult(
             host=credentials.host,
             transport="rest",

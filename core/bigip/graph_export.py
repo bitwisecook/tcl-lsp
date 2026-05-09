@@ -80,10 +80,7 @@ def _filter_to_subgraph(
             queue.append(neighbour)
 
     keep_nodes = {nid: nodes[nid] for nid in visited if nid in nodes}
-    keep_edges = [
-        e for e in edges
-        if e.source_id in keep_nodes and e.target_id in keep_nodes
-    ]
+    keep_edges = [e for e in edges if e.source_id in keep_nodes and e.target_id in keep_nodes]
     return keep_nodes, keep_edges
 
 
@@ -115,9 +112,7 @@ def export_graph(
     return GraphExport(fmt=fmt, text=text, node_count=len(nodes), edge_count=len(edges))
 
 
-def _to_dot(
-    nodes: dict[str, BigipObjectNode], edges: list[BigipObjectEdge]
-) -> str:
+def _to_dot(nodes: dict[str, BigipObjectNode], edges: list[BigipObjectEdge]) -> str:
     lines = ["digraph bigip {", "  rankdir=LR;", '  node [shape=box, fontname="monospace"];']
     for nid, node in nodes.items():
         lines.append(f'  {_safe_id(nid)} [label="{_label(node)}"];')
@@ -125,16 +120,13 @@ def _to_dot(
         if edge.source_id not in nodes or edge.target_id not in nodes:
             continue
         lines.append(
-            f'  {_safe_id(edge.source_id)} -> {_safe_id(edge.target_id)} '
-            f'[label="{edge.via_kind}"];'
+            f'  {_safe_id(edge.source_id)} -> {_safe_id(edge.target_id)} [label="{edge.via_kind}"];'
         )
     lines.append("}")
     return "\n".join(lines) + "\n"
 
 
-def _to_json(
-    nodes: dict[str, BigipObjectNode], edges: list[BigipObjectEdge]
-) -> str:
+def _to_json(nodes: dict[str, BigipObjectNode], edges: list[BigipObjectEdge]) -> str:
     import json
 
     payload = {
@@ -163,9 +155,7 @@ def _to_json(
     return json.dumps(payload, indent=2) + "\n"
 
 
-def _to_mermaid(
-    nodes: dict[str, BigipObjectNode], edges: list[BigipObjectEdge]
-) -> str:
+def _to_mermaid(nodes: dict[str, BigipObjectNode], edges: list[BigipObjectEdge]) -> str:
     lines = ["graph LR"]
     for nid, node in nodes.items():
         sid = _safe_id(nid)
@@ -175,7 +165,6 @@ def _to_mermaid(
         if edge.source_id not in nodes or edge.target_id not in nodes:
             continue
         lines.append(
-            f"  {_safe_id(edge.source_id)} -->|{edge.via_kind}| "
-            f"{_safe_id(edge.target_id)}"
+            f"  {_safe_id(edge.source_id)} -->|{edge.via_kind}| {_safe_id(edge.target_id)}"
         )
     return "\n".join(lines) + "\n"
