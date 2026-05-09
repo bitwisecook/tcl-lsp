@@ -14,11 +14,14 @@ Functions:
 
 from __future__ import annotations
 
-import ipaddress
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .parser import parse_bigip_conf
+
+if TYPE_CHECKING:
+    from .redact_map import RedactionMap
 
 # ── rename ──────────────────────────────────────────────────────────
 
@@ -95,6 +98,7 @@ class RedactReport:
     pem_blocks_replaced: int
     ips_remapped: int
     new_source: str
+    redaction_map: "RedactionMap | None" = None
 
 
 def _redact_property_values(source: str) -> tuple[str, int]:
@@ -139,63 +143,48 @@ def _redact_pem_blocks(source: str) -> tuple[str, int]:
     return out, count
 
 
-_IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+def redact_secrets(
+    source: str,
+    *,
+    remap_ips: bool = True,
+    target_pool_v4: tuple[str, ...] | None = None,
+    target_pool_v6: tuple[str, ...] | None = None,
+    mode: str = "direct",
+    seed: str = "",
+    explicit_source_cidrs: tuple[str, ...] = (),
+) -> RedactReport:
+    """Redact secrets in *source*; optionally remap public IPs.
 
-
-def _is_already_private(addr: ipaddress.IPv4Address) -> bool:
-    return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast
-
-
-def _remap_ips(source: str) -> tuple[str, int]:
-    """Consistently remap public IPv4 addresses into the 10.x.x.x range.
-
-    Same input -> same output, so cross-references remain valid.
+    Returns the rewritten text plus the :class:`RedactionMap` so callers
+    can persist it to a sidecar file (and later reverse the mapping).
     """
-    mapping: dict[str, str] = {}
-    next_octet_pair = [0, 0]  # 10.0.0.X / 10.0.Y.* progression
+    from .redact_map import (
+        DEFAULT_TARGET_CIDRS_V4,
+        DEFAULT_TARGET_CIDRS_V6,
+        RedactionMap,
+        apply_map,
+        build_map,
+    )
 
-    def _alloc(real: str) -> str:
-        if real in mapping:
-            return mapping[real]
-        a, b = next_octet_pair
-        # Spread across 10.0.{0..255}.{0..255}; bump as we go.
-        synthetic = f"10.0.{a}.{b}"
-        if b < 255:
-            next_octet_pair[1] = b + 1
-        else:
-            next_octet_pair[1] = 0
-            next_octet_pair[0] = a + 1
-        mapping[real] = synthetic
-        return synthetic
-
-    count = 0
-
-    def _sub(match: re.Match[str]) -> str:
-        nonlocal count
-        token = match.group(0)
-        try:
-            addr = ipaddress.IPv4Address(token)
-        except ValueError:
-            return token
-        if _is_already_private(addr):
-            return token
-        count += 1
-        return _alloc(token)
-
-    out = _IPV4_RE.sub(_sub, source)
-    return out, count
-
-
-def redact_secrets(source: str, *, remap_ips: bool = True) -> RedactReport:
     out, secrets = _redact_property_values(source)
     out, pem = _redact_pem_blocks(out)
     if remap_ips:
-        out, ips = _remap_ips(out)
+        rm = build_map(
+            text=out,
+            target_pool_v4=target_pool_v4 or DEFAULT_TARGET_CIDRS_V4,
+            target_pool_v6=target_pool_v6 or DEFAULT_TARGET_CIDRS_V6,
+            mode=mode,
+            seed=seed,
+            explicit_source_cidrs=explicit_source_cidrs,
+        )
+        out, ips = apply_map(rm, out, reverse=False)
     else:
+        rm = RedactionMap()
         ips = 0
     return RedactReport(
         secrets_replaced=secrets,
         pem_blocks_replaced=pem,
         ips_remapped=ips,
         new_source=out,
+        redaction_map=rm,
     )

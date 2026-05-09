@@ -25,5 +25,6 @@ def load_verbs() -> None:
         rename,
         split,
         stats,
+        unredact,
         validate,
     )

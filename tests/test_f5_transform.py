@@ -212,6 +212,52 @@ def test_redact_remaps_public_ips_consistently():
     assert seen[0] == seen[1]
 
 
+def test_redact_preserves_cidr_relationships():
+    """Two real IPs in the same /24 must land in the same target /24."""
+    body = (
+        "ltm node /Common/a { address 1.2.3.5 }\n"
+        "ltm node /Common/b { address 1.2.3.6 }\n"
+        "ltm node /Common/c { address 8.8.8.10 }\n"
+    )
+    report = redact_secrets(body, remap_ips=True)
+    import ipaddress
+    import re
+
+    addrs = [
+        ipaddress.IPv4Address(t) for t in re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", report.new_source)
+    ]
+    assert len(addrs) == 3
+    a24 = ipaddress.ip_network(f"{addrs[0]}/24", strict=False)
+    b24 = ipaddress.ip_network(f"{addrs[1]}/24", strict=False)
+    c24 = ipaddress.ip_network(f"{addrs[2]}/24", strict=False)
+    assert a24 == b24, "a and b were in the same /24 — they must remain so after redaction"
+    assert c24 != a24, "c was in a different /24 — it must remain in a different /24"
+
+
+def test_redact_round_trip_via_map():
+    """redact -> apply_map(reverse=True) must recover the original IPs."""
+    from core.bigip.redact_map import apply_map
+
+    body = "ltm node /Common/n1 { address 8.8.8.8 }\nltm virtual /Common/v { destination 1.1.1.1:443 }\n"
+    report = redact_secrets(body, remap_ips=True)
+    rm = report.redaction_map
+    assert rm is not None
+    recovered, _ = apply_map(rm, report.new_source, reverse=True)
+    assert "8.8.8.8" in recovered
+    assert "1.1.1.1" in recovered
+
+
+def test_redact_shuffle_round_trip():
+    from core.bigip.redact_map import apply_map
+
+    body = "host 8.8.8.4 host 8.8.8.5 host 8.8.8.6\n"
+    report = redact_secrets(body, remap_ips=True, mode="shuffle", seed="test-seed")
+    rm = report.redaction_map
+    assert rm is not None
+    recovered, _ = apply_map(rm, report.new_source, reverse=True)
+    assert recovered == body
+
+
 def test_redact_keeps_private_ips_unchanged():
     body = "ltm node /Common/n1 { address 10.0.0.5 }\n"
     report = redact_secrets(body, remap_ips=True)
@@ -230,6 +276,77 @@ def test_redact_verb(tmp_path, capsys):
     assert "sekret123" not in out
     assert "<REDACTED>" in out
     assert "redacted:" in err
+
+
+def test_redact_verb_writes_map_sidecar(tmp_path, capsys):
+    body = "ltm node /Common/n { address 8.8.8.8 }\n"
+    p = _write(tmp_path, "c.conf", body)
+    out_path = tmp_path / "redacted.conf"
+    code, _out, _err = _run(["redact", str(p), "-o", str(out_path)], capsys)
+    assert code == 0
+    map_path = tmp_path / "redacted.conf.redact.toml"
+    assert map_path.is_file()
+    map_text = map_path.read_text()
+    assert "schema" in map_text
+    assert "8.8.8.8" in map_text
+
+
+def test_redact_verb_target_cidr_flag(tmp_path, capsys):
+    body = "ltm node /Common/n { address 8.8.8.8 }\n"
+    p = _write(tmp_path, "c.conf", body)
+    out_path = tmp_path / "redacted.conf"
+    code, _out, _err = _run(
+        ["redact", str(p), "-o", str(out_path), "--target-cidr", "192.0.2.0/24"], capsys
+    )
+    assert code == 0
+    redacted = out_path.read_text()
+    assert "8.8.8.8" not in redacted
+    # IP must fall in the user-specified pool
+    import re
+
+    addrs = re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", redacted)
+    import ipaddress
+
+    pool = ipaddress.IPv4Network("192.0.2.0/24")
+    for addr in addrs:
+        assert ipaddress.IPv4Address(addr) in pool
+
+
+def test_unredact_verb_recovers_originals(tmp_path, capsys):
+    body = "ltm node /Common/n1 { address 8.8.8.8 }\nlog: contact 8.8.8.8 for help\n"
+    p = _write(tmp_path, "c.conf", body)
+    out_path = tmp_path / "redacted.conf"
+    code, _out, _err = _run(["redact", str(p), "-o", str(out_path)], capsys)
+    assert code == 0
+    map_path = tmp_path / "redacted.conf.redact.toml"
+
+    code, recovered, err = _run(["unredact", str(map_path), str(out_path)], capsys)
+    assert code == 0, err
+    assert "8.8.8.8" in recovered
+    assert "unredacted:" in err
+
+
+def test_unredact_works_on_external_text(tmp_path, capsys):
+    """Unredacting a support email containing only redacted IPs must work."""
+    body = "ltm node /Common/n1 { address 1.2.3.42 }\n"
+    p = _write(tmp_path, "c.conf", body)
+    out_path = tmp_path / "redacted.conf"
+    _run(["redact", str(p), "-o", str(out_path)], capsys)
+    redacted_addr = None
+    import re
+
+    for tok in re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", out_path.read_text()):
+        if tok != "1.2.3.42":
+            redacted_addr = tok
+            break
+    assert redacted_addr is not None
+
+    support_text = f"We see traffic to {redacted_addr} failing handshake.\n"
+    snippet = _write(tmp_path, "support.txt", support_text)
+    map_path = tmp_path / "redacted.conf.redact.toml"
+    code, recovered, _err = _run(["unredact", str(map_path), str(snippet)], capsys)
+    assert code == 0
+    assert "1.2.3.42" in recovered
 
 
 # ── split / merge verbs ──────────────────────────────────────────────
