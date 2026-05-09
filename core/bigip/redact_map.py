@@ -42,8 +42,14 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Iterable, Sequence
+
+if sys.version_info >= (3, 11):
+    import tomllib as _TOMLLIB
+else:  # pragma: no cover — repo runs on 3.11+ in CI
+    import tomli as _TOMLLIB  # type: ignore[no-redef]
 
 # Default RFC1918 pool, walked in order.  Operators on internal LANs
 # routinely use 10/8 but rarely 172.16/12 or 192.168/16 at any scale,
@@ -134,15 +140,6 @@ class RedactionMap:
         rm.forward = dict(forward)
         rm.reverse = {v: k for k, v in forward.items()}
         return rm
-
-
-# tomllib import (3.11+) with tomli fallback to match the rest of repo.
-import sys as _sys
-
-if _sys.version_info >= (3, 11):
-    import tomllib as _TOMLLIB
-else:  # pragma: no cover — repo runs on 3.11+ in CI
-    import tomli as _TOMLLIB  # type: ignore[no-redef]
 
 
 # ── Allocation ──────────────────────────────────────────────────────
