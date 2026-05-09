@@ -433,6 +433,30 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     "tcl_flow_check_return": ("tcl", "flow_check_return", [], [ValType.I32]),
     "tcl_flow_take_return": ("tcl", "flow_take_return", [], [ValType.I32]),
     "tcl_flow_check_signal_loop": ("tcl", "flow_check_signal_loop", [], [ValType.I32]),
+    # Compiled ``for`` loops call this after the next-clause to
+    # decide whether to iterate again.  Mirrors ``tclCmdAH.c``
+    # ForPostNextCallback: BREAK collapses to TCL_OK + exit, while
+    # CONTINUE / ERROR / RETURN exit the loop with their flag still
+    # set so the for command's caller observes the original code.
+    # See ``runtime/zig/interp/tcl_catch.zig::flow_for_next_post_check``.
+    "tcl_flow_for_next_post_check": (
+        "tcl",
+        "flow_for_next_post_check",
+        [],
+        [ValType.I32],
+    ),
+    # Non-consuming "any control-flow flag pending?" probe.  Used
+    # by compiled ``for`` after the init clause: init's BREAK /
+    # CONTINUE / ERROR / RETURN propagate as the for command's
+    # own exit code (matches ``tclCmdAH.c`` Tcl_ForObjCmd ~line
+    # 2598), so we leave the flag set and only signal the emitter
+    # to skip the loop entirely.
+    "tcl_flow_check_any_signal": (
+        "tcl",
+        "flow_check_any_signal",
+        [],
+        [ValType.I32],
+    ),
     # Interpreter fallback — every eval-path command routes through this.
     "tcl_eval": ("tcl", "tcl_eval", [ValType.I32], [ValType.I32]),
     # Runtime expression-source evaluator — used by the codegen's

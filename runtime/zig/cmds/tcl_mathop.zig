@@ -629,9 +629,26 @@ fn op_bnot(args: []const i32) i32 {
 
 fn op_lshift(args: []const i32) i32 {
     if (!require_arity(args, "<<", 2, 2)) return obj_new_int(0);
+    // ``<<`` shift count > INT_MAX (or any bignum-shaped count) is
+    // rejected with ``integer value too large to represent`` — matches
+    // ``tclExecute.c`` INST_LSHIFT (line ~8138).  We can't materialise
+    // a 2^31-bit bignum in finite time, so the check has to come
+    // before ``bignum.alloc_shl``.
+    if (is_bignum(args[1])) {
+        if (lshift_count_is_negative_bignum(args[1])) {
+            stubs.raise("negative shift argument");
+        } else {
+            stubs.raise("integer value too large to represent");
+        }
+        return obj_new_int(0);
+    }
     const b = obj_get_int(args[1]);
     if (b < 0) {
         stubs.raise("negative shift argument");
+        return obj_new_int(0);
+    }
+    if (b > std.math.maxInt(i32)) {
+        stubs.raise("integer value too large to represent");
         return obj_new_int(0);
     }
     if (is_bignum(args[0]) or b >= 63) {
@@ -654,10 +671,24 @@ fn op_lshift(args: []const i32) i32 {
 
 fn op_rshift(args: []const i32) i32 {
     if (!require_arity(args, ">>", 2, 2)) return obj_new_int(0);
+    // ``>>`` mirrors INST_RSHIFT (tclExecute.c ~8169): a shift count
+    // larger than INT_MAX (or a bignum count) collapses to 0 / -1
+    // depending on the sign of the operand — never feed an absurd
+    // count to ``Managed.shiftRight``.
+    if (is_bignum(args[1])) {
+        if (lshift_count_is_negative_bignum(args[1])) {
+            stubs.raise("negative shift argument");
+            return obj_new_int(0);
+        }
+        return rshift_force_sign(args[0]);
+    }
     const b = obj_get_int(args[1]);
     if (b < 0) {
         stubs.raise("negative shift argument");
         return obj_new_int(0);
+    }
+    if (b > std.math.maxInt(i32)) {
+        return rshift_force_sign(args[0]);
     }
     if (is_bignum(args[0])) {
         const ap = obj.obj_promote_to_bignum(args[0]);
@@ -681,6 +712,30 @@ fn op_rshift(args: []const i32) i32 {
     if (b >= 64) return obj_new_int(if (a < 0) -1 else 0);
     const sh: u6 = @intCast(b);
     return obj_new_int(a >> sh);
+}
+
+/// Returns true if *o* parses as a bignum whose value is negative.
+/// Used by the shift operators to distinguish ``negative shift
+/// argument`` from ``integer value too large to represent`` when the
+/// shift count is too large for an i64.
+fn lshift_count_is_negative_bignum(o: i32) bool {
+    const ap = obj.obj_promote_to_bignum(o);
+    defer if (ap.owned) bignum.destroy(ap.m);
+    if (ap.m == null) return false;
+    return !ap.m.?.isPositive() and !ap.m.?.eqlZero();
+}
+
+/// Right-shift by an amount that's beyond what ``mp_div_2d`` can
+/// represent: result is 0 for non-negative operand, -1 for negative.
+fn rshift_force_sign(o: i32) i32 {
+    if (is_bignum(o)) {
+        const ap = obj.obj_promote_to_bignum(o);
+        defer if (ap.owned) bignum.destroy(ap.m);
+        if (ap.m == null) return obj_new_int(0);
+        return obj_new_int(if (ap.m.?.isPositive()) 0 else -1);
+    }
+    const v = obj_get_int(o);
+    return obj_new_int(if (v < 0) -1 else 0);
 }
 
 // -- numeric comparison (chain) ----------------------------------------------

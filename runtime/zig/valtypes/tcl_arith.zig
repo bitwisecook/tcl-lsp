@@ -1620,9 +1620,27 @@ fn check_numeric_unary(a: i32, op_sym: []const u8) bool {
 pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
     if (!check_numeric_binary(a, b, "<<")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, "<<")) return obj.obj_new_int(0);
+    // Mirrors INST_LSHIFT in tclExecute.c (~line 8138): a shift count
+    // larger than INT_MAX (or any bignum-shaped count) is rejected
+    // with "integer value too large to represent" before we try to
+    // materialise a (1 << INT_MAX+1)-bit bignum, which would never
+    // complete.  Negative bignum counts go through the regular
+    // negative-shift error path.
+    if (is_bignum(b)) {
+        if (bignum_is_negative(b)) {
+            stubs.raise("negative shift argument");
+        } else {
+            stubs.raise("integer value too large to represent");
+        }
+        return obj.obj_new_int(0);
+    }
     const bi = obj.obj_get_int(b);
     if (bi < 0) {
         stubs.raise("negative shift argument");
+        return obj.obj_new_int(0);
+    }
+    if (bi > std.math.maxInt(i32)) {
+        stubs.raise("integer value too large to represent");
         return obj.obj_new_int(0);
     }
     // Bignum operand or wide shift count → Managed (arbitrary-precision)
@@ -1652,10 +1670,24 @@ pub export fn tcl_arith_lshift(a: i32, b: i32) i32 {
 pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
     if (!check_numeric_binary(a, b, ">>")) return obj.obj_new_int(0);
     if (!check_int_binary(a, b, ">>")) return obj.obj_new_int(0);
+    // Mirrors INST_RSHIFT in tclExecute.c (~line 8169): a shift count
+    // larger than INT_MAX (or any bignum-shaped count) collapses to
+    // 0 / -1 per the operand sign — never call ``Managed.shiftRight``
+    // with a count it can't represent.
+    if (is_bignum(b)) {
+        if (bignum_is_negative(b)) {
+            stubs.raise("negative shift argument");
+            return obj.obj_new_int(0);
+        }
+        return rshift_force_sign(a);
+    }
     const bi = obj.obj_get_int(b);
     if (bi < 0) {
         stubs.raise("negative shift argument");
         return obj.obj_new_int(0);
+    }
+    if (bi > std.math.maxInt(i32)) {
+        return rshift_force_sign(a);
     }
     // Bignum operand → Managed shiftRight so e.g. ``(1 << 200) >> 100``
     // recovers ``1 << 100`` instead of truncating to 0 (the bottom 64
@@ -1686,6 +1718,30 @@ pub export fn tcl_arith_rshift(a: i32, b: i32) i32 {
     }
     const shift: u6 = @intCast(bi);
     return obj.obj_new_int(ai >> shift);
+}
+
+/// True iff the operand reads as a negative bignum.  Used by the
+/// shift operators to distinguish ``negative shift argument`` from
+/// ``integer value too large to represent`` when the shift count
+/// itself is past i64.
+fn bignum_is_negative(o: i32) bool {
+    const ap = promote_to_bignum(o) orelse return false;
+    defer release_promoted(ap);
+    return !ap.m.isPositive() and !ap.m.eqlZero();
+}
+
+/// Right-shift collapse for shift counts beyond what ``mp_div_2d``
+/// can represent: 0 for non-negative, -1 for negative.  Uses bignum
+/// inspection so a TYPE_BIGNUM operand reports its true sign rather
+/// than the truncated low-64-bit view from ``obj_get_int``.
+fn rshift_force_sign(o: i32) i32 {
+    if (is_bignum(o)) {
+        const ap = promote_to_bignum(o) orelse return obj.obj_new_int(0);
+        defer release_promoted(ap);
+        return obj.obj_new_int(if (ap.m.isPositive()) 0 else -1);
+    }
+    const v = obj.obj_get_int(o);
+    return obj.obj_new_int(if (v < 0) -1 else 0);
 }
 
 /// Bignum-aware bitwise binary op.  Routes through ``Managed.bitAnd /
