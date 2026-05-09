@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use super::{str_class_name, FunctionAsm, ModuleAsm, Op, Operand, INDEX_END};
+use super::{str_class_name, FunctionAsm, Instruction, ModuleAsm, Op, Operand, INDEX_END};
 
 /// Escape a literal value for disassembly comments.
 ///
@@ -54,8 +54,107 @@ pub fn esc(text: &str, limit: usize) -> String {
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss
 )]
-// Long match dispatcher over format-spec shapes.
-#[allow(clippy::too_many_lines)]
+/// Format a single operand into its disassembly representation.
+/// Returns `(part, jump_comment)`.  Extracted from
+/// [`format_function_asm`] to keep the dispatcher under threshold.
+fn format_operand(
+    operand: &Operand,
+    instr: &Instruction,
+    j: usize,
+    labels: &HashMap<String, usize>,
+) -> (String, String) {
+    match operand {
+        Operand::Label(label) if instr.op.is_jump() => {
+            let target = labels.get(label.as_str()).copied().unwrap_or(0);
+            let relative = target as i32 - instr.offset;
+            let part = if relative >= 0 {
+                format!("+{relative}")
+            } else {
+                format!("{relative}")
+            };
+            (part, format!("\t# pc {target}"))
+        }
+        Operand::Label(label) if instr.op == Op::START_CMD && j == 0 => {
+            let target = labels.get(label.as_str()).copied().unwrap_or(0);
+            let relative = target as i32 - instr.offset;
+            let part = if relative >= 0 {
+                format!("+{relative}")
+            } else {
+                format!("{relative}")
+            };
+            let count = match instr.operands.get(1) {
+                Some(Operand::Imm(c)) => *c,
+                Some(_) | None => 1,
+            };
+            (part, format!("\t# next cmd at pc {target}, {count} cmds start here"))
+        }
+        Operand::Label(label) => {
+            let target = labels.get(label.as_str()).copied().unwrap_or(0);
+            (format!("pc {target}"), String::new())
+        }
+        Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => {
+            (format!("%v{val}"), String::new())
+        }
+        Operand::Imm(val)
+            if matches!(instr.op, Op::DICT_SET | Op::DICT_UNSET | Op::DICT_INCR_IMM) && j == 1 =>
+        {
+            (format!("%v{val}"), String::new())
+        }
+        Operand::Imm(val)
+            if matches!(
+                instr.op,
+                Op::INCR_SCALAR1_IMM
+                    | Op::INCR_STK_IMM
+                    | Op::INCR_ARRAY_STK_IMM
+                    | Op::DICT_INCR_IMM
+                    | Op::STR_MATCH
+                    | Op::REGEXP
+            ) =>
+        {
+            let part = if *val >= 0 {
+                format!("+{val}")
+            } else {
+                format!("{val}")
+            };
+            (part, String::new())
+        }
+        Operand::Imm(val) if matches!(instr.op, Op::RETURN_IMM | Op::SYNTAX) && j == 0 => {
+            let part = if *val >= 0 {
+                format!("+{val}")
+            } else {
+                format!("{val}")
+            };
+            (part, String::new())
+        }
+        Operand::Imm(val) if instr.op == Op::STR_CLASS => {
+            let name = str_class_name(*val as u8).unwrap_or("unknown");
+            (name.to_string(), String::new())
+        }
+        Operand::Imm(val)
+            if matches!(
+                instr.op,
+                Op::LIST_INDEX_IMM | Op::LIST_RANGE_IMM | Op::STR_RANGE_IMM
+            ) && *val <= INDEX_END =>
+        {
+            let part = if *val == INDEX_END {
+                "end".into()
+            } else {
+                format!("end{}", val - INDEX_END)
+            };
+            (part, String::new())
+        }
+        Operand::Imm(val) => (format!("{val}"), String::new()),
+    }
+}
+
+/// Render a [`FunctionAsm`] to its disassembly string form.
+/// Mirrors C Tcl 9.0.2's `tcl::unsupported::disassemble proc` output.
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 pub fn format_function_asm(asm: &FunctionAsm) -> String {
     let mut lines = Vec::new();
 
@@ -107,87 +206,10 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
         let mut jump_comment = String::new();
 
         for (j, operand) in instr.operands.iter().enumerate() {
-            match operand {
-                Operand::Label(label) if instr.op.is_jump() => {
-                    let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
-                    let relative = target as i32 - instr.offset;
-                    if relative >= 0 {
-                        parts.push(format!("+{relative}"));
-                    } else {
-                        parts.push(format!("{relative}"));
-                    }
-                    jump_comment = format!("\t# pc {target}");
-                }
-                Operand::Label(label) if instr.op == Op::START_CMD && j == 0 => {
-                    let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
-                    let relative = target as i32 - instr.offset;
-                    if relative >= 0 {
-                        parts.push(format!("+{relative}"));
-                    } else {
-                        parts.push(format!("{relative}"));
-                    }
-                    let count = match instr.operands.get(1) {
-                        Some(Operand::Imm(c)) => *c,
-                        _ => 1,
-                    };
-                    jump_comment = format!("\t# next cmd at pc {target}, {count} cmds start here");
-                }
-                Operand::Label(label) => {
-                    let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
-                    parts.push(format!("pc {target}"));
-                }
-                Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => {
-                    parts.push(format!("%v{val}"));
-                }
-                Operand::Imm(val)
-                    if matches!(instr.op, Op::DICT_SET | Op::DICT_UNSET | Op::DICT_INCR_IMM)
-                        && j == 1 =>
-                {
-                    parts.push(format!("%v{val}"));
-                }
-                Operand::Imm(val)
-                    if matches!(
-                        instr.op,
-                        Op::INCR_SCALAR1_IMM
-                            | Op::INCR_STK_IMM
-                            | Op::INCR_ARRAY_STK_IMM
-                            | Op::DICT_INCR_IMM
-                            | Op::STR_MATCH
-                            | Op::REGEXP
-                    ) =>
-                {
-                    if *val >= 0 {
-                        parts.push(format!("+{val}"));
-                    } else {
-                        parts.push(format!("{val}"));
-                    }
-                }
-                Operand::Imm(val) if matches!(instr.op, Op::RETURN_IMM | Op::SYNTAX) && j == 0 => {
-                    if *val >= 0 {
-                        parts.push(format!("+{val}"));
-                    } else {
-                        parts.push(format!("{val}"));
-                    }
-                }
-                Operand::Imm(val) if instr.op == Op::STR_CLASS => {
-                    let name = str_class_name(*val as u8).unwrap_or("unknown");
-                    parts.push(name.to_string());
-                }
-                Operand::Imm(val)
-                    if matches!(
-                        instr.op,
-                        Op::LIST_INDEX_IMM | Op::LIST_RANGE_IMM | Op::STR_RANGE_IMM
-                    ) && *val <= INDEX_END =>
-                {
-                    if *val == INDEX_END {
-                        parts.push("end".into());
-                    } else {
-                        parts.push(format!("end{}", val - INDEX_END));
-                    }
-                }
-                Operand::Imm(val) => {
-                    parts.push(format!("{val}"));
-                }
+            let (part, comment) = format_operand(operand, instr, j, &asm.labels);
+            parts.push(part);
+            if !comment.is_empty() {
+                jump_comment = comment;
             }
         }
 

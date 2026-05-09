@@ -20,61 +20,115 @@ impl CodegenCtx<'_> {
     ///
     /// `tryCvtToNumeric` is **never** emitted by this method — the
     /// caller is responsible for emitting it when the return value is
+    /// Emit a `Literal` expression — falls back to exprStk for
+    /// invalid prefix literals (`0o289`, `0xGG`) so the runtime
+    /// reports the parse error.  Returns `true` (numeric coercion
+    /// guaranteed by Tcl literal handling).
+    fn emit_expr_literal(&mut self, text: &str) -> bool {
+        let clean = text.trim().trim_start_matches(['+', '-']);
+        if clean.len() > 1
+            && clean.starts_with('0')
+            && matches!(
+                clean.as_bytes().get(1),
+                Some(b'o' | b'O' | b'x' | b'X' | b'b' | b'B')
+            )
+            && i64::from_str_radix(
+                &clean[2..],
+                match clean.as_bytes()[1] {
+                    b'o' | b'O' => 8,
+                    b'x' | b'X' => 16,
+                    b'b' | b'B' => 2,
+                    _ => 10,
+                },
+            )
+            .is_err()
+        {
+            self.push_lit(text);
+            self.emit(Op::EXPR_STK, vec![]);
+            return true;
+        }
+        self.push_lit(text);
+        true
+    }
+
+    /// Emit a `String` expression — strips surrounding `"..."` or
+    /// `{...}` delimiters and processes backslash escapes.  Returns
+    /// `false` (string isn't necessarily numeric).
+    fn emit_expr_string(&mut self, text: &str) -> bool {
+        let mut inner = text;
+        if inner.len() >= 2
+            && ((inner.starts_with('"') && inner.ends_with('"'))
+                || (inner.starts_with('{') && inner.ends_with('}')))
+        {
+            inner = &inner[1..inner.len() - 1];
+        }
+        if inner.contains('\\') {
+            let processed = backslash_subst(inner);
+            self.push_lit(&processed);
+        } else {
+            self.push_lit(inner);
+        }
+        false
+    }
+
+    /// Emit a `Binary` expression — short-circuits `&&` / `||`
+    /// (with synthetic labels) and falls back to exprStk for
+    /// operators without a direct opcode.
+    fn emit_expr_binary(
+        &mut self,
+        node: &ExprNode,
+        op: BinOp,
+        left: &ExprNode,
+        right: &ExprNode,
+    ) {
+        match op {
+            BinOp::And => {
+                let false_lbl = self.fresh_label("and_f");
+                let end_lbl = self.fresh_label("and_end");
+                self.emit_expr(left);
+                self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
+                self.emit_expr(right);
+                self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
+                self.push_lit("1");
+                self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
+                self.place_label(&false_lbl);
+                self.push_lit("0");
+                self.place_label(&end_lbl);
+            }
+            BinOp::Or => {
+                let true_lbl = self.fresh_label("or_t");
+                let end_lbl = self.fresh_label("or_end");
+                self.emit_expr(left);
+                self.emit(Op::JUMP_TRUE4, vec![Operand::Label(true_lbl.clone())]);
+                self.emit_expr(right);
+                self.emit(Op::JUMP_TRUE4, vec![Operand::Label(true_lbl.clone())]);
+                self.push_lit("0");
+                self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
+                self.place_label(&true_lbl);
+                self.push_lit("1");
+                self.place_label(&end_lbl);
+            }
+            _ => {
+                if let Some(bc) = Op::from_binop(op) {
+                    self.emit_expr(left);
+                    self.emit_expr(right);
+                    self.emit(bc, vec![]);
+                } else {
+                    self.push_lit(&render_expr(node));
+                    self.emit(Op::EXPR_STK, vec![]);
+                }
+            }
+        }
+    }
+
     /// `false` and the context requires numeric coercion.
-    // Long match dispatcher over expression-AST shapes.
-    #[allow(clippy::too_many_lines)]
     pub fn emit_expr(&mut self, node: &ExprNode) -> bool {
         match node {
-            ExprNode::Literal { text, .. } => {
-                // Validate prefix literals at compile time — invalid
-                // prefixed numbers (0o289, 0xGG) must error at runtime.
-                let clean = text.trim().trim_start_matches(['+', '-']);
-                if clean.len() > 1
-                    && clean.starts_with('0')
-                    && matches!(
-                        clean.as_bytes().get(1),
-                        Some(b'o' | b'O' | b'x' | b'X' | b'b' | b'B')
-                    )
-                    && i64::from_str_radix(
-                        &clean[2..],
-                        match clean.as_bytes()[1] {
-                            b'o' | b'O' => 8,
-                            b'x' | b'X' => 16,
-                            b'b' | b'B' => 2,
-                            _ => 10,
-                        },
-                    )
-                    .is_err()
-                {
-                    self.push_lit(text);
-                    self.emit(Op::EXPR_STK, vec![]);
-                    return true;
-                }
-                self.push_lit(text);
-                true
-            }
+            ExprNode::Literal { text, .. } => self.emit_expr_literal(text),
 
-            ExprNode::String { text, .. } => {
-                let mut inner = text.as_str();
-                // Strip surrounding delimiters
-                if inner.len() >= 2
-                    && ((inner.starts_with('"') && inner.ends_with('"'))
-                        || (inner.starts_with('{') && inner.ends_with('}')))
-                {
-                    inner = &inner[1..inner.len() - 1];
-                }
-                // Process Tcl backslash escapes
-                if inner.contains('\\') {
-                    let processed = backslash_subst(inner);
-                    self.push_lit(&processed);
-                } else {
-                    self.push_lit(inner);
-                }
-                false
-            }
+            ExprNode::String { text, .. } => self.emit_expr_string(text),
 
             ExprNode::Var { text, name, .. } => {
-                // text includes $ and optional array index: $arr(key)
                 let var_ref = if text.contains('(') {
                     text.trim_start_matches('$')
                 } else {
@@ -85,47 +139,7 @@ impl CodegenCtx<'_> {
             }
 
             ExprNode::Binary { op, left, right } => {
-                match op {
-                    // Short-circuit evaluation for &&
-                    BinOp::And => {
-                        let false_lbl = self.fresh_label("and_f");
-                        let end_lbl = self.fresh_label("and_end");
-                        self.emit_expr(left);
-                        self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
-                        self.emit_expr(right);
-                        self.emit(Op::JUMP_FALSE4, vec![Operand::Label(false_lbl.clone())]);
-                        self.push_lit("1");
-                        self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
-                        self.place_label(&false_lbl);
-                        self.push_lit("0");
-                        self.place_label(&end_lbl);
-                    }
-                    // Short-circuit evaluation for ||
-                    BinOp::Or => {
-                        let true_lbl = self.fresh_label("or_t");
-                        let end_lbl = self.fresh_label("or_end");
-                        self.emit_expr(left);
-                        self.emit(Op::JUMP_TRUE4, vec![Operand::Label(true_lbl.clone())]);
-                        self.emit_expr(right);
-                        self.emit(Op::JUMP_TRUE4, vec![Operand::Label(true_lbl.clone())]);
-                        self.push_lit("0");
-                        self.emit(Op::JUMP4, vec![Operand::Label(end_lbl.clone())]);
-                        self.place_label(&true_lbl);
-                        self.push_lit("1");
-                        self.place_label(&end_lbl);
-                    }
-                    _ => {
-                        if let Some(bc) = Op::from_binop(*op) {
-                            self.emit_expr(left);
-                            self.emit_expr(right);
-                            self.emit(bc, vec![]);
-                        } else {
-                            // Fallback to exprStk
-                            self.push_lit(&render_expr(node));
-                            self.emit(Op::EXPR_STK, vec![]);
-                        }
-                    }
-                }
+                self.emit_expr_binary(node, *op, left, right);
                 true
             }
 
