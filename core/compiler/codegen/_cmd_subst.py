@@ -275,6 +275,18 @@ class _CmdSubstMixin:
                     self._emit(Op.LOAD_STK)
                 else:
                     var_name = self._parse_simple_var_ref(arg)
+                    if var_name is None and len(arg) > 1:
+                        # Bare ``\$varname`` form parsed verbatim from
+                        # the cmd-subst text.  ``_parse_simple_var_ref``
+                        # only matches the lowering's normalised
+                        # ``${var}`` shape; recognise the unbraced form
+                        # here so we emit a real variable load instead
+                        # of pushing the literal ``\$x`` source bytes.
+                        rest = arg[1:]
+                        if rest and (rest[0].isalpha() or rest[0] == "_") and all(
+                            ch.isalnum() or ch in "_:" for ch in rest
+                        ):
+                            var_name = rest
                     if var_name is not None:
                         self._load_var(var_name)
                     else:
