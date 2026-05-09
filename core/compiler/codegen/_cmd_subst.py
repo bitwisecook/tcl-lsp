@@ -351,13 +351,20 @@ class _CmdSubstMixin:
             # not the folded ``"16"``) and converted at runtime.
             # ``_emit_expr``'s constant-folding step would otherwise
             # collapse the prefixed form to its decimal value.
+            from core.compiler.expr_ast import ExprCall as _ExprCall
             from core.compiler.expr_ast import ExprLiteral as _ExprLit
 
             if isinstance(node, _ExprLit):
                 self._push_lit(node.text)
                 self._emit(Op.TRY_CVT_TO_NUMERIC)
             else:
-                self._emit_expr(node)
+                is_numeric = self._emit_expr(node)
+                # Math function calls (``[expr {min(...)}]``) leave a
+                # generic ``invokeStk1`` result on the stack that
+                # ``tryCvtToNumeric`` must coerce before any downstream
+                # comparison op — tclsh emits the same coercion.
+                if isinstance(node, _ExprCall) and not is_numeric:
+                    self._emit(Op.TRY_CVT_TO_NUMERIC)
         elif cmd == "incr" and 1 <= len(args) <= 2:
             # In proc context with a local variable, use LVT-based incr:
             #   ``[incr var]`` → incrScalar1Imm %vN +1
