@@ -28,6 +28,7 @@ use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSym
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_lsp_core::references as core_references;
+use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
@@ -49,10 +50,10 @@ use tower_lsp::lsp_types::{
     GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
     Location, MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel,
-    Position, Range, ReferenceParams, ServerCapabilities, ServerInfo, SignatureHelp,
+    Position, Range, ReferenceParams, RenameParams, ServerCapabilities, ServerInfo, SignatureHelp,
     SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability, Url,
-    WorkDoneProgressOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
+    Url, WorkDoneProgressOptions, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -215,6 +216,7 @@ impl LanguageServer for Backend {
                 implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -486,6 +488,43 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(highlights))
+    }
+
+    async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let pos = params.text_document_position.position;
+        let new_name = params.new_name;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let edits = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_rename::rename(&doc.text, pos.line, pos.character, &new_name, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("rename worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if edits.is_empty() {
+            return Ok(None);
+        }
+        let lifted: Vec<TextEdit> = edits
+            .into_iter()
+            .map(|e| TextEdit {
+                range: lift_lsp_range(e.range),
+                new_text: e.new_text,
+            })
+            .collect();
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(uri, lifted);
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
     }
 
     async fn signature_help(
