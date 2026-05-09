@@ -87,10 +87,70 @@ def add_irule_subparser(
     )
     ei_p.set_defaults(handler=_run_event_info)
 
+    # ── lint ───────────────────────────────────────────────────────────
+    lint_p = irule_sub.add_parser(
+        "lint",
+        help="Run iRule-only lint rules over a bigip.conf / SCF.",
+        description=(
+            "Apply only the irule-category lint rules from `f5 validate`: "
+            "deprecated commands, empty when blocks, unknown events, etc."
+        ),
+    )
+    lint_p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
+    lint_p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    lint_p.add_argument(
+        "--severity",
+        choices=("error", "warning", "info"),
+        help="Filter to one severity level.",
+    )
+    lint_p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")
+    lint_p.set_defaults(handler=_run_irule_lint)
+
 
 # ---------------------------------------------------------------------------
 # Handlers
 # ---------------------------------------------------------------------------
+
+
+def _run_irule_lint(args: argparse.Namespace) -> int:
+    import sys
+    from pathlib import Path
+
+    from core.bigip.lint import run_lint
+
+    from ._paths import load_paths
+    from .validate import _to_json, _to_text
+
+    try:
+        sources, configs = load_paths(args.paths)
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    findings = run_lint(
+        sources=sources,
+        configs=configs,
+        category="irule",
+        severity=args.severity,
+    )
+
+    if args.json:
+        output = json.dumps(_to_json(findings), indent=2) + "\n"
+    else:
+        output = _to_text(findings) + "\n"
+
+    if args.output:
+        Path(args.output).write_text(output, encoding="utf-8")
+    else:
+        sys.stdout.write(output)
+
+    has_error = any(f.severity == "error" for f in findings)
+    has_warning = any(f.severity == "warning" for f in findings)
+    if has_error:
+        return 2
+    if has_warning:
+        return 1
+    return 0
 
 
 def _run_event_order(args: argparse.Namespace) -> int:

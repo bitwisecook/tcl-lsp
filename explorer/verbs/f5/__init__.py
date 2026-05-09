@@ -18,4 +18,5 @@ def load_verbs() -> None:
         graph,
         grep,
         stats,
+        validate,
     )
