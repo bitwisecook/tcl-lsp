@@ -389,28 +389,16 @@ _SNIPPET_IDS = _collect_snippet_ids()
 _REF_DIR = _find_reference_dir()
 
 # Snippets where our instruction stream does not yet match tclsh 9.0.
-# As our compiler improves, remove entries and the tests will enforce
-# the match going forward (any unexpected regression becomes a failure).
-_KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
-    {
-        # Snippets newly added to the bytecode_snippets corpus where the
-        # 9.0 reference disasm has now been captured but our codegen
-        # does not yet match.  Tracked here so the gap is visible —
-        # remove an entry as each snippet's instruction stream
-        # converges.
-        "145_uplevel_caller_local",
-    }
-)
+# As our compiler improves, add entries here for genuine regressions —
+# every entry is an xfail-with-strict so an accidental fix flips the
+# test back to a hard failure prompting the entry's removal.  The set
+# is currently empty: the full bytecode-snippets corpus matches the
+# captured 9.0 reference instruction stream byte-for-byte.
+_KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset()
 
 # Snippets where our literal table does not yet match tclsh 9.0.
-_KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
-    {
-        # Newly captured 9.0 references; literal table convergence
-        # tracked separately from instruction convergence so a fix on
-        # one side surfaces immediately.
-        "145_uplevel_caller_local",
-    }
-)
+# Same convention as the instruction set above; currently empty.
+_KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset()
 
 
 def _maybe_xfail(
