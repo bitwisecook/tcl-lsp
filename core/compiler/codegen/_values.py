@@ -289,6 +289,28 @@ class _ValuesMixin:
         return None
 
     @staticmethod
+    def _parse_bare_array_ref(value: str) -> str | None:
+        """Extract array reference from a bare ``$arr(idx)`` string.
+
+        The lowering keeps bare form (no surrounding braces) when the
+        index contains a nested ``$`` or ``[`` so the recursive
+        substitution semantics survive.  Returns ``arr(idx)`` (without
+        the leading ``$``), or ``None`` if *value* is not a bare
+        array reference covering its entire span.
+        """
+        if not value.startswith("$") or value.startswith("${") or value.startswith("$="):
+            return None
+        if "(" not in value or not value.endswith(")"):
+            return None
+        # Find the first '(' — that splits the array name from the index.
+        paren = value.index("(")
+        # Reject if the array name (before '(') contains '$' or '[' —
+        # we can only handle a literal array name here.
+        if "$" in value[1:paren] or "[" in value[1:paren]:
+            return None
+        return value[1:]
+
+    @staticmethod
     def _parse_braced_scalar_ref(value: str) -> str | None:
         """Extract variable name from a braced-scalar marker ``$={name}``.
 
@@ -436,6 +458,15 @@ class _ValuesMixin:
         var_name = self._parse_simple_var_ref(value)
         if var_name is not None:
             self._load_var(var_name)
+            return
+        # Bare array reference with substituted index: ``$a($cmd)``.
+        # The lowering preserves bare form when the index contains a
+        # nested ``$`` or ``[`` so eval-fallback substitution still
+        # works (cmdAH-1.4 / 1.5).  Emit it as an array load with the
+        # index resolved at runtime.
+        bare_arr = self._parse_bare_array_ref(value)
+        if bare_arr is not None:
+            self._load_var(bare_arr)
             return
         # Constant-fold [list arg1 arg2 ...] with all constant args.
         # Tcl 9.0 emits startCommand for the nested command substitution

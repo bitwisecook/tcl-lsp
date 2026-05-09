@@ -46,13 +46,18 @@ def word_piece(tok: Token) -> str:
             # NOT an array access.  Mark with $= prefix so codegen
             # emits push + loadStk instead of array load.
             return f"$={{{tok.text}}}"
-        # Bare ``$arr(idx)`` — pass through verbatim so the array
-        # element lookup keeps its substitution semantics on the
-        # eval-fallback path.  Without this, the ``${…}`` wrapper
-        # below collapses bare array refs into scalar lookups of
-        # the literal name (cmdAH-1.4 / 1.5
-        # ``$numargErrors($cmd)``).
-        if not is_braced and "(" in tok.text and tok.text.endswith(")"):
+        # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
+        # inside the parens) must round-trip verbatim — the ``${…}`` wrapper
+        # below would collapse the recursive substitution into a literal
+        # scalar lookup (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)``).  When
+        # the index is fully literal we can still normalise to ``${a(1)}``
+        # since no substitution is at risk.
+        if (
+            not is_braced
+            and "(" in tok.text
+            and tok.text.endswith(")")
+            and ("$" in tok.text or "[" in tok.text)
+        ):
             return "$" + tok.text
         # Use ${name} form only when the name doesn't contain '}'.
         # Names with '}' (e.g. array indices with braced expressions

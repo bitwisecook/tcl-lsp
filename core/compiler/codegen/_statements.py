@@ -234,6 +234,18 @@ class _StatementsMixin:
                     self._emit_inline_cmd_subst(value)
                     self._store_var(name)
                     self._emit(Op.POP)
+                elif name.startswith("$") or name.startswith("["):
+                    # Indirect set: ``set $expr value`` — the variable
+                    # name itself is a substitution.  Compile as a
+                    # generic ``set`` invocation so the name is
+                    # evaluated at runtime.
+                    self._push_lit("set")
+                    self._emit_value(name, interpolate=True)
+                    self._emit_value(value, interpolate=True)
+                    self._emit(Op.INVOKE_STK1, 3, comment="set")
+                    self._emit(Op.POP)
+                    self._used_generic_invoke = True
+                    self._seen_generic_invoke = True
                 else:
                     if self._needs_stk_var_ref(name):
                         self._push_var_ref(name)
