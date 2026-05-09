@@ -28,6 +28,7 @@ complete -c f5 -n __f5_no_subcommand -a clean -d 'Alias for cleanup'
 complete -c f5 -n __f5_no_subcommand -a completion -d 'Print shell completion script'
 complete -c f5 -n __f5_no_subcommand -a grep -d 'List every BIG-IP object related to a given object path or regex'
 complete -c f5 -n __f5_no_subcommand -a related -d 'Alias for grep'
+complete -c f5 -n __f5_no_subcommand -a irule -d 'iRules-specific analysis (event-order, event-info, ...)'
 
 # Top-level help / version.
 complete -c f5 -n __f5_no_subcommand -s h -l help -d 'Show brief help and exit'
@@ -59,3 +60,48 @@ complete -c f5 -n '__f5_uses_subcommand grep related' -F -k -a "(__fish_complete
 
 # `completion` shell argument.
 complete -c f5 -n '__f5_uses_subcommand completion' -a 'bash fish zsh' -d 'Shell'
+
+# `irule` sub-actions.
+function __f5_irule_no_action
+    set -l cmd (commandline -opc)
+    test (count $cmd) -eq 2
+end
+
+function __f5_irule_uses_action
+    set -l cmd (commandline -opc)
+    if test (count $cmd) -ge 3
+        if contains -- $cmd[3] $argv
+            return 0
+        end
+    end
+    return 1
+end
+
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_no_action' \
+    -a event-order -d 'Show iRules events in canonical firing order'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_no_action' \
+    -a eventorder -d 'Alias for event-order'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_no_action' \
+    -a event-info -d 'Look up iRules event metadata and valid commands'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_no_action' \
+    -a eventinfo -d 'Alias for event-info'
+
+# `f5 irule event-order` flags.
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-order eventorder' \
+    -l json -d 'Emit event ordering as JSON'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-order eventorder' \
+    -l source -r -d 'Inline iRules source text (repeatable)'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-order eventorder' \
+    -l package-path -r -F -d 'Add a directory to the package search path'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-order eventorder' \
+    -l no-recursive -d 'Do not recurse into directory inputs'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-order eventorder' \
+    -l dialect -x -a 'f5-irules' -d 'Dialect profile'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-order eventorder' \
+    -s o -l output -r -F -d 'Output path (- for stdout)'
+
+# `f5 irule event-info` flags.
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-info eventinfo' \
+    -l json -d 'Emit event metadata as JSON'
+complete -c f5 -n '__f5_uses_subcommand irule; and __f5_irule_uses_action event-info eventinfo' \
+    -s o -l output -r -F -d 'Output path'

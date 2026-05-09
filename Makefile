@@ -588,16 +588,17 @@ _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz lint --source "set x 1" > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz symbols samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz callgraph samples/for_screenshots/ai-scene.irul --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz event-info HTTP_REQUEST --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz command-info HTTP::uri --dialect f5-irules --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz convert samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null
-	ln -sfn smoke-tcl.pyz $(BUILD_DIR)/irule
-	$(PYTHON) $(BUILD_DIR)/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
-	@rm -f $(BUILD_DIR)/smoke-tcl.pyz
-	@rm -f $(BUILD_DIR)/irule
+	# Completion scripts are bundled and printable from inside the zipapp.
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion bash > $(BUILD_DIR)/smoke-tcl.bash
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion fish > $(BUILD_DIR)/smoke-tcl.fish
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz completion zsh  > $(BUILD_DIR)/smoke-tcl.zsh
+	bash -n $(BUILD_DIR)/smoke-tcl.bash
+	@rm -f $(BUILD_DIR)/smoke-tcl.pyz $(BUILD_DIR)/smoke-tcl.bash $(BUILD_DIR)/smoke-tcl.fish $(BUILD_DIR)/smoke-tcl.zsh
 
 _smoke-zipapp-cli: $(BUILD_INFO)
 	@echo "==> Smoke-testing CLI zipapp"
@@ -611,6 +612,9 @@ _smoke-zipapp-f5: $(BUILD_INFO)
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz --help > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup samples/bigip/bigip.conf > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup --json samples/bigip/bigip.conf > /dev/null
+	# `f5 irule` sub-verbs (event-order, event-info).
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz irule event-info HTTP_REQUEST --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz irule event-order --source 'when HTTP_REQUEST { return }' --json > /dev/null
 	# Completion scripts are bundled and printable from inside the zipapp.
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion bash > $(BUILD_DIR)/smoke-f5.bash
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion fish > $(BUILD_DIR)/smoke-f5.fish
