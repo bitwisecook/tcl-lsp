@@ -1174,7 +1174,7 @@ on the `tcl-lsp-server` bootstrap.
 | **S-linked-editing-range / S-snippet-templates** | **Advertise `linkedEditingRangeProvider` (returning `None` for now); snippet templates are emitted by `S-completion`.** Adds the `LanguageServer::linked_editing_range` impl returning `Ok(None)` so editors that ask the server about linked-editing pairs get the LSP-spec "no link known here" answer rather than a `MethodNotFound` error.  Snippet templates (`lsp/features/snippet_templates.py`) are CompletionItem snippets in the Python implementation; the minimal `S-completion` port emits plain insert-text items today and rich snippet rendering is deferred to `S-completion-rich`, so we don't need a separate LSP method for it. **Deferred to `S-linked-editing-range-rich`:** the `lsp/features/linked_editing_range.py` port that pairs proc declarations with their call sites so renaming one updates the other live. | landed |
 | **S-symbol-resolution / S-irules-context / S-package-suggestions / S-workspace-file-ops** | **No-op chunks — these are internal helpers, not LSP method surfaces.** `lsp/features/symbol_resolution.py` is a shared helper module already partially ported into `tcl-lsp-core::hover` (the `find_word_span_at_position` / `find_var_at_position` helpers); the rest is `find_command_context_*` which lives inside `tcl-lsp-core::signature_help` and `tcl-lsp-core::completion`. `lsp/features/irules_context.py` surfaces iRules-dialect-specific event/command context to other features; the Rust counterpart pieces will land alongside the per-feature rich follow-ups (`S-hover-rich`, `S-completion-rich`) since they're consumers, not standalone LSP methods. `lsp/features/package_suggestions.py` is a hint-emitter folded into `S-completion-rich` and `S-code-actions-rich`. `lsp/features/workspace_file_ops.py` covers `workspace/willCreateFiles`, `willRenameFiles`, `willDeleteFiles` notifications — none of which the Python implementation produces editor-affecting edits for; advertising the capabilities is therefore deferred until the workspace-index chunk lands and there's something useful to surface. All four "chunks" are tracked so the chunk-log row exists; the actual work either has already merged inside other chunks or is rolled into rich follow-ups. | landed (no-op rollup) |
 | **S-diagnostics / S-lifecycle / S-commands / S-settings / S-workspace-init / S-state / S-diagnostics-pipeline / S-async-diagnostics** | **Cross-cutting infrastructure — minimal scaffolding lands here; rich diagnostics surface lands in a dedicated follow-up.** S-lifecycle (already in place: `initialize` / `initialized` / `shutdown` / `did_open` / `did_change` / `did_close` are wired with full document-state mutation). S-settings: defaults to `tcl8.6` dialect; richer per-document dialect detection lives in `S-workspace-init`. S-commands: the `executeCommand` LSP method isn't advertised — Python's command surface (rule-init refresh, package-cache rebuild) is internal. S-state: the `Backend` document store is a `Mutex<HashMap<Url, DocumentState>>`; a future ropey-backed incremental store lands in `S-state-rich`. S-workspace-init: workspace-folder enumeration and per-folder dialect classification land alongside `S-workspace-symbols-rich`. **Deferred to `S-diagnostics`:** publish-diagnostics on `did_open` / `did_change` (the analyser already runs on every request via the per-method `spawn_blocking` paths; pushing diagnostics needs a separate `Client::publish_diagnostics` call once the cached-analysis surface lands). **Deferred to `S-diagnostics-pipeline` / `S-async-diagnostics`:** the asynchronous diagnostic-streaming contract that batches updates and replaces the per-method analysis runs with a Backend-cached `Analysis` per document — this is the keystone chunk every other rich follow-up depends on. The current minimal port runs the analyser fresh on every request (a few ms per call); for documents up to ~10K LOC this is acceptable, and the architecture is forward-compatible with the cached surface. | landed (minimal scaffolding) |
-| **PYTHON-RETIRE-LSP** | **Final chunk — *NOT yet done.*** Deleting `lsp/` outright is blocked by non-LSP consumers: (1) `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover, completion, definition, references, document_symbols, code_actions, diagnostics, rename}` directly; (2) `explorer/{wasm_cli, cli, tcl_cli}.py`, `scripts/zipapp_mcp_main.py`, and `ai/mcp/tcl_mcp_server.py` import `lsp._build_info` for version metadata; (3) `scripts/memprof_workspace.py` imports `lsp.workspace.{scanner, workspace_index}`; (4) `scripts/profile_semantic_tokens.py` imports `lsp.features.semantic_tokens_full` and `lsp.workspace.document_state`. **Prerequisite work:** relocate `lsp/_build_info.py` out of `lsp/` (it isn't LSP-specific); migrate `ai/mcp/tcl_mcp_server.py` to call the Rust providers via the `tcl-lsp-py` PyO3 binding (most are already exposed — chunks added in this autonomous run will need bindings); rewrite the profiling scripts to drive the Rust binary over JSON-RPC (the `lsp-client` skill already does this) or to call the `tcl_lsp_py` bindings; replace `lsp/server.py` and `lsp/__main__.py` with redirects to the Rust binary; verify `make prep-pr` passes against the Rust binary as the only LSP server. Until those steps complete, `lsp/` cannot be removed without breaking the MCP server, the explorer / CLI version banners, and the profilers. | **deferred — prerequisites tracked** |
+| **PYTHON-RETIRE-LSP** | **Final chunk — *partially done; deletion still blocked.*** Goal: delete `lsp/` once `make prep-pr` passes against the Rust binary as the only LSP server.  **Phases landed in this run:** (Phase 1) relocated the build-generated `lsp/_build_info.py` to `core/_build_info.py` so the version banner consumed by explorer/, ai/mcp/, and the zipapp entry points survives the LSP feature-tree retirement.  Updated Makefile `BUILD_INFO`, `.gitignore`, `pyproject.toml` coverage-omit, and the eight importer call sites.  (Phase 2) inlined `find_proc_call_sites` from `lsp.features.references` into `core/minifier/minifier.py` to remove the `core → lsp` dependency leak.  **Phases still blocking deletion:** (Phase 3) `core/common/codes_all.py` still imports `lsp.features.diagnostics` to register five style-only diagnostic codes (W111 / W112 / W115 / W118 / W120) that several tests under `tests/` reference (`test_analyser.py`, `test_incremental_update.py`, `test_tcllib.py`, `test_diagnostic_phases.py`, `test_code_actions.py`).  Removing the import without first relocating those `@diag` registrations to a non-lsp module would break those tests.  (Phase 4) `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover, completion, definition, references, document_symbols, code_actions, diagnostics, rename}` for eight MCP tools — these need to either be migrated to drive the Rust binary over JSON-RPC, rewired through the `tcl-lsp-py` PyO3 binding, or removed.  (Phase 5) `scripts/memprof_workspace.py` imports `lsp.workspace.{scanner, workspace_index}` and `scripts/profile_semantic_tokens.py` imports `lsp.features.semantic_tokens_full` plus `lsp.workspace.document_state` for benchmarks; both need rewriting against the Rust binary.  (Phase 6) `lsp/server.py` and `lsp/__main__.py` need replacing with thin shims that exec the Rust binary, then the editor extensions repointed.  (Phase 7) the **64 `tests/test_*.py` files** that import from `lsp.*` need either porting to drive the Rust binary or deletion (the equivalent feature behaviour is exercised by Cargo integration tests in `rust/tcl-lsp-server/tests/`).  Until phases 3-7 complete, `lsp/` cannot be removed.  This chunk needs another dedicated autonomous run that focuses on phases 3-7 in order. | **partially landed — phases 1+2 done, 3-7 outstanding** |
 | **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
 | **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
 | **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  Three independent Rust crates: `tcl-formatter`, `tcl-minifier`, `tcl-help-kcs` (KCS DB).  Test parity via the matching `test_formatter.py` / `test_minifier.py` / `test_docstring.py` / `test_kcs_db.py` (~470 cases) ported to cargo. | planned |
@@ -3509,32 +3509,38 @@ and `cargo test --workspace` all pass on every commit.
 
 ### What is still open
 
-* **PYTHON-RETIRE-LSP** — *not yet done*.  The lsp/ tree
-  cannot be deleted unconditionally because non-LSP
-  consumers depend on it:
-  * `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover,
-    completion, definition, references, document_symbols,
-    code_actions, diagnostics, rename}` for the MCP tool
-    surface.  Migration: re-point those imports at the Rust
-    providers via the `tcl-lsp-py` PyO3 binding (most
-    providers are already exposed; `tcl_lsp_py` will need
-    new bindings for the chunks added in this run).
-  * `explorer/{wasm_cli, cli, tcl_cli}.py`, `scripts/zipapp_mcp_main.py`,
-    `ai/mcp/tcl_mcp_server.py` import `lsp._build_info` for
-    version metadata.  Migration: relocate `_build_info.py`
-    out of `lsp/` (it is not LSP-specific) — perhaps to a
-    new `tcl_buildinfo/` package.
-  * `scripts/memprof_workspace.py` and
-    `scripts/profile_semantic_tokens.py` import
-    `lsp.workspace.*` and `lsp.features.semantic_tokens_full`
-    for benchmarking.  Migration: rewrite the profilers to
-    drive the Rust binary over JSON-RPC (the `lsp-client`
-    skill already does this), or reimplement against the
-    `tcl_lsp_py` bindings.
-  * `lsp/__main__.py` and `lsp/server.py` — the pygls entry
-    points.  Migration: keep them as thin shims that exec
-    the Rust binary, or delete them and update the editor
-    extensions to point directly at the Rust binary.
+* **PYTHON-RETIRE-LSP** — *partially done* in this run
+  (phases 1+2); phases 3-7 remain blocking before the
+  `lsp/` tree can be deleted.
+  * **Phase 1 ✓** Relocated build-generated `_build_info.py`
+    from `lsp/` to `core/`.  Makefile `BUILD_INFO`,
+    `.gitignore`, `pyproject.toml` coverage-omit, and 8
+    importer call sites updated.
+  * **Phase 2 ✓** Inlined `find_proc_call_sites` from
+    `lsp.features.references` into `core/minifier/minifier.py`
+    to remove the `core → lsp` dependency leak.
+  * **Phase 3** Relocate the 5 style-only `@diag`
+    registrations (W111 / W112 / W115 / W118 / W120) out
+    of `lsp.features.diagnostics` so `core/common/codes_all.py`
+    can drop its `import lsp.features.diagnostics` without
+    breaking the 5 test files that reference those codes.
+  * **Phase 4** Migrate the 8 MCP tools in
+    `ai/mcp/tcl_mcp_server.py` (hover / completion /
+    definition / references / document_symbols /
+    code_actions / diagnostics / rename) to the Rust
+    binary — either over JSON-RPC, via the `tcl-lsp-py`
+    PyO3 binding, or by removing the tools.
+  * **Phase 5** Rewrite `scripts/memprof_workspace.py`
+    and `scripts/profile_semantic_tokens.py` against the
+    Rust binary (the `lsp-client` skill already does
+    this) or delete them.
+  * **Phase 6** Replace `lsp/server.py` and
+    `lsp/__main__.py` with thin shims that exec the Rust
+    binary, then repoint the editor extensions.
+  * **Phase 7** Either port or delete the **64
+    `tests/test_*.py`** files that import from `lsp.*`
+    (the equivalent feature behaviour is exercised by
+    Cargo integration tests in `rust/tcl-lsp-server/tests/`).
 * **Per-feature `*-rich` follow-ups** — every minimal port
   has a `*-rich` row in the chunk log capturing what is
   deferred; the keystone is `S-diagnostics` /
