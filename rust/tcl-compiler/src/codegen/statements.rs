@@ -439,6 +439,7 @@ mod tests {
         let stmt = Statement::Call {
             span: sp(),
             command: "puts".into(),
+            canonical_command: None,
             args: vec!["hello".into()],
             defs: vec![],
             reads: vec![],
@@ -461,6 +462,7 @@ mod tests {
         let stmt = Statement::Call {
             span: sp(),
             command: "break".into(),
+            canonical_command: None,
             args: vec![],
             defs: vec![],
             reads: vec![],
@@ -520,6 +522,7 @@ mod tests {
         let stmt = Statement::Call {
             span: sp(),
             command: "<empty_clause>".into(),
+            canonical_command: None,
             args: vec![],
             defs: vec![],
             reads: vec![],
@@ -541,6 +544,7 @@ mod tests {
             span: sp(),
             reason: "test".into(),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["script".into()],
             tokens: None,
         };
@@ -558,6 +562,7 @@ mod tests {
             span: sp(),
             reason: "side-effect".into(),
             command: String::new(),
+            canonical_command: None,
             args: vec![],
             tokens: None,
         };

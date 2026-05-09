@@ -601,6 +601,7 @@ impl Lowerer<'_> {
                 Statement::Call {
                     span: seg.span,
                     command: seg.name().into(),
+                    canonical_command: None,
                     args: args.to_vec(),
                     defs: vec![var_name],
                     reads: vec![],
@@ -615,6 +616,7 @@ impl Lowerer<'_> {
                 span: seg.span,
                 reason: format!("dict {sub}"),
                 command: seg.name().into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 tokens: Some(Self::cmd_tokens(seg)),
             },
@@ -622,6 +624,7 @@ impl Lowerer<'_> {
             _ => Statement::Call {
                 span: seg.span,
                 command: seg.name().into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 defs: vec![],
                 reads: vec![],
@@ -641,6 +644,7 @@ impl Lowerer<'_> {
             span: seg.span,
             reason: reason.into(),
             command: seg.name().into(),
+            canonical_command: None,
             args: seg.args().to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
         }

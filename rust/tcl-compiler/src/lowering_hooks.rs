@@ -236,6 +236,7 @@ fn lower_append_lappend(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     Some(Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
+        canonical_command: None,
         args: cmd.args.to_vec(),
         defs: vec![name],
         reads: vec![],
@@ -268,6 +269,7 @@ fn lower_unset(cmd: &LoweringCommand<'_>) -> Statement {
     Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
+        canonical_command: None,
         args: cmd.args.to_vec(),
         defs: var_names,
         reads: vec![],
@@ -292,6 +294,7 @@ fn lower_global(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     Some(Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
+        canonical_command: None,
         args: cmd.args.to_vec(),
         defs: var_names,
         reads: vec![],
@@ -314,6 +317,7 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
     Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
+        canonical_command: None,
         args: cmd.args.to_vec(),
         defs: var_names,
         reads: vec![],
@@ -345,6 +349,7 @@ fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     Some(Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
+        canonical_command: None,
         args: cmd.args.to_vec(),
         defs: my_vars,
         reads: vec![],
@@ -367,6 +372,7 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
     Statement::Call {
         span: cmd.span,
         command: cmd.name.into(),
+        canonical_command: None,
         args: cmd.args.to_vec(),
         defs: vec![],
         reads: vec![],

@@ -1706,6 +1706,7 @@ mod tests {
         Statement::Call {
             span: Span::new(0, 0),
             command: cmd.into(),
+            canonical_command: None,
             args: args.iter().map(|s| (*s).into()).collect(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -1819,6 +1820,7 @@ mod tests {
             span: Span::new(0, 0),
             reason: "eval".into(),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["script".into()],
             tokens: None,
         };
@@ -1892,6 +1894,7 @@ mod tests {
         Statement::Call {
             span: Span::new(0, 0),
             command: "llength".into(),
+            canonical_command: None,
             args: vec!["$x".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2010,6 +2013,7 @@ mod tests {
         entry_blk.statements.push(Statement::Call {
             span: Span::new(0, 0),
             command: "set".into(),
+            canonical_command: None,
             args: vec!["::g".into(), "1".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2155,6 +2159,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(0, 0),
                 command: "set".into(),
+                canonical_command: None,
                 args: vec!["x".into(), "[llength $y]".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2294,6 +2299,7 @@ mod tests {
         let llength_on_i = Statement::Call {
             span: Span::new(0, 0),
             command: "llength".into(),
+            canonical_command: None,
             args: vec!["$i".into()],
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2419,6 +2425,7 @@ mod tests {
             .push(Statement::Call {
                 span: Span::new(100, 110),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2442,6 +2449,7 @@ mod tests {
             .push(Statement::Call {
                 span: Span::new(200, 210),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2479,6 +2487,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(100, 110),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2496,6 +2505,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(200, 210),
                 command: "llength".into(),
+                canonical_command: None,
                 args: vec!["$x".into()],
                 defs: Vec::new(),
                 reads: Vec::new(),
@@ -2635,6 +2645,7 @@ mod tests {
                 span: Span::new(0, 0),
                 reason: "eval".into(),
                 command: "eval".into(),
+                canonical_command: None,
                 args: vec!["script".into()],
                 tokens: None,
             }],
@@ -2651,6 +2662,7 @@ mod tests {
             vec![Statement::Call {
                 span: Span::new(0, 0),
                 command: "set".into(),
+                canonical_command: None,
                 args: vec!["::g".into(), "1".into()],
                 defs: vec!["::g".into()],
                 reads: Vec::new(),
@@ -2670,6 +2682,7 @@ mod tests {
         let call_b = Statement::Call {
             span: Span::new(0, 0),
             command: "::b".into(),
+            canonical_command: None,
             args: Vec::new(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2681,6 +2694,7 @@ mod tests {
         let call_a = Statement::Call {
             span: Span::new(0, 0),
             command: "::a".into(),
+            canonical_command: None,
             args: Vec::new(),
             defs: Vec::new(),
             reads: Vec::new(),
@@ -2702,12 +2716,14 @@ mod tests {
             span: Span::new(0, 0),
             reason: "eval".into(),
             command: "eval".into(),
+            canonical_command: None,
             args: vec!["$x".into()],
             tokens: None,
         };
         let call_tainted = Statement::Call {
             span: Span::new(0, 0),
             command: "::tainted".into(),
+            canonical_command: None,
             args: Vec::new(),
             defs: Vec::new(),
             reads: Vec::new(),

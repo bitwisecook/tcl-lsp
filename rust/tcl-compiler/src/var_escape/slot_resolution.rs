@@ -390,6 +390,7 @@ mod tests {
         Statement::Call {
             span: Span::new(0, 0),
             command: command.to_string(),
+            canonical_command: None,
             args: args.iter().map(|s| (*s).to_string()).collect(),
             defs: Vec::new(),
             reads: Vec::new(),

@@ -380,6 +380,7 @@ impl<'r> Lowerer<'r> {
                     span: seg.span,
                     reason: "incomplete command".into(),
                     command: String::new(),
+                    canonical_command: None,
                     args: vec![],
                     tokens: None,
                 });
@@ -567,6 +568,7 @@ impl<'r> Lowerer<'r> {
                 span: seg.span,
                 reason: format!("{cmd_name} with argument expansion"),
                 command: cmd_name.into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 tokens: Some(Self::cmd_tokens(seg)),
             });
@@ -652,6 +654,7 @@ impl<'r> Lowerer<'r> {
                     span: seg.span,
                     reason: "dynamic proc name".into(),
                     command: "proc".into(),
+                    canonical_command: None,
                     args: args_borrow.to_vec(),
                     tokens: Some(Self::cmd_tokens(seg)),
                 };
@@ -725,6 +728,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: "proc".into(),
+            canonical_command: None,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],
@@ -794,6 +798,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: "when".into(),
+            canonical_command: None,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],
@@ -985,6 +990,7 @@ impl<'r> Lowerer<'r> {
             span: seg.span,
             reason: "namespace eval".into(),
             command: "namespace".into(),
+            canonical_command: None,
             args: args.to_vec(),
             tokens: Some(Self::cmd_tokens(seg)),
         }
@@ -1023,6 +1029,7 @@ impl<'r> Lowerer<'r> {
                 span: seg.span,
                 reason: "unsupported body command".into(),
                 command: cmd_name.into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 tokens: Some(Self::cmd_tokens(seg)),
             };
@@ -1046,6 +1053,7 @@ impl<'r> Lowerer<'r> {
             return Statement::Call {
                 span: seg.span,
                 command: cmd_name.into(),
+                canonical_command: None,
                 args: args.to_vec(),
                 defs: var_defs,
                 reads: var_reads,
@@ -1059,6 +1067,7 @@ impl<'r> Lowerer<'r> {
         Statement::Call {
             span: seg.span,
             command: cmd_name.into(),
+            canonical_command: None,
             args: args.to_vec(),
             defs: vec![],
             reads: vec![],

@@ -1331,6 +1331,7 @@ mod tests {
             statement: Statement::Call {
                 span: Span::new(0, 0),
                 command: "foreach".into(),
+                canonical_command: None,
                 args: vec![list.into()],
                 defs: vec![var.into()],
                 reads: Vec::new(),

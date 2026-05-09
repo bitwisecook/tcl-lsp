@@ -490,6 +490,7 @@ mod tests {
         let body = script_of(vec![Statement::Call {
             span: sp(),
             command: "puts".into(),
+            canonical_command: None,
             args: vec!["$i".into()],
             defs: Vec::new(),
             reads: Vec::new(),

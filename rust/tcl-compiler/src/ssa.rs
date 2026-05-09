@@ -1082,6 +1082,7 @@ mod tests {
         let stmt = Statement::Call {
             span: Span::new(0, 20),
             command: "lappend".into(),
+            canonical_command: None,
             args: vec!["list".into(), "item".into()],
             defs: vec!["list".into()],
             reads: vec![],
@@ -1098,6 +1099,7 @@ mod tests {
         let stmt = Statement::Call {
             span: Span::new(0, 10),
             command: "puts".into(),
+            canonical_command: None,
             args: vec!["hello".into()],
             defs: vec![],
             reads: vec![],
@@ -1126,6 +1128,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "trace".into(),
             command: "trace".into(),
+            canonical_command: None,
             args: vec!["add".into(), "variable".into(), "$x".into()],
             tokens: None,
         };
@@ -1138,6 +1141,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "dict for".into(),
             command: "dict::for".into(),
+            canonical_command: None,
             args: vec!["k v".into(), "$d".into()],
             tokens: None,
         };
@@ -1153,6 +1157,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "trace".into(),
             command: "trace".into(),
+            canonical_command: None,
             args: vec!["add".into(), "variable".into(), "$x".into()],
             tokens: None,
         };
@@ -1168,6 +1173,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "trace".into(),
             command: "trace".into(),
+            canonical_command: None,
             args: vec!["add".into(), "execution".into(), "foo".into()],
             tokens: None,
         };
@@ -1185,6 +1191,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "global".into(),
             command: "global".into(),
+            canonical_command: None,
             args: vec!["x".into(), "y".into(), "z".into()],
             tokens: None,
         };
@@ -1200,6 +1207,7 @@ mod tests {
             span: Span::new(0, 30),
             reason: "variable".into(),
             command: "variable".into(),
+            canonical_command: None,
             args: vec!["a".into(), "b".into(), "c".into()],
             tokens: None,
         };

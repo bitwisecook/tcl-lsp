@@ -55,6 +55,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
             span: cmd.span,
             reason: "return with expansion".into(),
             command: cmd.name.into(),
+            canonical_command: None,
             args: cmd.args.to_vec(),
             tokens: cmd.tokens.clone(),
         };
@@ -64,6 +65,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
             span: cmd.span,
             reason: "return with options".into(),
             command: cmd.name.into(),
+            canonical_command: None,
             args: cmd.args.to_vec(),
             tokens: cmd.tokens.clone(),
         };
