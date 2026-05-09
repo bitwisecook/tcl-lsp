@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from core.bigip.parser import parse_bigip_conf
-from core.bigip.pcap_enrich import build_name_index, enrich_capture_file
+from core.bigip.pcap_enrich import build_merged_name_index, enrich_capture_file
 
 from ._registry import verb
 
@@ -22,10 +22,12 @@ from ._registry import verb
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Read a parsed bigip.conf / SCF, derive a hostname-style label "
-        "for every IP that appears in the capture (virtual-server "
+        "Read one or more bigip.conf / SCF files (LTM and GTM tiers can "
+        "live in separate inputs — wide-IP / pool / server references "
+        "resolve across the combined input), derive a hostname-style "
+        "label for every IP that appears in the capture (virtual-server "
         "destination, pool member, SNAT-pool member, self-IP, node, "
-        "iRule attached to a VS, or membership of a self-IP CIDR), and "
+        "wide-IP, attached iRule, or membership of a self-IP CIDR), and "
         "inject those mappings into the capture as a PCAPNG Name "
         "Resolution Block.  Wireshark then renders the labels alongside "
         "addresses, just like reverse DNS would.\n"
@@ -34,7 +36,8 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "``vs-common-vs1``, ``pool-common-web1-80``, "
         "``snat-common-my-snatpool``, ``self-common-external-self``, "
         "``net-common-external-self`` (subnet match), "
-        "``node-common-web1``, ``irule-common-my-irule``.\n"
+        "``node-common-web1``, ``irule-common-my-irule``, "
+        "``wideip-common-example-com``.\n"
         "\n"
         "By default the NRB only carries records for IPs that actually "
         "appear in the capture; pass ``--all`` to emit every label from "
@@ -48,8 +51,17 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "or ``tshark`` (whichever is on PATH)."
     )
     p.add_argument(
-        "config",
-        help="bigip.conf / SCF file with the object inventory (`-` for stdin).",
+        "-c",
+        "--config",
+        action="append",
+        required=True,
+        metavar="FILE",
+        dest="configs",
+        help=(
+            "bigip.conf / SCF file with the object inventory (repeatable). "
+            "Pass `-` to read one config from stdin.  Use multiple ``-c`` "
+            "flags to combine GTM + LTM inputs or multi-tier deployments."
+        ),
     )
     p.add_argument("input", help="Input capture (PCAPNG; libpcap is auto-converted).")
     p.add_argument("output", help="Output PCAPNG file (always pcapng).")
@@ -86,20 +98,31 @@ def _read_config_text(path_str: str) -> str:
     return Path(path_str).read_text(encoding="utf-8", errors="replace")
 
 
+def _load_configs(paths: list[str]):  # -> list[tuple[BigipConfig, str]]
+    pairs = []
+    saw_stdin = False
+    for path_str in paths:
+        if path_str == "-":
+            if saw_stdin:
+                raise ValueError("`-` (stdin) can only be supplied once")
+            saw_stdin = True
+        text = _read_config_text(path_str)
+        try:
+            config = parse_bigip_conf(text)
+        except Exception as exc:  # noqa: BLE001 — surface the parser error verbatim.
+            raise ValueError(f"cannot parse {path_str}: {exc}") from exc
+        pairs.append((config, text))
+    return pairs
+
+
 def _run_enrich_pcapng(args: argparse.Namespace) -> int:
     try:
-        config_text = _read_config_text(args.config)
-    except OSError as exc:
-        print(f"error: cannot read config: {exc}", file=sys.stderr)
+        configs_with_sources = _load_configs(args.configs)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        config = parse_bigip_conf(config_text)
-    except Exception as exc:  # noqa: BLE001 — surface the parser error verbatim.
-        print(f"error: cannot parse config: {exc}", file=sys.stderr)
-        return 2
-
-    name_index = build_name_index(config, source=config_text)
+    name_index = build_merged_name_index(configs_with_sources)
 
     if args.dry_run:
         for addr, names in sorted(name_index.v4.items()):
@@ -108,9 +131,14 @@ def _run_enrich_pcapng(args: argparse.Namespace) -> int:
         for addr, names in sorted(name_index.v6.items()):
             for name in names:
                 print(f"{addr}\t{name}")
+        for net, name in name_index.v4_subnets:
+            print(f"{net}\t{name}")
+        for net, name in name_index.v6_subnets:
+            print(f"{net}\t{name}")
         print(
             f"enrich-pcapng (dry-run): {len(name_index.v4)} v4 / "
             f"{len(name_index.v6)} v6 address(es), "
+            f"{len(name_index.v4_subnets) + len(name_index.v6_subnets)} subnet(s), "
             f"{name_index.total_names()} label(s)",
             file=sys.stderr,
         )

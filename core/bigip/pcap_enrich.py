@@ -49,7 +49,7 @@ from typing import BinaryIO
 
 from . import pcapng as _pcapng
 from .model import BigipConfig
-from .parser import _extract_blocks
+from .parser import _extract_blocks, _parse_list_block, _parse_properties
 from .pcap_remap import _find_ip_offset
 
 
@@ -109,6 +109,19 @@ class NameIndex:
             self.v4_subnets.append((network, name))
         else:
             self.v6_subnets.append((network, name))
+
+    def update(self, other: NameIndex) -> None:
+        """Merge *other* into ``self`` — used to combine multi-config inventories."""
+        for addr, names in other.v4.items():
+            for name in names:
+                self.add(addr, name)
+        for addr, names in other.v6.items():
+            for name in names:
+                self.add(addr, name)
+        for net, name in other.v4_subnets:
+            self.add_subnet(net, name)
+        for net, name in other.v6_subnets:
+            self.add_subnet(net, name)
 
     def lookup(self, address: str) -> list[str]:
         """Return every label that applies to *address* (exact + subnet)."""
@@ -249,6 +262,51 @@ class _SelfIp:
     network: _V4Net | _V6Net | None
 
 
+def _parse_named_subblocks(braced_text: str) -> list[tuple[str, str]]:
+    """Parse ``{ name1 { body1 } name2 { body2 } ... }`` into ``[(name, body), …]``.
+
+    Used to walk the named sub-stanzas inside ``addresses`` /
+    ``virtual-servers`` / ``members`` blocks where each entry is itself
+    a brace-delimited mini-block keyed by name.
+    """
+    inner = braced_text.strip()
+    if inner.startswith("{"):
+        inner = inner[1:]
+    if inner.endswith("}"):
+        inner = inner[:-1]
+
+    out: list[tuple[str, str]] = []
+    pos = 0
+    n = len(inner)
+    while pos < n:
+        while pos < n and inner[pos] in " \t\n\r":
+            pos += 1
+        if pos >= n:
+            break
+        name_start = pos
+        while pos < n and inner[pos] not in " \t\n\r{":
+            pos += 1
+        name = inner[name_start:pos]
+        while pos < n and inner[pos] in " \t":
+            pos += 1
+        body = ""
+        if pos < n and inner[pos] == "{":
+            body_start = pos + 1
+            pos += 1
+            depth = 1
+            while pos < n and depth > 0:
+                ch = inner[pos]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                pos += 1
+            body = inner[body_start : pos - 1]
+        if name:
+            out.append((name, body))
+    return out
+
+
 def _extract_self_ips(source: str) -> list[_SelfIp]:
     """Pull every ``net self`` block's address (and CIDR, if present) from source."""
     found: list[_SelfIp] = []
@@ -278,6 +336,163 @@ def _extract_self_ips(source: str) -> list[_SelfIp]:
                 network = None
         found.append(_SelfIp(full_path=full_path, address=addr_no_rd, network=network))
     return found
+
+
+# GTM extraction
+#
+# `gtm wideip → gtm pool → gtm server` isn't modelled in BigipConfig,
+# so we walk the source text to resolve every wide-IP back to the IPs
+# its members will hand out and tag those IPs with a ``wideip-…``
+# label.  The chain is:
+#
+#   gtm wideip <type> <wideip>      pools { /<part>/<gtmpool> { … } }
+#   gtm pool   <type> <gtmpool>     members { /<part>/<server>:<vs> … }
+#   gtm server <server>             addresses { 10.0.0.1 { … } }
+#                                   virtual-servers { <vs> { destination 10.0.0.1:443 } }
+#
+# We accept either source: a wide-IP claims every server-VS destination
+# in its pool members; if a member's VS isn't found, we fall back to
+# every address in the server's ``addresses`` block.
+
+
+@dataclass(frozen=True, slots=True)
+class _GtmServer:
+    full_path: str
+    addresses: tuple[str, ...]  # bare IPs in the addresses block
+    virtual_servers: dict[str, str]  # vs_name -> address (port stripped)
+
+
+def _addr_only(text: str) -> str:
+    """Strip a ``:port`` or ``.port`` suffix and return just the IP literal."""
+    return _split_destination(text) or text
+
+
+def _extract_gtm_servers(source: str) -> dict[str, _GtmServer]:
+    servers: dict[str, _GtmServer] = {}
+    for block in _extract_blocks(source):
+        parts = block.header.split()
+        if len(parts) < 3 or parts[0] != "gtm" or parts[1] != "server":
+            continue
+        full_path = parts[2]
+        props = _parse_properties(block.body)
+
+        addresses: list[str] = []
+        addresses_block = props.get("addresses")
+        if addresses_block:
+            for raw, _body in _parse_named_subblocks(addresses_block):
+                addr = _addr_only(raw)
+                try:
+                    ipaddress.ip_address(addr)
+                except ValueError:
+                    continue
+                addresses.append(addr)
+
+        vs_addrs: dict[str, str] = {}
+        vs_block = props.get("virtual-servers")
+        if vs_block:
+            for vs_name, body in _parse_named_subblocks(vs_block):
+                inner = _parse_properties(body)
+                dest = inner.get("destination", "")
+                addr = _addr_only(dest)
+                try:
+                    ipaddress.ip_address(addr)
+                except ValueError:
+                    continue
+                vs_addrs[vs_name] = addr
+
+        servers[full_path] = _GtmServer(
+            full_path=full_path,
+            addresses=tuple(addresses),
+            virtual_servers=vs_addrs,
+        )
+    return servers
+
+
+def _extract_gtm_pools(source: str) -> dict[str, list[tuple[str, str]]]:
+    """Return ``pool_full_path -> [(server_full_path, vs_name), …]``.
+
+    Members come from every ``gtm pool`` regardless of record type
+    (a / aaaa / cname / mx / naptr / srv) — multiple pools sharing a
+    full-path are merged.
+    """
+    pools: dict[str, list[tuple[str, str]]] = {}
+    for block in _extract_blocks(source):
+        parts = block.header.split()
+        if len(parts) < 3 or parts[0] != "gtm" or parts[1] != "pool":
+            continue
+        # `gtm pool <type> <name>` — type is optional pre-11.x and the
+        # record's full path is always the *last* token.
+        full_path = parts[-1]
+        props = _parse_properties(block.body)
+        members_block = props.get("members")
+        if not members_block:
+            continue
+        bucket = pools.setdefault(full_path, [])
+        for member_name in _parse_list_block(members_block):
+            # Member format is ``<server_full_path>:<vs_name>``.  The
+            # server path can contain ``/`` so we split on the last ``:``.
+            head, sep, vs_name = member_name.rpartition(":")
+            if not sep or not head or not vs_name:
+                continue
+            bucket.append((head, vs_name))
+    return pools
+
+
+def _extract_gtm_wideips(source: str) -> dict[str, list[str]]:
+    """Return ``wideip_full_path -> [pool_full_path, …]``."""
+    wideips: dict[str, list[str]] = {}
+    for block in _extract_blocks(source):
+        parts = block.header.split()
+        if len(parts) < 3 or parts[0] != "gtm" or parts[1] != "wideip":
+            continue
+        full_path = parts[-1]
+        props = _parse_properties(block.body)
+        pools_block = props.get("pools")
+        if not pools_block:
+            continue
+        wideips[full_path] = list(_parse_list_block(pools_block))
+    return wideips
+
+
+def _resolve_gtm_path(name: str, pool: dict[str, object]) -> str | None:
+    """Resolve a GTM reference; tries exact, /Common/<name>, then suffix match."""
+    if name in pool:
+        return name
+    candidate = f"/Common/{name}"
+    if candidate in pool:
+        return candidate
+    suffix = f"/{name}"
+    for key in pool:
+        if key.endswith(suffix):
+            return key
+    return None
+
+
+def _wideip_addresses(
+    wideips: dict[str, list[str]],
+    gtm_pools: dict[str, list[tuple[str, str]]],
+    servers: dict[str, _GtmServer],
+) -> dict[str, set[str]]:
+    """For each wide-IP, return the set of IPs its pool chain resolves to."""
+    out: dict[str, set[str]] = {}
+    for wideip_path, pool_refs in wideips.items():
+        addrs: set[str] = set()
+        for pool_ref in pool_refs:
+            resolved_pool = _resolve_gtm_path(pool_ref, gtm_pools)
+            if resolved_pool is None:
+                continue
+            for server_ref, vs_name in gtm_pools[resolved_pool]:
+                resolved_server = _resolve_gtm_path(server_ref, servers)
+                if resolved_server is None:
+                    continue
+                server = servers[resolved_server]
+                if vs_name in server.virtual_servers:
+                    addrs.add(server.virtual_servers[vs_name])
+                else:
+                    addrs.update(server.addresses)
+        if addrs:
+            out[wideip_path] = addrs
+    return out
 
 
 def build_name_index(config: BigipConfig, source: str | None = None) -> NameIndex:
@@ -336,7 +551,35 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
             if self_ip.network is not None:
                 index.add_subnet(self_ip.network, _label("net", self_ip.full_path))
 
+        servers = _extract_gtm_servers(source)
+        gtm_pools = _extract_gtm_pools(source)
+        wideips = _extract_gtm_wideips(source)
+        for wideip_path, addrs in _wideip_addresses(wideips, gtm_pools, servers).items():
+            label = _label("wideip", wideip_path)
+            for addr in addrs:
+                index.add(addr, label)
+
     return index
+
+
+def build_merged_name_index(
+    configs_with_sources: list[tuple[BigipConfig, str]],
+) -> NameIndex:
+    """Build a merged :class:`NameIndex` from multiple ``(config, source)`` pairs.
+
+    GTM wide-IPs in one input often resolve through pool members hosted
+    by ``gtm server`` blocks defined in *another* input; we resolve
+    each pair against the union of *all* inputs so cross-file references
+    work transparently.
+    """
+    if not configs_with_sources:
+        return NameIndex()
+
+    combined_source = "\n".join(src for _cfg, src in configs_with_sources)
+    merged = NameIndex()
+    for config, _src in configs_with_sources:
+        merged.update(build_name_index(config, source=combined_source))
+    return merged
 
 
 # Pcapng walking — observed IPs

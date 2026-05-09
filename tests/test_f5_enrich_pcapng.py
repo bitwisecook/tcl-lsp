@@ -14,9 +14,13 @@ import pytest
 from core.bigip.parser import parse_bigip_conf
 from core.bigip.pcap_enrich import (
     NameIndex,
+    _extract_gtm_pools,
+    _extract_gtm_servers,
+    _extract_gtm_wideips,
     _extract_self_ips,
     _slug,
     _split_destination,
+    build_merged_name_index,
     build_name_index,
     collect_observed_ips,
     enrich_pcapng,
@@ -176,6 +180,88 @@ def test_extract_self_ips_strips_route_domain_and_parses_cidr():
     assert self_ip.address == "10.0.5.1"
     assert self_ip.network is not None
     assert str(self_ip.network) == "10.0.5.0/24"
+
+
+# Wide-IP / GTM extraction tests
+
+
+GTM_LTM_SOURCES = (
+    # GTM-only file: wide-IPs and pools live here.
+    """
+gtm pool a /Common/wip_pool {
+    members {
+        /Common/dc1:vs_a { ratio 1 }
+        /Common/dc1:vs_b { ratio 1 }
+    }
+}
+
+gtm wideip a /Common/example.com {
+    pools {
+        /Common/wip_pool { ratio 1 }
+    }
+}
+""",
+    # LTM-only file: server addresses live here.
+    """
+gtm server /Common/dc1 {
+    addresses {
+        10.0.0.5 { device-name dc1 }
+    }
+    virtual-servers {
+        vs_a {
+            destination 10.0.0.5:443
+        }
+        vs_b {
+            destination 10.0.0.6:80
+        }
+    }
+}
+
+ltm virtual /Common/dc1_internal {
+    destination /Common/10.0.0.5:443
+}
+""",
+)
+
+
+def test_extract_gtm_servers_pulls_addresses_and_vs_destinations():
+    src = GTM_LTM_SOURCES[1]
+    servers = _extract_gtm_servers(src)
+    assert "/Common/dc1" in servers
+    server = servers["/Common/dc1"]
+    assert "10.0.0.5" in server.addresses
+    assert server.virtual_servers == {"vs_a": "10.0.0.5", "vs_b": "10.0.0.6"}
+
+
+def test_extract_gtm_pools_returns_server_vs_pairs():
+    pools = _extract_gtm_pools(GTM_LTM_SOURCES[0])
+    assert pools["/Common/wip_pool"] == [
+        ("/Common/dc1", "vs_a"),
+        ("/Common/dc1", "vs_b"),
+    ]
+
+
+def test_extract_gtm_wideips_returns_pool_refs():
+    wideips = _extract_gtm_wideips(GTM_LTM_SOURCES[0])
+    assert wideips["/Common/example.com"] == ["/Common/wip_pool"]
+
+
+def test_wideip_resolution_traverses_pool_to_server_vs():
+    src = "\n".join(GTM_LTM_SOURCES)
+    cfg = parse_bigip_conf(src)
+    index = build_name_index(cfg, source=src)
+    assert "wideip-common-example-com" in index.v4["10.0.0.5"]
+    assert "wideip-common-example-com" in index.v4["10.0.0.6"]
+
+
+def test_build_merged_name_index_resolves_cross_file_wideip():
+    """Wide-IP in file A must resolve through gtm server in file B."""
+    pairs = [(parse_bigip_conf(s), s) for s in GTM_LTM_SOURCES]
+    merged = build_merged_name_index(pairs)
+    assert "wideip-common-example-com" in merged.v4["10.0.0.5"]
+    assert "wideip-common-example-com" in merged.v4["10.0.0.6"]
+    # And the LTM virtual is still present.
+    assert "vs-common-dc1-internal" in merged.v4["10.0.0.5"]
 
 
 def test_name_index_lookup_includes_subnet_labels():
@@ -374,7 +460,7 @@ def test_enrich_pcapng_cli_dry_run(tmp_path, capsys):
     cfg.write_text(SAMPLE_CONFIG)
 
     code, out, _err = _run(
-        ["enrich-pcapng", "--dry-run", str(cfg), "/dev/null", "/dev/null"], capsys
+        ["enrich-pcapng", "--dry-run", "-c", str(cfg), "/dev/null", "/dev/null"], capsys
     )
     assert code == 0
     assert "10.0.0.1\tvs-common-vs1" in out
@@ -390,7 +476,7 @@ def test_enrich_pcapng_cli_writes_pcapng_with_nrb(tmp_path, capsys):
     pcap_out = tmp_path / "out.pcapng"
 
     code, _out, err = _run(
-        ["enrich-pcapng", str(cfg), str(pcap_in), str(pcap_out)], capsys
+        ["enrich-pcapng", "-c", str(cfg), str(pcap_in), str(pcap_out)], capsys
     )
 
     assert code == 0
