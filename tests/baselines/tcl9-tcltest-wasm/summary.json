@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-09T09:25:34Z",
+  "generated_at": "2026-05-09T11:21:16Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -534,8 +534,8 @@
       "total": 113
     },
     "trace": {
-      "bucket": "W0-runtime-error",
-      "crash_type": "Trap",
+      "bucket": "W0-timeout",
+      "crash_type": "Timeout",
       "crashed": true,
       "failed_max": 0,
       "passed_min": 0,
