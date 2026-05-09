@@ -14,9 +14,11 @@ import pytest
 from core.bigip.parser import parse_bigip_conf
 from core.bigip.pcap_enrich import (
     NameIndex,
+    _extract_self_ips,
     _slug,
     _split_destination,
     build_name_index,
+    collect_observed_ips,
     enrich_pcapng,
 )
 from core.bigip.pcapng import (
@@ -89,6 +91,10 @@ ltm node /Common/web1 {
     address 10.0.1.10
 }
 
+ltm rule /Common/my_irule {
+    when HTTP_REQUEST { return }
+}
+
 ltm pool /Common/web_pool {
     members {
         /Common/web1:80 {
@@ -107,6 +113,14 @@ ltm snatpool /Common/my_snatpool {
 ltm virtual /Common/vs1 {
     destination /Common/10.0.0.1:443
     pool /Common/web_pool
+    rules {
+        /Common/my_irule
+    }
+}
+
+net self /Common/external_self {
+    address 10.0.5.1%0/24
+    vlan /Common/external
 }
 """
 
@@ -132,15 +146,45 @@ def test_split_destination_handles_v4_and_v6_and_partition():
     assert _split_destination("/Common/garbage") == ""
 
 
-def test_build_name_index_covers_vs_pool_snat_node():
+def test_build_name_index_covers_every_object_type():
     config = parse_bigip_conf(SAMPLE_CONFIG)
-    index = build_name_index(config)
+    index = build_name_index(config, source=SAMPLE_CONFIG)
 
+    # Virtual server destination + attached iRule.
     assert "vs-common-vs1" in index.v4["10.0.0.1"]
-    assert any(name.startswith("pool-common-web-pool") for name in index.v4["10.0.1.10"])
+    assert "irule-common-my-irule" in index.v4["10.0.0.1"]
+
+    # Pool member uses the member's own path (purpose=pool).
+    assert "pool-common-web1-80" in index.v4["10.0.1.10"]
+    # Node label still tags the same IP independently.
     assert "node-common-web1" in index.v4["10.0.1.10"]
-    assert any(name.startswith("snat-common-my-snatpool") for name in index.v4["10.0.2.100"])
-    assert any(name.startswith("snat-common-my-snatpool") for name in index.v4["192.168.1.1"])
+
+    # SNAT-pool members get the snatpool's path (one label, applied to every member).
+    assert index.v4["10.0.2.100"] == ["snat-common-my-snatpool"]
+    assert index.v4["192.168.1.1"] == ["snat-common-my-snatpool"]
+
+    # net self exact-IP and subnet labels.
+    assert "self-common-external-self" in index.v4["10.0.5.1"]
+    assert any(label == "net-common-external-self" for _, label in index.v4_subnets)
+
+
+def test_extract_self_ips_strips_route_domain_and_parses_cidr():
+    selves = _extract_self_ips(SAMPLE_CONFIG)
+    paths = {s.full_path: s for s in selves}
+    assert "/Common/external_self" in paths
+    self_ip = paths["/Common/external_self"]
+    assert self_ip.address == "10.0.5.1"
+    assert self_ip.network is not None
+    assert str(self_ip.network) == "10.0.5.0/24"
+
+
+def test_name_index_lookup_includes_subnet_labels():
+    index = NameIndex()
+    import ipaddress as _ip
+
+    index.add_subnet(_ip.IPv4Network("10.0.5.0/24"), "net-common-external-self")
+    assert index.lookup("10.0.5.42") == ["net-common-external-self"]
+    assert index.lookup("10.0.6.1") == []
 
 
 # NRB / DSB block builder unit tests
@@ -193,16 +237,19 @@ def test_build_dsb_block_pads_and_carries_secrets_data():
 # enrich_pcapng integration tests
 
 
-def test_enrich_pcapng_inserts_nrb_after_first_idb():
-    pcapng_in = _build_minimal_pcapng()
+def test_enrich_pcapng_inserts_nrb_filtered_to_observed_ips():
+    """By default only addresses that appear in a packet get NRB records."""
+    pcapng_in = _build_minimal_pcapng()  # carries 10.0.0.1 / 10.0.0.2 only.
     config = parse_bigip_conf(SAMPLE_CONFIG)
-    name_index = build_name_index(config)
+    name_index = build_name_index(config, source=SAMPLE_CONFIG)
 
     out = io.BytesIO()
     result = enrich_pcapng(io.BytesIO(pcapng_in), out, name_index)
 
-    assert result.ipv4_records == len(name_index.v4)
-    assert result.names_total == name_index.total_names()
+    # The capture only carries 10.0.0.1 (a known VS) and 10.0.0.2 (unknown).
+    # Only 10.0.0.1 should land in the NRB.
+    assert result.ipv4_records == 1
+    assert result.observed_ipv4 == 2
     assert result.keylog_bytes == 0
     assert result.converted_from_libpcap is False
 
@@ -218,6 +265,75 @@ def test_enrich_pcapng_inserts_nrb_after_first_idb():
     in_epb = next(b for b in original_blocks if b.block_type == BLOCK_TYPE_EPB)
     out_epb = next(b for b in blocks if b.block_type == BLOCK_TYPE_EPB)
     assert in_epb.packet_data == out_epb.packet_data
+    # And the NRB body actually mentions vs-common-vs1.
+    nrb = blocks[2]
+    assert b"vs-common-vs1\x00" in nrb.body
+
+
+def test_enrich_pcapng_include_unobserved_emits_full_inventory():
+    pcapng_in = _build_minimal_pcapng()
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    name_index = build_name_index(config, source=SAMPLE_CONFIG)
+
+    out = io.BytesIO()
+    result = enrich_pcapng(
+        io.BytesIO(pcapng_in), out, name_index, include_unobserved=True
+    )
+
+    # With --all every exact-IP entry from the inventory is emitted, even
+    # ones that never appeared as a packet src/dst.
+    assert result.ipv4_records == len(name_index.v4)
+    assert result.observed_ipv4 == 0  # walk skipped under include_unobserved
+
+
+def test_collect_observed_ips_sees_packet_src_and_dst():
+    v4, v6 = collect_observed_ips(io.BytesIO(_build_minimal_pcapng()))
+    assert v4 == {"10.0.0.1", "10.0.0.2"}
+    assert v6 == set()
+
+
+def test_enrich_pcapng_subnet_label_applied_to_observed_host():
+    """A host inside a self-IP CIDR with no exact entry still gets a label."""
+
+    def _build_pcapng_with_addresses(addrs: list[bytes]) -> bytes:
+        out = io.BytesIO()
+        shb_body = struct.pack("<IHHQ", 0x1A2B3C4D, 1, 0, 0xFFFFFFFFFFFFFFFF)
+        out.write(struct.pack("<II", BLOCK_TYPE_SHB, 12 + len(shb_body)))
+        out.write(shb_body)
+        out.write(struct.pack("<I", 12 + len(shb_body)))
+        idb_body = struct.pack("<HHI", 1, 0, 65535)
+        out.write(struct.pack("<II", BLOCK_TYPE_IDB, 12 + len(idb_body)))
+        out.write(idb_body)
+        out.write(struct.pack("<I", 12 + len(idb_body)))
+        for src in addrs:
+            eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x08\x00"
+            ipv4 = bytes(
+                [0x45, 0x00, 0x00, 0x14]
+                + [0, 1, 0x40, 0x00, 0x40, 0x06, 0, 0]
+            ) + src + bytes([10, 0, 9, 9])
+            packet = eth + ipv4
+            cap_len = len(packet)
+            epb_body = struct.pack("<IIIII", 0, 0, 0, cap_len, cap_len) + packet
+            pad = (-cap_len) & 3
+            epb_body += b"\x00" * pad
+            out.write(struct.pack("<II", BLOCK_TYPE_EPB, 12 + len(epb_body)))
+            out.write(epb_body)
+            out.write(struct.pack("<I", 12 + len(epb_body)))
+        return out.getvalue()
+
+    # 10.0.5.42 isn't in the LTM inventory but it's inside the
+    # /Common/external_self subnet (10.0.5.0/24).  Expect a "net-…" label.
+    pcapng_in = _build_pcapng_with_addresses([bytes([10, 0, 5, 42])])
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    name_index = build_name_index(config, source=SAMPLE_CONFIG)
+
+    out = io.BytesIO()
+    result = enrich_pcapng(io.BytesIO(pcapng_in), out, name_index)
+
+    assert result.ipv4_records >= 1
+    blocks = _parse_blocks(out.getvalue())
+    nrb = next(b for b in blocks if b.block_type == BLOCK_TYPE_NRB)
+    assert b"net-common-external-self\x00" in nrb.body
 
 
 def test_enrich_pcapng_inserts_dsb_when_keylog_provided():
@@ -262,6 +378,8 @@ def test_enrich_pcapng_cli_dry_run(tmp_path, capsys):
     )
     assert code == 0
     assert "10.0.0.1\tvs-common-vs1" in out
+    assert "10.0.0.1\tirule-common-my-irule" in out
+    assert "10.0.5.1\tself-common-external-self" in out
 
 
 def test_enrich_pcapng_cli_writes_pcapng_with_nrb(tmp_path, capsys):

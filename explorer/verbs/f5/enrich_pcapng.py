@@ -22,16 +22,23 @@ from ._registry import verb
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Read a parsed bigip.conf / SCF, derive a hostname-style label for "
-        "every virtual-server destination, pool member, SNAT-pool member, "
-        "and node IP, and inject those mappings into the input capture as "
-        "a PCAPNG Name Resolution Block.  Wireshark then renders the "
-        "annotated names alongside addresses, just like reverse DNS would.\n"
+        "Read a parsed bigip.conf / SCF, derive a hostname-style label "
+        "for every IP that appears in the capture (virtual-server "
+        "destination, pool member, SNAT-pool member, self-IP, node, "
+        "iRule attached to a VS, or membership of a self-IP CIDR), and "
+        "inject those mappings into the capture as a PCAPNG Name "
+        "Resolution Block.  Wireshark then renders the labels alongside "
+        "addresses, just like reverse DNS would.\n"
         "\n"
-        "Labels follow the form ``vs-<partition>-<name>``, "
-        "``pool-<partition>-<pool>-<ip>``, "
-        "``snat-<partition>-<snatpool>-<ip>``, and "
-        "``node-<partition>-<name>``.\n"
+        "Labels are ``purpose-objname`` lowercased with ``-`` separators: "
+        "``vs-common-vs1``, ``pool-common-web1-80``, "
+        "``snat-common-my-snatpool``, ``self-common-external-self``, "
+        "``net-common-external-self`` (subnet match), "
+        "``node-common-web1``, ``irule-common-my-irule``.\n"
+        "\n"
+        "By default the NRB only carries records for IPs that actually "
+        "appear in the capture; pass ``--all`` to emit every label from "
+        "the inventory regardless of whether it is observed.\n"
         "\n"
         "Optionally, ``--keylog FILE`` injects a TLS NSS-format keylog "
         "as a Decryption Secrets Block so Wireshark can decrypt TLS "
@@ -53,6 +60,16 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "NSS-format TLS keylog file to embed as a Decryption Secrets "
             "Block (Wireshark decrypts TLS using these keys without "
             "needing SSLKEYLOGFILE)."
+        ),
+    )
+    p.add_argument(
+        "--all",
+        dest="include_unobserved",
+        action="store_true",
+        help=(
+            "Emit an NRB record for every label in the inventory, even "
+            "addresses that never appear as a packet src/dst.  Default: "
+            "filter to addresses observed in the capture."
         ),
     )
     p.add_argument(
@@ -82,7 +99,7 @@ def _run_enrich_pcapng(args: argparse.Namespace) -> int:
         print(f"error: cannot parse config: {exc}", file=sys.stderr)
         return 2
 
-    name_index = build_name_index(config)
+    name_index = build_name_index(config, source=config_text)
 
     if args.dry_run:
         for addr, names in sorted(name_index.v4.items()):
@@ -114,7 +131,13 @@ def _run_enrich_pcapng(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        result = enrich_capture_file(in_path, out_path, name_index, keylog_text=keylog_text)
+        result = enrich_capture_file(
+            in_path,
+            out_path,
+            name_index,
+            keylog_text=keylog_text,
+            include_unobserved=args.include_unobserved,
+        )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         try:
@@ -127,9 +150,14 @@ def _run_enrich_pcapng(args: argparse.Namespace) -> int:
     keylog_note = (
         f", keylog {result.keylog_bytes} byte(s) embedded" if result.keylog_bytes else ""
     )
+    observed_note = (
+        f" out of {result.observed_ipv4} v4 / {result.observed_ipv6} v6 observed"
+        if not args.include_unobserved
+        else " (--all: every inventory entry)"
+    )
     print(
-        f"enrich-pcapng: {result.ipv4_records} v4 / {result.ipv6_records} v6 address(es), "
-        f"{result.names_total} label(s){keylog_note}{converted_note}",
+        f"enrich-pcapng: {result.ipv4_records} v4 / {result.ipv6_records} v6 record(s), "
+        f"{result.names_total} label(s){observed_note}{keylog_note}{converted_note}",
         file=sys.stderr,
     )
     return 0
