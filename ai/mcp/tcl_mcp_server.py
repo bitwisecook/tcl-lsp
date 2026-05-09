@@ -631,6 +631,75 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     return json.dumps(result)
 
 
+# F5 BIG-IP analysis tools
+
+
+@tool(
+    "explain_pcap",
+    "Trace each flow in a PCAP through one or more BIG-IP configs. For every "
+    "matched virtual server, returns ordered LTM profiles, attached LTM policies "
+    "and APM access profile, the expected iRule event firing sequence (driven by "
+    "attached profiles + observed L7 features), the verbatim `when EVENT { ... }` "
+    "body for each fired event, persistence, SNAT, default pool & members, plus "
+    "any GTM wide-IPs in the config. Designed to give an LLM enough context to "
+    "narrate what BIG-IP did to the traffic in the capture.",
+    params={
+        "pcap_path": {**_STR, "description": "Path to a libpcap or pcapng file."},
+        "config_text": {
+            **_STR,
+            "description": "BIG-IP `bigip.conf` / SCF source. Provide either this "
+            "or `config_paths`.",
+        },
+        "config_paths": {
+            "type": "array",
+            "items": _STR,
+            "description": "Paths to bigip.conf files (alternative to `config_text`).",
+        },
+        "use_tshark": {
+            "type": "boolean",
+            "description": "If true, enrich flows via tshark when available "
+            "(adds HTTP method/Host/URI, TLS SNI). Defaults to false.",
+        },
+        "show_event_bodies": {
+            "type": "boolean",
+            "description": "Include the verbatim `when EVENT { ... }` block for "
+            "each fired event. Defaults to true.",
+        },
+    },
+    required=["pcap_path"],
+)
+def _tool_explain_pcap(
+    pcap_path: str,
+    config_text: str = "",
+    config_paths: list | None = None,
+    use_tshark: bool = False,
+    show_event_bodies: bool = True,
+) -> str:
+    from pathlib import Path
+
+    from core.bigip.explain_pcap import compute_explain_pcap, report_to_dict
+    from core.bigip.parser import parse_bigip_conf
+
+    configs: dict = {}
+    if config_text:
+        configs["inline://config"] = parse_bigip_conf(config_text)
+    for p in config_paths or []:
+        path = Path(p)
+        configs[path.as_uri()] = parse_bigip_conf(path.read_text(encoding="utf-8", errors="replace"))
+    if not configs:
+        return json.dumps(
+            {"error": "explain_pcap requires either config_text or config_paths"}
+        )
+
+    report = compute_explain_pcap(
+        Path(pcap_path),
+        configs,
+        use_tshark=use_tshark,
+        show_event_bodies=show_event_bodies,
+    )
+    return json.dumps(report_to_dict(report))
+
+
 # LSP-equivalent tools
 
 _SYNTHETIC_URI = "file:///source.tcl"

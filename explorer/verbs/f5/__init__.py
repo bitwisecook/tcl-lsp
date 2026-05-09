@@ -14,6 +14,7 @@ def load_verbs() -> None:
         convert,
         diff,
         explain,
+        explain_pcap,
         extract,
         fetch,
         graph,
