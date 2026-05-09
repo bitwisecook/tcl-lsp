@@ -30,7 +30,7 @@ The cleanup feature parses one or more `bigip.conf` / SCF files, treats every `l
 
 ### `f5` CLI
 
-`f5` is the BIG-IP-side CLI tool, separate from the `tcl` and `irule` CLIs.  Today it carries one verb — `cleanup` — and runs as a normal subcommand:
+`f5` is the BIG-IP-side CLI tool, separate from the `tcl` and `irule` CLIs.  It carries `cleanup` (this verb) plus [`grep`](kcs-feature-bigip-grep.md) (find every object related to a name or regex) and `completion` (print a shell completion script), and runs as a normal subcommand:
 
 ```
 f5 cleanup samples/bigip/bigip.conf

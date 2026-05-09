@@ -737,8 +737,22 @@ f5 cleanup --keep /Common/critical_pool bigip.conf
 f5 cleanup --json bigip.conf > report.json
 ```
 
-`f5` is a separate CLI from `tcl` and `irule`; today it ships two
-verbs (`cleanup`, `completion`).
+**`f5 grep` verb** — find every BIG-IP object related to a given
+object name (or regex) by walking the same forward-and-reverse
+reference graph the cleanup analysis uses.  By default the BFS
+traverses both directions, so a single command surfaces the seed's
+full neighbourhood: forward edges (objects the seed depends on) and
+reverse edges (objects that depend on the seed).
+
+```
+f5 grep /Common/web_pool bigip.conf
+f5 grep --direction reverse /Common/web1 bigip.conf
+f5 grep --regex '^/Common/(web|api)_pool$' bigip.conf
+f5 grep --json --max-depth 2 web_pool bigip.conf
+```
+
+`f5` is a separate CLI from `tcl` and `irule`; today it ships three
+verbs (`cleanup`, `grep`, `completion`).
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
