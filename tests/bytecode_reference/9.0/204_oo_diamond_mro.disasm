@@ -1,0 +1,62 @@
+ByteCode 0x5568b859afa0, refCt 1, epoch 21, interp 0x5568b8428350 (epoch 21)
+  Source "# Diamond inheritance MRO dispatch (oo-9.1)\noo::class ..."
+  Cmds 9, src 433, inst 100, litObjs 14, aux 0, stkDepth 4, code/src 0.00
+  Commands 9:
+      1: pc 0-10, src 44-116        2: pc 11-21, src 118-202
+      3: pc 22-32, src 204-288        4: pc 33-43, src 290-376
+      5: pc 44-58, src 378-390        6: pc 59-86, src 392-420
+      7: pc 70-79, src 408-419        8: pc 70-75, src 409-413
+      9: pc 87-98, src 422-431
+  Command 1: "oo::class create A {\n    method test {} {lappend ::res..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "A"
+    (6) push1 3 	# "\n    method test {} {lappend ::result A..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "oo::class create B {\n    superclass A\n    method test..."
+    (11) push1 0 	# "oo::class"
+    (13) push1 1 	# "create"
+    (15) push1 4 	# "B"
+    (17) push1 5 	# "\n    superclass A\n    method test {} {..."
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "oo::class create C {\n    superclass A\n    method test..."
+    (22) push1 0 	# "oo::class"
+    (24) push1 1 	# "create"
+    (26) push1 6 	# "C"
+    (28) push1 7 	# "\n    superclass A\n    method test {} {..."
+    (30) invokeStk1 4 
+    (32) pop 
+  Command 4: "oo::class create D {\n    superclass B C\n    method te..."
+    (33) push1 0 	# "oo::class"
+    (35) push1 1 	# "create"
+    (37) push1 8 	# "D"
+    (39) push1 9 	# "\n    superclass B C\n    method test {}..."
+    (41) invokeStk1 4 
+    (43) pop 
+  Command 5: "set result {}..."
+    (44) startCommand +14 1 	# next cmd at pc 58, 1 cmds start here
+    (53) push1 10 	# "result"
+    (55) push1 11 	# ""
+    (57) storeStk 
+    (58) pop 
+  Command 6: "lappend result [[D new] test]..."
+    (59) startCommand +27 1 	# next cmd at pc 86, 1 cmds start here
+    (68) push1 10 	# "result"
+  Command 7: "[D new] test..."
+  Command 8: "D new..."
+    (70) push1 8 	# "D"
+    (72) push1 12 	# "new"
+    (74) invokeStk1 2 
+    (76) push1 13 	# "test"
+    (78) invokeStk1 2 
+    (80) list 1 
+    (85) lappendListStk 
+    (86) pop 
+  Command 9: "set result..."
+    (87) startCommand +12 1 	# next cmd at pc 99, 1 cmds start here
+    (96) push1 10 	# "result"
+    (98) loadStk 
+    (99) done 
+

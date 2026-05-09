@@ -1,0 +1,320 @@
+ByteCode 0x558d123be340, refCt 1, epoch 21, interp 0x558d12339350 (epoch 21)
+  Source "# Regression guards for Copilot review findings on PR #..."
+  Cmds 42, src 1923, inst 783, litObjs 48, aux 0, stkDepth 4, code/src 0.00
+  Commands 42:
+      1: pc 0-11, src 439-482        2: pc 2-9, src 447-481
+      3: pc 12-60, src 484-538        4: pc 29-55, src 500-537
+      5: pc 61-111, src 540-602        6: pc 78-106, src 562-601
+      7: pc 112-162, src 604-676        8: pc 129-157, src 622-675
+      9: pc 163-183, src 883-933       10: pc 174-181, src 892-932
+     11: pc 184-227, src 935-976       12: pc 201-222, src 952-975
+     13: pc 228-271, src 978-1006       14: pc 245-266, src 996-1005
+     15: pc 272-320, src 1008-1040       16: pc 289-315, src 1025-1039
+     17: pc 321-369, src 1042-1074       18: pc 338-364, src 1059-1073
+     19: pc 370-390, src 1145-1173       20: pc 381-388, src 1154-1172
+     21: pc 391-439, src 1175-1226       22: pc 408-434, src 1192-1225
+     23: pc 440-454, src 1345-1371       24: pc 455-469, src 1373-1401
+     25: pc 470-501, src 1403-1427       26: pc 481-499, src 1410-1426
+     27: pc 502-551, src 1429-1497       28: pc 511-514, src 1434-1443
+     29: pc 520-546, src 1454-1496       30: pc 552-604, src 1499-1563
+     31: pc 561-571, src 1504-1517       32: pc 578-599, src 1529-1562
+     33: pc 605-651, src 1682-1757       34: pc 614-619, src 1687-1704
+     35: pc 625-646, src 1723-1756       36: pc 652-704, src 1759-1831
+     37: pc 661-672, src 1764-1784       38: pc 678-699, src 1805-1830
+     39: pc 705-759, src 1833-1911       40: pc 714-727, src 1838-1863
+     41: pc 733-754, src 1884-1910       42: pc 760-781, src 1913-1921
+  Command 1: "set rc [catch { catch {error inner} m1 } m2]..."
+    (0) push1 0 	# "rc"
+  Command 2: "catch { catch {error inner} m1 } m2..."
+    (2) push1 1 	# "catch"
+    (4) push1 2 	# " catch {error inner} m1 "
+    (6) push1 3 	# "m2"
+    (8) invokeStk1 3 
+    (10) storeStk 
+    (11) pop 
+  Command 3: "if {$rc != 0} { error \"outer rc should be 0, got $rc\"..."
+    (12) startCommand +48 1 	# next cmd at pc 60, 1 cmds start here
+    (21) push1 0 	# "rc"
+    (23) loadStk 
+    (24) push1 4 	# "0"
+    (26) neq 
+    (27) jumpFalse1 +31 	# pc 58
+  Command 4: "error \"outer rc should be 0, got $rc\"..."
+    (29) startCommand +27 1 	# next cmd at pc 56, 1 cmds start here
+    (38) push1 5 	# "outer rc should be 0, got "
+    (40) push1 0 	# "rc"
+    (42) loadStk 
+    (43) strcat 2 
+    (45) push1 6 	# ""
+    (47) returnImm +1 0 
+    (56) jump1 +4 	# pc 60
+    (58) push1 6 	# ""
+    (60) pop 
+  Command 5: "if {$m1 ne \"inner\"} { error \"m1 should be 'inner', g..."
+    (61) startCommand +50 1 	# next cmd at pc 111, 1 cmds start here
+    (70) push1 7 	# "m1"
+    (72) loadStk 
+    (73) push1 8 	# "inner"
+    (75) strneq 
+    (76) jumpFalse1 +33 	# pc 109
+  Command 6: "error \"m1 should be 'inner', got '$m1'\"..."
+    (78) startCommand +29 1 	# next cmd at pc 107, 1 cmds start here
+    (87) push1 9 	# "m1 should be 'inner', got '"
+    (89) push1 7 	# "m1"
+    (91) loadStk 
+    (92) push1 10 	# "'"
+    (94) strcat 3 
+    (96) push1 6 	# ""
+    (98) returnImm +1 0 
+    (107) jump1 +4 	# pc 111
+    (109) push1 6 	# ""
+    (111) pop 
+  Command 7: "if {$m2 ne \"1\"} { error \"m2 should be '1' (inner cat..."
+    (112) startCommand +50 1 	# next cmd at pc 162, 1 cmds start here
+    (121) push1 3 	# "m2"
+    (123) loadStk 
+    (124) push1 11 	# "1"
+    (126) strneq 
+    (127) jumpFalse1 +33 	# pc 160
+  Command 8: "error \"m2 should be '1' (inner catch ret), got '$m2'\"..."
+    (129) startCommand +29 1 	# next cmd at pc 158, 1 cmds start here
+    (138) push1 12 	# "m2 should be '1' (inner catch ret), got ..."
+    (140) push1 3 	# "m2"
+    (142) loadStk 
+    (143) push1 10 	# "'"
+    (145) strcat 3 
+    (147) push1 6 	# ""
+    (149) returnImm +1 0 
+    (158) jump1 +4 	# pc 162
+    (160) push1 6 	# ""
+    (162) pop 
+  Command 9: "set rc3 [catch { catch { catch {error x} a } b } c]..."
+    (163) startCommand +20 1 	# next cmd at pc 183, 1 cmds start here
+    (172) push1 13 	# "rc3"
+  Command 10: "catch { catch { catch {error x} a } b } c..."
+    (174) push1 1 	# "catch"
+    (176) push1 14 	# " catch { catch {error x} a } b "
+    (178) push1 15 	# "c"
+    (180) invokeStk1 3 
+    (182) storeStk 
+    (183) pop 
+  Command 11: "if {$rc3 != 0} { error \"rc3 should be 0\"..."
+    (184) startCommand +43 1 	# next cmd at pc 227, 1 cmds start here
+    (193) push1 13 	# "rc3"
+    (195) loadStk 
+    (196) push1 4 	# "0"
+    (198) neq 
+    (199) jumpFalse1 +26 	# pc 225
+  Command 12: "error \"rc3 should be 0\"..."
+    (201) startCommand +22 1 	# next cmd at pc 223, 1 cmds start here
+    (210) push1 16 	# "rc3 should be 0"
+    (212) push1 6 	# ""
+    (214) returnImm +1 0 
+    (223) jump1 +4 	# pc 227
+    (225) push1 6 	# ""
+    (227) pop 
+  Command 13: "if {$a ne \"x\"}  { error \"a..."
+    (228) startCommand +43 1 	# next cmd at pc 271, 1 cmds start here
+    (237) push1 17 	# "a"
+    (239) loadStk 
+    (240) push1 18 	# "x"
+    (242) strneq 
+    (243) jumpFalse1 +26 	# pc 269
+  Command 14: "error \"a\"..."
+    (245) startCommand +22 1 	# next cmd at pc 267, 1 cmds start here
+    (254) push1 17 	# "a"
+    (256) push1 6 	# ""
+    (258) returnImm +1 0 
+    (267) jump1 +4 	# pc 271
+    (269) push1 6 	# ""
+    (271) pop 
+  Command 15: "if {$b ne \"1\"} { error \"b = $b..."
+    (272) startCommand +48 1 	# next cmd at pc 320, 1 cmds start here
+    (281) push1 19 	# "b"
+    (283) loadStk 
+    (284) push1 11 	# "1"
+    (286) strneq 
+    (287) jumpFalse1 +31 	# pc 318
+  Command 16: "error \"b = $b\"..."
+    (289) startCommand +27 1 	# next cmd at pc 316, 1 cmds start here
+    (298) push1 20 	# "b = "
+    (300) push1 19 	# "b"
+    (302) loadStk 
+    (303) strcat 2 
+    (305) push1 6 	# ""
+    (307) returnImm +1 0 
+    (316) jump1 +4 	# pc 320
+    (318) push1 6 	# ""
+    (320) pop 
+  Command 17: "if {$c ne \"1\"} { error \"c = $c..."
+    (321) startCommand +48 1 	# next cmd at pc 369, 1 cmds start here
+    (330) push1 15 	# "c"
+    (332) loadStk 
+    (333) push1 11 	# "1"
+    (335) strneq 
+    (336) jumpFalse1 +31 	# pc 367
+  Command 18: "error \"c = $c\"..."
+    (338) startCommand +27 1 	# next cmd at pc 365, 1 cmds start here
+    (347) push1 21 	# "c = "
+    (349) push1 15 	# "c"
+    (351) loadStk 
+    (352) strcat 2 
+    (354) push1 6 	# ""
+    (356) returnImm +1 0 
+    (365) jump1 +4 	# pc 369
+    (367) push1 6 	# ""
+    (369) pop 
+  Command 19: "set rc4 [catch {set y 99} m4]..."
+    (370) startCommand +20 1 	# next cmd at pc 390, 1 cmds start here
+    (379) push1 22 	# "rc4"
+  Command 20: "catch {set y 99} m4..."
+    (381) push1 1 	# "catch"
+    (383) push1 23 	# "set y 99"
+    (385) push1 24 	# "m4"
+    (387) invokeStk1 3 
+    (389) storeStk 
+    (390) pop 
+  Command 21: "if {$m4 != 99} { error \"set-body result lost: $m4\"..."
+    (391) startCommand +48 1 	# next cmd at pc 439, 1 cmds start here
+    (400) push1 24 	# "m4"
+    (402) loadStk 
+    (403) push1 25 	# "99"
+    (405) neq 
+    (406) jumpFalse1 +31 	# pc 437
+  Command 22: "error \"set-body result lost: $m4\"..."
+    (408) startCommand +27 1 	# next cmd at pc 435, 1 cmds start here
+    (417) push1 26 	# "set-body result lost: "
+    (419) push1 24 	# "m4"
+    (421) loadStk 
+    (422) strcat 2 
+    (424) push1 6 	# ""
+    (426) returnImm +1 0 
+    (435) jump1 +4 	# pc 439
+    (437) push1 6 	# ""
+    (439) pop 
+  Command 23: "set k \"  key with spaces  ..."
+    (440) startCommand +14 1 	# next cmd at pc 454, 1 cmds start here
+    (449) push1 27 	# "k"
+    (451) push1 28 	# "  key with spaces  "
+    (453) storeStk 
+    (454) pop 
+  Command 24: "set v \"  value with spaces  ..."
+    (455) startCommand +14 1 	# next cmd at pc 469, 1 cmds start here
+    (464) push1 29 	# "v"
+    (466) push1 30 	# "  value with spaces  "
+    (468) storeStk 
+    (469) pop 
+  Command 25: "set d [dict create $k $v]..."
+    (470) startCommand +31 1 	# next cmd at pc 501, 1 cmds start here
+    (479) push1 31 	# "d"
+  Command 26: "dict create $k $v..."
+    (481) startCommand +19 1 	# next cmd at pc 500, 1 cmds start here
+    (490) push1 32 	# "::tcl::dict::create"
+    (492) push1 27 	# "k"
+    (494) loadStk 
+    (495) push1 29 	# "v"
+    (497) loadStk 
+    (498) invokeStk1 3 
+    (500) storeStk 
+    (501) pop 
+  Command 27: "if {[llength $d] != 2} { error \"dict create dropped wh..."
+    (502) startCommand +49 2 	# next cmd at pc 551, 2 cmds start here
+  Command 28: "llength $d..."
+    (511) push1 31 	# "d"
+    (513) loadStk 
+    (514) listLength 
+    (515) push1 33 	# "2"
+    (517) neq 
+    (518) jumpFalse1 +31 	# pc 549
+  Command 29: "error \"dict create dropped whitespace: $d\"..."
+    (520) startCommand +27 1 	# next cmd at pc 547, 1 cmds start here
+    (529) push1 34 	# "dict create dropped whitespace: "
+    (531) push1 31 	# "d"
+    (533) loadStk 
+    (534) strcat 2 
+    (536) push1 6 	# ""
+    (538) returnImm +1 0 
+    (547) jump1 +4 	# pc 551
+    (549) push1 6 	# ""
+    (551) pop 
+  Command 30: "if {[dict get $d $k] ne $v} { error \"dict create mangl..."
+    (552) startCommand +52 2 	# next cmd at pc 604, 2 cmds start here
+  Command 31: "dict get $d $k..."
+    (561) push1 31 	# "d"
+    (563) loadStk 
+    (564) push1 27 	# "k"
+    (566) loadStk 
+    (567) dictGet 1 
+    (572) push1 29 	# "v"
+    (574) loadStk 
+    (575) strneq 
+    (576) jumpFalse1 +26 	# pc 602
+  Command 32: "error \"dict create mangled value\"..."
+    (578) startCommand +22 1 	# next cmd at pc 600, 1 cmds start here
+    (587) push1 35 	# "dict create mangled value"
+    (589) push1 6 	# ""
+    (591) returnImm +1 0 
+    (600) jump1 +4 	# pc 604
+    (602) push1 6 	# ""
+    (604) pop 
+  Command 33: "if {[lreverse {{a b} c}] ne \"c {a b}\"} { error \"lrev..."
+    (605) startCommand +46 1 	# next cmd at pc 651, 1 cmds start here
+  Command 34: "lreverse {{a b} c}..."
+    (614) push1 36 	# "lreverse"
+    (616) push1 37 	# "{a b} c"
+    (618) invokeStk1 2 
+    (620) push1 38 	# "c {a b}"
+    (622) strneq 
+    (623) jumpFalse1 +26 	# pc 649
+  Command 35: "error \"lreverse flattened nested\"..."
+    (625) startCommand +22 1 	# next cmd at pc 647, 1 cmds start here
+    (634) push1 39 	# "lreverse flattened nested"
+    (636) push1 6 	# ""
+    (638) returnImm +1 0 
+    (647) jump1 +4 	# pc 651
+    (649) push1 6 	# ""
+    (651) pop 
+  Command 36: "if {[linsert {{a b} d} 1 X] ne \"{a b} X d\"} { error \"..."
+    (652) startCommand +52 2 	# next cmd at pc 704, 2 cmds start here
+  Command 37: "linsert {{a b} d} 1 X..."
+    (661) push1 40 	# "{a b} d"
+    (663) push1 11 	# "1"
+    (665) push1 41 	# "X"
+    (667) lreplace4 3 2 
+    (673) push1 42 	# "{a b} X d"
+    (675) strneq 
+    (676) jumpFalse1 +26 	# pc 702
+  Command 38: "error \"linsert flattened\"..."
+    (678) startCommand +22 1 	# next cmd at pc 700, 1 cmds start here
+    (687) push1 43 	# "linsert flattened"
+    (689) push1 6 	# ""
+    (691) returnImm +1 0 
+    (700) jump1 +4 	# pc 704
+    (702) push1 6 	# ""
+    (704) pop 
+  Command 39: "if {[lreplace {{a b} c d} 1 1 X] ne \"{a b} X d\"} { er..."
+    (705) startCommand +54 2 	# next cmd at pc 759, 2 cmds start here
+  Command 40: "lreplace {{a b} c d} 1 1 X..."
+    (714) push1 44 	# "{a b} c d"
+    (716) push1 11 	# "1"
+    (718) push1 11 	# "1"
+    (720) push1 41 	# "X"
+    (722) lreplace4 4 1 
+    (728) push1 42 	# "{a b} X d"
+    (730) strneq 
+    (731) jumpFalse1 +26 	# pc 757
+  Command 41: "error \"lreplace flattened\"..."
+    (733) startCommand +22 1 	# next cmd at pc 755, 1 cmds start here
+    (742) push1 45 	# "lreplace flattened"
+    (744) push1 6 	# ""
+    (746) returnImm +1 0 
+    (755) jump1 +4 	# pc 759
+    (757) push1 6 	# ""
+    (759) pop 
+  Command 42: "return ok..."
+    (760) startCommand +22 1 	# next cmd at pc 782, 1 cmds start here
+    (769) push1 46 	# "ok"
+    (771) push1 47 	# ""
+    (773) returnImm +0 1 
+    (782) done 
+

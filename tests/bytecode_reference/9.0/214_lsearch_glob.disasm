@@ -1,0 +1,97 @@
+ByteCode 0x5604f88b8100, refCt 1, epoch 21, interp 0x5604f87c7350 (epoch 21)
+  Source "# Tcl ``lsearch`` default match mode is glob, not exact..."
+  Cmds 14, src 594, inst 218, litObjs 17, aux 0, stkDepth 3, code/src 0.00
+  Commands 14:
+      1: pc 0-5, src 243-272        2: pc 6-55, src 274-337
+      3: pc 15-23, src 279-293        4: pc 29-50, src 304-336
+      5: pc 56-105, src 339-406        6: pc 65-73, src 344-358
+      7: pc 79-100, src 369-405        8: pc 106-155, src 408-475
+      9: pc 115-123, src 413-429       10: pc 129-150, src 441-474
+     11: pc 156-204, src 523-586       12: pc 165-172, src 528-546
+     13: pc 178-199, src 557-585       14: pc 205-216, src 588-592
+  Command 1: "set x {abc bdef abcdef bcdefg}..."
+    (0) push1 0 	# "x"
+    (2) push1 1 	# "abc bdef abcdef bcdefg"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "if {[lsearch $x bcd*] != 3} { error \"glob prefix match..."
+    (6) startCommand +49 1 	# next cmd at pc 55, 1 cmds start here
+  Command 3: "lsearch $x bcd*..."
+    (15) push1 2 	# "lsearch"
+    (17) push1 0 	# "x"
+    (19) loadStk 
+    (20) push1 3 	# "bcd*"
+    (22) invokeStk1 3 
+    (24) push1 4 	# "3"
+    (26) neq 
+    (27) jumpFalse1 +26 	# pc 53
+  Command 4: "error \"glob prefix match failed\"..."
+    (29) startCommand +22 1 	# next cmd at pc 51, 1 cmds start here
+    (38) push1 5 	# "glob prefix match failed"
+    (40) push1 6 	# ""
+    (42) returnImm +1 0 
+    (51) jump1 +4 	# pc 55
+    (53) push1 6 	# ""
+    (55) pop 
+  Command 5: "if {[lsearch $x *cd*] != 0} { error \"wildcard middle m..."
+    (56) startCommand +49 1 	# next cmd at pc 105, 1 cmds start here
+  Command 6: "lsearch $x *cd*..."
+    (65) push1 2 	# "lsearch"
+    (67) push1 0 	# "x"
+    (69) loadStk 
+    (70) push1 7 	# "*cd*"
+    (72) invokeStk1 3 
+    (74) push1 8 	# "0"
+    (76) neq 
+    (77) jumpFalse1 +26 	# pc 103
+  Command 7: "error \"wildcard middle match failed\"..."
+    (79) startCommand +22 1 	# next cmd at pc 101, 1 cmds start here
+    (88) push1 9 	# "wildcard middle match failed"
+    (90) push1 6 	# ""
+    (92) returnImm +1 0 
+    (101) jump1 +4 	# pc 105
+    (103) push1 6 	# ""
+    (105) pop 
+  Command 8: "if {[lsearch $x nosuch] != -1} { error \"no-match shoul..."
+    (106) startCommand +49 1 	# next cmd at pc 155, 1 cmds start here
+  Command 9: "lsearch $x nosuch..."
+    (115) push1 2 	# "lsearch"
+    (117) push1 0 	# "x"
+    (119) loadStk 
+    (120) push1 10 	# "nosuch"
+    (122) invokeStk1 3 
+    (124) push1 11 	# "-1"
+    (126) neq 
+    (127) jumpFalse1 +26 	# pc 153
+  Command 10: "error \"no-match should return -1\"..."
+    (129) startCommand +22 1 	# next cmd at pc 151, 1 cmds start here
+    (138) push1 12 	# "no-match should return -1"
+    (140) push1 6 	# ""
+    (142) returnImm +1 0 
+    (151) jump1 +4 	# pc 155
+    (153) push1 6 	# ""
+    (155) pop 
+  Command 11: "if {[lsearch {a b c d} c] != 2} { error \"exact-as-glob..."
+    (156) startCommand +48 1 	# next cmd at pc 204, 1 cmds start here
+  Command 12: "lsearch {a b c d} c..."
+    (165) push1 2 	# "lsearch"
+    (167) push1 13 	# "a b c d"
+    (169) push1 14 	# "c"
+    (171) invokeStk1 3 
+    (173) push1 15 	# "2"
+    (175) neq 
+    (176) jumpFalse1 +26 	# pc 202
+  Command 13: "error \"exact-as-glob failed\"..."
+    (178) startCommand +22 1 	# next cmd at pc 200, 1 cmds start here
+    (187) push1 16 	# "exact-as-glob failed"
+    (189) push1 6 	# ""
+    (191) returnImm +1 0 
+    (200) jump1 +4 	# pc 204
+    (202) push1 6 	# ""
+    (204) pop 
+  Command 14: "set x..."
+    (205) startCommand +12 1 	# next cmd at pc 217, 1 cmds start here
+    (214) push1 0 	# "x"
+    (216) loadStk 
+    (217) done 
+

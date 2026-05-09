@@ -130,7 +130,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -499,6 +499,9 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 # Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust
 # workspace tests (when present).
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
+	@echo "==> test-slow: ensuring optional test dependencies (tclsh9.0, node, kotlinc)"
+	@bash $(ROOT)scripts/ensure-test-deps.sh
+	@$(MAKE) capture-bytecode-refs
 	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
 	@$(MAKE) prep-pr
 	@echo "==> test-slow: running cross-language lint/typecheck + heavy suites in parallel"
@@ -509,6 +512,28 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 
 install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
 	@bash $(ROOT)scripts/install-hooks.sh
+
+ensure-test-deps: ## Install optional test-slow deps (tclsh9.0, node, kotlinc) for the host platform
+	@bash $(ROOT)scripts/ensure-test-deps.sh
+
+capture-bytecode-refs: ## Capture missing tests/bytecode_reference/<ver>/*.disasm files using local tclsh
+	@set -eu; \
+	missing=0; \
+	for snippet in $(ROOT)tests/bytecode_snippets/*.tcl; do \
+		stem=$$(basename $$snippet .tcl); \
+		[ -f "$(ROOT)tests/bytecode_reference/9.0/$${stem}.disasm" ] || missing=$$((missing+1)); \
+	done; \
+	if [ $$missing -eq 0 ]; then \
+		echo "==> capture-bytecode-refs: 9.0 reference disasm complete (no action)"; \
+		exit 0; \
+	fi; \
+	if ! command -v tclsh9.0 >/dev/null 2>&1; then \
+		echo "ERROR: $$missing reference disasm files missing and tclsh9.0 not on PATH."; \
+		echo "       Run 'bash scripts/ensure-test-deps.sh' first, then 'make capture-bytecode-refs'."; \
+		exit 1; \
+	fi; \
+	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture_reference_bytecode.sh"; \
+	bash $(ROOT)scripts/capture_reference_bytecode.sh
 
 test-emacs: ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
 	@set -eu; \

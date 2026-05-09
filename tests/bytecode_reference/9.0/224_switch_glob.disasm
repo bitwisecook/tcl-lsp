@@ -1,0 +1,150 @@
+ByteCode 0x55f29ae7b900, refCt 1, epoch 21, interp 0x55f29ad8b350 (epoch 21)
+  Source "# ``switch -glob`` must glob-match each pattern against..."
+  Cmds 19, src 908, inst 360, litObjs 22, aux 1, stkDepth 4, code/src 0.00
+  Commands 19:
+      1: pc 0-5, src 280-293        2: pc 6-16, src 295-361
+      3: pc 17-65, src 363-419        4: pc 34-60, src 386-418
+      5: pc 66-80, src 422-435        6: pc 81-91, src 437-511
+      7: pc 92-135, src 513-572        8: pc 109-130, src 536-571
+      9: pc 136-150, src 575-588       10: pc 151-161, src 590-659
+     11: pc 162-205, src 661-712       12: pc 179-200, src 684-711
+     13: pc 206-220, src 764-777       14: pc 221-292, src 779-848
+     15: pc 242-260, src 801-818       16: pc 266-284, src 828-846
+     17: pc 293-336, src 850-896       18: pc 310-331, src 875-895
+     19: pc 337-358, src 898-906
+  Command 1: "set results {}..."
+    (0) push1 0 	# "results"
+    (2) push1 1 	# ""
+    (4) storeStk 
+    (5) pop 
+  Command 2: "switch -glob hello {foo {lappend results A} h* {lappend..."
+    (6) push1 2 	# "switch"
+    (8) push1 3 	# "-glob"
+    (10) push1 4 	# "hello"
+    (12) push1 5 	# "foo {lappend results A} h* {lappend resu..."
+    (14) invokeStk1 4 
+    (16) pop 
+  Command 3: "if {$results ne \"B\"} { error \"glob h* missed: $resul..."
+    (17) startCommand +48 1 	# next cmd at pc 65, 1 cmds start here
+    (26) push1 0 	# "results"
+    (28) loadStk 
+    (29) push1 6 	# "B"
+    (31) strneq 
+    (32) jumpFalse1 +31 	# pc 63
+  Command 4: "error \"glob h* missed: $results\"..."
+    (34) startCommand +27 1 	# next cmd at pc 61, 1 cmds start here
+    (43) push1 7 	# "glob h* missed: "
+    (45) push1 0 	# "results"
+    (47) loadStk 
+    (48) strcat 2 
+    (50) push1 1 	# ""
+    (52) returnImm +1 0 
+    (61) jump1 +4 	# pc 65
+    (63) push1 1 	# ""
+    (65) pop 
+  Command 5: "set results {}..."
+    (66) startCommand +14 1 	# next cmd at pc 80, 1 cmds start here
+    (75) push1 0 	# "results"
+    (77) push1 1 	# ""
+    (79) storeStk 
+    (80) pop 
+  Command 6: "switch -glob foobar {f*bar {lappend results M} default ..."
+    (81) push1 2 	# "switch"
+    (83) push1 3 	# "-glob"
+    (85) push1 8 	# "foobar"
+    (87) push1 9 	# "f*bar {lappend results M} default {lappe..."
+    (89) invokeStk1 4 
+    (91) pop 
+  Command 7: "if {$results ne \"M\"} { error \"glob middle-wildcard m..."
+    (92) startCommand +43 1 	# next cmd at pc 135, 1 cmds start here
+    (101) push1 0 	# "results"
+    (103) loadStk 
+    (104) push1 10 	# "M"
+    (106) strneq 
+    (107) jumpFalse1 +26 	# pc 133
+  Command 8: "error \"glob middle-wildcard missed\"..."
+    (109) startCommand +22 1 	# next cmd at pc 131, 1 cmds start here
+    (118) push1 11 	# "glob middle-wildcard missed"
+    (120) push1 1 	# ""
+    (122) returnImm +1 0 
+    (131) jump1 +4 	# pc 135
+    (133) push1 1 	# ""
+    (135) pop 
+  Command 9: "set results {}..."
+    (136) startCommand +14 1 	# next cmd at pc 150, 1 cmds start here
+    (145) push1 0 	# "results"
+    (147) push1 1 	# ""
+    (149) storeStk 
+    (150) pop 
+  Command 10: "switch -glob zed {foo {lappend results A} default {lapp..."
+    (151) push1 2 	# "switch"
+    (153) push1 3 	# "-glob"
+    (155) push1 12 	# "zed"
+    (157) push1 13 	# "foo {lappend results A} default {lappend..."
+    (159) invokeStk1 4 
+    (161) pop 
+  Command 11: "if {$results ne \"D\"} { error \"glob default missed..."
+    (162) startCommand +43 1 	# next cmd at pc 205, 1 cmds start here
+    (171) push1 0 	# "results"
+    (173) loadStk 
+    (174) push1 14 	# "D"
+    (176) strneq 
+    (177) jumpFalse1 +26 	# pc 203
+  Command 12: "error \"glob default missed\"..."
+    (179) startCommand +22 1 	# next cmd at pc 201, 1 cmds start here
+    (188) push1 15 	# "glob default missed"
+    (190) push1 1 	# ""
+    (192) returnImm +1 0 
+    (201) jump1 +4 	# pc 205
+    (203) push1 1 	# ""
+    (205) pop 
+  Command 13: "set results {}..."
+    (206) startCommand +14 1 	# next cmd at pc 220, 1 cmds start here
+    (215) push1 0 	# "results"
+    (217) push1 1 	# ""
+    (219) storeStk 
+    (220) pop 
+  Command 14: "switch -- exact {foo {lappend results NO} exact {lappen..."
+    (221) startCommand +71 1 	# next cmd at pc 292, 1 cmds start here
+    (230) push1 16 	# "exact"
+    (232) jumpTable 0 
+		["foo"->pc 242, "exact"->pc 266]
+    (237) jump4 +53 	# pc 290
+  Command 15: "lappend results NO..."
+    (242) startCommand +19 1 	# next cmd at pc 261, 1 cmds start here
+    (251) push1 0 	# "results"
+    (253) push1 17 	# "NO"
+    (255) list 1 
+    (260) lappendListStk 
+    (261) jump4 +31 	# pc 292
+  Command 16: "lappend results YES..."
+    (266) startCommand +19 1 	# next cmd at pc 285, 1 cmds start here
+    (275) push1 0 	# "results"
+    (277) push1 18 	# "YES"
+    (279) list 1 
+    (284) lappendListStk 
+    (285) jump4 +7 	# pc 292
+    (290) push1 1 	# ""
+    (292) pop 
+  Command 17: "if {$results ne \"YES\"} { error \"exact broken..."
+    (293) startCommand +43 1 	# next cmd at pc 336, 1 cmds start here
+    (302) push1 0 	# "results"
+    (304) loadStk 
+    (305) push1 18 	# "YES"
+    (307) strneq 
+    (308) jumpFalse1 +26 	# pc 334
+  Command 18: "error \"exact broken\"..."
+    (310) startCommand +22 1 	# next cmd at pc 332, 1 cmds start here
+    (319) push1 19 	# "exact broken"
+    (321) push1 1 	# ""
+    (323) returnImm +1 0 
+    (332) jump1 +4 	# pc 336
+    (334) push1 1 	# ""
+    (336) pop 
+  Command 19: "return ok..."
+    (337) startCommand +22 1 	# next cmd at pc 359, 1 cmds start here
+    (346) push1 20 	# "ok"
+    (348) push1 21 	# ""
+    (350) returnImm +0 1 
+    (359) done 
+

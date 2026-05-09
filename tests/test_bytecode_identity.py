@@ -400,6 +400,47 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         # flow.  The emitted ``invokeStk1`` diverges from tclsh's
         # ``jumpTable`` but is semantically correct.
         "71_switch_fallthrough",
+        # Snippets newly added to the bytecode_snippets corpus where the
+        # 9.0 reference disasm has now been captured but our codegen
+        # does not yet match.  Tracked here so the gap is visible —
+        # remove an entry as each snippet's instruction stream
+        # converges.
+        "145_uplevel_caller_local",
+        "146_uplevel_hash_zero",
+        "200_oo_class_create",
+        "201_oo_constructor",
+        "202_oo_destructor",
+        "203_oo_inheritance_next",
+        "204_oo_diamond_mro",
+        "205_oo_mixin_order",
+        "206_oo_mixin_of_mixin",
+        "207_oo_self_my",
+        "208_oo_instance_vars",
+        "209_oo_next_end_of_chain",
+        "210_oo_define_modify",
+        "211_oo_nextto",
+        "212_line_continuation",
+        "213_join_default_separator",
+        "214_lsearch_glob",
+        "215_foreach_multi_var",
+        "216_string_totitle",
+        "217_lsort_with_options",
+        "218_lreverse_lrepeat",
+        "219_linsert_lreplace",
+        "220_expr_base_prefixed_literals",
+        "221_expr_in_ni",
+        "222_expr_math_funcs",
+        "223_string_end_index",
+        "224_switch_glob",
+        "225_dict_create",
+        "226_continue_runs_step",
+        "227_proc_args_tail_value_ctx",
+        "228_catch_sets_error_msg",
+        "229_string_cat",
+        "230_puts_nonewline",
+        "231_dict_merge",
+        "232_nested_catch_and_dict_create_quoting",
+        "233_list_value_quoting",
     }
 )
 
@@ -408,6 +449,43 @@ _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
     {
         # ``switch -exact`` fallthrough — same root cause as above.
         "71_switch_fallthrough",
+        # Newly captured 9.0 references; literal table convergence
+        # tracked separately from instruction convergence so a fix on
+        # one side surfaces immediately.
+        "145_uplevel_caller_local",
+        "200_oo_class_create",
+        "201_oo_constructor",
+        "202_oo_destructor",
+        "203_oo_inheritance_next",
+        "204_oo_diamond_mro",
+        "205_oo_mixin_order",
+        "206_oo_mixin_of_mixin",
+        "207_oo_self_my",
+        "208_oo_instance_vars",
+        "209_oo_next_end_of_chain",
+        "210_oo_define_modify",
+        "211_oo_nextto",
+        "212_line_continuation",
+        "213_join_default_separator",
+        "214_lsearch_glob",
+        "215_foreach_multi_var",
+        "216_string_totitle",
+        "217_lsort_with_options",
+        "218_lreverse_lrepeat",
+        "219_linsert_lreplace",
+        "220_expr_base_prefixed_literals",
+        "221_expr_in_ni",
+        "222_expr_math_funcs",
+        "223_string_end_index",
+        "224_switch_glob",
+        "225_dict_create",
+        "226_continue_runs_step",
+        "227_proc_args_tail_value_ctx",
+        "228_catch_sets_error_msg",
+        "229_string_cat",
+        "231_dict_merge",
+        "232_nested_catch_and_dict_create_quoting",
+        "233_list_value_quoting",
     }
 )
 

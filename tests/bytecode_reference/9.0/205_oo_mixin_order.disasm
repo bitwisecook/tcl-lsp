@@ -1,0 +1,42 @@
+ByteCode 0x56348fcdaba0, refCt 1, epoch 21, interp 0x56348fb67350 (epoch 21)
+  Source "# Class mixin dispatch order (oo-14.8 \u00e2\u0080\u0094..."
+  Cmds 6, src 379, inst 50, litObjs 12, aux 0, stkDepth 4, code/src 0.00
+  Commands 6:
+      1: pc 0-5, src 58-72        2: pc 6-16, src 74-122
+      3: pc 17-27, src 124-235        4: pc 28-38, src 237-362
+      5: pc 39-48, src 364-377        6: pc 39-44, src 365-371
+  Command 1: "set ::result {}..."
+    (0) push1 0 	# "::result"
+    (2) push1 1 	# ""
+    (4) storeStk 
+    (5) pop 
+  Command 2: "oo::class create parent {\n    method test {} {}\n..."
+    (6) push1 2 	# "oo::class"
+    (8) push1 3 	# "create"
+    (10) push1 4 	# "parent"
+    (12) push1 5 	# "\n    method test {} {}..."
+    (14) invokeStk1 4 
+    (16) pop 
+  Command 3: "oo::class create mix {\n    superclass parent\n    meth..."
+    (17) push1 2 	# "oo::class"
+    (19) push1 3 	# "create"
+    (21) push1 6 	# "mix"
+    (23) push1 7 	# "\n    superclass parent\n    method test..."
+    (25) invokeStk1 4 
+    (27) pop 
+  Command 4: "oo::class create cls {\n    superclass parent\n    mixi..."
+    (28) push1 2 	# "oo::class"
+    (30) push1 3 	# "create"
+    (32) push1 8 	# "cls"
+    (34) push1 9 	# "\n    superclass parent\n    mixin mix\n..."
+    (36) invokeStk1 4 
+    (38) pop 
+  Command 5: "[cls new] test..."
+  Command 6: "cls new..."
+    (39) push1 8 	# "cls"
+    (41) push1 10 	# "new"
+    (43) invokeStk1 2 
+    (45) push1 11 	# "test"
+    (47) invokeStk1 2 
+    (49) done 
+

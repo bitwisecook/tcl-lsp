@@ -1,0 +1,114 @@
+ByteCode 0x559fd6f30e80, refCt 1, epoch 21, interp 0x559fd6e66350 (epoch 21)
+  Source "# ``lreverse`` reverses element order; ``lrepeat N v`` ..."
+  Cmds 18, src 575, inst 264, litObjs 18, aux 0, stkDepth 3, code/src 0.00
+  Commands 18:
+      1: pc 0-45, src 213-299        2: pc 0-5, src 218-235
+      3: pc 11-40, src 254-298        4: pc 22-27, src 278-295
+      5: pc 46-92, src 301-357        6: pc 55-60, src 306-316
+      7: pc 66-87, src 328-356        8: pc 93-141, src 359-427
+      9: pc 102-109, src 364-376       10: pc 115-136, src 399-426
+     11: pc 142-190, src 429-492       12: pc 151-158, src 434-446
+     13: pc 164-185, src 458-491       14: pc 191-240, src 494-563
+     15: pc 200-208, src 499-519       16: pc 200-207, src 508-518
+     17: pc 214-235, src 530-562       18: pc 241-262, src 565-573
+  Command 1: "if {[lreverse {a b c d}] ne \"d c b a\"} { error \"lrev..."
+  Command 2: "lreverse {a b c d}..."
+    (0) push1 0 	# "lreverse"
+    (2) push1 1 	# "a b c d"
+    (4) invokeStk1 2 
+    (6) push1 2 	# "d c b a"
+    (8) strneq 
+    (9) jumpFalse1 +34 	# pc 43
+  Command 3: "error \"lreverse broke: [lreverse {a b c d}]\"..."
+    (11) startCommand +30 1 	# next cmd at pc 41, 1 cmds start here
+    (20) push1 3 	# "lreverse broke: "
+  Command 4: "lreverse {a b c d}..."
+    (22) push1 0 	# "lreverse"
+    (24) push1 1 	# "a b c d"
+    (26) invokeStk1 2 
+    (28) strcat 2 
+    (30) push1 4 	# ""
+    (32) returnImm +1 0 
+    (41) jump1 +4 	# pc 45
+    (43) push1 4 	# ""
+    (45) pop 
+  Command 5: "if {[lreverse {}] ne \"\"} { error \"empty lreverse bro..."
+    (46) startCommand +46 1 	# next cmd at pc 92, 1 cmds start here
+  Command 6: "lreverse {}..."
+    (55) push1 0 	# "lreverse"
+    (57) push1 4 	# ""
+    (59) invokeStk1 2 
+    (61) push1 4 	# ""
+    (63) strneq 
+    (64) jumpFalse1 +26 	# pc 90
+  Command 7: "error \"empty lreverse broke\"..."
+    (66) startCommand +22 1 	# next cmd at pc 88, 1 cmds start here
+    (75) push1 5 	# "empty lreverse broke"
+    (77) push1 4 	# ""
+    (79) returnImm +1 0 
+    (88) jump1 +4 	# pc 92
+    (90) push1 4 	# ""
+    (92) pop 
+  Command 8: "if {[lrepeat 3 foo] ne \"foo foo foo\"} { error \"lrepe..."
+    (93) startCommand +48 1 	# next cmd at pc 141, 1 cmds start here
+  Command 9: "lrepeat 3 foo..."
+    (102) push1 6 	# "lrepeat"
+    (104) push1 7 	# "3"
+    (106) push1 8 	# "foo"
+    (108) invokeStk1 3 
+    (110) push1 9 	# "foo foo foo"
+    (112) strneq 
+    (113) jumpFalse1 +26 	# pc 139
+  Command 10: "error \"lrepeat 3 foo broke\"..."
+    (115) startCommand +22 1 	# next cmd at pc 137, 1 cmds start here
+    (124) push1 10 	# "lrepeat 3 foo broke"
+    (126) push1 4 	# ""
+    (128) returnImm +1 0 
+    (137) jump1 +4 	# pc 141
+    (139) push1 4 	# ""
+    (141) pop 
+  Command 11: "if {[lrepeat 0 foo] ne \"\"} { error \"lrepeat 0 should..."
+    (142) startCommand +48 1 	# next cmd at pc 190, 1 cmds start here
+  Command 12: "lrepeat 0 foo..."
+    (151) push1 6 	# "lrepeat"
+    (153) push1 11 	# "0"
+    (155) push1 8 	# "foo"
+    (157) invokeStk1 3 
+    (159) push1 4 	# ""
+    (161) strneq 
+    (162) jumpFalse1 +26 	# pc 188
+  Command 13: "error \"lrepeat 0 should be empty\"..."
+    (164) startCommand +22 1 	# next cmd at pc 186, 1 cmds start here
+    (173) push1 12 	# "lrepeat 0 should be empty"
+    (175) push1 4 	# ""
+    (177) returnImm +1 0 
+    (186) jump1 +4 	# pc 190
+    (188) push1 4 	# ""
+    (190) pop 
+  Command 14: "if {[llength [lrepeat 4 x]] != 4} { error \"lrepeat 4 x..."
+    (191) startCommand +49 2 	# next cmd at pc 240, 2 cmds start here
+  Command 15: "llength [lrepeat 4 x]..."
+  Command 16: "lrepeat 4 x..."
+    (200) push1 6 	# "lrepeat"
+    (202) push1 13 	# "4"
+    (204) push1 14 	# "x"
+    (206) invokeStk1 3 
+    (208) listLength 
+    (209) push1 13 	# "4"
+    (211) neq 
+    (212) jumpFalse1 +26 	# pc 238
+  Command 17: "error \"lrepeat 4 x length wrong\"..."
+    (214) startCommand +22 1 	# next cmd at pc 236, 1 cmds start here
+    (223) push1 15 	# "lrepeat 4 x length wrong"
+    (225) push1 4 	# ""
+    (227) returnImm +1 0 
+    (236) jump1 +4 	# pc 240
+    (238) push1 4 	# ""
+    (240) pop 
+  Command 18: "return ok..."
+    (241) startCommand +22 1 	# next cmd at pc 263, 1 cmds start here
+    (250) push1 16 	# "ok"
+    (252) push1 17 	# ""
+    (254) returnImm +0 1 
+    (263) done 
+
