@@ -525,23 +525,40 @@ class _ValuesMixin:
         # Try interpolated string: "Hello, $name!" or "Result: [expr {1+2}]"
         if interpolate and ("$" in value or "[" in value):
             parts = _parse_subst_template(value)
-            if parts is not None and len(parts) > 1:
-                for kind, part_val in parts:
-                    if kind == "lit":
-                        # Use raw push so braces/dollars in the literal
-                        # part are not confused with brace-wrapping or
-                        # runtime substitution markers.
-                        self._push_raw_lit(part_val)
-                    elif kind == "cmd":
+            if parts is not None:
+                # A single-part subst (a bare ``[cmd]`` or ``$var``)
+                # still needs unwrapping — without this, the value is
+                # pushed as the literal source text instead of the
+                # substituted value.
+                if len(parts) == 1:
+                    kind, part_val = parts[0]
+                    if kind == "cmd":
                         self._emit_inline_cmd_subst(part_val)
-                    elif kind == "scalar":
-                        # Braced scalar: push name + loadStk.
+                        return
+                    if kind == "scalar":
                         self._push_lit(part_val)
                         self._emit(Op.LOAD_STK)
-                    else:
+                        return
+                    if kind == "var":
                         self._load_var(part_val)
-                self._emit(Op.STR_CONCAT1, len(parts))
-                return
+                        return
+                if len(parts) > 1:
+                    for kind, part_val in parts:
+                        if kind == "lit":
+                            # Use raw push so braces/dollars in the literal
+                            # part are not confused with brace-wrapping or
+                            # runtime substitution markers.
+                            self._push_raw_lit(part_val)
+                        elif kind == "cmd":
+                            self._emit_inline_cmd_subst(part_val)
+                        elif kind == "scalar":
+                            # Braced scalar: push name + loadStk.
+                            self._push_lit(part_val)
+                            self._emit(Op.LOAD_STK)
+                        else:
+                            self._load_var(part_val)
+                    self._emit(Op.STR_CONCAT1, len(parts))
+                    return
         # If the value looks like a braced string (starts/ends with {/}),
         # push with the raw prefix so the PUSH handler doesn't strip
         # another brace level — the parser already de-braced once.

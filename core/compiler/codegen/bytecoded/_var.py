@@ -58,7 +58,7 @@ def codegen_lappend(emitter: _Emitter, args: tuple[str, ...]) -> bool:
         else:
             emitter._push_lit(args[0])
         for a in args[1:]:
-            emitter._emit_value(a)
+            emitter._emit_value(a, interpolate=True)
         emitter._emit(Op.LIST, len(args) - 1)
         if arr is not None:
             emitter._emit(Op.LAPPEND_LIST_ARRAY_STK)

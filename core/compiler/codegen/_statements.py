@@ -503,11 +503,11 @@ class _StatementsMixin:
 
     @staticmethod
     def _is_dynamic_command_name(cmd: str) -> bool:
-        # Cheap check: a leading ``$`` (or its braced ``${`` form) means
-        # the lowering kept the variable substitution as the literal
-        # token.  ``[cmd]`` would also be dynamic but is currently rare
-        # at this position; route only the var-substitution case here.
-        return cmd.startswith("$")
+        # Cheap check: a leading ``$`` (or its braced ``${`` form) or
+        # ``[cmd]`` substitution means the lowering kept the dynamic
+        # word as the literal token, and the runtime needs to evaluate
+        # it before dispatch.
+        return cmd.startswith("$") or (cmd.startswith("[") and cmd.endswith("]"))
 
     def _tag_last_invoke_source(
         self: _Emitter,

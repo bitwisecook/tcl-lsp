@@ -618,6 +618,7 @@ class _Emitter(
                     if _join.startswith("if_end_"):
                         for_body_end_labels[_join] = _fb_end_label
 
+
             # Place deferred for-body startCommand end labels at
             # the join block's pop (before the pop is emitted).
             if bname in for_body_end_labels:
