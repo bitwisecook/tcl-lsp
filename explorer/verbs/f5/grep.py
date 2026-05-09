@@ -23,25 +23,45 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "Find every BIG-IP object reachable through reference edges from "
         "the seed objects whose full path matches PATTERN.  PATTERN is "
         "a substring match by default; pass --regex to treat it as a "
-        "Python regular expression.  The reference graph is the same "
-        "one `f5 cleanup` walks — both configuration-property "
-        "references and iRule body references (`pool`, `persist`, "
-        "`class match ... <data-group>`) are tracked."
+        "Python regular expression, or --cidr to match IP addresses and "
+        "CIDR ranges anywhere in an object — including deep inside iRule "
+        "script bodies.  The reference graph is the same one "
+        "`f5 cleanup` walks — both configuration-property references "
+        "and iRule body references (`pool`, `persist`, `class match ... "
+        "<data-group>`) are tracked."
     )
     p.add_argument(
         "pattern",
-        help="Object full-path or substring (or regex with --regex) to seed the search.",
+        help=(
+            "Object full-path or substring by default; a Python regex with "
+            "--regex; or one or more whitespace/comma-separated IP/CIDR "
+            "values with --cidr (for example `10.0.0.0/8` or "
+            "`10.0.0.0/8,192.168.0.0/16`)."
+        ),
     )
     p.add_argument(
         "paths",
         nargs="+",
         help="bigip.conf / SCF files (one or more).  Pass `-` to read stdin.",
     )
-    p.add_argument(
+    mode_group = p.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "-e",
         "--regex",
         action="store_true",
         help="Treat PATTERN as a Python regular expression (default: substring match).",
+    )
+    mode_group.add_argument(
+        "-c",
+        "--cidr",
+        action="store_true",
+        help=(
+            "Treat PATTERN as one or more IPv4/IPv6 addresses or CIDR "
+            "ranges (whitespace- or comma-separated).  An object matches "
+            "when any IP literal or CIDR mentioned in its path, header, "
+            "or body — including iRule script bodies — overlaps any "
+            "requested network."
+        ),
     )
     p.add_argument(
         "--direction",
@@ -60,6 +80,19 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         default=None,
         metavar="N",
         help="Stop the BFS after N hops from each seed (default: unlimited).",
+    )
+    p.add_argument(
+        "-r",
+        "--recurse",
+        dest="recurse",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "Walk the related-object BFS from each seed (default).  "
+            "Pass --no-recurse to skip the BFS and report only the "
+            "objects that directly match PATTERN; --direction and "
+            "--max-depth are then ignored."
+        ),
     )
     p.add_argument(
         "--max-nodes",
@@ -118,10 +151,12 @@ def _run_grep(args: argparse.Namespace) -> int:
         configs=configs,
         pattern=args.pattern,
         use_regex=args.regex,
+        use_cidr=args.cidr,
         direction=args.direction,
         max_depth=args.max_depth,
         max_nodes=args.max_nodes,
         include_body=args.full,
+        recurse=args.recurse,
     )
 
     if args.json:
