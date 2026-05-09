@@ -1,0 +1,197 @@
+ByteCode 0x55a912d2dbb0, refCt 1, epoch 21, interp 0x55a912bb6350 (epoch 21)
+  Source "# ``continue`` inside a ``for`` loop must still run the..."
+  Cmds 28, src 987, inst 270, litObjs 19, aux 0, stkDepth 2, code/src 0.00
+  Exception ranges 5, depth 1:
+      0: level 0, loop, pc 14-42, continue 44, break 57
+      1: level 0, loop, pc 44-47, continue -1, break 57
+      2: level 0, loop, pc 105-131, continue 133, break 141
+      3: level 0, loop, pc 189-212, continue 214, break 227
+      4: level 0, loop, pc 214-217, continue -1, break 227
+  Commands 28:
+      1: pc 0-5, src 375-384        2: pc 6-59, src 386-465
+      3: pc 6-10, src 391-397        4: pc 14-31, src 424-444
+      5: pc 22-26, src 437-444        6: pc 32-42, src 450-463
+      7: pc 44-47, src 410-415        8: pc 60-90, src 467-525
+      9: pc 68-85, src 492-524       10: pc 91-96, src 668-674
+     11: pc 97-102, src 677-683       12: pc 103-143, src 685-750
+     13: pc 105-109, src 706-711       14: pc 110-127, src 717-737
+     15: pc 118-122, src 730-737       16: pc 128-131, src 743-748
+     17: pc 144-174, src 752-800       18: pc 152-169, src 767-799
+     19: pc 175-180, src 836-850       20: pc 181-229, src 852-931
+     21: pc 181-185, src 857-863       22: pc 189-212, src 891-929
+     23: pc 197-203, src 906-920       24: pc 204-208, src 923-928
+     25: pc 214-217, src 877-882       26: pc 230-255, src 933-975
+     27: pc 238-250, src 955-974       28: pc 256-268, src 977-985
+  Command 1: "set hit {}..."
+    (0) push1 0 	# "hit"
+    (2) push1 1 	# ""
+    (4) storeStk 
+    (5) pop 
+  Command 2: "for {set i 0} {$i < 5} {incr i} {\n    if {$i == 2} con..."
+  Command 3: "set i 0..."
+    (6) push1 2 	# "i"
+    (8) push1 3 	# "0"
+    (10) storeStk 
+    (11) pop 
+    (12) jump1 +37 	# pc 49
+  Command 4: "if {$i == 2} continue..."
+    (14) push1 2 	# "i"
+    (16) loadStk 
+    (17) push1 4 	# "2"
+    (19) eq 
+    (20) jumpFalse1 +9 	# pc 29
+  Command 5: "continue..."
+    (22) jump4 +22 	# pc 44
+    (27) jump1 +4 	# pc 31
+    (29) push1 1 	# ""
+    (31) pop 
+  Command 6: "lappend hit $i..."
+    (32) push1 0 	# "hit"
+    (34) push1 2 	# "i"
+    (36) loadStk 
+    (37) list 1 
+    (42) lappendListStk 
+    (43) pop 
+  Command 7: "incr i..."
+    (44) push1 2 	# "i"
+    (46) incrStkImm +1 
+    (48) pop 
+    (49) push1 2 	# "i"
+    (51) loadStk 
+    (52) push1 5 	# "5"
+    (54) lt 
+    (55) jumpTrue1 -41 	# pc 14
+    (57) nop 
+    (58) nop 
+    (59) nop 
+  Command 8: "if {$hit ne {0 1 3 4}} { error \"for continue broke: $h..."
+    (60) push1 0 	# "hit"
+    (62) loadStk 
+    (63) push1 6 	# "0 1 3 4"
+    (65) strneq 
+    (66) jumpFalse1 +22 	# pc 88
+  Command 9: "error \"for continue broke: $hit\"..."
+    (68) push1 7 	# "for continue broke: "
+    (70) push1 0 	# "hit"
+    (72) loadStk 
+    (73) strcat 2 
+    (75) push1 1 	# ""
+    (77) returnImm +1 0 
+    (86) jump1 +4 	# pc 90
+    (88) push1 1 	# ""
+    (90) pop 
+  Command 10: "set i 0..."
+    (91) push1 2 	# "i"
+    (93) push1 3 	# "0"
+    (95) storeStk 
+    (96) pop 
+  Command 11: "set j 0..."
+    (97) push1 8 	# "j"
+    (99) push1 3 	# "0"
+    (101) storeStk 
+    (102) pop 
+  Command 12: "while {$i < 5} {\n    incr i\n    if {$i == 3} continue..."
+    (103) jump1 +30 	# pc 133
+  Command 13: "incr i..."
+    (105) push1 2 	# "i"
+    (107) incrStkImm +1 
+    (109) pop 
+  Command 14: "if {$i == 3} continue..."
+    (110) push1 2 	# "i"
+    (112) loadStk 
+    (113) push1 9 	# "3"
+    (115) eq 
+    (116) jumpFalse1 +9 	# pc 125
+  Command 15: "continue..."
+    (118) jump4 +15 	# pc 133
+    (123) jump1 +4 	# pc 127
+    (125) push1 1 	# ""
+    (127) pop 
+  Command 16: "incr j..."
+    (128) push1 8 	# "j"
+    (130) incrStkImm +1 
+    (132) pop 
+    (133) push1 2 	# "i"
+    (135) loadStk 
+    (136) push1 5 	# "5"
+    (138) lt 
+    (139) jumpTrue1 -34 	# pc 105
+    (141) nop 
+    (142) nop 
+    (143) nop 
+  Command 17: "if {$j != 4} { error \"while continue broke: $j\"..."
+    (144) push1 8 	# "j"
+    (146) loadStk 
+    (147) push1 10 	# "4"
+    (149) neq 
+    (150) jumpFalse1 +22 	# pc 172
+  Command 18: "error \"while continue broke: $j\"..."
+    (152) push1 11 	# "while continue broke: "
+    (154) push1 8 	# "j"
+    (156) loadStk 
+    (157) strcat 2 
+    (159) push1 1 	# ""
+    (161) returnImm +1 0 
+    (170) jump1 +4 	# pc 174
+    (172) push1 1 	# ""
+    (174) pop 
+  Command 19: "set broke_at -1..."
+    (175) push1 12 	# "broke_at"
+    (177) push1 13 	# "-1"
+    (179) storeStk 
+    (180) pop 
+  Command 20: "for {set k 0} {$k < 10} {incr k} {\n    if {$k == 3} { ..."
+  Command 21: "set k 0..."
+    (181) push1 14 	# "k"
+    (183) push1 3 	# "0"
+    (185) storeStk 
+    (186) pop 
+    (187) jump1 +32 	# pc 219
+  Command 22: "if {$k == 3} { set broke_at $k; break }..."
+    (189) push1 14 	# "k"
+    (191) loadStk 
+    (192) push1 9 	# "3"
+    (194) eq 
+    (195) jumpFalse1 +16 	# pc 211
+  Command 23: "set broke_at $k..."
+    (197) push1 12 	# "broke_at"
+    (199) push1 14 	# "k"
+    (201) loadStk 
+    (202) storeStk 
+    (203) pop 
+  Command 24: "break ..."
+    (204) jump4 +26 	# pc 230
+    (209) jump1 +4 	# pc 213
+    (211) push1 1 	# ""
+    (213) pop 
+  Command 25: "incr k..."
+    (214) push1 14 	# "k"
+    (216) incrStkImm +1 
+    (218) pop 
+    (219) push1 14 	# "k"
+    (221) loadStk 
+    (222) push1 15 	# "10"
+    (224) lt 
+    (225) jumpTrue1 -36 	# pc 189
+    (227) nop 
+    (228) nop 
+    (229) nop 
+  Command 26: "if {$broke_at != 3} { error \"break broke\"..."
+    (230) push1 12 	# "broke_at"
+    (232) loadStk 
+    (233) push1 9 	# "3"
+    (235) neq 
+    (236) jumpFalse1 +17 	# pc 253
+  Command 27: "error \"break broke\"..."
+    (238) push1 16 	# "break broke"
+    (240) push1 1 	# ""
+    (242) returnImm +1 0 
+    (251) jump1 +4 	# pc 255
+    (253) push1 1 	# ""
+    (255) pop 
+  Command 28: "return ok..."
+    (256) push1 17 	# "ok"
+    (258) push1 18 	# ""
+    (260) returnImm +0 1 
+    (269) done 
+

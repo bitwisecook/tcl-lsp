@@ -1,0 +1,88 @@
+ByteCode 0x55c28846f540, refCt 1, epoch 21, interp 0x55c28836f350 (epoch 21)
+  Source "# Tcl ``string totitle`` uppercases the first alphabeti..."
+  Cmds 16, src 637, inst 144, litObjs 13, aux 0, stkDepth 2, code/src 0.00
+  Commands 16:
+      1: pc 0-25, src 268-323        2: pc 0-2, src 273-292
+      3: pc 8-20, src 309-322        4: pc 26-51, src 325-380
+      5: pc 26-28, src 330-349        6: pc 34-46, src 366-379
+      7: pc 52-77, src 382-456        8: pc 52-54, src 387-414
+      9: pc 60-72, src 437-455       10: pc 78-103, src 511-576
+     11: pc 78-80, src 516-536       12: pc 86-98, src 554-575
+     13: pc 104-129, src 578-625       14: pc 104-106, src 583-599
+     15: pc 112-124, src 611-624       16: pc 130-142, src 627-635
+  Command 1: "if {[string totitle hello] ne \"Hello\"} { error \"hell..."
+  Command 2: "string totitle hello..."
+    (0) push1 0 	# "hello"
+    (2) strcaseTitle 
+    (3) push1 1 	# "Hello"
+    (5) strneq 
+    (6) jumpFalse1 +17 	# pc 23
+  Command 3: "error \"hello\"..."
+    (8) push1 0 	# "hello"
+    (10) push1 2 	# ""
+    (12) returnImm +1 0 
+    (21) jump1 +4 	# pc 25
+    (23) push1 2 	# ""
+    (25) pop 
+  Command 4: "if {[string totitle HELLO] ne \"Hello\"} { error \"HELL..."
+  Command 5: "string totitle HELLO..."
+    (26) push1 3 	# "HELLO"
+    (28) strcaseTitle 
+    (29) push1 1 	# "Hello"
+    (31) strneq 
+    (32) jumpFalse1 +17 	# pc 49
+  Command 6: "error \"HELLO\"..."
+    (34) push1 3 	# "HELLO"
+    (36) push1 2 	# ""
+    (38) returnImm +1 0 
+    (47) jump1 +4 	# pc 51
+    (49) push1 2 	# ""
+    (51) pop 
+  Command 7: "if {[string totitle {hello world}] ne \"Hello world\"} ..."
+  Command 8: "string totitle {hello world}..."
+    (52) push1 4 	# "hello world"
+    (54) strcaseTitle 
+    (55) push1 5 	# "Hello world"
+    (57) strneq 
+    (58) jumpFalse1 +17 	# pc 75
+  Command 9: "error \"multi-word\"..."
+    (60) push1 6 	# "multi-word"
+    (62) push1 2 	# ""
+    (64) returnImm +1 0 
+    (73) jump1 +4 	# pc 77
+    (75) push1 2 	# ""
+    (77) pop 
+  Command 10: "if {[string totitle 123abc] ne \"123Abc\"} { error \"di..."
+  Command 11: "string totitle 123abc..."
+    (78) push1 7 	# "123abc"
+    (80) strcaseTitle 
+    (81) push1 8 	# "123Abc"
+    (83) strneq 
+    (84) jumpFalse1 +17 	# pc 101
+  Command 12: "error \"digits-prefix\"..."
+    (86) push1 9 	# "digits-prefix"
+    (88) push1 2 	# ""
+    (90) returnImm +1 0 
+    (99) jump1 +4 	# pc 103
+    (101) push1 2 	# ""
+    (103) pop 
+  Command 13: "if {[string totitle {}] ne \"\"} { error \"empty..."
+  Command 14: "string totitle {}..."
+    (104) push1 2 	# ""
+    (106) strcaseTitle 
+    (107) push1 2 	# ""
+    (109) strneq 
+    (110) jumpFalse1 +17 	# pc 127
+  Command 15: "error \"empty\"..."
+    (112) push1 10 	# "empty"
+    (114) push1 2 	# ""
+    (116) returnImm +1 0 
+    (125) jump1 +4 	# pc 129
+    (127) push1 2 	# ""
+    (129) pop 
+  Command 16: "return ok..."
+    (130) push1 11 	# "ok"
+    (132) push1 12 	# ""
+    (134) returnImm +0 1 
+    (143) done 
+

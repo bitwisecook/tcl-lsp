@@ -1,0 +1,102 @@
+ByteCode 0x56244ddd1d50, refCt 1, epoch 21, interp 0x56244dccb350 (epoch 21)
+  Source "# ``string cat ?arg ...?`` concatenates its arguments w..."
+  Cmds 18, src 720, inst 164, litObjs 17, aux 0, stkDepth 3, code/src 0.00
+  Commands 18:
+      1: pc 0-24, src 209-258        2: pc 0-1, src 214-223
+      3: pc 7-19, src 235-257        4: pc 25-49, src 260-333
+      5: pc 25-26, src 265-286        6: pc 32-44, src 307-332
+      7: pc 50-74, src 335-400        8: pc 50-51, src 340-356
+      9: pc 57-69, src 374-399       10: pc 75-80, src 468-478
+     11: pc 81-91, src 480-508       12: pc 83-89, src 487-507
+     13: pc 92-124, src 510-562       14: pc 100-119, src 537-561
+     15: pc 125-149, src 624-708       16: pc 125-126, src 629-654
+     17: pc 132-144, src 676-707       18: pc 150-162, src 710-718
+  Command 1: "if {[string cat] ne \"\"} { error \"cat() != empty..."
+  Command 2: "string cat..."
+    (0) push1 0 	# ""
+    (2) push1 0 	# ""
+    (4) strneq 
+    (5) jumpFalse1 +17 	# pc 22
+  Command 3: "error \"cat() != empty\"..."
+    (7) push1 1 	# "cat() != empty"
+    (9) push1 0 	# ""
+    (11) returnImm +1 0 
+    (20) jump1 +4 	# pc 24
+    (22) push1 0 	# ""
+    (24) pop 
+  Command 4: "if {[string cat abc def ghi] ne \"abcdefghi\"} { error ..."
+  Command 5: "string cat abc def ghi..."
+    (25) push1 2 	# "abcdefghi"
+    (27) push1 2 	# "abcdefghi"
+    (29) strneq 
+    (30) jumpFalse1 +17 	# pc 47
+  Command 6: "error \"literal cat wrong\"..."
+    (32) push1 3 	# "literal cat wrong"
+    (34) push1 0 	# ""
+    (36) returnImm +1 0 
+    (45) jump1 +4 	# pc 49
+    (47) push1 0 	# ""
+    (49) pop 
+  Command 7: "if {[string cat single] ne \"single\"} { error \"one-ar..."
+  Command 8: "string cat single..."
+    (50) push1 4 	# "single"
+    (52) push1 4 	# "single"
+    (54) strneq 
+    (55) jumpFalse1 +17 	# pc 72
+  Command 9: "error \"one-arg cat wrong\"..."
+    (57) push1 5 	# "one-arg cat wrong"
+    (59) push1 0 	# ""
+    (61) returnImm +1 0 
+    (70) jump1 +4 	# pc 74
+    (72) push1 0 	# ""
+    (74) pop 
+  Command 10: "set x hello..."
+    (75) push1 6 	# "x"
+    (77) push1 7 	# "hello"
+    (79) storeStk 
+    (80) pop 
+  Command 11: "set y [string cat $x - world]..."
+    (81) push1 8 	# "y"
+  Command 12: "string cat $x - world..."
+    (83) push1 6 	# "x"
+    (85) loadStk 
+    (86) push1 9 	# "-world"
+    (88) strcat 2 
+    (90) storeStk 
+    (91) pop 
+  Command 13: "if {$y ne \"hello-world\"} { error \"mixed cat = '$y'..."
+    (92) push1 8 	# "y"
+    (94) loadStk 
+    (95) push1 10 	# "hello-world"
+    (97) strneq 
+    (98) jumpFalse1 +24 	# pc 122
+  Command 14: "error \"mixed cat = '$y'\"..."
+    (100) push1 11 	# "mixed cat = '"
+    (102) push1 8 	# "y"
+    (104) loadStk 
+    (105) push1 12 	# "'"
+    (107) strcat 3 
+    (109) push1 0 	# ""
+    (111) returnImm +1 0 
+    (120) jump1 +4 	# pc 124
+    (122) push1 0 	# ""
+    (124) pop 
+  Command 15: "if {[string cat {  a  } {  b  }] ne \"  a    b  \"} { e..."
+  Command 16: "string cat {  a  } {  b  }..."
+    (125) push1 13 	# "  a    b  "
+    (127) push1 13 	# "  a    b  "
+    (129) strneq 
+    (130) jumpFalse1 +17 	# pc 147
+  Command 17: "error \"cat trimmed whitespace!\"..."
+    (132) push1 14 	# "cat trimmed whitespace!"
+    (134) push1 0 	# ""
+    (136) returnImm +1 0 
+    (145) jump1 +4 	# pc 149
+    (147) push1 0 	# ""
+    (149) pop 
+  Command 18: "return ok..."
+    (150) push1 15 	# "ok"
+    (152) push1 16 	# ""
+    (154) returnImm +0 1 
+    (163) done 
+

@@ -1,0 +1,66 @@
+ByteCode 0x562d66bb0530, refCt 1, epoch 21, interp 0x562d66ab2350 (epoch 21)
+  Source "# Tcl line-continuation: \<newline><whitespace>* collap..."
+  Cmds 11, src 492, inst 93, litObjs 10, aux 0, stkDepth 5, code/src 0.00
+  Commands 11:
+      1: pc 0-5, src 215-266        2: pc 2-3, src 222-265
+      3: pc 6-45, src 333-403        4: pc 6-9, src 338-347
+      5: pc 15-40, src 358-402        6: pc 17-20, src 374-383
+      7: pc 46-88, src 405-484        8: pc 46-53, src 410-420
+      9: pc 59-83, src 437-483       10: pc 61-68, src 455-465
+     11: pc 89-91, src 486-490
+  Command 1: "set r [concat fred julie \\n              carol bill..."
+    (0) push1 0 	# "r"
+  Command 2: "concat fred julie \\n              carol bil..."
+    (2) push1 1 	# "fred julie carol bill"
+    (4) storeStk 
+    (5) pop 
+  Command 3: "if {[llength $r] != 4} { error \"llength=[llength $r], ..."
+  Command 4: "llength $r..."
+    (6) push1 0 	# "r"
+    (8) loadStk 
+    (9) listLength 
+    (10) push1 2 	# "4"
+    (12) neq 
+    (13) jumpFalse1 +30 	# pc 43
+  Command 5: "error \"llength=[llength $r], want 4, r=<$r>\"..."
+    (15) push1 3 	# "llength="
+  Command 6: "llength $r..."
+    (17) push1 0 	# "r"
+    (19) loadStk 
+    (20) listLength 
+    (21) push1 4 	# ", want 4, r=<"
+    (23) push1 0 	# "r"
+    (25) loadStk 
+    (26) push1 5 	# ">"
+    (28) strcat 5 
+    (30) push1 6 	# ""
+    (32) returnImm +1 0 
+    (41) jump1 +4 	# pc 45
+    (43) push1 6 	# ""
+    (45) pop 
+  Command 7: "if {[lindex $r 2] ne \"carol\"} { error \"elem 2 = '[li..."
+  Command 8: "lindex $r 2..."
+    (46) push1 0 	# "r"
+    (48) loadStk 
+    (49) listIndexImm 2 
+    (54) push1 7 	# "carol"
+    (56) strneq 
+    (57) jumpFalse1 +29 	# pc 86
+  Command 9: "error \"elem 2 = '[lindex $r 2]', want 'carol'\"..."
+    (59) push1 8 	# "elem 2 = '"
+  Command 10: "lindex $r 2..."
+    (61) push1 0 	# "r"
+    (63) loadStk 
+    (64) listIndexImm 2 
+    (69) push1 9 	# "', want 'carol'"
+    (71) strcat 3 
+    (73) push1 6 	# ""
+    (75) returnImm +1 0 
+    (84) jump1 +4 	# pc 88
+    (86) push1 6 	# ""
+    (88) pop 
+  Command 11: "set r..."
+    (89) push1 0 	# "r"
+    (91) loadStk 
+    (92) done 
+

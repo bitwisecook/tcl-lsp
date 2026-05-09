@@ -1,0 +1,42 @@
+ByteCode 0x55b8e14e16d0, refCt 1, epoch 21, interp 0x55b8e13ff350 (epoch 21)
+  Source "# Inheritance with next dispatch (oo-7.3 equivalent)\no..."
+  Cmds 6, src 301, inst 63, litObjs 11, aux 0, stkDepth 4, code/src 0.00
+  Commands 6:
+      1: pc 0-10, src 53-139        2: pc 11-21, src 141-252
+      3: pc 22-36, src 254-266        4: pc 37-49, src 268-288
+      5: pc 37-42, src 269-280        6: pc 50-61, src 290-299
+  Command 1: "oo::class create superClass {\n    method doit x {\n   ..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "superClass"
+    (6) push1 3 	# "\n    method doit x {\n        lappend :..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "oo::class create subClass {\n    superclass superClass\n..."
+    (11) push1 0 	# "oo::class"
+    (13) push1 1 	# "create"
+    (15) push1 4 	# "subClass"
+    (17) push1 5 	# "\n    superclass superClass\n    method ..."
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "set result {}..."
+    (22) startCommand +14 1 	# next cmd at pc 36, 1 cmds start here
+    (31) push1 6 	# "result"
+    (33) push1 7 	# ""
+    (35) storeStk 
+    (36) pop 
+  Command 4: "[subClass new] doit 1..."
+  Command 5: "subClass new..."
+    (37) push1 4 	# "subClass"
+    (39) push1 8 	# "new"
+    (41) invokeStk1 2 
+    (43) push1 9 	# "doit"
+    (45) push1 10 	# "1"
+    (47) invokeStk1 3 
+    (49) pop 
+  Command 6: "set result..."
+    (50) startCommand +12 1 	# next cmd at pc 62, 1 cmds start here
+    (59) push1 6 	# "result"
+    (61) loadStk 
+    (62) done 
+

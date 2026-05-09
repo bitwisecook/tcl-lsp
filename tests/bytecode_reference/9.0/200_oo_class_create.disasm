@@ -1,0 +1,29 @@
+ByteCode 0x55f99de26d30, refCt 1, epoch 21, interp 0x55f99dd2a350 (epoch 21)
+  Source "# Basic class creation with method\noo::class create Do..."
+  Cmds 4, src 125, inst 38, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 4:
+      1: pc 0-10, src 35-95        2: pc 11-29, src 97-113
+      3: pc 22-27, src 106-112        4: pc 30-36, src 115-123
+  Command 1: "oo::class create Dog {\n    method bark {} { return \"w..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "Dog"
+    (6) push1 3 	# "\n    method bark {} { return \"woof\"..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set obj [Dog new]..."
+    (11) startCommand +18 1 	# next cmd at pc 29, 1 cmds start here
+    (20) push1 4 	# "obj"
+  Command 3: "Dog new..."
+    (22) push1 2 	# "Dog"
+    (24) push1 5 	# "new"
+    (26) invokeStk1 2 
+    (28) storeStk 
+    (29) pop 
+  Command 4: "$obj bark..."
+    (30) push1 4 	# "obj"
+    (32) loadStk 
+    (33) push1 6 	# "bark"
+    (35) invokeStk1 2 
+    (37) done 
+

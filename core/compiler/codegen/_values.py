@@ -87,7 +87,16 @@ class _ValuesMixin:
             # Bare variable reference: $::a(1) — strip $ and load
             self._load_var(elem[1:])
         elif "$" in elem or "[" in elem:
-            self._emit_value(elem)
+            # Pass interpolate=True so a mixed-substitution index like
+            # ``[format x]\ y [format z]`` decomposes into push/cmd
+            # pieces + strcat instead of being pushed as a literal.
+            # ``_emit_value`` only kicks the interpolate path in for
+            # multi-part templates, so a single ``[cmd]`` index needs
+            # the explicit short-circuit below.
+            if elem.startswith("[") and elem.endswith("]") and "[" not in elem[1:-1]:
+                self._emit_inline_cmd_subst(elem)
+            else:
+                self._emit_value(elem, interpolate=True)
         else:
             self._push_lit(elem)
 
@@ -289,6 +298,32 @@ class _ValuesMixin:
         return None
 
     @staticmethod
+    def _parse_bare_array_ref(value: str) -> str | None:
+        """Extract array reference from a bare ``$arr(idx)`` string.
+
+        The lowering keeps bare form (no surrounding braces) when the
+        index contains a nested ``$`` or ``[`` so the recursive
+        substitution semantics survive.  Returns ``arr(idx)`` (without
+        the leading ``$``), or ``None`` if *value* is not a bare
+        array reference covering its entire span.
+
+        ``$`` and ``[`` indices are both supported — ``_push_array_key``
+        inlines the substitution at runtime so the index byte string
+        seen by ``LOAD_ARRAY_STK`` is the resolved value.
+        """
+        if not value.startswith("$") or value.startswith("${") or value.startswith("$="):
+            return None
+        if "(" not in value or not value.endswith(")"):
+            return None
+        # Find the first '(' — that splits the array name from the index.
+        paren = value.index("(")
+        # Reject if the array name (before '(') contains '$' or '[' —
+        # we can only handle a literal array name here.
+        if "$" in value[1:paren] or "[" in value[1:paren]:
+            return None
+        return value[1:]
+
+    @staticmethod
     def _parse_braced_scalar_ref(value: str) -> str | None:
         """Extract variable name from a braced-scalar marker ``$={name}``.
 
@@ -436,6 +471,15 @@ class _ValuesMixin:
         var_name = self._parse_simple_var_ref(value)
         if var_name is not None:
             self._load_var(var_name)
+            return
+        # Bare array reference with substituted index: ``$a($cmd)``.
+        # The lowering preserves bare form when the index contains a
+        # nested ``$`` or ``[`` so eval-fallback substitution still
+        # works (cmdAH-1.4 / 1.5).  Emit it as an array load with the
+        # index resolved at runtime.
+        bare_arr = self._parse_bare_array_ref(value)
+        if bare_arr is not None:
+            self._load_var(bare_arr)
             return
         # Constant-fold [list arg1 arg2 ...] with all constant args.
         # Tcl 9.0 emits startCommand for the nested command substitution

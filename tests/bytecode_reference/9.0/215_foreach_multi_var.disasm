@@ -1,0 +1,110 @@
+ByteCode 0x55fb79212350, refCt 1, epoch 21, interp 0x55fb790b2350 (epoch 21)
+  Source "# Tcl ``foreach {var1 var2 ...} list body`` groups the ..."
+  Cmds 13, src 849, inst 239, litObjs 21, aux 0, stkDepth 4, code/src 0.00
+  Commands 13:
+      1: pc 0-5, src 293-304        2: pc 6-16, src 306-354
+      3: pc 17-65, src 356-433        4: pc 34-60, src 387-432
+      5: pc 66-80, src 509-522        6: pc 81-91, src 524-581
+      7: pc 92-140, src 583-652        8: pc 109-135, src 620-651
+      9: pc 141-155, src 717-729       10: pc 156-166, src 731-767
+     11: pc 167-215, src 769-837       12: pc 184-210, src 795-836
+     13: pc 216-237, src 839-847
+  Command 1: "set pairs {}..."
+    (0) push1 0 	# "pairs"
+    (2) push1 1 	# ""
+    (4) storeStk 
+    (5) pop 
+  Command 2: "foreach {a b} {1 2 3 4 5 6} {lappend pairs $a-$b}..."
+    (6) push1 2 	# "foreach"
+    (8) push1 3 	# "a b"
+    (10) push1 4 	# "1 2 3 4 5 6"
+    (12) push1 5 	# "lappend pairs $a-$b"
+    (14) invokeStk1 4 
+    (16) pop 
+  Command 3: "if {$pairs ne {1-2 3-4 5-6}} { error \"multi-var foreac..."
+    (17) startCommand +48 1 	# next cmd at pc 65, 1 cmds start here
+    (26) push1 0 	# "pairs"
+    (28) loadStk 
+    (29) push1 6 	# "1-2 3-4 5-6"
+    (31) strneq 
+    (32) jumpFalse1 +31 	# pc 63
+  Command 4: "error \"multi-var foreach pairs wrong: $pairs\"..."
+    (34) startCommand +27 1 	# next cmd at pc 61, 1 cmds start here
+    (43) push1 7 	# "multi-var foreach pairs wrong: "
+    (45) push1 0 	# "pairs"
+    (47) loadStk 
+    (48) strcat 2 
+    (50) push1 1 	# ""
+    (52) returnImm +1 0 
+    (61) jump1 +4 	# pc 65
+    (63) push1 1 	# ""
+    (65) pop 
+  Command 5: "set triples {}..."
+    (66) startCommand +14 1 	# next cmd at pc 80, 1 cmds start here
+    (75) push1 8 	# "triples"
+    (77) push1 1 	# ""
+    (79) storeStk 
+    (80) pop 
+  Command 6: "foreach {a b c} {1 2 3 4 5 6 7} {lappend triples $a-$b-..."
+    (81) push1 2 	# "foreach"
+    (83) push1 9 	# "a b c"
+    (85) push1 10 	# "1 2 3 4 5 6 7"
+    (87) push1 11 	# "lappend triples $a-$b-$c"
+    (89) invokeStk1 4 
+    (91) pop 
+  Command 7: "if {$triples ne {1-2-3 4-5-6 7--}} { error \"triples wr..."
+    (92) startCommand +48 1 	# next cmd at pc 140, 1 cmds start here
+    (101) push1 8 	# "triples"
+    (103) loadStk 
+    (104) push1 12 	# "1-2-3 4-5-6 7--"
+    (106) strneq 
+    (107) jumpFalse1 +31 	# pc 138
+  Command 8: "error \"triples wrong: $triples\"..."
+    (109) startCommand +27 1 	# next cmd at pc 136, 1 cmds start here
+    (118) push1 13 	# "triples wrong: "
+    (120) push1 8 	# "triples"
+    (122) loadStk 
+    (123) strcat 2 
+    (125) push1 1 	# ""
+    (127) returnImm +1 0 
+    (136) jump1 +4 	# pc 140
+    (138) push1 1 	# ""
+    (140) pop 
+  Command 9: "set single {}..."
+    (141) startCommand +14 1 	# next cmd at pc 155, 1 cmds start here
+    (150) push1 14 	# "single"
+    (152) push1 1 	# ""
+    (154) storeStk 
+    (155) pop 
+  Command 10: "foreach x {A B C} {lappend single $x}..."
+    (156) push1 2 	# "foreach"
+    (158) push1 15 	# "x"
+    (160) push1 16 	# "A B C"
+    (162) push1 17 	# "lappend single $x"
+    (164) invokeStk1 4 
+    (166) pop 
+  Command 11: "if {$single ne {A B C}} { error \"single-var foreach wr..."
+    (167) startCommand +48 1 	# next cmd at pc 215, 1 cmds start here
+    (176) push1 14 	# "single"
+    (178) loadStk 
+    (179) push1 16 	# "A B C"
+    (181) strneq 
+    (182) jumpFalse1 +31 	# pc 213
+  Command 12: "error \"single-var foreach wrong: $single\"..."
+    (184) startCommand +27 1 	# next cmd at pc 211, 1 cmds start here
+    (193) push1 18 	# "single-var foreach wrong: "
+    (195) push1 14 	# "single"
+    (197) loadStk 
+    (198) strcat 2 
+    (200) push1 1 	# ""
+    (202) returnImm +1 0 
+    (211) jump1 +4 	# pc 215
+    (213) push1 1 	# ""
+    (215) pop 
+  Command 13: "return ok..."
+    (216) startCommand +22 1 	# next cmd at pc 238, 1 cmds start here
+    (225) push1 19 	# "ok"
+    (227) push1 20 	# ""
+    (229) returnImm +0 1 
+    (238) done 
+

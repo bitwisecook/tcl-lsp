@@ -1,0 +1,36 @@
+ByteCode 0x5650827e2730, refCt 1, epoch 21, interp 0x5650826e4350 (epoch 21)
+  Source "# ``puts -nonewline <string>`` must not append a traili..."
+  Cmds 5, src 547, inst 55, litObjs 8, aux 0, stkDepth 3, code/src 0.00
+  Commands 5:
+      1: pc 0-8, src 479-497        2: pc 9-15, src 499-506
+      3: pc 16-24, src 508-525        4: pc 25-31, src 527-535
+      5: pc 32-53, src 537-545
+  Command 1: "puts -nonewline abc..."
+    (0) push1 0 	# "puts"
+    (2) push1 1 	# "-nonewline"
+    (4) push1 2 	# "abc"
+    (6) invokeStk1 3 
+    (8) pop 
+  Command 2: "puts def..."
+    (9) push1 0 	# "puts"
+    (11) push1 3 	# "def"
+    (13) invokeStk1 2 
+    (15) pop 
+  Command 3: "puts -nonewline \"..."
+    (16) push1 0 	# "puts"
+    (18) push1 1 	# "-nonewline"
+    (20) push1 4 	# ""
+    (22) invokeStk1 3 
+    (24) pop 
+  Command 4: "puts line..."
+    (25) push1 0 	# "puts"
+    (27) push1 5 	# "line"
+    (29) invokeStk1 2 
+    (31) pop 
+  Command 5: "return ok..."
+    (32) startCommand +22 1 	# next cmd at pc 54, 1 cmds start here
+    (41) push1 6 	# "ok"
+    (43) push1 7 	# ""
+    (45) returnImm +0 1 
+    (54) done 
+

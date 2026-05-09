@@ -1,0 +1,78 @@
+ByteCode 0x55fd37f1f1a0, refCt 1, epoch 21, interp 0x55fd37dac350 (epoch 21)
+  Source "# Instance variable persistence across method calls\noo..."
+  Cmds 13, src 357, inst 127, litObjs 10, aux 0, stkDepth 4, code/src 0.00
+  Commands 13:
+      1: pc 0-10, src 52-237        2: pc 11-29, src 239-258
+      3: pc 22-27, src 247-257        4: pc 30-48, src 260-279
+      5: pc 41-46, src 268-278        6: pc 49-56, src 281-288
+      7: pc 57-64, src 290-297        8: pc 65-72, src 299-306
+      9: pc 73-113, src 308-344       10: pc 84-111, src 320-343
+     11: pc 93-99, src 326-332       12: pc 100-106, src 336-342
+     13: pc 114-125, src 346-355
+  Command 1: "oo::class create Counter {\n    variable count\n    con..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "Counter"
+    (6) push1 3 	# "\n    variable count\n    constructor {}..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set c1 [Counter new]..."
+    (11) startCommand +18 1 	# next cmd at pc 29, 1 cmds start here
+    (20) push1 4 	# "c1"
+  Command 3: "Counter new..."
+    (22) push1 2 	# "Counter"
+    (24) push1 5 	# "new"
+    (26) invokeStk1 2 
+    (28) storeStk 
+    (29) pop 
+  Command 4: "set c2 [Counter new]..."
+    (30) startCommand +18 1 	# next cmd at pc 48, 1 cmds start here
+    (39) push1 6 	# "c2"
+  Command 5: "Counter new..."
+    (41) push1 2 	# "Counter"
+    (43) push1 5 	# "new"
+    (45) invokeStk1 2 
+    (47) storeStk 
+    (48) pop 
+  Command 6: "$c1 incr..."
+    (49) push1 4 	# "c1"
+    (51) loadStk 
+    (52) push1 7 	# "incr"
+    (54) invokeStk1 2 
+    (56) pop 
+  Command 7: "$c1 incr..."
+    (57) push1 4 	# "c1"
+    (59) loadStk 
+    (60) push1 7 	# "incr"
+    (62) invokeStk1 2 
+    (64) pop 
+  Command 8: "$c2 incr..."
+    (65) push1 6 	# "c2"
+    (67) loadStk 
+    (68) push1 7 	# "incr"
+    (70) invokeStk1 2 
+    (72) pop 
+  Command 9: "set result [list [$c1 get] [$c2 get]]..."
+    (73) startCommand +40 1 	# next cmd at pc 113, 1 cmds start here
+    (82) push1 8 	# "result"
+  Command 10: "list [$c1 get] [$c2 get]..."
+    (84) startCommand +28 1 	# next cmd at pc 112, 1 cmds start here
+  Command 11: "$c1 get..."
+    (93) push1 4 	# "c1"
+    (95) loadStk 
+    (96) push1 9 	# "get"
+    (98) invokeStk1 2 
+  Command 12: "$c2 get..."
+    (100) push1 6 	# "c2"
+    (102) loadStk 
+    (103) push1 9 	# "get"
+    (105) invokeStk1 2 
+    (107) list 2 
+    (112) storeStk 
+    (113) pop 
+  Command 13: "set result..."
+    (114) startCommand +12 1 	# next cmd at pc 126, 1 cmds start here
+    (123) push1 8 	# "result"
+    (125) loadStk 
+    (126) done 
+

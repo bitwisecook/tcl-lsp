@@ -1,0 +1,28 @@
+ByteCode 0x555f598aedb0, refCt 1, epoch 21, interp 0x555f5978f350 (epoch 21)
+  Source "proc setter {} {\n    uplevel 1 {set y 99}\n}\nproc cal..."
+  Cmds 4, src 114, inst 31, litObjs 7, aux 0, stkDepth 4, code/src 0.00
+  Commands 4:
+      1: pc 0-10, src 0-42        2: pc 11-21, src 44-98
+      3: pc 22-29, src 100-112        4: pc 24-27, src 106-111
+  Command 1: "proc setter {} {\n    uplevel 1 {set y 99}\n..."
+    (0) push1 0 	# "proc"
+    (2) push1 1 	# "setter"
+    (4) push1 2 	# ""
+    (6) push1 3 	# "\n    uplevel 1 {set y 99}..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "proc caller {} {\n    set y 0\n    setter\n    return $..."
+    (11) push1 0 	# "proc"
+    (13) push1 4 	# "caller"
+    (15) push1 2 	# ""
+    (17) push1 5 	# "\n    set y 0\n    setter\n    return ..."
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "puts [caller]..."
+    (22) push1 6 	# "puts"
+  Command 4: "caller..."
+    (24) push1 4 	# "caller"
+    (26) invokeStk1 1 
+    (28) invokeStk1 2 
+    (30) done 
+

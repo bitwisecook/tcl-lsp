@@ -1,0 +1,121 @@
+ByteCode 0x55a5aba3be20, refCt 1, epoch 21, interp 0x55a5ab987350 (epoch 21)
+  Source "# ``dict merge ?d1 d2 ...?`` returns a dict with entrie..."
+  Cmds 18, src 686, inst 291, litObjs 16, aux 0, stkDepth 5, code/src 0.00
+  Commands 18:
+      1: pc 0-33, src 236-285        2: pc 0-1, src 241-250
+      3: pc 7-28, src 262-284        4: pc 34-78, src 287-344
+      5: pc 43-46, src 292-307        6: pc 52-73, src 322-343
+      7: pc 79-127, src 346-412        8: pc 88-95, src 351-372
+      9: pc 101-122, src 391-411       10: pc 128-195, src 454-565
+     11: pc 137-144, src 459-488       12: pc 150-190, src 515-563
+     13: pc 161-177, src 532-561       14: pc 196-267, src 567-674
+     15: pc 205-214, src 572-599       16: pc 220-262, src 622-672
+     17: pc 231-249, src 643-670       18: pc 268-289, src 676-684
+  Command 1: "if {[dict merge] ne \"\"} { error \"zero-arg merge..."
+  Command 2: "dict merge..."
+    (0) push1 0 	# ""
+    (2) push1 0 	# ""
+    (4) strneq 
+    (5) jumpFalse1 +26 	# pc 31
+  Command 3: "error \"zero-arg merge\"..."
+    (7) startCommand +22 1 	# next cmd at pc 29, 1 cmds start here
+    (16) push1 1 	# "zero-arg merge"
+    (18) push1 0 	# ""
+    (20) returnImm +1 0 
+    (29) jump1 +4 	# pc 33
+    (31) push1 0 	# ""
+    (33) pop 
+  Command 4: "if {[dict merge {a 1}] ne \"a 1\"} { error \"one-arg me..."
+    (34) startCommand +44 2 	# next cmd at pc 78, 2 cmds start here
+  Command 5: "dict merge {a 1}..."
+    (43) push1 2 	# "a 1"
+    (45) dup 
+    (46) verifyDict 
+    (47) push1 2 	# "a 1"
+    (49) strneq 
+    (50) jumpFalse1 +26 	# pc 76
+  Command 6: "error \"one-arg merge\"..."
+    (52) startCommand +22 1 	# next cmd at pc 74, 1 cmds start here
+    (61) push1 3 	# "one-arg merge"
+    (63) push1 0 	# ""
+    (65) returnImm +1 0 
+    (74) jump1 +4 	# pc 78
+    (76) push1 0 	# ""
+    (78) pop 
+  Command 7: "if {[dict merge {a 1} {b 2}] ne \"a 1 b 2\"} { error \"..."
+    (79) startCommand +48 2 	# next cmd at pc 127, 2 cmds start here
+  Command 8: "dict merge {a 1} {b 2}..."
+    (88) push1 4 	# "::tcl::dict::merge"
+    (90) push1 2 	# "a 1"
+    (92) push1 5 	# "b 2"
+    (94) invokeStk1 3 
+    (96) push1 6 	# "a 1 b 2"
+    (98) strneq 
+    (99) jumpFalse1 +26 	# pc 125
+  Command 9: "error \"two disjoint\"..."
+    (101) startCommand +22 1 	# next cmd at pc 123, 1 cmds start here
+    (110) push1 7 	# "two disjoint"
+    (112) push1 0 	# ""
+    (114) returnImm +1 0 
+    (123) jump1 +4 	# pc 127
+    (125) push1 0 	# ""
+    (127) pop 
+  Command 10: "if {[dict merge {a 1 b 2} {b 3 c 4}] ne \"a 1 b 3 c 4\"..."
+    (128) startCommand +67 2 	# next cmd at pc 195, 2 cmds start here
+  Command 11: "dict merge {a 1 b 2} {b 3 c 4}..."
+    (137) push1 4 	# "::tcl::dict::merge"
+    (139) push1 6 	# "a 1 b 2"
+    (141) push1 8 	# "b 3 c 4"
+    (143) invokeStk1 3 
+    (145) push1 9 	# "a 1 b 3 c 4"
+    (147) strneq 
+    (148) jumpFalse1 +45 	# pc 193
+  Command 12: "error \"overlap: [dict merge {a 1 b 2} {b 3 c 4}]..."
+    (150) startCommand +41 1 	# next cmd at pc 191, 1 cmds start here
+    (159) push1 10 	# "overlap: "
+  Command 13: "dict merge {a 1 b 2} {b 3 c 4}..."
+    (161) startCommand +17 1 	# next cmd at pc 178, 1 cmds start here
+    (170) push1 4 	# "::tcl::dict::merge"
+    (172) push1 6 	# "a 1 b 2"
+    (174) push1 8 	# "b 3 c 4"
+    (176) invokeStk1 3 
+    (178) strcat 2 
+    (180) push1 0 	# ""
+    (182) returnImm +1 0 
+    (191) jump1 +4 	# pc 195
+    (193) push1 0 	# ""
+    (195) pop 
+  Command 14: "if {[dict merge {a 1} {b 2} {a 3}] ne \"a 3 b 2\"} {\n ..."
+    (196) startCommand +71 2 	# next cmd at pc 267, 2 cmds start here
+  Command 15: "dict merge {a 1} {b 2} {a 3}..."
+    (205) push1 4 	# "::tcl::dict::merge"
+    (207) push1 2 	# "a 1"
+    (209) push1 5 	# "b 2"
+    (211) push1 11 	# "a 3"
+    (213) invokeStk1 4 
+    (215) push1 12 	# "a 3 b 2"
+    (217) strneq 
+    (218) jumpFalse1 +47 	# pc 265
+  Command 16: "error \"three dicts: [dict merge {a 1} {b 2} {a 3}]..."
+    (220) startCommand +43 1 	# next cmd at pc 263, 1 cmds start here
+    (229) push1 13 	# "three dicts: "
+  Command 17: "dict merge {a 1} {b 2} {a 3}..."
+    (231) startCommand +19 1 	# next cmd at pc 250, 1 cmds start here
+    (240) push1 4 	# "::tcl::dict::merge"
+    (242) push1 2 	# "a 1"
+    (244) push1 5 	# "b 2"
+    (246) push1 11 	# "a 3"
+    (248) invokeStk1 4 
+    (250) strcat 2 
+    (252) push1 0 	# ""
+    (254) returnImm +1 0 
+    (263) jump1 +4 	# pc 267
+    (265) push1 0 	# ""
+    (267) pop 
+  Command 18: "return ok..."
+    (268) startCommand +22 1 	# next cmd at pc 290, 1 cmds start here
+    (277) push1 14 	# "ok"
+    (279) push1 15 	# ""
+    (281) returnImm +0 1 
+    (290) done 
+

@@ -1,0 +1,70 @@
+ByteCode 0x55bcaee057b0, refCt 1, epoch 21, interp 0x55bcaec90350 (epoch 21)
+  Source "# self and my commands\noo::class create Dog {\n    var..."
+  Cmds 11, src 406, inst 134, litObjs 12, aux 0, stkDepth 5, code/src 0.00
+  Commands 11:
+      1: pc 0-10, src 23-268        2: pc 11-33, src 270-297
+      3: pc 22-31, src 279-296        4: pc 34-48, src 299-311
+      5: pc 49-72, src 313-336        6: pc 60-65, src 329-335
+      7: pc 73-96, src 338-363        8: pc 84-89, src 354-362
+      9: pc 97-120, src 365-393       10: pc 108-113, src 381-392
+     11: pc 121-132, src 395-404
+  Command 1: "oo::class create Dog {\n    variable name\n    construc..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "Dog"
+    (6) push1 3 	# "\n    variable name\n    constructor {n}..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set obj [Dog create rex Rex]..."
+    (11) startCommand +22 1 	# next cmd at pc 33, 1 cmds start here
+    (20) push1 4 	# "obj"
+  Command 3: "Dog create rex Rex..."
+    (22) push1 2 	# "Dog"
+    (24) push1 1 	# "create"
+    (26) push1 5 	# "rex"
+    (28) push1 6 	# "Rex"
+    (30) invokeStk1 4 
+    (32) storeStk 
+    (33) pop 
+  Command 4: "set result {}..."
+    (34) startCommand +14 1 	# next cmd at pc 48, 1 cmds start here
+    (43) push1 7 	# "result"
+    (45) push1 8 	# ""
+    (47) storeStk 
+    (48) pop 
+  Command 5: "lappend result [rex who]..."
+    (49) startCommand +23 1 	# next cmd at pc 72, 1 cmds start here
+    (58) push1 7 	# "result"
+  Command 6: "rex who..."
+    (60) push1 5 	# "rex"
+    (62) push1 9 	# "who"
+    (64) invokeStk1 2 
+    (66) list 1 
+    (71) lappendListStk 
+    (72) pop 
+  Command 7: "lappend result [rex speak]..."
+    (73) startCommand +23 1 	# next cmd at pc 96, 1 cmds start here
+    (82) push1 7 	# "result"
+  Command 8: "rex speak..."
+    (84) push1 5 	# "rex"
+    (86) push1 10 	# "speak"
+    (88) invokeStk1 2 
+    (90) list 1 
+    (95) lappendListStk 
+    (96) pop 
+  Command 9: "lappend result [rex my_class]..."
+    (97) startCommand +23 1 	# next cmd at pc 120, 1 cmds start here
+    (106) push1 7 	# "result"
+  Command 10: "rex my_class..."
+    (108) push1 5 	# "rex"
+    (110) push1 11 	# "my_class"
+    (112) invokeStk1 2 
+    (114) list 1 
+    (119) lappendListStk 
+    (120) pop 
+  Command 11: "set result..."
+    (121) startCommand +12 1 	# next cmd at pc 133, 1 cmds start here
+    (130) push1 7 	# "result"
+    (132) loadStk 
+    (133) done 
+
