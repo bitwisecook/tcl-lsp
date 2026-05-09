@@ -19,6 +19,7 @@ def load_verbs() -> None:
         graph,
         grep,
         merge,
+        pcap_remap,
         pull,
         push,
         redact,
