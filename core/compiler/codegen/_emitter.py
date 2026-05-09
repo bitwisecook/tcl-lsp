@@ -533,10 +533,7 @@ class _Emitter(
             # tclsh suppresses the inner SC.  Mirror that gate so we
             # don't over-emit SCs in 220-style snippets while still
             # firing for 217-style ones.
-            if (
-                bname.startswith(("if_then_", "if_next_"))
-                and self._cmd_index == 0
-            ):
+            if bname.startswith(("if_then_", "if_next_")) and self._cmd_index == 0:
                 self._cmd_index += 1
 
             # try/finally inline compilation: emit the entire
@@ -686,7 +683,6 @@ class _Emitter(
                     _join = _tt_blk.terminator.target
                     if _join.startswith("if_end_"):
                         for_body_end_labels[_join] = _fb_end_label
-
 
             # Place deferred for-body startCommand end labels at
             # the join block's pop (before the pop is emitted).
@@ -907,7 +903,13 @@ class _Emitter(
                 isinstance(blk.terminator, CFGBranch)
                 and self._cmd_index > 0
                 and not bname.startswith(
-                    ("for_body_", "while_body_", "switch_arm_body_", "switch_default_", "switch_next_")
+                    (
+                        "for_body_",
+                        "while_body_",
+                        "switch_arm_body_",
+                        "switch_default_",
+                        "switch_next_",
+                    )
                 )
                 and bname not in foreach_body_blocks
                 and (
@@ -940,11 +942,7 @@ class _Emitter(
                     or isinstance(_join_blk.terminator, CFGBranch)
                     or isinstance(_join_blk.terminator, CFGReturn)
                 )
-                if (
-                    _join_b is not None
-                    and _join_b not in for_body_end_labels
-                    and _join_pops
-                ):
+                if _join_b is not None and _join_b not in for_body_end_labels and _join_pops:
                     # ``count=2`` when the if's condition contains an
                     # inline-specialised cmd subst tclsh treats as a
                     # second Cmd starting at the same bytecode PC
@@ -952,9 +950,7 @@ class _Emitter(
                     # for ``[string length …]`` …).  Generic invokes
                     # keep ``count=1`` because the inner Cmd starts
                     # 9 bytes after the SC.
-                    _sc_count = 1 + _count_inline_specialised_subst(
-                        blk.terminator.condition
-                    )
+                    _sc_count = 1 + _count_inline_specialised_subst(blk.terminator.condition)
                     _if_end_label = self._fresh_label("if_cmd_end")
                     self._emit(Op.START_CMD, _if_end_label, _sc_count)
                     for_body_end_labels[_join_b] = _if_end_label
@@ -1099,7 +1095,7 @@ def _count_inline_specialised_subst(cond: ExprNode) -> int:
                             elif inner[j] == "]":
                                 d -= 1
                             j += 1
-                        sub_text = inner[i : j]
+                        sub_text = inner[i:j]
                         # Recurse via a synthetic ExprCommand.
                         n += _count_inline_specialised_subst(
                             ExprCommand(text=sub_text, start=0, end=0)

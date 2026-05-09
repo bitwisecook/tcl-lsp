@@ -25,9 +25,7 @@ if TYPE_CHECKING:
 # nested, ``foreach …``) keep the generic ``catch`` invoke shape
 # at script scope; the inline path handles them correctly inside
 # proc bodies, where catch is always inlined.
-_TOP_LEVEL_CATCH_INLINE_HEADS = frozenset(
-    {"error", "return", "break", "continue"}
-)
+_TOP_LEVEL_CATCH_INLINE_HEADS = frozenset({"error", "return", "break", "continue"})
 
 
 def _catch_body_is_simple_inline(body_text: str) -> bool:
@@ -332,8 +330,10 @@ class _CmdSubstMixin:
                         # here so we emit a real variable load instead
                         # of pushing the literal ``\$x`` source bytes.
                         rest = arg[1:]
-                        if rest and (rest[0].isalpha() or rest[0] == "_") and all(
-                            ch.isalnum() or ch in "_:" for ch in rest
+                        if (
+                            rest
+                            and (rest[0].isalpha() or rest[0] == "_")
+                            and all(ch.isalnum() or ch in "_:" for ch in rest)
                         ):
                             var_name = rest
                     if var_name is not None:
@@ -578,9 +578,7 @@ class _CmdSubstMixin:
                 self._used_inline_cmd_subst = True
                 if not sargs:
                     self._push_lit("")
-                elif all(
-                    "$" not in a and "[" not in a for a, _b in sargs
-                ):
+                elif all("$" not in a and "[" not in a for a, _b in sargs):
                     folded = "".join(a for a, _b in sargs)
                     self._push_lit(folded)
                 else:
@@ -599,9 +597,7 @@ class _CmdSubstMixin:
                         else:
                             for a in items:
                                 self._emit_cmd_subst_arg(a)
-                    n_segments = sum(
-                        1 if is_const else len(items) for is_const, items in groups
-                    )
+                    n_segments = sum(1 if is_const else len(items) for is_const, items in groups)
                     if n_segments > 1:
                         self._emit(Op.STR_CONCAT1, n_segments)
             elif subcmd == "length" and len(sargs) == 1:
@@ -801,10 +797,7 @@ class _CmdSubstMixin:
                 # Apply Tcl backslash subst so a ``\<newline>`` line
                 # continuation collapses to a single space (and other
                 # ``\x`` escapes resolve) before whitespace trimming.
-                resolved = [
-                    _tcl_backslash_subst(a) if "\\" in a else a
-                    for a, _b in args
-                ]
+                resolved = [_tcl_backslash_subst(a) if "\\" in a else a for a, _b in args]
                 folded = " ".join(filter(None, (a.strip() for a in resolved)))
                 self._used_inline_cmd_subst = True
                 self._push_lit(folded)
@@ -819,12 +812,8 @@ class _CmdSubstMixin:
             # proc-body ``return [list …]`` the outer return's SC
             # already covers the nested cmd substs (count=2), so
             # we'd over-emit if we wrapped here.
-            has_nested_cmd = (
-                not self._is_proc
-                and any(
-                    "[" in a and not (a.startswith("{") and a.endswith("}"))
-                    for a, _braced in args
-                )
+            has_nested_cmd = not self._is_proc and any(
+                "[" in a and not (a.startswith("{") and a.endswith("}")) for a, _braced in args
             )
             sc_end: str | None = None
             if has_nested_cmd:
@@ -919,16 +908,21 @@ class _CmdSubstMixin:
                     self._emit_cmd_subst_arg(a)
                 self._emit(Op.INVOKE_STK1, 1 + len(sub_args))
                 self._seen_generic_invoke = True
-        elif cmd == "dict" and args and args[0][0] in {
-            "append",
-            "incr",
-            "keys",
-            "values",
-            "size",
-            "unset",
-            "update",
-            "with",
-        }:
+        elif (
+            cmd == "dict"
+            and args
+            and args[0][0]
+            in {
+                "append",
+                "incr",
+                "keys",
+                "values",
+                "size",
+                "unset",
+                "update",
+                "with",
+            }
+        ):
             # ``[dict <sub> ...]`` for the subcommands tclsh resolves to a
             # ``::tcl::dict::<sub>`` FQ-name push followed by ``invokeStk1``.
             # Match that shape so the inline cmd-subst doesn't fall back to
@@ -941,15 +935,18 @@ class _CmdSubstMixin:
                 self._emit_cmd_subst_arg(a)
             self._emit(Op.INVOKE_STK1, 1 + len(sub_args))
             self._seen_generic_invoke = True
-        elif cmd == "catch" and 1 <= len(args) <= 3 and (
-            self._is_proc
-            or (
-                # tclsh inlines top-level ``[catch {body}]`` only for
-                # the no-result-var, no-options-var shape (1-arg
-                # catch).  With a result var the catch goes through
-                # the generic ``invokeStk`` path; mirror that.
-                len(args) == 1
-                and _catch_body_is_simple_inline(args[0][0])
+        elif (
+            cmd == "catch"
+            and 1 <= len(args) <= 3
+            and (
+                self._is_proc
+                or (
+                    # tclsh inlines top-level ``[catch {body}]`` only for
+                    # the no-result-var, no-options-var shape (1-arg
+                    # catch).  With a result var the catch goes through
+                    # the generic ``invokeStk`` path; mirror that.
+                    len(args) == 1 and _catch_body_is_simple_inline(args[0][0])
+                )
             )
         ):
             result_var = args[1][0] if len(args) > 1 else None

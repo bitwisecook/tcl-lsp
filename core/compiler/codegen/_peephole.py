@@ -164,9 +164,7 @@ class _PeepholeMixin:
         # match the captured 9.0 disassembly for snippets like 220 where
         # the entire script lowers to ``tryCvtToNumeric`` + ``returnImm``.
         replaced_ops = {Op.UPVAR, Op.NSUPVAR}
-        has_generic = any(
-            i.op in generic_ops or i.op in replaced_ops for i in self._instrs
-        )
+        has_generic = any(i.op in generic_ops or i.op in replaced_ops for i in self._instrs)
         if has_generic:
             return
         # No generic invokes — strip all startCommand instructions.
