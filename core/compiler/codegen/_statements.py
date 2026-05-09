@@ -167,7 +167,9 @@ class _StatementsMixin:
                 # Handle ``set d [dict create key val ...]`` pattern:
                 # tclsh compiles the dict create as a sub-command with
                 # startCommand, push literal, dup, verifyDict.
-                elif not self._is_proc and value.startswith("[dict create ") and value.endswith("]"):
+                elif (
+                    not self._is_proc and value.startswith("[dict create ") and value.endswith("]")
+                ):
                     dict_fold = self._fold_dict_create_cmd(value)
                     if dict_fold is not None:
                         self._push_lit(name)
