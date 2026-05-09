@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+pub mod call_hierarchy;
 pub mod code_actions;
 pub mod code_lens;
 pub mod completion;
@@ -25,6 +26,7 @@ pub mod references;
 pub mod rename;
 pub mod selection_range;
 pub mod signature_help;
+pub mod type_hierarchy;
 
 /// Crate version string.
 ///

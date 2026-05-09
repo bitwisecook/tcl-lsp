@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tcl_compiler::analyser::Analyser;
+use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
 use tcl_lsp_core::code_lens as core_code_lens;
 use tcl_lsp_core::completion::{
@@ -39,6 +40,11 @@ use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
+// type_hierarchy core provider lands when tower-lsp's
+// LanguageServer trait exposes the type-hierarchy methods.
+// Module is registered in `tcl_lsp_core` for downstream
+// callers; intentionally not imported here yet.
+// use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
 use tokio::sync::Mutex;
@@ -48,21 +54,24 @@ use tower_lsp::lsp_types::{
         GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
         GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
     },
-    CodeAction, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability, CodeLens,
-    CodeLensOptions, CodeLensParams, CompletionItem, CompletionItemKind, CompletionOptions,
-    CompletionParams, CompletionResponse, DeclarationCapability, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, DocumentLink,
-    DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol,
-    DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
-    InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location, MarkupContent, MarkupKind,
-    MessageType, OneOf, ParameterInformation, ParameterLabel, Position, Range, ReferenceParams,
-    RenameParams, SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams,
-    SignatureInformation, SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
+    CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
+    CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
+    CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
+    CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
+    DeclarationCapability, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind,
+    DocumentHighlightParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
+    DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
+    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
+    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, Location, MarkupContent, MarkupKind, MessageType, OneOf,
+    ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability, ServerCapabilities,
+    ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams, SignatureInformation,
+    SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
     TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer};
@@ -239,6 +248,13 @@ impl LanguageServer for Backend {
                     resolve_provider: Some(false),
                 }),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
+                // Note: tower-lsp 0.20 does not expose
+                // `type_hierarchy_provider` on `ServerCapabilities`;
+                // the type-hierarchy core provider lives in
+                // `tcl-lsp-core::type_hierarchy` and will be wired
+                // once we upgrade tower-lsp (tracked under
+                // `S-type-hierarchy-rich`).
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -511,6 +527,75 @@ impl LanguageServer for Backend {
             .collect();
         Ok(Some(highlights))
     }
+
+    async fn prepare_call_hierarchy(
+        &self,
+        params: CallHierarchyPrepareParams,
+    ) -> jsonrpc::Result<Option<Vec<CallHierarchyItem>>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let items = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_call_hierarchy::prepare(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("call_hierarchy worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if items.is_empty() {
+            return Ok(None);
+        }
+        let lifted = items
+            .into_iter()
+            .map(|i| CallHierarchyItem {
+                name: i.name,
+                kind: SymbolKind::FUNCTION,
+                tags: None,
+                detail: i.detail,
+                uri: uri.clone(),
+                range: lift_lsp_range(i.range),
+                selection_range: lift_lsp_range(i.selection_range),
+                data: None,
+            })
+            .collect();
+        Ok(Some(lifted))
+    }
+
+    async fn incoming_calls(
+        &self,
+        _params: CallHierarchyIncomingCallsParams,
+    ) -> jsonrpc::Result<Option<Vec<CallHierarchyIncomingCall>>> {
+        // S-call-hierarchy-rich: incoming-call enumeration
+        // requires the call-graph index that the analyser
+        // doesn't surface today.  Stub-empty.
+        Ok(Some(Vec::new()))
+    }
+
+    async fn outgoing_calls(
+        &self,
+        _params: CallHierarchyOutgoingCallsParams,
+    ) -> jsonrpc::Result<Option<Vec<CallHierarchyOutgoingCall>>> {
+        // S-call-hierarchy-rich: outgoing-call enumeration
+        // requires the per-proc callee list.  Stub-empty.
+        Ok(Some(Vec::new()))
+    }
+
+    // Note: type_hierarchy LSP methods aren't exposed by
+    // tower-lsp 0.20's `LanguageServer` trait. The core
+    // provider in `tcl_lsp_core::type_hierarchy` is ready;
+    // wiring lands once we move to a tower-lsp version
+    // that surfaces these methods (tracked under
+    // `S-type-hierarchy-rich`).
 
     async fn document_link(
         &self,
