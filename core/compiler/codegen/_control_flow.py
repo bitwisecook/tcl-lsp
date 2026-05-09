@@ -205,7 +205,7 @@ class _ControlFlowMixin:
                     )
         return None
 
-    def _emit_catch_return(self: _Emitter, args: list[tuple[str, bool]]) -> None:
+    def _emit_catch_return(self: _Emitter, args: list[tuple[str, bool, bool]]) -> None:
         """Compile ``return ?-code C? ?-level L? ?value?`` inside a catch body."""
         code_names = {"ok": 0, "error": 1, "return": 2, "break": 3, "continue": 4}
         i = 0
@@ -256,7 +256,7 @@ class _ControlFlowMixin:
         self._push_lit("")
         self._emit(Op.RETURN_IMM, ret_code, ret_level)
 
-    def _emit_catch_error(self: _Emitter, args: list[tuple[str, bool]]) -> None:
+    def _emit_catch_error(self: _Emitter, args: list[tuple[str, bool, bool]]) -> None:
         """Compile ``error msg ?info? ?code?`` inside a catch body."""
         if args:
             self._emit_cmd_subst_arg(args[0])  # message
@@ -269,7 +269,7 @@ class _ControlFlowMixin:
 
     def _emit_try_on_error_inline(
         self: _Emitter,
-        args: list[tuple[str, bool]],
+        args: list[tuple[str, bool, bool]],
         normal_exit: str,
     ) -> None:
         """Emit inline ``try { body } on error {var} { handler }`` bytecodes.

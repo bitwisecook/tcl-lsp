@@ -144,22 +144,29 @@ class _CmdSubstMixin:
         return False
 
     @staticmethod
-    def _parse_cmd_parts(text: str) -> list[tuple[str, bool]]:
-        """Split ``[cmd arg1 ...]`` into ``(text, was_braced)`` tuples.
+    def _parse_cmd_parts(text: str) -> list[tuple[str, bool, bool]]:
+        """Split ``[cmd arg1 ...]`` into ``(text, was_braced, expand)`` tuples.
 
         *was_braced* is ``True`` when the original argument was wrapped
         in ``{…}`` (braces are stripped from the returned text).  This
         lets the caller decide whether to re-wrap the value in braces
         so that the VM suppresses variable/command substitution.
+
+        *expand* is ``True`` when the argument was preceded by a glued
+        ``{*}`` marker (Tcl's expansion operator) — callers must emit
+        ``EXPAND_STKTOP`` after the value and use ``INVOKE_EXPANDED``
+        for the call.
         """
         text = text.strip()
         if text.startswith("[") and text.endswith("]"):
             text = text[1:-1].strip()
-        parts: list[tuple[str, bool]] = []
+        parts: list[tuple[str, bool, bool]] = []
         i = 0
+        pending_expand = False
         while i < len(text):
             while i < len(text) and text[i] in (" ", "\t"):
                 i += 1
+                pending_expand = False
             if i >= len(text):
                 break
             if text[i] == '"':
@@ -169,7 +176,8 @@ class _CmdSubstMixin:
                     if text[i] == "\\":
                         i += 1
                     i += 1
-                parts.append((text[start:i], False))
+                parts.append((text[start:i], False, pending_expand))
+                pending_expand = False
                 if i < len(text):
                     i += 1
             elif text[i] == "{":
@@ -188,8 +196,17 @@ class _CmdSubstMixin:
                         i += 1
                     else:
                         break
-                parts.append((text[start:i], True))
+                body = text[start:i]
                 i += 1  # skip closing }
+                # ``{*}`` glued to the next word marks it for argument
+                # expansion (Tcl's expansion operator).  Defer until we
+                # see what word it precedes — if a space follows, the
+                # ``{*}`` is just a braced literal ``*``.
+                if body == "*" and i < len(text) and text[i] not in (" ", "\t"):
+                    pending_expand = True
+                    continue
+                parts.append((body, True, pending_expand))
+                pending_expand = False
             elif text[i] == "[":
                 depth = 0
                 start = i
@@ -221,7 +238,8 @@ class _CmdSubstMixin:
                             i += 1
                     else:
                         i += 1
-                parts.append((text[start:i], False))
+                parts.append((text[start:i], False, pending_expand))
+                pending_expand = False
             else:
                 start = i
                 while i < len(text) and text[i] not in (" ", "\t"):
@@ -240,12 +258,13 @@ class _CmdSubstMixin:
                             i += 1
                     else:
                         i += 1
-                parts.append((text[start:i], False))
+                parts.append((text[start:i], False, pending_expand))
+                pending_expand = False
         return parts
 
-    def _emit_cmd_subst_arg(self: _Emitter, arg_pair: tuple[str, bool]) -> None:
+    def _emit_cmd_subst_arg(self: _Emitter, arg_pair: tuple[str, bool, bool]) -> None:
         """Emit a single arg from a parsed command substitution."""
-        arg, braced = arg_pair
+        arg, braced, _expand = arg_pair
         if not braced and arg.startswith("$"):
             # Braced scalar marker: $={name} → push + loadStk.
             braced_scalar = self._parse_braced_scalar_ref(arg)
@@ -297,8 +316,22 @@ class _CmdSubstMixin:
         else:
             self._push_lit(arg)
 
-    def _emit_generic_cmd_subst(self: _Emitter, cmd: str, args: list[tuple[str, bool]]) -> None:
-        """Emit a generic command substitution as push + invokeStk."""
+    def _emit_generic_cmd_subst(
+        self: _Emitter,
+        cmd: str,
+        args: list[tuple[str, bool, bool]],
+    ) -> None:
+        """Emit a generic command substitution as push + invokeStk.
+
+        Args carrying the third-tuple ``expand`` flag (set by
+        ``_parse_cmd_parts`` for words preceded by ``{*}``) route through
+        ``EXPAND_START`` + ``EXPAND_STKTOP`` + ``INVOKE_EXPANDED`` so
+        the runtime expands the value into the call's argv at dispatch
+        time.
+        """
+        any_expand = any(a[2] for a in args)
+        if any_expand:
+            self._emit(Op.EXPAND_START, comment=f"{cmd} (expanded)")
         # Dynamic command word: ``[$var arg ...]`` or ``[[cmd] arg]``.
         # In both cases the command word resolves at runtime — for
         # ``\$var`` via variable substitution, for ``[…]`` via a
@@ -309,7 +342,8 @@ class _CmdSubstMixin:
             self._emit_value(cmd, interpolate=True)
         else:
             self._push_lit(cmd)
-        for arg, braced in args:
+        word_count = 1
+        for arg, braced, expand in args:
             if not braced and arg.startswith("[") and arg.endswith("]"):
                 end_label = self._fresh_label("cmd_end")
                 self._emit(Op.START_CMD, end_label, 1)
@@ -364,9 +398,15 @@ class _CmdSubstMixin:
                     self._push_lit(processed)
             else:
                 self._push_lit(arg)
-        argc = 1 + len(args)
-        op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4
-        self._emit(op, argc)
+            word_count += 1
+            if expand:
+                self._emit(Op.EXPAND_STKTOP, word_count)
+        if any_expand:
+            self._emit(Op.INVOKE_EXPANDED, comment=cmd)
+        else:
+            argc = 1 + len(args)
+            op = Op.INVOKE_STK1 if argc < 256 else Op.INVOKE_STK4
+            self._emit(op, argc)
         # Mark that a generic ``invokeStk`` has been emitted in this
         # unit.  Downstream peepholes (and the in-block SC wrap that
         # decides whether to bump ``_cmd_index`` on entering an
@@ -401,7 +441,7 @@ class _CmdSubstMixin:
             self._push_lit("")
             return
 
-        cmd, _ = parts[0]
+        cmd = parts[0][0]
         args = parts[1:]
 
         if cmd == "expr" and len(args) == 1:
@@ -592,22 +632,22 @@ class _CmdSubstMixin:
                 self._used_inline_cmd_subst = True
                 if not sargs:
                     self._push_lit("")
-                elif all("$" not in a and "[" not in a for a, _b in sargs):
-                    folded = "".join(a for a, _b in sargs)
+                elif all("$" not in a and "[" not in a for a, _b, *_ in sargs):
+                    folded = "".join(a for a, _b, *_ in sargs)
                     self._push_lit(folded)
                 else:
                     # Group runs of all-constant args into a single
                     # literal segment.  Each segment becomes one push.
-                    groups: list[tuple[bool, list[tuple[str, bool]]]] = []
-                    for a, b in sargs:
+                    groups: list[tuple[bool, list[tuple[str, bool, bool]]]] = []
+                    for a, b, e in sargs:
                         is_const = "$" not in a and "[" not in a
                         if groups and groups[-1][0] == is_const:
-                            groups[-1][1].append((a, b))
+                            groups[-1][1].append((a, b, e))
                         else:
-                            groups.append((is_const, [(a, b)]))
+                            groups.append((is_const, [(a, b, e)]))
                     for is_const, items in groups:
                         if is_const:
-                            self._push_lit("".join(a for a, _ in items))
+                            self._push_lit("".join(a for a, _, _ in items))
                         else:
                             for a in items:
                                 self._emit_cmd_subst_arg(a)
@@ -807,11 +847,11 @@ class _CmdSubstMixin:
             # tclsh folds the whole call to a single ``push`` of the
             # joined result.  Variable / cmd-subst args fall through
             # to the generic invoke path.
-            if all("$" not in a and "[" not in a for a, _b in args):
+            if all("$" not in a and "[" not in a for a, _b, *_ in args):
                 # Apply Tcl backslash subst so a ``\<newline>`` line
                 # continuation collapses to a single space (and other
                 # ``\x`` escapes resolve) before whitespace trimming.
-                resolved = [_tcl_backslash_subst(a) if "\\" in a else a for a, _b in args]
+                resolved = [_tcl_backslash_subst(a) if "\\" in a else a for a, _b, *_ in args]
                 folded = " ".join(filter(None, (a.strip() for a in resolved)))
                 self._used_inline_cmd_subst = True
                 self._push_lit(folded)
@@ -827,7 +867,7 @@ class _CmdSubstMixin:
             # already covers the nested cmd substs (count=2), so
             # we'd over-emit if we wrapped here.
             has_nested_cmd = not self._is_proc and any(
-                "[" in a and not (a.startswith("{") and a.endswith("}")) for a, _braced in args
+                "[" in a and not (a.startswith("{") and a.endswith("}")) for a, _braced, *_ in args
             )
             sc_end: str | None = None
             if has_nested_cmd:
@@ -887,11 +927,11 @@ class _CmdSubstMixin:
                 self._emit(Op.DUP)
                 self._emit(Op.VERIFY_DICT)
             elif len(sub_args) % 2 == 0 and all(
-                "$" not in a and "[" not in a for a, _b in sub_args
+                "$" not in a and "[" not in a for a, _b, *_ in sub_args
             ):
                 from ._helpers import _tcl_list_element
 
-                clean = [a for a, _b in sub_args]
+                clean = [a for a, _b, *_ in sub_args]
                 folded = " ".join(_tcl_list_element(a) for a in clean)
                 self._push_lit(folded)
                 self._emit(Op.DUP)
