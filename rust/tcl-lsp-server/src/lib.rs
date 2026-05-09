@@ -36,6 +36,7 @@ use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::rename as core_rename;
 use tcl_lsp_core::selection_range as core_selection_range;
+use tcl_lsp_core::semantic_tokens as core_semantic_tokens;
 use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
@@ -45,6 +46,9 @@ use tcl_lsp_core::signature_help::{
 // Module is registered in `tcl_lsp_core` for downstream
 // callers; intentionally not imported here yet.
 // use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
+use tcl_lsp_core::workspace_symbols::{
+    self as core_workspace_symbols, WorkspaceSymbolKind as CoreWorkspaceSymbolKind,
+};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
 use tokio::sync::Mutex;
@@ -69,10 +73,13 @@ use tower_lsp::lsp_types::{
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
     InlayHintLabel, InlayHintParams, Location, MarkupContent, MarkupKind, MessageType, OneOf,
     ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability, ServerCapabilities,
-    ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams, SignatureInformation,
-    SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
+    Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -255,6 +262,20 @@ impl LanguageServer for Backend {
                 // `tcl-lsp-core::type_hierarchy` and will be wired
                 // once we upgrade tower-lsp (tracked under
                 // `S-type-hierarchy-rich`).
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            work_done_progress_options: WorkDoneProgressOptions::default(),
+                            legend: SemanticTokensLegend {
+                                token_types: Vec::new(),
+                                token_modifiers: Vec::new(),
+                            },
+                            range: Some(false),
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                        },
+                    ),
+                ),
+                workspace_symbol_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -596,6 +617,74 @@ impl LanguageServer for Backend {
     // wiring lands once we move to a tower-lsp version
     // that surfaces these methods (tracked under
     // `S-type-hierarchy-rich`).
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> jsonrpc::Result<Option<SemanticTokensResult>> {
+        let Some(doc) = self.read_document(&params.text_document.uri).await else {
+            return Ok(None);
+        };
+        let _ = core_semantic_tokens::full(&doc.text);
+        Ok(Some(SemanticTokensResult::Tokens(LspSemanticTokens {
+            result_id: None,
+            data: Vec::new(),
+        })))
+    }
+
+    async fn symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> jsonrpc::Result<Option<Vec<SymbolInformation>>> {
+        // Walk every cached document and collect matching
+        // symbols.  The minimal port iterates the document
+        // store on the LSP loop (acquiring the mutex briefly);
+        // a future workspace-index chunk will move this to a
+        // pre-computed index.
+        let docs = self.documents.lock().await.clone();
+        if docs.is_empty() {
+            return Ok(None);
+        }
+        let query = params.query;
+        let mut all: Vec<SymbolInformation> = Vec::new();
+        for (uri, doc) in docs {
+            let text = doc.text.clone();
+            let dialect = doc.dialect.clone();
+            let q = query.clone();
+            let symbols = tokio::task::spawn_blocking(move || {
+                let mut analyser = Analyser::new();
+                let analysis = analyser.analyse(&text, &dialect).clone();
+                core_workspace_symbols::workspace_symbols(&text, &q, &analysis)
+            })
+            .await
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("workspace_symbols worker panicked: {err}").into(),
+                data: None,
+            })?;
+            for s in symbols {
+                #[allow(deprecated)]
+                all.push(SymbolInformation {
+                    name: s.name,
+                    kind: match s.kind {
+                        CoreWorkspaceSymbolKind::Function => SymbolKind::FUNCTION,
+                        CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
+                    },
+                    tags: None,
+                    deprecated: None,
+                    location: Location {
+                        uri: uri.clone(),
+                        range: lift_lsp_range(s.range),
+                    },
+                    container_name: s.container_name,
+                });
+            }
+        }
+        if all.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(all))
+    }
 
     async fn document_link(
         &self,

@@ -25,8 +25,10 @@ pub mod inlay_hints;
 pub mod references;
 pub mod rename;
 pub mod selection_range;
+pub mod semantic_tokens;
 pub mod signature_help;
 pub mod type_hierarchy;
+pub mod workspace_symbols;
 
 /// Crate version string.
 ///
