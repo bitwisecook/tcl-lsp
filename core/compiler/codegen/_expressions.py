@@ -372,11 +372,26 @@ class _ExpressionsMixin:
 
             case CFGReturn(value=value):
                 val = value if value is not None else ""
-                self._emit_return_value(val)
                 if self._is_proc:
+                    self._emit_return_value(val)
                     self._emit(Op.DONE)
                 else:
-                    self._emit(Op.RETURN_IMM, 0, 0)
+                    # Top-level ``return value`` — tclsh 9 wraps the
+                    # command in ``startCommand`` (when it isn't the
+                    # first command), pushes the value plus an empty
+                    # options dict, and emits ``returnImm 0 1``
+                    # (code=TCL_OK, level=1).  A trailing ``done`` is
+                    # appended by the script epilogue.
+                    end_label: str | None = None
+                    if self._cmd_index > 0:
+                        end_label = self._fresh_label("ret_end")
+                        self._emit(Op.START_CMD, end_label, 1)
+                    self._cmd_index += 1
+                    self._emit_return_value(val)
+                    self._push_lit("")
+                    self._emit(Op.RETURN_IMM, 0, 1)
+                    if end_label is not None:
+                        self._place_label(end_label)
 
     def _emit_proc_return(
         self: _Emitter,

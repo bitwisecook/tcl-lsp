@@ -485,7 +485,14 @@ class _StatementsMixin:
             return
         if self._try_bytecoded(cmd, args):
             return
-        self._push_lit(cmd)
+        # Dynamic command name: ``$var arg1 arg2 ...`` resolves the
+        # command at runtime by substituting ``$var``.  tclsh emits
+        # ``push "var"; loadStk; <args>; invokeStk1 N`` so the same
+        # invocation site sees the resolved value as the command word.
+        if self._is_dynamic_command_name(cmd):
+            self._emit_value(cmd, interpolate=True)
+        else:
+            self._push_lit(cmd)
         for a in args:
             self._emit_value(a)
         argc = 1 + len(args)
@@ -493,6 +500,14 @@ class _StatementsMixin:
         self._emit(op, argc, comment=cmd)
         self._emit(Op.POP)
         self._used_generic_invoke = True
+
+    @staticmethod
+    def _is_dynamic_command_name(cmd: str) -> bool:
+        # Cheap check: a leading ``$`` (or its braced ``${`` form) means
+        # the lowering kept the variable substitution as the literal
+        # token.  ``[cmd]`` would also be dynamic but is currently rare
+        # at this position; route only the var-substitution case here.
+        return cmd.startswith("$")
 
     def _tag_last_invoke_source(
         self: _Emitter,

@@ -99,8 +99,27 @@ def codegen_lappend(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     return True
 
 
+def codegen_set(emitter: _Emitter, args: tuple[str, ...]) -> bool:
+    """Compile the read form ``set var`` (no value) to a variable load."""
+    if len(args) != 1:
+        return False
+    var_name = args[0]
+    # Skip cases where the var name itself is dynamic — those go
+    # through the generic invoke path so the runtime resolves the
+    # name at call time.
+    if var_name.startswith("$") or var_name.startswith("["):
+        return False
+    if emitter._is_proc and not emitter._is_qualified(var_name):
+        emitter._load_var(var_name)
+    else:
+        emitter._push_lit(var_name)
+        emitter._emit(Op.LOAD_STK)
+    return True
+
+
 def register() -> None:
     from core.commands.registry import REGISTRY
 
     REGISTRY.register_codegen("append", codegen_append)
     REGISTRY.register_codegen("lappend", codegen_lappend)
+    REGISTRY.register_codegen("set", codegen_set)

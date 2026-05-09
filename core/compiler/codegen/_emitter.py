@@ -859,8 +859,14 @@ class _Emitter(
             if self._proc_exit_label is not None:
                 self._place_label(self._proc_exit_label)
             self._emit(Op.DONE)
-        # ensure script ends with done
-        elif not self._instrs or self._instrs[-1].op not in (Op.DONE, Op.RETURN_IMM):
+        # ensure script ends with done.  tclsh always emits a final
+        # ``done`` even after a tail ``returnImm`` at top level (the
+        # ``return`` sets up the caller's TCL_OK / value but doesn't
+        # itself terminate bytecode execution).  Inside a proc body,
+        # the tail ``returnImm`` is folded back to ``done`` by
+        # ``_fold_tail_return_to_done`` so this branch only adds the
+        # trailing ``done`` when the last instruction isn't already one.
+        elif not self._instrs or self._instrs[-1].op != Op.DONE:
             self._emit(Op.DONE)
         # Peephole: remove pop immediately before the final done.
         # tclsh leaves the last command's result on TOS for done to return.

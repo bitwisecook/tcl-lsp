@@ -685,6 +685,29 @@ class _CmdSubstMixin:
             for k in keys:
                 self._emit_cmd_subst_arg(k)
             self._emit(Op.DICT_GET, len(keys))
+        elif cmd == "dict" and args and args[0][0] in {
+            "append",
+            "incr",
+            "keys",
+            "values",
+            "size",
+            "merge",
+            "unset",
+            "update",
+            "with",
+        }:
+            # ``[dict <sub> ...]`` for the subcommands tclsh resolves to a
+            # ``::tcl::dict::<sub>`` FQ-name push followed by ``invokeStk1``.
+            # Match that shape so the inline cmd-subst doesn't fall back to
+            # the un-resolved ``push "dict"; push "<sub>"; invokeStk1`` form.
+            sub = args[0][0]
+            sub_args = args[1:]
+            self._used_inline_cmd_subst = True
+            self._push_lit(f"::tcl::dict::{sub}")
+            for a in sub_args:
+                self._emit_cmd_subst_arg(a)
+            self._emit(Op.INVOKE_STK1, 1 + len(sub_args))
+            self._seen_generic_invoke = True
         elif cmd == "catch" and self._is_proc and 1 <= len(args) <= 3:
             result_var = args[1][0] if len(args) > 1 else None
             if result_var and result_var.startswith("::"):

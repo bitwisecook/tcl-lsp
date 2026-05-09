@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 def codegen_dict(emitter: _Emitter, args: tuple[str, ...]) -> bool:  # noqa: C901
     """Compile ``dict`` subcommands to specialised opcodes."""
-    if len(args) < 2:
+    if not args:
         return False
     sub = args[0]
     rest = args[1:]
