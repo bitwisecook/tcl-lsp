@@ -737,8 +737,101 @@ impl CodegenCtx<'_> {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
-    // Long match dispatcher over command-substitution forms.
+    /// Emit the `string equal {-nocase}? a b` / `string compare
+    /// {-nocase|-length}? ...` forms via `INVOKE_REPLACE` against
+    /// the FQN sub-emitter.  `flag_args` is the per-form prefix
+    /// pushed before the operand args.  `total_argc` is the total
+    /// argument count including the operand args; helper computes
+    /// `INVOKE_REPLACE 0 1` operands as `(total_argc, 2)`.
+    fn emit_inline_string_invoke_replace(
+        &mut self,
+        prev_inline: bool,
+        target_subcmd: &str,
+        flag_args: &[&str],
+        operand_args: &[(String, bool)],
+    ) {
+        self.used_inline_cmd_subst = prev_inline;
+        let sc_end = self.fresh_label("subcmd_end");
+        self.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
+            "",
+        );
+        self.push_lit("string");
+        self.push_lit(target_subcmd);
+        for f in flag_args {
+            self.push_lit(f);
+        }
+        for (a, b) in operand_args {
+            self.emit_cmd_subst_arg(a, *b);
+        }
+        self.push_lit(&format!("::tcl::string::{target_subcmd}"));
+        let argc = bytecode_imm(2 + flag_args.len() + operand_args.len());
+        self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(argc), Operand::Imm(2)]);
+        self.place_label(&sc_end);
+        self.seen_generic_invoke = true;
+    }
+
+    /// Emit a 2-arg `string equal a b` / `string compare a b` —
+    /// shares the `is_proc ? no-START_CMD : with-START_CMD-wrap`
+    /// scaffold.  `op` is the resulting bytecode opcode.
+    fn emit_inline_string_2arg_op(
+        &mut self,
+        prev_inline: bool,
+        sargs: &[(String, bool)],
+        op: Op,
+    ) {
+        let sc_end = if self.is_proc {
+            None
+        } else {
+            self.used_inline_cmd_subst = prev_inline;
+            let label = self.fresh_label("subcmd_end");
+            self.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(label.clone()), Operand::Imm(1)],
+                "",
+            );
+            Some(label)
+        };
+        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
+        self.emit(op, vec![]);
+        if let Some(label) = sc_end {
+            self.place_label(&label);
+        }
+    }
+
+    /// Fall-through path: invoke `::tcl::string::<subcmd>` via
+    /// `INVOKE_STK1`/`STK4`.
+    fn emit_inline_string_fqn_invoke(
+        &mut self,
+        prev_inline: bool,
+        subcmd: &str,
+        sargs: &[(String, bool)],
+    ) {
+        self.used_inline_cmd_subst = prev_inline;
+        let sc_end = self.fresh_label("subcmd_end");
+        self.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
+            "",
+        );
+        let fqn = format!("::tcl::string::{subcmd}");
+        self.push_lit(&fqn);
+        for (a, b) in sargs {
+            self.emit_cmd_subst_arg(a, *b);
+        }
+        let argc = bytecode_imm(1 + sargs.len());
+        let invoke_op = if argc < 256 {
+            Op::INVOKE_STK1
+        } else {
+            Op::INVOKE_STK4
+        };
+        self.emit(invoke_op, vec![Operand::Imm(argc)]);
+        self.place_label(&sc_end);
+        self.seen_generic_invoke = true;
+    }
+
     fn emit_inline_string(&mut self, args: &[(String, bool)]) {
         let subcmd = &args[0].0;
         let sargs = &args[1..];
@@ -764,99 +857,19 @@ impl CodegenCtx<'_> {
                 }
             }
             "equal" if sargs.len() == 2 => {
-                let sc_end = if self.is_proc {
-                    None
-                } else {
-                    self.used_inline_cmd_subst = prev_inline;
-                    let label = self.fresh_label("subcmd_end");
-                    self.emit_comment(
-                        Op::START_CMD,
-                        vec![Operand::Label(label.clone()), Operand::Imm(1)],
-                        "",
-                    );
-                    Some(label)
-                };
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit(Op::STR_EQ, vec![]);
-                if let Some(label) = sc_end {
-                    self.place_label(&label);
-                }
+                self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_EQ);
             }
             "equal" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.push_lit("string");
-                self.push_lit("equal");
-                self.push_lit("-nocase");
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-                self.push_lit("::tcl::string::equal");
-                self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(5), Operand::Imm(2)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_invoke_replace(prev_inline, "equal", &["-nocase"], &sargs[1..]);
             }
             "compare" if sargs.len() == 2 => {
-                let sc_end = if self.is_proc {
-                    None
-                } else {
-                    self.used_inline_cmd_subst = prev_inline;
-                    let label = self.fresh_label("subcmd_end");
-                    self.emit_comment(
-                        Op::START_CMD,
-                        vec![Operand::Label(label.clone()), Operand::Imm(1)],
-                        "",
-                    );
-                    Some(label)
-                };
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit(Op::STR_CMP, vec![]);
-                if let Some(label) = sc_end {
-                    self.place_label(&label);
-                }
+                self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_CMP);
             }
             "compare" if sargs.len() == 3 && sargs[0].0 == "-nocase" => {
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.push_lit("string");
-                self.push_lit("compare");
-                self.push_lit("-nocase");
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-                self.push_lit("::tcl::string::compare");
-                self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(5), Operand::Imm(2)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_invoke_replace(prev_inline, "compare", &["-nocase"], &sargs[1..]);
             }
             "compare" if sargs.len() == 4 && sargs[0].0 == "-length" => {
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                self.push_lit("string");
-                self.push_lit("compare");
-                self.push_lit("-length");
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-                self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
-                self.push_lit("::tcl::string::compare");
-                self.emit(Op::INVOKE_REPLACE, vec![Operand::Imm(6), Operand::Imm(2)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_invoke_replace(prev_inline, "compare", &["-length"], &sargs[1..]);
             }
             "replace" if sargs.len() == 4 => {
                 self.emit_inline_string_replace(sargs);
@@ -869,28 +882,7 @@ impl CodegenCtx<'_> {
                 self.emit_inline_string_is(sargs);
             }
             _ => {
-                // Unhandled string subcommand: use FQN invoke
-                self.used_inline_cmd_subst = prev_inline;
-                let sc_end = self.fresh_label("subcmd_end");
-                self.emit_comment(
-                    Op::START_CMD,
-                    vec![Operand::Label(sc_end.clone()), Operand::Imm(1)],
-                    "",
-                );
-                let fqn = format!("::tcl::string::{subcmd}");
-                self.push_lit(&fqn);
-                for (a, b) in sargs {
-                    self.emit_cmd_subst_arg(a, *b);
-                }
-                let argc = bytecode_imm(1 + sargs.len());
-                let invoke_op = if argc < 256 {
-                    Op::INVOKE_STK1
-                } else {
-                    Op::INVOKE_STK4
-                };
-                self.emit(invoke_op, vec![Operand::Imm(argc)]);
-                self.place_label(&sc_end);
-                self.seen_generic_invoke = true;
+                self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
             }
         }
     }
