@@ -9,7 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.bigip.parser import parse_bigip_conf
 from core.bigip.wireshark_profile import (
+    _BIGIP_CONTROL_SERVICES,
+    ColorRule,
     WiresharkProfile,
+    _build_proxy_side_color_rules,
+    _build_proxy_side_dfilters,
+    _extract_arp_entries,
     _extract_vlans,
     build_wireshark_profile,
 )
@@ -39,6 +44,12 @@ ltm pool /Common/web_pool {
     }
 }
 
+ltm snatpool /Common/snat_a {
+    members {
+        10.0.2.5
+    }
+}
+
 ltm virtual /Common/vs1 {
     destination /Common/10.0.0.1:443
     pool /Common/web_pool
@@ -61,6 +72,11 @@ net vlan /Common/external {
 
 net vlan /Common/internal {
     tag 200
+}
+
+net arp /Common/static_peer {
+    ip-address 10.0.5.42%0
+    mac-address 00:11:22:33:44:55
 }
 """
 
@@ -131,6 +147,116 @@ def test_wireshark_profile_deduplicates_across_inputs():
 def test_wireshark_profile_empty_when_no_inputs():
     profile = build_wireshark_profile([])
     assert profile == WiresharkProfile()
+
+
+# services / ethers / colorfilters / preferences
+
+
+def test_services_includes_bigip_control_plane_ports():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    assert profile.services == list(_BIGIP_CONTROL_SERVICES)
+    # And the well-known F5 iQuery / cmi mappings end up in there.
+    names = {name for name, _port, _proto in profile.services}
+    assert "f5-iquery" in names
+    assert "f5-icontrol-rest" in names
+
+
+def test_extract_arp_entries_normalises_mac_and_strips_route_domain():
+    entries = _extract_arp_entries(SAMPLE_CONFIG)
+    assert ("00:11:22:33:44:55", "10.0.5.42", "/Common/static_peer") in entries
+
+
+def test_ethers_emitted_with_arp_label_prefix():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    assert ("00:11:22:33:44:55", "arp-common-static-peer") in profile.ethers
+
+
+def test_colorfilters_emit_proxy_side_groups_in_priority_order():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+
+    names = [rule.name for rule in profile.colorfilters]
+    # SNAT must appear before the broader server/client-side rules so
+    # Wireshark's first-match-wins selects the most specific role.
+    assert names.index("BIG-IP SNAT") < names.index("BIG-IP server side")
+    assert names.index("BIG-IP self IP") < names.index("BIG-IP client side")
+    # Filter expressions reference the right addresses.
+    by_name = {rule.name: rule for rule in profile.colorfilters}
+    assert "10.0.0.1" in by_name["BIG-IP client side"].filter
+    assert "10.0.1.10" in by_name["BIG-IP server side"].filter
+    assert "10.0.2.5" in by_name["BIG-IP SNAT"].filter
+    assert "10.0.5.1" in by_name["BIG-IP self IP"].filter
+
+
+def test_color_rules_use_set_filter_for_compactness():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    client = next(r for r in profile.colorfilters if r.name == "BIG-IP client side")
+    assert "ip.addr in {" in client.filter
+
+
+def test_dfilters_include_proxy_side_buttons():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    labels = {label for label, _expr in profile.dfilters}
+    assert "BIG-IP client side" in labels
+    assert "BIG-IP server side" in labels
+
+
+def test_preferences_emit_proxy_side_column():
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    joined = "\n".join(profile.preferences)
+    assert "Proxy Side" in joined
+    assert "frame.coloring_rule.name" in joined
+
+
+def test_color_rule_dataclass_renders_disabled_with_bang_prefix(tmp_path):
+    profile = WiresharkProfile(
+        colorfilters=[
+            ColorRule(name="off", filter="tcp", bg=(0, 0, 0), disabled=True),
+            ColorRule(name="on", filter="tcp", bg=(0, 0, 0)),
+        ]
+    )
+    out = tmp_path / "p"
+    profile.write_to(out)
+    text = (out / "colorfilters").read_text()
+    # disabled rules render with a leading '!'
+    assert "\n!@off@tcp@" in text
+    assert "\n@on@tcp@" in text
+
+
+def test_write_to_lists_every_generated_file(tmp_path):
+    cfg = parse_bigip_conf(SAMPLE_CONFIG)
+    profile = build_wireshark_profile([(cfg, SAMPLE_CONFIG)])
+    out_dir = tmp_path / "profile"
+    result = profile.write_to(out_dir)
+    for name in (
+        "hosts",
+        "subnets",
+        "vlans",
+        "dfilters",
+        "services",
+        "ethers",
+        "colorfilters",
+        "preferences",
+        "README.md",
+    ):
+        assert name in result.files_written
+        assert (out_dir / name).is_file()
+
+
+def test_proxy_side_color_rules_handle_empty_index():
+    """No labels -> no rules; we shouldn't crash building empty filters."""
+    rules = _build_proxy_side_color_rules.__wrapped__ if hasattr(
+        _build_proxy_side_color_rules, "__wrapped__"
+    ) else _build_proxy_side_color_rules
+    from core.bigip.pcap_enrich import NameIndex
+
+    assert rules(NameIndex()) == []
+    assert _build_proxy_side_dfilters(NameIndex()) == []
 
 
 # CLI smoke tests

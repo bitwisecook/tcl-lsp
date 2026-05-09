@@ -104,7 +104,10 @@ def _run_enrich_wireshark(args: argparse.Namespace) -> int:
         f"enrich-wireshark: {result.hosts_lines} host(s), "
         f"{result.subnets_lines} subnet(s), "
         f"{result.vlans_lines} vlan(s), "
-        f"{result.dfilters_lines} display-filter(s) written to "
+        f"{result.dfilters_lines} display-filter(s), "
+        f"{result.services_lines} service(s), "
+        f"{result.ethers_lines} ether(s), "
+        f"{result.colorfilter_rules} colour rule(s) written to "
         f"{out_dir}",
         file=sys.stderr,
     )
