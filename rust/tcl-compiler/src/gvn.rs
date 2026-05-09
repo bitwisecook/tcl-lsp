@@ -1302,45 +1302,28 @@ fn transfer_occurrence_keys(
 ///
 /// Matches the Python `gvn.py::_find_partial_redundancies`
 /// pipeline on a per-function basis.
-// Long match dispatcher over IR opcodes.
-#[must_use]
-#[allow(clippy::too_many_lines)]
-pub fn find_partial_redundancies(
-    registry: &CommandRegistry,
+/// Maps tracked by the partial-redundancy dataflow fixpoint.
+type ExprKeySetMap =
+    std::collections::HashMap<String, std::collections::HashSet<ExprKey>>;
+
+/// Run the partial-redundancy may/must-availability dataflow
+/// fixpoint.  Returns `(may_in, may_out, must_in, must_out)` after
+/// convergence.  Extracted from [`find_partial_redundancies`] to
+/// keep the dispatcher under threshold.
+fn run_partial_redundancy_fixpoint(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    dialect: Option<&str>,
-) -> Vec<RedundantComputation> {
-    let executable = reachable_from(cfg, &ssa.entry);
-    if !executable.contains(&ssa.entry) {
-        return Vec::new();
-    }
-    let (events_by_block, all_occurrences) =
-        collect_function_occurrence_events(registry, cfg, ssa, dialect);
-    if all_occurrences.is_empty() {
-        return Vec::new();
-    }
-    let universe: std::collections::HashSet<ExprKey> =
-        all_occurrences.iter().map(|o| o.key.clone()).collect();
+    executable: &std::collections::HashSet<String>,
+    events_by_block: &std::collections::HashMap<String, Vec<OccurrenceEvent>>,
+    universe: &std::collections::HashSet<ExprKey>,
+    order: &[String],
+) -> (ExprKeySetMap, ExprKeySetMap, ExprKeySetMap, ExprKeySetMap) {
     let preds = cfg.predecessors();
-
-    let mut order: Vec<String> = cfg.reverse_postorder();
-    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
-    for name in &executable {
-        if !seen.contains(name) {
-            order.push(name.clone());
-        }
-    }
-
-    let mut may_in: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    let mut may_out: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    let mut must_in: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    let mut must_out: std::collections::HashMap<String, std::collections::HashSet<ExprKey>> =
-        std::collections::HashMap::new();
-    for bn in &executable {
+    let mut may_in: ExprKeySetMap = std::collections::HashMap::new();
+    let mut may_out: ExprKeySetMap = std::collections::HashMap::new();
+    let mut must_in: ExprKeySetMap = std::collections::HashMap::new();
+    let mut must_out: ExprKeySetMap = std::collections::HashMap::new();
+    for bn in executable {
         may_in.insert(bn.clone(), std::collections::HashSet::new());
         may_out.insert(bn.clone(), std::collections::HashSet::new());
         must_in.insert(
@@ -1353,7 +1336,7 @@ pub fn find_partial_redundancies(
         );
     }
     // Seed must_out from initial must_in + events.
-    for bn in &executable {
+    for bn in executable {
         let initial_must_in = must_in[bn].clone();
         let out = transfer_occurrence_keys(
             events_by_block.get(bn).map_or(&[][..], Vec::as_slice),
@@ -1365,7 +1348,7 @@ pub fn find_partial_redundancies(
     let mut changed = true;
     while changed {
         changed = false;
-        for bn in &order {
+        for bn in order {
             if !executable.contains(bn) {
                 continue;
             }
@@ -1420,6 +1403,50 @@ pub fn find_partial_redundancies(
             }
         }
     }
+    (may_in, may_out, must_in, must_out)
+}
+
+/// Find partial redundancies — expressions that occur multiple
+/// times where one occurrence dominates another along some path
+/// but not on every path.  Uses the may/must-availability
+/// bidirectional dataflow from
+/// [`run_partial_redundancy_fixpoint`].  Mirrors Python's
+/// `gvn.find_partial_redundancies` (see `core/compiler/gvn.py`).
+#[must_use]
+pub fn find_partial_redundancies(
+    registry: &CommandRegistry,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    dialect: Option<&str>,
+) -> Vec<RedundantComputation> {
+    let executable = reachable_from(cfg, &ssa.entry);
+    if !executable.contains(&ssa.entry) {
+        return Vec::new();
+    }
+    let (events_by_block, all_occurrences) =
+        collect_function_occurrence_events(registry, cfg, ssa, dialect);
+    if all_occurrences.is_empty() {
+        return Vec::new();
+    }
+    let universe: std::collections::HashSet<ExprKey> =
+        all_occurrences.iter().map(|o| o.key.clone()).collect();
+
+    let mut order: Vec<String> = cfg.reverse_postorder();
+    let seen: std::collections::HashSet<String> = order.iter().cloned().collect();
+    for name in &executable {
+        if !seen.contains(name) {
+            order.push(name.clone());
+        }
+    }
+
+    let (may_in, _may_out, must_in, _must_out) = run_partial_redundancy_fixpoint(
+        cfg,
+        ssa,
+        &executable,
+        &events_by_block,
+        &universe,
+        &order,
+    );
 
     // Build first-occurrence map by source offset.
     let mut sorted = all_occurrences.clone();
