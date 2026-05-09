@@ -276,7 +276,15 @@ class _EscapeState:
         reason-tracking API still work) but strongly preferred — it
         lets the LSP / compiler explorer answer "why is this var
         FRAME?" precisely.
+
+        Dynamic name tokens (``::${tracevar}`` / ``$x`` / ``[cmd]``)
+        are dropped on the floor: they don't represent a single
+        compile-time variable identity, so tagging the literal token
+        as FRAME would mislead the codegen contract check.  This
+        mirrors the same guard in :meth:`_CfgState.escape`.
         """
+        if not name or _is_dynamic_token(name):
+            return
         self.tags[name] = EscapeTag.FRAME
         self.known_names.add(name)
         if reason is not None:
@@ -287,10 +295,17 @@ class _EscapeState:
 
         Each spilled name gets the same *reason* — typically
         ``ESCAPE_ALL_KNOWN`` for the dynamic-name fallback.
+
+        Dynamic name tokens that crept into ``known_names`` (via the
+        ``stmt.defs`` capture in :func:`_collect_known_names`) are
+        skipped — see :meth:`escape` for the rationale.  Mirrors the
+        same guard in :meth:`_CfgState.escape_all_known`.
         """
         if reason is None:
             reason = EscapeReason(kind=EscapeReasonKind.ESCAPE_ALL_KNOWN)
         for n in self.known_names:
+            if not n or _is_dynamic_token(n):
+                continue
             self.tags[n] = EscapeTag.FRAME
             self.tag_reasons.setdefault(n, []).append(reason)
 

@@ -1406,6 +1406,38 @@ def _scan_needed_imports(
     # a ``local.get`` returns 0.
     needed.add("tcl_global_get_or_error")
     needed.add("tcl_var_unset_error")
+    # Dynamic-name var path — ``set $x v`` / ``append ::$n v`` etc.
+    # The codegen routes any name token containing a ``$`` / ``[``
+    # substitution through ``tcl_var_resolve`` / ``tcl_var_set`` so
+    # the runtime can dispatch to the right storage (``::``-qualified
+    # globals, array elements, alias chasing, proc-local fallback)
+    # after substituting the name.  ``tcl_append`` is the concat
+    # primitive ``_emit_value`` uses to assemble the substituted
+    # name from its literal + ``${var}`` parts — without it the
+    # interpolation fallback emits a literal-string TclObj
+    # (``::${tracevar}``) and the var write goes to the wrong key.
+    # Without these imports the dynamic branch in
+    # ``_emit_var_read_obj`` / ``_emit_var_write_obj_impl`` silently
+    # degrades to a literal lookup.
+    needed.add("tcl_var_resolve")
+    needed.add("tcl_var_set")
+    needed.add("tcl_append")
+    # Proc-local array directory key resolution.  The eval-side
+    # ``array`` command (``runtime/zig/cmds/array.zig``) routes every
+    # array-name argument through ``frame_resolve_array_name`` so an
+    # unaliased proc-local lands in the synthetic
+    # ``::__local::<depth>::<name>`` directory entry.  The compiled
+    # ``_emit_array_name_obj`` path mirrors this so a write that
+    # falls through to the eval fallback (``array set arr $args``,
+    # parsed lazily) and a subsequent compiled read (``array names
+    # arr``) reach the *same* directory entry.  Without this, an
+    # ``array set arr $listVar`` (eval-fallback path) deposited keys
+    # under ``::__local::1::arr`` while ``array names arr``
+    # (compiled) read from ``::ns::arr``, returning empty — observed
+    # as ``tcltest::test`` losing every ``-body`` / ``-result`` /
+    # ``-match`` value passed via ``$args`` and the trace stem
+    # trapping inside the arg-parser loop.
+    needed.add("frame_resolve_array_name")
     # Register each compiled proc by name so the interpreter's
     # host-bridge dispatch can find it when an interpreted caller
     # (a Tcl-source proc body walked by eval_script) invokes a

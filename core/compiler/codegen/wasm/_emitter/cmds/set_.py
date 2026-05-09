@@ -5,6 +5,7 @@ from __future__ import annotations
 from ......commands.registry import REGISTRY, EmitContext
 from ..._ir import WasmOp
 from ..._parsing import _parse_array_ref
+from .._variables import _is_dynamic_var_name
 
 
 def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext) -> bool:
@@ -50,6 +51,7 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
             or array_ref is not None
             or in_ns_block
             or emitter._is_frame_only_var(var)
+            or _is_dynamic_var_name(var)
         )
         if use_var_path:
             if len(args) >= 2:
@@ -74,7 +76,9 @@ def _emit_set(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: Em
         emitter._emit_var_write_obj(var, source=ownership)
     else:
         emitter._emit_var_read_obj(var)
-        if defs:
+        # Dynamic ``defs[0]`` (``::${n}`` etc.) has no static storage
+        # key — drop the mirror.  See the matching guard in ``_emit_incr``.
+        if defs and not _is_dynamic_var_name(defs[0]):
             def_idx = emitter._intern_local(defs[0])
             emitter._emit_local_set(def_idx)
         else:
@@ -115,6 +119,7 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             or base in emitter._aliases
             or array_ref is not None
             or in_ns_block
+            or _is_dynamic_var_name(var)
         ):
             emitter._emit_var_read_obj(var)
             emitter._emit_unbox_int()
@@ -155,6 +160,11 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
         return True
 
     # STATEMENT context — existing behaviour.
+    # ``defs[0]`` carries the canonicalised IR name; for dynamic names
+    # (``::${n}`` etc.) the captured-mirror local is meaningless — its
+    # storage key isn't known until runtime — so we skip the mirror
+    # capture and rely on the runtime var path alone.
+    use_def_mirror = bool(defs) and not _is_dynamic_var_name(defs[0])
     emitter._emit_var_read_obj(var)
     emitter._emit_unbox_int()
     amt = 1
@@ -166,7 +176,7 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
             emitter._emit_unbox_int()
             emitter._emit(WasmOp.I64_ADD)
             emitter._emit_box_int()
-            if defs:
+            if use_def_mirror:
                 emitter._emit_var_write_obj_keep(var)
                 def_idx = emitter._intern_local(defs[0])
                 emitter._emit_local_set(def_idx)
@@ -176,7 +186,7 @@ def _emit_incr(emitter, args: tuple[str, ...], defs: tuple[str, ...], context: E
     emitter._emit_i64_const(amt)
     emitter._emit(WasmOp.I64_ADD)
     emitter._emit_box_int()
-    if defs:
+    if use_def_mirror:
         emitter._emit_var_write_obj_keep(var)
         def_idx = emitter._intern_local(defs[0])
         emitter._emit_local_set(def_idx)

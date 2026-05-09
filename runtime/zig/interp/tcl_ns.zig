@@ -1218,7 +1218,14 @@ fn unwrap_imports_chain(cmd_in: u32) u32 {
         const desc: u32 = @bitCast(read_i32(cur + c.OFF_PARAMS_OBJ));
         if (desc == 0) return cur;
         const real: u32 = @bitCast(read_i32(desc));
-        if (real == 0) return cur;
+        // ``real == 0`` is the tombstone ``ns_forget`` leaves behind
+        // when an import alias is removed.  Returning ``cur`` here
+        // would leak the dead redirect out to lookups — and to
+        // ``rename ... ::puts`` which checks "does ::puts already
+        // exist?" via this same walker — so the alias acts like it's
+        // still in place.  Return 0 instead so the name reads as
+        // genuinely gone (mirrors the comment in ``ns_forget``).
+        if (real == 0) return 0;
         cur = real;
     }
     return cur;
@@ -1317,8 +1324,20 @@ pub fn ns_forget(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) u32 {
         // for ``real_cmd == 0``, so ``proc_lookup`` will start
         // returning 0 on this name.
         d.real_cmd = 0;
+        // Tombstone the cmd_table bucket too: leaving the dead
+        // redirect's address in ``OFF_HANDLE`` makes
+        // ``ns_cmd_find`` (and through it ``rename``'s "is the
+        // destination occupied?" probe) report the alias as still
+        // present.  Reference Tcl removes the entry outright on
+        // ``namespace forget``; mirror that by writing 0 into the
+        // bucket so downstream code treats the slot as vacant —
+        // which is what the existing ``ns_cmd_find`` callers
+        // already expect for tombstones (see the
+        // ``ns_cmd_clear`` doc-comment).
+        write_i32(bucket + OFF_HANDLE, 0);
         forgotten += 1;
     }
+    if (forgotten > 0) bump_cmd_ref_epoch(ns_addr);
     return forgotten;
 }
 

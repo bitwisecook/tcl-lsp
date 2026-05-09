@@ -126,12 +126,21 @@ pub const OBJ_SIZE: u32 = 32;
 //
 // Why the range is positive-only (PR #237 review): the frame
 // layer's local-variable bucket value field shares the same i32
-// space, and uses negative sentinels to mark variable aliases:
+// space, and uses sentinel bit patterns to mark variable aliases.
+// The current encoding (see ``tcl_frames.zig`` for the canonical
+// definition) is:
 //
 //   * ``ALIAS_GLOBAL`` = ``-1``  (bucket value -1 means "alias to
 //     a same-named global").
-//   * ``ALIAS_EXT``    = ``v <= -2`` (bucket value is the negated
-//     descriptor heap address).
+//   * ``ALIAS_EXT``    = bucket value where BOTH bit 31 (sign) AND
+//     bit 0 are set, and the value is not -1.  Encoded as
+//     ``(desc >> 1) | 0x80000001``; decoded as
+//     ``((value & 0x7FFFFFFE) << 1)``.  The right-shift-by-1 + OR
+//     leaves bit 0 free as the alias-ext marker and sets bit 31
+//     to keep the value distinct from any tagged-immediate
+//     encoding (which is always non-negative).  The descriptor
+//     address — 8-byte aligned — survives the round-trip since
+//     bit 0 of the input is always clear.
 //
 // A tagged immediate of ``-1`` encodes as ``(0xFFFFFFFE | 1) =
 // 0xFFFFFFFF = -1`` — the same bit pattern as ``ALIAS_GLOBAL``.
