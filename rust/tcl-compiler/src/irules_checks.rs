@@ -278,6 +278,439 @@ fn scan_when_body_for_drops(fu: &crate::compilation_unit::FunctionUnit) -> Vec<I
 }
 
 // ---------------------------------------------------------------------------
+// IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008 — collect/release/payload
+// ---------------------------------------------------------------------------
+//
+// Mirrors `irules_flow.py::_find_collect_flow_warnings` (lines 680-806).
+// Cross-event analysis: classifies every `*::collect` / `*::release` /
+// `*::payload` call across every `::when::*` proc body, then emits:
+//
+//   * IRULE1005 — `*_DATA` event handler exists but no matching
+//     `*::collect` for the corresponding protocol.
+//   * IRULE1006 — `*::payload` access without matching `*::collect`.
+//   * IRULE1007 — `*::collect` without matching `*::release` on the
+//     same connection side.
+//   * IRULE1008 — `*::release` without matching `*::collect` on the
+//     same connection side.
+//
+// Side awareness mirrors Python's `_default_collect_side`: events
+// starting with SERVER prefer the server side; CLIENT prefer client;
+// `_RESPONSE` events default to server, `_REQUEST` to client; the
+// registry's `EventProps.client_side` / `server_side` flags override
+// when set exclusively.
+
+const DATA_EVENT_REQUIREMENTS: &[(&str, &[&str], &str)] = &[
+    ("CLIENT_DATA", &["TCP", "UDP"], "client"),
+    ("SERVER_DATA", &["TCP", "UDP"], "server"),
+    ("HTTP_REQUEST_DATA", &["HTTP"], "client"),
+    ("HTTP_RESPONSE_DATA", &["HTTP"], "server"),
+    ("CLIENTSSL_DATA", &["SSL"], "client"),
+    ("SERVERSSL_DATA", &["SSL"], "server"),
+];
+
+fn default_collect_side(event_name: &str) -> &'static str {
+    let upper = event_name.to_ascii_uppercase();
+    // Strip any priority index suffix (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
+    let base = upper.split('#').next().unwrap_or(upper.as_str());
+    if base.starts_with("SERVER") {
+        return "server";
+    }
+    if base.starts_with("CLIENT") {
+        return "client";
+    }
+    if base.contains("_RESPONSE") {
+        return "server";
+    }
+    if base.contains("_REQUEST") {
+        return "client";
+    }
+    "client"
+}
+
+#[derive(Default)]
+struct CollectFlowState {
+    /// `protocol -> {side, ...}` for each protocol with a collect call.
+    collected: std::collections::HashMap<String, std::collections::HashSet<String>>,
+    /// Same shape for release calls.
+    released: std::collections::HashMap<String, std::collections::HashSet<String>>,
+    /// `(protocol, side, span)` for every collect call.
+    collect_calls: Vec<(String, String, Span)>,
+    release_calls: Vec<(String, String, Span)>,
+    payload_calls: Vec<(String, String, Span)>,
+}
+
+fn classify_collect_command(cmd: &str, side: &str, span: Span, state: &mut CollectFlowState) {
+    if let Some(proto) = cmd.strip_suffix("::collect") {
+        let p = proto.to_ascii_uppercase();
+        state
+            .collected
+            .entry(p.clone())
+            .or_default()
+            .insert(side.to_string());
+        state.collect_calls.push((p, side.to_string(), span));
+    } else if let Some(proto) = cmd.strip_suffix("::release") {
+        let p = proto.to_ascii_uppercase();
+        state
+            .released
+            .entry(p.clone())
+            .or_default()
+            .insert(side.to_string());
+        state.release_calls.push((p, side.to_string(), span));
+    } else if let Some(proto) = cmd.strip_suffix("::payload") {
+        let p = proto.to_ascii_uppercase();
+        state.payload_calls.push((p, side.to_string(), span));
+    }
+}
+
+fn scan_when_body_for_collect_flow(
+    fu: &crate::compilation_unit::FunctionUnit,
+    side: &str,
+    state: &mut CollectFlowState,
+) {
+    for bn in cfg_order(&fu.cfg) {
+        if !fu.sccp.executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            match stmt {
+                Statement::Call { command, span, .. }
+                | Statement::Barrier { command, span, .. } => {
+                    classify_collect_command(command, side, *span, state);
+                }
+                Statement::AssignValue { value, span, .. } => {
+                    let Some((cmd, _)) = parse_command_substitution(value.trim()) else {
+                        continue;
+                    };
+                    classify_collect_command(&cmd, side, *span, state);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// Collect/release/payload pairing across all `when` events.  Mirrors
+/// `irules_flow.py::_find_collect_flow_warnings`.
+#[must_use]
+pub fn find_collect_flow_warnings(
+    cu: &CompilationUnit,
+    dialect: Option<&str>,
+) -> Vec<IrulesCheckWarning> {
+    let mut out = Vec::new();
+    if !is_irules_dialect(dialect) {
+        return out;
+    }
+    // Pass 1: classify across all when bodies.
+    let mut state = CollectFlowState::default();
+    let mut events_seen: Vec<String> = Vec::new();
+    for fu in cu.functions() {
+        if let Some(event) = fu.name.strip_prefix("::when::") {
+            let bare = event.split('#').next().unwrap_or(event).to_string();
+            events_seen.push(bare.clone());
+            let side = default_collect_side(event);
+            scan_when_body_for_collect_flow(fu, side, &mut state);
+        }
+    }
+
+    // Pass 2: emit per-event IRULE1005 (using the first when proc as
+    // anchor span; finer span resolution requires the `when` event-token
+    // span which the analyser layer carries).
+    for (event, protocols, required_side) in DATA_EVENT_REQUIREMENTS {
+        if !events_seen.iter().any(|e| e == event) {
+            continue;
+        }
+        let satisfied = protocols.iter().any(|p| {
+            state
+                .collected
+                .get(&p.to_ascii_uppercase())
+                .is_some_and(|s| s.contains(*required_side))
+        });
+        if satisfied {
+            continue;
+        }
+        // Anchor on the first statement of the event's CFG.
+        let qname = format!("::when::{event}");
+        let anchor_span = cu
+            .functions()
+            .find(|fu| fu.name == qname || fu.name.starts_with(&format!("{qname}#")))
+            .and_then(|fu| fu.cfg.blocks.get(&fu.cfg.entry))
+            .and_then(|b| b.statements.first().map(crate::ir::Statement::span))
+            .unwrap_or(Span::new(0, 0));
+        let proto_hint: Vec<String> = protocols
+            .iter()
+            .map(|p| format!("{p}::collect"))
+            .collect();
+        out.push(IrulesCheckWarning {
+            span: anchor_span,
+            code: "IRULE1005".to_owned(),
+            message: format!(
+                "'{event}' will never fire without a {required_side} {} call in another event.",
+                proto_hint.join(" or "),
+            ),
+            replacement: None,
+        });
+    }
+
+    // IRULE1006: payload without matching collect on same side.
+    for (proto, side, span) in &state.payload_calls {
+        let matched = state
+            .collected
+            .get(proto)
+            .is_some_and(|s| s.contains(side));
+        if !matched {
+            out.push(IrulesCheckWarning {
+                span: *span,
+                code: "IRULE1006".to_owned(),
+                message: format!(
+                    "'{proto}::payload' without a {side} {proto}::collect call. The payload buffer will be empty.",
+                ),
+                replacement: None,
+            });
+        }
+    }
+
+    // IRULE1007: collect without matching release on same side.
+    for (proto, side, span) in &state.collect_calls {
+        let matched = state
+            .released
+            .get(proto)
+            .is_some_and(|s| s.contains(side));
+        if !matched {
+            out.push(IrulesCheckWarning {
+                span: *span,
+                code: "IRULE1007".to_owned(),
+                message: format!(
+                    "{proto}::collect without matching {proto}::release on the {side} side; collected data is never released",
+                ),
+                replacement: None,
+            });
+        }
+    }
+
+    // IRULE1008: release without matching collect on same side.
+    for (proto, side, span) in &state.release_calls {
+        let matched = state
+            .collected
+            .get(proto)
+            .is_some_and(|s| s.contains(side));
+        if !matched {
+            out.push(IrulesCheckWarning {
+                span: *span,
+                code: "IRULE1008".to_owned(),
+                message: format!(
+                    "{proto}::release without matching {proto}::collect on the {side} side; no data was collected",
+                ),
+                replacement: None,
+            });
+        }
+    }
+
+    out
+}
+
+// ---------------------------------------------------------------------------
+// IRULE1201 / IRULE1202 — HTTP-after-respond / multi-respond
+// ---------------------------------------------------------------------------
+//
+// Mirrors `irules_flow.py::_analyse_when_body` (lines 296-450).
+// Linear CFG scan within each `::when::HTTP*` proc body:
+//
+//   * IRULE1202 — second `HTTP::respond` / `HTTP::redirect` on the
+//     same path; only the first response takes effect.
+//   * IRULE1201 — any `HTTP::*` command issued after a response is
+//     committed; HTTP context is invalid post-respond.
+//
+// Path-sensitivity (separate state per branch of `if` / `switch` /
+// `try`) is the C44 follow-up.  This linear shape catches the
+// straight-line cases (`HTTP::respond ...; HTTP::header ...`).
+//
+// Response-committing commands: hardcoded to `HTTP::respond` /
+// `HTTP::redirect` (the canonical pair).  When the registry grows
+// a `SideEffectTarget::ResponseCommit` category the lookup
+// switches to the registry-driven query.
+
+fn commits_http_response(cmd: &str) -> bool {
+    matches!(cmd, "HTTP::respond" | "HTTP::redirect")
+}
+
+fn is_http_namespace(cmd: &str) -> bool {
+    cmd.starts_with("HTTP::")
+}
+
+/// Per-event HTTP-flow warnings.  Emits IRULE1201 + IRULE1202 for
+/// each `::when::HTTP*` proc body.
+#[must_use]
+pub fn find_http_flow_warnings(
+    cu: &CompilationUnit,
+    dialect: Option<&str>,
+) -> Vec<IrulesCheckWarning> {
+    let mut out = Vec::new();
+    if !is_irules_dialect(dialect) {
+        return out;
+    }
+    for fu in cu.functions() {
+        let Some(event) = fu.name.strip_prefix("::when::") else {
+            continue;
+        };
+        // Strip priority index (`HTTP_REQUEST#1` → `HTTP_REQUEST`).
+        let bare_event = event.split('#').next().unwrap_or(event);
+        if !bare_event.starts_with("HTTP") {
+            continue;
+        }
+        out.extend(scan_when_body_for_http_flow(fu, bare_event));
+    }
+    out
+}
+
+fn scan_when_body_for_http_flow(
+    fu: &crate::compilation_unit::FunctionUnit,
+    event: &str,
+) -> Vec<IrulesCheckWarning> {
+    let mut out = Vec::new();
+    let mut responded = false;
+    let mut respond_command: Option<String> = None;
+
+    for bn in cfg_order(&fu.cfg) {
+        if !fu.sccp.executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let (cmd, span) = match stmt {
+                Statement::Call { command, span, .. }
+                | Statement::Barrier { command, span, .. } => (command.as_str(), *span),
+                _ => continue,
+            };
+            if commits_http_response(cmd) {
+                if responded {
+                    out.push(IrulesCheckWarning {
+                        span,
+                        code: "IRULE1202".to_owned(),
+                        message: format!(
+                            "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
+                        ),
+                        replacement: None,
+                    });
+                } else {
+                    responded = true;
+                    respond_command = Some(cmd.to_string());
+                }
+                continue;
+            }
+            if responded && is_http_namespace(cmd) {
+                let _ = respond_command.as_ref();
+                out.push(IrulesCheckWarning {
+                    span,
+                    code: "IRULE1201".to_owned(),
+                    message: format!(
+                        "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
+                    ),
+                    replacement: None,
+                });
+            }
+        }
+        // `return` Terminator clears the response state (the rule
+        // exits before any "after" code runs).
+        if let Some(crate::cfg::Terminator::Return { .. }) = &block.terminator {
+            responded = false;
+            respond_command = None;
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// IRULE4004 — `set var value` in per-request event hoistable to once-per-connection
+// ---------------------------------------------------------------------------
+//
+// Mirrors `irules_flow.py::_check_hoistable_sets` (lines 1075-1280).
+// Per-request events (HTTP_REQUEST, HTTP_REQUEST_DATA, etc.) run on
+// every request; once-per-connection events (CLIENT_ACCEPTED,
+// CLIENTSSL_HANDSHAKE) run once.  An `AssignConst` whose value
+// doesn't depend on per-request data could be hoisted to the
+// once-per-connection event, saving work per request.
+//
+// Minimum-viable port: flag every `set var value` in a per-request
+// event whose value is a literal (no `$` substitutions, no
+// `[cmd]` substitutions) and whose variable name is also literal.
+// The Python implementation additionally checks that the variable
+// isn't reassigned later in the same body (otherwise hoisting
+// changes semantics) — that branch-aware check is the follow-up.
+
+fn is_per_request_event(event: &str) -> bool {
+    // Strip priority index suffix.
+    let base = event.split('#').next().unwrap_or(event);
+    matches!(
+        base,
+        "HTTP_REQUEST"
+            | "HTTP_REQUEST_DATA"
+            | "HTTP_REQUEST_SEND"
+            | "HTTP_REQUEST_RELEASE"
+            | "HTTP_RESPONSE"
+            | "HTTP_RESPONSE_DATA"
+            | "HTTP_RESPONSE_RELEASE"
+            | "DNS_REQUEST"
+            | "DNS_RESPONSE",
+    )
+}
+
+/// Hoistable-set warnings for IRULE4004.
+#[must_use]
+pub fn find_hoistable_set_warnings(
+    cu: &CompilationUnit,
+    dialect: Option<&str>,
+) -> Vec<IrulesCheckWarning> {
+    let mut out = Vec::new();
+    if !is_irules_dialect(dialect) {
+        return out;
+    }
+    for fu in cu.functions() {
+        let Some(event) = fu.name.strip_prefix("::when::") else {
+            continue;
+        };
+        if !is_per_request_event(event) {
+            continue;
+        }
+        for bn in cfg_order(&fu.cfg) {
+            if !fu.sccp.executable_blocks.contains(&bn) {
+                continue;
+            }
+            let Some(block) = fu.cfg.blocks.get(&bn) else {
+                continue;
+            };
+            for stmt in &block.statements {
+                let (name, value, span) = match stmt {
+                    Statement::AssignConst { name, value, span }
+                    | Statement::AssignValue { name, value, span, .. } => (name, value, *span),
+                    _ => continue,
+                };
+                if name.is_empty() || value.is_empty() {
+                    continue;
+                }
+                // Skip dynamic values — `$x` / `[cmd]` interpolation.
+                if value.contains('$') || value.contains('[') {
+                    continue;
+                }
+                out.push(IrulesCheckWarning {
+                    span,
+                    code: "IRULE4004".to_owned(),
+                    message: format!(
+                        "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event (e.g. CLIENT_ACCEPTED).",
+                    ),
+                    replacement: None,
+                });
+            }
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -466,5 +899,201 @@ mod tests {
     fn no_drop_warnings_for_clean_when_body() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { log local0. \"connection open\" }");
         assert!(ws.is_empty(), "got {ws:?}");
+    }
+
+    // -- IRULE1005 / 1006 / 1007 / 1008 -------------------------------
+
+    fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_collect_flow_warnings(&cu, Some("f5-irules"))
+    }
+
+    #[test]
+    fn irule1005_data_event_without_collect_fires() {
+        // CLIENT_DATA needs a TCP::collect or UDP::collect somewhere.
+        let ws = flow_warnings("when CLIENT_DATA { log local0. \"data\" }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE1005"),
+            "expected IRULE1005, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1005_satisfied_by_matching_collect() {
+        // CLIENT_ACCEPTED issues TCP::collect (client side); that
+        // satisfies CLIENT_DATA's IRULE1005.
+        let ws = flow_warnings(
+            "when CLIENT_ACCEPTED { TCP::collect }
+             when CLIENT_DATA { log local0. \"data\" }
+             when SERVER_CONNECTED { TCP::release }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1005"),
+            "no IRULE1005 expected — CLIENT_ACCEPTED supplies the collect, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1006_payload_without_collect_fires() {
+        let ws = flow_warnings("when HTTP_REQUEST { HTTP::payload }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE1006"),
+            "expected IRULE1006 on HTTP::payload without HTTP::collect, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1007_collect_without_release_fires() {
+        let ws = flow_warnings("when CLIENT_ACCEPTED { TCP::collect }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE1007"),
+            "expected IRULE1007, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1008_release_without_collect_fires() {
+        let ws = flow_warnings("when CLIENT_ACCEPTED { TCP::release }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE1008"),
+            "expected IRULE1008, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1007_satisfied_by_matching_release_same_side() {
+        let ws = flow_warnings(
+            "when CLIENT_ACCEPTED { TCP::collect }
+             when CLIENT_DATA { TCP::release }",
+        );
+        // Both sides — same side — should NOT fire 1007 or 1008.
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1007"),
+            "1007 unexpected, got {ws:?}",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1008"),
+            "1008 unexpected, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn collect_flow_only_in_irules_dialect() {
+        let cu = CompilationUnit::build_for(
+            "when CLIENT_ACCEPTED { TCP::collect }",
+            &registry(),
+            false,
+        );
+        let none = find_collect_flow_warnings(&cu, None);
+        assert!(none.is_empty(), "got {none:?}");
+    }
+
+    // -- IRULE1201 / 1202 ---------------------------------------------
+
+    fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_http_flow_warnings(&cu, Some("f5-irules"))
+    }
+
+    #[test]
+    fn irule1202_double_respond_fires() {
+        let ws = http_warnings(
+            "when HTTP_REQUEST { HTTP::respond 200 content x; HTTP::respond 404 content y }",
+        );
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE1202"),
+            "expected IRULE1202, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_http_after_respond_fires() {
+        let ws = http_warnings(
+            "when HTTP_REQUEST { HTTP::respond 200 content ok; HTTP::header Cache-Control no-cache }",
+        );
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE1201"),
+            "expected IRULE1201, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_clean_when_respond_followed_by_return_only() {
+        let ws = http_warnings(
+            "when HTTP_REQUEST { HTTP::respond 200 content ok; return }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1201" || w.code == "IRULE1202"),
+            "no IRULE1201/1202 expected, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule1201_only_in_http_events() {
+        // CLIENT_ACCEPTED is non-HTTP; HTTP::respond there is silly
+        // but IRULE1201/1202 doesn't apply to non-HTTP events.
+        let ws = http_warnings(
+            "when CLIENT_ACCEPTED { HTTP::respond 200 content x; HTTP::respond 404 content y }",
+        );
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE1202"),
+            "IRULE1202 should not fire outside HTTP events, got {ws:?}",
+        );
+    }
+
+    // -- IRULE4004 ----------------------------------------------------
+
+    fn hoist_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_hoistable_set_warnings(&cu, Some("f5-irules"))
+    }
+
+    #[test]
+    fn irule4004_literal_set_in_per_request_event_fires() {
+        let ws = hoist_warnings(r#"when HTTP_REQUEST { set svc "foo" }"#);
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE4004"),
+            "expected IRULE4004, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_dynamic_set_clean() {
+        // Value depends on per-request data — can't hoist.
+        let ws = hoist_warnings("when HTTP_REQUEST { set svc [HTTP::host] }");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE4004"),
+            "no IRULE4004 expected — value depends on request, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_var_substitution_clean() {
+        let ws = hoist_warnings("when HTTP_REQUEST { set svc $session }");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE4004"),
+            "no IRULE4004 expected — value uses $session, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_set_in_once_per_connection_clean() {
+        // CLIENT_ACCEPTED already runs once-per-connection; nothing to hoist.
+        let ws = hoist_warnings(r#"when CLIENT_ACCEPTED { set svc "foo" }"#);
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE4004"),
+            "no IRULE4004 expected — already once-per-connection, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule4004_only_in_irules_dialect() {
+        let cu = CompilationUnit::build_for(
+            r#"when HTTP_REQUEST { set svc "foo" }"#,
+            &registry(),
+            false,
+        );
+        let none = find_hoistable_set_warnings(&cu, None);
+        assert!(none.is_empty(), "got {none:?}");
     }
 }
