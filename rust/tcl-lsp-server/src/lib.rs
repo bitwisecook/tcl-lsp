@@ -19,6 +19,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tcl_compiler::analyser::Analyser;
+use tcl_lsp_core::completion::{
+    self as core_completion, CompletionItem as CoreCompletionItem,
+    CompletionKind as CoreCompletionKind,
+};
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
@@ -27,6 +31,7 @@ use tcl_registry::CommandRegistry;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
     FoldingRangeParams, FoldingRangeProviderCapability, Hover, HoverContents, HoverParams,
@@ -156,6 +161,10 @@ impl LanguageServer for Backend {
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec!["$".to_owned()]),
+                    ..CompletionOptions::default()
+                }),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -231,6 +240,33 @@ impl LanguageServer for Backend {
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
     }
 
+    async fn completion(
+        &self,
+        params: CompletionParams,
+    ) -> jsonrpc::Result<Option<CompletionResponse>> {
+        let Some(doc) = self
+            .read_document(&params.text_document_position.text_document.uri)
+            .await
+        else {
+            return Ok(None);
+        };
+        let pos = params.text_document_position.position;
+        // Pure-CPU work; spawn_blocking off the LSP event loop.
+        let items = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_completion::completions(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("completion worker panicked: {err}").into(),
+            data: None,
+        })?;
+        let lifted: Vec<CompletionItem> = items.into_iter().map(lift_completion_item).collect();
+        Ok(Some(CompletionResponse::Array(lifted)))
+    }
+
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
         let Some(doc) = self
             .read_document(&params.text_document_position_params.text_document.uri)
@@ -259,6 +295,22 @@ impl LanguageServer for Backend {
             data: None,
         })?;
         Ok(result.map(lift_hover))
+    }
+}
+
+fn lift_completion_kind(k: CoreCompletionKind) -> CompletionItemKind {
+    match k {
+        CoreCompletionKind::Variable => CompletionItemKind::VARIABLE,
+        CoreCompletionKind::Function => CompletionItemKind::FUNCTION,
+    }
+}
+
+fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
+    CompletionItem {
+        label: item.label,
+        kind: Some(lift_completion_kind(item.kind)),
+        insert_text: Some(item.insert_text),
+        ..CompletionItem::default()
     }
 }
 
