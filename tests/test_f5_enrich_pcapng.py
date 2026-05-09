@@ -1,0 +1,282 @@
+"""Tests for ``f5 enrich-pcapng`` and the underlying enrichment helpers."""
+
+from __future__ import annotations
+
+import io
+import struct
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import pytest
+
+from core.bigip.parser import parse_bigip_conf
+from core.bigip.pcap_enrich import (
+    NameIndex,
+    _slug,
+    _split_destination,
+    build_name_index,
+    enrich_pcapng,
+)
+from core.bigip.pcapng import (
+    BLOCK_TYPE_DSB,
+    BLOCK_TYPE_EPB,
+    BLOCK_TYPE_IDB,
+    BLOCK_TYPE_NRB,
+    BLOCK_TYPE_SHB,
+    DSB_SECRETS_TYPE_TLS,
+    NRB_RECORD_END,
+    NRB_RECORD_IPV4,
+    NRB_RECORD_IPV6,
+    build_dsb_block,
+    build_nrb_block,
+    read_blocks,
+)
+from explorer.f5_cli import main
+
+
+def _run(args, capsys):
+    code = main(args)
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+def _build_minimal_pcapng() -> bytes:
+    """Minimal PCAPNG with one SHB, one IDB, and one EPB carrying a tiny frame.
+
+    Little-endian throughout.  The EPB carries an IPv4 / TCP frame so we
+    can confirm ``enrich_pcapng`` round-trips packet bytes byte-for-byte.
+    """
+    out = io.BytesIO()
+
+    # Section Header Block.
+    shb_body = struct.pack("<IHHQ", 0x1A2B3C4D, 1, 0, 0xFFFFFFFFFFFFFFFF)
+    shb_total = 12 + len(shb_body)
+    out.write(struct.pack("<II", BLOCK_TYPE_SHB, shb_total))
+    out.write(shb_body)
+    out.write(struct.pack("<I", shb_total))
+
+    # Interface Description Block (Ethernet, snaplen 65535).
+    idb_body = struct.pack("<HHI", 1, 0, 65535)
+    idb_total = 12 + len(idb_body)
+    out.write(struct.pack("<II", BLOCK_TYPE_IDB, idb_total))
+    out.write(idb_body)
+    out.write(struct.pack("<I", idb_total))
+
+    # Enhanced Packet Block: empty Ethernet + IPv4 stub frame.
+    eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x08\x00"
+    ipv4 = bytes(
+        [0x45, 0x00, 0x00, 0x14]  # ver/IHL, dscp, total_length=20
+        + [0, 1, 0x40, 0x00, 0x40, 0x06, 0, 0]  # id, flags, ttl, proto, cksum
+        + [10, 0, 0, 1, 10, 0, 0, 2]  # src 10.0.0.1, dst 10.0.0.2
+    )
+    packet = eth + ipv4
+    cap_len = len(packet)
+    epb_body = struct.pack("<IIIII", 0, 0, 0, cap_len, cap_len) + packet
+    pad = (-cap_len) & 3
+    epb_body += b"\x00" * pad
+    epb_total = 12 + len(epb_body)
+    out.write(struct.pack("<II", BLOCK_TYPE_EPB, epb_total))
+    out.write(epb_body)
+    out.write(struct.pack("<I", epb_total))
+
+    return out.getvalue()
+
+
+SAMPLE_CONFIG = """
+ltm node /Common/web1 {
+    address 10.0.1.10
+}
+
+ltm pool /Common/web_pool {
+    members {
+        /Common/web1:80 {
+            address 10.0.1.10
+        }
+    }
+}
+
+ltm snatpool /Common/my_snatpool {
+    members {
+        10.0.2.100
+        /Common/192.168.1.1
+    }
+}
+
+ltm virtual /Common/vs1 {
+    destination /Common/10.0.0.1:443
+    pool /Common/web_pool
+}
+"""
+
+
+def _parse_blocks(buf: bytes) -> list:
+    return list(read_blocks(io.BytesIO(buf)))
+
+
+# Helper unit tests
+
+
+def test_slug_lowercases_and_replaces_specials():
+    assert _slug("Common") == "common"
+    assert _slug("My_Pool") == "my-pool"
+    assert _slug("/Common/foo") == "common-foo"
+    assert _slug("a..b__c") == "a-b-c"
+
+
+def test_split_destination_handles_v4_and_v6_and_partition():
+    assert _split_destination("/Common/10.0.0.1:443") == "10.0.0.1"
+    assert _split_destination("10.0.0.1:80") == "10.0.0.1"
+    assert _split_destination("/Common/2001:db8::1.443") == "2001:db8::1"
+    assert _split_destination("/Common/garbage") == ""
+
+
+def test_build_name_index_covers_vs_pool_snat_node():
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    index = build_name_index(config)
+
+    assert "vs-common-vs1" in index.v4["10.0.0.1"]
+    assert any(name.startswith("pool-common-web-pool") for name in index.v4["10.0.1.10"])
+    assert "node-common-web1" in index.v4["10.0.1.10"]
+    assert any(name.startswith("snat-common-my-snatpool") for name in index.v4["10.0.2.100"])
+    assert any(name.startswith("snat-common-my-snatpool") for name in index.v4["192.168.1.1"])
+
+
+# NRB / DSB block builder unit tests
+
+
+def test_build_nrb_block_emits_records_and_end_sentinel():
+    v4 = {b"\x0a\x00\x00\x01": ["vs-common-vs1"]}
+    v6 = {b"\x20\x01\x0d\xb8" + b"\x00" * 11 + b"\x01": ["v6-host"]}
+    block = build_nrb_block("<", v4, v6)
+
+    assert block.block_type == BLOCK_TYPE_NRB
+    assert block.endian == "<"
+
+    body = block.body
+    pos = 0
+    seen_records: list[tuple[int, bytes]] = []
+    while pos < len(body):
+        rec_type, rec_len = struct.unpack("<HH", body[pos : pos + 4])
+        value = bytes(body[pos + 4 : pos + 4 + rec_len])
+        seen_records.append((rec_type, value))
+        # advance past padded value and 4-byte record header.
+        padded = (rec_len + 3) & ~3
+        pos += 4 + padded
+        if rec_type == NRB_RECORD_END:
+            break
+
+    types_seen = [t for t, _ in seen_records]
+    assert NRB_RECORD_IPV4 in types_seen
+    assert NRB_RECORD_IPV6 in types_seen
+    assert types_seen[-1] == NRB_RECORD_END
+    # name strings end up NUL-terminated inside the value.
+    v4_record = next(value for t, value in seen_records if t == NRB_RECORD_IPV4)
+    assert v4_record.startswith(b"\x0a\x00\x00\x01")
+    assert b"vs-common-vs1\x00" in v4_record
+
+
+def test_build_dsb_block_pads_and_carries_secrets_data():
+    keylog = b"CLIENT_RANDOM 0123 abcd\n"
+    block = build_dsb_block("<", DSB_SECRETS_TYPE_TLS, keylog)
+
+    assert block.block_type == BLOCK_TYPE_DSB
+    secrets_type, secrets_len = struct.unpack("<II", block.body[:8])
+    assert secrets_type == DSB_SECRETS_TYPE_TLS
+    assert secrets_len == len(keylog)
+    assert block.body[8 : 8 + secrets_len] == keylog
+    # Body must be 4-byte aligned even though keylog len is 24 (already aligned).
+    assert len(block.body) % 4 == 0
+
+
+# enrich_pcapng integration tests
+
+
+def test_enrich_pcapng_inserts_nrb_after_first_idb():
+    pcapng_in = _build_minimal_pcapng()
+    config = parse_bigip_conf(SAMPLE_CONFIG)
+    name_index = build_name_index(config)
+
+    out = io.BytesIO()
+    result = enrich_pcapng(io.BytesIO(pcapng_in), out, name_index)
+
+    assert result.ipv4_records == len(name_index.v4)
+    assert result.names_total == name_index.total_names()
+    assert result.keylog_bytes == 0
+    assert result.converted_from_libpcap is False
+
+    blocks = _parse_blocks(out.getvalue())
+    types = [b.block_type for b in blocks]
+    # SHB, IDB, NRB, EPB — NRB lands between IDB and EPB.
+    assert types[0] == BLOCK_TYPE_SHB
+    assert types[1] == BLOCK_TYPE_IDB
+    assert types[2] == BLOCK_TYPE_NRB
+    assert types[3] == BLOCK_TYPE_EPB
+    # EPB packet bytes round-trip exactly.
+    original_blocks = _parse_blocks(pcapng_in)
+    in_epb = next(b for b in original_blocks if b.block_type == BLOCK_TYPE_EPB)
+    out_epb = next(b for b in blocks if b.block_type == BLOCK_TYPE_EPB)
+    assert in_epb.packet_data == out_epb.packet_data
+
+
+def test_enrich_pcapng_inserts_dsb_when_keylog_provided():
+    pcapng_in = _build_minimal_pcapng()
+    keylog = "CLIENT_RANDOM " + "0" * 64 + " " + "1" * 96 + "\n"
+    name_index = NameIndex()  # empty index — only the DSB should be inserted.
+
+    out = io.BytesIO()
+    result = enrich_pcapng(io.BytesIO(pcapng_in), out, name_index, keylog_text=keylog)
+
+    assert result.keylog_bytes == len(keylog.encode("utf-8"))
+
+    blocks = _parse_blocks(out.getvalue())
+    types = [b.block_type for b in blocks]
+    assert BLOCK_TYPE_DSB in types
+    # Exactly one DSB inserted, no NRB because the index was empty.
+    assert types.count(BLOCK_TYPE_DSB) == 1
+    assert BLOCK_TYPE_NRB not in types
+    # DSB sits between IDB and EPB.
+    dsb_idx = types.index(BLOCK_TYPE_DSB)
+    idb_idx = types.index(BLOCK_TYPE_IDB)
+    epb_idx = types.index(BLOCK_TYPE_EPB)
+    assert idb_idx < dsb_idx < epb_idx
+
+
+def test_enrich_pcapng_rejects_libpcap_input():
+    libpcap = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+    with pytest.raises(ValueError) as exc:
+        enrich_pcapng(io.BytesIO(libpcap), io.BytesIO(), NameIndex())
+    assert "libpcap" in str(exc.value).lower() or "pcapng" in str(exc.value).lower()
+
+
+# CLI smoke tests
+
+
+def test_enrich_pcapng_cli_dry_run(tmp_path, capsys):
+    cfg = tmp_path / "bigip.conf"
+    cfg.write_text(SAMPLE_CONFIG)
+
+    code, out, _err = _run(
+        ["enrich-pcapng", "--dry-run", str(cfg), "/dev/null", "/dev/null"], capsys
+    )
+    assert code == 0
+    assert "10.0.0.1\tvs-common-vs1" in out
+
+
+def test_enrich_pcapng_cli_writes_pcapng_with_nrb(tmp_path, capsys):
+    cfg = tmp_path / "bigip.conf"
+    cfg.write_text(SAMPLE_CONFIG)
+    pcap_in = tmp_path / "in.pcapng"
+    pcap_in.write_bytes(_build_minimal_pcapng())
+    pcap_out = tmp_path / "out.pcapng"
+
+    code, _out, err = _run(
+        ["enrich-pcapng", str(cfg), str(pcap_in), str(pcap_out)], capsys
+    )
+
+    assert code == 0
+    assert pcap_out.exists()
+    blocks = _parse_blocks(pcap_out.read_bytes())
+    assert any(b.block_type == BLOCK_TYPE_NRB for b in blocks)
+    assert "label" in err

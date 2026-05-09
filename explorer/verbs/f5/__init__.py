@@ -13,6 +13,7 @@ def load_verbs() -> None:
         completion,
         convert,
         diff,
+        enrich_pcapng,
         explain,
         extract,
         fetch,
