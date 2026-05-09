@@ -861,6 +861,21 @@ class TestCommandDispatch:
             # boundaries don't fire variable traces.
             "local_set_silent",
             "local_get_silent",
+            # Dynamic-name var-write/read path — ``set $x v`` /
+            # ``append ::$n v``.  Always imported so a name token
+            # containing a ``$`` / ``[`` substitution can dispatch
+            # through the unified runtime resolver after the
+            # codegen materialises the substituted name with
+            # ``tcl_append``.  See ``_scan.py``'s always-needed
+            # block.
+            "var_resolve",
+            "var_set",
+            "tcl_cmd_append",
+            # Always imported alongside the dynamic-name trio so the
+            # compiled ``_emit_array_name_obj`` proc-local path can
+            # round-trip a bare unqualified array name through the
+            # eval-fallback's resolved key.
+            "frame_resolve_array_name",
         }
 
 

@@ -20,6 +20,48 @@ from .._parsing import (
 )
 
 
+def _is_dynamic_var_name(name: str) -> bool:
+    """True when *name* is a variable reference whose **identity** is
+    only known at runtime.
+
+    A name like ``$x`` / ``${x}`` / ``::$x`` / ``[cmd]`` cannot be
+    collapsed to a literal storage key — the runtime must evaluate the
+    substitution to obtain the actual variable name and then dispatch
+    through ``tcl_var_set`` / ``tcl_var_resolve``.
+
+    Array-element references (``arr(key)``) where only the *key* is
+    dynamic are **not** considered dynamic here — the array name
+    itself is a static literal, and the existing array-write path
+    already emits the key via ``_emit_value`` and routes through
+    ``tcl_array_set`` / ``tcl_array_get``.  The caller's
+    ``_parse_array_ref`` branch keeps that fast path intact; we only
+    flip dynamic for whole-scalar interpolations and for ``$arr(key)``
+    forms where the *array name* portion has a substitution.
+
+    Mirrors :func:`core.compiler.var_escape._propagation._is_dynamic_token`
+    on the scalar / array-base portion so the emitter and the
+    analyser agree on which names are dynamic.
+    """
+    if not name:
+        return True
+    if "$" not in name and "[" not in name:
+        return False
+    if name.endswith(")") and "(" in name:
+        # ``arr(key)`` — only the *array name* (the prefix up to the
+        # first ``(``) determines whether the variable identity is
+        # dynamic; the key is always evaluated via ``_emit_value`` by
+        # the array-element write/read path.
+        i = 0
+        while i < len(name) and name[i] != "(":
+            if name[i] == "\\" and i + 1 < len(name):
+                i += 2
+                continue
+            i += 1
+        prefix = name[:i]
+        return "$" in prefix or "[" in prefix
+    return True
+
+
 class _WasmEmitterVarMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterValuesMixin
@@ -94,6 +136,131 @@ class _WasmEmitterVarMixin(_Base):
         self._emit_local_get(tmp)
         return True
 
+    def _emit_dynamic_var_read(self, name_token: str) -> None:
+        """Read a variable whose name contains a runtime substitution.
+
+        *name_token* is the raw IR name token (e.g. ``${tracevar}``,
+        ``::${n}``, ``[gen_name]``).  :meth:`_emit_value` evaluates the
+        token to produce the actual variable name as a TclObj on the
+        stack; ``tcl_var_resolve`` then dispatches to the right
+        storage (``::``-qualified globals, array elements, frame-local
+        / alias chase, proc-local fallback) in a single call.  An
+        unset value (null TclObj handle) is converted into the standard
+        ``can't read "<name>": no such variable`` error using the
+        substituted name (matching reference Tcl's wording — the
+        message reports the resolved name, not the source-level
+        ``$x`` token).
+        """
+        vres_idx = self._shared_imports.get("tcl_var_resolve")
+        unset_err_idx = self._shared_imports.get("tcl_var_unset_error")
+        if vres_idx is None:
+            # Runtime missing — degrade to a literal lookup.  The static
+            # path will surface the unsubstituted token and likely fail,
+            # but that's better than dropping the read.
+            self._emit_obj_literal(name_token)
+            gget_idx = self._shared_imports.get("tcl_global_get_or_error")
+            if gget_idx is not None:
+                self._emit_call(gget_idx)
+            return
+        # Stash the substituted name in a scratch local so the
+        # unset-error path can re-push it without re-evaluating
+        # (which would re-execute any side effects in the name token).
+        name_tmp = self._add_extra_local(prefix="_dynvar_name", val_type=ValType.I32)
+        self._emit_value(name_token)
+        self._emit_local_set(name_tmp)
+        self._emit_local_get(name_tmp)
+        self._emit_call(vres_idx)
+        if unset_err_idx is None:
+            # Even without the unset-check path, we still own the
+            # name TclObj — release it before bailing so dynamic-
+            # name reads in stripped runtimes don't leak one obj
+            # per access.
+            release_idx = self._shared_imports.get("tcl_obj_release")
+            if release_idx is not None:
+                # Stack: [resolved_value].  Stash, release name, restore.
+                tmp = self._add_extra_local(prefix="_dynvar_val", val_type=ValType.I32)
+                self._emit_local_set(tmp)
+                self._emit_local_get(name_tmp)
+                self._emit_call(release_idx)
+                self._emit_local_get(tmp)
+            return
+        if self._var_unset_check_scratch is None:
+            self._var_unset_check_scratch = self._add_extra_local(
+                prefix="_var_check", val_type=ValType.I32
+            )
+        val_tmp = self._var_unset_check_scratch
+        self._emit_local_tee(val_tmp)
+        self._emit(WasmOp.I32_EQZ)
+        self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+        self._emit_local_get(name_tmp)
+        self._emit_call(unset_err_idx)
+        self._emit(WasmOp.END)
+        # ``var_resolve`` doesn't consume its name argument, so we
+        # own the TclObj that ``_emit_value`` produced.  Release it
+        # before leaving the read result on the stack — without this,
+        # ``set $name`` / ``incr ::$name`` etc. leak one obj per
+        # access, growing linearly with trace-heavy or dynamic-name-
+        # heavy workloads.
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if release_idx is not None:
+            self._emit_local_get(name_tmp)
+            self._emit_call(release_idx)
+        self._emit_local_get(val_tmp)
+
+    def _emit_dynamic_var_write(
+        self,
+        name_token: str,
+        *,
+        keep_on_stack: bool,
+    ) -> None:
+        """Write a variable whose name contains a runtime substitution.
+
+        Stack on entry: ``[value]``.  *name_token* is evaluated via
+        :meth:`_emit_value` to produce the actual variable name as a
+        TclObj, then ``tcl_var_set(name, value)`` lands the write
+        through the unified runtime path (handles ``::``-qualified
+        globals, array elements, alias chasing, and proc-local
+        fallback).  Stack on exit: ``[value]`` if *keep_on_stack*
+        else empty.
+        """
+        vset_idx = self._shared_imports.get("tcl_var_set")
+        if vset_idx is None:
+            # Runtime missing — preserve the value (or drop) but skip
+            # the write.  ``tcl_var_set`` is a core import so this
+            # branch should be unreachable in practice; degrading
+            # quietly matches the rest of the emitter.
+            if not keep_on_stack:
+                self._emit(WasmOp.DROP)
+            return
+        val_tmp = self._add_extra_local(prefix="_dynvar_val", val_type=ValType.I32)
+        self._emit_local_set(val_tmp)
+        # Stash the evaluated name in a scratch local so we can
+        # release it after the runtime call — ``var_set`` doesn't
+        # consume its name argument, so without an explicit release
+        # every dynamic-name write (``set $name v``, ``set ::$n v``,
+        # ``incr [resolve] 1``, ...) leaks one TclObj per access.
+        # In a trace-heavy or dynamic-name-heavy workload that's an
+        # unbounded linear-memory leak.
+        name_tmp = self._add_extra_local(prefix="_dynvar_name", val_type=ValType.I32)
+        self._emit_value(name_token)
+        self._emit_local_set(name_tmp)
+        self._emit_local_get(name_tmp)
+        self._emit_local_get(val_tmp)
+        self._emit_call(vset_idx)
+        # Stack: [set_result] (the value, since ``tcl_var_set``
+        # returns its value argument).  Stash to keep the release
+        # ordering simple.
+        if keep_on_stack:
+            self._emit_local_set(val_tmp)
+        else:
+            self._emit(WasmOp.DROP)
+        release_idx = self._shared_imports.get("tcl_obj_release")
+        if release_idx is not None:
+            self._emit_local_get(name_tmp)
+            self._emit_call(release_idx)
+        if keep_on_stack:
+            self._emit_local_get(val_tmp)
+
     def _emit_var_read_obj(self, name: str) -> None:
         """Push the current TclObj value of local Tcl variable *name* on the stack.
 
@@ -120,6 +287,14 @@ class _WasmEmitterVarMixin(_Base):
         eval-fallback / the ``global`` command's pre-load of a possibly-
         uninitialised slot.
         """
+        if _is_dynamic_var_name(name):
+            # ``set $name`` / ``$::$ns::$x`` — the storage key is only
+            # known at runtime.  Materialise the substituted name via
+            # ``_emit_value`` and dispatch through ``tcl_var_resolve``
+            # (handles ``::``-qualified globals, array elements, alias
+            # chasing, and proc-local fallback in one entry point).
+            self._emit_dynamic_var_read(name)
+            return
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             self._emit_array_element_read(*array_ref)
@@ -343,6 +518,34 @@ class _WasmEmitterVarMixin(_Base):
         frame-only / proc-local) mirrors :meth:`_emit_var_read_obj`
         exactly; only the missing-variable branch differs.
         """
+        if _is_dynamic_var_name(name):
+            # ``lappend $varname x`` / ``incr ::$n`` — read through
+            # ``tcl_var_resolve`` with the substituted name and let a
+            # null result (unset variable) flow through; downstream
+            # handlers (``tcl_cmd_lappend`` / ``tcl_incr``) treat null
+            # as the empty / zero starting value.
+            vres_idx = self._shared_imports.get("tcl_var_resolve")
+            if vres_idx is not None:
+                # Stash the evaluated name so we can release it after
+                # ``var_resolve`` — the runtime resolver doesn't
+                # consume its name argument, and without an explicit
+                # release every dynamic-name lenient read leaks one
+                # TclObj per access.
+                name_tmp = self._add_extra_local(prefix="_dynvar_name", val_type=ValType.I32)
+                self._emit_value(name)
+                self._emit_local_set(name_tmp)
+                self._emit_local_get(name_tmp)
+                self._emit_call(vres_idx)
+                release_idx = self._shared_imports.get("tcl_obj_release")
+                if release_idx is not None:
+                    # Stack: [resolved_value].  Stash, release name,
+                    # restore — keeping the read result on top.
+                    val_tmp = self._add_extra_local(prefix="_dynvar_val", val_type=ValType.I32)
+                    self._emit_local_set(val_tmp)
+                    self._emit_local_get(name_tmp)
+                    self._emit_call(release_idx)
+                    self._emit_local_get(val_tmp)
+                return
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             # Array element reads return 0 (null TclObj) for missing
@@ -434,6 +637,12 @@ class _WasmEmitterVarMixin(_Base):
         keep_on_stack: bool,
         source: Ownership | None = None,
     ) -> None:
+        if _is_dynamic_var_name(name):
+            # The storage key is only known at runtime — route through
+            # ``tcl_var_set`` with a substituted name TclObj.  See
+            # :meth:`_emit_dynamic_var_write` for the contract.
+            self._emit_dynamic_var_write(name, keep_on_stack=keep_on_stack)
+            return
         array_ref = _parse_array_ref(name)
         if array_ref is not None:
             self._emit_array_element_write(array_ref[0], array_ref[1], keep_on_stack=keep_on_stack)
@@ -602,6 +811,73 @@ class _WasmEmitterVarMixin(_Base):
         ):
             self._emit_obj_literal(f"{self._block_namespace}::{arr}")
             return
+        # Inside a compiled proc, route the bare name through the
+        # runtime resolver so the directory key matches the
+        # eval-fallback path (which always pre-resolves via
+        # ``frame_resolve_array_name`` — see ``runtime/zig/cmds/
+        # array.zig``).  An unaliased proc-local lands in the
+        # synthetic ``::__local::<depth>::<name>`` slot; the
+        # eval-fallback for ``array set arr $listVar`` (forced into
+        # interp dispatch because ``$listVar`` isn't a literal list)
+        # already deposited entries under that key, so a subsequent
+        # compiled ``array names arr`` / ``$arr(key)`` had to look
+        # there too — without this call the compiled side used the
+        # bare/namespace-prefixed form and missed every key.
+        # Aliased names already pushed the alias target above and
+        # skipped this branch; ``::``-qualified names are also
+        # handled above.
+        if self._is_proc:
+            far_idx = self._shared_imports.get("frame_resolve_array_name")
+            if far_idx is not None:
+                # Per-proc-invocation cache: a fresh WASM-local
+                # holds the resolver result on first use; subsequent
+                # references read the cache.  Avoids the per-access
+                # ``frame_resolve_array_name`` call overhead in
+                # array-heavy proc bodies (e.g. ``expr-old`` does
+                # ~100K array element reads via ``tcltest`` machinery
+                # and the per-call resolver pushed it past the 120s
+                # baseline timeout).  WASM-locals start at 0 each
+                # call, so the cache invalidates naturally on
+                # frame_push.
+                #
+                # Skip the cache for names the proc body rebinds via
+                # ``global`` / ``upvar`` / ``variable`` anywhere in
+                # the IR — those declarations can legally appear
+                # AFTER an early array access (e.g. ``array exists x;
+                # global x; set x(k) v``), and a sticky cached
+                # resolution would route the post-rebind write to
+                # the pre-rebind storage key.  Resolving on every
+                # access for rebound names is correct (and
+                # negligible overhead in practice — names with
+                # scope decls are a tiny minority).
+                if not self._proc_rebinds_array_name(arr):
+                    cache_idx = self._array_resolved_cache.get(arr)
+                    if cache_idx is None:
+                        cache_idx = self._add_extra_local(
+                            prefix=f"_arr_res_{arr}", val_type=ValType.I32
+                        )
+                        self._array_resolved_cache[arr] = cache_idx
+                    # Emit:
+                    #   local.get cache
+                    #   i32.eqz
+                    #   if
+                    #     resolve
+                    #     local.set cache
+                    #   end
+                    #   local.get cache
+                    self._emit_local_get(cache_idx)
+                    self._emit(WasmOp.I32_EQZ)
+                    self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
+                    self._emit_obj_literal(arr)
+                    self._emit_call(far_idx)
+                    self._emit_local_set(cache_idx)
+                    self._emit(WasmOp.END)
+                    self._emit_local_get(cache_idx)
+                    return
+                # Rebound name: resolve unconditionally on every access.
+                self._emit_obj_literal(arr)
+                self._emit_call(far_idx)
+                return
         self._emit_obj_literal(arr)
 
     def _emit_array_element_read(self, arr: str, key: str) -> None:
@@ -809,12 +1085,14 @@ class _WasmEmitterVarMixin(_Base):
     def _is_frame_only_var(self, name: str) -> bool:
         """True when the escape analysis says ``name`` must live in the runtime frame.
 
-        Only returns True for non-pessimistic procs where analysis
-        specifically proved the var escapes.  Pessimistic procs
-        (``dynamic_barrier=True``) keep today's WASM-local-with-sync
-        behaviour — routing every var through the frame primitives
-        would be a much larger change and the sync path is already
-        correct for that case.
+        Returns True for non-pessimistic procs where analysis
+        specifically proved the var escapes, and ALSO for procs that
+        installed a variable trace on a name (``trace add variable
+        NAME …``).  The trace path is what flips dynamic_barrier=True
+        for many procs, but pessimism without the trace doesn't
+        require frame routing — only trace-having procs need every
+        write to fire ``fire_local_trace`` via ``tcl_local_set``,
+        because the WASM-local-with-sync path doesn't notify traces.
 
         Vars already handled by other routing mechanisms are excluded:
         ``::``-qualified globals go through ``tcl_global_*``;
@@ -824,7 +1102,7 @@ class _WasmEmitterVarMixin(_Base):
         circuited by the frame-only branch.
         """
         summary = self._escape_summary
-        if summary is None or summary.dynamic_barrier:
+        if summary is None:
             return False
         if not self._is_proc:
             return False
@@ -834,7 +1112,133 @@ class _WasmEmitterVarMixin(_Base):
             return False
         if name.startswith("::"):
             return False
+        if summary.dynamic_barrier:
+            # Pessimistic proc: route through ``tcl_local_set`` only
+            # when the body installed a variable trace whose target
+            # could be this name.  The trace is the only correctness
+            # reason to give up the WASM-local-with-sync hot path —
+            # without it, plain ``set name v`` doesn't need to
+            # broadcast and the per-eval-boundary sync is already
+            # enough.
+            return self._proc_has_var_trace_target(name)
         return summary.is_frame(name)
+
+    def _proc_has_var_trace_target(self, name: str) -> bool:
+        """True when the current proc body contains ``trace add
+        variable NAME …`` (or ``trace remove variable NAME …`` etc.)
+        whose target literal matches *name*.
+
+        Lazily computed on first query and cached on the emitter.
+        Walks every statement in every CFG block looking for an
+        ``IRBarrier`` whose canonical command is ``::trace`` and
+        whose argv shape is ``add|remove|info variable <NAME> …``.
+        Pessimistic over-set: a dynamic name in the trace targeting
+        forces every name to route through ``tcl_local_set``
+        (returns True for any *name*) so the caller stays correct
+        even when the analysis can't pin the target.
+        """
+        cached = self._var_trace_target_set_cache
+        if cached is not None:
+            literal_set, dynamic = cached
+            if dynamic:
+                return True
+            return name in literal_set
+
+        from ....ir import IRBarrier as _IRBarrier
+
+        literal_set: set[str] = set()
+        dynamic = False
+
+        for block in self._cfg.blocks.values():
+            for stmt in block.statements:
+                if not isinstance(stmt, _IRBarrier):
+                    continue
+                cmd = stmt.canonical_command or stmt.command
+                if cmd != "::trace":
+                    continue
+                args = stmt.args
+                if not args:
+                    continue
+                sub = args[0]
+                target: str | None = None
+                if sub in ("add", "remove", "info") and len(args) >= 3:
+                    kind = args[1]
+                    if kind == "variable":
+                        target = args[2]
+                elif sub in ("variable", "vdelete", "vinfo") and len(args) >= 2:
+                    # Legacy positional form: ``trace variable NAME
+                    # OPS CMD`` (or ``trace vdelete``/``vinfo``).
+                    target = args[1]
+                if target is None:
+                    continue
+                if "$" in target or "[" in target or not target:
+                    dynamic = True
+                else:
+                    literal_set.add(target)
+
+        self._var_trace_target_set_cache = (literal_set, dynamic)
+        if dynamic:
+            return True
+        return name in literal_set
+
+    def _proc_rebinds_array_name(self, name: str) -> bool:
+        """True when the current proc body declares ``name`` via
+        ``global`` / ``upvar`` / ``variable`` anywhere in the IR.
+
+        Such names cannot use the per-proc array-name resolver cache
+        (see :meth:`_emit_array_name_obj`): the scope decl can legally
+        appear AFTER an early array access (e.g. ``array exists x;
+        global x; set x(k) v``), and a sticky cached resolution would
+        route the post-rebind write to the pre-rebind storage key.
+
+        Walks every CFG block once on first query and caches the
+        full set of rebound names; subsequent calls reuse the cache.
+        Pessimistic over-set: a dynamic name token in any scope
+        declaration (``global $n``) flips the result to ``True`` for
+        every name so the caller stays correct when the analysis
+        can't pin the target list.
+        """
+        cached = self._scope_rebound_names_cache
+        if cached is not None:
+            literal_set, dynamic = cached
+            if dynamic:
+                return True
+            return name in literal_set
+
+        from ....ir import IRBarrier as _IRBarrier
+        from ....ir import IRCall as _IRCall
+
+        literal_set: set[str] = set()
+        dynamic = False
+        rebinding_cmds = ("::global", "::upvar", "::variable")
+        for block in self._cfg.blocks.values():
+            for stmt in block.statements:
+                if not isinstance(stmt, (_IRCall, _IRBarrier)):
+                    continue
+                cmd = stmt.canonical_command or stmt.command
+                if cmd not in rebinding_cmds:
+                    continue
+                # ``global`` / ``upvar`` / ``variable`` argument
+                # shapes differ: ``global`` lists names directly,
+                # ``upvar`` interleaves (otherVar, myVar) pairs
+                # (with an optional leading level), ``variable``
+                # interleaves (name, value) pairs.  Conservative
+                # over-set: treat every literal arg as a potential
+                # local-side name, since misclassifying a value as
+                # a name only forces an extra runtime resolve (no
+                # correctness impact) while missing a real local-
+                # side name would route post-rebind writes to the
+                # pre-rebind storage key.
+                for a in stmt.args:
+                    if "$" in a or "[" in a or not a:
+                        dynamic = True
+                    else:
+                        literal_set.add(a)
+
+        self._scope_rebound_names_cache = (literal_set, dynamic)
+        if dynamic:
+            return True
+        return name in literal_set
 
     def _iter_sync_locals(
         self,

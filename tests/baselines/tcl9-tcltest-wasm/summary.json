@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-09T07:19:21Z",
+  "generated_at": "2026-05-09T11:58:39Z",
   "schema_version": 1,
   "stems": {
     "append": {
@@ -375,8 +375,8 @@
       "bucket": "W-mixed-fail",
       "crash_type": "",
       "crashed": false,
-      "failed_max": 100,
-      "passed_min": 213,
+      "failed_max": 98,
+      "passed_min": 215,
       "skipped": 1,
       "total": 314
     },
@@ -534,8 +534,8 @@
       "total": 113
     },
     "trace": {
-      "bucket": "W0-codegen-bug",
-      "crash_type": "CompileFail",
+      "bucket": "W0-timeout",
+      "crash_type": "Timeout",
       "crashed": true,
       "failed_max": 0,
       "passed_min": 0,

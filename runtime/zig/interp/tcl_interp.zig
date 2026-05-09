@@ -655,7 +655,7 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
 /// the discrepancy, increment in the compiled-proc prologue too.
 pub var cmd_count: i64 = 0;
 
-fn eval_command(words: []const i32) i32 {
+pub fn eval_command(words: []const i32) i32 {
     if (words.len == 0) return 0;
     cmd_count +%= 1;
     const cmd_s = obj_ensure_string(words[0]);

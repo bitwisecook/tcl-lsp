@@ -1,6 +1,6 @@
 # trace.test — auto-generated WASM baseline.
-# bucket = 'W0-codegen-bug'
-# reason = "compile failed: AssertionError: var-write contract: direct local.tee to slot 6 ('::${tracevar}') in proc '::traceproc' bypasses FRAME routing — this var is non-pessimistic FRAME-tagged and must go through _emit_var_write_obj"
+# bucket = 'W0-runtime-error'
+# reason = 'error while executing at wasm backtrace:'
 trap_allowed = true
 good_to_have = []
 just_to_match_ctcl = []
@@ -15,6 +15,10 @@ observed_passed = 0
 observed_failed = 0
 observed_skipped = 0
 
+[failing]
+# Test IDs failing today — kept here for visibility, not gating.
+ids = ["trace-0.0", "trace-1.4", "trace-1.6", "trace-1.7", "trace-1.8", "trace-1.9", "trace-1.11", "trace-1.12", "trace-1.13", "trace-1.14", "trace-2.1", "trace-2.2", "trace-2.3", "trace-2.4", "trace-2.6"]
+
 [crash]
-type = "CompileFail"
-msg = "AssertionError: var-write contract: direct local.tee to slot 6 ('::${tracevar}') in proc '::traceproc' bypasses FRAME routing \u2014 this var is non-pessimistic FRAME-tagged and must go through _emit_var_write_obj"
+type = "Trap"
+msg = "error while executing at wasm backtrace:"

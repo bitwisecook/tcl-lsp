@@ -1,6 +1,7 @@
 // List operations: list_length, lappend, list_index, list_range,
 // list_sort, list_search, tcl_list.
 
+const std = @import("std");
 const obj = @import("tcl_obj.zig");
 const str = @import("tcl_string.zig");
 const alloc = obj.alloc;
@@ -74,12 +75,21 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
     // cascaded read trace re-entry).  ``@intCast(i32 -> u32)`` panics
     // in ReleaseSafe on a negative input; we want to fall through to
     // the canonical-rebuild path instead.
-    if (sc.len > 0 and current > 0 and !obj.is_immediate(current)) {
+    // Defensive bound: ``sv.len * 2`` (and similarly ``cap * 2``
+    // below) panics on u32 overflow under ReleaseSafe/Debug.  Bail
+    // to the canonical-rebuild path when either operand would
+    // overflow the doubling — that path uses checked u64 arithmetic
+    // so a legitimately large list still gets appended; only the
+    // genuinely-overflowing case raises a Tcl error.
+    const FAST_PATH_LEN_LIMIT: u32 = 0x7FFFFFFF;
+    if (sc.len > 0 and sc.len <= FAST_PATH_LEN_LIMIT / 2 and
+        sv.len <= FAST_PATH_LEN_LIMIT / 2 and current > 0 and !obj.is_immediate(current))
+    {
         const addr: u32 = @intCast(current);
         const rc = obj.read_i32(addr + obj.OBJ_REFCOUNT);
         const tag = obj.read_i32(addr + obj.OBJ_TYPE_TAG);
         const cap: u32 = @bitCast(obj.read_i32(addr + obj.OBJ_STR_CAP));
-        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0) {
+        if (rc == 1 and tag == obj.TYPE_STRING and cap > 0 and cap <= FAST_PATH_LEN_LIMIT / 2) {
             // Worst case for the new tail: a single space + sv.len*2 + 2
             // (for surrounding braces if the value needs them).
             const tail_max: u32 = 1 + sv.len * 2 + 4;
@@ -88,7 +98,15 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
             var new_cap: u32 = cap;
             if (cap < want) {
                 new_cap = if (cap == 0) 16 else cap * 2;
-                while (new_cap < want) new_cap *= 2;
+                // ``new_cap *= 2`` panics on u32 overflow; clamp the
+                // doubling at half the u32 max so the loop terminates
+                // instead of trapping on a corrupt cap.  When the
+                // doubling can't reach ``want``, fall through to the
+                // canonical-rebuild path — it uses checked u64
+                // arithmetic and only raises a Tcl error if the
+                // value-list genuinely exceeds u32 capacity.
+                while (new_cap < want and new_cap <= FAST_PATH_LEN_LIMIT / 2) new_cap *= 2;
+                if (new_cap < want) return lappend_canonical(sc.ptr, sc.len, sv.ptr, sv.len);
                 const nbuf = obj.alloc(new_cap);
                 if (nbuf == 0) return current;
                 memcpy(nbuf, sc.ptr, sc.len);
@@ -115,7 +133,19 @@ pub export fn tcl_cmd_lappend(current: i32, value: i32) i32 {
 /// ``OBJ_STR_CAP`` so the next ``lappend`` against this obj can
 /// take the in-place fast path.
 fn lappend_canonical(sc_ptr: u32, sc_len: u32, sv_ptr: u32, sv_len: u32) i32 {
-    const max_buf: u32 = sc_len * 2 + sv_len * 2 + 16;
+    // Compute the worst-case buffer size in u64 so a legitimately
+    // large list (or a corrupted ``OBJ_STR_LEN``) doesn't trap on
+    // u32 overflow before reaching the allocator.  When the
+    // computation overflows u32 the value-list is too big to fit
+    // in linear memory anyway — surface a Tcl error so the caller
+    // sees a real diagnostic instead of a silently-dropped append.
+    const max_buf_u64: u64 = (@as(u64, sc_len) * 2) + (@as(u64, sv_len) * 2) + 16;
+    if (max_buf_u64 > std.math.maxInt(u32)) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("lappend: list too large to canonicalise");
+        return obj_new_string(0, 0);
+    }
+    const max_buf: u32 = @intCast(max_buf_u64);
     const cap = obj.round_up_to_class((max_buf + 7) & ~@as(u32, 7));
     const buf = alloc(cap);
     if (buf == 0) return obj_new_string(0, 0);
@@ -353,7 +383,29 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     const s = obj_ensure_string(list);
     const n_i64 = list_count_elements(s.ptr, s.len);
     if (n_i64 <= 1) return list;
+    // Defensive bound: ``i64 -> u32`` for ``n_i64`` panics when the
+    // count overflows u32, and the per-slot 8-byte working set
+    // (``arr_size = n * 8``) overflows u32 when ``n > 0x1FFFFFFF``.
+    // A cumulative-state issue in the trace.test bundle (multiple
+    // test traces accumulating, callbacks firing recursively) was
+    // producing TclObj handles whose ``OBJ_STR_LEN`` read back as a
+    // near-2GB length, surfacing here as ``@intCast`` panics.  Use
+    // checked arithmetic in the u64 domain so a legitimately large
+    // (but valid) list still sorts; only the genuinely-overflowing
+    // case raises a Tcl error rather than silently returning the
+    // input unchanged.
+    if (n_i64 < 0 or n_i64 > std.math.maxInt(u32)) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("lsort: list element count exceeds u32 range");
+        return obj_new_string(0, 0);
+    }
     const n: u32 = @intCast(n_i64);
+    // Per-slot table is ``n * 8`` bytes; refuse if that overflows.
+    if (@as(u64, n) * 8 > std.math.maxInt(u32)) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("lsort: slot table size exceeds u32 range");
+        return obj_new_string(0, 0);
+    }
 
     // Decoded-content scratch: backslash-escaped bytes in unbraced
     // source words decode to ``<= len`` bytes, so the whole input's
@@ -379,8 +431,14 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
         const elem = list_element_at(s.ptr, s.len, @intCast(idx));
         if (elem.braced) {
             // Already raw bytes — point straight into the source.
-            write_i32(arr_buf + idx * 8, @intCast(s.ptr + elem.start));
-            write_i32(arr_buf + idx * 8 + 4, @intCast(elem.len));
+            // ``@bitCast`` instead of ``@intCast`` for the u32 → i32
+            // address store: heaps that grow past 2 GiB hand out
+            // addresses with the high bit set, and ``@intCast``
+            // panics on those.  The slot is paired with a separate
+            // ``len`` write below; both round-trip through
+            // ``@bitCast`` reads on the sort/output side.
+            write_i32(arr_buf + idx * 8, @bitCast(s.ptr + elem.start));
+            write_i32(arr_buf + idx * 8 + 4, @bitCast(elem.len));
         } else {
             // Decode backslash escapes into the shared scratch so the
             // sort key (and the output quote pass) compare against the
@@ -392,8 +450,8 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
                 @as(u32, 0)
             else
                 obj.copy_unbraced_elem(dst, s.ptr + elem.start, elem.len);
-            write_i32(arr_buf + idx * 8, @intCast(dst));
-            write_i32(arr_buf + idx * 8 + 4, @intCast(dec_len));
+            write_i32(arr_buf + idx * 8, @bitCast(dst));
+            write_i32(arr_buf + idx * 8 + 4, @bitCast(dec_len));
             decoded_off += dec_len;
         }
     }
@@ -401,22 +459,22 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     // Insertion sort on the canonical content.
     var i: u32 = 1;
     while (i < n) : (i += 1) {
-        const key_ptr: u32 = @intCast(read_i32(arr_buf + i * 8));
-        const key_len: u32 = @intCast(read_i32(arr_buf + i * 8 + 4));
+        const key_ptr: u32 = @bitCast(read_i32(arr_buf + i * 8));
+        const key_len: u32 = @bitCast(read_i32(arr_buf + i * 8 + 4));
         var j: i32 = @as(i32, @intCast(i)) - 1;
         while (j >= 0) {
             const j_u: u32 = @intCast(j);
-            const cmp_ptr: u32 = @intCast(read_i32(arr_buf + j_u * 8));
-            const cmp_len: u32 = @intCast(read_i32(arr_buf + j_u * 8 + 4));
+            const cmp_ptr: u32 = @bitCast(read_i32(arr_buf + j_u * 8));
+            const cmp_len: u32 = @bitCast(read_i32(arr_buf + j_u * 8 + 4));
             if (str_cmp(cmp_ptr, cmp_len, key_ptr, key_len) > 0) {
-                write_i32(arr_buf + (j_u + 1) * 8, @intCast(cmp_ptr));
-                write_i32(arr_buf + (j_u + 1) * 8 + 4, @intCast(cmp_len));
+                write_i32(arr_buf + (j_u + 1) * 8, @bitCast(cmp_ptr));
+                write_i32(arr_buf + (j_u + 1) * 8 + 4, @bitCast(cmp_len));
                 j -= 1;
             } else break;
         }
         const ins: u32 = @intCast(j + 1);
-        write_i32(arr_buf + ins * 8, @intCast(key_ptr));
-        write_i32(arr_buf + ins * 8 + 4, @intCast(key_len));
+        write_i32(arr_buf + ins * 8, @bitCast(key_ptr));
+        write_i32(arr_buf + ins * 8 + 4, @bitCast(key_len));
     }
 
     // Worst-case output: ``2 * len + 2`` per element via the quoter,
@@ -427,8 +485,8 @@ pub export fn tcl_cmd_list_sort(list: i32) i32 {
     var result_len: u32 = 0;
     idx = 0;
     while (idx < n) : (idx += 1) {
-        const e_ptr: u32 = @intCast(read_i32(arr_buf + idx * 8));
-        const e_len: u32 = @intCast(read_i32(arr_buf + idx * 8 + 4));
+        const e_ptr: u32 = @bitCast(read_i32(arr_buf + idx * 8));
+        const e_len: u32 = @bitCast(read_i32(arr_buf + idx * 8 + 4));
         if (idx > 0) {
             const d: [*]u8 = @ptrFromInt(result_buf + result_len);
             d[0] = ' ';
