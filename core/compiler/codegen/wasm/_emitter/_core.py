@@ -169,6 +169,13 @@ class _WasmEmitterBase:
         # i32s, bloating the WASM binary and pushing more
         # ``_var_check_<n>`` slots through the linker.
         self._var_unset_check_scratch: int | None = None
+        # Per-proc cache: maps array name → WASM-local idx that
+        # holds the ``frame_resolve_array_name`` result for that
+        # name.  First reference resolves and tees; subsequent
+        # references read the cached local — avoids a per-array-
+        # reference resolver call in array-heavy proc bodies.
+        # See :meth:`_emit_array_name_obj`.
+        self._array_resolved_cache: dict[str, int] = {}
         # Lazy cache for :meth:`_proc_has_var_trace_target` — a
         # ``(literal_target_set, dynamic_target_seen)`` pair
         # populated on first query.  ``None`` = not yet computed.

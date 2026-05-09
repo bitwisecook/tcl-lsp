@@ -769,8 +769,43 @@ class _WasmEmitterVarMixin(_Base):
         if self._is_proc:
             far_idx = self._shared_imports.get("frame_resolve_array_name")
             if far_idx is not None:
+                # Per-proc-invocation cache: a fresh WASM-local
+                # holds the resolver result on first use; subsequent
+                # references read the cache.  Avoids the per-access
+                # ``frame_resolve_array_name`` call overhead in
+                # array-heavy proc bodies (e.g. ``expr-old`` does
+                # ~100K array element reads via ``tcltest`` machinery
+                # and the per-call resolver pushed it past the 120s
+                # baseline timeout).  WASM-locals start at 0 each
+                # call, so the cache invalidates naturally on
+                # frame_push.  Aliased / dynamic-alias names: the
+                # alias-target check above skips this branch, and
+                # ``variable``/``upvar`` declarations are emitted
+                # before the first array reference in well-formed
+                # proc bodies, so the cache captures the post-alias
+                # resolution.
+                cache_idx = self._array_resolved_cache.get(arr)
+                if cache_idx is None:
+                    cache_idx = self._add_extra_local(
+                        prefix=f"_arr_res_{arr}", val_type=ValType.I32
+                    )
+                    self._array_resolved_cache[arr] = cache_idx
+                # Emit:
+                #   local.get cache
+                #   i32.eqz
+                #   if
+                #     resolve
+                #     local.set cache
+                #   end
+                #   local.get cache
+                self._emit_local_get(cache_idx)
+                self._emit(WasmOp.I32_EQZ)
+                self._emit(WasmOp.IF, bytes([_BLOCK_VOID]))
                 self._emit_obj_literal(arr)
                 self._emit_call(far_idx)
+                self._emit_local_set(cache_idx)
+                self._emit(WasmOp.END)
+                self._emit_local_get(cache_idx)
                 return
         self._emit_obj_literal(arr)
 
