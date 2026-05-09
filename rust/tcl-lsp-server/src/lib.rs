@@ -18,8 +18,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
+use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
 use tokio::sync::Mutex;
@@ -27,9 +29,10 @@ use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, FoldingRangeProviderCapability, InitializeParams, InitializeResult,
-    InitializedParams, MessageType, OneOf, Position, Range, ServerCapabilities, ServerInfo,
-    SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    FoldingRangeParams, FoldingRangeProviderCapability, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, MarkupContent,
+    MarkupKind, MessageType, OneOf, Position, Range, ServerCapabilities, ServerInfo, SymbolKind,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -152,6 +155,7 @@ impl LanguageServer for Backend {
                 )),
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -225,6 +229,49 @@ impl LanguageServer for Backend {
         let symbols = core_symbols::document_symbols(&doc.text, &doc.dialect);
         let lifted: Vec<DocumentSymbol> = symbols.into_iter().map(lift_document_symbol).collect();
         Ok(Some(DocumentSymbolResponse::Nested(lifted)))
+    }
+
+    async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
+        let Some(doc) = self
+            .read_document(&params.text_document_position_params.text_document.uri)
+            .await
+        else {
+            return Ok(None);
+        };
+        let pos = params.text_document_position_params.position;
+        // Pure-CPU work — analyser + hover walker. Move it off
+        // the LSP event loop via `spawn_blocking`. SYNC11's full
+        // contract (debounce, LRU keyed on `(uri, version, line,
+        // char)`, `Ok(None)` on missing cached analysis,
+        // `[timing] hover` debug logs) lands in the
+        // `S-hover-sync11` follow-up once `S-diagnostics`
+        // establishes the cached-analysis surface this Backend
+        // currently lacks.
+        let result = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_hover::hover(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("hover worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(result.map(lift_hover))
+    }
+}
+
+fn lift_hover(h: CoreHover) -> Hover {
+    let kind = match h.kind {
+        CoreHoverKind::Markdown => MarkupKind::Markdown,
+    };
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind,
+            value: h.value,
+        }),
+        range: None,
     }
 }
 

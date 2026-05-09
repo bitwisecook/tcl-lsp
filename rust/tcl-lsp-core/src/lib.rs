@@ -1,11 +1,11 @@
 //! Pure Rust LSP feature providers for tcl-lsp.
 //!
 //! This crate owns the algorithmic LSP feature surface — folding,
-//! document symbols, diagnostic projection, and (future) hover,
-//! completion, references, rename, and semantic tokens. It contains
-//! no `pyo3` dependency and no Python-compat shims; the binding
-//! crate wraps these providers for Python callers, and the
-//! eventual `tcl-lsp-server` binary links against this crate
+//! document symbols, hover, diagnostic projection, and (future)
+//! completion, references, rename, and semantic tokens. It
+//! contains no `pyo3` dependency and no Python-compat shims; the
+//! binding crate wraps these providers for Python callers, and
+//! the `tcl-lsp-server` binary links against this crate
 //! directly over the LSP protocol.
 
 #![deny(missing_docs)]
@@ -13,6 +13,7 @@
 
 pub mod document_symbols;
 pub mod folding;
+pub mod hover;
 
 /// Crate version string.
 ///
