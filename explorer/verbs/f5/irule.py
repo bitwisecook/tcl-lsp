@@ -106,6 +106,36 @@ def add_irule_subparser(
     lint_p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")
     lint_p.set_defaults(handler=_run_irule_lint)
 
+    # ── trace ──────────────────────────────────────────────────────────
+    trace_p = irule_sub.add_parser(
+        "trace",
+        help="Static event-flow trace from a starting event.",
+        description=(
+            "List every command an iRule fires when a given event is "
+            "triggered, plus references to pools / data-groups / "
+            "persistence found inside the event's `when` block."
+        ),
+    )
+    trace_p.add_argument("event", help="Starting event name (e.g. HTTP_REQUEST).")
+    trace_p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
+    trace_p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    trace_p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")
+    trace_p.set_defaults(handler=_run_irule_trace)
+
+    # ── extract ────────────────────────────────────────────────────────
+    extract_p = irule_sub.add_parser(
+        "extract",
+        help="Write each iRule body to a standalone .tcl file.",
+        description=(
+            "For every `ltm rule` in the input config, write its source "
+            "body to OUTDIR/<full-path-with-slashes-flattened>.tcl, "
+            "ready to load into an LSP-aware editor for editing."
+        ),
+    )
+    extract_p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
+    extract_p.add_argument("output", help="Output directory (created if needed).")
+    extract_p.set_defaults(handler=_run_irule_extract)
+
 
 # ---------------------------------------------------------------------------
 # Handlers
@@ -150,6 +180,122 @@ def _run_irule_lint(args: argparse.Namespace) -> int:
         return 2
     if has_warning:
         return 1
+    return 0
+
+
+def _run_irule_trace(args: argparse.Namespace) -> int:
+    import re
+    import sys
+    from pathlib import Path
+
+    from ._paths import load_paths
+
+    try:
+        _sources, configs = load_paths(args.paths)
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    block_re = re.compile(
+        rf"\bwhen\s+{re.escape(args.event)}\s*\{{",
+        re.IGNORECASE,
+    )
+
+    traces: list[dict] = []
+    for cfg in configs.values():
+        for rule_path, rule in cfg.rules.items():
+            match = block_re.search(rule.source)
+            if not match:
+                continue
+            body = _slice_balanced_braces(rule.source, match.end() - 1)
+            commands = _extract_commands(body)
+            traces.append(
+                {
+                    "rule": rule_path,
+                    "commandCount": len(commands),
+                    "commands": commands,
+                }
+            )
+
+    if args.json:
+        out = json.dumps({"event": args.event, "traces": traces}, indent=2) + "\n"
+    else:
+        lines = [f"event {args.event}: {len(traces)} matching rule(s)"]
+        for trace in traces:
+            lines.append(f"  {trace['rule']} — {trace['commandCount']} command(s)")
+            for cmd in trace["commands"]:
+                lines.append(f"    {cmd}")
+        out = "\n".join(lines) + "\n"
+
+    if args.output:
+        Path(args.output).write_text(out, encoding="utf-8")
+    else:
+        sys.stdout.write(out)
+    return 0 if traces else 1
+
+
+def _slice_balanced_braces(source: str, open_brace: int) -> str:
+    """Return body text inside the `{...}` starting at *open_brace*."""
+    if source[open_brace] != "{":
+        return ""
+    depth = 1
+    i = open_brace + 1
+    start = i
+    while i < len(source) and depth > 0:
+        ch = source[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        elif ch == '"':
+            i += 1
+            while i < len(source) and source[i] != '"':
+                if source[i] == "\\":
+                    i += 1
+                i += 1
+        i += 1
+    return source[start : i - 1]
+
+
+def _extract_commands(body: str) -> list[str]:
+    """Yield the first token of each non-blank, non-comment line in *body*."""
+    cmds: list[str] = []
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Cheap tokenisation: first whitespace-delimited word.
+        head = line.split(None, 1)[0]
+        # Strip stray closing brace from one-liners
+        head = head.rstrip("{};")
+        if head:
+            cmds.append(head)
+    return cmds
+
+
+def _run_irule_extract(args: argparse.Namespace) -> int:
+    import sys
+    from pathlib import Path
+
+    from ._paths import load_paths
+
+    try:
+        _sources, configs = load_paths(args.paths)
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    out_dir = Path(args.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    written = 0
+    for cfg in configs.values():
+        for rule_path, rule in cfg.rules.items():
+            flat = rule_path.lstrip("/").replace("/", "__")
+            (out_dir / f"{flat}.tcl").write_text(rule.source + "\n", encoding="utf-8")
+            written += 1
+
+    print(f"extracted {written} iRule(s) to {out_dir}", file=sys.stderr)
     return 0
 
 

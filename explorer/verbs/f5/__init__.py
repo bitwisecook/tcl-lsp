@@ -19,6 +19,8 @@ def load_verbs() -> None:
         graph,
         grep,
         merge,
+        pull,
+        push,
         redact,
         rename,
         split,
