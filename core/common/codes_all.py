@@ -35,5 +35,12 @@ import core.compiler.taint._uri_split  # noqa: F401
 import core.tk.diagnostics  # noqa: F401
 import core.xc.translator  # noqa: F401
 
-# lsp
-import lsp.features.diagnostics  # noqa: F401
+# style codes that were historically defined alongside the
+# pygls server in `lsp.features.diagnostics`. The bare
+# `@diag` registrations now live in
+# `core.analysis.checks._lsp_style` so the codes registry
+# stays populated after PYTHON-RETIRE-LSP deletes the LSP
+# feature tree; the actual emit functions stay in
+# `lsp.features.diagnostics` until that retirement
+# completes.
+import core.analysis.checks._lsp_style  # noqa: F401
