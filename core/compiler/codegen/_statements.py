@@ -194,13 +194,18 @@ class _StatementsMixin:
                         cmd_args = parts[2:]
                         self._push_lit("::tcl::dict::create")
                         for arg, braced in cmd_args:
-                            self._emit_value(arg)
+                            self._emit_value(arg, interpolate=True)
                         self._emit(Op.INVOKE_STK1, 1 + len(cmd_args))
                         self._labels[end_label] = len(self._instrs)
                         self._store_var(name)
                         self._emit(Op.POP)
-                        self._used_generic_invoke = True
                     # Trigger startCommand for all subsequent commands.
+                    # The cmd subst itself uses ``invokeStk1`` but the
+                    # outer ``set`` is a compiled ``storeStk`` — only
+                    # the inner generic dispatch should propagate;
+                    # ``_used_generic_invoke`` is left clear so
+                    # ``_fixup_top_level_start_cmd`` keeps the
+                    # outer ``set``'s startCommand wrapper.
                     self._seen_generic_invoke = True
                 elif (
                     not self._is_proc

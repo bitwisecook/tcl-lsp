@@ -757,6 +757,36 @@ class _CmdSubstMixin:
             for k in keys:
                 self._emit_cmd_subst_arg(k)
             self._emit(Op.DICT_GET, len(keys))
+        elif cmd == "dict" and args and args[0][0] == "create":
+            # ``[dict create]`` and ``[dict create k v …]`` — when
+            # every key/value is a constant literal tclsh constant-
+            # folds the call into ``push <merged>; dup; verifyDict``.
+            sub_args = args[1:]
+            self._used_inline_cmd_subst = True
+            if not sub_args:
+                # tclsh emits ``push ""; dup; verifyDict`` so the
+                # result has the dict object-type even for the
+                # empty case.
+                self._push_lit("")
+                self._emit(Op.DUP)
+                self._emit(Op.VERIFY_DICT)
+            elif len(sub_args) % 2 == 0 and all(
+                "$" not in a and "[" not in a for a, _b in sub_args
+            ):
+                from ._helpers import _tcl_list_element
+
+                clean = [a for a, _b in sub_args]
+                folded = " ".join(_tcl_list_element(a) for a in clean)
+                self._push_lit(folded)
+                self._emit(Op.DUP)
+                self._emit(Op.VERIFY_DICT)
+            else:
+                # Non-constant args go through the FQ-name path.
+                self._push_lit("::tcl::dict::create")
+                for a in sub_args:
+                    self._emit_cmd_subst_arg(a)
+                self._emit(Op.INVOKE_STK1, 1 + len(sub_args))
+                self._seen_generic_invoke = True
         elif cmd == "dict" and args and args[0][0] == "merge":
             # ``[dict merge ?d1 d2 …?]`` — tclsh constant-folds the
             # zero- and single-argument forms (no merge needed) and
