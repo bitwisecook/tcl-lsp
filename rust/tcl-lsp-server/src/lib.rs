@@ -71,15 +71,16 @@ use tower_lsp::lsp_types::{
     FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
     InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, Location, MarkupContent, MarkupKind, MessageType, OneOf,
-    ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
-    SemanticTokens as LspSemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
-    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
-    Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
+    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
+    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
+    Range, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
+    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensResult, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
+    SignatureHelp, SignatureHelpOptions, SignatureHelpParams, SignatureInformation,
+    SymbolInformation, SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
+    WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -276,6 +277,9 @@ impl LanguageServer for Backend {
                     ),
                 ),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
+                linked_editing_range_provider: Some(
+                    tower_lsp::lsp_types::LinkedEditingRangeServerCapabilities::Simple(true),
+                ),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -617,6 +621,19 @@ impl LanguageServer for Backend {
     // wiring lands once we move to a tower-lsp version
     // that surfaces these methods (tracked under
     // `S-type-hierarchy-rich`).
+
+    async fn linked_editing_range(
+        &self,
+        _params: LinkedEditingRangeParams,
+    ) -> jsonrpc::Result<Option<LinkedEditingRanges>> {
+        // S-linked-editing-range-rich: the Python provider
+        // links matched-pair tokens (proc declaration ↔
+        // call sites) so renaming one updates the other.
+        // Our minimal port returns no linked edits (the
+        // editor falls back to pairing brackets / quotes
+        // itself).
+        Ok(None)
+    }
 
     async fn semantic_tokens_full(
         &self,
