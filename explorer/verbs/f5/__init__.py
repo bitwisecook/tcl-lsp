@@ -11,12 +11,17 @@ def load_verbs() -> None:
     from . import (  # noqa: F401
         cleanup,
         completion,
+        convert,
         diff,
         explain,
         extract,
         fetch,
         graph,
         grep,
+        merge,
+        redact,
+        rename,
+        split,
         stats,
         validate,
     )
