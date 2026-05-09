@@ -389,8 +389,8 @@ pub(crate) fn escape_every_name_touched_tree(
 
 /// Process one [`SsaStatement`] — apply the appropriate
 /// per-Statement transfer function.
-// Long match dispatcher over CFG-propagation handler shapes.
 #[allow(clippy::too_many_lines)]
+// Long match dispatcher over CFG-propagation handler shapes.
 fn handle_statement(ssa_stmt: &SsaStatement, state: &mut CfgState) {
     let stmt = &ssa_stmt.statement;
     let defs = &ssa_stmt.defs;

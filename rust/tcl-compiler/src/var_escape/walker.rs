@@ -295,134 +295,154 @@ fn is_eval_block(tokens: Option<&crate::ir::CommandTokens>) -> bool {
 /// declares. Used for literal `eval` / `uplevel #0` bodies — the
 /// body runs through the interpreter which resolves names against
 /// the frame, so any name it touches must be visible there.
-// Long match dispatcher over Statement variants in the var_escape walker.
-#[allow(clippy::too_many_lines)]
 pub(crate) fn escape_every_name_touched(stmts: &[Statement], state: &mut EscapeState) {
     for stmt in stmts {
         if state.dynamic_barrier() {
             return;
         }
-        match stmt {
-            Statement::AssignConst { name, value, .. }
-            | Statement::AssignValue { name, value, .. } => {
-                if name.is_empty() || is_dynamic_token(name) {
-                    state.mark_pessimistic();
-                    return;
-                }
-                state.escape(name);
-                apply_value_scan(value, state);
+        if escape_assign_or_incr(stmt, state) {
+            continue;
+        }
+        if escape_call_or_barrier(stmt, state) {
+            continue;
+        }
+        escape_structural(stmt, state);
+    }
+}
+
+/// `escape_every_name_touched` arm: assignment / increment shapes.
+/// Returns `true` when *stmt* matched.
+fn escape_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
+    match stmt {
+        Statement::AssignConst { name, value, .. }
+        | Statement::AssignValue { name, value, .. } => {
+            if name.is_empty() || is_dynamic_token(name) {
+                state.mark_pessimistic();
+                return true;
             }
-            Statement::AssignExpr { name, expr, .. } => {
-                if name.is_empty() || is_dynamic_token(name) {
-                    state.mark_pessimistic();
-                    return;
-                }
-                state.escape(name);
-                apply_expr_scan(Some(expr), state);
+            state.escape(name);
+            apply_value_scan(value, state);
+            true
+        }
+        Statement::AssignExpr { name, expr, .. } => {
+            if name.is_empty() || is_dynamic_token(name) {
+                state.mark_pessimistic();
+                return true;
             }
-            Statement::Incr { name, amount, .. } => {
-                if name.is_empty() || is_dynamic_token(name) {
-                    state.mark_pessimistic();
-                    return;
-                }
-                state.escape(name);
-                if let Some(a) = amount {
-                    apply_value_scan(a, state);
+            state.escape(name);
+            apply_expr_scan(Some(expr), state);
+            true
+        }
+        Statement::Incr { name, amount, .. } => {
+            if name.is_empty() || is_dynamic_token(name) {
+                state.mark_pessimistic();
+                return true;
+            }
+            state.escape(name);
+            if let Some(a) = amount {
+                apply_value_scan(a, state);
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// `escape_every_name_touched` arm: Call / Barrier / Return /
+/// `ExprEval` shapes.  Returns `true` when *stmt* matched.
+fn escape_call_or_barrier(stmt: &Statement, state: &mut EscapeState) -> bool {
+    match stmt {
+        Statement::Call { defs, reads, .. } => {
+            for n in defs.iter().chain(reads.iter()) {
+                if !n.is_empty() && !is_dynamic_token(n) {
+                    state.escape(n);
                 }
             }
-            Statement::Call { defs, reads, .. } => {
-                for n in defs.iter().chain(reads.iter()) {
-                    if !n.is_empty() && !is_dynamic_token(n) {
-                        state.escape(n);
-                    }
-                }
-                handle_call(stmt, state);
+            handle_call(stmt, state);
+            true
+        }
+        Statement::Barrier { command, args, .. } => {
+            handle_barrier(command, args, state);
+            true
+        }
+        Statement::Return { value, expr, .. } => {
+            if let Some(v) = value {
+                apply_value_scan(v, state);
             }
-            Statement::Barrier { command, args, .. } => handle_barrier(command, args, state),
-            Statement::Return { value, expr, .. } => {
-                if let Some(v) = value {
-                    apply_value_scan(v, state);
-                }
-                apply_expr_scan(expr.as_ref(), state);
+            apply_expr_scan(expr.as_ref(), state);
+            true
+        }
+        Statement::ExprEval { expr, .. } => {
+            apply_expr_scan(Some(expr), state);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// `escape_every_name_touched` arm: structural recursion (`If` /
+/// `For` / `While` / `Foreach` / `Catch` / `Try` / `Switch` /
+/// `Block` / `UpFrame`).
+fn escape_structural(stmt: &Statement, state: &mut EscapeState) {
+    match stmt {
+        Statement::If { clauses, else_body, .. } => {
+            for c in clauses {
+                apply_expr_scan(Some(&c.condition), state);
+                escape_every_name_touched(&c.body.statements, state);
             }
-            Statement::ExprEval { expr, .. } => apply_expr_scan(Some(expr), state),
-            Statement::If {
-                clauses, else_body, ..
-            } => {
-                for c in clauses {
-                    apply_expr_scan(Some(&c.condition), state);
-                    escape_every_name_touched(&c.body.statements, state);
-                }
-                if let Some(b) = else_body {
+            if let Some(b) = else_body {
+                escape_every_name_touched(&b.statements, state);
+            }
+        }
+        Statement::For { init, condition, next, body, .. } => {
+            escape_every_name_touched(&init.statements, state);
+            apply_expr_scan(Some(condition), state);
+            escape_every_name_touched(&next.statements, state);
+            escape_every_name_touched(&body.statements, state);
+        }
+        Statement::While { condition, body, .. } => {
+            apply_expr_scan(Some(condition), state);
+            escape_every_name_touched(&body.statements, state);
+        }
+        Statement::Foreach { iterators, body, .. } => {
+            for it in iterators {
+                apply_value_scan(&it.list_arg, state);
+            }
+            escape_every_name_touched(&body.statements, state);
+        }
+        Statement::Catch { body, .. } => escape_every_name_touched(&body.statements, state),
+        Statement::Try { body, handlers, finally_body, .. } => {
+            escape_every_name_touched(&body.statements, state);
+            for h in handlers {
+                escape_every_name_touched(&h.body.statements, state);
+            }
+            if let Some(f) = finally_body {
+                escape_every_name_touched(&f.statements, state);
+            }
+        }
+        Statement::Switch { arms, default_body, .. } => {
+            for a in arms {
+                if let Some(b) = &a.body {
                     escape_every_name_touched(&b.statements, state);
                 }
             }
-            Statement::For {
-                init,
-                condition,
-                next,
-                body,
-                ..
-            } => {
-                escape_every_name_touched(&init.statements, state);
-                apply_expr_scan(Some(condition), state);
-                escape_every_name_touched(&next.statements, state);
-                escape_every_name_touched(&body.statements, state);
-            }
-            Statement::While {
-                condition, body, ..
-            } => {
-                apply_expr_scan(Some(condition), state);
-                escape_every_name_touched(&body.statements, state);
-            }
-            Statement::Foreach {
-                iterators, body, ..
-            } => {
-                for it in iterators {
-                    apply_value_scan(&it.list_arg, state);
-                }
-                escape_every_name_touched(&body.statements, state);
-            }
-            Statement::Catch { body, .. } => escape_every_name_touched(&body.statements, state),
-            Statement::Try {
-                body,
-                handlers,
-                finally_body,
-                ..
-            } => {
-                escape_every_name_touched(&body.statements, state);
-                for h in handlers {
-                    escape_every_name_touched(&h.body.statements, state);
-                }
-                if let Some(f) = finally_body {
-                    escape_every_name_touched(&f.statements, state);
-                }
-            }
-            Statement::Switch {
-                arms, default_body, ..
-            } => {
-                for a in arms {
-                    if let Some(b) = &a.body {
-                        escape_every_name_touched(&b.statements, state);
-                    }
-                }
-                if let Some(d) = default_body {
-                    escape_every_name_touched(&d.statements, state);
-                }
-            }
-            Statement::Block { body, tokens, .. } => {
-                if is_eval_block(tokens.as_ref()) {
-                    let args = synthesise_eval_args(tokens.as_ref());
-                    handle_barrier("eval", &args, state);
-                } else {
-                    escape_every_name_touched(&body.statements, state);
-                }
-            }
-            Statement::UpFrame { tokens, .. } => {
-                let args = synthesise_uplevel_args(tokens.as_ref());
-                handle_barrier("uplevel", &args, state);
+            if let Some(d) = default_body {
+                escape_every_name_touched(&d.statements, state);
             }
         }
+        Statement::Block { body, tokens, .. } => {
+            if is_eval_block(tokens.as_ref()) {
+                let args = synthesise_eval_args(tokens.as_ref());
+                handle_barrier("eval", &args, state);
+            } else {
+                escape_every_name_touched(&body.statements, state);
+            }
+        }
+        Statement::UpFrame { tokens, .. } => {
+            let args = synthesise_uplevel_args(tokens.as_ref());
+            handle_barrier("uplevel", &args, state);
+        }
+        _ => {}
     }
 }
 

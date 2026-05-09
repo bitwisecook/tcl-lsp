@@ -221,8 +221,8 @@ pub struct SccpResult {
 ///   which consults the lattice environment and then the C22
 ///   evaluator.
 // Long match dispatcher over IR opcodes.
-#[allow(clippy::too_many_lines)]
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn sccp(
     cfg: &CfgFunction,
     ssa: &SsaFunction,

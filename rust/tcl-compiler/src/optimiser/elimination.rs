@@ -359,8 +359,8 @@ fn is_side_effect_free_assignment(stmt: &Statement) -> bool {
 /// absolute spans for proc bodies — so false-positive
 /// suppression across proc boundaries no longer applies.
 // Sequential textual-reference scan over command tokens.
-#[allow(clippy::too_many_lines)]
 #[allow(clippy::many_single_char_names)]
+#[allow(clippy::too_many_lines)]
 pub(crate) fn collect_textual_var_references(source: &str, cfg: &CfgFunction) -> HashSet<String> {
     // Absolute spans now cover the function's own source range.
     // Union every statement span plus every terminator span

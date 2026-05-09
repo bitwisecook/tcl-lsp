@@ -1303,8 +1303,8 @@ fn transfer_occurrence_keys(
 /// Matches the Python `gvn.py::_find_partial_redundancies`
 /// pipeline on a per-function basis.
 // Long match dispatcher over IR opcodes.
-#[allow(clippy::too_many_lines)]
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn find_partial_redundancies(
     registry: &CommandRegistry,
     cfg: &CfgFunction,

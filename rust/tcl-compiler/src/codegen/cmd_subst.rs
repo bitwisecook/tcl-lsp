@@ -123,8 +123,8 @@ pub fn has_command_separator(text: &str) -> bool {
 /// lets the caller decide whether to re-wrap the value in braces.
 // Sequential character-walk parser; the brace / quote / bracket / escape
 // state machine doesn't decompose into independent phases.
-#[allow(clippy::too_many_lines)]
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
     let text = text.trim();
     let text = if text.starts_with('[') && text.ends_with(']') {
@@ -729,8 +729,8 @@ impl CodegenCtx<'_> {
         }
     }
 
-    // Long match dispatcher over command-substitution forms.
     #[allow(clippy::too_many_lines)]
+    // Long match dispatcher over command-substitution forms.
     fn emit_inline_string(&mut self, args: &[(String, bool)]) {
         let subcmd = &args[0].0;
         let sargs = &args[1..];

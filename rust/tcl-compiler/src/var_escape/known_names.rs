@@ -30,9 +30,59 @@ fn visit(stmts: &[Statement], names: &mut HashSet<String>) {
     }
 }
 
+fn insert_nonempty(names: &mut HashSet<String>, name: &str) {
+    if !name.is_empty() {
+        names.insert(name.to_string());
+    }
+}
+
+fn visit_catch_or_try(stmt: &Statement, names: &mut HashSet<String>) -> bool {
+    match stmt {
+        Statement::Catch {
+            result_var,
+            options_var,
+            body,
+            ..
+        } => {
+            if let Some(r) = result_var {
+                insert_nonempty(names, r);
+            }
+            if let Some(o) = options_var {
+                insert_nonempty(names, o);
+            }
+            visit(&body.statements, names);
+            true
+        }
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            visit(&body.statements, names);
+            for h in handlers {
+                if let Some(v) = &h.var_name {
+                    insert_nonempty(names, v);
+                }
+                if let Some(o) = &h.options_var {
+                    insert_nonempty(names, o);
+                }
+                visit(&h.body.statements, names);
+            }
+            if let Some(f) = finally_body {
+                visit(&f.statements, names);
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
 // Sequential walker over known-name shapes.
-#[allow(clippy::too_many_lines)]
 fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
+    if visit_catch_or_try(stmt, names) {
+        return;
+    }
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
@@ -44,9 +94,7 @@ fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
         }
         Statement::Call { defs, reads, .. } => {
             for n in defs.iter().chain(reads.iter()) {
-                if !n.is_empty() {
-                    names.insert(n.clone());
-                }
+                insert_nonempty(names, n);
             }
         }
         Statement::If {
@@ -71,54 +119,10 @@ fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
         } => {
             for it in iterators {
                 for v in &it.vars {
-                    if !v.is_empty() {
-                        names.insert(v.clone());
-                    }
+                    insert_nonempty(names, v);
                 }
             }
             visit(&body.statements, names);
-        }
-        Statement::Catch {
-            result_var,
-            options_var,
-            body,
-            ..
-        } => {
-            if let Some(r) = result_var {
-                if !r.is_empty() {
-                    names.insert(r.clone());
-                }
-            }
-            if let Some(o) = options_var {
-                if !o.is_empty() {
-                    names.insert(o.clone());
-                }
-            }
-            visit(&body.statements, names);
-        }
-        Statement::Try {
-            body,
-            handlers,
-            finally_body,
-            ..
-        } => {
-            visit(&body.statements, names);
-            for h in handlers {
-                if let Some(v) = &h.var_name {
-                    if !v.is_empty() {
-                        names.insert(v.clone());
-                    }
-                }
-                if let Some(o) = &h.options_var {
-                    if !o.is_empty() {
-                        names.insert(o.clone());
-                    }
-                }
-                visit(&h.body.statements, names);
-            }
-            if let Some(f) = finally_body {
-                visit(&f.statements, names);
-            }
         }
         Statement::Switch {
             arms, default_body, ..

@@ -90,8 +90,8 @@ impl ClassHierarchy {
 /// pure-superclass hierarchy land in `result.errors`; the
 /// affected classes get a single-element MRO (themselves only).
 // Multi-pass MRO computation; phases share mutable hierarchy state.
-#[allow(clippy::too_many_lines)]
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn build_class_hierarchy(classes: HashMap<String, ClassDef>) -> ClassHierarchy {
     // Build separate superclasses and mixins maps for the
     // TclOO DFS algorithm.
