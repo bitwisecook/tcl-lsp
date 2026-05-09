@@ -148,7 +148,7 @@ _DISPATCH = {
 
 def _get_version() -> str:
     try:
-        from lsp._build_info import FULL_VERSION
+        from core._build_info import FULL_VERSION
 
         return FULL_VERSION
     except ImportError:

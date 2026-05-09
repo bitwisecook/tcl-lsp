@@ -51,7 +51,7 @@ fixable = ["ALL"]
 [tool.coverage.run]
 source = ["lsp", "core", "explorer"]
 omit = [
-    "lsp/_build_info.py",
+    "core/_build_info.py",
     "*/test_*",
     "*/__pycache__/*",
 ]
