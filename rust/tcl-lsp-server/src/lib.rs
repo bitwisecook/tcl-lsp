@@ -27,6 +27,7 @@ use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::references as core_references;
 use tcl_lsp_core::signature_help::{
     self as core_sig, ParameterInformation as CoreParameterInformation,
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
@@ -42,15 +43,16 @@ use tower_lsp::lsp_types::{
     },
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DeclarationCapability, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
-    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
-    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, Location, MarkupContent, MarkupKind,
-    MessageType, OneOf, ParameterInformation, ParameterLabel, Position, Range, ServerCapabilities,
-    ServerInfo, SignatureHelp, SignatureHelpOptions, SignatureHelpParams, SignatureInformation,
-    SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability,
-    Url, WorkDoneProgressOptions,
+    DidOpenTextDocumentParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    Location, MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel,
+    Position, Range, ReferenceParams, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolKind,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability, Url,
+    WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -211,6 +213,8 @@ impl LanguageServer for Backend {
                 declaration_provider: Some(DeclarationCapability::Simple(true)),
                 type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
                 implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
+                references_provider: Some(OneOf::Left(true)),
+                document_highlight_provider: Some(OneOf::Left(true)),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -407,6 +411,81 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(GotoImplementationResponse::Array(locations)))
+    }
+
+    async fn references(&self, params: ReferenceParams) -> jsonrpc::Result<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let pos = params.text_document_position.position;
+        let include_decl = params.context.include_declaration;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let ranges = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_references::references(&doc.text, pos.line, pos.character, &analysis, include_decl)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("references worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+        let locations = ranges
+            .into_iter()
+            .map(|r| Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(r),
+            })
+            .collect();
+        Ok(Some(locations))
+    }
+
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> jsonrpc::Result<Option<Vec<DocumentHighlight>>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let pos = params.text_document_position_params.position;
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        let ranges = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            // Document highlight reuses the references finder
+            // (same algorithm: enumerate every span the symbol
+            // appears at within the document) but does not
+            // include the declaration as a separate kind in
+            // this minimal port — every match lands as
+            // `Text`. Read/Write distinction is recorded as a
+            // follow-up under `S-document-highlight-rich`.
+            core_references::references(&doc.text, pos.line, pos.character, &analysis, true)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("document_highlight worker panicked: {err}").into(),
+            data: None,
+        })?;
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+        let highlights = ranges
+            .into_iter()
+            .map(|r| DocumentHighlight {
+                range: lift_lsp_range(r),
+                kind: Some(DocumentHighlightKind::TEXT),
+            })
+            .collect();
+        Ok(Some(highlights))
     }
 
     async fn signature_help(
