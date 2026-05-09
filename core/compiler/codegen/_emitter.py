@@ -81,6 +81,11 @@ class _Emitter(
         )
         # Loop context for compiling break/continue as jump instructions.
         self._break_target: str | None = None
+        # Map loop-end block name → fresh label placed after the
+        # loop's trailing 3 nops.  ``break`` jumps to this label
+        # rather than the loop-end block itself so the implicit
+        # empty-result triplet only runs on natural loop exit.
+        self._loop_break_after_nops: dict[str, str] = {}
         self._continue_target: str | None = None
         # Catch nesting depth for beginCatch4 operand.
         self._catch_depth = 0
@@ -543,7 +548,34 @@ class _Emitter(
 
             # Update loop context for break/continue compilation.
             if bname in loop_ctx:
-                self._continue_target, self._break_target = loop_ctx[bname]
+                self._continue_target, _bt = loop_ctx[bname]
+                # Allocate the after-nops label only when the
+                # corresponding loop-end block will actually emit
+                # the implicit ``"" + 3 nops`` triplet (i.e. its
+                # terminator is a goto to a non-exit block, or a
+                # CFGBranch — see the loop-end emit branch).  In
+                # other cases (terminal goto to exit, return,
+                # etc.) ``break`` keeps the original loop-end
+                # label as its target.
+                _bt_blk = self._cfg.blocks.get(_bt)
+                _emits_nops = (
+                    _bt_blk is not None
+                    and _bt_blk.statements == ()
+                    and (
+                        (
+                            isinstance(_bt_blk.terminator, CFGGoto)
+                            and _bt_blk.terminator.target is not None
+                            and not _bt_blk.terminator.target.startswith("exit_")
+                        )
+                        or isinstance(_bt_blk.terminator, CFGBranch)
+                    )
+                )
+                if _emits_nops:
+                    if _bt not in self._loop_break_after_nops:
+                        self._loop_break_after_nops[_bt] = self._fresh_label("loop_break")
+                    self._break_target = self._loop_break_after_nops[_bt]
+                else:
+                    self._break_target = _bt
 
             # Complex foreach: emit foreach_step + foreach_end at the
             # bottom of the loop body (before the loop-result push/pop).
@@ -567,6 +599,13 @@ class _Emitter(
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
+                    # ``break`` in the loop body should land *past*
+                    # the loop-end nops — tclsh treats the loop's
+                    # implicit empty result as something only the
+                    # natural exit path observes, while ``break``
+                    # continues straight to the next user command.
+                    if bname in self._loop_break_after_nops:
+                        self._place_label(self._loop_break_after_nops[bname])
                 elif isinstance(blk.terminator, CFGBranch):
                     # Loop_end shared with a following if-condition: the
                     # empty result tclsh would push for the loop is
@@ -578,6 +617,8 @@ class _Emitter(
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
                     self._emit(Op.NOP)
+                    if bname in self._loop_break_after_nops:
+                        self._place_label(self._loop_break_after_nops[bname])
                 elif isinstance(blk.terminator, CFGReturn) and blk.terminator.value is not None:
                     # Loop ends with an explicit return — the loop's empty
                     # result is unused; push and immediately pop it.

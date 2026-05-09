@@ -401,7 +401,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         "145_uplevel_caller_local",
         "146_uplevel_hash_zero",
         "212_line_continuation",
-        "226_continue_runs_step",
         "228_catch_sets_error_msg",
     }
 )
