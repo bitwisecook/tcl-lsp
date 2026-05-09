@@ -133,22 +133,93 @@ def test_remap_pcap_recomputes_ipv4_checksum():
     assert ((saved_cksum_high << 8) | saved_cksum_low) == expected
 
 
-def test_remap_pcap_rewrites_known_ip_in_trailer():
-    """A known-real IP appearing past `IP total length` must be rewritten."""
+def _legacy_high_trailer(remote_v4: bytes, local_v4: bytes) -> bytes:
+    """Build a legacy F5 HIGH v0 trailer (length=42) carrying two IPv4
+    peer addresses in IPv4-mapped IPv6 form."""
+    ipv4_mapped_remote = bytes(10) + b"\xff\xff" + remote_v4
+    ipv4_mapped_local = bytes(10) + b"\xff\xff" + local_v4
+    body = (
+        bytes([0x06])  # ipproto = TCP
+        + struct.pack(">H", 0)  # vlan
+        + ipv4_mapped_remote
+        + ipv4_mapped_local
+        + struct.pack(">H", 12345)
+        + struct.pack(">H", 80)
+    )
+    return bytes([3, 42, 0]) + body  # type=HIGH, length=42, version=0
+
+
+def test_remap_pcap_rewrites_peer_ips_in_legacy_trailer():
+    """Peer IPs inside a legacy F5 HIGH v0 trailer get rewritten via
+    the parsed schema, not byte-sweep."""
     src_real = b"\x01\x02\x03\x04"
     dst_real = b"\x05\x06\x07\x08"
-    # Append a fake F5 trailer that includes one of our known IPs:
-    trailer = b"\xab\xcd" + b"\x01\x02\x03\x04" + b"\xff\xee"
+    peer_remote = b"\x09\x09\x09\x09"  # 9.9.9.9, public
+    peer_local = b"\x14\x14\x14\x14"  # 20.20.20.20, public
+    trailer = _legacy_high_trailer(peer_remote, peer_local)
     packet = _build_tcp_packet(src_real, dst_real) + trailer
     pcap_in = _build_pcap([packet])
-    rm = build_map(text="1.2.3.4 5.6.7.8")
+    rm = build_map(text="1.2.3.4 5.6.7.8 9.9.9.9 20.20.20.20")
     out = io.BytesIO()
     result = remap_pcap(io.BytesIO(pcap_in), out, rm)
     output = out.getvalue()
-    # The trailer occurrence of 1.2.3.4 must have been rewritten too.
-    assert result.addresses_rewritten >= 3  # 2 IP-layer + 1 trailer
-    # And original 1.2.3.4 bytes must not appear anywhere in the packet record.
-    assert b"\x01\x02\x03\x04" not in output[24:]
+    assert result.trailer_tlvs_total == 1
+    assert result.trailer_tlvs_rewritten == 1
+    assert result.trailer_tlvs_unknown == 0
+    # IP-layer rewrite (2) + trailer peer-remote + peer-local (2) = 4
+    assert result.addresses_rewritten == 4
+    # Neither peer IP should appear anywhere in the rewritten record.
+    record = output[24:]
+    assert peer_remote not in record
+    assert peer_local not in record
+
+
+def test_remap_pcap_unknown_trailer_errors_by_default():
+    """A structurally valid legacy trailer with an unknown (type, version)
+    must trigger UnknownTrailerError unless --on-unknown is set."""
+    from core.bigip.pcap_remap import UnknownTrailerError
+
+    # type=HIGH but version=99 — not in the schema registry.
+    weird = bytes([3, 42, 99]) + b"\x00" * 39
+    packet = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08") + weird
+    pcap_in = _build_pcap([packet])
+    rm = build_map(text="1.2.3.4 5.6.7.8")
+    out = io.BytesIO()
+    try:
+        remap_pcap(io.BytesIO(pcap_in), out, rm)
+    except UnknownTrailerError as exc:
+        assert exc.fmt == "legacy"
+        assert exc.version == 99
+    else:
+        raise AssertionError("expected UnknownTrailerError")
+
+
+def test_remap_pcap_unknown_trailer_preserve_policy_leaves_bytes():
+    weird_value = b"\xde\xad\xbe\xef" + b"\x01\x02\x03\x04" + b"\x00" * 31
+    weird = bytes([3, 42, 99]) + weird_value
+    packet = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08") + weird
+    pcap_in = _build_pcap([packet])
+    rm = build_map(text="1.2.3.4 5.6.7.8")
+    out = io.BytesIO()
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm, unknown_policy="preserve")
+    assert result.trailer_tlvs_unknown == 1
+    assert result.trailer_tlvs_rewritten == 0
+    # The known-IP bytes inside the unknown TLV must be preserved.
+    assert b"\x01\x02\x03\x04" in out.getvalue()
+
+
+def test_remap_pcap_unknown_trailer_sweep_policy_replaces_known_ips():
+    weird_value = b"\xde\xad\xbe\xef" + b"\x01\x02\x03\x04" + b"\x00" * 31
+    weird = bytes([3, 42, 99]) + weird_value
+    packet = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08") + weird
+    pcap_in = _build_pcap([packet])
+    rm = build_map(text="1.2.3.4 5.6.7.8")
+    out = io.BytesIO()
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm, unknown_policy="sweep")
+    assert result.trailer_tlvs_unknown == 1
+    assert result.trailer_tlvs_rewritten == 1
+    # 1.2.3.4 must be rewritten by the sweep fallback within just this TLV.
+    assert b"\x01\x02\x03\x04" not in out.getvalue()[24:]
 
 
 def test_remap_pcap_does_not_touch_l4_payload():
@@ -235,27 +306,19 @@ def test_pcap_remap_rejects_bad_magic(tmp_path, capsys):
 # ── regression tests for issues found in PCAP code review ──────────
 
 
-def test_remap_pcap_trailer_picks_up_ips_added_in_later_packets():
-    """Regression: the packed-lookup cache used to be keyed by id(rm)
-    only.  When packet 1's IP layer added a new entry to rm.forward,
-    packet 2's trailer sweep used the cached lookup from packet 1 and
-    missed any reference to the freshly-added IP.  The cache is now
-    keyed by len(forward) too."""
-    # Packet 1: src 1.2.3.4, no trailer.
+def test_remap_pcap_trailer_lookup_invalidates_across_packets():
+    """Regression: in sweep mode the packed-lookup cache used to be
+    keyed by id(rm) only, so an IP first added by packet N's IP layer
+    was missing from packet N+1's sweep.  Cache is now keyed by
+    len(forward) too."""
     p1 = _build_tcp_packet(b"\x01\x02\x03\x04", b"\x05\x06\x07\x08")
-    # Packet 2: src 7.7.7.7, AND a trailer containing 1.2.3.4 (which
-    # was first seen on packet 1).  The trailer reference must be
-    # rewritten consistent with the IP-layer rewrite from packet 1.
-    p2_base = _build_tcp_packet(b"\x07\x07\x07\x07", b"\x08\x08\x08\x08")
-    p2 = p2_base + b"\xab\xcd\x01\x02\x03\x04\xff\xee"
-
-    rm = build_map(text="1.2.3.4 5.6.7.8 7.7.7.7 8.8.8.8")
+    weird = bytes([3, 42, 99]) + b"\x00" * 4 + b"\x01\x02\x03\x04" + b"\x00" * 31
+    p2 = _build_tcp_packet(b"\x07\x07\x07\x07", b"\x08\x08\x08\x08") + weird
     pcap_in = _build_pcap([p1, p2])
+    rm = build_map(text="1.2.3.4 5.6.7.8 7.7.7.7 8.8.8.8")
     out = io.BytesIO()
-    result = remap_pcap(io.BytesIO(pcap_in), out, rm)
+    result = remap_pcap(io.BytesIO(pcap_in), out, rm, unknown_policy="sweep")
     assert result.packets_total == 2
-    # 1.2.3.4 must NOT appear anywhere in the rewritten output —
-    # neither in packet 1's IP header nor in packet 2's trailer.
     assert b"\x01\x02\x03\x04" not in out.getvalue()[24:]
 
 

@@ -116,8 +116,17 @@ f5 tmsh bigip.conf > recreate.tmsh
 
 `f5 pcap-remap` applies the same map to a libpcap file: rewrites IPv4/
 IPv6 src/dst, recomputes IP header + TCP/UDP/ICMP/ICMPv6 checksums,
-and sweeps the F5 HSB trailer (everything past `IP total_length` —
-what `tcpdump -i 0.0:nnnp` adds) for any embedded IPs.  L4 payload
+and **parses** the F5 Ethernet trailer (everything past
+`IP total_length` — what `tcpdump -i 0.0:nnnp` adds), rewriting peer-IP
+fields at schema-known offsets.  Both legacy (TMOS 9.4–13.x) and DPT
+(TMOS 14+) trailer formats are handled; the schema is ported from
+Wireshark's `packet-f5ethtrailer.c`.  When a TLV's `(type, version)`
+pair has no registered schema, behaviour is controlled by
+`--on-unknown`: `error` (default) refuses to write the output, `preserve`
+leaves the TLV unchanged, `sweep` falls back to byte-replacement of
+known IPs within just that TLV's data section.  Operators can extend
+the schema for fleet-specific layouts via `--schema OVERLAY.toml`
+(repeatable); `--list-schemas` prints the active registry.  L4 payload
 bytes are *not* touched.
 
 ### 4.  Round-trip

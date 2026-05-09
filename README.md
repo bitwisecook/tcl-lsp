@@ -808,8 +808,11 @@ Highlights of the newer verbs:
   including support emails and log snippets.
 - **`f5 pcap-remap`** — apply the same map to a PCAP capture: rewrites
   IPv4/IPv6 src/dst, recomputes IP and TCP/UDP/ICMP checksums, and
-  sweeps the F5 HSB trailer (`tcpdump -i 0.0:nnnp`) for any embedded
-  IPs without disturbing the trailer's TLV structure.
+  *parses* the F5 Ethernet trailer (legacy + DPT formats; `tcpdump -i
+  0.0:nnnp`) to rewrite peer IPs at schema-known offsets.  Schema
+  ported from Wireshark's `packet-f5ethtrailer.c`; `--schema FILE`
+  layers in fleet-specific extensions; `--on-unknown=error|preserve|sweep`
+  picks the policy when a TLV has no registered layout.
 - **`f5 tmsh`** — emit `tmsh create` (or `--modify`) commands for every
   object in a config, in dependency order so the script can be pasted
   into a BIG-IP shell unchanged.

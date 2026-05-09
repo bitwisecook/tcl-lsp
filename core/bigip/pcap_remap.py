@@ -14,20 +14,22 @@ For each packet record:
 5. Recompute the TCP / UDP / ICMP checksum (which covers the
    pseudo-header containing src/dst — so any address change makes
    the previous checksum invalid).
-6. Sweep the **F5 trailer** — anything past ``IP total_length`` —
-   for 4-byte (or 16-byte) sequences matching a known real IP in
-   the map, and rewrite them in place.  The F5 HSB trailer
-   (`tcpdump -i 0.0:nnnp`) embeds peer IPs and TMM context after
-   the captured frame; we don't dissect its TLV structure but each
-   embedded address gets the same consistent rewrite the IP header
-   received.  L4 payload bytes are left untouched (we don't peer
-   into application data).
+6. **Parse** the F5 Ethernet trailer (everything past
+   ``IP total_length`` — what ``tcpdump -i 0.0:nnnp`` adds) using
+   :mod:`core.bigip.f5_trailer`, locate each peer-IP field by its
+   schema-known offset within the TLV, and rewrite it through the
+   redaction map.  Both the legacy (TMOS 9.4–13.x) and the DPT
+   (TMOS 14+) trailer formats are supported.  L4 payload bytes are
+   left untouched (we don't peer into application data).
 
-The byte sweep is conservative: it only rewrites bytes that match
-*exact* full-IP entries from :attr:`RedactionMap.forward` (or, in
-reverse mode, :attr:`RedactionMap.reverse`).  That avoids accidentally
-rewriting unrelated 4-byte numeric fields (lengths, timestamps,
-sequence numbers) inside the trailer.
+When a trailer entry is recognised structurally (TLV framing parses
+cleanly) but its ``(type, version)`` doesn't have a registered IP
+field schema, behaviour is configurable via *unknown_policy*:
+
+- ``"error"``  — raise; default; safest.
+- ``"preserve"`` — leave the entry untouched and report the count.
+- ``"sweep"``  — fall back to byte-replacement for known IPs *within
+  that single TLV's data section only*.  Bounded blast radius.
 
 PCAP format support
 -------------------
@@ -51,6 +53,11 @@ import struct
 from dataclasses import dataclass
 from typing import BinaryIO
 
+from .f5_trailer import (
+    DPT_TLV_HDR_LEN,
+    classify_v6_or_v4mapped,
+    parse_trailer,
+)
 from .redact_map import RedactionMap
 
 _PCAP_MAGICS = {
@@ -75,6 +82,23 @@ class PcapRemapResult:
     packets_total: int
     packets_rewritten: int
     addresses_rewritten: int
+    trailer_tlvs_total: int = 0
+    trailer_tlvs_rewritten: int = 0
+    trailer_tlvs_unknown: int = 0
+
+
+class UnknownTrailerError(ValueError):
+    """Raised when *unknown_policy=='error'* and an unknown TLV is found."""
+
+    def __init__(self, fmt: str, type_: int, version: int, length: int) -> None:
+        super().__init__(
+            f"f5 trailer entry has no registered schema: "
+            f"format={fmt} type={type_} version={version} length={length}"
+        )
+        self.fmt = fmt
+        self.type_ = type_
+        self.version = version
+        self.length = length
 
 
 def _u16(buf: bytes | bytearray, off: int) -> int:
@@ -331,16 +355,13 @@ def _byte_replace_known_ips_in_range(
 ) -> int:
     """Replace exact-match IP byte sequences in ``packet[start:end]``.
 
-    Used for the F5 HSB trailer.  Replacements are length-preserving so
-    embedded TLV structures stay valid.
+    Used as the fallback for unknown TLVs when ``unknown_policy=="sweep"``.
+    Replacements are length-preserving.
     """
     table = rm.reverse if reverse else rm.forward
     if not table:
         return 0
 
-    # Build packed lookup tables (built once per map; we can't slot-mutate
-    # a frozen-by-default dataclass, so we use a function-local memo via
-    # the map's id()).
     v4_table, v6_table = _packed_lookup_for(rm, reverse=reverse)
 
     changed = 0
@@ -366,6 +387,114 @@ def _byte_replace_known_ips_in_range(
     changed += _replace(4, v4_table)
     changed += _replace(16, v6_table)
     return changed
+
+
+def _rewrite_trailer_field(
+    packet: bytearray,
+    abs_off: int,
+    kind: str,
+    rm: RedactionMap,
+    *,
+    reverse: bool,
+) -> int:
+    """Rewrite a single IP field at *abs_off*; return 1 if changed else 0."""
+    from .redact_map import map_address, unmap_address
+
+    convert = unmap_address if reverse else map_address
+
+    if kind == "v4":
+        if abs_off + 4 > len(packet):
+            return 0
+        addr_str = str(ipaddress.IPv4Address(bytes(packet[abs_off : abs_off + 4])))
+        new = convert(rm, addr_str)
+        if new != addr_str:
+            packet[abs_off : abs_off + 4] = ipaddress.IPv4Address(new).packed
+            return 1
+        return 0
+
+    if kind == "v6":
+        if abs_off + 16 > len(packet):
+            return 0
+        addr_str = str(ipaddress.IPv6Address(bytes(packet[abs_off : abs_off + 16])))
+        new = convert(rm, addr_str)
+        if new != addr_str:
+            packet[abs_off : abs_off + 16] = ipaddress.IPv6Address(new).packed
+            return 1
+        return 0
+
+    if kind == "v6_or_v4mapped":
+        if abs_off + 16 > len(packet):
+            return 0
+        sixteen = bytes(packet[abs_off : abs_off + 16])
+        actual_kind, v4_off = classify_v6_or_v4mapped(sixteen)
+        if actual_kind == "v4":
+            return _rewrite_trailer_field(packet, abs_off + v4_off, "v4", rm, reverse=reverse)
+        return _rewrite_trailer_field(packet, abs_off, "v6", rm, reverse=reverse)
+
+    return 0
+
+
+def _rewrite_trailer(
+    packet: bytearray,
+    trailer_off: int,
+    rm: RedactionMap,
+    *,
+    reverse: bool,
+    unknown_policy: str,
+) -> tuple[int, int, int, int]:
+    """Parse and rewrite the F5 trailer in ``packet[trailer_off:]``.
+
+    Returns ``(addresses_changed, tlvs_total, tlvs_rewritten,
+    tlvs_unknown)``.  Raises :class:`UnknownTrailerError` when
+    ``unknown_policy == 'error'`` and an unknown TLV is encountered.
+    """
+    if trailer_off >= len(packet):
+        return 0, 0, 0, 0
+
+    trailer_bytes = bytes(packet[trailer_off:])
+    parse = parse_trailer(trailer_bytes)
+    if parse.fmt is None:
+        return 0, 0, 0, 0
+
+    addrs_changed = 0
+    tlvs_rewritten = 0
+    unknown = 0
+
+    for tlv in parse.tlvs:
+        if not tlv.schema_known:
+            unknown += 1
+            if unknown_policy == "error":
+                raise UnknownTrailerError(parse.fmt, tlv.type_, tlv.version, tlv.length)
+            if unknown_policy == "sweep":
+                start = trailer_off + tlv.offset + _tlv_header_len(parse.fmt)
+                end = trailer_off + tlv.offset + tlv.length
+                tlv_changes = _byte_replace_known_ips_in_range(
+                    packet, rm, reverse=reverse, start=start, end=end
+                )
+                if tlv_changes:
+                    addrs_changed += tlv_changes
+                    tlvs_rewritten += 1
+            # "preserve" -> do nothing
+            continue
+
+        tlv_changes = 0
+        for ip_field in tlv.ip_fields:
+            tlv_changes += _rewrite_trailer_field(
+                packet,
+                trailer_off + ip_field.offset,
+                ip_field.kind,
+                rm,
+                reverse=reverse,
+            )
+        if tlv_changes:
+            addrs_changed += tlv_changes
+            tlvs_rewritten += 1
+
+    return addrs_changed, len(parse.tlvs), tlvs_rewritten, unknown
+
+
+def _tlv_header_len(fmt: str) -> int:
+    return DPT_TLV_HDR_LEN if fmt == "dpt" else 3
 
 
 # Keyed by (id(rm), reverse, len(table)).  The length component invalidates
@@ -406,12 +535,29 @@ def _packed_lookup_for(
 
 
 def remap_pcap(
-    in_fh: BinaryIO, out_fh: BinaryIO, rm: RedactionMap, *, reverse: bool = False
+    in_fh: BinaryIO,
+    out_fh: BinaryIO,
+    rm: RedactionMap,
+    *,
+    reverse: bool = False,
+    unknown_policy: str = "error",
 ) -> PcapRemapResult:
     """Stream-rewrite a libpcap file from *in_fh* to *out_fh*.
 
-    Both must be binary-mode handles.  Returns a :class:`PcapRemapResult`.
+    *unknown_policy* controls behaviour when an F5 trailer TLV is
+    structurally valid but its (type, version) has no registered IP
+    field schema:
+
+    - ``"error"``    — raise :class:`UnknownTrailerError` (default).
+    - ``"preserve"`` — leave that TLV's bytes unchanged; report it.
+    - ``"sweep"``    — fall back to byte-replacement of known IPs
+      *within that single TLV's data section only*.
+
+    Both file handles must be binary-mode.  Returns a
+    :class:`PcapRemapResult` summarising packet and trailer counts.
     """
+    if unknown_policy not in {"error", "preserve", "sweep"}:
+        raise ValueError(f"unknown_policy must be error/preserve/sweep, got {unknown_policy!r}")
     header = in_fh.read(24)
     if len(header) != 24:
         raise ValueError("pcap: file too short to contain a global header")
@@ -437,6 +583,9 @@ def remap_pcap(
     total = 0
     rewritten_packets = 0
     rewritten_addrs = 0
+    tlvs_total = 0
+    tlvs_rewritten = 0
+    tlvs_unknown = 0
 
     while True:
         rec_hdr = in_fh.read(16)
@@ -457,10 +606,9 @@ def remap_pcap(
         if ip_pos is not None:
             ip_off, is_v6 = ip_pos
             ip_changed = _rewrite_ip_layer(packet, ip_off, is_v6, rm, reverse=reverse)
-            # The F5 HSB trailer (and any padding) lives past `IP total length`
-            # bytes from ip_off — i.e. after the L4 payload.  We sweep ONLY
-            # that region for known IPs; the L4 payload itself is left
-            # untouched so application data stays bit-identical.
+            # F5 HSB trailer lives past `IP total_length` from ip_off.
+            # We parse it as a TLV chain (legacy or DPT) and rewrite
+            # IPs at schema-known offsets.  L4 payload is never touched.
             if is_v6:
                 payload_len = _u16(packet, ip_off + 4)
                 trailer_off = ip_off + 40 + payload_len
@@ -468,9 +616,21 @@ def remap_pcap(
                 total_len = _u16(packet, ip_off + 2)
                 trailer_off = ip_off + total_len
             if 0 < trailer_off < len(packet):
-                trailer_changed = _byte_replace_known_ips_in_range(
-                    packet, rm, reverse=reverse, start=trailer_off, end=len(packet)
+                (
+                    trailer_changed,
+                    pkt_tlvs,
+                    pkt_tlvs_rew,
+                    pkt_tlvs_unk,
+                ) = _rewrite_trailer(
+                    packet,
+                    trailer_off,
+                    rm,
+                    reverse=reverse,
+                    unknown_policy=unknown_policy,
                 )
+                tlvs_total += pkt_tlvs
+                tlvs_rewritten += pkt_tlvs_rew
+                tlvs_unknown += pkt_tlvs_unk
         if ip_changed or trailer_changed:
             rewritten_packets += 1
         rewritten_addrs += ip_changed + trailer_changed
@@ -483,4 +643,7 @@ def remap_pcap(
         packets_total=total,
         packets_rewritten=rewritten_packets,
         addresses_rewritten=rewritten_addrs,
+        trailer_tlvs_total=tlvs_total,
+        trailer_tlvs_rewritten=tlvs_rewritten,
+        trailer_tlvs_unknown=tlvs_unknown,
     )
