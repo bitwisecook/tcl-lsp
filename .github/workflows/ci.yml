@@ -321,6 +321,14 @@ jobs:
           python3 build/f5-*.pyz cleanup samples/bigip/bigip.conf
           python3 build/f5-*.pyz cleanup --json samples/bigip/bigip.conf > /tmp/cleanup.json
           python3 -c "import json; data = json.load(open('/tmp/cleanup.json')); assert 'candidates' in data, data; assert 'tmshScript' in data, data"
+          # Bundled shell-completion scripts must round-trip through the zipapp
+          # and parse cleanly under the corresponding shell where available.
+          python3 build/f5-*.pyz completion bash > /tmp/f5.bash
+          python3 build/f5-*.pyz completion fish > /tmp/f5.fish
+          python3 build/f5-*.pyz completion zsh  > /tmp/_f5
+          bash -n /tmp/f5.bash
+          # zsh and fish aren't installed in CI; rely on the bash syntax
+          # check plus the static unit tests for those scripts.
 
       - name: Upload F5 zipapp
         uses: actions/upload-artifact@v4

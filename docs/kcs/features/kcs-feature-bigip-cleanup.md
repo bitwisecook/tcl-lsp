@@ -41,6 +41,28 @@ f5 cleanup --no-keep-common bigip.conf
 
 In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m explorer.f5_cli cleanup …`.
 
+#### Shell completion
+
+The `f5 completion <shell>` verb prints a ready-to-install completion script for **bash**, **fish**, or **zsh**.  The scripts are bundled inside the zipapp, so they're the same with the local source build or the released `.pyz`:
+
+```
+# bash (per-user)
+mkdir -p ~/.local/share/bash-completion/completions
+f5 completion bash > ~/.local/share/bash-completion/completions/f5
+
+# fish
+mkdir -p ~/.config/fish/completions
+f5 completion fish > ~/.config/fish/completions/f5.fish
+
+# zsh (per-user)
+mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
+f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
+# then add this to ~/.zshrc before compinit:
+#   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
+```
+
+Pass `--hint` to also print the install instructions for the chosen shell to stderr (e.g. `f5 completion bash --hint`).  Completion covers verb names, every flag, and `*.conf` / `*.scf` positional paths.
+
 ### Claude skill
 
 Run `/bigip-cleanup` (the `bigip-cleanup` skill).  The skill calls `ai/claude/tcl_ai.py bigip-cleanup` under the hood and presents the candidates grouped by kind, plus the ready-to-run script.

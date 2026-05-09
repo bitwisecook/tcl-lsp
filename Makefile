@@ -611,7 +611,12 @@ _smoke-zipapp-f5: $(BUILD_INFO)
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz --help > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup samples/bigip/bigip.conf > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz cleanup --json samples/bigip/bigip.conf > /dev/null
-	@rm -f $(BUILD_DIR)/smoke-f5.pyz
+	# Completion scripts are bundled and printable from inside the zipapp.
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion bash > $(BUILD_DIR)/smoke-f5.bash
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion fish > $(BUILD_DIR)/smoke-f5.fish
+	$(PYTHON) $(BUILD_DIR)/smoke-f5.pyz completion zsh  > $(BUILD_DIR)/smoke-f5.zsh
+	bash -n $(BUILD_DIR)/smoke-f5.bash
+	@rm -f $(BUILD_DIR)/smoke-f5.pyz $(BUILD_DIR)/smoke-f5.bash $(BUILD_DIR)/smoke-f5.fish $(BUILD_DIR)/smoke-f5.zsh
 
 smoke-zipapps: _smoke-zipapp-ai _smoke-zipapp-mcp _smoke-zipapp-lsp _smoke-zipapp-tcl _smoke-zipapp-cli _smoke-zipapp-f5 ## Build and smoke-test all zipapps
 	@echo "All zipapp smoke tests passed."

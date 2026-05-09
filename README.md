@@ -737,9 +737,36 @@ f5 cleanup --keep /Common/critical_pool bigip.conf
 f5 cleanup --json bigip.conf > report.json
 ```
 
-`f5` is a separate CLI from `tcl` and `irule`; today it ships one verb
-(`cleanup`) and is invocable as `python -m explorer.f5_cli cleanup …`
-in dev (the zipapp build wires up the bare `f5` console-script).
+`f5` is a separate CLI from `tcl` and `irule`; today it ships two
+verbs (`cleanup`, `completion`) and is invocable as
+`python -m explorer.f5_cli cleanup …` in dev (the zipapp build wires
+up the bare `f5` console-script).
+
+**Shell completion** — the `f5 completion <shell>` verb prints a
+ready-to-install completion script for **bash**, **fish**, or **zsh**.
+The script is bundled inside the zipapp, so it's the same with the
+local source build or the released `.pyz`:
+
+```
+# bash
+mkdir -p ~/.local/share/bash-completion/completions
+f5 completion bash > ~/.local/share/bash-completion/completions/f5
+
+# fish
+mkdir -p ~/.config/fish/completions
+f5 completion fish > ~/.config/fish/completions/f5.fish
+
+# zsh
+mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
+f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
+# then add to ~/.zshrc, before `compinit`:
+#   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
+```
+
+Pass `--hint` to print the install instructions for the chosen shell
+to stderr alongside the script (`f5 completion bash --hint`).
+Completion covers verb names, every flag, and `*.conf` / `*.scf`
+positional paths.
 
 In VS Code, run the command palette entry **Tcl: Generate BIG-IP
 Cleanup Script** while a `bigip.conf` is open; the script and its JSON
