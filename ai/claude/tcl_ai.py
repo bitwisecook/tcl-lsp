@@ -1979,12 +1979,6 @@ def cmd_bigip_cleanup(
 
     from core.bigip.cleanup import compute_cleanup, report_to_dict
     from core.bigip.parser import parse_bigip_conf
-    from core.commands.registry.runtime import configure_signatures
-
-    # The iRule body scan inside core.bigip.link_extract requires the
-    # ``f5-irules`` dialect to recognise event handlers (``when``) as
-    # ArgRole.BODY so it walks into the rule body.
-    configure_signatures(dialect="f5-irules")
 
     sources: dict[str, str] = {}
     configs = {}

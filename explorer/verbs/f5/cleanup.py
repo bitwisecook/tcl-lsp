@@ -9,7 +9,6 @@ from pathlib import Path
 
 from core.bigip.cleanup import compute_cleanup, report_to_dict
 from core.bigip.parser import parse_bigip_conf
-from core.commands.registry.runtime import configure_signatures
 
 from ._registry import verb
 
@@ -82,12 +81,6 @@ def _split_keep_arguments(keep: list[str]) -> tuple[frozenset[str], frozenset[st
 
 
 def _run_cleanup(args: argparse.Namespace) -> int:
-    # ``f5-irules`` registers the ``when`` event handler with ArgRole.BODY,
-    # which the iRule body scan in ``core.bigip.link_extract`` needs to walk
-    # nested commands and pick up `pool` / `class match` / `persist` / etc.
-    # references inside the rule body.
-    configure_signatures(dialect="f5-irules")
-
     sources: dict[str, str] = {}
     configs = {}
     for path_str in args.paths:

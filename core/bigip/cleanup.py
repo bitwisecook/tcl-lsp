@@ -24,6 +24,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
 from ..analysis.semantic_model import Range
+from ..commands.registry.runtime import active_signature_profile, configure_signatures
 from .link_extract import (
     BigipObjectEdge,
     BigipObjectNode,
@@ -167,8 +168,9 @@ def _topological_order(
         # Cycle remnant — emit the leftovers in deterministic order so the
         # script is at least reviewable.  These candidates may need manual
         # detachment before tmsh accepts the deletes.
+        order_set = set(order)
         leftover = sorted(
-            (nid for nid in candidates if nid not in set(order)),
+            (nid for nid in candidates if nid not in order_set),
             key=sort_key,
         )
         order.extend(leftover)
@@ -230,16 +232,22 @@ def compute_cleanup(
     The iRule body scan inside :mod:`core.bigip.link_extract` relies on
     the ``f5-irules`` command registry being active for body / expr role
     resolution (the ``when`` event handler must be recognised as
-    ``ArgRole.BODY``).  Callers must configure the runtime accordingly
-    before invoking this function::
-
-        from core.commands.registry.runtime import configure_signatures
-        configure_signatures(dialect="f5-irules")
-
-    The LSP server does this at startup; the standalone CLI / AI
-    subcommand do it inside their entry handlers.
+    ``ArgRole.BODY``).  This function configures the ``f5-irules``
+    profile for the duration of the call and restores the previous
+    active profile on exit, so callers do not need to manage it.
     """
-    nodes_by_uri, edges = build_bigip_object_graph(sources=sources, configs=configs)
+    # Save/restore the active signature profile so the analysis sees iRule
+    # event-handler bodies as ArgRole.BODY without leaking that choice to
+    # the surrounding session (e.g. an LSP that has the user on tcl8.6).
+    saved = active_signature_profile()
+    configure_signatures(dialect="f5-irules")
+    try:
+        nodes_by_uri, edges = build_bigip_object_graph(sources=sources, configs=configs)
+    finally:
+        configure_signatures(
+            dialect=saved["dialect"],  # type: ignore[arg-type]
+            extra_commands=saved["extra_commands"],  # type: ignore[arg-type]
+        )
 
     all_nodes: dict[str, BigipObjectNode] = {}
     for by_id in nodes_by_uri.values():

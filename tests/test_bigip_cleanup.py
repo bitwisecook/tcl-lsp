@@ -5,19 +5,9 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-import pytest
-
 from core.bigip.cleanup import compute_cleanup, report_to_dict
 from core.bigip.parser import parse_bigip_conf
-from core.commands.registry.runtime import SIGNATURES, configure_signatures
-
-
-@pytest.fixture(autouse=True)
-def _f5_irules_signatures():
-    """Cleanup analysis depends on the ``when`` BODY-arg role in f5-irules."""
-    SIGNATURES.clear()
-    configure_signatures(dialect="f5-irules", extra_commands=[])
-    yield
+from core.commands.registry.runtime import active_signature_profile
 
 
 def _run(source: str, **kwargs):
@@ -237,6 +227,21 @@ def test_report_to_dict_round_trip_is_json_serialisable() -> None:
     assert again["summary"] == {"ltm_node": 1}
     assert again["candidates"][0]["deleteCommand"] == "delete ltm node /Site/n_orphan"
     assert again["tmshScript"].startswith("# tcl-lsp BIG-IP cleanup")
+
+
+def test_compute_cleanup_restores_signature_profile() -> None:
+    """compute_cleanup must not leak the f5-irules switch to the caller."""
+    saved = active_signature_profile()
+    source = textwrap.dedent(
+        """\
+        ltm node /Site/n_orphan { address 10.0.0.99 }
+        ltm virtual /Common/vs {
+            destination /Common/10.0.0.10:80
+        }
+        """
+    )
+    _run(source, keep_partitions=frozenset())
+    assert active_signature_profile() == saved
 
 
 def test_sample_bigip_conf_has_no_orphans() -> None:
