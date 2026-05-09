@@ -26,6 +26,10 @@ use tcl_lsp_core::completion::{
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::signature_help::{
+    self as core_sig, ParameterInformation as CoreParameterInformation,
+    SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
+};
 use tcl_registry::dialects::DialectSet;
 use tcl_registry::CommandRegistry;
 use tokio::sync::Mutex;
@@ -33,11 +37,13 @@ use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, FoldingRangeProviderCapability, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, MarkupContent,
-    MarkupKind, MessageType, OneOf, Position, Range, ServerCapabilities, ServerInfo, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+    DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange,
+    FoldingRangeKind, FoldingRangeParams, FoldingRangeProviderCapability, Hover, HoverContents,
+    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
+    Range, ServerCapabilities, ServerInfo, SignatureHelp, SignatureHelpOptions,
+    SignatureHelpParams, SignatureInformation, SymbolKind, TextDocumentSyncCapability,
+    TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -165,6 +171,11 @@ impl LanguageServer for Backend {
                     trigger_characters: Some(vec!["$".to_owned()]),
                     ..CompletionOptions::default()
                 }),
+                signature_help_provider: Some(SignatureHelpOptions {
+                    trigger_characters: Some(vec![" ".to_owned()]),
+                    retrigger_characters: None,
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                }),
                 ..ServerCapabilities::default()
             },
             server_info: Some(ServerInfo {
@@ -267,6 +278,31 @@ impl LanguageServer for Backend {
         Ok(Some(CompletionResponse::Array(lifted)))
     }
 
+    async fn signature_help(
+        &self,
+        params: SignatureHelpParams,
+    ) -> jsonrpc::Result<Option<SignatureHelp>> {
+        let Some(doc) = self
+            .read_document(&params.text_document_position_params.text_document.uri)
+            .await
+        else {
+            return Ok(None);
+        };
+        let pos = params.text_document_position_params.position;
+        let result = tokio::task::spawn_blocking(move || {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(&doc.text, &doc.dialect).clone();
+            core_sig::signature_help(&doc.text, pos.line, pos.character, &analysis)
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("signature_help worker panicked: {err}").into(),
+            data: None,
+        })?;
+        Ok(result.map(lift_signature_help))
+    }
+
     async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
         let Some(doc) = self
             .read_document(&params.text_document_position_params.text_document.uri)
@@ -311,6 +347,44 @@ fn lift_completion_item(item: CoreCompletionItem) -> CompletionItem {
         kind: Some(lift_completion_kind(item.kind)),
         insert_text: Some(item.insert_text),
         ..CompletionItem::default()
+    }
+}
+
+fn lift_parameter_information(p: CoreParameterInformation) -> ParameterInformation {
+    ParameterInformation {
+        label: ParameterLabel::Simple(p.label),
+        documentation: None,
+    }
+}
+
+fn lift_signature_information(s: CoreSignatureInformation) -> SignatureInformation {
+    SignatureInformation {
+        label: s.label,
+        documentation: s.documentation.map(|d| {
+            Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: d,
+            })
+        }),
+        parameters: Some(
+            s.parameters
+                .into_iter()
+                .map(lift_parameter_information)
+                .collect(),
+        ),
+        active_parameter: None,
+    }
+}
+
+fn lift_signature_help(h: CoreSignatureHelp) -> SignatureHelp {
+    SignatureHelp {
+        signatures: h
+            .signatures
+            .into_iter()
+            .map(lift_signature_information)
+            .collect(),
+        active_signature: Some(h.active_signature),
+        active_parameter: Some(h.active_parameter),
     }
 }
 
