@@ -22,8 +22,8 @@ python tcl.pyz diagram script.tcl --json
 python tcl.pyz callgraph script.tcl --json
 python tcl.pyz symbolgraph script.tcl --json
 python tcl.pyz dataflow script.tcl --json
-python tcl.pyz event-order rule.irule --dialect f5-irules --json
-python tcl.pyz event-info HTTP_REQUEST --json
+python f5.pyz irule event-order rule.irule --json
+python f5.pyz irule event-info HTTP_REQUEST --json
 python tcl.pyz command-info HTTP::uri --dialect f5-irules --json
 python tcl.pyz convert rule.irule --json
 python tcl.pyz dis script.tcl

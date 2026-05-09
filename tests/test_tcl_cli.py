@@ -209,43 +209,6 @@ def test_dataflow_json_reports_summary(capsys):
     assert err == ""
 
 
-def test_event_order_json_reports_events(capsys):
-    source = "when HTTP_RESPONSE { return }\nwhen HTTP_REQUEST { return }\n"
-
-    code, out, err = _run(
-        ["event-order", "--dialect", "f5-irules", "--source", source, "--json"],
-        capsys,
-    )
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["count"] == 2
-    names = [item["name"] for item in payload["events"]]
-    assert "HTTP_REQUEST" in names
-    assert "HTTP_RESPONSE" in names
-    assert err == ""
-
-
-def test_event_info_json_known_event(capsys):
-    code, out, err = _run(["event-info", "HTTP_REQUEST", "--json"], capsys)
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["event"] == "HTTP_REQUEST"
-    assert payload["known"] is True
-    assert payload["validCommandCount"] >= 1
-    assert err == ""
-
-
-def test_event_info_json_dual_transport_event(capsys):
-    code, out, err = _run(["event-info", "CLIENT_ACCEPTED", "--json"], capsys)
-
-    assert code == 0
-    payload = json.loads(out)
-    assert payload["transport"] == "tcp/udp"
-    assert err == ""
-
-
 def test_command_info_json_known_command(capsys):
     code, out, err = _run(
         ["command-info", "HTTP::uri", "--dialect", "f5-irules", "--json"],
@@ -542,82 +505,6 @@ def test_help_subcommand_supports_help_flag(capsys):
     captured = capsys.readouterr()
     assert "Search KCS help docs from the bundled SQLite index." in captured.out
     assert "--dialect" in captured.out
-
-
-@pytest.mark.parametrize("verb", ["diag", "lint"])
-def test_irule_prog_defaults_diag_like_verbs_to_f5_irules_dialect(verb):
-    args = tcl_cli.parse_args(
-        [verb, "--source", "when HTTP_REQUEST { return }"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_help_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["help", "event"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_prog_name_inference_for_irule_alias():
-    assert tcl_cli._infer_prog_name("/usr/local/bin/irule") == "irule"  # noqa: SLF001
-    assert tcl_cli._default_dialect_for_prog("irule") == "f5-irules"  # noqa: SLF001
-
-
-def test_irule_prog_defaults_diff_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["diff", "left.irule", "right.irule"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_highlight_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["highlight", "--source", "when HTTP_REQUEST { return }", "--no-colour"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_format_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["format", "--source", "when HTTP_REQUEST { return }"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_minify_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["minify", "--source", "when HTTP_REQUEST { return }"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
-
-
-def test_irule_prog_defaults_callgraph_dialect_to_f5_irules():
-    args = tcl_cli.parse_args(
-        ["callgraph", "--source", "when HTTP_REQUEST { return }", "--json"],
-        prog_name="irule",
-        default_dialect="f5-irules",
-    )
-
-    assert args.dialect == "f5-irules"
 
 
 def test_diff_reports_ir_changes(tmp_path, capsys):

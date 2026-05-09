@@ -5,7 +5,7 @@ Two registration patterns are used:
 - **``@verb`` decorator** (``_registry.py``): single-level verbs (opt, diag, lint,
   validate, format, minify, unminify-error, symbols, diagram, callgraph,
   symbolgraph, dataflow, event-order, event-info, command-info, highlight, dis,
-  compwasm, diff, explore, convert, help).  Each verb module calls
+  compwasm, diff, explore, convert, completion, help).  Each verb module calls
   ``apply_verb_registrations`` via ``load_verbs()`` below.
 
 - **``add_*_subparser()``**: complex verb groups with sub-sub-commands (pkg,
@@ -15,4 +15,14 @@ Two registration patterns are used:
 
 def load_verbs() -> None:
     """Import all ``@verb``-decorated modules, triggering their registrations."""
-    from . import compile, diag, diff, graphs, highlight, lookup, misc, transform  # noqa: F401
+    from . import (  # noqa: F401
+        compile,
+        completion,
+        diag,
+        diff,
+        graphs,
+        highlight,
+        lookup,
+        misc,
+        transform,
+    )

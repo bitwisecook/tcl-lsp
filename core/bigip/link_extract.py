@@ -330,6 +330,36 @@ def _find_root_at_offset(
     return min(containing, key=lambda obj: obj.end_offset - obj.start_offset)
 
 
+# Public aliases re-exported for downstream consumers (e.g. ``core.bigip.cleanup``).
+# The leading-underscore types remain stable internally; these aliases give
+# external modules a public name to depend on without reaching into privates.
+BigipObjectNode = _BlockObject
+BigipObjectEdge = _Edge
+
+
+def build_bigip_object_graph(
+    *,
+    sources: dict[str, str],
+    configs: dict[str, BigipConfig],
+) -> tuple[dict[str, dict[str, BigipObjectNode]], list[BigipObjectEdge]]:
+    """Build the full object node / forward-edge graph across *sources* and *configs*.
+
+    Returns ``(nodes_by_uri, edges)`` where ``nodes_by_uri`` maps each
+    source URI to a ``node_id -> BigipObjectNode`` dict, and ``edges``
+    is the flat list of forward reference edges resolved across every
+    configuration.  Sources without a matching :class:`BigipConfig` in
+    *configs* are skipped.
+    """
+    nodes_by_uri: dict[str, dict[str, BigipObjectNode]] = {}
+    for src_uri, src in sources.items():
+        if src_uri not in configs:
+            continue
+        objects = _build_objects_for_source(src_uri, src)
+        nodes_by_uri[src_uri] = {obj.node_id: obj for obj in objects}
+    edges = _build_forward_edges(nodes_by_uri, configs)
+    return nodes_by_uri, edges
+
+
 def extract_linked_bigip_objects(
     *,
     uri: str | None = None,
@@ -363,12 +393,7 @@ def extract_linked_bigip_objects(
         if seed_uri not in sources or seed_uri not in configs:
             return None
 
-    nodes_by_uri: dict[str, dict[str, _BlockObject]] = {}
-    for src_uri, src in sources.items():
-        if src_uri not in configs:
-            continue
-        objects = _build_objects_for_source(src_uri, src)
-        nodes_by_uri[src_uri] = {obj.node_id: obj for obj in objects}
+    nodes_by_uri, edges = build_bigip_object_graph(sources=sources, configs=configs)
 
     # Resolve roots – one per cursor position, deduplicated.
     roots: list[_BlockObject] = []
@@ -382,7 +407,6 @@ def extract_linked_bigip_objects(
     if not roots:
         return None
 
-    edges = _build_forward_edges(nodes_by_uri, configs)
     all_nodes: dict[str, _BlockObject] = {
         node.node_id: node for by_id in nodes_by_uri.values() for node in by_id.values()
     }

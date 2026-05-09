@@ -227,16 +227,7 @@ def _infer_prog_name(argv0: str) -> str:
         return "tcl"
     if lowered.startswith("tcl-"):
         return "tcl"
-    if lowered.startswith("irule-"):
-        return "irule"
     return stem
-
-
-def _default_dialect_for_prog(prog_name: str) -> str:
-    lowered = prog_name.lower()
-    if lowered in {"irule", "irules"} or lowered.startswith("irule"):
-        return "f5-irules"
-    return "tcl8.6"
 
 
 class _BriefHelpAction(argparse.Action):
@@ -353,12 +344,11 @@ def main(
         inferred_prog_name = "tcl"
 
     selected_prog_name = prog_name or inferred_prog_name
-    default_dialect = _default_dialect_for_prog(selected_prog_name)
     cli_config = _load_config()
     args = parse_args(
         parsed_argv,
         prog_name=selected_prog_name,
-        default_dialect=default_dialect,
+        default_dialect="tcl8.6",
     )
     args.cli_config = cli_config
     try:
