@@ -141,13 +141,17 @@ ensure_tclsh() {
 
     if ! command -v tclsh9.0 >/dev/null 2>&1; then
         local tcl_src="$REPO_ROOT/tmp/tcl9.0.3"
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            if [ -d "$tcl_src/unix" ]; then
+                note_missing "tclsh9.0 (would build from source at $tcl_src)"
+            else
+                note_missing "tclsh9.0 (would fetch source via fetch-tcl-source skill, then build)"
+            fi
+            return 0
+        fi
         if [ ! -d "$tcl_src/unix" ]; then
             info "Fetching Tcl 9.0 source via fetch-tcl-source skill"
             bash "$REPO_ROOT/.claude/skills/fetch-tcl-source/fetch_tcl_source.sh" 9.0
-        fi
-        if [ "$CHECK_ONLY" -eq 1 ]; then
-            note_missing "tclsh9.0 (would build from source)"
-            return 0
         fi
         # Need a C toolchain to compile.
         if ! command -v gcc >/dev/null 2>&1 && ! command -v cc >/dev/null 2>&1; then
