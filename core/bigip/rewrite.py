@@ -42,10 +42,16 @@ def _build_name_pattern(old: str) -> re.Pattern[str]:
 def rename_object(source: str, old: str, new: str) -> RenameReport:
     """Rename *old* to *new* everywhere in *source* (text-level).
 
-    The match is bounded so substring collisions don't fire
-    (``/Common/foo`` won't accidentally match ``/Common/foobar``).
-    Both the object's own header and every reference to it are
-    rewritten in one pass.
+    Only full-path references are rewritten.  The match is bounded so
+    substring collisions don't fire (``/Common/foo`` won't accidentally
+    match ``/Common/foobar``).
+
+    Short-name references (``foo`` instead of ``/Common/foo``) are
+    *not* rewritten: they're unsafe to handle by regex because the same
+    token can legitimately appear in comments, string literals, or
+    arbitrary property values without referring to the object.  Callers
+    that need short-name handling should rewrite their iRule bodies to
+    use full paths first (``f5 grep --cidr`` / your editor of choice).
     """
     if not old:
         raise ValueError("old name is empty")
@@ -53,22 +59,6 @@ def rename_object(source: str, old: str, new: str) -> RenameReport:
         raise ValueError("new name is empty")
     pattern = _build_name_pattern(old)
     new_source, count = pattern.subn(new, source)
-
-    # Also handle the short-name reference form (``foo`` for
-    # ``/Common/foo``) — only when both names are /Common/-rooted, so
-    # we don't munge unrelated tokens elsewhere.
-    if old.startswith("/Common/") and new.startswith("/Common/"):
-        old_short = old.removeprefix("/Common/")
-        new_short = new.removeprefix("/Common/")
-        if old_short and old_short != new_short and "/" not in old_short:
-            short_pattern = re.compile(
-                rf"(?<![A-Za-z0-9_/.\-]){re.escape(old_short)}(?![A-Za-z0-9_/.\-])"
-            )
-            # Only rewrite short refs where they look like references, not
-            # part of arbitrary text.  The bounded-token pattern above is
-            # already conservative enough; we accept any match here.
-            new_source, extra = short_pattern.subn(new_short, new_source)
-            count += extra
 
     # Sanity check: the renamed source must still parse.
     try:

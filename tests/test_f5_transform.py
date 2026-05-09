@@ -115,6 +115,25 @@ def test_rename_invalid_new_name_fails():
         rename_object(SMALL, "/Common/p1", "")
 
 
+def test_rename_does_not_touch_short_name_tokens():
+    """Renaming /Common/foo must NOT rewrite bare 'foo' tokens elsewhere —
+    they may appear in comments, unrelated property values, or arbitrary
+    string literals.  See PR #392 review."""
+    body = (
+        "# foo is a great pool, btw\n"
+        'ltm rule /Common/r { when HTTP_REQUEST { log local0. "foo bar" } }\n'
+        "ltm pool /Common/foo { }\n"
+        "ltm virtual /Common/v { description foo }\n"
+    )
+    report = rename_object(body, "/Common/foo", "/Common/baz")
+    # /Common/foo header must rename
+    assert "/Common/baz" in report.new_source
+    # Bare 'foo' tokens elsewhere must survive
+    assert "foo is a great pool" in report.new_source
+    assert '"foo bar"' in report.new_source
+    assert "description foo" in report.new_source
+
+
 # ── rename verb ──────────────────────────────────────────────────────
 
 

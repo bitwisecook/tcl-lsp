@@ -23,8 +23,9 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "Apply a registry of lint rules to one or more bigip.conf / SCF "
         "files.  Reports orphan monitors, empty pools, virtuals without "
         "pools or iRules, deprecated iRule commands, unknown iRule "
-        "events, and similar checks.  Exits 1 if any error-severity "
-        "findings are emitted."
+        "events, and similar checks.  Exit code: 0 when there are no "
+        "findings or only info-level findings, 1 if any warning-level "
+        "findings are emitted, 2 if any error-level findings are emitted."
     )
     p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
     p.add_argument(
