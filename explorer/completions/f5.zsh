@@ -34,6 +34,8 @@ _f5() {
                 'cleanup:Generate tmsh delete commands for objects unreferenced by any virtual'
                 'clean:Alias for cleanup'
                 'completion:Print shell completion script for bash/fish/zsh'
+                'grep:List every BIG-IP object related to a given object path or regex'
+                'related:Alias for grep'
             )
             _describe -t verbs 'verb' verbs
             ;;
@@ -46,6 +48,19 @@ _f5() {
                         '*--keep[Object full-path or partition prefix to retain]:keep:_files' \
                         '--no-keep-common[Do not auto-keep /Common/*]' \
                         '(-o --output)'{-o,--output}'[Write output here (default: stdout)]:output file:_files' \
+                        '*:bigip config:_files -g "*.{conf,scf}"'
+                    ;;
+                grep|related)
+                    _arguments \
+                        '(-h --help)'{-h,--help}'[Show help]' \
+                        '(-e --regex)'{-e,--regex}'[Treat PATTERN as a Python regular expression]' \
+                        '--direction[Which edges to traverse]:direction:(forward reverse both)' \
+                        '--max-depth[Stop BFS after N hops]:max depth:' \
+                        '--max-nodes[Cap result at N objects]:max nodes:' \
+                        '--full[Print each object full body]' \
+                        '--json[Emit grep report as JSON]' \
+                        '(-o --output)'{-o,--output}'[Write output here (default: stdout)]:output file:_files' \
+                        '1:pattern:' \
                         '*:bigip config:_files -g "*.{conf,scf}"'
                     ;;
                 completion)
