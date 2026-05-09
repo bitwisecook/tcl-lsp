@@ -18,6 +18,7 @@ from ..expr_ast import (
     ExprTernary,
     ExprUnary,
     ExprVar,
+    UnaryOp,
     render_expr,
 )
 from ..tcl_expr_eval import _parse_literal, eval_tcl_expr, format_tcl_value
@@ -361,12 +362,28 @@ class _ExpressionsMixin:
                     if ft != next_block:
                         self._emit(Op.JUMP4, ft, comment=f"-> {ft}")
                 else:
+                    # tclsh canonicalises ``if {![cond]}`` by emitting
+                    # the inner condition and swapping the
+                    # ``jumpFalse`` / ``jumpTrue`` polarity, replacing
+                    # the eliminated ``not`` opcode with a placeholder
+                    # ``nop`` so the bytecode offsets stay stable.
+                    flipped = False
+                    if isinstance(cond, ExprUnary) and cond.op in (
+                        UnaryOp.NOT,
+                        UnaryOp.WORD_NOT,
+                    ):
+                        cond = cond.operand
+                        flipped = True
                     self._emit_expr(cond)
                     # tclsh emits a nop between a simple variable condition
                     # and the conditional jump (placeholder for tryCvtToNumeric).
                     # Inline catch also leaves a raw return code on the stack
-                    # that needs the same treatment.
-                    if isinstance(cond, (ExprVar, ExprRaw)):
+                    # that needs the same treatment.  The same nop also
+                    # stands in for the elided ``not`` when we flipped a
+                    # negated condition above.
+                    if flipped:
+                        self._emit(Op.NOP)
+                    elif isinstance(cond, (ExprVar, ExprRaw)):
                         self._emit(Op.NOP)
                     elif isinstance(cond, ExprCommand):
                         inner = cond.text.strip()
@@ -374,13 +391,14 @@ class _ExpressionsMixin:
                             inner = inner[1:]
                         if inner.startswith("catch "):
                             self._emit(Op.NOP)
-                    if ft == next_block:
-                        self._emit(Op.JUMP_TRUE4, tt, comment=f"-> {tt}")
-                    elif tt == next_block:
-                        self._emit(Op.JUMP_FALSE4, ft, comment=f"-> {ft}")
+                    _tt_eff, _ft_eff = (ft, tt) if flipped else (tt, ft)
+                    if _ft_eff == next_block:
+                        self._emit(Op.JUMP_TRUE4, _tt_eff, comment=f"-> {_tt_eff}")
+                    elif _tt_eff == next_block:
+                        self._emit(Op.JUMP_FALSE4, _ft_eff, comment=f"-> {_ft_eff}")
                     else:
-                        self._emit(Op.JUMP_FALSE4, ft, comment=f"!-> {ft}")
-                        self._emit(Op.JUMP4, tt, comment=f"-> {tt}")
+                        self._emit(Op.JUMP_FALSE4, _ft_eff, comment=f"!-> {_ft_eff}")
+                        self._emit(Op.JUMP4, _tt_eff, comment=f"-> {_tt_eff}")
 
             case CFGReturn(value=value):
                 val = value if value is not None else ""

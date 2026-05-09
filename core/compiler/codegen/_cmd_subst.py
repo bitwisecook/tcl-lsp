@@ -730,13 +730,31 @@ class _CmdSubstMixin:
             for k in keys:
                 self._emit_cmd_subst_arg(k)
             self._emit(Op.DICT_GET, len(keys))
+        elif cmd == "dict" and args and args[0][0] == "merge":
+            # ``[dict merge ?d1 d2 …?]`` — tclsh constant-folds the
+            # zero- and single-argument forms (no merge needed) and
+            # only emits a real ``::tcl::dict::merge`` invoke for two
+            # or more dicts.
+            sub_args = args[1:]
+            self._used_inline_cmd_subst = True
+            if not sub_args:
+                self._push_lit("")
+            elif len(sub_args) == 1:
+                self._emit_cmd_subst_arg(sub_args[0])
+                self._emit(Op.DUP)
+                self._emit(Op.VERIFY_DICT)
+            else:
+                self._push_lit("::tcl::dict::merge")
+                for a in sub_args:
+                    self._emit_cmd_subst_arg(a)
+                self._emit(Op.INVOKE_STK1, 1 + len(sub_args))
+                self._seen_generic_invoke = True
         elif cmd == "dict" and args and args[0][0] in {
             "append",
             "incr",
             "keys",
             "values",
             "size",
-            "merge",
             "unset",
             "update",
             "with",

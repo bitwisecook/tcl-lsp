@@ -1091,6 +1091,7 @@ _INLINE_SPECIALISED_SUBST_NAMES = frozenset(
         "lreplace",
         "linsert",
         "llength",
+        "dict",
     }
 )
 

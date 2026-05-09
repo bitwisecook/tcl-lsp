@@ -409,7 +409,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         "226_continue_runs_step",
         "228_catch_sets_error_msg",
         "229_string_cat",
-        "231_dict_merge",
         "232_nested_catch_and_dict_create_quoting",
     }
 )
@@ -426,7 +425,6 @@ _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
         "225_dict_create",
         "228_catch_sets_error_msg",
         "229_string_cat",
-        "231_dict_merge",
         "232_nested_catch_and_dict_create_quoting",
     }
 )
