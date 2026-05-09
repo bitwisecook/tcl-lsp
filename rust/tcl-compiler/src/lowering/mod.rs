@@ -229,6 +229,97 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// structured IR and barriers conservatively clear the whole map
 /// because their child scopes (or runtime side effects) could
 /// touch any tracked name. Mirrors Python's `_invalidate_const_map_for`.
+/// C43 / barrier-gate: token-level check that a relaxed-eval /
+/// relaxed-uplevel body is free of nested dynamic-shape barriers.
+///
+/// Mirrors `core/compiler/lowering_hooks/_barrier_gate.py::body_has_dynamic_barrier`.
+/// When the eval/uplevel hooks consider relaxing a braced-literal
+/// body to inline IR, they first walk the body's command words and
+/// reject any nested `eval`/`uplevel` whose own body argument is
+/// substitution-bearing (`$var` / `[cmd]` / multi-token).  Without
+/// this gate, a static braced `eval {uplevel 1 $x}` would relax to
+/// IR that runs a compiled `uplevel` with a still-dynamic body.
+///
+/// The walk is deliberately shallow and token-based:
+///
+/// 1. Segment the body into commands.
+/// 2. For each command whose name is in the dynamic-barrier set,
+///    inspect its own body-shaped argument (last arg).  If it isn't
+///    a `Str` token (a braced literal), poison.
+/// 3. Recurse into nested braced bodies and into braced-arg shapes
+///    of non-barrier commands so a nested
+///    `if { … } { eval $x }` still trips the gate.
+///
+/// Returns `true` when the body contains a nested dynamic-shape
+/// barrier (the caller should fall back to `IRBarrier`); `false`
+/// when the body is safe to relax.
+fn body_has_dynamic_barrier(body_text: &str) -> bool {
+    use tcl_lexer::TokenType;
+    let commands = segment_commands(body_text);
+    for sc in &commands {
+        if sc.argv.is_empty() || sc.texts.is_empty() {
+            continue;
+        }
+        let name = sc.texts[0].as_str();
+        let is_barrier = matches!(name, "eval" | "uplevel" | "::eval" | "::uplevel");
+        if !is_barrier {
+            // Recurse into braced args of non-barrier commands so
+            // nested barriers still trip the gate.
+            for (i, tok) in sc.argv.iter().enumerate() {
+                if i == 0 {
+                    continue;
+                }
+                if tok.kind != TokenType::Str {
+                    continue;
+                }
+                let arg_text = sc.texts.get(i).map_or("", String::as_str);
+                if body_has_dynamic_barrier(arg_text) {
+                    return true;
+                }
+            }
+            continue;
+        }
+        // Name is a barrier — inspect its own body.
+        let args = &sc.texts[1..];
+        let arg_tokens = &sc.argv[1..];
+        if args.is_empty() {
+            // Malformed: no body. Poison so the outer hook falls
+            // back to IRBarrier (runtime can report the error).
+            return true;
+        }
+        // For ``uplevel`` skip the level arg if literal.
+        let body_idx = if name == "uplevel" || name == "::uplevel" {
+            let level = &args[0];
+            let level_is_int = !level.is_empty()
+                && (level.starts_with('#')
+                    || level.trim_start_matches('-').chars().all(|c| c.is_ascii_digit()));
+            if level_is_int {
+                if args.len() < 2 {
+                    return true;
+                }
+                let level_tok = &arg_tokens[0];
+                if level_tok.kind != TokenType::Esc {
+                    return true;
+                }
+                args.len() - 1
+            } else {
+                args.len() - 1
+            }
+        } else {
+            args.len() - 1
+        };
+        let body_tok_nested = &arg_tokens[body_idx];
+        if body_tok_nested.kind != TokenType::Str {
+            return true;
+        }
+        // Recurse into the literal nested body.
+        if body_has_dynamic_barrier(&args[body_idx]) {
+            return true;
+        }
+    }
+    false
+}
+
 fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String>) {
     match stmt {
         Statement::AssignConst { name, .. }
@@ -858,6 +949,15 @@ impl<'r> Lowerer<'r> {
             _ => return None,
         };
         let body_tok = arg_tokens.get(body_tok_idx)?;
+        // C43 / barrier-gate: see `try_lower_eval_static` for the
+        // rationale.  A static-body `uplevel 1 {eval $x}` would
+        // relax to inline IR with a still-dynamic `eval`; reject.
+        if body_tok.kind == TokenType::Str {
+            let body_text = &args[body_tok_idx];
+            if body_has_dynamic_barrier(body_text) {
+                return None;
+            }
+        }
         let body = if body_tok.kind == TokenType::Str {
             let body_text = &args[body_tok_idx];
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
@@ -965,12 +1065,28 @@ impl<'r> Lowerer<'r> {
             return None;
         }
         let body_tok = arg_tokens[0];
+        // C43 / barrier-gate: a braced literal body might contain a
+        // nested ``eval $x`` / ``uplevel $lvl {...}`` whose own body
+        // is still dynamic.  Relaxing the outer barrier in that case
+        // produces IR that runs a compiled inner barrier with a
+        // still-dynamic shape — we'd lose the runtime barrier without
+        // gaining static knowledge.  Reject and fall back to the
+        // default IRBarrier dispatch.
+        if body_tok.kind == TokenType::Str {
+            let body_text = &args[0];
+            if body_has_dynamic_barrier(body_text) {
+                return None;
+            }
+        }
         let body = if body_tok.kind == TokenType::Str {
             let body_text = &args[0];
             let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
             let literal = self.const_map_lookup(&args[0])?;
+            if body_has_dynamic_barrier(&literal) {
+                return None;
+            }
             self.lower_script(&literal, namespace)
         } else if body_tok.kind == TokenType::Cmd {
             // C35c: ``eval [list lit1 lit2 ...]`` — synthesise the
@@ -1827,6 +1943,74 @@ mod tests {
             m.traced_commands.contains("foo"),
             "traced_commands={:?}",
             m.traced_commands,
+        );
+    }
+
+    // -- C43 / barrier-gate ------------------------------------------
+
+    #[test]
+    fn body_has_dynamic_barrier_clean() {
+        // No barriers at all.
+        assert!(!body_has_dynamic_barrier("set x 1"));
+        // Barrier with a fully literal body.
+        assert!(!body_has_dynamic_barrier("eval { set x 1 }"));
+        // Nested literal.
+        assert!(!body_has_dynamic_barrier(
+            "if { 1 } { eval { set x 1 } }"
+        ));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_dynamic_eval_body() {
+        // ``eval $x`` inside the outer body — dynamic.
+        assert!(body_has_dynamic_barrier("eval $x"));
+        // Same shape nested.
+        assert!(body_has_dynamic_barrier("if { 1 } { eval $x }"));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_dynamic_uplevel_body() {
+        assert!(body_has_dynamic_barrier("uplevel 1 $body"));
+        assert!(body_has_dynamic_barrier("uplevel #0 $b"));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_uplevel_with_literal_body_clean() {
+        // ``uplevel $lvl {body}`` with a literal body is OK — the
+        // gate only poisons when the BODY is substitution-bearing.
+        // Mirrors Python parity.
+        assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}"));
+    }
+
+    #[test]
+    fn body_has_dynamic_barrier_qualified_eval_uplevel() {
+        // ``::eval`` and ``::uplevel`` are also caught.
+        assert!(body_has_dynamic_barrier("::eval $x"));
+        assert!(body_has_dynamic_barrier("::uplevel 1 $body"));
+    }
+
+    #[test]
+    fn try_lower_eval_static_rejects_nested_dynamic_barrier() {
+        // The relaxer would normally promote ``eval { ... }`` to a
+        // ``Statement::Block``; with the barrier gate, the nested
+        // ``eval $x`` poisons the relaxation and we fall back to
+        // ``Statement::Barrier``.
+        let m = lower_to_ir(r"eval { eval $x }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Barrier { .. }),
+            "expected Barrier (gate triggered), got {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn try_lower_eval_static_clean_body_relaxes() {
+        // No nested barrier — relaxes to Block.
+        let m = lower_to_ir("eval { set x 1 }", &reg());
+        let stmt = m.top_level.statements.first().expect("at least one stmt");
+        assert!(
+            matches!(stmt, Statement::Block { .. }),
+            "expected Block (relaxed), got {stmt:?}",
         );
     }
 }
