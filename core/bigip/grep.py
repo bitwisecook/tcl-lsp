@@ -14,12 +14,15 @@ count exactly as they do for the cleanup analysis.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from collections import defaultdict, deque
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 from ..analysis.semantic_model import Range
 from ..commands.registry.runtime import active_signature_profile, configure_signatures
+from ..common.ip_utils import IPV4_RE, IPV6_RE
 from .link_extract import (
     BigipObjectEdge,
     BigipObjectNode,
@@ -28,6 +31,8 @@ from .link_extract import (
 from .model import BigipConfig
 
 DIRECTIONS: frozenset[str] = frozenset({"forward", "reverse", "both"})
+
+_IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,17 +74,101 @@ class GrepReport:
     edges: tuple[GrepEdge, ...] = ()
     summary: dict[str, int] = field(default_factory=dict)
     text_report: str = ""
+    use_cidr: bool = False
 
 
-def _build_matcher(pattern: str, *, use_regex: bool):
-    """Return a ``(identifier) -> bool`` matcher; raises ValueError on bad regex."""
+def _parse_cidr_pattern(pattern: str) -> tuple[_IPNetwork, ...]:
+    """Parse one or more whitespace/comma-separated IPs or CIDRs.
+
+    Each token is fed through :func:`ipaddress.ip_network` with
+    ``strict=False`` so host-address forms (``10.0.0.1`` →
+    ``10.0.0.1/32``) and network forms (``10.0.0.0/8``) are both
+    accepted.
+    """
+    tokens = [tok for tok in re.split(r"[,\s]+", pattern.strip()) if tok]
+    if not tokens:
+        raise ValueError("CIDR pattern must contain at least one IP address or network")
+    networks: list[_IPNetwork] = []
+    for token in tokens:
+        try:
+            networks.append(ipaddress.ip_network(token, strict=False))
+        except (ValueError, ipaddress.AddressValueError) as exc:
+            raise ValueError(f"invalid CIDR pattern {token!r}: {exc}") from exc
+    return tuple(networks)
+
+
+def _extract_ip_networks(text: str) -> Iterator[_IPNetwork]:
+    """Yield every IP/CIDR token found in *text* as an :mod:`ipaddress` network.
+
+    Scans for IPv4 and IPv6 literals (with an optional ``/prefix``) using
+    the shared :mod:`core.common.ip_utils` regexes and validates each
+    candidate via :func:`ipaddress.ip_network` (``strict=False``).
+    Tokens that fail validation are silently skipped — the regexes are
+    deliberately permissive so we lean on the stdlib parser as the
+    authority.
+    """
+    for match in IPV4_RE.finditer(text):
+        token = match.group(0)
+        try:
+            yield ipaddress.ip_network(token, strict=False)
+        except (ValueError, ipaddress.AddressValueError):
+            continue
+    for match in IPV6_RE.finditer(text):
+        token = match.group(0)
+        try:
+            yield ipaddress.ip_network(token, strict=False)
+        except (ValueError, ipaddress.AddressValueError):
+            continue
+
+
+def _node_matches_cidrs(
+    node: BigipObjectNode,
+    seed_networks: tuple[_IPNetwork, ...],
+) -> bool:
+    """Return True when any IP/CIDR mentioned by *node* overlaps a seed network.
+
+    The node's full path, header, and body are searched together so
+    that hits inside iRule scripts (``equals "10.0.0.0/8"``,
+    ``IP::addr 10.0.0.1`` …) and inside configuration bodies
+    (``destination /Common/10.0.0.10:80``) both qualify.
+    """
+    haystack = f"{node.identifier}\n{node.header}\n{node.body}"
+    for found in _extract_ip_networks(haystack):
+        for seed in seed_networks:
+            if found.version != seed.version:
+                continue
+            if seed.overlaps(found):
+                return True
+    return False
+
+
+def _build_matcher(
+    pattern: str,
+    *,
+    use_regex: bool,
+    use_cidr: bool = False,
+) -> Callable[[BigipObjectNode], bool]:
+    """Return a ``(node) -> bool`` matcher for the given pattern mode.
+
+    The substring and regex modes match against the node's identifier
+    (full path) only — preserving existing behaviour.  CIDR mode
+    inspects the node's path, header, and body so that IP/CIDR
+    references buried inside iRule script bodies are picked up.
+
+    Raises :class:`ValueError` on a bad regex or unparseable CIDR.
+    """
+    if use_cidr and use_regex:
+        raise ValueError("--cidr and --regex are mutually exclusive")
+    if use_cidr:
+        seed_networks = _parse_cidr_pattern(pattern)
+        return lambda node: _node_matches_cidrs(node, seed_networks)
     if use_regex:
         try:
             compiled = re.compile(pattern)
         except re.error as exc:
             raise ValueError(f"invalid regex pattern {pattern!r}: {exc}") from exc
-        return lambda identifier: compiled.search(identifier) is not None
-    return lambda identifier: pattern in identifier
+        return lambda node: compiled.search(node.identifier) is not None
+    return lambda node: pattern in node.identifier
 
 
 def _to_grep_object(node: BigipObjectNode, *, depth: int, is_seed: bool) -> GrepObject:
@@ -106,9 +195,15 @@ def _format_text_report(
     *,
     include_body: bool,
 ) -> str:
+    if report_meta.get("use_cidr"):
+        mode_suffix = " (cidr)"
+    elif report_meta["use_regex"]:
+        mode_suffix = " (regex)"
+    else:
+        mode_suffix = ""
     lines: list[str] = [
         "# tcl-lsp BIG-IP grep",
-        f"# Pattern: {report_meta['pattern']}" + (" (regex)" if report_meta["use_regex"] else ""),
+        f"# Pattern: {report_meta['pattern']}" + mode_suffix,
         f"# Direction: {report_meta['direction']}",
         f"# Sources: {', '.join(report_meta['source_uris']) or '(none)'}",
         f"# Seeds: {len(seeds)} matched object(s)",
@@ -155,6 +250,7 @@ def compute_grep(
     configs: dict[str, BigipConfig],
     pattern: str,
     use_regex: bool = False,
+    use_cidr: bool = False,
     direction: str = "both",
     max_depth: int | None = None,
     max_nodes: int = 1000,
@@ -162,10 +258,21 @@ def compute_grep(
 ) -> GrepReport:
     """Find every BIG-IP object related to seeds whose identifiers match *pattern*.
 
-    A seed is any object whose ``identifier`` (full path) matches *pattern* —
-    by substring when *use_regex* is ``False``, by :func:`re.search` when
-    ``True``.  Starting from the seeds the function walks the reference
-    graph in the requested *direction* (``forward``: outgoing edges only,
+    A seed is any object that matches *pattern*.  Three match modes are
+    supported and they are mutually exclusive:
+
+    - **Substring** (default): the pattern must appear as a substring of
+      the object's ``identifier`` (full path).
+    - **Regex** (*use_regex*): the pattern is compiled with :mod:`re` and
+      tested against the object's identifier with :func:`re.search`.
+    - **CIDR** (*use_cidr*): the pattern is parsed as one or more
+      whitespace/comma-separated IP addresses or CIDRs, and an object is
+      a seed when any IP literal or CIDR mentioned in its path, header,
+      or body overlaps any of the requested networks.  This includes
+      addresses buried deep inside iRule script bodies.
+
+    Starting from the seeds the function walks the reference graph in
+    the requested *direction* (``forward``: outgoing edges only,
     ``reverse``: incoming edges only, ``both``: union) until either every
     reachable object has been visited, *max_depth* hops are exhausted (when
     set), or *max_nodes* total objects have been collected.
@@ -183,9 +290,10 @@ def compute_grep(
     if max_depth is not None and max_depth < 0:
         raise ValueError(f"max_depth must be >= 0 or None, got {max_depth}")
 
-    # Validate the pattern before walking the graph so a bad regex surfaces
-    # as a user error rather than a silent zero-match result.
-    matches = _build_matcher(pattern, use_regex=use_regex)
+    # Validate the pattern before walking the graph so a bad regex or
+    # unparseable CIDR surfaces as a user error rather than a silent
+    # zero-match result.
+    matches = _build_matcher(pattern, use_regex=use_regex, use_cidr=use_cidr)
 
     saved = active_signature_profile()
     configure_signatures(dialect="f5-irules")
@@ -212,7 +320,7 @@ def compute_grep(
         return (node.kind or "", node.identifier)
 
     seed_ids: list[str] = sorted(
-        (nid for nid, node in all_nodes.items() if matches(node.identifier)),
+        (nid for nid, node in all_nodes.items() if matches(node)),
         key=_sort_key,
     )
 
@@ -291,6 +399,7 @@ def compute_grep(
         {
             "pattern": pattern,
             "use_regex": use_regex,
+            "use_cidr": use_cidr,
             "direction": direction,
             "source_uris": tuple(sorted(sources)),
         },
@@ -303,6 +412,7 @@ def compute_grep(
     return GrepReport(
         pattern=pattern,
         use_regex=use_regex,
+        use_cidr=use_cidr,
         direction=direction,
         seeds=seeds_tuple,
         related=related_tuple,
@@ -349,6 +459,7 @@ def report_to_dict(report: GrepReport, *, include_body: bool = False) -> dict:
     return {
         "pattern": report.pattern,
         "useRegex": report.use_regex,
+        "useCidr": report.use_cidr,
         "direction": report.direction,
         "seeds": [_obj_to_dict(o) for o in report.seeds],
         "related": [_obj_to_dict(o) for o in report.related],

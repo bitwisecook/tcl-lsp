@@ -5,7 +5,7 @@
 
 ## Summary
 
-`f5` CLI tool with a `grep` verb that finds every BIG-IP object related to a given object name (or regex), by walking the same forward-and-reverse reference graph the cleanup analysis uses.
+`f5` CLI tool with a `grep` verb that finds every BIG-IP object related to a given object name, regex, or CIDR — by walking the same forward-and-reverse reference graph the cleanup analysis uses.  CIDR mode also scans IP literals buried inside iRule script bodies.
 
 ## Applies to
 
@@ -28,6 +28,8 @@ f5 grep /Common/web_pool bigip.conf
 f5 grep --direction reverse /Common/web1 bigip.conf
 f5 grep --regex '^/Common/(web|api)_pool$' bigip.conf
 f5 grep --json --max-depth 2 web_pool bigip.conf
+f5 grep --cidr 10.0.0.0/8 bigip.conf
+f5 grep --cidr '10.0.0.0/8, 192.168.0.0/16' bigip.conf
 ```
 
 In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m explorer.f5_cli grep …`.
@@ -40,7 +42,8 @@ f5 related /Common/web_pool bigip.conf
 
 ## Options
 
-- `-e, --regex` — treat PATTERN as a Python regular expression (default: substring match against the object's full path).
+- `-e, --regex` — treat PATTERN as a Python regular expression (default: substring match against the object's full path).  Mutually exclusive with `--cidr`.
+- `-c, --cidr` — treat PATTERN as one or more whitespace- or comma-separated IPv4/IPv6 addresses or CIDR ranges.  An object qualifies when any IP literal or CIDR mentioned in its full path, header, or body — including iRule script bodies — overlaps any requested network.  Mutually exclusive with `--regex`.
 - `--direction {forward,reverse,both}` — which edges to walk from each seed.  `forward` follows outgoing references (what the seed depends on); `reverse` follows incoming references (what depends on the seed); `both` (default) walks both.
 - `--max-depth N` — stop the BFS after N hops from each seed.  Default: unlimited.
 - `--max-nodes N` — cap the result at N objects (default: 1000) to keep the output tractable on very large configurations.
@@ -92,10 +95,26 @@ ltm virtual /Common/vs {
 
 A seed line is prefixed with `*`; related lines start with two spaces.  The `(depth N)` annotation is the BFS distance from the nearest seed.
 
+### CIDR mode
+
+Use `--cidr` to ask "which BIG-IP objects touch a given network?".  The seed selector parses PATTERN as one or more IPv4/IPv6 addresses or CIDR ranges and scans every object's full path, header, and body for IP/CIDR tokens that overlap.  Bare host addresses are treated as `/32` (IPv4) or `/128` (IPv6), so `--cidr 10.0.0.5` also matches an object that contains the containing network `10.0.0.0/24`, and vice versa.
+
+```
+ltm rule /Common/r_block {
+when HTTP_REQUEST {
+    if { [matchclass [IP::client_addr] equals "10.10.0.0/16"] } { reject }
+    if { [IP::addr [IP::client_addr] equals "10.0.0.5"] } { reject }
+}
+}
+```
+
+`f5 grep --cidr 10.0.0.0/8 bigip.conf` returns `/Common/r_block` as a seed because both the literal `10.0.0.5` and the CIDR `10.10.0.0/16` mentioned in the iRule body fall inside `10.0.0.0/8`.  This is the only way to surface IP references buried inside Tcl logic — the substring and regex modes only match against an object's full path.
+
 ## Out of scope
 
 - The grep verb does not modify the configuration — it only reports.
-- It uses *substring* matching by default; pass `--regex` for a Python regular expression.  There is no glob / shell-style matching.
+- It uses *substring* matching by default; pass `--regex` for a Python regular expression or `--cidr` for IP/CIDR matching.  There is no glob / shell-style matching.
+- `--cidr` validates each candidate IP token via Python's `ipaddress` module and silently skips anything that doesn't parse — the regexes that find candidate tokens are intentionally permissive and lean on the stdlib parser as the source of truth.
 - The reference graph is the same one [`f5 cleanup`](kcs-feature-bigip-cleanup.md) walks; objects unreachable through that graph are not surfaced even if they share a name pattern.
 
 ## Related

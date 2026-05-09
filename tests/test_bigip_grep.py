@@ -468,6 +468,218 @@ def test_cli_grep_invalid_regex_reports_error(tmp_path: Path, capsys) -> None:
     assert "invalid regex pattern" in captured.err
 
 
+# CIDR mode
+
+
+def test_cidr_matches_address_in_object_header() -> None:
+    """A virtual whose destination falls inside the seed CIDR is a seed."""
+    source = textwrap.dedent(
+        """\
+        ltm virtual /Common/vs_inside { destination /Common/10.5.5.10:80 }
+        ltm virtual /Common/vs_outside { destination /Common/192.168.1.1:80 }
+        """
+    )
+    report = _run(source, "10.0.0.0/8", use_cidr=True, direction="forward")
+    paths = set(_full_paths(report.seeds))
+    assert "/Common/vs_inside" in paths
+    assert "/Common/vs_outside" not in paths
+
+
+def test_cidr_matches_inside_irule_body() -> None:
+    """An IP literal buried in an iRule script body is matched."""
+    source = textwrap.dedent(
+        """\
+        ltm rule /Common/r_block {
+        when HTTP_REQUEST {
+            if { [IP::addr [IP::client_addr] equals "10.0.0.5"] } { reject }
+        }
+        }
+        ltm rule /Common/r_other {
+        when HTTP_REQUEST {
+            if { [IP::addr [IP::client_addr] equals "192.168.1.1"] } { reject }
+        }
+        }
+        """
+    )
+    report = _run(source, "10.0.0.0/8", use_cidr=True, direction="forward")
+    paths = set(_full_paths(report.seeds))
+    assert "/Common/r_block" in paths
+    assert "/Common/r_other" not in paths
+
+
+def test_cidr_matches_cidr_literal_inside_irule_body() -> None:
+    """A `/prefix` literal inside an iRule body is matched when it overlaps."""
+    source = textwrap.dedent(
+        """\
+        ltm rule /Common/r_subnet {
+        when HTTP_REQUEST {
+            if { [matchclass [IP::client_addr] equals "10.10.0.0/16"] } { reject }
+        }
+        }
+        """
+    )
+    report = _run(source, "10.0.0.0/8", use_cidr=True, direction="forward")
+    assert _full_paths(report.seeds) == ["/Common/r_subnet"]
+
+
+def test_cidr_host_address_seed_matches_containing_network() -> None:
+    """A bare host seed matches an object that mentions a containing CIDR."""
+    source = textwrap.dedent(
+        """\
+        ltm data-group internal /Common/dg_block {
+            type ip
+            records {
+                10.0.0.0/8 { }
+            }
+        }
+        """
+    )
+    report = _run(source, "10.5.5.5", use_cidr=True, direction="forward")
+    assert _full_paths(report.seeds) == ["/Common/dg_block"]
+
+
+def test_cidr_multiple_networks_are_unioned() -> None:
+    """Whitespace- and comma-separated CIDRs both seed the search."""
+    source = textwrap.dedent(
+        """\
+        ltm virtual /Common/vs_a { destination /Common/10.0.0.1:80 }
+        ltm virtual /Common/vs_b { destination /Common/192.168.1.1:80 }
+        ltm virtual /Common/vs_c { destination /Common/172.20.5.10:80 }
+        """
+    )
+    report = _run(source, "10.0.0.0/8, 192.168.0.0/16", use_cidr=True, direction="forward")
+    paths = set(_full_paths(report.seeds))
+    assert paths == {"/Common/vs_a", "/Common/vs_b"}
+
+
+def test_cidr_matches_ipv6_in_irule() -> None:
+    """IPv6 CIDR seeds match IPv6 literals inside iRule bodies."""
+    source = textwrap.dedent(
+        """\
+        ltm rule /Common/r_v6 {
+        when HTTP_REQUEST {
+            if { [IP::addr [IP::client_addr] equals "2001:db8::dead"] } { reject }
+        }
+        }
+        ltm rule /Common/r_v4_only {
+        when HTTP_REQUEST {
+            if { [IP::addr [IP::client_addr] equals "10.0.0.1"] } { reject }
+        }
+        }
+        """
+    )
+    report = _run(source, "2001:db8::/32", use_cidr=True, direction="forward")
+    paths = set(_full_paths(report.seeds))
+    assert "/Common/r_v6" in paths
+    assert "/Common/r_v4_only" not in paths
+
+
+def test_cidr_pulls_in_referenced_neighbours() -> None:
+    """CIDR seeds still expand to forward neighbours through reference edges."""
+    source = textwrap.dedent(
+        """\
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 {
+            members { /Common/n1:80 { address 10.0.0.1 } }
+        }
+        ltm virtual /Common/vs_inside {
+            destination /Common/10.5.5.10:80
+            pool /Common/p1
+        }
+        ltm virtual /Common/vs_outside {
+            destination /Common/192.168.1.1:80
+        }
+        """
+    )
+    report = _run(source, "10.5.5.0/24", use_cidr=True, direction="forward")
+    assert _full_paths(report.seeds) == ["/Common/vs_inside"]
+    related = set(_full_paths(report.related))
+    # The pool (and through it the node) must be reachable from the seed.
+    assert "/Common/p1" in related
+    assert "/Common/n1" in related
+
+
+def test_cidr_invalid_pattern_raises_value_error() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    with pytest.raises(ValueError, match="invalid CIDR pattern"):
+        _run(source, "999.999.999.999/8", use_cidr=True)
+
+
+def test_cidr_empty_pattern_raises_value_error() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    with pytest.raises(ValueError, match="at least one IP"):
+        _run(source, "   ", use_cidr=True)
+
+
+def test_cidr_and_regex_are_mutually_exclusive() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        _run(source, "10.0.0.0/8", use_cidr=True, use_regex=True)
+
+
+def test_cidr_text_report_marks_pattern_as_cidr() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    report = _run(source, "10.0.0.0/8", use_cidr=True)
+    assert "Pattern: 10.0.0.0/8 (cidr)" in report.text_report
+
+
+def test_cidr_report_to_dict_round_trips_use_cidr_flag() -> None:
+    source = "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n"
+    report = _run(source, "10.0.0.0/8", use_cidr=True)
+    payload = report_to_dict(report)
+    again = json.loads(json.dumps(payload))
+    assert again["useCidr"] is True
+    assert again["useRegex"] is False
+    assert {item["fullPath"] for item in again["seeds"]} == {"/Common/vs"}
+
+
+def test_cli_grep_cidr_finds_irule_match(tmp_path: Path, capsys) -> None:
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        textwrap.dedent(
+            """\
+            ltm rule /Common/r_block {
+            when HTTP_REQUEST {
+                if { [IP::addr [IP::client_addr] equals "10.0.0.5"] } { reject }
+            }
+            }
+            ltm virtual /Common/vs_outside { destination /Common/192.168.1.1:80 }
+            """
+        ),
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "--cidr", "10.0.0.0/8", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "Pattern: 10.0.0.0/8 (cidr)" in captured.out
+    assert "/Common/r_block" in captured.out
+    assert "/Common/vs_outside" not in captured.out
+
+
+def test_cli_grep_cidr_invalid_pattern_reports_error(tmp_path: Path, capsys) -> None:
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n",
+        encoding="utf-8",
+    )
+    rc = f5_cli.main(["grep", "--cidr", "999.999.999.999/8", str(conf)])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "invalid CIDR pattern" in captured.err
+
+
+def test_cli_grep_cidr_and_regex_are_rejected(tmp_path: Path, capsys) -> None:
+    conf = tmp_path / "x.conf"
+    conf.write_text(
+        "ltm virtual /Common/vs { destination /Common/10.0.0.10:80 }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit):
+        f5_cli.main(["grep", "--cidr", "--regex", "10.0.0.0/8", str(conf)])
+    captured = capsys.readouterr()
+    assert "not allowed with argument" in captured.err or "mutually exclusive" in captured.err
+
+
 def test_cli_grep_full_json_emits_object_bodies(tmp_path: Path, capsys) -> None:
     """`--full` with `--json` must include each object's body in the payload."""
     conf = tmp_path / "x.conf"
