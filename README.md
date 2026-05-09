@@ -777,8 +777,45 @@ f5 irule event-order samples/irules/policy.irule
 f5 irule event-info HTTP_REQUEST --json
 ```
 
-`f5` is a separate CLI from `tcl`; today it ships four top-level
-verbs (`cleanup`, `grep`, `completion`, `irule`).
+`f5` is a separate CLI from `tcl`.  The full verb list (today):
+
+| Group | Verbs |
+| --- | --- |
+| Acquisition | `fetch`, `extract` (UCS → SCF) |
+| Analysis | `stats`, `graph`, `explain`, `diff`, `grep`, `cleanup`, `validate` |
+| Transformation | `rename`, `redact`, `unredact`, `pcap-remap`, `split`, `merge`, `convert`, `tmsh` |
+| Round-trip | `pull`, `push` |
+| iRules | `irule event-order`, `irule event-info`, `irule lint`, `irule trace`, `irule extract` |
+| Misc | `completion` |
+
+Highlights of the newer verbs:
+
+- **`f5 fetch`** — pull SCF/UCS from a live BIG-IP via iControl REST or
+  SSH (system `ssh`/`scp`).  Credentials resolve from CLI flags, env
+  vars, an XDG `hosts.toml`, or interactive prompt.
+- **`f5 explain {virtual|pool} <name>`** — print the resolved profile
+  chain, iRule chain, persistence, SNAT, default pool, and members for
+  one object: the operator's "what actually happens to this VIP?"
+  question, answered in one command.
+- **`f5 diff old.scf new.scf`** — semantic, object-aware diff that
+  ignores property ordering and iRule whitespace.
+- **`f5 redact` + `f5 unredact`** — strip secrets and remap public IPs
+  while preserving CIDR relationships (a /24 of real IPs lands in a /24
+  of redacted IPs).  A sidecar map file makes the redaction reversible
+  *and stable across runs* — re-running `redact` with the same map
+  reuses every prior assignment, so iterative work with F5 support
+  stays consistent.  `unredact` walks the map in reverse over any text,
+  including support emails and log snippets.
+- **`f5 pcap-remap`** — apply the same map to a PCAP capture: rewrites
+  IPv4/IPv6 src/dst, recomputes IP and TCP/UDP/ICMP checksums, and
+  *parses* the F5 Ethernet trailer (legacy + DPT formats; `tcpdump -i
+  0.0:nnnp`) to rewrite peer IPs at schema-known offsets.  Schema
+  ported from Wireshark's `packet-f5ethtrailer.c`; `--schema FILE`
+  layers in fleet-specific extensions; `--on-unknown=error|preserve|sweep`
+  picks the policy when a TLV has no registered layout.
+- **`f5 tmsh`** — emit `tmsh create` (or `--modify`) commands for every
+  object in a config, in dependency order so the script can be pasted
+  into a BIG-IP shell unchanged.
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.

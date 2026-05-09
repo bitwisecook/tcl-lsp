@@ -8,4 +8,25 @@ which is independent of the ``tcl`` / ``irule`` registry under
 
 def load_verbs() -> None:
     """Import all ``@verb``-decorated f5 modules, triggering their registrations."""
-    from . import cleanup, completion, grep  # noqa: F401
+    from . import (  # noqa: F401
+        cleanup,
+        completion,
+        convert,
+        diff,
+        explain,
+        extract,
+        fetch,
+        graph,
+        grep,
+        merge,
+        pcap_remap,
+        pull,
+        push,
+        redact,
+        rename,
+        split,
+        stats,
+        tmsh,
+        unredact,
+        validate,
+    )
