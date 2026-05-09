@@ -699,10 +699,30 @@ class _CmdSubstMixin:
                 self._used_inline_cmd_subst = False
                 self._emit_generic_cmd_subst(cmd, args)
         elif cmd == "list" and args and "{*}" not in text:
+            # tclsh wraps a top-level ``[list …]`` substitution in
+            # its own ``startCommand`` whenever the args contain a
+            # nested cmd substitution AND the surrounding context is
+            # a script-level command (``set var [list …]``).  In a
+            # proc-body ``return [list …]`` the outer return's SC
+            # already covers the nested cmd substs (count=2), so
+            # we'd over-emit if we wrapped here.
+            has_nested_cmd = (
+                not self._is_proc
+                and any(
+                    "[" in a and not (a.startswith("{") and a.endswith("}"))
+                    for a, _braced in args
+                )
+            )
+            sc_end: str | None = None
+            if has_nested_cmd:
+                sc_end = self._fresh_label("list_subst_end")
+                self._emit(Op.START_CMD, sc_end, 1)
             self._used_inline_cmd_subst = True
             for a in args:
                 self._emit_cmd_subst_arg(a)
             self._emit(Op.LIST, len(args))
+            if sc_end is not None:
+                self._place_label(sc_end)
         elif cmd == "array" and len(args) >= 2:
             sub = args[0][0]
             rest = args[1:]

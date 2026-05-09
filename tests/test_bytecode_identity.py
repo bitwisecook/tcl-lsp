@@ -400,7 +400,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         # converges.
         "145_uplevel_caller_local",
         "146_uplevel_hash_zero",
-        "208_oo_instance_vars",
         "212_line_continuation",
         "216_string_totitle",
         "225_dict_create",
