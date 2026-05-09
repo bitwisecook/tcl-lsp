@@ -32,13 +32,10 @@ class _RestStub(BaseHTTPRequestHandler):
     """Minimal iControl REST surface that satisfies our client.
 
     Routes:
-      POST /mgmt/tm/sys/config        -> 200 {} (save SCF)
-      POST /mgmt/tm/sys/ucs           -> 200 {} (save UCS)
-      GET  /mgmt/shared/file-transfer/madm/<n>.scf  -> 200 SCF body
+      POST /mgmt/tm/sys/ucs                                 -> 200 {} (save UCS)
       GET  /mgmt/shared/file-transfer/ucs-downloads/<n>.ucs -> 200 UCS body
     """
 
-    saved_scf_name: str | None = None
     saved_ucs_name: str | None = None
 
     def log_message(self, *_args, **_kwargs):  # noqa: D401 — silence test output
@@ -52,13 +49,7 @@ class _RestStub(BaseHTTPRequestHandler):
         return json.loads(raw)
 
     def do_POST(self):  # noqa: N802
-        if self.path == "/mgmt/tm/sys/config":
-            payload = self._read_json()
-            for opt in payload.get("options", []):
-                if "file" in opt:
-                    type(self).saved_scf_name = opt["file"]
-            self._respond(200, b"{}")
-        elif self.path == "/mgmt/tm/sys/ucs":
+        if self.path == "/mgmt/tm/sys/ucs":
             payload = self._read_json()
             type(self).saved_ucs_name = payload.get("name", "")
             self._respond(200, b"{}")
@@ -66,9 +57,7 @@ class _RestStub(BaseHTTPRequestHandler):
             self._respond(404, b'{"error":"unknown"}')
 
     def do_GET(self):  # noqa: N802
-        if self.path.startswith("/mgmt/shared/file-transfer/madm/"):
-            self._respond(200, _FAKE_SCF.encode("utf-8"))
-        elif self.path.startswith("/mgmt/shared/file-transfer/ucs-downloads/"):
+        if self.path.startswith("/mgmt/shared/file-transfer/ucs-downloads/"):
             ucs = make_test_ucs({"config/bigip.conf": _FAKE_SCF})
             self._respond(200, ucs)
         else:

@@ -1,16 +1,22 @@
 """iControl REST transport for ``f5 fetch``.
 
 Uses stdlib ``http.client`` so no third-party dependency creeps into
-the zipapp.  The flow is:
+the zipapp.
 
-1. ``POST /mgmt/tm/sys/config`` to save the running config to a named
-   SCF on the device.
-2. ``GET  /mgmt/shared/file-transfer/madm/<name>.scf`` (or for UCS
-   ``/mgmt/shared/file-transfer/ucs-downloads/<name>.ucs``) to stream
-   the file back.
+Only the UCS download path is exposed over REST.  The flow:
 
-The endpoints, paths, and chunked-download conventions are documented
-in the F5 iControl REST guide.
+1. ``POST /mgmt/tm/sys/ucs`` with ``{"command":"save","name":<n>}`` to
+   create a UCS archive on the device.
+2. ``GET /mgmt/shared/file-transfer/ucs-downloads/<n>.ucs`` to stream
+   it back.
+
+If the caller asked for SCF, we extract it from the downloaded UCS
+locally via :func:`explorer.f5_remote.ucs.ucs_to_scf`.  Native SCF
+download over REST exists on real devices but the path varies by TMOS
+version and typically involves a manual file move into a downloadable
+directory; the SSH transport (``f5_remote.ssh``) handles that case
+cleanly via ``tmsh save sys config file ... ; scp``, so REST sticks
+to the well-defined UCS endpoint.
 """
 
 from __future__ import annotations
@@ -94,17 +100,6 @@ def _json_request(
         raise RestError(f"{method} {path}: non-JSON response: {data[:200]!r}") from exc
 
 
-def _save_scf(conn: http.client.HTTPSConnection, *, auth: str, name: str) -> None:
-    """Save the running config to ``/var/local/scf/<name>`` on the device."""
-    _json_request(
-        conn,
-        "POST",
-        "/mgmt/tm/sys/config",
-        auth=auth,
-        payload={"command": "save", "options": [{"file": name}, {"no-passphrase": True}]},
-    )
-
-
 def _save_ucs(conn: http.client.HTTPSConnection, *, auth: str, name: str) -> None:
     """Trigger creation of a UCS archive on the device."""
     _json_request(
@@ -154,11 +149,14 @@ def fetch(
     timeout: float = 60.0,
     name: str | None = None,
 ) -> tuple[str, bytes | None]:
-    """Pull config from the device.  Returns ``(scf_text, ucs_bytes_or_None)``.
+    """Pull config from the device via REST.  Returns ``(scf_text, ucs_bytes_or_None)``.
 
-    When *fmt* is ``"ucs"`` the SCF is reconstructed from the UCS via
-    :func:`explorer.f5_remote.ucs.ucs_to_scf`.  When ``"both"``, both
-    artefacts are returned.
+    Always downloads a UCS; the SCF text is reconstructed locally with
+    :func:`explorer.f5_remote.ucs.ucs_to_scf`.
+
+    - ``fmt="scf"``  -> ``(scf_text, None)`` (UCS is consumed and discarded)
+    - ``fmt="ucs"``  -> ``(scf_text, ucs_bytes)``
+    - ``fmt="both"`` -> ``(scf_text, ucs_bytes)``
     """
     from .ucs import ucs_to_scf
 
@@ -168,27 +166,15 @@ def fetch(
     auth = _auth_header(credentials)
     conn = _make_connection(credentials, insecure=insecure, timeout=timeout)
     try:
-        scf_text: str = ""
-        ucs_bytes: bytes | None = None
-
-        if fmt in {"scf", "both"}:
-            _save_scf(conn, auth=auth, name=name)
-            scf_data = _download(
-                conn, auth=auth, path=f"/mgmt/shared/file-transfer/madm/{name}.scf"
-            )
-            scf_text = scf_data.decode("utf-8", errors="replace")
-
-        if fmt in {"ucs", "both"}:
-            _save_ucs(conn, auth=auth, name=name)
-            ucs_bytes = _download(
-                conn,
-                auth=auth,
-                path=f"/mgmt/shared/file-transfer/ucs-downloads/{name}.ucs",
-            )
-            if not scf_text:
-                scf_text = ucs_to_scf(ucs_bytes)
-
-        return scf_text, ucs_bytes
+        _save_ucs(conn, auth=auth, name=name)
+        ucs_data = _download(
+            conn,
+            auth=auth,
+            path=f"/mgmt/shared/file-transfer/ucs-downloads/{name}.ucs",
+        )
+        scf_text = ucs_to_scf(ucs_data)
+        keep_ucs = fmt in {"ucs", "both"}
+        return scf_text, (ucs_data if keep_ucs else None)
     except (socket.gaierror, ConnectionRefusedError, TimeoutError) as exc:
         raise ConnectionError(f"REST connection to {credentials.host}: {exc}") from exc
     finally:
