@@ -47,10 +47,12 @@ def codegen_lappend(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     if len(args) < 2:
         return False
 
-    # tclsh 9.0: multi-value lappend (3+ args) at top level
-    # uses ``list N; lappendListStk`` (or lappendListArrayStk
-    # for array variables).
-    if not emitter._is_proc and len(args) > 2:
+    # tclsh 9.0 at top level: ``list N; lappendListStk`` (or
+    # ``lappendListArrayStk`` for array variables).  Used for both
+    # single-value and multi-value lappend so the appended object
+    # is always wrapped in a list — matches the canonical compiled
+    # shape regardless of arg count.
+    if not emitter._is_proc:
         arr = emitter._split_array_ref(args[0])
         if arr is not None:
             emitter._push_lit(arr[0])

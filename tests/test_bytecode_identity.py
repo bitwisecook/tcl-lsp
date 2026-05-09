@@ -401,7 +401,6 @@ _KNOWN_INSTRUCTION_MISMATCHES: frozenset[str] = frozenset(
         "145_uplevel_caller_local",
         "146_uplevel_hash_zero",
         "204_oo_diamond_mro",
-        "207_oo_self_my",
         "208_oo_instance_vars",
         "212_line_continuation",
         "213_join_default_separator",
@@ -435,8 +434,6 @@ _KNOWN_LITERAL_MISMATCHES: frozenset[str] = frozenset(
         # one side surfaces immediately.
         "145_uplevel_caller_local",
         "204_oo_diamond_mro",
-        "207_oo_self_my",
-        "208_oo_instance_vars",
         "212_line_continuation",
         "214_lsearch_glob",
         "216_string_totitle",
