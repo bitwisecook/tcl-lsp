@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from core.bigip.irules_object_refs import (
     DATA_GROUP_KINDS,
+    IFILE_KINDS,
     PERSISTENCE_KINDS,
     SSL_PROFILE_KINDS,
+    graph_commands_without_position_specs,
+    kinds_for_placeholder,
+    placeholders_for_command,
     pool_kinds_for_module,
     resolve_object_ref_args,
 )
@@ -76,14 +80,14 @@ def test_persist_type_keyword_form_does_not_resolve() -> None:
 
 def test_ifile_subcommands() -> None:
     for sub in ("get", "attributes", "size", "last_updated_by", "revision", "last_update_time"):
-        assert _resolve("ifile", [sub, "/Common/x.html"]) == [(1, ("ltm_ifile",))], sub
+        assert _resolve("ifile", [sub, "/Common/x.html"]) == [(1, IFILE_KINDS)], sub
     # `ifile listall` takes no name and must not emit a reference.
     assert _resolve("ifile", ["listall"]) == []
 
 
 def test_http_respond_ifile_keyword_and_flag_forms() -> None:
-    assert _resolve("HTTP::respond", ["200", "ifile", "/Common/x.html"]) == [(2, ("ltm_ifile",))]
-    assert _resolve("HTTP::respond", ["200", "-ifile", "/Common/x.html"]) == [(2, ("ltm_ifile",))]
+    assert _resolve("HTTP::respond", ["200", "ifile", "/Common/x.html"]) == [(2, IFILE_KINDS)]
+    assert _resolve("HTTP::respond", ["200", "-ifile", "/Common/x.html"]) == [(2, IFILE_KINDS)]
 
 
 def test_lsn_pool_and_subcommands() -> None:
@@ -143,3 +147,55 @@ def test_unknown_command_returns_empty() -> None:
 
 def test_empty_args_returns_empty() -> None:
     assert _resolve("pool", []) == []
+
+
+# ── Graph-driven kind expansions ────────────────────────────────────────
+
+
+def test_data_group_kinds_pulls_in_sys_file_data_group_from_graph() -> None:
+    """The dependency graph adds ``sys_file_data_group`` (file-backed dg)."""
+    assert "sys_file_data_group" in DATA_GROUP_KINDS
+    assert "ltm_data_group_internal" in DATA_GROUP_KINDS
+    assert "ltm_data_group_external" in DATA_GROUP_KINDS
+
+
+def test_ifile_kinds_includes_sys_file_ifile_from_graph() -> None:
+    """The dependency graph adds ``sys_file_ifile`` alongside ``ltm_ifile``."""
+    assert "sys_file_ifile" in IFILE_KINDS
+    assert "ltm_ifile" in IFILE_KINDS
+
+
+def test_persistence_kinds_match_graph_profile_persist() -> None:
+    """``PROFILE_PERSIST`` graph kinds back the ``persist`` resolver."""
+    graph_kinds = set(kinds_for_placeholder("PROFILE_PERSIST"))
+    assert graph_kinds.issubset(PERSISTENCE_KINDS)
+
+
+def test_placeholders_for_command_round_trips_canonical_names() -> None:
+    """The graph's ``AAA::acct::send`` form is normalised to ``aaa::acct_send``."""
+    assert "VIRTUAL_SERVER" in placeholders_for_command("AAA::acct_send")
+    assert "VIRTUAL_SERVER" in placeholders_for_command("AAA::auth_send")
+    assert "LSN_POOL" in placeholders_for_command("XLAT::src_endpoint_reservation")
+    assert "NET_RESOLVER_NAME" in placeholders_for_command("RESOLVER::name_lookup")
+
+
+def test_graph_commands_without_position_specs_is_empty() -> None:
+    """Every graph-listed command must have a position spec or be intentionally skipped.
+
+    A non-empty result means the dependency graph references an iRule
+    command whose argument position the table has not declared.  Either
+    add an :class:`ObjectRefSpec` for it or list it in
+    ``_GRAPH_COMMANDS_INTENTIONALLY_UNHANDLED`` with a comment.
+    """
+    assert graph_commands_without_position_specs() == ()
+
+
+def test_resolver_name_lookup_resolves_to_net_dns_resolver() -> None:
+    refs = _resolve("RESOLVER::name_lookup", ["/Common/dns1", "example.com", "A"])
+    assert refs == [(0, ("net_dns_resolver",))]
+
+
+def test_xlat_src_endpoint_reservation_resolves_via_pool_flag() -> None:
+    args = ["create", "-pool", "/Common/lsn1", "-extra", "stuff"]
+    refs = _resolve("XLAT::src_endpoint_reservation", args)
+    assert refs == [(2, ("ltm_lsn_pool",))]

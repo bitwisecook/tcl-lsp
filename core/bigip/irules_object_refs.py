@@ -6,10 +6,21 @@ extractor, future security / lifetime analysers) read this table
 through :func:`resolve_object_ref_args` instead of hard-coding command
 lists.
 
-The table is intentionally declarative — most commands are described
-with a fixed argument index or a "after this keyword" rule.  A small
-number of commands whose argument shape is too irregular for the
-declarative form (``class`` and ``persist``) have custom resolvers.
+The table has two layers:
+
+- ``data/irules_object_refs_graph.json`` — a generated dependency
+  graph (placeholders ↔ object kinds, plus iRule commands ↔
+  placeholders).  This is the source of truth for which placeholder
+  type each iRule command argument expects, and which BIG-IP object
+  kinds each placeholder can resolve to.  Loaded at import time and
+  filtered to kinds that exist in
+  :data:`core.bigip.registry.data.OBJECT_KIND_SPECS`.
+- The per-command :class:`ObjectRefSpec` table below — declares
+  argument *position* (fixed index, after-keyword, or last-arg) for
+  each command.  Position is not in the graph and is encoded here.
+
+Commands whose argument shape is too irregular for the declarative
+form (``class`` and ``persist``) have custom resolvers.
 
 Object kinds use the names from
 :data:`core.bigip.registry.data.OBJECT_KIND_SPECS` so the resolved
@@ -19,43 +30,168 @@ references slot directly into the BIG-IP object resolver in
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
+from .registry.data import OBJECT_KIND_SPECS
+
+# ---------------------------------------------------------------------------
+# Generated dependency graph — placeholders → kinds, commands → placeholders.
+# ---------------------------------------------------------------------------
+
+_GRAPH_PATH = Path(__file__).with_name("data") / "irules_object_refs_graph.json"
+
+# A few commands appear in the graph in fully-colon-separated form
+# (``AAA::acct::send``) but the actual iRule command name uses a single
+# colon-pair plus underscores (``AAA::acct_send``).  Map them so the
+# graph data drives off the same names the parser sees.
+_GRAPH_COMMAND_RENAMES: dict[str, str] = {
+    "AAA::acct::send": "AAA::acct_send",
+    "AAA::auth::send": "AAA::auth_send",
+    "MR::equivalent::transport": "MR::equivalent_transport",
+    "RESOLVER::name::lookup": "RESOLVER::name_lookup",
+    "XLAT::src::endpoint::reservation": "XLAT::src_endpoint_reservation",
+}
+
+
+def _load_graph() -> tuple[
+    dict[str, tuple[str, ...]],  # placeholder -> (kind, …) (filtered to known kinds)
+    dict[str, tuple[str, ...]],  # command_lower -> (placeholder, …)
+]:
+    """Load the generated dependency graph and filter to kinds we know about."""
+    if not _GRAPH_PATH.is_file():
+        return {}, {}
+
+    raw = json.loads(_GRAPH_PATH.read_text(encoding="utf-8"))
+
+    known_kinds = set(OBJECT_KIND_SPECS.keys())
+    ph_to_kinds: dict[str, list[str]] = {}
+    for edge in raw.get("edges", ()):
+        if edge.get("type") != "resolves_to":
+            continue
+        src = edge.get("from", "")
+        dst = edge.get("to", "")
+        if not src.startswith("placeholder:") or not dst.startswith("kind:"):
+            continue
+        ph = src[len("placeholder:") :]
+        kind = dst[len("kind:") :]
+        if kind in known_kinds:
+            ph_to_kinds.setdefault(ph, []).append(kind)
+
+    cmd_to_phs: dict[str, list[str]] = {}
+    for edge in raw.get("edges", ()):
+        if edge.get("type") != "uses_placeholder":
+            continue
+        src = edge.get("from", "")
+        dst = edge.get("to", "")
+        if not src.startswith("usage:") or not dst.startswith("placeholder:"):
+            continue
+        usage = src[len("usage:") :]
+        # ``usage:CMD:PLACEHOLDER`` — split off the trailing placeholder name.
+        if ":" not in usage:
+            continue
+        cmd_raw, _ph_in_id = usage.rsplit(":", 1)
+        cmd = _GRAPH_COMMAND_RENAMES.get(cmd_raw, cmd_raw).lower()
+        ph = dst[len("placeholder:") :]
+        cmd_to_phs.setdefault(cmd, []).append(ph)
+
+    return (
+        {ph: tuple(sorted(set(kinds))) for ph, kinds in ph_to_kinds.items()},
+        {cmd: tuple(sorted(set(phs))) for cmd, phs in cmd_to_phs.items()},
+    )
+
+
+_PLACEHOLDER_KINDS, _COMMAND_PLACEHOLDERS = _load_graph()
+
+
+def kinds_for_placeholder(name: str) -> tuple[str, ...]:
+    """Return BIG-IP kinds for an iRule placeholder (e.g. ``POOL_OBJ``).
+
+    Empty tuple when the placeholder is not in the graph or when none
+    of its kinds are present in :data:`OBJECT_KIND_SPECS`.
+    """
+    return _PLACEHOLDER_KINDS.get(name, ())
+
+
+def placeholders_for_command(command: str) -> tuple[str, ...]:
+    """Return the placeholders an iRule command names anywhere in its argv.
+
+    The graph does not record argument *position* — only that the
+    command takes an argument of a given placeholder type somewhere.
+    Position resolution is the responsibility of :func:`resolve_object_ref_args`.
+    """
+    return _COMMAND_PLACEHOLDERS.get(command.lower(), ())
+
+
+# The kind sets below are derived from the graph at import time; the
+# fallback tuples encode the same defaults the project relied on before
+# the graph existed, so analysis never silently degrades to "no kinds".
+
+
+def _graph_or(default: tuple[str, ...], placeholder: str) -> tuple[str, ...]:
+    """Return graph-derived kinds for *placeholder*, or *default* if the graph is empty."""
+    graph_kinds = kinds_for_placeholder(placeholder)
+    return graph_kinds or default
+
+
 # Persistence-profile kinds — used by every command that accepts a persistence profile.
-PERSISTENCE_KINDS: tuple[str, ...] = (
-    "ltm_persistence_cookie",
-    "ltm_persistence_dest_addr",
-    "ltm_persistence_global_settings",
-    "ltm_persistence_hash",
-    "ltm_persistence_host",
-    "ltm_persistence_msrdp",
-    "ltm_persistence_persist_records",
-    "ltm_persistence_sip",
-    "ltm_persistence_source_addr",
-    "ltm_persistence_ssl",
-    "ltm_persistence_universal",
+PERSISTENCE_KINDS: tuple[str, ...] = _graph_or(
+    (
+        "ltm_persistence_cookie",
+        "ltm_persistence_dest_addr",
+        "ltm_persistence_global_settings",
+        "ltm_persistence_hash",
+        "ltm_persistence_host",
+        "ltm_persistence_msrdp",
+        "ltm_persistence_persist_records",
+        "ltm_persistence_sip",
+        "ltm_persistence_source_addr",
+        "ltm_persistence_ssl",
+        "ltm_persistence_universal",
+    ),
+    "PROFILE_PERSIST",
 )
 
-# Data-group kinds — internal + external.
-DATA_GROUP_KINDS: tuple[str, ...] = (
-    "ltm_data_group_internal",
-    "ltm_data_group_external",
+# Data-group kinds.  The graph adds ``sys_file_data_group`` (the on-disk
+# file backing an external data-group), which the legacy table missed.
+DATA_GROUP_KINDS: tuple[str, ...] = _graph_or(
+    (
+        "ltm_data_group_internal",
+        "ltm_data_group_external",
+    ),
+    "CLASS_OBJ",
 )
 
-# SSL-profile kinds — clientssl and serverssl share the ``SSL::profile`` switch.
+# SSL profile kinds.  The graph's ``PROFILE_OBJ`` placeholder spans every
+# ``ltm_profile_*`` kind in the registry (``SSL::profile`` is generic over
+# the side ssl-profile context, but the wider set is still the upper
+# bound on what a user could reference).  We narrow back to the
+# clientssl/serverssl pair since those are the only profiles the F5
+# documentation lists for the ``SSL::profile`` switch.
 SSL_PROFILE_KINDS: tuple[str, ...] = (
     "ltm_profile_client_ssl",
     "ltm_profile_server_ssl",
 )
 
 # Message-routing transport-config kinds — used by GENERICMESSAGE / MR commands.
-TRANSPORT_CONFIG_KINDS: tuple[str, ...] = (
-    "ltm_message_routing_diameter_transport_config",
-    "ltm_message_routing_generic_transport_config",
-    "ltm_message_routing_mqtt_transport_config",
-    "ltm_message_routing_sip_transport_config",
+TRANSPORT_CONFIG_KINDS: tuple[str, ...] = _graph_or(
+    (
+        "ltm_message_routing_diameter_transport_config",
+        "ltm_message_routing_generic_transport_config",
+        "ltm_message_routing_mqtt_transport_config",
+        "ltm_message_routing_sip_transport_config",
+    ),
+    "TRANSPORT_CONFIG",
 )
+
+# iFile kinds.  The graph adds ``sys_file_ifile`` (the on-disk file
+# behind an ``ltm_ifile`` object).
+IFILE_KINDS: tuple[str, ...] = _graph_or(("ltm_ifile",), "IFILE_OBJ")
+
+# Net DNS resolver — for ``RESOLVER::name_lookup``.
+NET_DNS_RESOLVER_KINDS: tuple[str, ...] = _graph_or(("net_dns_resolver",), "NET_RESOLVER_NAME")
 
 # Pool kinds depend on whether the rule is attached to LTM or GTM; the
 # helper :func:`pool_kinds_for_module` picks the right set.
@@ -242,73 +378,73 @@ _BASE_SPECS: tuple[ObjectRefSpec, ...] = (
     ObjectRefSpec(
         command="ifile",
         position=ObjectRefArg(index=1),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         sub_command="get",
         description="ifile get IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="ifile",
         position=ObjectRefArg(index=1),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         sub_command="attributes",
         description="ifile attributes IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="ifile",
         position=ObjectRefArg(index=1),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         sub_command="size",
         description="ifile size IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="ifile",
         position=ObjectRefArg(index=1),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         sub_command="last_updated_by",
         description="ifile last_updated_by IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="ifile",
         position=ObjectRefArg(index=1),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         sub_command="revision",
         description="ifile revision IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="ifile",
         position=ObjectRefArg(index=1),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         sub_command="last_update_time",
         description="ifile last_update_time IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="http::respond",
         position=ObjectRefArg(after_keyword="ifile"),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         description="HTTP::respond ... ifile IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="http::respond",
         position=ObjectRefArg(after_keyword="-ifile"),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         description="HTTP::respond ... -ifile IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="http2::push",
         position=ObjectRefArg(after_keyword="-ifile"),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         description="HTTP2::push ... -ifile IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="access::respond",
         position=ObjectRefArg(after_keyword="ifile"),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         description="ACCESS::respond ... ifile IFILE_OBJ",
     ),
     ObjectRefSpec(
         command="access::respond",
         position=ObjectRefArg(after_keyword="-ifile"),
-        kinds=("ltm_ifile",),
+        kinds=IFILE_KINDS,
         description="ACCESS::respond ... -ifile IFILE_OBJ",
     ),
     # ── LSN ────────────────────────────────────────────────────────────
@@ -473,6 +609,27 @@ _BASE_SPECS: tuple[ObjectRefSpec, ...] = (
         position=ObjectRefArg(index=1),
         kinds=DATA_GROUP_KINDS,
         description="findclass STRING CLASS_OBJ ?SEPARATOR?",
+    ),
+    # ── DNS / resolver ─────────────────────────────────────────────────
+    ObjectRefSpec(
+        command="resolver::name_lookup",
+        position=ObjectRefArg(index=0),
+        kinds=NET_DNS_RESOLVER_KINDS,
+        description="RESOLVER::name_lookup NET_RESOLVER_NAME NAME TYPE",
+    ),
+    # ── XLAT — translation pool reservation (LSN family) ───────────────
+    # ``XLAT::src_endpoint_reservation`` accepts an LSN pool via
+    # ``-pool`` flag in the create form and as a positional in the
+    # update_lifetime / get forms.  Use the ``-pool`` flag form for
+    # declarative resolution; missing the positional forms is acceptable
+    # given how rarely they appear in production iRules and that the
+    # variable-tracking scope still recovers literal `set var /Common/X`
+    # bindings for them.
+    ObjectRefSpec(
+        command="xlat::src_endpoint_reservation",
+        position=ObjectRefArg(after_keyword="-pool"),
+        kinds=("ltm_lsn_pool",),
+        description="XLAT::src_endpoint_reservation create -pool LSN_POOL ...",
     ),
 )
 
@@ -701,13 +858,77 @@ def resolve_object_ref_args(
     return matches
 
 
+# Commands the dependency graph mentions but that we deliberately do not
+# resolve declaratively — typically because their argument shape requires
+# a custom resolver, or because they reference a kind family we do not
+# track (VLAN objects have no kind in the registry).  Listed here so the
+# coverage helper does not flag them as missing.
+_GRAPH_COMMANDS_INTENTIONALLY_UNHANDLED: frozenset[str] = frozenset(
+    {
+        # `class` and `persist` ship custom resolvers above.
+        "class",
+        "persist",
+        # VLAN-only commands — no VLAN object kind in the registry today.
+        "lasthop",
+        "listen",
+        "nexthop",
+        # Security / APM / WebSSO policies — kinds aren't in OBJECT_KIND_SPECS
+        # for cleanup analysis.  Re-enable when the registry gains them.
+        "access::policy",
+        "antifraud::enable",
+        "asm::enable",
+        "bwc::color",
+        "bwc::policy",
+        "dosl7::enable",
+        "policy::rules",
+        "psc::policy",
+        "websso::select",
+        "profile::persist",
+        # ``HSL::open`` references a ``PUBLISHER`` (sys log-config publisher)
+        # whose kind isn't in OBJECT_KIND_SPECS today.
+        "hsl::open",
+        # ``LB::queue`` accepts a pool but at no fixed keyword position
+        # (``LB::queue on connlimit POOL`` / ``LB::queue limit X POOL``).
+        # Variable-tracking still recovers ``set p /Common/foo; LB::queue
+        # ... $p`` cases for it.
+        "lb::queue",
+    }
+)
+
+
+def graph_commands_without_position_specs() -> tuple[str, ...]:
+    """Return graph-listed commands that lack any declarative position spec.
+
+    Returns commands that the dependency graph says reference a BIG-IP
+    object but for which neither :data:`_BASE_SPECS` /
+    :data:`_POOL_REF_TEMPLATES` nor :data:`_CUSTOM_RESOLVERS` nor
+    :data:`_GRAPH_COMMANDS_INTENTIONALLY_UNHANDLED` declares a
+    resolution rule.  A non-empty result indicates the table has fallen
+    behind the graph.
+    """
+    declared: set[str] = set()
+    for spec in _BASE_SPECS:
+        declared.add(spec.command.lower())
+    for command, _position, _description in _POOL_REF_TEMPLATES:
+        declared.add(command.lower())
+    declared.update(_CUSTOM_RESOLVERS.keys())
+    declared.update(_GRAPH_COMMANDS_INTENTIONALLY_UNHANDLED)
+    missing = sorted(set(_COMMAND_PLACEHOLDERS.keys()) - declared)
+    return tuple(missing)
+
+
 __all__ = [
     "DATA_GROUP_KINDS",
+    "IFILE_KINDS",
+    "NET_DNS_RESOLVER_KINDS",
     "ObjectRefArg",
     "ObjectRefSpec",
     "PERSISTENCE_KINDS",
     "SSL_PROFILE_KINDS",
     "TRANSPORT_CONFIG_KINDS",
+    "graph_commands_without_position_specs",
+    "kinds_for_placeholder",
+    "placeholders_for_command",
     "pool_kinds_for_module",
     "resolve_object_ref_args",
 ]

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Generate a `tmsh` script that deletes BIG-IP objects unreferenced by any virtual server, ordered so each delete runs only after the objects that reference its target have been removed.
+`f5` CLI tool with a `cleanup` verb that scans a BIG-IP configuration for objects unreferenced by any virtual server and emits a `tmsh delete` script in deletion-safe order.
 
 ## Applies to
 
@@ -28,16 +28,18 @@ The cleanup feature parses one or more `bigip.conf` / SCF files, treats every `l
    - a JSON metadata report with per-object `kind`, `range`, and `reason`.
 4. Review every line, then paste the script into a `tmsh` shell on the BIG-IP.
 
-### tcl-lsp CLI
+### `f5` CLI
+
+`f5` is the BIG-IP-side CLI tool, separate from the `tcl` and `irule` CLIs.  Today it carries one verb — `cleanup` — and runs as a normal subcommand:
 
 ```
-python -m explorer.f5_cli cleanup samples/bigip/bigip.conf
-python -m explorer.f5_cli cleanup --json bigip.conf
-python -m explorer.f5_cli cleanup --keep /Common/important_pool bigip.conf
-python -m explorer.f5_cli cleanup --no-keep-common bigip.conf
+f5 cleanup samples/bigip/bigip.conf
+f5 cleanup --json bigip.conf
+f5 cleanup --keep /Common/important_pool bigip.conf
+f5 cleanup --no-keep-common bigip.conf
 ```
 
-Once the zipapp ships an `f5` console-script the same calls are simply `f5 cleanup …`.
+In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m explorer.f5_cli cleanup …`.
 
 ### Claude skill
 
@@ -76,7 +78,7 @@ ltm virtual /Common/vs_kept {
 }
 ```
 
-### Output (`f5 cleanup --no-keep-common bigip.conf`)
+### Output (`f5 cleanup --no-keep-common bigip.conf` or `python -m explorer.f5_cli cleanup --no-keep-common bigip.conf`)
 
 ```
 # tcl-lsp BIG-IP cleanup

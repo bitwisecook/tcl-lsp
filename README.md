@@ -719,17 +719,27 @@ ltm virtual /Common/my_vs {
 # "Extract All iRules to Files..." exports every iRule to separate .tcl files
 ```
 
-**Generate BIG-IP cleanup script** — find every object the configuration
-defines but no virtual server (or wide-IP) references, and emit a
-`tmsh delete` script in reverse-topological order so each delete runs
-only after the objects that reference its target have already been
-removed.  iRule bodies are scanned too (`pool …`, `class match …`,
-`persist …`, `snatpool …`, `virtual …`, `node …`).
+**`f5` CLI tool with a `cleanup` verb** — find every object the
+configuration defines but no virtual server (or wide-IP) references,
+and emit a `tmsh delete` script in reverse-topological order so each
+delete runs only after the objects that reference its target have
+already been removed.  iRule bodies are scanned too (`pool …`,
+`SSL::profile …`, `class match …`, `persist …`, `snatpool …`,
+`virtual …`, `node …`, `LSN::pool …`, `STATS::*`, `ifile …`,
+`HTTP::respond ifile …`, plus every other iRule command that names a
+BIG-IP object).  Constant-string variables are tracked through `set
+var /Common/foo; pool $var` linear copy-propagation, so refs written
+through local bindings are caught.
 
 ```
-python -m explorer.f5_cli cleanup samples/bigip/bigip.conf
-python -m explorer.f5_cli cleanup --keep /Common/critical_pool bigip.conf
+f5 cleanup samples/bigip/bigip.conf
+f5 cleanup --keep /Common/critical_pool bigip.conf
+f5 cleanup --json bigip.conf > report.json
 ```
+
+`f5` is a separate CLI from `tcl` and `irule`; today it ships one verb
+(`cleanup`) and is invocable as `python -m explorer.f5_cli cleanup …`
+in dev (the zipapp build wires up the bare `f5` console-script).
 
 In VS Code, run the command palette entry **Tcl: Generate BIG-IP
 Cleanup Script** while a `bigip.conf` is open; the script and its JSON
