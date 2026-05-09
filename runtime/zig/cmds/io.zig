@@ -214,7 +214,14 @@ fn eval_append(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_format(words: []const i32) result_mod.InterpResult {
-    const fmt = if (words.len >= 2) words[1] else 0;
+    if (words.len < 2) {
+        // Tcl 9 wording: ``wrong # args: should be "format formatString
+        // ?arg ...?"`` — pinned by tests format-8.1 / 8.2.
+        const stubs_mod = @import("../stubs/tcl_stubs.zig");
+        stubs_mod.raise("wrong # args: should be \"format formatString ?arg ...?\"");
+        return result_mod.from_globals(0);
+    }
+    const fmt = words[1];
     const args = if (words.len >= 3) words[2..] else words[0..0];
     return result_mod.from_globals(fmt_mod.tcl_cmd_format_args(fmt, args));
 }

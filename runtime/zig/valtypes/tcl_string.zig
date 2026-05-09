@@ -775,7 +775,9 @@ pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i3
 // parse path accept them via ``alloc_from_string``.
 pub export fn string_is_integer(value: i32) i32 {
     const sv = obj_ensure_string(value);
-    if (sv.len == 0) return obj_new_int(0);
+    // Tcl 9 returns 1 for empty string in non-strict mode.  The fast
+    // path here is only taken when no flags / failindex are involved.
+    if (sv.len == 0 or sv.ptr == 0) return obj_new_int(1);
     // ``string is integer`` accepts a TYPE_BIGNUM directly without
     // going through the string parse — saves the parse cost when the
     // operand is already known-integer (``string is integer [expr {1
@@ -807,9 +809,14 @@ pub export fn string_is_wideinteger(value: i32) i32 {
 }
 
 // Exported: string is alpha — check if a string contains only letters.
+//
+// Tcl 9 returns 1 for the empty string in non-strict mode (see test
+// string-6.10).  This fast path is only reached for the no-flag form
+// ``string is alpha $val`` — strict / failindex callers route through
+// the full ``eval_string_is`` dispatcher in ``cmds/string.zig``.
 pub export fn string_is_alpha(value: i32) i32 {
     const sv = obj_ensure_string(value);
-    if (sv.len == 0) return obj_new_int(0);
+    if (sv.len == 0 or sv.ptr == 0) return obj_new_int(1);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
     for (0..sv.len) |i| {
         if (!((src[i] >= 'a' and src[i] <= 'z') or (src[i] >= 'A' and src[i] <= 'Z'))) {
@@ -820,9 +827,11 @@ pub export fn string_is_alpha(value: i32) i32 {
 }
 
 // Exported: string is digit — check if a string contains only digits.
+//
+// Tcl 9 returns 1 on empty (non-strict) — see ``string_is_alpha``.
 pub export fn string_is_digit(value: i32) i32 {
     const sv = obj_ensure_string(value);
-    if (sv.len == 0) return obj_new_int(0);
+    if (sv.len == 0 or sv.ptr == 0) return obj_new_int(1);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
     for (0..sv.len) |i| {
         if (src[i] < '0' or src[i] > '9') return obj_new_int(0);
@@ -831,9 +840,11 @@ pub export fn string_is_digit(value: i32) i32 {
 }
 
 // Exported: string is space — check if a string contains only whitespace.
+//
+// Tcl 9 returns 1 on empty (non-strict).
 pub export fn string_is_space(value: i32) i32 {
     const sv = obj_ensure_string(value);
-    if (sv.len == 0) return obj_new_int(0);
+    if (sv.len == 0 or sv.ptr == 0) return obj_new_int(1);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
     for (0..sv.len) |i| {
         if (!is_space(src[i])) return obj_new_int(0);

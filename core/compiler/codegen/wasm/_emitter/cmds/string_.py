@@ -67,7 +67,12 @@ def _emit_string(
         # rather than a silent empty result.
         if args:
             subcmd = args[0]
-            if subcmd == "is" and len(args) >= 3:
+            # Fast-path ``string is <class> <value>`` only when there
+            # are no intervening flags.  ``string is alpha -strict
+            # {}`` must route through the eval-fallback so the
+            # ``-strict`` flag is honoured (the fast-path imports
+            # don't know about flags).
+            if subcmd == "is" and len(args) == 3:
                 is_key = _STRING_IS_IMPORT.get(args[1])
                 if is_key is not None and is_key in emitter._shared_imports:
                     func_idx = emitter._shared_imports[is_key]
@@ -158,7 +163,7 @@ def _emit_string(
             emitter._emit(WasmOp.DROP)
         return True
 
-    if subcmd == "is" and len(args) >= 3:
+    if subcmd == "is" and len(args) == 3:
         class_name = args[1]
         is_key = _STRING_IS_IMPORT.get(class_name)
         if is_key is not None and is_key in emitter._shared_imports:

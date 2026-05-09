@@ -1,6 +1,6 @@
 # format.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '68 of 269 failed'
+# reason = '21 of 269 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 269
-observed_passed = 182
-observed_failed = 68
+observed_passed = 229
+observed_failed = 21
 observed_skipped = 19
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["format-1.2", "format-1.3", "format-1.7", "format-1.8", "format-1.9", "format-1.10", "format-1.11", "format-1.12", "format-1.13", "format-1.14", "format-1.15", "format-2.2", "format-2.6", "format-2.7", "format-2.15", "format-2.18", "format-2.19", "format-3.1", "format-3.2", "format-4.10", "format-4.11", "format-4.13", "format-7.2", "format-8.1", "format-8.2", "format-8.3", "format-8.4", "format-8.5", "format-8.6", "format-8.7", "format-8.8", "format-8.9", "format-8.10", "format-8.11", "format-8.12", "format-8.13", "format-8.14", "format-8.15", "format-8.16", "format-8.17", "format-8.18", "format-8.19", "format-8.20", "format-8.21", "format-8.22", "format-8.23", "format-8.28", "format-10.1", "format-10.2", "format-10.3", "format-10.5", "format-11.3", "format-11.4", "format-11.5", "format-11.6", "format-11.7", "format-11.8", "format-11.9", "format-11.10", "format-11.11", "format-11.12", "format-11.13", "format-11.14", "format-15.1", "format-15.4", "format-15.5", "format-17.1", "format-18.2"]
+ids = ["format-1.12", "format-2.18", "format-2.19", "format-8.9", "format-8.10", "format-8.11", "format-8.12", "format-8.13", "format-8.14", "format-8.15", "format-8.16", "format-8.23", "format-8.28", "format-11.4", "format-11.8", "format-11.9", "format-11.11", "format-11.12", "format-11.13", "format-11.14", "format-17.1"]
