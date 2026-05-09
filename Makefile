@@ -102,8 +102,13 @@ SCREENSHOT_DIR := $(ROOT)docs/screenshots
 SCREENSHOTS    := $(wildcard $(SCREENSHOT_DIR)/*.png $(SCREENSHOT_DIR)/*.gif)
 VSCE_PUBLISHER := bitwisecook
 
-# Build-info files (generated, gitignored)
-BUILD_INFO      := $(ROOT)lsp/_build_info.py
+# Build-info files (generated, gitignored).
+# Lives in core/ rather than lsp/ so it survives the
+# PYTHON-RETIRE-LSP retirement of the pygls server: the
+# version banner is consumed by explorer/, ai/mcp/, and the
+# zipapp entry points which all outlive the LSP feature
+# directory.
+BUILD_INFO      := $(ROOT)core/_build_info.py
 BUILD_INFO_JSON := $(EXPLORER_STATIC)/build_info.json
 
 # Zipapps

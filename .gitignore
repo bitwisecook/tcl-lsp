@@ -34,7 +34,7 @@ pnpm-debug.log*
 editors/vscode/out/
 editors/vscode/.vscode-test/
 .vscode-test/
-lsp/_build_info.py
+core/_build_info.py
 explorer/static/build_info.json
 uv.lock
 editors/vscode/uv.lock

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from lsp._build_info import BUILD_TIMESTAMP, FULL_VERSION
+    from core._build_info import BUILD_TIMESTAMP, FULL_VERSION
 except ImportError:
     FULL_VERSION = "dev"
     BUILD_TIMESTAMP = ""

@@ -5,15 +5,20 @@
 //! `foreach`, `switch`, …).  Mirrors the Python algorithm: a scope
 //! walk over the analyser's [`AnalysisResult`], a comment-line
 //! collector, and a registry-driven body-argument walker that
-//! recurses through nested braced bodies.
+//! recurses through nested braced bodies, followed by the
+//! `_normalise_overlaps` post-pass that trims partially overlapping
+//! siblings so VS Code's folding tree-builder doesn't drop them.
 //!
 //! The result is a fully line-resolved `Vec<FoldingRange>`.  The
 //! `PyO3` binding (`super::folding_binding`) emits these as plain
-//! dicts; the Python dispatcher in `lsp/features/folding.py` materialises
-//! [`lsprotocol.types.FoldingRange`] values and runs
-//! `_normalise_overlaps` on them — keeping the overlap-normalisation
-//! algorithm in Python preserves the
-//! `_normalise_overlaps` test surface in `tests/test_folding.py`.
+//! dicts; the Python dispatcher in `lsp/features/folding.py`
+//! materialises [`lsprotocol.types.FoldingRange`] values and re-runs
+//! its own `_normalise_overlaps` over them — running the
+//! idempotent normalisation pass twice is harmless and keeps the
+//! Python `_normalise_overlaps` test surface in
+//! `tests/test_folding.py` working unchanged while the Rust LSP
+//! server (`tcl-lsp-server`) gets the normalised output it needs
+//! directly from this function.
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
@@ -73,10 +78,14 @@ pub struct FoldingRange {
 /// rebuilds it. `dialect` is forwarded to the analyser for
 /// dialect-specific scope semantics.
 ///
-/// Overlap normalisation is left to the Python dispatcher so the
-/// `_normalise_overlaps` test surface in `tests/test_folding.py`
-/// keeps working unchanged; the cargo tests in this module validate
-/// the collector outputs directly.
+/// Overlap normalisation runs as a post-pass via
+/// [`normalise_overlaps`] so the returned vector is always disjoint or
+/// properly nested — VS Code's folding tree-builder rejects
+/// partially overlapping siblings, and the Rust LSP server consumes
+/// this output directly without a Python-side cleanup pass.  The
+/// pass is idempotent, so the Python dispatcher's own
+/// `_normalise_overlaps` over `PyO3`-binding output stays harmless
+/// for the legacy path.
 #[must_use]
 pub fn folding_ranges(
     source: &str,
@@ -114,7 +123,7 @@ pub fn folding_ranges(
         &mut ctx,
     );
 
-    ranges
+    normalise_overlaps(ranges)
 }
 
 /// Return a fold end line that leaves the closing ``}`` visible.
@@ -456,6 +465,125 @@ fn collect_body_folds(
             );
         }
     }
+}
+
+/// Trim partially overlapping sibling folds so the returned ranges
+/// are pairwise disjoint or properly nested.
+///
+/// Mirrors `_normalise_overlaps` in `lsp/features/folding.py`. VS
+/// Code's folding tree-builder silently drops or misplaces ranges
+/// that share a boundary line without one containing the other; the
+/// individual collectors already try to avoid this via
+/// [`adjust_body_end_line`], but a belt-and-suspenders post-pass
+/// keeps the output well-formed even if a future collector forgets
+/// the invariant.
+///
+/// `FoldingRange::end_line` is inclusive, so two ranges that share a
+/// boundary line (e.g. `[0, 5]` and `[5, 10]`) both include the
+/// shared line and are neither disjoint nor strictly nested. When
+/// that pattern slips past the collectors:
+///
+/// * A previously-emitted parent that overlaps the next range gets
+///   trimmed back by one line, or dropped if trimming would leave
+///   a degenerate fold.
+/// * A range that extends past its (new) parent gets trimmed down
+///   to the parent's end, or dropped if that would leave it
+///   degenerate.
+///
+/// A final dedup pass drops any duplicate `(start, end, kind)`
+/// triples produced by the trimming.
+///
+/// The pass is idempotent — running it on already-normalised input
+/// returns the same set.
+#[must_use]
+pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
+    if ranges.is_empty() {
+        return ranges;
+    }
+
+    // Sort by start ascending, end descending so parents come before
+    // children and equal-start ranges with larger spans come first.
+    let mut ordered = ranges;
+    ordered.sort_by(|a, b| {
+        a.start_line
+            .cmp(&b.start_line)
+            .then_with(|| b.end_line.cmp(&a.end_line))
+    });
+
+    // working[i] may be replaced in-place (to trim a previously-emitted
+    // parent) or set to None to drop it outright. stack holds indices
+    // of currently-open ancestors; entries always reference a live
+    // (non-None) working slot — we only set an entry to None
+    // immediately before popping its index off the stack.
+    let mut working: Vec<Option<FoldingRange>> = Vec::with_capacity(ordered.len());
+    let mut stack: Vec<usize> = Vec::new();
+
+    'next: for mut r in ordered {
+        // Close or trim ancestors that conflict with r's start.
+        while let Some(&top) = stack.last() {
+            // Defensive: a stack entry should always reference a live
+            // working slot (we only set a slot to None immediately
+            // before popping). Bail out safely if the invariant ever
+            // breaks instead of unwrapping into a panic.
+            let Some(parent) = working[top] else {
+                stack.pop();
+                continue;
+            };
+            if parent.end_line < r.start_line {
+                stack.pop();
+                continue;
+            }
+            if parent.end_line == r.start_line {
+                // Inclusive end_line: a shared boundary still
+                // overlaps, so trim the parent back by one line if
+                // that leaves a useful fold, otherwise drop it.
+                if parent.end_line.saturating_sub(1) > parent.start_line {
+                    working[top] = Some(FoldingRange {
+                        start_line: parent.start_line,
+                        end_line: parent.end_line - 1,
+                        kind: parent.kind,
+                    });
+                } else {
+                    working[top] = None;
+                }
+                stack.pop();
+                continue;
+            }
+            break;
+        }
+
+        // Trim r down to fit inside its (new) parent, if any.
+        let parent_end = stack
+            .last()
+            .and_then(|&top| working[top])
+            .and_then(|p| (p.end_line < r.end_line).then_some((p.end_line, p.start_line)));
+        if let Some((p_end, _p_start)) = parent_end {
+            if p_end <= r.start_line {
+                // Trim would leave r degenerate or inverted — drop it.
+                continue 'next;
+            }
+            r = FoldingRange {
+                start_line: r.start_line,
+                end_line: p_end,
+                kind: r.kind,
+            };
+        }
+
+        working.push(Some(r));
+        stack.push(working.len() - 1);
+    }
+
+    // De-duplicate: trimming may have collapsed distinct inputs onto
+    // the same (start, end, kind) triple.
+    let mut seen: HashSet<(u32, u32, FoldKind)> = HashSet::new();
+    let mut result: Vec<FoldingRange> = Vec::with_capacity(working.len());
+    for slot in working {
+        let Some(r) = slot else { continue };
+        if seen.insert((r.start_line, r.end_line, r.kind)) {
+            result.push(r);
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -861,6 +989,104 @@ mod tests {
             // there.
             assert_ne!(*s, 4, "method 1 2 3 must not produce a fold");
         }
+    }
+
+    #[test]
+    fn normalise_overlaps_shared_boundary_trims_earlier() {
+        // Mirrors `test_normalise_overlaps_shared_boundary_trims_earlier`
+        // in tests/test_folding.py.
+        let input = vec![
+            FoldingRange {
+                start_line: 0,
+                end_line: 5,
+                kind: FoldKind::Region,
+            },
+            FoldingRange {
+                start_line: 5,
+                end_line: 10,
+                kind: FoldKind::Region,
+            },
+        ];
+        let normalised = normalise_overlaps(input);
+        assert_eq!(normalised.len(), 2, "expected both ranges to survive");
+        let mut sorted = normalised;
+        sorted.sort_by_key(|r| r.start_line);
+        let (a, b) = (sorted[0], sorted[1]);
+        assert!(
+            a.end_line < b.start_line,
+            "{a:?} and {b:?} still overlap after normalisation",
+        );
+    }
+
+    #[test]
+    fn normalise_overlaps_dedups_after_trimming() {
+        // Mirrors `test_normalise_overlaps_dedups_after_trimming`:
+        // parent [0, 10] with child [3, 8] and a sibling [3, 12]
+        // that trims to [3, 10]; another collector emitting [3, 10]
+        // natively must not survive as a duplicate.
+        let input = vec![
+            FoldingRange {
+                start_line: 0,
+                end_line: 10,
+                kind: FoldKind::Region,
+            },
+            FoldingRange {
+                start_line: 3,
+                end_line: 10,
+                kind: FoldKind::Region,
+            },
+            FoldingRange {
+                start_line: 3,
+                end_line: 12,
+                kind: FoldKind::Region,
+            },
+        ];
+        let normalised = normalise_overlaps(input);
+        let original_len = normalised.len();
+        let unique: HashSet<(u32, u32, FoldKind)> = normalised
+            .iter()
+            .map(|r| (r.start_line, r.end_line, r.kind))
+            .collect();
+        assert_eq!(
+            unique.len(),
+            original_len,
+            "duplicates remain after normalisation: {normalised:?}",
+        );
+    }
+
+    #[test]
+    fn normalise_overlaps_is_idempotent() {
+        // Running normalisation twice should produce the same set —
+        // important because the Python dispatcher in
+        // `lsp/features/folding.py` re-runs `_normalise_overlaps`
+        // over the binding output, and the Rust LSP server bypasses
+        // that path entirely.
+        let input = vec![
+            FoldingRange {
+                start_line: 0,
+                end_line: 5,
+                kind: FoldKind::Region,
+            },
+            FoldingRange {
+                start_line: 5,
+                end_line: 10,
+                kind: FoldKind::Region,
+            },
+            FoldingRange {
+                start_line: 2,
+                end_line: 4,
+                kind: FoldKind::Comment,
+            },
+        ];
+        let once = normalise_overlaps(input);
+        let twice = normalise_overlaps(once.clone());
+        assert_eq!(once, twice, "normalise_overlaps should be idempotent");
+    }
+
+    #[test]
+    fn normalise_overlaps_empty_input() {
+        // Pure smoke — empty input stays empty without panicking.
+        assert!(normalise_overlaps(Vec::new()).is_empty());
     }
 
     #[test]

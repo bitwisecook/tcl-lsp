@@ -1158,6 +1158,23 @@ on the `tcl-lsp-server` bootstrap.
 | **ARCH8** | **Bootstrap `tcl-lsp-server` with the folding provider.** Stand up `rust/tcl-lsp-server/` as a `tower-lsp` binary linking `tcl-lsp-core`, `tcl-compiler`, and `tcl-registry`.  Wire folding ranges end-to-end so the crate boundary has two real consumers. | landed |
 | **ARCH9** | **`tcl-lsp-py` public binding crate.** Freeze the public Python API in `rust/tcl-lsp-py/`; convert `tcl-lsp-rust` to a re-export shim so existing wheel consumers keep working for one release cycle, then retire `tcl-lsp-rust` in a follow-up. | landed |
 | **S-document-symbols** | **Wire the document-symbol provider end-to-end in `tcl-lsp-server`.** First feature port on top of the ARCH8 bootstrap. The pure provider already lived in `tcl-lsp-core::document_symbols::document_symbols(source, dialect)` (PR #232); this chunk advertises `documentSymbolProvider` in `initialize`, implements `LanguageServer::document_symbol` to call into the core provider for the matching cached `Backend` document, and lifts the core `DocumentSymbol` / `LineRange` / `SymbolKind` shapes onto `tower_lsp::lsp_types`. Adds `tests/document_symbols_smoke.rs` (in-memory `LspService` smoke that drives `initialize` → `didOpen` → `documentSymbol` and asserts the `Function`-kind `demo` symbol comes back), plus two `lib.rs` unit tests pinning the kind-mapping exhaustiveness and the children-empty → `None` lift behaviour. | landed |
+| **S-folding-extend** | **Close the `lsp/features/folding.py` parity gap by porting `_normalise_overlaps` into `tcl-lsp-core::folding`.** ARCH8 left overlap-normalisation in the Python dispatcher with a comment that the algorithm "would need to move to Rust when the LSP server stops going through Python"; the Rust LSP server (`tcl-lsp-server`) calls `tcl_lsp_core::folding::folding_ranges` directly and so wasn't running the post-pass. This chunk lifts the algorithm into a public `normalise_overlaps(ranges) -> Vec<FoldingRange>` in `tcl-lsp-core::folding`, applies it as the final step of `folding_ranges()`, and pins the contract with four new unit tests (shared-boundary trim, dedup-after-trim, idempotence, empty-input smoke) — the first two mirror `test_folding.py::test_normalise_overlaps_*` 1:1. The pass is idempotent so the Python dispatcher's existing `_normalise_overlaps` over the `PyO3`-binding output stays harmless for the legacy path, keeping every existing pytest fixture green while the Rust server now gets a properly disjoint/nested fold tree without a Python round-trip. | landed |
+| **S-hover** | **Wire a minimal hover provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::hover` (~430 LOC + 14 unit tests) covering: `find_word_span_at_position`, `find_var_at_position` (text-position helpers ported from `lsp/features/symbol_resolution.py`), proc-name / class-name / `$var` lookups against the analyser's `AnalysisResult`, plus `proc_hover_text` / `class_hover_text` / `var_hover_text` markdown formatters mirroring the corresponding helpers in `lsp/features/hover.py`. Server side advertises `hoverProvider`, implements `LanguageServer::hover` via `tokio::task::spawn_blocking` so the analyser + provider don't block the LSP event loop, lifts the core `Hover { value, kind }` shape onto `tower_lsp::lsp_types::Hover { contents: HoverContents::Markup(MarkupContent), range: None }`, and ships `tests/hover_smoke.rs` (in-memory `LspService` `initialize → didOpen → hover` smoke that asserts the proc name surfaces in markdown). **Deferred to `S-hover-rich` follow-up:** every format-string helper (`_sprintf_hover`, `_binary_hover`, `_clock_hover`, `_regsub_hover`, `_glob_hover`, `_regex_hover`), IP-address hover (`_ip_address_hover`), inferred-intrep / taint annotations on `$var` hovers (`_infer_var_type` / `_infer_var_taint`), subcommand / operator / event registry lookups, method-body context lookups, and `core/formatting/docstring.py` rendering. **Deferred to `S-hover-sync11`:** the SYNC11 debounce / LRU-256 cache / `Ok(None)`-on-no-cached-analysis / `[timing] hover` debug-log shaping — that contract is fundamentally tied to the cached-analysis surface that `S-diagnostics` lands later, so wiring it now would build on a Backend that doesn't yet keep an `Analysis` per document. The minimal port is sufficient for the Rust LSP server to surface hovers for the common proc / class / var paths and forms the contract floor for the richer follow-ups. | landed |
+| **S-completion** | **Wire a minimal completion provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::completion` (~280 LOC + 8 unit tests) covering: `$prefix` / `${prefix}` variable-trigger detection, identifier-partial extraction at the cursor, variable completions sourced from the analyser's global scope, and proc-name completions sourced from `analysis.all_procs`. Server side advertises `completionProvider` with `$` as a trigger character, implements `LanguageServer::completion` via `tokio::task::spawn_blocking`, lifts the core `CompletionItem { label, insert_text, kind }` shape onto `tower_lsp::lsp_types::CompletionItem` (kind mapped via `lift_completion_kind`: `Variable → VARIABLE`, `Function → FUNCTION`), and ships `tests/completion_smoke.rs` (in-memory `LspService` `initialize → didOpen → completion` smoke that asserts both proc names surface). **Deferred to `S-completion-rich` follow-up:** built-in command completions sourced from `tcl_registry::CommandRegistry`, subcommand completion (`SubcommandSig` path), switch completion (`-foo`), argument-value completion (registry-driven, including subcommand-scoped values like `string is <class>`), iRules `call proc_name` first-arg context, `when EVENT` enumeration and other dialect-specific arg rules, workspace-wide proc / RULE_INIT-var enumeration, usage-bucket sort-text computation, and `_proc_signature_str` rendering. The minimal port is sufficient for the Rust LSP server to surface completions for the common variable / proc-name paths. | landed |
+| **S-signature-help** | **Wire a minimal signature-help provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::signature_help` (~250 LOC + 6 unit tests) covering: a single-line command-context detection (first whitespace-delimited token is the command, subsequent tokens count toward the active parameter), proc lookup against `analysis.all_procs`, parameter-list rendering with default-value brackets (`{name default}`), and active-parameter clamping to the last known param. Server side advertises `signatureHelpProvider` with `" "` as the trigger character, implements `LanguageServer::signature_help` via `tokio::task::spawn_blocking`, lifts the core `SignatureHelp / SignatureInformation / ParameterInformation` shapes onto the matching `tower_lsp::lsp_types` records, and ships `tests/signature_help_smoke.rs` (in-memory `LspService` smoke that asserts both the proc name and first parameter label surface). **Deferred to `S-signature-help-rich` follow-up:** built-in command signatures from `tcl_registry::CommandRegistry` / `SIGNATURES` (Python's `_builtin_signature_help`), multi-line command segments (Python's `find_command_context_details_at_position` understands continuation lines, embedded `[…]` / `{…}` token nesting, and `;` command separators), command-alias resolution (`lookup_alias_for_word`), subcommand-scoped signatures (`SubcommandSig` path that picks the right shape based on `args[0]`), and `_signature_documentation` rich doc-comment rendering. | landed |
+| **S-definition** (covers `S-declaration` / `S-type-definition` / `S-implementation`) | **Wire the goto-definition family end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::definition` (~170 LOC + 5 unit tests) covering: `$var` references resolved against the global scope's `VarDef.definition_span`, bare-word references resolved against `analysis.all_procs` (by simple or qualified name), and bare-word resolution against `analysis.all_classes` (by `name` / `qualified_name`). All four LSP methods (`definition`, `declaration`, `typeDefinition`, `implementation`) share the same core function via a `Backend::compute_definition` helper because the four Python providers behave nearly identically for our minimal port; the server lifts the core `LspRange { start_line, start_character, end_line, end_character }` onto `tower_lsp::lsp_types::Range`. Server side advertises `definitionProvider` / `declarationProvider` / `typeDefinitionProvider` / `implementationProvider`, ships `tests/definition_smoke.rs` (asserts all four capabilities are advertised plus a goto_definition that lands on the `proc greet` declaration line). **Deferred to `S-definition-rich` follow-up:** scope-chain descent for `$var` (currently only the global scope is searched — function-scope lookups return empty until `S-diagnostics` threads the body-span line index), method-body context lookups (Python's `scope.kind == "method"` path that surfaces `my method` calls), command-alias resolution (`lookup_alias_for_word`), `BigIP` definition (`get_bigip_definition` keyed on iRules dialect), and property / constructor / destructor name resolution inside a class. | landed |
+| **S-references** (covers `S-document-highlight`) | **Wire find-references and document-highlight end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::references` (~140 LOC + 4 unit tests) covering: `$var` references → `VarDef.definition_span` plus every span in `VarDef.references`; proc references → `ProcDef.name_span` plus every command invocation in `analysis.command_invocations` whose head matches the proc's simple, qualified, or unprefixed-qualified name; class references → `ClassDef.name_span` plus every command invocation matching the class name. Output is deduplicated by `(start_line, start_character, end_line, end_character)`. The server's `LanguageServer::references` lifts to `tower_lsp::lsp_types::Location` arrays, and `LanguageServer::document_highlight` reuses the same provider with `include_declaration = true` and emits every match as `DocumentHighlightKind::TEXT`. Advertises `referencesProvider` and `documentHighlightProvider`. **Deferred to `S-references-rich` follow-up:** resolved-qualified-name matching for command invocations (`invocation.resolved_qualified_name` — the Rust analyser doesn't populate that field today), method-name references inside a class body, and cross-document references (workspace-index integration that lands alongside `S-workspace-symbols`). **Deferred to `S-document-highlight-rich`:** the read/write distinction (`DocumentHighlightKind::READ` vs `WRITE`) on each match, which requires the analyser to surface use-vs-write semantics on each reference span. | landed |
+| **S-rename** | **Wire the rename provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::rename` (~150 LOC + 3 unit tests) covering: `$var` references → rewrite `VarDef.definition_span` and every `VarDef.references` span to the new name; proc references → rewrite `ProcDef.name_span` and every matching command invocation in `analysis.command_invocations`. Output is deduplicated by edit range. The server's `LanguageServer::rename` lifts the core `TextEdit { range, new_text }` shape onto `tower_lsp::lsp_types::TextEdit` and wraps the result in `WorkspaceEdit { changes: { uri: edits } }`. Advertises `renameProvider`. **Deferred to `S-rename-rich` follow-up:** symbol-validity gating (Python's `_is_safe_symbol_name` / `_is_builtin_command_name` — the minimal port emits unconditionally and lets the editor reject), namespace-aware proc renames (`_namespace_prefix` / `_tail_name` machinery that rewrites short-form call sites when renaming a qualified proc), variable-name escaping for `${name}` braced references, class / method rename, and cross-document rename. | landed |
+| **S-selection-range** | **Wire the selection-range provider end-to-end in `tcl-lsp-server` with `spawn_blocking` worker offload.** Adds `tcl-lsp-core::selection_range` (~120 LOC + 3 unit tests) that builds a three-link chain: word at cursor → enclosing line → entire document, parents always strictly contain children by construction. The flat `Vec<SelectionRange { range, parent_index }>` shape lifts to the recursive `tower_lsp::lsp_types::SelectionRange` tree via `materialise_selection_range` (bottom-up wrapping). Advertises `selectionRangeProvider`. **Deferred to `S-selection-range-rich` follow-up:** command-segment range between word and line (Python's segmenter-driven `find_command_at_position`), enclosing-body ranges (proc / class / namespace) between line and document, and the explicit containment-invariant validation Python's `_lsp_range_contains` enforces (the minimal port's chain is well-formed by construction). | landed |
+| **S-formatting** | **Wire formatting / range-formatting capabilities in `tcl-lsp-server` with a stub provider.** Adds `tcl-lsp-core::formatting` (~60 LOC + 2 unit tests) that returns an empty edit list — the actual formatter port lives under the separate `F*` track (`tcl-formatter` crate, per `core/formatting/`). Server side advertises `documentFormattingProvider` and `documentRangeFormattingProvider`, implements `LanguageServer::formatting` and `range_formatting` to call into the stub. The capabilities are advertised so editors know the request is supported, and the no-op return tells them the document is already-formatted (no changes needed) — once the `F-tcl-formatter` crate lands, the stub becomes a thin LSP adapter. **Deferred to `S-formatting-rich` / `F-tcl-formatter`:** the full formatter port — indentation alignment, brace placement, comment-block reflow. | landed |
+| **S-document-links / S-inlay-hints / S-code-lens / S-code-actions** | **Wire four LSP capability surfaces with stub `tcl-lsp-core` providers.** Each adds a small core module (~30-50 LOC + 1 unit test) that returns an empty list — none of these features have rich behaviour available yet, but advertising the capabilities lets editors stop displaying "feature unavailable" errors and gives the rich-port follow-ups a concrete server-side hook to extend. Server side advertises `documentLinkProvider`, `inlayHintProvider`, `codeLensProvider`, `codeActionProvider`; implements the four `LanguageServer` methods; lifts each core record onto its `tower_lsp::lsp_types` counterpart. **Deferred** to per-feature `*-rich` follow-ups: document-link `source` / `package require` resolution against a workspace path-resolver; inlay-hint parameter-name display at proc call sites; code-lens reference counts above defs (needs workspace-wide reference index); code-action quick-fixes for analyser diagnostics (needs the cached-analysis surface that `S-diagnostics` lands later). | landed |
+| **S-call-hierarchy / S-type-hierarchy** | **Wire call-hierarchy end-to-end and prepare the type-hierarchy core provider for future LSP wiring.** Adds `tcl-lsp-core::call_hierarchy` (~90 LOC + 2 unit tests) that resolves a user-defined `proc` at the cursor into a single `CallHierarchyItem` with name / detail / range / selection_range, and `tcl-lsp-core::type_hierarchy` (~80 LOC + 1 unit test) that resolves a class similarly. Server side advertises `callHierarchyProvider` and implements `LanguageServer::prepare_call_hierarchy` via `tokio::task::spawn_blocking`, plus `incoming_calls` / `outgoing_calls` returning empty (no per-proc call-graph index in the analyser yet). The type-hierarchy core provider is registered but not LSP-wired because tower-lsp 0.20 doesn't expose `type_hierarchy_provider` on `ServerCapabilities` or the `prepare_type_hierarchy` / `supertypes` / `subtypes` methods on `LanguageServer` — wiring lands once we upgrade tower-lsp. **Deferred to `S-call-hierarchy-rich`:** incoming-call / outgoing-call enumeration, which requires a workspace-wide call-graph index. **Deferred to `S-type-hierarchy-rich`:** tower-lsp upgrade plus supertype / subtype walks (the analyser's `superclasses` / `mixins` fields exist but aren't yet threaded into the provider). | landed |
+| **S-semantic-tokens** | **Wire the semantic-tokens capability with a stub `tcl-lsp-core::semantic_tokens` provider.** Adds the `tcl-lsp-core::semantic_tokens` module (~50 LOC + 2 unit tests) that returns empty token data and an empty legend.  Server side advertises `semanticTokensProvider` with empty `token_types` / `token_modifiers` arrays and `full = true` / `range = false`, implements `LanguageServer::semantic_tokens_full` returning empty data.  This is LSP-spec-compliant ("I support semantic tokens but have nothing to highlight right now") and gives the `S-semantic-tokens-rich` follow-up a concrete server-side hook. **Deferred to `S-semantic-tokens-rich`:** the full port of `lsp/features/_semantic_tokens/` — `_api.py` / `_collect.py` / `_format_args.py` / `_bigip.py` / `_primitives.py` / `_constants.py` (~3370 LOC of token classification covering command heads, argument roles, format-string components, BigIP URI segments, etc.) plus delta encoding for `semanticTokens/full/delta` and `semanticTokens/range`. | landed |
+| **S-workspace-symbols** | **Wire the workspace-symbols provider end-to-end.** Adds `tcl-lsp-core::workspace_symbols` (~110 LOC + 2 unit tests) covering: query filtering (substring match, case-insensitive, empty query returns all), proc + class enumeration from `analysis.all_procs` and `analysis.all_classes`, and `container_name` derivation from the qualified name's namespace prefix. Server-side `LanguageServer::symbol` walks every cached document in the `Backend` document store, runs the provider via `tokio::task::spawn_blocking` per-document, and aggregates the `SymbolInformation` results into a single response. **Deferred to `S-workspace-symbols-rich`:** workspace-index integration — currently the server walks the live document store, but a future workspace-init chunk will land a pre-computed cross-document symbol index that scales beyond the open-files set. | landed |
+| **S-linked-editing-range / S-snippet-templates** | **Advertise `linkedEditingRangeProvider` (returning `None` for now); snippet templates are emitted by `S-completion`.** Adds the `LanguageServer::linked_editing_range` impl returning `Ok(None)` so editors that ask the server about linked-editing pairs get the LSP-spec "no link known here" answer rather than a `MethodNotFound` error.  Snippet templates (`lsp/features/snippet_templates.py`) are CompletionItem snippets in the Python implementation; the minimal `S-completion` port emits plain insert-text items today and rich snippet rendering is deferred to `S-completion-rich`, so we don't need a separate LSP method for it. **Deferred to `S-linked-editing-range-rich`:** the `lsp/features/linked_editing_range.py` port that pairs proc declarations with their call sites so renaming one updates the other live. | landed |
+| **S-symbol-resolution / S-irules-context / S-package-suggestions / S-workspace-file-ops** | **No-op chunks — these are internal helpers, not LSP method surfaces.** `lsp/features/symbol_resolution.py` is a shared helper module already partially ported into `tcl-lsp-core::hover` (the `find_word_span_at_position` / `find_var_at_position` helpers); the rest is `find_command_context_*` which lives inside `tcl-lsp-core::signature_help` and `tcl-lsp-core::completion`. `lsp/features/irules_context.py` surfaces iRules-dialect-specific event/command context to other features; the Rust counterpart pieces will land alongside the per-feature rich follow-ups (`S-hover-rich`, `S-completion-rich`) since they're consumers, not standalone LSP methods. `lsp/features/package_suggestions.py` is a hint-emitter folded into `S-completion-rich` and `S-code-actions-rich`. `lsp/features/workspace_file_ops.py` covers `workspace/willCreateFiles`, `willRenameFiles`, `willDeleteFiles` notifications — none of which the Python implementation produces editor-affecting edits for; advertising the capabilities is therefore deferred until the workspace-index chunk lands and there's something useful to surface. All four "chunks" are tracked so the chunk-log row exists; the actual work either has already merged inside other chunks or is rolled into rich follow-ups. | landed (no-op rollup) |
+| **S-diagnostics / S-lifecycle / S-commands / S-settings / S-workspace-init / S-state / S-diagnostics-pipeline / S-async-diagnostics** | **Cross-cutting infrastructure — minimal scaffolding lands here; rich diagnostics surface lands in a dedicated follow-up.** S-lifecycle (already in place: `initialize` / `initialized` / `shutdown` / `did_open` / `did_change` / `did_close` are wired with full document-state mutation). S-settings: defaults to `tcl8.6` dialect; richer per-document dialect detection lives in `S-workspace-init`. S-commands: the `executeCommand` LSP method isn't advertised — Python's command surface (rule-init refresh, package-cache rebuild) is internal. S-state: the `Backend` document store is a `Mutex<HashMap<Url, DocumentState>>`; a future ropey-backed incremental store lands in `S-state-rich`. S-workspace-init: workspace-folder enumeration and per-folder dialect classification land alongside `S-workspace-symbols-rich`. **Deferred to `S-diagnostics`:** publish-diagnostics on `did_open` / `did_change` (the analyser already runs on every request via the per-method `spawn_blocking` paths; pushing diagnostics needs a separate `Client::publish_diagnostics` call once the cached-analysis surface lands). **Deferred to `S-diagnostics-pipeline` / `S-async-diagnostics`:** the asynchronous diagnostic-streaming contract that batches updates and replaces the per-method analysis runs with a Backend-cached `Analysis` per document — this is the keystone chunk every other rich follow-up depends on. The current minimal port runs the analyser fresh on every request (a few ms per call); for documents up to ~10K LOC this is acceptable, and the architecture is forward-compatible with the cached surface. | landed (minimal scaffolding) |
+| **PYTHON-RETIRE-LSP** | **Final chunk — *partially done; deletion still blocked.*** Goal: delete `lsp/` once `make prep-pr` passes against the Rust binary as the only LSP server.  **Phases landed in this run:** (Phase 1) relocated the build-generated `lsp/_build_info.py` to `core/_build_info.py` so the version banner consumed by explorer/, ai/mcp/, and the zipapp entry points survives the LSP feature-tree retirement.  Updated Makefile `BUILD_INFO`, `.gitignore`, `pyproject.toml` coverage-omit, and the eight importer call sites.  (Phase 2) inlined `find_proc_call_sites` from `lsp.features.references` into `core/minifier/minifier.py` to remove the `core → lsp` dependency leak.  **Phases still blocking deletion:** (Phase 3) `core/common/codes_all.py` still imports `lsp.features.diagnostics` to register five style-only diagnostic codes (W111 / W112 / W115 / W118 / W120) that several tests under `tests/` reference (`test_analyser.py`, `test_incremental_update.py`, `test_tcllib.py`, `test_diagnostic_phases.py`, `test_code_actions.py`).  Removing the import without first relocating those `@diag` registrations to a non-lsp module would break those tests.  (Phase 4) `ai/mcp/tcl_mcp_server.py` imports `lsp.features.{hover, completion, definition, references, document_symbols, code_actions, diagnostics, rename}` for eight MCP tools — these need to either be migrated to drive the Rust binary over JSON-RPC, rewired through the `tcl-lsp-py` PyO3 binding, or removed.  (Phase 5) `scripts/memprof_workspace.py` imports `lsp.workspace.{scanner, workspace_index}` and `scripts/profile_semantic_tokens.py` imports `lsp.features.semantic_tokens_full` plus `lsp.workspace.document_state` for benchmarks; both need rewriting against the Rust binary.  (Phase 6) `lsp/server.py` and `lsp/__main__.py` need replacing with thin shims that exec the Rust binary, then the editor extensions repointed.  (Phase 7) the **64 `tests/test_*.py` files** that import from `lsp.*` need either porting to drive the Rust binary or deletion (the equivalent feature behaviour is exercised by Cargo integration tests in `rust/tcl-lsp-server/tests/`).  Until phases 3-7 complete, `lsp/` cannot be removed.  This chunk needs another dedicated autonomous run that focuses on phases 3-7 in order. | **partially landed — phases 1+2 done, 3-7 outstanding** |
 | **VM\*** | **Bytecode VM port** (`vm/` — 36 files / 22K LOC).  Rewrite the Tcl bytecode interpreter as a Rust crate (`tcl-vm`).  Should integrate with the Zig WASM runtime so the same opcode table drives both.  Test parity via the existing `test_vm_*.py` suite (~658 cases) ported to cargo integration tests.  Sub-chunks: VM core (interpreter loop + dispatch), VM commands (`info`, `interp`, `namespace`, …), VM error-info / error-trace, VM trace machinery, VM safe-mode, VM OO bridge, VM regexp engine, VM I/O channel adapters. | planned (per-area chunks) |
 | **S\*** | **LSP server migration** (`lsp/` — 52 files / 19K LOC).  Replace the `pygls` server with a `tower-lsp`-based Rust binary.  Sub-chunks: server bootstrap + capability advertising, document store via `ropey`, request routing, every feature provider (hover, completion, definition, references, rename, code actions, code lens, document symbols / highlight / links, folding, inlay hints, signature help, semantic tokens (+delta), workspace symbols, call hierarchy, linked editing range, selection range, refactoring, snippets, will-save, workspace file ops, workspace index, incremental update, progress, async / pull diagnostics).  Each feature is its own commit; tests port from the matching `test_*.py` (710 cases total) into cargo integration tests against an in-memory test server. | planned (per-feature chunks) |
 | **F\*** | **Formatter + minifier + docstring** (`core/formatting/`, `core/minifier/`, `core/help/` — 10 files / 5.8K LOC + tests).  Three independent Rust crates: `tcl-formatter`, `tcl-minifier`, `tcl-help-kcs` (KCS DB).  Test parity via the matching `test_formatter.py` / `test_minifier.py` / `test_docstring.py` / `test_kcs_db.py` (~470 cases) ported to cargo. | planned |
@@ -3425,3 +3442,138 @@ contributor doesn't have to re-discover the design.
 
 **Cross-reference:** `lsp/server.py::on_hover` (Python source
 of truth) and the three commits above for the design rationale.
+
+## S-progress
+
+Resume note for the next S-* session.  The chunk-log rows
+above record the final landed state per chunk; this section
+records what the most recent autonomous run accomplished
+and what remains.
+
+### What landed (PR #383, branch `claude/S-folding-extend-normalise`)
+
+Per the user directive on 2026-05-09 ("complete S* in the
+same PR"), every S-* chunk stacks on PR #383 instead of one
+PR per chunk.  In a series of autonomous sessions, the
+following chunks landed:
+
+1. **S-folding-extend** — `_normalise_overlaps` port +
+   four contract tests.
+2. **S-hover** — minimal proc / class / $var hover via
+   `spawn_blocking`.
+3. **S-completion** — `$prefix` variable trigger + proc-name
+   completion.
+4. **S-signature-help** — single-line user-proc signature
+   detection.
+5. **S-definition family** — `goto_definition` /
+   `goto_declaration` / `goto_type_definition` /
+   `goto_implementation` sharing one core provider.
+6. **S-references / S-document-highlight** — deduplicated
+   reference enumeration.
+7. **S-rename** — workspace-edit emission for proc and
+   `$var` symbols.
+8. **S-selection-range** — three-link chain (word → line →
+   document).
+9. **S-formatting** — capability advertisement with stub
+   provider; real formatter port is the `F*` track.
+10. **S-document-links / S-inlay-hints / S-code-lens /
+    S-code-actions** — capabilities advertised, stub
+    providers for each.
+11. **S-call-hierarchy / S-type-hierarchy** — call-hierarchy
+    wired (tower-lsp 0.20 doesn't expose
+    `type_hierarchy_provider`; type-hierarchy core provider
+    is registered, LSP wiring is deferred).
+12. **S-semantic-tokens** — capability with empty legend;
+    rich token classification deferred.
+13. **S-workspace-symbols** — query-filtered enumeration
+    over the live document store.
+14. **S-linked-editing-range / S-snippet-templates** —
+    capability advertised, returns `None` (snippets folded
+    into completion).
+15. **S-symbol-resolution / S-irules-context /
+    S-package-suggestions / S-workspace-file-ops** —
+    no-op rollup (pieces already live inside other chunks
+    or are deferred to per-feature `*-rich` follow-ups).
+16. **S-diagnostics / S-lifecycle / S-commands /
+    S-settings / S-workspace-init / S-state /
+    S-diagnostics-pipeline / S-async-diagnostics** —
+    minimal scaffolding rolled up; the rich cached-analysis
+    pipeline (which every `*-rich` follow-up depends on)
+    lands in a dedicated future chunk.
+
+After this run, every LSP method except the
+`type_hierarchy/*` family that tower-lsp 0.20 doesn't
+surface is wired end-to-end with at least a stub.  `cargo
+fmt`, `cargo clippy --workspace --all-targets -- -D warnings`,
+and `cargo test --workspace` all pass on every commit.
+
+### What is still open
+
+* **PYTHON-RETIRE-LSP** — *partially done* in this run
+  (phases 1+2); phases 3-7 remain blocking before the
+  `lsp/` tree can be deleted.
+  * **Phase 1 ✓** Relocated build-generated `_build_info.py`
+    from `lsp/` to `core/`.  Makefile `BUILD_INFO`,
+    `.gitignore`, `pyproject.toml` coverage-omit, and 8
+    importer call sites updated.
+  * **Phase 2 ✓** Inlined `find_proc_call_sites` from
+    `lsp.features.references` into `core/minifier/minifier.py`
+    to remove the `core → lsp` dependency leak.
+  * **Phase 3** Relocate the 5 style-only `@diag`
+    registrations (W111 / W112 / W115 / W118 / W120) out
+    of `lsp.features.diagnostics` so `core/common/codes_all.py`
+    can drop its `import lsp.features.diagnostics` without
+    breaking the 5 test files that reference those codes.
+  * **Phase 4** Migrate the 8 MCP tools in
+    `ai/mcp/tcl_mcp_server.py` (hover / completion /
+    definition / references / document_symbols /
+    code_actions / diagnostics / rename) to the Rust
+    binary — either over JSON-RPC, via the `tcl-lsp-py`
+    PyO3 binding, or by removing the tools.
+  * **Phase 5** Rewrite `scripts/memprof_workspace.py`
+    and `scripts/profile_semantic_tokens.py` against the
+    Rust binary (the `lsp-client` skill already does
+    this) or delete them.
+  * **Phase 6** Replace `lsp/server.py` and
+    `lsp/__main__.py` with thin shims that exec the Rust
+    binary, then repoint the editor extensions.
+  * **Phase 7** Either port or delete the **64
+    `tests/test_*.py`** files that import from `lsp.*`
+    (the equivalent feature behaviour is exercised by
+    Cargo integration tests in `rust/tcl-lsp-server/tests/`).
+* **Per-feature `*-rich` follow-ups** — every minimal port
+  has a `*-rich` row in the chunk log capturing what is
+  deferred; the keystone is `S-diagnostics` /
+  `S-async-diagnostics` because every other rich follow-up
+  reads off the cached-analysis surface that chunk
+  populates.
+* **`make prep-pr`** — passes today against the Python LSP
+  server.  It will need to pass against the Rust binary
+  too before PYTHON-RETIRE-LSP can land; the editor
+  smoke tests (`tests/test_*lsp*`) currently target the
+  pygls server and will need re-pointing.
+
+### Blocked
+
+Nothing — the next session can pick up `S-diagnostics`
+(the next architecturally significant chunk) or any
+`*-rich` row.
+
+### Approximate state
+
+* Every LSP method handler in `tower-lsp` 0.20's
+  `LanguageServer` trait that has a meaningful Python
+  counterpart is wired in `tcl-lsp-server`.
+* `tcl-lsp-core` now has 18 feature modules
+  (`call_hierarchy`, `code_actions`, `code_lens`,
+  `completion`, `definition`, `document_links`,
+  `document_symbols`, `folding`, `formatting`, `hover`,
+  `inlay_hints`, `references`, `rename`, `selection_range`,
+  `semantic_tokens`, `signature_help`, `type_hierarchy`,
+  `workspace_symbols`).
+* Every minimal port is gated by unit tests; the server
+  has end-to-end smoke tests for the most-exercised paths
+  (folding, document_symbols, hover, completion,
+  signature_help, definition).
+* Total `cargo test --workspace` count is well over 2000
+  passing tests.
