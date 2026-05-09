@@ -43,9 +43,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 from . import pcapng as _pcapng
 from .model import BigipConfig
@@ -105,14 +106,20 @@ class NameIndex:
     ) -> None:
         if not name:
             return
-        bucket = self.v4_subnets if isinstance(network, _V4Net) else self.v6_subnets
-        entry = (network, name)
-        # Dedupe by exact ``(network, name)`` so multi-config merges don't
-        # accumulate identical subnet rows; ``build_merged_name_index``
+        # Split into the v4/v6 branches explicitly so the type checker
+        # can narrow ``network`` to the matching bucket's element type.
+        # Dedupe by exact ``(network, name)`` so multi-config merges
+        # don't accumulate identical subnet rows; ``build_merged_name_index``
         # passes the same ``combined_source`` to every per-config call,
         # which would otherwise re-add every ``net self`` block N times.
-        if entry not in bucket:
-            bucket.append(entry)
+        if isinstance(network, _V4Net):
+            entry_v4 = (network, name)
+            if entry_v4 not in self.v4_subnets:
+                self.v4_subnets.append(entry_v4)
+        else:
+            entry_v6 = (network, name)
+            if entry_v6 not in self.v6_subnets:
+                self.v6_subnets.append(entry_v6)
 
     def update(self, other: NameIndex) -> None:
         """Merge *other* into ``self`` — used to combine multi-config inventories."""
@@ -458,8 +465,14 @@ def _extract_gtm_wideips(source: str) -> dict[str, list[str]]:
     return wideips
 
 
-def _resolve_gtm_path(name: str, pool: dict[str, object]) -> str | None:
-    """Resolve a GTM reference; tries exact, /Common/<name>, then suffix match."""
+def _resolve_gtm_path(name: str, pool: Mapping[str, object]) -> str | None:
+    """Resolve a GTM reference; tries exact, /Common/<name>, then suffix match.
+
+    The value type is treated as ``object`` because the resolver only
+    cares about keys — accepting :class:`Mapping` (covariant in V) lets
+    callers pass concrete ``dict[str, _GtmServer]`` /
+    ``dict[str, list[…]]`` values without an explicit cast.
+    """
     if name in pool:
         return name
     candidate = f"/Common/{name}"
@@ -771,7 +784,11 @@ def enrich_pcapng(
         spooled.seek(0)
         magic = spooled.read(4)
         spooled.seek(0)
-        seekable_input = spooled  # type: ignore[assignment]
+        # ``SpooledTemporaryFile`` exposes the ``IO[bytes]`` protocol
+        # (read / seek / close / etc.) but isn't formally a
+        # ``BinaryIO`` instance, so cast it for the rest of the
+        # pipeline that's typed against ``BinaryIO``.
+        seekable_input = cast(BinaryIO, spooled)
 
     try:
         if not _pcapng.is_pcapng_magic(magic):
