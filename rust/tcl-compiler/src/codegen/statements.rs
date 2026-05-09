@@ -77,10 +77,10 @@ impl CodegenCtx<'_> {
         self.cmd_index += 1;
     }
 
-    /// Dispatch a statement to the appropriate emission handler.
-    // Long match dispatcher over Statement variants.
-    #[allow(clippy::too_many_lines)]
-    pub fn emit_stmt(&mut self, stmt: &Statement, used_generic_invoke: &mut bool) {
+    /// Emit `Statement::AssignConst` / `AssignValue` / `AssignExpr`
+    /// / `Incr` / `ExprEval`.  Extracted from [`Self::emit_stmt`] to
+    /// keep the dispatcher under threshold.
+    fn emit_assign_or_incr(&mut self, stmt: &Statement) -> bool {
         match stmt {
             Statement::AssignConst { name, value, .. } => {
                 if needs_stk_var_ref(name, self.is_proc) {
@@ -89,8 +89,8 @@ impl CodegenCtx<'_> {
                 self.push_lit(value);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
+                true
             }
-
             Statement::AssignValue {
                 name,
                 value,
@@ -102,15 +102,14 @@ impl CodegenCtx<'_> {
                 } else {
                     value.clone()
                 };
-
                 if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
                 }
                 self.emit_value_interpolated(&value);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
+                true
             }
-
             Statement::AssignExpr { name, expr, .. } => {
                 if needs_stk_var_ref(name, self.is_proc) {
                     self.push_var_ref(name);
@@ -128,57 +127,69 @@ impl CodegenCtx<'_> {
                 self.place_label(&inner_end);
                 self.store_var(name);
                 self.emit(Op::POP, vec![]);
+                true
             }
-
             Statement::Incr { name, amount, .. } => {
                 self.emit_incr(name, amount.as_deref());
                 self.emit(Op::POP, vec![]);
+                true
             }
-
             Statement::ExprEval { expr, .. } => {
                 let guaranteed_numeric = self.emit_expr(expr);
                 if !guaranteed_numeric {
                     self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
                 }
                 self.emit(Op::POP, vec![]);
+                true
             }
+            _ => false,
+        }
+    }
 
+    /// Emit `Statement::Call` — handles the CFG placeholder names
+    /// (`<cond>` / `<empty_clause>`), `{*}` expansion, and the
+    /// generic call path.
+    fn emit_call_stmt(
+        &mut self,
+        command: &str,
+        args: &[String],
+        tokens: Option<&crate::ir::CommandTokens>,
+        used_generic_invoke: &mut bool,
+    ) {
+        if command == "<cond>" {
+            return;
+        }
+        if command == "<empty_clause>" {
+            self.literals.intern("");
+            self.emit(Op::NOP, vec![]);
+            self.emit(Op::NOP, vec![]);
+            self.emit(Op::NOP, vec![]);
+            return;
+        }
+        let has_expand = tokens
+            .and_then(|t| t.expand_word.as_ref())
+            .is_some_and(|ew| ew.iter().any(|&e| e));
+        if has_expand {
+            let ew = tokens.and_then(|t| t.expand_word.as_ref()).unwrap();
+            self.emit_expanded_call(command, args, ew);
+            *used_generic_invoke = true;
+        } else {
+            self.emit_call(command, args, used_generic_invoke);
+        }
+    }
+
+    /// Dispatch a statement to the appropriate emission handler.
+    pub fn emit_stmt(&mut self, stmt: &Statement, used_generic_invoke: &mut bool) {
+        if self.emit_assign_or_incr(stmt) {
+            return;
+        }
+        match stmt {
             Statement::Call {
                 command,
                 args,
                 tokens,
                 ..
-            } => {
-                if command == "<cond>" {
-                    // CFG placeholder — condition handled by block terminator
-                    return;
-                }
-                if command == "<empty_clause>" {
-                    // Empty for-loop clause — 3 nops (tclsh constant-fold)
-                    self.literals.intern("");
-                    self.emit(Op::NOP, vec![]);
-                    self.emit(Op::NOP, vec![]);
-                    self.emit(Op::NOP, vec![]);
-                    return;
-                }
-
-                // Check for {*} expansion
-                let has_expand = tokens
-                    .as_ref()
-                    .and_then(|t| t.expand_word.as_ref())
-                    .is_some_and(|ew| ew.iter().any(|&e| e));
-
-                if has_expand {
-                    let ew = tokens
-                        .as_ref()
-                        .and_then(|t| t.expand_word.as_ref())
-                        .unwrap();
-                    self.emit_expanded_call(command, args, ew);
-                    *used_generic_invoke = true;
-                } else {
-                    self.emit_call(command, args, used_generic_invoke);
-                }
-            }
+            } => self.emit_call_stmt(command, args, tokens.as_ref(), used_generic_invoke),
 
             Statement::Barrier {
                 command,
@@ -190,21 +201,7 @@ impl CodegenCtx<'_> {
                 if command.is_empty() {
                     self.emit_comment(Op::NOP, vec![], &format!("barrier: {reason}"));
                 } else {
-                    let has_expand = tokens
-                        .as_ref()
-                        .and_then(|t| t.expand_word.as_ref())
-                        .is_some_and(|ew| ew.iter().any(|&e| e));
-
-                    if has_expand {
-                        let ew = tokens
-                            .as_ref()
-                            .and_then(|t| t.expand_word.as_ref())
-                            .unwrap();
-                        self.emit_expanded_call(command, args, ew);
-                        *used_generic_invoke = true;
-                    } else {
-                        self.emit_call(command, args, used_generic_invoke);
-                    }
+                    self.emit_call_stmt(command, args, tokens.as_ref(), used_generic_invoke);
                 }
             }
 
