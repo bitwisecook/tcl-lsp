@@ -105,6 +105,56 @@ def build_cli(version: str, output: Path) -> None:
     print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
 
 
+def build_f5(version: str, output: Path) -> None:
+    """Build the F5 BIG-IP CLI zipapp.
+
+    Ships ``core/`` (which carries ``core/bigip/`` plus
+    ``core/bigip/data/irules_object_refs_graph.json``), ``lsp/`` (build
+    metadata + shared utilities), and ``explorer/`` (verb registry +
+    ``explorer.f5_cli`` entry point).  The zipapp's ``__main__.py``
+    dispatches to :func:`explorer.f5_cli.main`, so the produced
+    ``f5-<version>.pyz`` runs as a single-file ``f5 cleanup …`` tool
+    on any host with Python 3.10+.
+    """
+    with tempfile.TemporaryDirectory(prefix="zipapp-f5-") as tmp:
+        stage = Path(tmp)
+
+        # Copy core/ — includes core/bigip/data/*.json data assets.
+        shutil.copytree(
+            ROOT / "core",
+            stage / "core",
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+
+        # Copy lsp/ for build metadata (lsp._build_info) and shared utils.
+        shutil.copytree(
+            ROOT / "lsp",
+            stage / "lsp",
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+
+        # Copy explorer/ (verb registry + explorer.f5_cli) without static/.
+        shutil.copytree(
+            ROOT / "explorer",
+            stage / "explorer",
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "static"),
+        )
+
+        # Single-file entry point — dispatch into explorer.f5_cli.main().
+        main_py = stage / "__main__.py"
+        main_py.write_text(
+            '"""F5 BIG-IP CLI zipapp entry point."""\n'
+            "import sys\n"
+            "from explorer.f5_cli import main\n"
+            "sys.exit(main())\n"
+        )
+
+        _create_archive(stage, str(output), "/usr/bin/env python3")
+
+    print(f"Built: {output}")
+    print(f"  Size: {output.stat().st_size / 1024:.0f} KB")
+
+
 def build_tcl(version: str, output: Path) -> None:
     """Build the unified Tcl zipapp: core/ + explorer/ + lsp/ + vm/."""
     with tempfile.TemporaryDirectory(prefix="zipapp-tcl-") as tmp:
@@ -432,6 +482,10 @@ def main() -> int:
     cli_p.add_argument("--version", required=True)
     cli_p.add_argument("--output", required=True, type=Path)
 
+    f5_p = sub.add_parser("f5", help="Build F5 BIG-IP CLI zipapp")
+    f5_p.add_argument("--version", required=True)
+    f5_p.add_argument("--output", required=True, type=Path)
+
     gui_p = sub.add_parser("gui", help="Build GUI zipapp (standalone)")
     gui_p.add_argument("--version", required=True)
     gui_p.add_argument("--output", required=True, type=Path)
@@ -470,6 +524,8 @@ def main() -> int:
         build_tcl(args.version, args.output)
     elif args.command == "cli":
         build_cli(args.version, args.output)
+    elif args.command == "f5":
+        build_f5(args.version, args.output)
     elif args.command == "gui":
         build_gui(args.version, args.output, args.static_dir)
     elif args.command == "gui-cdn":

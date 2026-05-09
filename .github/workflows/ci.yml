@@ -289,6 +289,53 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           gh release upload "$tag" build/tcl-lsp-explorer-cli-*.pyz --clobber
 
+  # Build: F5 BIG-IP CLI zipapp
+  build-zipapp-f5:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync Python environment
+        run: uv sync --extra dev
+
+      - name: Build F5 BIG-IP zipapp
+        run: make zipapp-f5
+
+      - name: Smoke-test F5 BIG-IP zipapp
+        run: |
+          python3 build/f5-*.pyz --help
+          python3 build/f5-*.pyz cleanup samples/bigip/bigip.conf
+          python3 build/f5-*.pyz cleanup --json samples/bigip/bigip.conf > /tmp/cleanup.json
+          python3 -c "import json; data = json.load(open('/tmp/cleanup.json')); assert 'candidates' in data, data; assert 'tmshScript' in data, data"
+
+      - name: Upload F5 zipapp
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipapp-f5
+          path: "build/f5-*.pyz"
+          retention-days: 7
+
+      - name: Upload F5 zipapp to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release upload "$tag" build/f5-*.pyz --clobber
+
   # Build: unified Tcl tools zipapp
   build-zipapp-tcl:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -747,7 +794,7 @@ jobs:
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -798,7 +845,7 @@ jobs:
   # Cleanup: delete all non-release artifacts (runs only during releases)
   cleanup-untagged-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
     runs-on: ubuntu-latest
     permissions:
       actions: write

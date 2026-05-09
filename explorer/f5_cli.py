@@ -44,6 +44,10 @@ def _infer_prog_name(argv0: str) -> str:
     stem = Path(raw_name).stem.lower()
     if not stem or stem.startswith("python"):
         return "f5"
+    # Strip the ``f5-<version>`` suffix the zipapp builder bakes into
+    # the filename so the brief-help output reads ``f5 <verb> ...``.
+    if stem.startswith("f5-"):
+        return "f5"
     return stem
 
 
