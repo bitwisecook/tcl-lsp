@@ -1,16 +1,22 @@
 //! iRules-specific static checks (non-taint).
 //!
-//! Currently hosts **IRULE3102** — `HTTP::path` / `HTTP::uri` /
-//! `HTTP::query` getters used without the `-normalized` option, which
-//! leaves them susceptible to URL-evasion patterns (double-encoding,
-//! path-traversal escapes). Ported from
-//! `core/analysis/checks/_domain.py::check_irules_unnormalized_http_getter`.
+//! Hosts:
 //!
-//! Unlike [`crate::taint`] which drives off per-SSA-value lattices,
-//! IRULE3102 is a pure AST scan: it walks every `Statement::Call` and
-//! every `Statement::AssignValue` whose RHS is a bare command
-//! substitution, and reports getters that omit `-normalized` under the
-//! `"f5-irules"` / `"irules"` dialect.
+//! * **IRULE3102** — `HTTP::path` / `HTTP::uri` / `HTTP::query` getters
+//!   used without the `-normalized` option (URL-evasion exposure).
+//! * **IRULE5002** — `drop` / `reject` / `discard` without a subsequent
+//!   `event disable all` or `return` (other iRules continue executing).
+//! * **IRULE5004** — `DNS::return` without a subsequent `return`
+//!   (iRule processing continues after `DNS::return`).
+//!
+//! C44-irules-flow status (audited at port time): IRULE3102, IRULE5002,
+//! IRULE5004 land here.  IRULE1005 / IRULE1006 / IRULE1007 / IRULE1008
+//! (collect/release/payload pairing across `when` events), IRULE1201 /
+//! IRULE1202 (HTTP-after-respond and multi-respond), IRULE4004
+//! (per-request set hoistable to once-per-connection) require richer
+//! cross-event analysis built on `connection_scope.rs` —  ported as
+//! their own follow-up sub-strips per the chunk-log row's
+//! "each diagnostic is its own sub-strip" sequencing.
 
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
@@ -148,6 +154,130 @@ pub fn find_unnormalised_getter_warnings(
 }
 
 // ---------------------------------------------------------------------------
+// IRULE5002 + IRULE5004 — unguarded drop / DNS::return
+// ---------------------------------------------------------------------------
+//
+// Mirrors `core/compiler/irules_flow.py::_check_unguarded_drops`
+// (lines 807-1050).  The Python implementation is path-sensitive
+// (walks each branch of every `if` / `switch` / `try` separately
+// and emits at branch joins where the drop survived).  This Rust
+// minimum-viable port linear-scans each `::when::*` proc body in
+// CFG order and emits when no terminator follows the drop in the
+// same block run.  Catches the most common shape (top-level
+// `drop` / `reject` without a guard); branch-sensitive coverage
+// is the C44 follow-up sub-strip.
+
+fn is_drop_command(cmd: &str) -> bool {
+    matches!(cmd, "drop" | "reject" | "discard")
+}
+
+fn is_dns_return(cmd: &str, args: &[String]) -> bool {
+    cmd == "DNS::return" && (args.is_empty() || args.iter().all(|a| !a.starts_with('-')))
+}
+
+/// `event disable all` is a drop guard: the subsequent statements
+/// run but no other iRule does.
+fn is_event_disable_all(cmd: &str, args: &[String]) -> bool {
+    cmd == "event"
+        && args.len() >= 2
+        && args[0] == "disable"
+        && args[1] == "all"
+}
+
+/// Scan each `::when::*` proc body for IRULE5002 / IRULE5004
+/// shapes.  Linear analysis only — see the module-level note.
+#[must_use]
+pub fn find_unguarded_drop_warnings(
+    cu: &CompilationUnit,
+    dialect: Option<&str>,
+) -> Vec<IrulesCheckWarning> {
+    let mut out: Vec<IrulesCheckWarning> = Vec::new();
+    if !is_irules_dialect(dialect) {
+        return out;
+    }
+
+    for fu in cu.functions() {
+        // Only `::when::EVENT` proc bodies are iRules event handlers.
+        if !fu.name.starts_with("::when::") {
+            continue;
+        }
+        out.extend(scan_when_body_for_drops(fu));
+    }
+    out
+}
+
+fn scan_when_body_for_drops(fu: &crate::compilation_unit::FunctionUnit) -> Vec<IrulesCheckWarning> {
+    let mut out = Vec::new();
+    // Linear scan: track the most-recent drop / DNS::return spans.
+    // A `return` or `event disable all` clears them.
+    let mut pending_drop: Option<(Span, String)> = None;
+    let mut pending_dns: Option<Span> = None;
+
+    for bn in cfg_order(&fu.cfg) {
+        if !fu.sccp.executable_blocks.contains(&bn) {
+            continue;
+        }
+        let Some(block) = fu.cfg.blocks.get(&bn) else {
+            continue;
+        };
+        for stmt in &block.statements {
+            let Statement::Call {
+                command,
+                args,
+                span,
+                ..
+            } = stmt
+            else {
+                continue;
+            };
+            if is_drop_command(command) {
+                pending_drop = Some((*span, command.clone()));
+                continue;
+            }
+            if is_dns_return(command, args) {
+                pending_dns = Some(*span);
+                continue;
+            }
+            if is_event_disable_all(command, args) {
+                // Guards an earlier drop.
+                pending_drop = None;
+            }
+            // `return` is a Terminator on the block, not a Call —
+            // handled below per-block.
+        }
+        // After the block's statements: check the terminator.  A
+        // `Return` clears all pending drops; otherwise pending state
+        // carries across.
+        if let Some(term) = &block.terminator {
+            if matches!(term, crate::cfg::Terminator::Return { .. }) {
+                pending_drop = None;
+                pending_dns = None;
+            }
+        }
+    }
+
+    if let Some((span, cmd)) = pending_drop {
+        out.push(IrulesCheckWarning {
+            span,
+            code: "IRULE5002".to_owned(),
+            message: format!(
+                "`{cmd}` without a subsequent `event disable all` or `return` — other iRules continue executing on this connection.",
+            ),
+            replacement: None,
+        });
+    }
+    if let Some(span) = pending_dns {
+        out.push(IrulesCheckWarning {
+            span,
+            code: "IRULE5004".to_owned(),
+            message: "`DNS::return` without a subsequent `return` — iRule processing continues after `DNS::return`.".to_owned(),
+            replacement: None,
+        });
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -256,5 +386,85 @@ mod tests {
             with_header.is_empty(),
             "no IRULE3102 expected on HTTP::header (no -normalized), got {with_header:?}",
         );
+    }
+
+    // -- IRULE5002 / IRULE5004 ----------------------------------------
+
+    fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
+        let cu = CompilationUnit::build_for(source, &registry(), false);
+        find_unguarded_drop_warnings(&cu, Some("f5-irules"))
+    }
+
+    #[test]
+    fn irule5002_drop_without_return_fires() {
+        let ws = drop_warnings("when CLIENT_ACCEPTED { drop }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE5002"),
+            "expected IRULE5002, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5002_drop_followed_by_return_clean() {
+        let ws = drop_warnings("when CLIENT_ACCEPTED { drop; return }");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE5002"),
+            "no IRULE5002 expected when `return` guards the drop, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5002_drop_followed_by_event_disable_all_clean() {
+        let ws = drop_warnings("when CLIENT_ACCEPTED { drop; event disable all }");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE5002"),
+            "no IRULE5002 expected when `event disable all` guards the drop, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5002_reject_also_fires() {
+        let ws = drop_warnings("when CLIENT_ACCEPTED { reject }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE5002"),
+            "expected IRULE5002 on `reject`, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5002_only_in_irules_dialect() {
+        let cu = CompilationUnit::build_for(
+            "when CLIENT_ACCEPTED { drop }",
+            &registry(),
+            false,
+        );
+        let none_dialect = find_unguarded_drop_warnings(&cu, None);
+        assert!(none_dialect.is_empty(), "got {none_dialect:?}");
+        let tcl_dialect = find_unguarded_drop_warnings(&cu, Some("tcl"));
+        assert!(tcl_dialect.is_empty(), "got {tcl_dialect:?}");
+    }
+
+    #[test]
+    fn irule5004_dns_return_without_return_fires() {
+        let ws = drop_warnings("when DNS_REQUEST { DNS::return }");
+        assert!(
+            ws.iter().any(|w| w.code == "IRULE5004"),
+            "expected IRULE5004, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn irule5004_dns_return_followed_by_return_clean() {
+        let ws = drop_warnings("when DNS_REQUEST { DNS::return; return }");
+        assert!(
+            !ws.iter().any(|w| w.code == "IRULE5004"),
+            "no IRULE5004 expected when `return` follows `DNS::return`, got {ws:?}",
+        );
+    }
+
+    #[test]
+    fn no_drop_warnings_for_clean_when_body() {
+        let ws = drop_warnings("when CLIENT_ACCEPTED { log local0. \"connection open\" }");
+        assert!(ws.is_empty(), "got {ws:?}");
     }
 }
