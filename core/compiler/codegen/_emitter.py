@@ -517,6 +517,15 @@ class _Emitter(
                 self._current_source_range = _term_range
                 self._current_source_line = _term_range.start.line + 1
 
+            # Entering an if-then / if-next / switch-arm body counts
+            # as crossing a command boundary as far as ``startCommand``
+            # wrapping is concerned: tclsh emits SC for every compiled
+            # command inside these arms even when the outer ``if`` /
+            # ``switch`` is the first statement of the script.  Bump
+            # ``_cmd_index`` so the per-statement wrapper fires.
+            if bname.startswith(("if_then_", "if_next_")) and self._cmd_index == 0:
+                self._cmd_index += 1
+
             # try/finally inline compilation: emit the entire
             # try/finally sequence when we reach the try_body block.
             if bname in try_finally_info:
@@ -852,7 +861,25 @@ class _Emitter(
                     _cand = _tt_b_blk.terminator.target
                     if _cand.startswith("if_end_"):
                         _join_b = _cand
-                if _join_b is not None and _join_b not in for_body_end_labels:
+                # The deferred end label is placed at the join
+                # block's ``pop`` emission (see the
+                # ``_VALUE_JOIN_PREFIXES`` branch above).  At top
+                # level a join terminating in ``CFGReturn`` skips
+                # that pop, so the SC end label would never be
+                # placed and the encoded offset would point at
+                # ``len(self._instrs) == 0`` (a backwards jump).
+                # Skip the SC wrap in that case.
+                _join_blk = self._cfg.blocks.get(_join_b) if _join_b else None
+                _join_pops = _join_blk is not None and (
+                    bool(_join_blk.statements)
+                    or isinstance(_join_blk.terminator, CFGBranch)
+                    or (self._is_proc and isinstance(_join_blk.terminator, CFGReturn))
+                )
+                if (
+                    _join_b is not None
+                    and _join_b not in for_body_end_labels
+                    and _join_pops
+                ):
                     _if_end_label = self._fresh_label("if_cmd_end")
                     self._emit(Op.START_CMD, _if_end_label, 1)
                     for_body_end_labels[_join_b] = _if_end_label
