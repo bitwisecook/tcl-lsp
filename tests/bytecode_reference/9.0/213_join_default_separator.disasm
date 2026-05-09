@@ -1,0 +1,71 @@
+ByteCode 0x55fb211e6d00, refCt 1, epoch 21, interp 0x55fb210f6350 (epoch 21)
+  Source "# Tcl ``join list`` (no separator arg) defaults to a si..."
+  Cmds 9, src 486, inst 146, litObjs 12, aux 0, stkDepth 4, code/src 0.00
+  Commands 9:
+      1: pc 0-9, src 274-293        2: pc 2-7, src 281-292
+      3: pc 10-60, src 295-358        4: pc 27-55, src 316-357
+      5: pc 61-81, src 388-410        6: pc 72-79, src 396-409
+      7: pc 82-132, src 412-478        8: pc 99-127, src 434-477
+      9: pc 133-144, src 480-484
+  Command 1: "set r [join {a b c}]..."
+    (0) push1 0 	# "r"
+  Command 2: "join {a b c}..."
+    (2) push1 1 	# "join"
+    (4) push1 2 	# "a b c"
+    (6) invokeStk1 2 
+    (8) storeStk 
+    (9) pop 
+  Command 3: "if {$r ne \"a b c\"} { error \"join {a b c} = '$r', wan..."
+    (10) startCommand +50 1 	# next cmd at pc 60, 1 cmds start here
+    (19) push1 0 	# "r"
+    (21) loadStk 
+    (22) push1 2 	# "a b c"
+    (24) strneq 
+    (25) jumpFalse1 +33 	# pc 58
+  Command 4: "error \"join {a b c} = '$r', want 'a b c'\"..."
+    (27) startCommand +29 1 	# next cmd at pc 56, 1 cmds start here
+    (36) push1 3 	# "join {a b c} = '"
+    (38) push1 0 	# "r"
+    (40) loadStk 
+    (41) push1 4 	# "', want 'a b c'"
+    (43) strcat 3 
+    (45) push1 5 	# ""
+    (47) returnImm +1 0 
+    (56) jump1 +4 	# pc 60
+    (58) push1 5 	# ""
+    (60) pop 
+  Command 5: "set r2 [join {x y z} -]..."
+    (61) startCommand +20 1 	# next cmd at pc 81, 1 cmds start here
+    (70) push1 6 	# "r2"
+  Command 6: "join {x y z} -..."
+    (72) push1 1 	# "join"
+    (74) push1 7 	# "x y z"
+    (76) push1 8 	# "-"
+    (78) invokeStk1 3 
+    (80) storeStk 
+    (81) pop 
+  Command 7: "if {$r2 ne \"x-y-z\"} { error \"join with '-' = '$r2', ..."
+    (82) startCommand +50 1 	# next cmd at pc 132, 1 cmds start here
+    (91) push1 6 	# "r2"
+    (93) loadStk 
+    (94) push1 9 	# "x-y-z"
+    (96) strneq 
+    (97) jumpFalse1 +33 	# pc 130
+  Command 8: "error \"join with '-' = '$r2', want 'x-y-z'\"..."
+    (99) startCommand +29 1 	# next cmd at pc 128, 1 cmds start here
+    (108) push1 10 	# "join with '-' = '"
+    (110) push1 6 	# "r2"
+    (112) loadStk 
+    (113) push1 11 	# "', want 'x-y-z'"
+    (115) strcat 3 
+    (117) push1 5 	# ""
+    (119) returnImm +1 0 
+    (128) jump1 +4 	# pc 132
+    (130) push1 5 	# ""
+    (132) pop 
+  Command 9: "set r..."
+    (133) startCommand +12 1 	# next cmd at pc 145, 1 cmds start here
+    (142) push1 0 	# "r"
+    (144) loadStk 
+    (145) done 
+

@@ -132,7 +132,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -501,6 +501,15 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 # Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust
 # workspace tests (when present).
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
+	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
+		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
+		bash $(ROOT)scripts/ensure-test-deps.sh; \
+	else \
+		echo "==> test-slow: dependency check (set AUTO_INSTALL_DEPS=1 to install missing tools)"; \
+		bash $(ROOT)scripts/ensure-test-deps.sh --check || \
+			echo "    -> proceeding; the missing tools above will turn into pytest skips"; \
+	fi
+	@$(MAKE) capture-bytecode-refs
 	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
 	@$(MAKE) prep-pr
 	@echo "==> test-slow: running cross-language lint/typecheck + heavy suites in parallel"
@@ -511,6 +520,29 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 
 install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
 	@bash $(ROOT)scripts/install-hooks.sh
+
+ensure-test-deps: ## Install optional test-slow deps (tclsh9.0, node, kotlinc) for the host platform
+	@bash $(ROOT)scripts/ensure-test-deps.sh
+
+capture-bytecode-refs: ## Capture missing tests/bytecode_reference/<ver>/*.disasm files using local tclsh
+	@set -eu; \
+	missing=0; \
+	for snippet in $(ROOT)tests/bytecode_snippets/*.tcl; do \
+		stem=$$(basename $$snippet .tcl); \
+		[ -f "$(ROOT)tests/bytecode_reference/9.0/$${stem}.disasm" ] || missing=$$((missing+1)); \
+	done; \
+	if [ $$missing -eq 0 ]; then \
+		echo "==> capture-bytecode-refs: 9.0 reference disasm complete (no action)"; \
+		exit 0; \
+	fi; \
+	if ! command -v tclsh9.0 >/dev/null 2>&1; then \
+		echo "==> capture-bytecode-refs: $$missing reference disasm files missing, but tclsh9.0 isn't on PATH."; \
+		echo "    Run 'AUTO_INSTALL_DEPS=1 make ensure-test-deps' (or install tclsh9.0 manually), then re-run this target."; \
+		echo "    Skipping for now — affected snippets will pytest-skip with 'no reference file: ...'."; \
+		exit 0; \
+	fi; \
+	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture_reference_bytecode.sh"; \
+	bash $(ROOT)scripts/capture_reference_bytecode.sh
 
 test-emacs: ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
 	@set -eu; \

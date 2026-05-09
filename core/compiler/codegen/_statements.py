@@ -148,10 +148,28 @@ class _StatementsMixin:
                 # Apply Tcl backslash substitution when flagged by lowering.
                 if stmt.value_needs_backsubst:
                     value = _tcl_backslash_subst(value)
+                # Indirect set: ``set $expr value`` / ``set [cmd] value`` —
+                # the variable name itself is a substitution.  Must be
+                # handled BEFORE the specialised RHS branches below
+                # (dict-create, nested-set, format-fold, pure cmd-subst)
+                # because each of those treats *name* as a literal
+                # variable reference and would emit the wrong code on a
+                # dynamic LHS.  Compile as a generic ``set`` invocation
+                # so the name is evaluated at runtime.
+                if name.startswith("$") or name.startswith("["):
+                    self._push_lit("set")
+                    self._emit_value(name, interpolate=True)
+                    self._emit_value(value, interpolate=True)
+                    self._emit(Op.INVOKE_STK1, 3, comment="set")
+                    self._emit(Op.POP)
+                    self._used_generic_invoke = True
+                    self._seen_generic_invoke = True
                 # Handle ``set d [dict create key val ...]`` pattern:
                 # tclsh compiles the dict create as a sub-command with
                 # startCommand, push literal, dup, verifyDict.
-                if not self._is_proc and value.startswith("[dict create ") and value.endswith("]"):
+                elif (
+                    not self._is_proc and value.startswith("[dict create ") and value.endswith("]")
+                ):
                     dict_fold = self._fold_dict_create_cmd(value)
                     if dict_fold is not None:
                         self._push_lit(name)

@@ -1,0 +1,134 @@
+ByteCode 0x5629f7583560, refCt 1, epoch 21, interp 0x5629f747a350 (epoch 21)
+  Source "# ``catch {error MSG} var`` must put MSG into *var*.  P..."
+  Cmds 16, src 735, inst 318, litObjs 22, aux 0, stkDepth 4, code/src 0.00
+  Exception ranges 1, depth 1:
+      0: level 0, catch, pc 209-230, catch 235
+  Commands 16:
+      1: pc 0-11, src 276-306        2: pc 2-9, src 284-305
+      3: pc 12-62, src 308-350        4: pc 29-57, src 324-349
+      5: pc 63-113, src 352-409        6: pc 80-108, src 374-408
+      7: pc 114-134, src 489-518        8: pc 125-132, src 498-517
+      9: pc 135-183, src 520-573       10: pc 152-178, src 540-572
+     11: pc 184-245, src 636-668       12: pc 195-243, src 645-667
+     13: pc 209-230, src 652-666       14: pc 246-294, src 670-723
+     15: pc 263-289, src 687-722       16: pc 295-316, src 725-733
+  Command 1: "set rc [catch {error boom} msg]..."
+    (0) push1 0 	# "rc"
+  Command 2: "catch {error boom} msg..."
+    (2) push1 1 	# "catch"
+    (4) push1 2 	# "error boom"
+    (6) push1 3 	# "msg"
+    (8) invokeStk1 3 
+    (10) storeStk 
+    (11) pop 
+  Command 3: "if {$rc != 1} { error \"rc = $rc (want 1)\"..."
+    (12) startCommand +50 1 	# next cmd at pc 62, 1 cmds start here
+    (21) push1 0 	# "rc"
+    (23) loadStk 
+    (24) push1 4 	# "1"
+    (26) neq 
+    (27) jumpFalse1 +33 	# pc 60
+  Command 4: "error \"rc = $rc (want 1)\"..."
+    (29) startCommand +29 1 	# next cmd at pc 58, 1 cmds start here
+    (38) push1 5 	# "rc = "
+    (40) push1 0 	# "rc"
+    (42) loadStk 
+    (43) push1 6 	# " (want 1)"
+    (45) strcat 3 
+    (47) push1 7 	# ""
+    (49) returnImm +1 0 
+    (58) jump1 +4 	# pc 62
+    (60) push1 7 	# ""
+    (62) pop 
+  Command 5: "if {$msg ne \"boom\"} { error \"msg = '$msg' (want 'boo..."
+    (63) startCommand +50 1 	# next cmd at pc 113, 1 cmds start here
+    (72) push1 3 	# "msg"
+    (74) loadStk 
+    (75) push1 8 	# "boom"
+    (77) strneq 
+    (78) jumpFalse1 +33 	# pc 111
+  Command 6: "error \"msg = '$msg' (want 'boom')\"..."
+    (80) startCommand +29 1 	# next cmd at pc 109, 1 cmds start here
+    (89) push1 9 	# "msg = '"
+    (91) push1 3 	# "msg"
+    (93) loadStk 
+    (94) push1 10 	# "' (want 'boom')"
+    (96) strcat 3 
+    (98) push1 7 	# ""
+    (100) returnImm +1 0 
+    (109) jump1 +4 	# pc 113
+    (111) push1 7 	# ""
+    (113) pop 
+  Command 7: "set rc2 [catch {error zap} m2]..."
+    (114) startCommand +20 1 	# next cmd at pc 134, 1 cmds start here
+    (123) push1 11 	# "rc2"
+  Command 8: "catch {error zap} m2..."
+    (125) push1 1 	# "catch"
+    (127) push1 12 	# "error zap"
+    (129) push1 13 	# "m2"
+    (131) invokeStk1 3 
+    (133) storeStk 
+    (134) pop 
+  Command 9: "if {$m2 ne \"zap\"} { error \"second catch leaked: $m2..."
+    (135) startCommand +48 1 	# next cmd at pc 183, 1 cmds start here
+    (144) push1 13 	# "m2"
+    (146) loadStk 
+    (147) push1 14 	# "zap"
+    (149) strneq 
+    (150) jumpFalse1 +31 	# pc 181
+  Command 10: "error \"second catch leaked: $m2\"..."
+    (152) startCommand +27 1 	# next cmd at pc 179, 1 cmds start here
+    (161) push1 15 	# "second catch leaked: "
+    (163) push1 13 	# "m2"
+    (165) loadStk 
+    (166) strcat 2 
+    (168) push1 7 	# ""
+    (170) returnImm +1 0 
+    (179) jump1 +4 	# pc 183
+    (181) push1 7 	# ""
+    (183) pop 
+  Command 11: "set rc3 [catch {error noVarCase}]..."
+    (184) startCommand +61 1 	# next cmd at pc 245, 1 cmds start here
+    (193) push1 16 	# "rc3"
+  Command 12: "catch {error noVarCase}..."
+    (195) startCommand +49 1 	# next cmd at pc 244, 1 cmds start here
+    (204) beginCatch4 0 
+  Command 13: "error noVarCase..."
+    (209) startCommand +22 1 	# next cmd at pc 231, 1 cmds start here
+    (218) push1 17 	# "noVarCase"
+    (220) push1 7 	# ""
+    (222) returnImm +1 0 
+    (231) push1 18 	# "0"
+    (233) jump1 +4 	# pc 237
+    (235) pushResult 
+    (236) pushReturnCode 
+    (237) endCatch 
+    (238) reverse 2 
+    (243) pop 
+    (244) storeStk 
+    (245) pop 
+  Command 14: "if {$rc3 != 1} { error \"catch-without-var rc = $rc3\"..."
+    (246) startCommand +48 1 	# next cmd at pc 294, 1 cmds start here
+    (255) push1 16 	# "rc3"
+    (257) loadStk 
+    (258) push1 4 	# "1"
+    (260) neq 
+    (261) jumpFalse1 +31 	# pc 292
+  Command 15: "error \"catch-without-var rc = $rc3\"..."
+    (263) startCommand +27 1 	# next cmd at pc 290, 1 cmds start here
+    (272) push1 19 	# "catch-without-var rc = "
+    (274) push1 16 	# "rc3"
+    (276) loadStk 
+    (277) strcat 2 
+    (279) push1 7 	# ""
+    (281) returnImm +1 0 
+    (290) jump1 +4 	# pc 294
+    (292) push1 7 	# ""
+    (294) pop 
+  Command 16: "return ok..."
+    (295) startCommand +22 1 	# next cmd at pc 317, 1 cmds start here
+    (304) push1 20 	# "ok"
+    (306) push1 21 	# ""
+    (308) returnImm +0 1 
+    (317) done 
+

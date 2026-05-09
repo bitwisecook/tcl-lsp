@@ -1,0 +1,43 @@
+ByteCode 0x5596777b51a0, refCt 1, epoch 21, interp 0x559677642350 (epoch 21)
+  Source "# Mixin of mixin method access (oo-14.6 \u00e2\u0080\u0094..."
+  Cmds 6, src 386, inst 53, litObjs 11, aux 0, stkDepth 4, code/src 0.00
+  Commands 6:
+      1: pc 0-8, src 60-82        2: pc 9-19, src 84-176
+      3: pc 20-30, src 178-274        4: pc 31-41, src 276-372
+      5: pc 42-51, src 374-384        6: pc 42-47, src 375-379
+  Command 1: "oo::class create parent..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "parent"
+    (6) invokeStk1 3 
+    (8) pop 
+  Command 2: "oo::class create A {\n    superclass parent\n    method..."
+    (9) push1 0 	# "oo::class"
+    (11) push1 1 	# "create"
+    (13) push1 3 	# "A"
+    (15) push1 4 	# "\n    superclass parent\n    method egg ..."
+    (17) invokeStk1 4 
+    (19) pop 
+  Command 3: "oo::class create B {\n    superclass parent\n    mixin ..."
+    (20) push1 0 	# "oo::class"
+    (22) push1 1 	# "create"
+    (24) push1 5 	# "B"
+    (26) push1 6 	# "\n    superclass parent\n    mixin A\n  ..."
+    (28) invokeStk1 4 
+    (30) pop 
+  Command 4: "oo::class create C {\n    superclass parent\n    mixin ..."
+    (31) push1 0 	# "oo::class"
+    (33) push1 1 	# "create"
+    (35) push1 7 	# "C"
+    (37) push1 8 	# "\n    superclass parent\n    mixin B\n  ..."
+    (39) invokeStk1 4 
+    (41) pop 
+  Command 5: "[C new] foo..."
+  Command 6: "C new..."
+    (42) push1 7 	# "C"
+    (44) push1 9 	# "new"
+    (46) invokeStk1 2 
+    (48) push1 10 	# "foo"
+    (50) invokeStk1 2 
+    (52) done 
+

@@ -44,24 +44,24 @@ def _word_piece(tok: Token) -> str:
     wrapped in ``[...]`` so that the result mirrors what the user wrote.
     """
     if tok.type is TokenType.VAR:
-        # Bare ``$arr(idx)`` MUST round-trip as ``$arr(idx)``, not
-        # ``${arr(idx)}``.  Tcl's ``${name}`` syntax disables array-
-        # element interpretation — wrapping bare array refs in braces
-        # turns them into scalar lookups of the literal name (the
-        # cmdAH-1.4 / 1.5 ``$numargErrors($cmd)`` regression that
-        # silenced ``$cmd`` substitution inside the index span).
-        # ``Token.end.offset`` is inclusive of the last source byte
-        # the token covers (see ``core/parsing/lexer.py``); the bare
-        # form leaves ``end-start == len(text)`` because the leading
-        # ``$`` is unaccounted for and the text already runs to
-        # ``end``.  The braced form adds one (the ``${`` / ``}``
-        # cancel against the omitted ``${`` such that exactly one
-        # source char is unaccounted for).  An earlier ``>= 2``
-        # threshold never fired and silently flipped braced refs
-        # into bare ones (Copilot review on PR #382).
+        # Distinguish bare ``$a(idx)`` from braced ``${a(idx)}``:
+        # ``Token.end.offset`` is the end of the source span, ``tok.text``
+        # excludes the leading ``$`` and the braces.  Bare form leaves
+        # ``end-start == len(text)``; braced adds 1 (the ``${`` and ``}``
+        # against the omitted ``${`` net to one unaccounted byte).
         span_extra = (tok.end.offset - tok.start.offset) - len(tok.text)
         is_braced = span_extra >= 1
-        if not is_braced and "(" in tok.text and tok.text.endswith(")"):
+        # Bare ``$arr(idx)`` with a *substituted* index (``$x`` or ``[cmd]``
+        # inside the parens) must round-trip verbatim — wrapping in braces
+        # would disable array-element interpretation and turn the recursive
+        # substitution into a literal scalar lookup
+        # (cmdAH-1.4 / 1.5 ``$numargErrors($cmd)``).
+        if (
+            not is_braced
+            and "(" in tok.text
+            and tok.text.endswith(")")
+            and ("$" in tok.text or "[" in tok.text)
+        ):
             return "$" + tok.text
         # Use ${name} form only when the name doesn't contain '}'.
         # Names with '}' (e.g. array indices with braced expressions

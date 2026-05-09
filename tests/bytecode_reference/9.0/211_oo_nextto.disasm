@@ -1,0 +1,37 @@
+ByteCode 0x559d4e77a970, refCt 1, epoch 21, interp 0x559d4e6f2350 (epoch 21)
+  Source "# nextto dispatches to a specific class in the MRO chai..."
+  Cmds 5, src 297, inst 44, litObjs 10, aux 0, stkDepth 4, code/src 0.00
+  Commands 5:
+      1: pc 0-10, src 57-113        2: pc 11-21, src 115-195
+      3: pc 22-32, src 197-281        4: pc 33-42, src 283-295
+      5: pc 33-38, src 284-288
+  Command 1: "oo::class create A {\n    method greet {} { return \"A\"..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "A"
+    (6) push1 3 	# "\n    method greet {} { return \"A\"..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "oo::class create B {\n    superclass A\n    method gree..."
+    (11) push1 0 	# "oo::class"
+    (13) push1 1 	# "create"
+    (15) push1 4 	# "B"
+    (17) push1 5 	# "\n    superclass A\n    method greet {} ..."
+    (19) invokeStk1 4 
+    (21) pop 
+  Command 3: "oo::class create C {\n    superclass B\n    method gree..."
+    (22) push1 0 	# "oo::class"
+    (24) push1 1 	# "create"
+    (26) push1 6 	# "C"
+    (28) push1 7 	# "\n    superclass B\n    method greet {} ..."
+    (30) invokeStk1 4 
+    (32) pop 
+  Command 4: "[C new] greet..."
+  Command 5: "C new..."
+    (33) push1 6 	# "C"
+    (35) push1 8 	# "new"
+    (37) invokeStk1 2 
+    (39) push1 9 	# "greet"
+    (41) invokeStk1 2 
+    (43) done 
+

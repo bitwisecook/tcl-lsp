@@ -1,0 +1,41 @@
+ByteCode 0x56132e2f3730, refCt 1, epoch 21, interp 0x56132e1f7350 (epoch 21)
+  Source "# Destructor lifecycle (oo-3.3 equivalent)\noo::class c..."
+  Cmds 6, src 206, inst 66, litObjs 9, aux 0, stkDepth 4, code/src 0.00
+  Commands 6:
+      1: pc 0-10, src 43-148        2: pc 11-25, src 150-162
+      3: pc 26-44, src 164-180        4: pc 37-42, src 173-179
+      5: pc 45-52, src 182-193        6: pc 53-64, src 195-204
+  Command 1: "oo::class create foo {\n    constructor {} {lappend ::r..."
+    (0) push1 0 	# "oo::class"
+    (2) push1 1 	# "create"
+    (4) push1 2 	# "foo"
+    (6) push1 3 	# "\n    constructor {} {lappend ::result m..."
+    (8) invokeStk1 4 
+    (10) pop 
+  Command 2: "set result {}..."
+    (11) startCommand +14 1 	# next cmd at pc 25, 1 cmds start here
+    (20) push1 4 	# "result"
+    (22) push1 5 	# ""
+    (24) storeStk 
+    (25) pop 
+  Command 3: "set obj [foo new]..."
+    (26) startCommand +18 1 	# next cmd at pc 44, 1 cmds start here
+    (35) push1 6 	# "obj"
+  Command 4: "foo new..."
+    (37) push1 2 	# "foo"
+    (39) push1 7 	# "new"
+    (41) invokeStk1 2 
+    (43) storeStk 
+    (44) pop 
+  Command 5: "$obj destroy..."
+    (45) push1 6 	# "obj"
+    (47) loadStk 
+    (48) push1 8 	# "destroy"
+    (50) invokeStk1 2 
+    (52) pop 
+  Command 6: "set result..."
+    (53) startCommand +12 1 	# next cmd at pc 65, 1 cmds start here
+    (62) push1 4 	# "result"
+    (64) loadStk 
+    (65) done 
+
