@@ -1753,6 +1753,7 @@ class _Lowerer:
         cmd_name = cmd.name
         args = cmd.args
         arg_tokens = cmd.arg_tokens
+        arg_single = cmd.arg_single_token
 
         # Detect ``interp alias {} name {} target ?args?`` and record
         # the alias for resolving argument semantics of later calls.
@@ -2069,12 +2070,30 @@ class _Lowerer:
                 body_tok = arg_tokens[2]
                 body_tok_type = body_tok.type
                 params_tok_type = arg_tokens[1].type
+                # A multi-token word (e.g. quoted/interpolated like
+                # ``"foo$bar"`` or ``" … [cmd] … "``) reports its
+                # first sub-token's type via ``arg_tokens[i]`` but
+                # ``arg_single_token[i]`` is False — the body or
+                # params still contain runtime substitutions and
+                # must be treated as dynamic to avoid lifting the
+                # literal source text as a static script.  Materialise
+                # the body only when it is a single VAR or CMD token
+                # we can const-resolve; otherwise treat as dynamic
+                # and bail (or register an empty IRProcedure when the
+                # name resolved).
+                body_is_single = arg_single[2] if len(arg_single) > 2 else False
+                params_is_single = arg_single[1] if len(arg_single) > 1 else False
+                body_is_dynamic = (
+                    body_tok_type in (TokenType.VAR, TokenType.CMD) or not body_is_single
+                )
+                params_is_dynamic = (
+                    params_tok_type in (TokenType.VAR, TokenType.CMD) or not params_is_single
+                )
                 materialised_body: str | None = None
-                if body_tok_type is TokenType.CMD:
+                if body_is_single and body_tok_type is TokenType.CMD:
                     materialised_body = self._eval_subst_nocommands_body(body_tok.text)
-                elif body_tok_type is TokenType.VAR:
+                elif body_is_single and body_tok_type is TokenType.VAR:
                     materialised_body = self._const_map_lookup(body_tok)
-                body_is_dynamic = body_tok_type in (TokenType.VAR, TokenType.CMD)
                 # Bail when params is dynamic — there's no static
                 # arg-list to build a real IRProcedure from.  When
                 # the body is dynamic but the name resolved through
@@ -2083,8 +2102,8 @@ class _Lowerer:
                 # the script) so static analysis sees the proc; the
                 # IRCall emitted below carries the correct dynamic
                 # body to the runtime ``proc`` command.
-                if params_tok_type in (TokenType.VAR, TokenType.CMD) or (
-                    body_is_dynamic and proc_name == args[0]
+                if params_is_dynamic or (
+                    body_is_dynamic and materialised_body is None and proc_name == args[0]
                 ):
                     return IRBarrier(
                         range=cmd.range,

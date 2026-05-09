@@ -111,11 +111,13 @@ def codegen_set(emitter: _Emitter, args: tuple[str, ...]) -> bool:
     # name at call time.
     if var_name.startswith("$") or var_name.startswith("["):
         return False
-    if emitter._is_proc and not emitter._is_qualified(var_name):
-        emitter._load_var(var_name)
-    else:
-        emitter._push_lit(var_name)
-        emitter._emit(Op.LOAD_STK)
+    # Delegate to ``_load_var`` for both proc-local and top-level
+    # paths.  ``_load_var`` already handles array references
+    # (``set arr(key)``, including dynamic ``$i`` indices) by
+    # routing through ``LOAD_ARRAY_STK`` / ``LOAD_ARRAY1``;
+    # bypassing it would emit a scalar ``LOAD_STK`` for the entire
+    # ``arr(key)`` string and silently load the wrong variable.
+    emitter._load_var(var_name)
     return True
 
 

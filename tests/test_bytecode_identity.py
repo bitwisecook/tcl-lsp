@@ -289,12 +289,108 @@ def _extract_sections(disasm_text: str) -> dict[str, str]:
 # Our codegen
 
 
+# Commands that aren't available (or fail) in a default
+# ``interp create -safe`` interpreter.  When the snippet's top
+# level invokes any of these the reference capture
+# (``scripts/reference_disasm.tcl``) errors out of
+# ``$child eval $source`` before ``info procs`` runs and never
+# captures any per-proc disassembly.  We mirror that on the
+# comparison side only so production codegen keeps producing
+# proc-body bytecode for real scripts.
+_SAFE_INTERP_UNAVAILABLE_COMMANDS = frozenset(
+    {
+        # File I/O — channels are unavailable in a default safe
+        # interp, so any of these errors at top level.
+        "puts",
+        "gets",
+        "open",
+        "close",
+        "read",
+        "flush",
+        "seek",
+        "tell",
+        "eof",
+        # Filesystem / source-discovery commands removed by
+        # ``interp create -safe``.
+        "source",
+        "load",
+        "file",
+        "glob",
+        "exec",
+        "cd",
+        "pwd",
+        # Socket / event-loop commands.
+        "socket",
+        "fconfigure",
+        "fileevent",
+        "vwait",
+    }
+)
+
+
+def _top_level_would_fail_in_safe_interp_source(source: str) -> bool:
+    """Cheap textual scan for top-level commands that would error
+    in a default safe-interp eval.  Mirrors what
+    ``scripts/reference_disasm.tcl`` observes, without depending on
+    a Tcl interpreter at test time.
+    """
+    for raw in source.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        head = line.split(None, 1)[0]
+        # Strip a leading ``::`` qualification (``::puts``) so
+        # ``::tcl_platform`` stays untouched but ``::puts`` matches.
+        if head.startswith("::"):
+            head = head[2:]
+        if head in _SAFE_INTERP_UNAVAILABLE_COMMANDS:
+            return True
+    return False
+
+
+def _strip_proc_sections(disasm_text: str) -> str:
+    """Drop every ``ByteCode`` section after the first (the
+    top-level script).  Used by ``_our_disasm`` to align with the
+    reference capture when the safe-interp eval would have
+    aborted before disassembling any proc bodies.
+    """
+    sections: list[str] = []
+    current: list[str] = []
+    for line in disasm_text.splitlines():
+        if line.startswith("ByteCode ") and current:
+            sections.append("\n".join(current))
+            current = []
+        current.append(line)
+    if current:
+        sections.append("\n".join(current))
+    if not sections:
+        return disasm_text
+    return sections[0]
+
+
 def _our_disasm(source: str) -> str:
-    """Compile source with our pipeline and return disassembly text."""
+    """Compile source with our pipeline and return disassembly text.
+
+    The captured reference disasm comes from
+    ``scripts/reference_disasm.tcl`` which evaluates each snippet in
+    a child ``interp create -safe`` interpreter before iterating
+    ``info procs``.  When the safe-interp eval errors (e.g. because
+    the script's top level calls ``puts`` and stdout is unavailable)
+    no proc disassembly appears in the captured output — tclsh has
+    not yet compiled those proc bodies.  Production codegen happily
+    compiles every proc eagerly, so for byte-identity the test
+    comparison drops proc-body sections that the reference would
+    never have captured.  This keeps the production compilation
+    path unchanged while still asserting strict identity for the
+    units tclsh actually emitted.
+    """
     ir = lower_to_ir(source)
     cfg = build_cfg(ir, defer_top_level=True, expand_fallthrough_switch=True)
     module = codegen_module(cfg, ir)
-    return format_module_asm(module)
+    text = format_module_asm(module)
+    if _top_level_would_fail_in_safe_interp_source(source):
+        text = _strip_proc_sections(text)
+    return text
 
 
 # Tcl reference normalisation

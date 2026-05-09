@@ -1181,79 +1181,6 @@ def _proc_is_compile_blocked(ir_proc: "IRProcedure | None") -> bool:
     return len(stmts) == 1 and isinstance(stmts[0], IRUpFrame)
 
 
-# Commands that aren't available (or fail) in a default
-# ``interp create -safe`` interpreter.  When the top-level script
-# invokes any of these tclsh's reference disasm capture script's
-# ``$child eval $source`` errors out before reaching ``info procs``,
-# so the proc disassemblies never appear in the captured output.
-# Mirror that behaviour by skipping bytecode codegen for any proc
-# defined in such a script — the per-proc bytecode is unreachable
-# in the reference disassembly.
-_SAFE_INTERP_UNAVAILABLE_COMMANDS = frozenset(
-    {
-        # File I/O — channels are unavailable in a default safe
-        # interp, so any of these errors at top level.
-        "puts",
-        "gets",
-        "open",
-        "close",
-        "read",
-        "flush",
-        "seek",
-        "tell",
-        "eof",
-        # Filesystem / source-discovery commands removed by
-        # ``interp create -safe``.
-        "source",
-        "load",
-        "file",
-        "glob",
-        "exec",
-        "cd",
-        "pwd",
-        # Socket / event-loop commands.
-        "socket",
-        "fconfigure",
-        "fileevent",
-        "vwait",
-    }
-)
-
-
-def _top_level_would_fail_in_safe_interp(ir_module: IRModule) -> bool:
-    """Approximate tclsh's safe-interp eval behaviour: scan the
-    top-level statements for a command that wouldn't be available
-    in a default ``interp create -safe`` interpreter.  When such a
-    command is present the reference capture's ``$child eval
-    $source`` errors before ``info procs`` runs, so no proc
-    disassembly appears in the captured ``.disasm`` file.
-    Mirror that by treating every defined proc as compile-blocked.
-    """
-    from ..ir import IRCall
-
-    def _walk(stmts: tuple) -> bool:
-        for stmt in stmts:
-            if isinstance(stmt, IRCall):
-                if stmt.command in _SAFE_INTERP_UNAVAILABLE_COMMANDS:
-                    return True
-            for attr in ("body", "default_body"):
-                sub = getattr(stmt, attr, None)
-                if sub is not None and hasattr(sub, "statements"):
-                    if _walk(sub.statements):
-                        return True
-            for arms_attr in ("clauses", "arms"):
-                arms = getattr(stmt, arms_attr, None)
-                if arms is not None:
-                    for arm in arms:
-                        body = getattr(arm, "body", None)
-                        if body is not None and hasattr(body, "statements"):
-                            if _walk(body.statements):
-                                return True
-        return False
-
-    return _walk(ir_module.top_level.statements)
-
-
 def codegen_module(
     cfg_module: CFGModule,
     ir_module: IRModule,
@@ -1272,14 +1199,6 @@ def codegen_module(
         optimise=optimise,
         is_proc=False,
     ).generate()
-    # When the top-level script would fail in a default safe interp
-    # (e.g. ``puts $::g`` with channels unavailable), the reference
-    # disasm capture never reaches the per-proc disassembly step;
-    # skip eager proc-body codegen for the whole module to mirror
-    # that "unoptimised tclsh" shape.  This matches the captured
-    # 9.0 reference for snippets like 145 / 146 where ``puts`` at
-    # top level errors out in the safe child interp.
-    skip_all_procs = _top_level_would_fail_in_safe_interp(ir_module)
 
     procs: dict[str, FunctionAsm] = {}
     for qname, cfg_func in cfg_module.procedures.items():
@@ -1293,8 +1212,6 @@ def codegen_module(
         # tclsh keeps these uncompiled so their bytecode doesn't
         # appear in the captured reference disasm either.
         if _proc_is_compile_blocked(ir_proc):
-            continue
-        if skip_all_procs:
             continue
         params = ir_proc.params if ir_proc else ()
         procs[qname] = codegen_function(cfg_func, params=params, optimise=optimise, is_proc=True)

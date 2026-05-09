@@ -85,8 +85,13 @@ class _ControlFlowMixin:
         if options_var:
             # Store opts, then swap result/code.  At top level the
             # ``storeStk`` consumer expects the var name pushed
-            # underneath, so flip the stack to put the name below
-            # the value.
+            # underneath the value, so flip the top two items after
+            # pushing the scalar name.  Array element targets need
+            # name + key + value on the stack — three items that
+            # can't be put in place with a single ``REVERSE 2``;
+            # the cmd-subst gate (``_catch_inline_top_level_safe``)
+            # rejects array result/options vars at top level so the
+            # generic ``invokeStk`` path handles them.
             if not self._is_proc:
                 self._push_var_ref(options_var)
                 self._emit(Op.REVERSE, 2)

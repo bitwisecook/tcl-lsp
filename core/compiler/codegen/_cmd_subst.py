@@ -323,14 +323,28 @@ class _CmdSubstMixin:
                 else:
                     var_name = self._parse_simple_var_ref(arg)
                     if var_name is None and len(arg) > 1:
-                        # Bare ``\$varname`` form parsed verbatim from
-                        # the cmd-subst text.  ``_parse_simple_var_ref``
-                        # only matches the lowering's normalised
-                        # ``${var}`` shape; recognise the unbraced form
-                        # here so we emit a real variable load instead
-                        # of pushing the literal ``\$x`` source bytes.
+                        # Bare ``\$varname`` form parsed verbatim
+                        # from the cmd-subst text.
+                        # ``_parse_simple_var_ref`` only matches the
+                        # lowering's normalised ``${var}`` shape;
+                        # recognise the unbraced scalar (``\$x``,
+                        # ``\$ns::var``) and array-element
+                        # (``\$arr(key)``, including dynamic
+                        # ``\$arr(\$i)`` indices) forms here so we
+                        # emit a real variable load through
+                        # ``_load_var`` instead of pushing the
+                        # literal ``\$…`` source bytes.
                         rest = arg[1:]
-                        if (
+                        paren = rest.find("(")
+                        if paren != -1 and rest.endswith(")"):
+                            head = rest[:paren]
+                            if (
+                                head
+                                and (head[0].isalpha() or head[0] == "_")
+                                and all(ch.isalnum() or ch in "_:" for ch in head)
+                            ):
+                                var_name = rest
+                        elif (
                             rest
                             and (rest[0].isalpha() or rest[0] == "_")
                             and all(ch.isalnum() or ch in "_:" for ch in rest)
@@ -950,14 +964,35 @@ class _CmdSubstMixin:
             )
         ):
             result_var = args[1][0] if len(args) > 1 else None
-            if result_var and result_var.startswith("::"):
-                # Global result var: fall back to generic invoke.
+            options_var = args[2][0] if len(args) > 2 else None
+
+            # Reasons to fall back to the generic ``invokeStk1`` path:
+            #
+            # * Globally-qualified result/options vars — ``_store_var``
+            #   would route through ``storeStk`` with a different stack
+            #   shape than ``_emit_catch_inline`` accounts for.
+            # * Array-element targets (``arr(k)``) — ``_push_var_ref``
+            #   would push two stack items (name + key) and the
+            #   ``REVERSE 2`` swap inside ``_emit_catch_inline`` would
+            #   leave them in the wrong order for ``STORE_ARRAY_STK``.
+            #   Inside a proc body the LVT-aware ``_store_var`` handles
+            #   array refs without a stack swap, so the gate only
+            #   applies at top level.
+            def _is_unsafe_inline_target(name: str | None) -> bool:
+                if name is None:
+                    return False
+                if name.startswith("::"):
+                    return True
+                if not self._is_proc and ("(" in name and name.endswith(")")):
+                    return True
+                return False
+
+            if _is_unsafe_inline_target(result_var) or _is_unsafe_inline_target(options_var):
                 self._used_inline_cmd_subst = False
                 self._emit_generic_cmd_subst(cmd, args)
             else:
                 self._used_inline_cmd_subst = True
                 body_text = args[0][0]
-                options_var = args[2][0] if len(args) > 2 else None
                 # At top level tclsh wraps the catch substitution
                 # itself in a ``startCommand``: the catch is a
                 # separate Cmd starting after the surrounding
