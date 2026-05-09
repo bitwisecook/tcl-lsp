@@ -281,7 +281,19 @@ class _ExpressionsMixin:
             return False
 
         # Emit: push subject, jumpTable, jump default
-        self._emit_expr(subject)
+        # ``ExprRaw`` for a plain literal subject (no ``\$`` / ``[``)
+        # would route through ``_emit_expr`` and tack on ``exprStk``
+        # to evaluate the text as a Tcl expression.  The switch
+        # subject is just a value, not an expression — match tclsh's
+        # ``push <literal>`` shape by special-casing literal raws here.
+        if (
+            isinstance(subject, ExprRaw)
+            and "$" not in subject.text
+            and "[" not in subject.text
+        ):
+            self._push_lit(subject.text)
+        else:
+            self._emit_expr(subject)
 
         # Tcl 9.0's jumpTable entries appear in Tcl hash-table iteration
         # order (bucket-then-LIFO within each bucket).

@@ -645,7 +645,7 @@ class _Emitter(
             if bname.startswith(self._VALUE_JOIN_PREFIXES) and (
                 blk.statements
                 or isinstance(blk.terminator, CFGBranch)
-                or (self._is_proc and isinstance(blk.terminator, CFGReturn))
+                or isinstance(blk.terminator, CFGReturn)
                 or (
                     isinstance(blk.terminator, CFGGoto)
                     and not blk.terminator.target.startswith("exit_")
@@ -846,9 +846,14 @@ class _Emitter(
             if (
                 isinstance(blk.terminator, CFGBranch)
                 and self._cmd_index > 0
-                and not bname.startswith(("for_body_", "while_body_", "switch_"))
+                and not bname.startswith(
+                    ("for_body_", "while_body_", "switch_arm_body_", "switch_default_", "switch_next_")
+                )
                 and bname not in foreach_body_blocks
-                and blk.terminator.true_target.startswith("if_then_")
+                and (
+                    blk.terminator.true_target.startswith("if_then_")
+                    or blk.terminator.true_target.startswith("switch_arm_body_")
+                )
                 # Constant-folded conditions get their own SC emission
                 # path through ``_pending_join_labels`` — skip the
                 # generic wrap to avoid a duplicate / overlapping SC.
@@ -859,7 +864,7 @@ class _Emitter(
                 _join_b: str | None = None
                 if _tt_b_blk and isinstance(_tt_b_blk.terminator, CFGGoto):
                     _cand = _tt_b_blk.terminator.target
-                    if _cand.startswith("if_end_"):
+                    if _cand.startswith(("if_end_", "switch_end_")):
                         _join_b = _cand
                 # The deferred end label is placed at the join
                 # block's ``pop`` emission (see the
@@ -873,7 +878,7 @@ class _Emitter(
                 _join_pops = _join_blk is not None and (
                     bool(_join_blk.statements)
                     or isinstance(_join_blk.terminator, CFGBranch)
-                    or (self._is_proc and isinstance(_join_blk.terminator, CFGReturn))
+                    or isinstance(_join_blk.terminator, CFGReturn)
                 )
                 if (
                     _join_b is not None
