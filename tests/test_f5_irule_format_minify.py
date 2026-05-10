@@ -90,10 +90,9 @@ def test_irule_minify_inline_source(capsys):
 
 
 def test_irule_minify_compact_writes_symbol_map(tmp_path, capsys):
-    pytest = __import__("pytest")
-    pytest.importorskip("lsprotocol")
-
     rule = tmp_path / "rule.irule"
+    # --isolated is required to compact global-scope vars (iRules
+    # event handlers are self-contained, so this is the typical mode).
     rule.write_text("when HTTP_REQUEST { set my_var 1; log local0. $my_var }\n", encoding="utf-8")
     sym_map = tmp_path / "syms.txt"
 
@@ -102,6 +101,7 @@ def test_irule_minify_compact_writes_symbol_map(tmp_path, capsys):
             "irule",
             "minify",
             "--compact",
+            "--isolated",
             str(rule),
             "--symbol-map",
             str(sym_map),
@@ -114,9 +114,6 @@ def test_irule_minify_compact_writes_symbol_map(tmp_path, capsys):
 
 
 def test_irule_minify_aggressive_runs(tmp_path, capsys):
-    pytest = __import__("pytest")
-    pytest.importorskip("lsprotocol")
-
     rule = tmp_path / "r.irule"
     rule.write_text(
         "when HTTP_REQUEST {\n  set x 1\n  set y 2\n  log local0. $x\n}\n",
