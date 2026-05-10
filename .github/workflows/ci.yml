@@ -324,6 +324,10 @@ jobs:
           python3 build/f5-*.pyz cleanup samples/bigip/bigip.conf
           python3 build/f5-*.pyz cleanup --json samples/bigip/bigip.conf > /tmp/cleanup.json
           python3 -c "import json; data = json.load(open('/tmp/cleanup.json')); assert 'candidates' in data, data; assert 'tmshScript' in data, data"
+          # event-info / event-order are iRules-only verbs; they moved from
+          # `tcl` to `f5 irule` in PR #387 when the irule binary alias was
+          # dropped.
+          python3 build/f5-*.pyz irule event-info HTTP_REQUEST --json
           # Bundled shell-completion scripts must round-trip through the zipapp
           # and parse cleanly under the corresponding shell where available.
           python3 build/f5-*.pyz completion bash > /tmp/f5.bash
@@ -380,14 +384,11 @@ jobs:
           python3 build/tcl-*.pyz lint --source "set x 1"
           python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
-          python3 build/tcl-*.pyz event-info HTTP_REQUEST --json
           python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
           python3 build/tcl-*.pyz convert samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
           python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
           python3 build/tcl-*.pyz help taint --dialect f5-irules
-          cd build && ln -sfn tcl-*.pyz irule && cd ..
-          python3 build/irule help --help | tr '\n' ' ' | tr -s ' ' | grep -q "default: f5-irules"
 
       - name: Upload unified Tcl zipapp
         uses: actions/upload-artifact@v4
