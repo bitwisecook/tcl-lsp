@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""run_tests.py — explain-pcap end-to-end test orchestrator.
+"""run_tests.py — explain-flow end-to-end test orchestrator.
 
 Drives the full lab loop:
 
 1. Generates the lab CA + leaf certs (via :file:`gen_certs.sh`).
 2. SCPs the certs and the SCF onto the BIG-IP, then loads the SCF via
    ``tmsh load sys config merge file``.  The SCF intentionally lives in
-   its own ``explain_pcap_lab`` partition so it's easy to delete.
+   its own ``explain_flow_lab`` partition so it's easy to delete.
 3. Starts a tcpdump on the BIG-IP via SSH on every relevant interface
    (``-i 0.0:nnnp`` so the F5 ethernet trailer is included; one capture
    per scenario keeps file sizes manageable).
@@ -21,7 +21,7 @@ Drives the full lab loop:
       stdout/stderr.
    c. Stops the BIG-IP-side tcpdump and SCPs the resulting ``.pcap``
       back into this run's output directory.
-6. Runs ``f5 explain-pcap`` over each captured pcap with the lab SCF
+6. Runs ``f5 explain-flow`` over each captured pcap with the lab SCF
    and the keylog file, dumping both text and JSON reports.
 7. Writes a per-scenario manifest so an LLM (or a human) can read what
    was captured and what the expected outcome was.
@@ -41,8 +41,8 @@ is prompted by the OS for each ssh/scp call (set up an ssh-agent or
 ssh-key for non-interactive use).
 
 Requires: openssl, ssh, scp, curl on the local machine; tmsh + tcpdump
-on the BIG-IP.  ``f5 explain-pcap`` is invoked as
-``python -m explorer.f5_cli explain-pcap`` from the repo root if
+on the BIG-IP.  ``f5 explain-flow`` is invoked as
+``python -m explorer.f5_cli explain-flow`` from the repo root if
 present, otherwise skipped with a warning.
 """
 
@@ -116,7 +116,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--skip-explain",
         action="store_true",
-        help="Skip running `f5 explain-pcap` over the captured pcaps.",
+        help="Skip running `f5 explain-flow` over the captured pcaps.",
     )
     p.add_argument(
         "--repo-root",
@@ -222,7 +222,7 @@ class SshRunner:
 # ── BIG-IP deployment ─────────────────────────────────────────────────
 
 
-_REMOTE_LAB_DIR = "/var/tmp/explain_pcap_lab"
+_REMOTE_LAB_DIR = "/var/tmp/explain_flow_lab"
 _REMOTE_SSL_DIR = "/config/ssl/ssl.crt"
 _REMOTE_SSL_KEY_DIR = "/config/ssl/ssl.key"
 
@@ -250,7 +250,7 @@ def deploy_lab(ssh: SshRunner, harness_dir: Path) -> None:
 
     print("→ installing certs into /config/ssl")
     ssh.run(
-        "tmsh install sys crypto cert /explain_pcap_lab/lab_ca "
+        "tmsh install sys crypto cert /explain_flow_lab/lab_ca "
         f"from-local-file {_REMOTE_LAB_DIR}/lab_ca.crt",
         check=False,
     )
@@ -260,12 +260,12 @@ def deploy_lab(ssh: SshRunner, harness_dir: Path) -> None:
         ("lab_server_selfsigned", "lab_server_selfsigned.crt", "lab_server_selfsigned.key"),
     ):
         ssh.run(
-            f"tmsh install sys crypto cert /explain_pcap_lab/{label} "
+            f"tmsh install sys crypto cert /explain_flow_lab/{label} "
             f"from-local-file {_REMOTE_LAB_DIR}/{crt}",
             check=False,
         )
         ssh.run(
-            f"tmsh install sys crypto key /explain_pcap_lab/{label} "
+            f"tmsh install sys crypto key /explain_flow_lab/{label} "
             f"from-local-file {_REMOTE_LAB_DIR}/{key}",
             check=False,
         )
@@ -276,8 +276,8 @@ def deploy_lab(ssh: SshRunner, harness_dir: Path) -> None:
 
 
 def teardown_lab(ssh: SshRunner) -> None:
-    """Delete the explain_pcap_lab partition (and everything in it)."""
-    ssh.run("tmsh delete auth partition explain_pcap_lab", check=False)
+    """Delete the explain_flow_lab partition (and everything in it)."""
+    ssh.run("tmsh delete auth partition explain_flow_lab", check=False)
     ssh.run(f"rm -rf {_REMOTE_LAB_DIR}", check=False)
 
 
@@ -433,7 +433,7 @@ def run_scenario(
     }
 
 
-# ── explain-pcap invocation ──────────────────────────────────────────
+# ── explain-flow invocation ──────────────────────────────────────────
 
 
 def run_explain(
@@ -443,10 +443,10 @@ def run_explain(
     keylog_path: Path,
     scf_path: Path,
 ) -> None:
-    """Run `f5 explain-pcap` over every captured pcap."""
+    """Run `f5 explain-flow` over every captured pcap."""
     f5_cli = repo_root / "explorer" / "f5_cli.py"
     if not f5_cli.is_file():
-        print("(skipping explain-pcap — explorer/f5_cli.py not found)")
+        print("(skipping explain-flow — explorer/f5_cli.py not found)")
         return
     explain_dir = out_dir / "explain"
     explain_dir.mkdir(parents=True, exist_ok=True)
@@ -459,7 +459,7 @@ def run_explain(
                 sys.executable,
                 "-m",
                 "explorer.f5_cli",
-                "explain-pcap",
+                "explain-flow",
                 "--tshark",
             ]
             if scenario.needs_keylog and keylog_path.is_file():

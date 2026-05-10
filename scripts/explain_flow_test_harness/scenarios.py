@@ -3,7 +3,7 @@
 Every entry maps to: a ``curl`` invocation that drives traffic at a
 specific virtual server in the lab SCF, plus a description of what the
 captured pcap is expected to show so an operator (or
-``f5 explain-pcap``) can validate the matching scenario.
+``f5 explain-flow``) can validate the matching scenario.
 
 Hostname → VIP resolution is done via curl's ``--resolve`` so we never
 need DNS in the lab.  All VIPs live in 10.255.42.0/24 from the SCF.
@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class Scenario:
-    """A single explain-pcap lab test case.
+    """A single explain-flow lab test case.
 
     *curl_args* is the trailing argv passed to curl, after the URL.  The
     URL itself is rendered from *vip*, *port*, and *host*.
@@ -32,7 +32,7 @@ class Scenario:
     *needs_keylog* tells the runner to set ``SSLKEYLOGFILE`` for this
     invocation so tshark / Wireshark can decrypt the captured TLS.
 
-    *expect_in_explain* is a list of substrings that ``f5 explain-pcap``
+    *expect_in_explain* is a list of substrings that ``f5 explain-flow``
     output should contain after running against the captured pcap.
     """
 

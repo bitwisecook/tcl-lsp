@@ -635,14 +635,17 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
 
 
 @tool(
-    "explain_pcap",
-    "Trace each flow in a PCAP through one or more BIG-IP configs. For every "
-    "matched virtual server, returns ordered LTM profiles, attached LTM policies "
-    "and APM access profile, the expected iRule event firing sequence (driven by "
-    "attached profiles + observed L7 features), the verbatim `when EVENT { ... }` "
-    "body for each fired event, persistence, SNAT, default pool & members, plus "
-    "any GTM wide-IPs in the config. Designed to give an LLM enough context to "
-    "narrate what BIG-IP did to the traffic in the capture.",
+    "explain_flow",
+    "Trace each flow in a PCAP through one or more BIG-IP configs and return a "
+    "compact, LLM-friendly summary per matched session: a one-line narrative, "
+    "the matched virtual server, profile categories (TCP/HTTP/CLIENTSSL etc.), "
+    "captured HTTP request line + Host + UA + TLS SNI/version/cipher/ALPN, "
+    "captured response status, ordered iRule events that fired, deduplicated "
+    "`[HUD::cmd] = value` decisions the iRule looked at, truncated event "
+    "bodies (8 lines by default), pool member + SNAT IP observed on the back "
+    "side, termination analysis, and (when --simulate) the actual outcome of "
+    "running the iRule under c-tcl.  Empty fields are omitted entirely so the "
+    "LLM context isn't flooded with noise.",
     params={
         "pcap_path": {**_STR, "description": "Path to a libpcap or pcapng file."},
         "config_text": {
@@ -668,10 +671,19 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
             "and HTTP fields populate for TLS-wrapped sessions. Implies "
             "use_tshark=true.",
         },
-        "show_event_bodies": {
-            "type": "boolean",
-            "description": "Include the verbatim `when EVENT { ... }` block for "
-            "each fired event. Defaults to true.",
+        "max_event_body_lines": {
+            **_INT,
+            "description": "Truncate each `when EVENT { ... }` body to this many "
+            "lines.  Defaults to 8 — kept low so the LLM context isn't "
+            "flooded.  Pass 0 to drop event bodies entirely.",
+        },
+        "tshark_filter": {
+            **_STR,
+            "description": "tshark display filter applied via -Y; only matching "
+            "packets contribute to the flow set.  When set, the entire "
+            "extraction pass runs through tshark (the built-in walker is "
+            "bypassed).  F5 trailer peer-tuples for `:np` capture pairing "
+            "are only populated by the built-in walker.",
         },
         "simulate": {
             "type": "boolean",
@@ -683,18 +695,19 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     },
     required=["pcap_path"],
 )
-def _tool_explain_pcap(
+def _tool_explain_flow(
     pcap_path: str,
     config_text: str = "",
     config_paths: list | None = None,
     use_tshark: bool = False,
     keylog_path: str = "",
-    show_event_bodies: bool = True,
+    tshark_filter: str = "",
+    max_event_body_lines: int = 8,
     simulate: bool = False,
 ) -> str:
     from pathlib import Path
 
-    from core.bigip.explain_pcap import compute_explain_pcap, report_to_dict
+    from core.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
     from core.bigip.parser import parse_bigip_conf
 
     pcap = Path(pcap_path).resolve()
@@ -712,23 +725,25 @@ def _tool_explain_pcap(
             path.read_text(encoding="utf-8", errors="replace")
         )
     if not configs:
-        return json.dumps({"error": "explain_pcap requires either config_text or config_paths"})
+        return json.dumps({"error": "explain_flow requires either config_text or config_paths"})
 
     try:
-        report = compute_explain_pcap(
+        report = compute_explain_flow(
             pcap,
             configs,
-            use_tshark=use_tshark or bool(keylog_path),
+            use_tshark=use_tshark or bool(keylog_path) or bool(tshark_filter),
             keylog_path=keylog_path,
-            show_event_bodies=show_event_bodies,
+            tshark_filter=tshark_filter,
+            show_event_bodies=max_event_body_lines > 0,
+            max_event_body_lines=max(max_event_body_lines, 1),
             simulate=simulate,
         )
     except (OSError, ValueError) as exc:
         # Surface bad pcap / unreadable file as a structured JSON error
         # rather than letting the exception escape and crash the MCP
         # tool framework.
-        return json.dumps({"error": f"compute_explain_pcap failed: {exc}"})
-    return json.dumps(report_to_dict(report))
+        return json.dumps({"error": f"compute_explain_flow failed: {exc}"})
+    return json.dumps(report_to_mcp_dict(report, max_event_body_lines=max_event_body_lines))
 
 
 # LSP-equivalent tools

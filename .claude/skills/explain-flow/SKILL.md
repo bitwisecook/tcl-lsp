@@ -1,5 +1,5 @@
 ---
-name: explain-pcap
+name: explain-flow
 description: >
   Trace each session in a PCAP through a BIG-IP configuration and explain
   what the device did to it: matched virtual server, ordered LTM profiles,
@@ -19,8 +19,8 @@ allowed-tools: Bash, Read
 
 # Explain PCAP against a BIG-IP config
 
-This skill drives the `f5 explain-pcap` verb (also exposed as the
-`explain_pcap` MCP tool) to produce per-session explanations: it pairs
+This skill drives the `f5 explain-flow` verb (also exposed as the
+`explain_flow` MCP tool) to produce per-session explanations: it pairs
 flows into bidirectional connections, then pairs front-side and
 back-side connections into one logical session via the F5 ethernet
 trailer's peer-tuple, finds the matching virtual server, and emits the
@@ -44,19 +44,19 @@ From the project root:
 
 ```bash
 # Text report (default)
-python3 -m explorer.f5_cli explain-pcap path/to/capture.pcap path/to/bigip.conf
+python3 -m explorer.f5_cli explain-flow path/to/capture.pcap path/to/bigip.conf
 
 # JSON for downstream LLM consumption
-python3 -m explorer.f5_cli explain-pcap --json capture.pcap bigip.conf
+python3 -m explorer.f5_cli explain-flow --json capture.pcap bigip.conf
 
 # Use tshark for richer L7 decoding (HTTP/TLS, F5 reset cause)
-python3 -m explorer.f5_cli explain-pcap --tshark capture.pcap bigip.conf
+python3 -m explorer.f5_cli explain-flow --tshark capture.pcap bigip.conf
 
 # Decrypt TLS using a NSS-format keylog file (implies --tshark)
-python3 -m explorer.f5_cli explain-pcap --keylog ssl.log capture.pcap bigip.conf
+python3 -m explorer.f5_cli explain-flow --keylog ssl.log capture.pcap bigip.conf
 
 # Just the event names — skip the verbatim Tcl bodies
-python3 -m explorer.f5_cli explain-pcap --no-event-bodies capture.pcap bigip.conf
+python3 -m explorer.f5_cli explain-flow --no-event-bodies capture.pcap bigip.conf
 ```
 
 Multiple config files may be passed; the first config containing a VS
@@ -140,6 +140,6 @@ The output contains everything you need to narrate what happened:
 
 ## MCP equivalent
 
-The same logic is also exposed via the `explain_pcap` tool of the
+The same logic is also exposed via the `explain_flow` tool of the
 tcl-lsp MCP server.  Pass `pcap_path` plus either `config_text` or
 `config_paths`; the JSON shape mirrors the CLI's `--json` output.

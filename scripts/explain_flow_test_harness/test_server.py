@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_server.py — multi-port HTTP/HTTPS origin for the explain-pcap lab.
+"""test_server.py — multi-port HTTP/HTTPS origin for the explain-flow lab.
 
 Designed to be either:
 
@@ -51,7 +51,7 @@ from urllib.parse import urlparse
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
-    server_version = "explain-pcap-lab/1.0"
+    server_version = "explain-flow-lab/1.0"
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A003
         sys.stdout.write(f"[{self.address_string()}] {self.log_date_time_string()} {fmt % args}\n")
@@ -113,7 +113,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
         # Default: echo with the path and host header.
         echo = (
-            f"explain-pcap lab\nrequest: {self.command} {self.path}\n"
+            f"explain-flow lab\nrequest: {self.command} {self.path}\n"
             f"host: {self.headers.get('Host', '')}\n"
             f"client: {self.client_address[0]}:{self.client_address[1]}\n"
         ).encode()

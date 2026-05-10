@@ -16,7 +16,7 @@ def load_verbs() -> None:
         enrich_pcapng,
         enrich_wireshark,
         explain,
-        explain_pcap,
+        explain_flow,
         extract,
         fetch,
         graph,

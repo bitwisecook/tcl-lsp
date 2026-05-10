@@ -1,4 +1,4 @@
-"""``f5 explain-pcap`` — trace each flow in a PCAP through the BIG-IP config.
+"""``f5 explain-flow`` — trace each flow in a PCAP through the BIG-IP config.
 
 For every unique 5-tuple in the capture, find the virtual server whose
 destination matches and emit the per-flow plan: profiles in attach
@@ -21,8 +21,8 @@ import json
 import sys
 from pathlib import Path
 
-from core.bigip.explain_pcap import (
-    compute_explain_pcap,
+from core.bigip.explain_flow import (
+    compute_explain_flow,
     report_to_dict,
     tshark_available,
 )
@@ -32,8 +32,7 @@ from ._registry import verb
 
 
 @verb(
-    "explain-pcap",
-    aliases=("pcap-explain", "trace-pcap"),
+    "explain-flow",
     help="Trace each flow in a PCAP through the BIG-IP config (VS, profiles, iRules, pool, SNAT, GTM, APM).",
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
@@ -65,6 +64,18 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "TLS-wrapped sessions.  Implies --tshark.",
     )
     p.add_argument(
+        "--tshark-filter",
+        metavar="FILTER",
+        default="",
+        help="tshark display filter applied via -Y; only matching packets "
+        "contribute to the flow set.  When set, the entire extraction "
+        "pass runs through tshark (the built-in walker is bypassed) "
+        "so reassembly + decryption (with --keylog) cover what raw "
+        "packet sniffing can't.  Note: F5 trailer peer-tuples for "
+        "`:np` capture pairing are only populated by the built-in "
+        "walker, so a filtered run loses front/back session pairing.",
+    )
+    p.add_argument(
         "--simulate",
         action="store_true",
         help="Run each matched session's iRule under the C-tcl test "
@@ -88,10 +99,10 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     )
     p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     p.add_argument("-o", "--output", metavar="FILE", help="Write report here (default: stdout).")
-    p.set_defaults(handler=_run_explain_pcap)
+    p.set_defaults(handler=_run_explain_flow)
 
 
-def _run_explain_pcap(args: argparse.Namespace) -> int:
+def _run_explain_flow(args: argparse.Namespace) -> int:
     pcap_path = Path(args.pcap)
     if not pcap_path.is_file():
         print(f"error: not a file: {args.pcap}", file=sys.stderr)
@@ -103,7 +114,7 @@ def _run_explain_pcap(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    use_tshark = args.tshark or bool(args.keylog)
+    use_tshark = args.tshark or bool(args.keylog) or bool(args.tshark_filter)
     if use_tshark and not tshark_available():
         print(
             "warning: --tshark/--keylog requested but `tshark` not on PATH; "
@@ -114,11 +125,12 @@ def _run_explain_pcap(args: argparse.Namespace) -> int:
         print(f"warning: keylog file not found: {args.keylog}", file=sys.stderr)
 
     try:
-        report = compute_explain_pcap(
+        report = compute_explain_flow(
             pcap_path,
             configs,
             use_tshark=use_tshark,
             keylog_path=args.keylog,
+            tshark_filter=args.tshark_filter,
             show_event_bodies=not args.no_event_bodies,
             max_event_body_lines=args.max_event_lines,
             simulate=args.simulate,

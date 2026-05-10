@@ -1,6 +1,6 @@
-# explain-pcap test harness — data gathering for the flow explainer
+# explain-flow test harness — data gathering for the flow explainer
 
-End-to-end test lab for `f5 explain-pcap` and (by extension) anyone who
+End-to-end test lab for `f5 explain-flow` and (by extension) anyone who
 needs to capture *enough information* about a real BIG-IP flow that the
 flow explainer (CLI + MCP tool + Claude skill) can narrate what
 happened.  Use this harness either as a self-contained reproducer
@@ -40,7 +40,7 @@ narrative.
 This harness is *more* than a capture grabber: it deliberately
 exercises specific iRule / TLS / pool / policy code paths so you have
 known-good ground truth to compare the explainer's output against.
-Useful both as a regression test for `f5 explain-pcap` itself, and as
+Useful both as a regression test for `f5 explain-flow` itself, and as
 a worked example for users learning how to gather production data.
 
 ## Layout
@@ -50,8 +50,8 @@ a worked example for users learning how to gather production data.
 | `bigip_test_lab.scf`  | BIG-IP SCF: 6 virtual servers, several iRules, an LTM policy, profiles, pools (incl. one with no reachable members) |
 | `gen_certs.sh`        | OpenSSL-driven cert factory: CA + valid / expired / mismatch / self-signed leafs + client cert |
 | `test_server.py`      | Multi-port HTTP/HTTPS origin; deployable on a backend or runnable on the same host as `run_tests.py` when the SCF uses `automap` SNAT |
-| `scenarios.py`        | Declarative scenarios table (curl args, expected status, expected substrings in the explain-pcap report) |
-| `run_tests.py`        | The orchestrator (deploys, captures, drives traffic, fetches pcaps, runs `f5 explain-pcap`) |
+| `scenarios.py`        | Declarative scenarios table (curl args, expected status, expected substrings in the explain-flow report) |
+| `run_tests.py`        | The orchestrator (deploys, captures, drives traffic, fetches pcaps, runs `f5 explain-flow`) |
 
 ## Prerequisites
 
@@ -104,10 +104,10 @@ The pool members live at `10.255.42.10` / `.11` / `.20`.  Either:
 
 ```bash
 # generate certs once (idempotent — re-run safely)
-scripts/explain_pcap_test_harness/gen_certs.sh
+scripts/explain_flow_test_harness/gen_certs.sh
 
-# full run: deploy SCF, capture every scenario, run f5 explain-pcap
-scripts/explain_pcap_test_harness/run_tests.py \
+# full run: deploy SCF, capture every scenario, run f5 explain-flow
+scripts/explain_flow_test_harness/run_tests.py \
     --bigip 10.0.0.5 \
     --user admin \
     --ssh-key ~/.ssh/id_rsa \
@@ -118,23 +118,23 @@ scripts/explain_pcap_test_harness/run_tests.py \
 Single scenario:
 
 ```bash
-scripts/explain_pcap_test_harness/run_tests.py \
+scripts/explain_flow_test_harness/run_tests.py \
     --bigip 10.0.0.5 --user admin --ssh-key ~/.ssh/id_rsa \
     --scenarios https_sni_route_api \
     --out /tmp/just-sni
 ```
 
-Skip BIG-IP deployment (useful when iterating on `f5 explain-pcap`
+Skip BIG-IP deployment (useful when iterating on `f5 explain-flow`
 itself):
 
 ```bash
-scripts/explain_pcap_test_harness/run_tests.py ... --skip-deploy
+scripts/explain_flow_test_harness/run_tests.py ... --skip-deploy
 ```
 
-Skip running `f5 explain-pcap` (capture only):
+Skip running `f5 explain-flow` (capture only):
 
 ```bash
-scripts/explain_pcap_test_harness/run_tests.py ... --skip-explain
+scripts/explain_flow_test_harness/run_tests.py ... --skip-explain
 ```
 
 ## Output
@@ -144,18 +144,18 @@ After a run, `<out>/` contains:
 ```
 <out>/
 ├── manifest.json                   ← every scenario + its outcome
-├── sslkeys.log                     ← NSS keylog file (-> tshark/Wireshark/explain-pcap)
+├── sslkeys.log                     ← NSS keylog file (-> tshark/Wireshark/explain-flow)
 ├── http_block_by_host.pcap
 ├── http_block_by_host.log
 ├── https_sni_route_api.pcap
 ├── ...
 └── explain/
-    ├── http_block_by_host.text     ← `f5 explain-pcap` text report
+    ├── http_block_by_host.text     ← `f5 explain-flow` text report
     ├── http_block_by_host.json     ← same, JSON
     └── ...
 ```
 
-Feed the JSON into the `explain_pcap` MCP tool or the `/explain-pcap`
+Feed the JSON into the `explain_flow` MCP tool or the `/explain-flow`
 Claude skill for an LLM-readable narrative; the text reports are
 operator-facing.
 
@@ -199,7 +199,7 @@ scp admin@<bigip>:/var/tmp/prod-ltm.conf ./prod-ltm.conf
 
 ### 2. Capture with the F5 Ethernet trailer
 
-This is the critical step for the `f5 explain-pcap` extras (peer IP
+This is the critical step for the `f5 explain-flow` extras (peer IP
 pairing, reset cause TLVs, decoded TMM annotations).  The
 `:nnnp` suffix is what makes BIG-IP write the trailer into each
 packet:
@@ -245,10 +245,10 @@ request?".  `test_server.py` logs every request and is small enough
 to drop on any Linux box; or just run `tcpdump` on the member and
 correlate timestamps with the BIG-IP capture.
 
-### 5. Feed everything to `f5 explain-pcap`
+### 5. Feed everything to `f5 explain-flow`
 
 ```bash
-python -m explorer.f5_cli explain-pcap \
+python -m explorer.f5_cli explain-flow \
     --tshark \
     --keylog ./keys.log \
     --simulate \
@@ -263,15 +263,15 @@ python -m explorer.f5_cli explain-pcap \
   C-tcl orchestrator with the captured state, returning the real
   pool/respond decisions.
 
-JSON output (`--json`) is what the `explain_pcap` MCP tool / Claude
+JSON output (`--json`) is what the `explain_flow` MCP tool / Claude
 skill consume.
 
 ## Cleaning up
 
-The SCF lives entirely in the `explain_pcap_lab` admin partition, so:
+The SCF lives entirely in the `explain_flow_lab` admin partition, so:
 
 ```bash
-ssh admin@<bigip> "tmsh delete auth partition explain_pcap_lab"
+ssh admin@<bigip> "tmsh delete auth partition explain_flow_lab"
 ```
 
 removes everything the harness deployed.  The orchestrator never
@@ -281,6 +281,6 @@ modifies `Common`.
 
 1. Edit `bigip_test_lab.scf` and add the new VS / iRule / pool you want.
 2. Add a `Scenario(...)` entry to `scenarios.py` describing what curl
-   should send and what `f5 explain-pcap` should be able to say about
+   should send and what `f5 explain-flow` should be able to say about
    the resulting pcap.
 3. Update this table.

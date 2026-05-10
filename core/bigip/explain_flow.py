@@ -1,4 +1,4 @@
-"""``f5 explain-pcap`` core: trace each flow in a PCAP through the BIG-IP config.
+"""``f5 explain-flow`` core: trace each flow in a PCAP through the BIG-IP config.
 
 For every unique L3/L4 flow observed in a capture, locate the virtual
 server whose ``destination`` matches the flow's destination IP+port and
@@ -40,6 +40,7 @@ This module never re-parses the BIG-IP config; it only reads what
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 import shutil
 import struct
@@ -323,7 +324,7 @@ class SessionExplain:
 
 
 @dataclass(frozen=True, slots=True)
-class ExplainPcapReport:
+class ExplainFlowReport:
     pcap_path: str
     flow_count: int
     session_count: int
@@ -332,6 +333,7 @@ class ExplainPcapReport:
     text_report: str = ""
     used_tshark: bool = False
     keylog_path: str = ""
+    tshark_filter: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -934,52 +936,32 @@ def tshark_available() -> bool:
     return shutil.which("tshark") is not None
 
 
-_TSHARK_FIELDS = (
-    # 0..3 IP
-    "ip.src",
-    "ip.dst",
-    "ipv6.src",
-    "ipv6.dst",
-    # 4..7 ports
-    "tcp.srcport",
-    "tcp.dstport",
-    "udp.srcport",
-    "udp.dstport",
-    # 8 TLS SNI (request side)
-    "tls.handshake.extensions_server_name",
-    # 9..12 HTTP request basics
-    "http.request.method",
-    "http.host",
-    "http.request.uri",
-    "http.response.code",
-    # 13..17 TLS handshake details
-    "tls.handshake.ciphersuite",
-    "tls.record.version",
-    "tls.handshake.version",
-    "tls.handshake.extensions_alpn_str",
-    "tls.alert_message.desc",
-    # 18..21 TCP RST + F5 reset cause
-    "tcp.flags.reset",
-    "f5ethtrailer.rstcause.cause",
-    "f5ethtrailer.rstcause.line",
-    "f5ethtrailer.rstcause.peer",
-    # 22..28 deeper HTTP (request)
-    "http.request.full_uri",
-    "http.request.version",
-    "http.user_agent",
-    "http.cookie",
-    "http.referer",
-    "http.content_type",
-    "http.content_length",
-    # 29..31 HTTP response
-    "http.response.phrase",
-    "http.content_type",  # repeated for response capture
-    "http.content_length",  # repeated for response capture
-    # 32..34 TLS cert + algo
-    "x509sat.printableString",
-    "tls.handshake.sig_hash_alg",
-    "tls.handshake.extensions_supported_group",
-)
+# Field-path reference (tshark dotted name → EK lookup ``layers.<proto>``,
+# field key with dots replaced by underscores).  We don't enumerate
+# fields with ``-e`` any more — ``-T ek`` emits the entire dissection
+# tree; :func:`_apply_packet_to_flows` and :func:`extract_flows_via_tshark`
+# pull what they need by name.  Documented here as a quick lookup
+# table for anyone extending the harvest:
+#
+#   ip.src                                    -> layers.ip.ip_src
+#   ipv6.src                                  -> layers.ipv6.ipv6_src
+#   tcp.srcport / tcp.dstport                 -> layers.tcp.tcp_srcport / tcp_dstport
+#   tcp.flags.{syn,ack,fin,reset}             -> layers.tcp.tcp_flags_*
+#   frame.len                                 -> layers.frame.frame_len
+#   tls.handshake.extensions_server_name      -> layers.tls.tls_handshake_extensions_server_name
+#   tls.handshake.ciphersuite                 -> layers.tls.tls_handshake_ciphersuite
+#   tls.handshake.version / tls.record.version-> layers.tls.tls_handshake_version / tls_record_version
+#   tls.handshake.extensions_alpn_str         -> layers.tls.tls_handshake_extensions_alpn_str
+#   tls.alert_message.desc                    -> layers.tls.tls_alert_message_desc
+#   tls.handshake.sig_hash_alg                -> layers.tls.tls_handshake_sig_hash_alg
+#   tls.handshake.extensions_supported_group  -> layers.tls.tls_handshake_extensions_supported_group
+#   x509sat.printableString                   -> layers.x509sat.x509sat_printableString
+#   http.request.method / .uri / .version     -> layers.http.http_request_*
+#   http.host / .user_agent / .cookie / .referer
+#                                             -> layers.http.http_*
+#   http.content_type / .content_length       -> layers.http.http_content_*
+#   http.response.code / .phrase              -> layers.http.http_response_*
+#   f5ethtrailer.rstcause.{cause,line,peer}   -> layers.f5ethtrailer.f5ethtrailer_rstcause_*
 _TLS_VERSION_NAMES = {
     "0x0301": "TLS1.0",
     "0x0302": "TLS1.1",
@@ -1012,7 +994,83 @@ def _name_tls_version(raw: str) -> str:
     return _TLS_VERSION_NAMES.get(key, raw)
 
 
-def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -> bool:
+def _tshark_ek_cmd(pcap_path: Path, *, keylog_path: str = "", tshark_filter: str = "") -> list[str]:
+    """Build a ``tshark -T ek`` command for newline-delimited JSON output.
+
+    EK format (Elastic-Kibana) emits one JSON object per packet on its
+    own line with all dissected fields under ``layers.<proto>``.  This
+    avoids the ``|``-collision risk of ``-T fields`` when values
+    contain delimiters (Cookies, URIs with query strings, F5 reset
+    cause text), and gives the Python side a structured payload to
+    parse rather than positional column slicing.
+
+    A ``tshark_filter`` is passed as a display filter via ``-Y`` so
+    only matching packets reach the dissector; this is the documented
+    hook for the ``--tshark-filter`` CLI option.
+
+    ``-l`` flushes per-packet so we don't sit on stdout buffering for
+    long captures.
+    """
+    cmd = [
+        "tshark",
+        "-r",
+        str(pcap_path),
+        "-T",
+        "ek",
+        "-l",
+        "--no-duplicate-keys",
+    ]
+    if keylog_path:
+        kl = Path(keylog_path)
+        if kl.is_file():
+            cmd += ["-o", f"tls.keylog_file:{kl}"]
+    if tshark_filter:
+        cmd += ["-Y", tshark_filter]
+    return cmd
+
+
+def _parse_tshark_ek(stdout: str):
+    """Yield each packet object emitted by ``tshark -T ek``.
+
+    EK output alternates between one-line ``{"index": ...}`` headers
+    and one-line content payloads ``{"timestamp": "...", "layers":
+    {...}}``.  We skip the index lines and yield the content payloads
+    as already-parsed dicts.
+    """
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(obj, dict) and "layers" in obj:
+            yield obj
+
+
+def _ek_field(layers: dict, layer: str, key: str) -> str:
+    """Look up a field from a parsed EK ``layers`` object.
+
+    EK collapses dots in field names to underscores within each
+    layer, so ``ip.src`` lives at ``layers.ip['ip_src']``.  When the
+    field is repeated tshark emits a list (with
+    ``--no-duplicate-keys``); we return the first element.
+    """
+    layer_obj = layers.get(layer)
+    if not isinstance(layer_obj, dict):
+        return ""
+    val = layer_obj.get(key)
+    if val is None:
+        return ""
+    if isinstance(val, list):
+        return str(val[0]) if val else ""
+    return str(val)
+
+
+def enrich_with_tshark(
+    flows: dict, pcap_path: Path, *, keylog_path: str = "", tshark_filter: str = ""
+) -> bool:
     """Run tshark and overlay decoded L7 fields onto *flows*.
 
     Returns True if tshark ran successfully.  Silently returns False if
@@ -1020,41 +1078,205 @@ def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -
     When *keylog_path* is set and the file exists, passes
     ``-o tls.keylog_file:<path>`` so HTTPS payloads decrypt and the
     HTTP method/URI/response-code fields populate for TLS-wrapped
-    flows.
+    flows.  When *tshark_filter* is set it's passed as a display
+    filter (``-Y <filter>``) so only matching packets contribute
+    enrichment data.
     """
     if not tshark_available():
         return False
-    cmd = [
-        "tshark",
-        "-r",
-        str(pcap_path),
-        "-T",
-        "fields",
-        "-E",
-        "separator=|",
-        "-E",
-        "occurrence=f",
-    ]
-    if keylog_path:
-        kl = Path(keylog_path)
-        if kl.is_file():
-            cmd += ["-o", f"tls.keylog_file:{kl}"]
-    for f in _TSHARK_FIELDS:
-        cmd += ["-e", f]
+    cmd = _tshark_ek_cmd(pcap_path, keylog_path=keylog_path, tshark_filter=tshark_filter)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
     if result.returncode != 0:
         return False
-    for line in result.stdout.splitlines():
-        cols = line.split("|")
-        if len(cols) < len(_TSHARK_FIELDS):
-            continue
-        ip_src = cols[0] or cols[2]
-        ip_dst = cols[1] or cols[3]
-        tcp_sp, tcp_dp = cols[4], cols[5]
-        udp_sp, udp_dp = cols[6], cols[7]
+
+    for packet in _parse_tshark_ek(result.stdout):
+        layers = packet.get("layers") or {}
+        _apply_packet_to_flows(layers, flows)
+    return True
+
+
+def _apply_packet_to_flows(layers: dict, flows: dict) -> None:
+    """Overlay decoded fields from one EK ``layers`` object onto *flows*.
+
+    Field paths follow tshark's EK convention: ``layers.<proto>``
+    contains underscored field names (``ip.src`` -> ``ip_src``).  We
+    pick the first occurrence when tshark emits a list.  Non-existent
+    fields return empty string and are silently ignored.
+    """
+    ip_src = _ek_field(layers, "ip", "ip_src") or _ek_field(layers, "ipv6", "ipv6_src")
+    ip_dst = _ek_field(layers, "ip", "ip_dst") or _ek_field(layers, "ipv6", "ipv6_dst")
+    tcp_sp = _ek_field(layers, "tcp", "tcp_srcport")
+    tcp_dp = _ek_field(layers, "tcp", "tcp_dstport")
+    udp_sp = _ek_field(layers, "udp", "udp_srcport")
+    udp_dp = _ek_field(layers, "udp", "udp_dstport")
+    if tcp_sp or tcp_dp:
+        proto = 6
+        sp = int(tcp_sp) if tcp_sp.isdigit() else 0
+        dp = int(tcp_dp) if tcp_dp.isdigit() else 0
+    elif udp_sp or udp_dp:
+        proto = 17
+        sp = int(udp_sp) if udp_sp.isdigit() else 0
+        dp = int(udp_dp) if udp_dp.isdigit() else 0
+    else:
+        return
+    if not ip_src:
+        return
+    try:
+        ip_src = str(ipaddress.ip_address(ip_src))
+        ip_dst = str(ipaddress.ip_address(ip_dst))
+    except ValueError:
+        return
+
+    key = (ip_src, sp, ip_dst, dp, proto)
+    flow = flows.get(key)
+    if flow is None:
+        return
+
+    # TLS handshake
+    sni = _ek_field(layers, "tls", "tls_handshake_extensions_server_name")
+    if sni and not flow.tls_sni:
+        flow.tls_sni = sni
+        flow.tls_clienthello = True
+    cipher = _ek_field(layers, "tls", "tls_handshake_ciphersuite")
+    if cipher and not flow.tls_chosen_cipher:
+        flow.tls_chosen_cipher = cipher
+    chosen_ver = _ek_field(layers, "tls", "tls_handshake_version") or _ek_field(
+        layers, "tls", "tls_record_version"
+    )
+    if chosen_ver and not flow.tls_chosen_version:
+        flow.tls_chosen_version = _name_tls_version(chosen_ver)
+    alpn = _ek_field(layers, "tls", "tls_handshake_extensions_alpn_str")
+    if alpn and not flow.tls_alpn:
+        flow.tls_alpn = alpn
+    alert_desc = _ek_field(layers, "tls", "tls_alert_message_desc")
+    if alert_desc:
+        flow.tls_alert_seen = True
+        flow.tls_alert_desc = alert_desc
+    cert_subj = _ek_field(layers, "x509sat", "x509sat_printableString")
+    if cert_subj and not flow.tls_cert_subject:
+        flow.tls_cert_subject = cert_subj
+    sig_alg = _ek_field(layers, "tls", "tls_handshake_sig_hash_alg")
+    if sig_alg and not flow.tls_signature_algos:
+        flow.tls_signature_algos = sig_alg
+    supp_groups = _ek_field(layers, "tls", "tls_handshake_extensions_supported_group")
+    if supp_groups and not flow.tls_supported_groups:
+        flow.tls_supported_groups = supp_groups
+
+    # HTTP request
+    method = _ek_field(layers, "http", "http_request_method")
+    if method and not flow.http_method:
+        flow.http_method = method
+        flow.http_request_seen = True
+    host = _ek_field(layers, "http", "http_host")
+    if host and not flow.http_host:
+        flow.http_host = host
+    uri = _ek_field(layers, "http", "http_request_uri") or _ek_field(
+        layers, "http", "http_request_full_uri"
+    )
+    if uri and not flow.http_uri:
+        flow.http_uri = uri
+        path, _, query = uri.partition("?")
+        flow.http_path = flow.http_path or path
+        flow.http_query = flow.http_query or query
+    http_ver = _ek_field(layers, "http", "http_request_version")
+    if http_ver and not flow.http_request_version:
+        flow.http_request_version = http_ver
+    ua = _ek_field(layers, "http", "http_user_agent")
+    if ua and not flow.http_user_agent:
+        flow.http_user_agent = ua
+        flow.http_request_headers.setdefault("user-agent", ua)
+    cookie = _ek_field(layers, "http", "http_cookie")
+    if cookie and not flow.http_cookie:
+        flow.http_cookie = cookie
+        flow.http_request_headers.setdefault("cookie", cookie)
+    referer = _ek_field(layers, "http", "http_referer")
+    if referer and not flow.http_referer:
+        flow.http_referer = referer
+        flow.http_request_headers.setdefault("referer", referer)
+    content_type = _ek_field(layers, "http", "http_content_type")
+    if content_type and not flow.http_request_content_type:
+        flow.http_request_content_type = content_type
+        flow.http_request_headers.setdefault("content-type", content_type)
+    content_length = _ek_field(layers, "http", "http_content_length")
+    if content_length and not flow.http_request_content_length:
+        flow.http_request_content_length = content_length
+        flow.http_request_headers.setdefault("content-length", content_length)
+
+    # HTTP response
+    code = _ek_field(layers, "http", "http_response_code")
+    if code:
+        flow.http_response_seen = True
+        flow.http_response_code = code
+    resp_phrase = _ek_field(layers, "http", "http_response_phrase")
+    if resp_phrase and not flow.http_response_phrase:
+        flow.http_response_phrase = resp_phrase
+
+    # F5 reset cause TLVs (DPT trailer)
+    rst_flag = _ek_field(layers, "tcp", "tcp_flags_reset")
+    if rst_flag in ("1", "True"):
+        flow.tcp_rst = True
+    for ek_key in (
+        "f5ethtrailer_rstcause_cause",
+        "f5ethtrailer_rstcause_line",
+        "f5ethtrailer_rstcause_peer",
+    ):
+        piece = _ek_field(layers, "f5ethtrailer", ek_key)
+        if piece:
+            tag = piece.strip()
+            if tag and tag not in flow.f5_reset_causes:
+                flow.f5_reset_causes.append(tag)
+
+
+def extract_flows_via_tshark(
+    pcap_path: Path,
+    *,
+    keylog_path: str = "",
+    tshark_filter: str = "",
+) -> dict[tuple[str, int, str, int, int], Flow]:
+    """Extract flows from *pcap_path* by driving tshark with EK output.
+
+    Used when the caller passes a ``--tshark-filter`` so only packets
+    matching the display filter contribute to the flow set; tshark's
+    reassembly + decryption (when a keylog file is supplied) means
+    HTTP/TLS fields populate even for traffic the raw walker can't
+    reach (e.g. fragmented HTTP, decrypted HTTPS).
+
+    Returns the same ``{(src, sp, dst, dp, proto): Flow}`` shape as
+    :func:`extract_flows`.  Counts and TCP flag bits come from
+    ``tcp.flags.*`` and ``frame.len`` in the EK payload.  F5 trailer
+    peer-tuples are NOT populated by this path — :func:`pair_sessions`
+    for ``:np`` captures works only with the built-in walker.
+
+    On any tshark failure, returns an empty dict; the caller is
+    expected to fall back to the built-in walker.
+    """
+    if not tshark_available():
+        return {}
+    cmd = _tshark_ek_cmd(pcap_path, keylog_path=keylog_path, tshark_filter=tshark_filter)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if result.returncode != 0:
+        return {}
+
+    flows: dict[tuple[str, int, str, int, int], Flow] = {}
+    # Two passes over the same JSON: first establishes flow keys +
+    # counts + TCP flags from the layer info; second reuses
+    # _apply_packet_to_flows to overlay HTTP/TLS/RST cause.
+    parsed_packets = list(_parse_tshark_ek(result.stdout))
+
+    for packet in parsed_packets:
+        layers = packet.get("layers") or {}
+        ip_src = _ek_field(layers, "ip", "ip_src") or _ek_field(layers, "ipv6", "ipv6_src")
+        ip_dst = _ek_field(layers, "ip", "ip_dst") or _ek_field(layers, "ipv6", "ipv6_dst")
+        tcp_sp = _ek_field(layers, "tcp", "tcp_srcport")
+        tcp_dp = _ek_field(layers, "tcp", "tcp_dstport")
+        udp_sp = _ek_field(layers, "udp", "udp_srcport")
+        udp_dp = _ek_field(layers, "udp", "udp_dstport")
         if tcp_sp or tcp_dp:
             proto = 6
             sp = int(tcp_sp) if tcp_sp.isdigit() else 0
@@ -1067,100 +1289,39 @@ def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -
             continue
         if not ip_src:
             continue
+        try:
+            ip_src = str(ipaddress.ip_address(ip_src))
+            ip_dst = str(ipaddress.ip_address(ip_dst))
+        except ValueError:
+            continue
         key = (ip_src, sp, ip_dst, dp, proto)
         flow = flows.get(key)
         if flow is None:
-            continue
+            flow = Flow(src_ip=ip_src, src_port=sp, dst_ip=ip_dst, dst_port=dp, proto=proto)
+            flows[key] = flow
 
-        sni, method, host, uri, code = cols[8], cols[9], cols[10], cols[11], cols[12]
-        cipher, rec_ver, hs_ver, alpn, alert_desc = (
-            cols[13],
-            cols[14],
-            cols[15],
-            cols[16],
-            cols[17],
-        )
-        rst_flag, rst_cause, rst_line, rst_peer = cols[18], cols[19], cols[20], cols[21]
-        full_uri, http_ver, ua, cookie, referer, content_type, content_length = (
-            cols[22],
-            cols[23],
-            cols[24],
-            cols[25],
-            cols[26],
-            cols[27],
-            cols[28],
-        )
-        resp_phrase, resp_ct, resp_cl = cols[29], cols[30], cols[31]
-        cert_subj, sig_alg, supp_groups = cols[32], cols[33], cols[34]
+        flow.packets += 1
+        frame_len = _ek_field(layers, "frame", "frame_len")
+        try:
+            flow.bytes_total += int(frame_len) if frame_len else 0
+        except ValueError:
+            pass
+        if proto == 6:
+            syn = _ek_field(layers, "tcp", "tcp_flags_syn") in ("1", "True")
+            ack = _ek_field(layers, "tcp", "tcp_flags_ack") in ("1", "True")
+            fin = _ek_field(layers, "tcp", "tcp_flags_fin") in ("1", "True")
+            if syn and ack:
+                flow.tcp_synack = True
+            elif syn:
+                flow.tcp_syn = True
+            if fin:
+                flow.tcp_fin = True
 
-        if sni and not flow.tls_sni:
-            flow.tls_sni = sni
-            flow.tls_clienthello = True
-        if method and not flow.http_method:
-            flow.http_method = method
-            flow.http_request_seen = True
-        if host and not flow.http_host:
-            flow.http_host = host
-        if uri and not flow.http_uri:
-            flow.http_uri = uri
-            # Only fill path/query if we got a fresh URI here.
-            path, _, query = uri.partition("?")
-            flow.http_path = flow.http_path or path
-            flow.http_query = flow.http_query or query
-        if full_uri and not flow.http_uri:
-            flow.http_uri = full_uri
-        if http_ver and not flow.http_request_version:
-            flow.http_request_version = http_ver
-        if ua and not flow.http_user_agent:
-            flow.http_user_agent = ua
-            flow.http_request_headers.setdefault("user-agent", ua)
-        if cookie and not flow.http_cookie:
-            flow.http_cookie = cookie
-            flow.http_request_headers.setdefault("cookie", cookie)
-        if referer and not flow.http_referer:
-            flow.http_referer = referer
-            flow.http_request_headers.setdefault("referer", referer)
-        if content_type and not flow.http_request_content_type:
-            flow.http_request_content_type = content_type
-            flow.http_request_headers.setdefault("content-type", content_type)
-        if content_length and not flow.http_request_content_length:
-            flow.http_request_content_length = content_length
-            flow.http_request_headers.setdefault("content-length", content_length)
-        if code:
-            flow.http_response_seen = True
-            flow.http_response_code = code
-        if resp_phrase and not flow.http_response_phrase:
-            flow.http_response_phrase = resp_phrase
-        if resp_ct and not flow.http_response_content_type:
-            flow.http_response_content_type = resp_ct
-            flow.http_response_headers.setdefault("content-type", resp_ct)
-        if resp_cl and not flow.http_response_content_length:
-            flow.http_response_content_length = resp_cl
-            flow.http_response_headers.setdefault("content-length", resp_cl)
-        if cipher and not flow.tls_chosen_cipher:
-            flow.tls_chosen_cipher = cipher
-        chosen_ver = hs_ver or rec_ver
-        if chosen_ver and not flow.tls_chosen_version:
-            flow.tls_chosen_version = _name_tls_version(chosen_ver)
-        if alpn and not flow.tls_alpn:
-            flow.tls_alpn = alpn
-        if alert_desc:
-            flow.tls_alert_seen = True
-            flow.tls_alert_desc = alert_desc
-        if cert_subj and not flow.tls_cert_subject:
-            flow.tls_cert_subject = cert_subj
-        if sig_alg and not flow.tls_signature_algos:
-            flow.tls_signature_algos = sig_alg
-        if supp_groups and not flow.tls_supported_groups:
-            flow.tls_supported_groups = supp_groups
-        if rst_flag in ("1", "True"):
-            flow.tcp_rst = True
-        for piece in (rst_cause, rst_line, rst_peer):
-            if piece:
-                tag = piece.strip()
-                if tag and tag not in flow.f5_reset_causes:
-                    flow.f5_reset_causes.append(tag)
-    return True
+    # Second pass: HTTP / TLS / RST cause overlay.
+    for packet in parsed_packets:
+        layers = packet.get("layers") or {}
+        _apply_packet_to_flows(layers, flows)
+    return flows
 
 
 # ---------------------------------------------------------------------------
@@ -1710,16 +1871,17 @@ def _simulate_irule_for_session(
         return {**out, "error": f"asyncio: {exc}"}
 
 
-def compute_explain_pcap(
+def compute_explain_flow(
     pcap_path: Path,
     configs: dict[str, BigipConfig],
     *,
     use_tshark: bool = False,
     keylog_path: str = "",
+    tshark_filter: str = "",
     show_event_bodies: bool = True,
     max_event_body_lines: int = 40,
     simulate: bool = False,
-) -> ExplainPcapReport:
+) -> ExplainFlowReport:
     """Build a per-session explanation for *pcap_path* against parsed *configs*.
 
     Flows are paired into bidirectional Connections, which are then
@@ -1734,11 +1896,26 @@ def compute_explain_pcap(
     *keylog_path* — when set and tshark is available, passed through
     as ``-o tls.keylog_file:<path>`` so HTTPS payloads decrypt and the
     HTTP request/response fields populate for TLS-wrapped sessions.
+
+    *tshark_filter* — when set, the entire flow-extraction pass runs
+    through tshark with ``-Y <filter>`` instead of the built-in
+    walker.  This means only packets matching the display filter
+    contribute to the report.  Implies ``use_tshark=True``.  Note
+    that the F5 ethernet trailer peer-tuple (used for ``:np`` capture
+    pairing) is only populated by the built-in walker, so a filtered
+    tshark-only run loses front/back session pairing.
     """
-    flows = extract_flows(pcap_path)
     used_tshark = False
-    if use_tshark and tshark_available():
-        used_tshark = enrich_with_tshark(flows, pcap_path, keylog_path=keylog_path)
+    if tshark_filter:
+        # Filter requested → tshark is the canonical flow source.
+        flows = extract_flows_via_tshark(
+            pcap_path, keylog_path=keylog_path, tshark_filter=tshark_filter
+        )
+        used_tshark = bool(flows) or tshark_available()
+    else:
+        flows = extract_flows(pcap_path)
+        if use_tshark and tshark_available():
+            used_tshark = enrich_with_tshark(flows, pcap_path, keylog_path=keylog_path)
 
     sessions = pair_sessions(flows)
     session_explains: list[SessionExplain] = []
@@ -1877,8 +2054,8 @@ def compute_explain_pcap(
             )
         )
 
-    text = _format_report(pcap_path, session_explains, used_tshark, keylog_path)
-    return ExplainPcapReport(
+    text = _format_report(pcap_path, session_explains, used_tshark, keylog_path, tshark_filter)
+    return ExplainFlowReport(
         pcap_path=str(pcap_path),
         flow_count=len(flows),
         session_count=len(sessions),
@@ -1887,6 +2064,7 @@ def compute_explain_pcap(
         text_report=text,
         used_tshark=used_tshark,
         keylog_path=keylog_path,
+        tshark_filter=tshark_filter,
     )
 
 
@@ -1957,14 +2135,16 @@ def _format_report(
     sessions: list[SessionExplain],
     used_tshark: bool,
     keylog_path: str,
+    tshark_filter: str = "",
 ) -> str:
     lines: list[str] = []
-    lines.append(f"explain-pcap: {pcap_path}")
+    lines.append(f"explain-flow: {pcap_path}")
     lines.append(
         f"  sessions: {len(sessions)} | "
         f"matched: {sum(1 for s in sessions if s.matched_vs)} | "
         f"tshark: {'yes' if used_tshark else 'no'}"
         f"{f' | keylog: {keylog_path}' if keylog_path else ''}"
+        f"{f' | filter: {tshark_filter!r}' if tshark_filter else ''}"
     )
     lines.append("")
     for i, se in enumerate(sessions, 1):
@@ -2084,7 +2264,7 @@ def _format_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def report_to_dict(report: ExplainPcapReport) -> dict:
+def report_to_dict(report: ExplainFlowReport) -> dict:
     return {
         "pcap_path": report.pcap_path,
         "flow_count": report.flow_count,
@@ -2092,6 +2272,7 @@ def report_to_dict(report: ExplainPcapReport) -> dict:
         "matched_count": report.matched_count,
         "used_tshark": report.used_tshark,
         "keylog_path": report.keylog_path,
+        "tshark_filter": report.tshark_filter,
         "sessions": [
             {
                 "session": {
@@ -2132,3 +2313,235 @@ def report_to_dict(report: ExplainPcapReport) -> dict:
             for se in report.sessions
         ],
     }
+
+
+def _profile_categories(profile_chain: tuple[str, ...]) -> list[str]:
+    """Return just the profile *types* (TCP, HTTP, …) in attach order.
+
+    Drops the per-profile path so an LLM sees the categories that
+    actually matter for behaviour explanation rather than the full
+    inventory of named profile objects.  Each entry looks like
+    ``"http (lab_http)"`` — type first, name in parens.
+    """
+    out: list[str] = []
+    for entry in profile_chain:
+        # entry is like "/Common/lab_http (http)" — flip to "http (lab_http)".
+        if "(" in entry and entry.endswith(")"):
+            head, _, tail = entry.partition(" (")
+            kind = tail.rstrip(")")
+            name = head.rsplit("/", 1)[-1]
+            out.append(f"{kind} ({name})")
+        else:
+            out.append(entry)
+    return out
+
+
+def _compact_session_summary(se: SessionExplain) -> str:
+    """Build a one-line operator-style narrative of the matched session.
+
+    Aimed at an LLM that needs the gist before it dives into details:
+    who → who, via which VS, what the iRule did, what reset (if any).
+    """
+    s = se.session
+    fc = s.front.client
+    parts = [f"{fc.src_ip}:{fc.src_port} → {se.matched_vs or '(no VS)'}"]
+    if fc.tls_sni:
+        parts.append(f"SNI={fc.tls_sni}")
+    if fc.http_method or fc.http_uri:
+        parts.append(
+            f"{fc.http_method or '?'} "
+            f"{fc.http_host + fc.http_uri if fc.http_host and fc.http_uri.startswith('/') else fc.http_uri}"
+        )
+    fs = s.front.server
+    if fs is not None and fs.http_response_code:
+        parts.append(f"→ {fs.http_response_code}")
+    if se.pool_selected:
+        parts.append(f"pool→ {se.pool_selected}")
+    if se.snat_observed:
+        parts.append(f"snat→ {se.snat_observed}")
+    if se.simulated_response_committed:
+        parts.append("iRule HTTP::respond")
+    if se.simulated_pool and se.simulated_pool != se.pool_selected:
+        parts.append(f"iRule pool→ {se.simulated_pool}")
+    if s.reset_side():
+        parts.append(f"RST({s.reset_side()})")
+    return " | ".join(parts)
+
+
+def _compact_session(se: SessionExplain, *, max_event_body_lines: int = 8) -> dict:
+    """Compact, LLM-friendly payload for one session.
+
+    Drops:
+    * full per-flow dicts (preserved fields are the high-signal ones —
+      5-tuple, observed L7 features, RST counts, F5 reset cause);
+    * profile chain in full path form (kept as ``type (name)`` only);
+    * GTM wide-IP inventory (it's a global config view, not per-session
+      — emit at the report level only);
+    * empty/blank fields are omitted entirely so the LLM doesn't waste
+      tokens on noise.
+    """
+    s = se.session
+    fc = s.front.client
+    fs = s.front.server
+    bc = s.back.client if s.back else None
+
+    captured_request: dict = {}
+    if fc.http_method:
+        captured_request["method"] = fc.http_method
+    if fc.http_host:
+        captured_request["host"] = fc.http_host
+    if fc.http_uri:
+        captured_request["uri"] = fc.http_uri
+    if fc.http_user_agent:
+        captured_request["user_agent"] = fc.http_user_agent
+    if fc.tls_sni:
+        captured_request["tls_sni"] = fc.tls_sni
+    if fc.tls_chosen_version or fc.tls_version:
+        captured_request["tls_version"] = fc.tls_chosen_version or fc.tls_version
+    if fc.tls_chosen_cipher:
+        captured_request["tls_cipher"] = fc.tls_chosen_cipher
+    if fc.tls_alpn:
+        captured_request["tls_alpn"] = fc.tls_alpn
+
+    captured_response: dict = {}
+    if fs is not None:
+        if fs.http_response_code:
+            captured_response["status"] = fs.http_response_code
+        if fs.http_response_phrase:
+            captured_response["phrase"] = fs.http_response_phrase
+        if fs.tls_alert_desc:
+            captured_response["tls_alert"] = fs.tls_alert_desc
+
+    flow_5tuple: dict = {
+        "client": f"{fc.src_ip}:{fc.src_port}",
+        "vip": f"{fc.dst_ip}:{fc.dst_port}",
+        "proto": fc.proto_name,
+    }
+    if bc is not None:
+        flow_5tuple["pool_member"] = f"{bc.dst_ip}:{bc.dst_port}"
+        if bc.src_ip != fc.src_ip:
+            flow_5tuple["snat"] = f"{bc.src_ip}:{bc.src_port}"
+
+    # iRule decisions: just (event, command, value), de-duplicated and
+    # truncated.  The full source line is dropped — the LLM has the
+    # event body (truncated below) for context already.
+    decisions: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+    for _rule, event, anns in se.event_annotations:
+        for _line, cmd, value in anns:
+            sig = (event, cmd, value)
+            if sig in seen:
+                continue
+            seen.add(sig)
+            decisions.append({"event": event, "command": cmd, "value": value})
+
+    # iRule event bodies trimmed hard for LLM context — the full
+    # bodies are available via the verbose report_to_dict if the
+    # caller really needs them.
+    bodies: list[dict] = []
+    for rule, event, body in se.event_blocks:
+        body_lines = body.splitlines()
+        if len(body_lines) > max_event_body_lines:
+            body = "\n".join(body_lines[:max_event_body_lines]) + "\n... (truncated)"
+        bodies.append(
+            {
+                "rule": rule.rsplit("/", 1)[-1],  # short name
+                "event": event,
+                "body": body,
+            }
+        )
+
+    out: dict = {
+        "summary": _compact_session_summary(se),
+        "matched_vs": se.matched_vs or None,
+        "flow": flow_5tuple,
+    }
+    if captured_request:
+        out["captured_request"] = captured_request
+    if captured_response:
+        out["captured_response"] = captured_response
+    profiles = _profile_categories(se.profile_chain)
+    if profiles:
+        out["profiles"] = profiles
+    if se.ltm_policies:
+        out["ltm_policies"] = list(se.ltm_policies)
+    if se.apm_profile:
+        out["apm_profile"] = se.apm_profile
+    if se.event_sequence:
+        # Strip the rule path prefix so the LLM sees just event names
+        # in firing order; rule attribution is still in `decisions`.
+        out["events_fired"] = [s.split("::")[-1] for s in se.event_sequence]
+    if decisions:
+        out["irule_decisions"] = decisions
+    if bodies:
+        out["irule_bodies"] = bodies
+    if se.reset_analysis and se.reset_analysis != "no termination observed in capture":
+        out["termination"] = se.reset_analysis
+    if se.simulated_pool or se.simulated_response_committed or se.simulation_error:
+        sim: dict = {}
+        if se.simulated_pool:
+            sim["pool"] = se.simulated_pool
+        if se.simulated_node:
+            sim["node"] = se.simulated_node
+        if se.simulated_response_committed:
+            sim["response_committed"] = True
+        if se.simulated_decisions:
+            sim["decisions"] = [
+                {"category": c, "action": a, "value": v} for c, a, v in se.simulated_decisions
+            ]
+        if se.simulation_error:
+            sim["error"] = se.simulation_error
+        out["simulated"] = sim
+    return out
+
+
+def report_to_mcp_dict(report: ExplainFlowReport, *, max_event_body_lines: int = 8) -> dict:
+    """Compact, LLM-friendly version of :func:`report_to_dict`.
+
+    Aggressively prunes context-bloat so an LLM consuming the
+    ``explain_flow`` MCP tool sees high-signal fields only:
+
+    * one-line ``summary`` per session;
+    * 5-tuple as a ``"ip:port"`` string instead of a 30-key Flow dict;
+    * profiles listed as ``type (short_name)`` rather than full paths;
+    * ``irule_decisions`` is the de-duped list of every captured
+      ``[CMD] = value`` annotation across events — the actual
+      branching state the iRule looked at;
+    * iRule event bodies truncated to *max_event_body_lines* (default 8);
+    * empty / blank fields omitted entirely;
+    * GTM wide-IP inventory and the static ``explain_text`` block
+      from `f5 explain virtual` are emitted *once* at the top level
+      rather than per session;
+    * full pcap + per-flow data is still reachable via
+      :func:`report_to_dict` for callers who want everything.
+
+    The verbose ``report_to_dict`` shape stays available unchanged
+    for non-LLM consumers (CLI ``--json``, programmatic tests).
+    """
+    sessions = [
+        _compact_session(se, max_event_body_lines=max_event_body_lines) for se in report.sessions
+    ]
+
+    # GTM wide-IP inventory: dedupe across sessions and emit once.
+    gtm: list[str] = []
+    seen_gtm: set[str] = set()
+    for se in report.sessions:
+        for w in se.gtm_wide_ips:
+            if w not in seen_gtm:
+                seen_gtm.add(w)
+                gtm.append(w)
+
+    out: dict = {
+        "pcap": report.pcap_path,
+        "matched": report.matched_count,
+        "sessions_total": report.session_count,
+        "tshark": report.used_tshark,
+        "sessions": sessions,
+    }
+    if report.keylog_path:
+        out["keylog"] = report.keylog_path
+    if report.tshark_filter:
+        out["tshark_filter"] = report.tshark_filter
+    if gtm:
+        out["gtm_wide_ips_in_config"] = gtm
+    return out

@@ -1,4 +1,4 @@
-"""Tests for ``f5 explain-pcap`` and the underlying flow tracer."""
+"""Tests for ``f5 explain-flow`` and the underlying flow tracer."""
 
 from __future__ import annotations
 
@@ -9,13 +9,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.explain_pcap import (
+from core.bigip.explain_flow import (
     _extract_event_blocks,
     _extract_peer_tuple_from_trailer,
     _parse_destination,
-    compute_explain_pcap,
+    compute_explain_flow,
     extract_flows,
     pair_sessions,
+    report_to_mcp_dict,
 )
 from core.bigip.parser import parse_bigip_conf
 from explorer.f5_cli import main
@@ -189,7 +190,7 @@ when SERVER_CONNECTED {
 """
 
 
-def test_compute_explain_pcap_matches_vs_and_orders_events(tmp_path):
+def test_compute_explain_flow_matches_vs_and_orders_events(tmp_path):
     conf_path = tmp_path / "bigip.conf"
     conf_path.write_text(_CONF)
     cfg = parse_bigip_conf(_CONF)
@@ -200,7 +201,7 @@ def test_compute_explain_pcap_matches_vs_and_orders_events(tmp_path):
     p = tmp_path / "in.pcap"
     p.write_bytes(pcap)
 
-    report = compute_explain_pcap(p, {"u://x": cfg})
+    report = compute_explain_flow(p, {"u://x": cfg})
     assert report.flow_count == 1
     assert report.matched_count == 1
     se = report.sessions[0]
@@ -215,7 +216,7 @@ def test_compute_explain_pcap_matches_vs_and_orders_events(tmp_path):
     assert any("X-Forwarded-For" in body for _, _, body in se.event_blocks)
 
 
-def test_explain_pcap_cli_text(tmp_path, capsys):
+def test_explain_flow_cli_text(tmp_path, capsys):
     conf_path = tmp_path / "bigip.conf"
     conf_path.write_text(_CONF)
     pcap = _build_pcap(
@@ -224,7 +225,7 @@ def test_explain_pcap_cli_text(tmp_path, capsys):
     pcap_path = tmp_path / "in.pcap"
     pcap_path.write_bytes(pcap)
 
-    code = main(["explain-pcap", str(pcap_path), str(conf_path)])
+    code = main(["explain-flow", str(pcap_path), str(conf_path)])
     out = capsys.readouterr().out
     assert code == 0
     assert "/Common/vs_app" in out
@@ -232,7 +233,7 @@ def test_explain_pcap_cli_text(tmp_path, capsys):
     assert "HTTP_REQUEST" in out
 
 
-def test_explain_pcap_cli_no_match_returns_1(tmp_path, capsys):
+def test_explain_flow_cli_no_match_returns_1(tmp_path, capsys):
     conf_path = tmp_path / "bigip.conf"
     conf_path.write_text(_CONF)
     # Destination 9.9.9.9 has no matching VS in the config.
@@ -242,13 +243,13 @@ def test_explain_pcap_cli_no_match_returns_1(tmp_path, capsys):
     pcap_path = tmp_path / "in.pcap"
     pcap_path.write_bytes(pcap)
 
-    code = main(["explain-pcap", str(pcap_path), str(conf_path)])
+    code = main(["explain-flow", str(pcap_path), str(conf_path)])
     assert code == 1
     out = capsys.readouterr().out
     assert "no virtual server matched" in out
 
 
-def test_explain_pcap_cli_json(tmp_path, capsys):
+def test_explain_flow_cli_json(tmp_path, capsys):
     import json as _json
 
     conf_path = tmp_path / "bigip.conf"
@@ -259,7 +260,7 @@ def test_explain_pcap_cli_json(tmp_path, capsys):
     pcap_path = tmp_path / "in.pcap"
     pcap_path.write_bytes(pcap)
 
-    code = main(["explain-pcap", "--json", str(pcap_path), str(conf_path)])
+    code = main(["explain-flow", "--json", str(pcap_path), str(conf_path)])
     out = capsys.readouterr().out
     assert code == 0
     data = _json.loads(out)
@@ -365,7 +366,7 @@ when CLIENT_ACCEPTED { log local0. "ok" }
 """
 
 
-def test_explain_pcap_session_includes_pool_and_snat(tmp_path):
+def test_explain_flow_session_includes_pool_and_snat(tmp_path):
     """`:np` capture should surface the chosen pool member and SNAT IP."""
     cfg = parse_bigip_conf(_CONF_NP)
     front_trailer = _legacy_high_trailer(b"\x0a\x00\x00\x0a", b"\x0a\x00\x00\x05", 8080, 22222)
@@ -392,7 +393,7 @@ def test_explain_pcap_session_includes_pool_and_snat(tmp_path):
     )
     p = tmp_path / "in.pcap"
     p.write_bytes(pcap)
-    report = compute_explain_pcap(p, {"u://x": cfg})
+    report = compute_explain_flow(p, {"u://x": cfg})
     assert report.matched_count == 1
     se = report.sessions[0]
     assert se.matched_vs == "/Common/vs_app"
@@ -410,7 +411,7 @@ def test_reset_analysis_describes_termination(tmp_path):
     )
     p = tmp_path / "in.pcap"
     p.write_bytes(pcap)
-    report = compute_explain_pcap(p, {"u://x": cfg})
+    report = compute_explain_flow(p, {"u://x": cfg})
     se = report.sessions[0]
     assert "RST" in se.reset_analysis
 
@@ -439,7 +440,7 @@ def test_ltm_policies_only_lists_attached(tmp_path):
     )
     p = tmp_path / "in.pcap"
     p.write_bytes(pcap)
-    report = compute_explain_pcap(p, {"u://x": cfg})
+    report = compute_explain_flow(p, {"u://x": cfg})
     se = report.sessions[0]
     assert se.matched_vs == "/Common/vs_with_policy"
     # Only the attached policy is listed; the unrelated one is not.
@@ -507,7 +508,7 @@ def test_hud_annotations_capture_host_value(tmp_path):
     )
     p = tmp_path / "in.pcap"
     p.write_bytes(pcap)
-    report = compute_explain_pcap(p, {"u://x": cfg})
+    report = compute_explain_flow(p, {"u://x": cfg})
     assert report.matched_count == 1
     se = report.sessions[0]
     assert se.matched_vs == "/Common/vs_block"
@@ -590,7 +591,7 @@ def test_hud_annotations_capture_sni_for_route_decision(tmp_path):
     )
     p = tmp_path / "in.pcap"
     p.write_bytes(pcap)
-    report = compute_explain_pcap(p, {"u://x": cfg})
+    report = compute_explain_flow(p, {"u://x": cfg})
     assert report.matched_count == 1
     se = report.sessions[0]
     assert se.matched_vs == "/Common/vs_sni"
@@ -607,3 +608,50 @@ def test_hud_annotations_capture_sni_for_route_decision(tmp_path):
     # Either SSL::extensions or SNI tokens should resolve to the SNI value.
     assert any("api.example.com" in v for _c, v in annotated), annotated
     assert any(c.startswith("SSL::") or c == "SNI" for c in cmds), cmds
+
+
+# ---------------------------------------------------------------------------
+# MCP-compact report shape.
+# ---------------------------------------------------------------------------
+
+
+def test_report_to_mcp_dict_drops_noise(tmp_path):
+    """The MCP shape pre-narrates per session and omits empty fields."""
+    cfg = parse_bigip_conf(_CONF_BLOCK_RULE)
+    payload = _build_http_request_payload("GET", "/", "blocked.example.com", "curl/8.0")
+    pcap = _build_pcap(
+        [
+            _build_packet(
+                b"\x01\x02\x03\x04",
+                b"\x05\x06\x07\x08",
+                12345,
+                80,
+                syn=False,
+                payload=payload,
+            )
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+    report = compute_explain_flow(p, {"u://x": cfg})
+    compact = report_to_mcp_dict(report, max_event_body_lines=4)
+
+    assert compact["matched"] == 1
+    sess = compact["sessions"][0]
+    # Compact shape: short summary, flow as ip:port strings, decisions
+    # de-duped, no full per-flow Flow dicts visible.
+    assert "summary" in sess
+    assert "blocked.example.com" in sess["summary"]
+    assert sess["flow"]["client"] == "1.2.3.4:12345"
+    assert sess["flow"]["vip"] == "5.6.7.8:80"
+    assert any(
+        d.get("command") == "HTTP::host" and d.get("value") == "blocked.example.com"
+        for d in sess.get("irule_decisions", [])
+    )
+    # Empty-noise fields should be absent.
+    assert "explain_text" not in sess
+    assert "captured_response" not in sess  # response side wasn't captured
+    # Body truncated to <= max_event_body_lines + the truncated marker.
+    for body in sess.get("irule_bodies", []):
+        line_count = body["body"].count("\n") + 1
+        assert line_count <= 5  # 4 lines + truncation marker

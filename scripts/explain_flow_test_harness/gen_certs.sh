@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gen_certs.sh — produce the TLS material the explain-pcap test lab needs.
+# gen_certs.sh — produce the TLS material the explain-flow test lab needs.
 #
 # Generates a private CA and a small zoo of leaf certificates designed to
 # cover the cases the lab SCF references:
@@ -69,7 +69,7 @@ if [[ ! -f lab_ca.crt ]]; then
     echo "→ generating lab CA"
     "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_ca.key
     "$OPENSSL" req -x509 -new -key lab_ca.key -days 3650 \
-        -subj "/CN=explain-pcap lab CA" \
+        -subj "/CN=explain-flow lab CA" \
         -out lab_ca.crt
 fi
 
