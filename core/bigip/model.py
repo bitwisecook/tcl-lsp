@@ -166,6 +166,67 @@ class BigipVirtualServer:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipPolicyCondition:
+    """A single ``conditions { N { … } }`` entry inside a policy rule.
+
+    Operand / selector / operator are bare positional flag tokens in
+    the source (``http-host host equals``); we classify them by
+    membership in a finite vocabulary at parse time.  ``name`` is the
+    targeted header / extension for ``http-header`` / ``ssl-extension``
+    operands, where the source carries it as ``name <value>``.
+    """
+
+    index: int
+    operand: str = ""  # http-host, http-uri, http-method, http-header, ssl-extension, tcp
+    selector: str = ""  # operand-specific (host, path, query, all, address, …)
+    operator: str = "equals"
+    values: tuple[str, ...] = ()
+    name: str = ""  # http-header / ssl-extension target name
+    negate: bool = False
+    case_insensitive: bool = False
+    event: str = ""  # request, response, ssl-client-hello, …
+
+
+@dataclass(frozen=True, slots=True)
+class BigipPolicyAction:
+    """A single ``actions { N { … } }`` entry inside a policy rule."""
+
+    index: int
+    target: str = ""  # forward, http-reply, http-uri, http-header, http-cookie, tcp, log
+    verb: str = ""  # select, redirect, replace, insert, remove, reset, drop
+    pool: str = ""
+    location: str = ""
+    name: str = ""  # http-header / cookie target name
+    value: str = ""
+    path: str = ""  # http-uri replace path / query
+    query: str = ""
+    event: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class BigipPolicyRule:
+    """A named rule inside a policy: ordered conditions + actions."""
+
+    name: str
+    ordinal: int = 0
+    conditions: tuple[BigipPolicyCondition, ...] = ()
+    actions: tuple[BigipPolicyAction, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class BigipPolicy:
+    """A ``ltm policy`` object."""
+
+    name: str
+    full_path: str
+    strategy: str = "first-match"  # first-match | all-match | best-match
+    requires: tuple[str, ...] = ()
+    controls: tuple[str, ...] = ()
+    rules: tuple[BigipPolicyRule, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BigipGenericObject:
     """A generic BIG-IP stanza retained when no specialised model exists."""
 
@@ -192,6 +253,7 @@ class BigipConfig:
     snat_pools: dict[str, BigipSnatPool] = field(default_factory=dict)
     persistence: dict[str, BigipPersistence] = field(default_factory=dict)
     rules: dict[str, BigipRule] = field(default_factory=dict)
+    policies: dict[str, BigipPolicy] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

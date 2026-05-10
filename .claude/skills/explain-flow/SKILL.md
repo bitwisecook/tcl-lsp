@@ -106,6 +106,22 @@ Each session is the high-signal subset — empty fields are omitted:
   "captured_response": { "status": "200" },
   "profiles": ["tcp (lab_tcp)", "client_ssl (lab_clientssl_valid)", "http (lab_http)"],
   "ltm_policies": ["/partition/lab_policy_rewrite"],
+  "policy_decisions": [
+    { "policy": "/partition/lab_policy_rewrite", "strategy": "first-match",
+      "fired": [
+        { "rule": "api_route", "ordinal": 1,
+          "matched_on": [
+            { "field": "http-host.host", "operator": "equals",
+              "expected": ["api.example.com"], "actual": "api.example.com" },
+            { "field": "http-uri.path", "operator": "starts-with",
+              "expected": ["/v1/"], "actual": "/v1/health" }
+          ],
+          "actions": [
+            { "target": "forward", "verb": "select",
+              "value": "/partition/lab_pool_api" }
+          ] }
+      ] }
+  ],
   "events_fired": ["RULE_INIT", "CLIENT_ACCEPTED", "CLIENTSSL_CLIENTHELLO",
                     "HTTP_REQUEST", "LB_SELECTED", "SERVER_CONNECTED"],
   "irule_decisions": [
@@ -144,6 +160,18 @@ The fields are designed so you can build the narrative directly:
 5. **`irule_bodies`** — only consult these when you need to quote
    Tcl.  They're already truncated; don't ask for
    `max_event_body_lines>20` unless absolutely needed.
+5a. **`policy_decisions`** — answers "which LTM policy rule fired and
+   what did it do?".  Each entry shows the rule name, the conditions
+   that matched (with the actual captured value beside the expected
+   one), and the action(s) it produced.  Only **fired** rules are
+   listed in the compact shape; an empty `fired` array means the
+   policy was evaluated but nothing matched (or only an unconditional
+   default exists and didn't run because of strategy).  Limited to
+   the medium-scope operand set (host / uri / method / header / SNI /
+   tcp address) and action set (forward / redirect / replace /
+   header insert+remove / reset).  For the full per-rule trace
+   including non-matched conditions, fall back to the verbose
+   `report_to_dict`.
 6. **`flow.pool_member` + `flow.snat`** — observed values.  If
    `simulated.pool` differs from `flow.pool_member`, mention it
    ("the iRule would route to X, but the captured back-side went to
@@ -184,11 +212,20 @@ The fields are designed so you can build the narrative directly:
 - Path-through-iRule analysis is *static* unless `simulate=true`: the
   skill surfaces the relevant `when` block bodies; it does not follow
   `if`/`switch` branches based on payload bytes by itself.
-- LTM policy bodies / GTM probe results / APM session state aren't
-  retained in the parsed config (only headers).
-  `gtm_wide_ips_in_config` is therefore a *global* inventory at the
-  report level, not a per-session list — annotate accordingly when
-  citing it.
+- GTM probe results / APM session state aren't retained in the parsed
+  config (only headers).  `gtm_wide_ips_in_config` is therefore a
+  *global* inventory at the report level, not a per-session list —
+  annotate accordingly when citing it.
+- LTM policy evaluation covers a medium operand surface only:
+  `http-host`, `http-uri` (host/path/query), `http-method`,
+  `http-header` (with named target), `ssl-extension server-name`
+  (SNI), and `tcp address`.  Actions covered: `forward select`,
+  `http-reply redirect`, `http-uri replace`, `http-header
+  insert/remove`, `tcp reset`.  Operands outside this set (cookie,
+  geoip, ssl-cert, rate-limit) parse but evaluate as no-match with a
+  `note` explaining why.  `best-match` strategy is approximated as
+  "rule with the most conditions wins" — F5's true algorithm weights
+  operand specificity which we don't reproduce.
 
 ## When to use the verbose `report_to_dict` shape instead
 

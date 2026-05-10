@@ -268,6 +268,210 @@ def test_explain_flow_cli_json(tmp_path, capsys):
     assert data["sessions"][0]["matched_vs"] == "/Common/vs_app"
 
 
+_CONF_WITH_POLICY = """\
+ltm virtual /Common/vs_policy {
+    destination /Common/5.6.7.8:80
+    pool /Common/pool_default
+    profiles {
+        /Common/tcp { }
+        /Common/http { }
+    }
+    policies {
+        /Common/policy_api_routing
+    }
+}
+ltm pool /Common/pool_default {
+    members {
+        /Common/10.0.0.1:80 { }
+    }
+}
+ltm pool /Common/pool_api {
+    members {
+        /Common/10.0.0.20:8080 { }
+    }
+}
+ltm profile tcp /Common/tcp { }
+ltm profile http /Common/http { }
+ltm policy /Common/policy_api_routing {
+    requires { http }
+    controls { forwarding }
+    rules {
+        api_route {
+            ordinal 1
+            conditions {
+                0 {
+                    http-host
+                    host
+                    equals
+                    values { api.example.com }
+                    request
+                }
+                1 {
+                    http-uri
+                    path
+                    starts-with
+                    values { /v1/ }
+                    request
+                }
+            }
+            actions {
+                0 {
+                    forward
+                    select
+                    pool /Common/pool_api
+                }
+            }
+        }
+        default_redirect {
+            ordinal 99
+            actions {
+                0 {
+                    http-reply
+                    redirect
+                    location "https://www.example.com/"
+                }
+            }
+        }
+    }
+    strategy first-match
+}
+"""
+
+
+def _http_get_packet(
+    src: bytes,
+    dst: bytes,
+    sp: int,
+    dp: int,
+    *,
+    host: str,
+    path: str,
+) -> bytes:
+    payload = (
+        f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: tester\r\n\r\n".encode()
+    )
+    return _build_packet(src, dst, sp, dp, syn=False, payload=payload)
+
+
+def test_explain_flow_evaluates_policy_when_request_matches(tmp_path):
+    """Policy whose conditions match the captured request should fire its action."""
+    cfg = parse_bigip_conf(_CONF_WITH_POLICY)
+    pcap = _build_pcap(
+        [
+            _build_packet(b"\xcb\x00\x71\x07", b"\x05\x06\x07\x08", 51422, 80, syn=True),
+            _http_get_packet(
+                b"\xcb\x00\x71\x07",
+                b"\x05\x06\x07\x08",
+                51422,
+                80,
+                host="api.example.com",
+                path="/v1/health",
+            ),
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+
+    report = compute_explain_flow(p, {"u://x": cfg})
+    assert report.matched_count == 1
+    se = report.sessions[0]
+    assert se.matched_vs == "/Common/vs_policy"
+    assert se.ltm_policies == ("/Common/policy_api_routing",)
+    assert len(se.policy_decisions) == 1
+    pd = se.policy_decisions[0]
+    assert pd.policy == "/Common/policy_api_routing"
+    fired = [r for r in pd.rules if r.fired]
+    assert [r.rule for r in fired] == ["api_route"]
+    assert fired[0].actions[0].target == "forward"
+    assert fired[0].actions[0].value == "/Common/pool_api"
+
+
+def test_explain_flow_falls_through_to_default_when_request_misses(tmp_path):
+    """Policy whose specific rule misses should fall through to the unconditional default."""
+    cfg = parse_bigip_conf(_CONF_WITH_POLICY)
+    pcap = _build_pcap(
+        [
+            _build_packet(b"\xcb\x00\x71\x07", b"\x05\x06\x07\x08", 51423, 80, syn=True),
+            _http_get_packet(
+                b"\xcb\x00\x71\x07",
+                b"\x05\x06\x07\x08",
+                51423,
+                80,
+                host="other.example.com",
+                path="/v1/health",
+            ),
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+
+    report = compute_explain_flow(p, {"u://x": cfg})
+    se = report.sessions[0]
+    pd = se.policy_decisions[0]
+    fired = [r for r in pd.rules if r.fired]
+    assert [r.rule for r in fired] == ["default_redirect"]
+    assert fired[0].actions[0].target == "http-reply"
+    assert fired[0].actions[0].value == "https://www.example.com/"
+
+
+def test_explain_flow_policy_decisions_in_mcp_dict(tmp_path):
+    cfg = parse_bigip_conf(_CONF_WITH_POLICY)
+    pcap = _build_pcap(
+        [
+            _build_packet(b"\xcb\x00\x71\x07", b"\x05\x06\x07\x08", 51424, 80, syn=True),
+            _http_get_packet(
+                b"\xcb\x00\x71\x07",
+                b"\x05\x06\x07\x08",
+                51424,
+                80,
+                host="api.example.com",
+                path="/v1/health",
+            ),
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+
+    report = compute_explain_flow(p, {"u://x": cfg})
+    mcp = report_to_mcp_dict(report)
+    session = mcp["sessions"][0]
+    assert "policy_decisions" in session
+    pd = session["policy_decisions"][0]
+    assert pd["policy"] == "/Common/policy_api_routing"
+    assert pd["strategy"] == "first-match"
+    assert len(pd["fired"]) == 1
+    fired = pd["fired"][0]
+    assert fired["rule"] == "api_route"
+    assert fired["actions"][0]["value"] == "/Common/pool_api"
+    assert any(c["field"] == "http-host.host" for c in fired["matched_on"])
+
+
+def test_explain_flow_policy_decisions_text_report_mentions_decision(tmp_path):
+    cfg = parse_bigip_conf(_CONF_WITH_POLICY)
+    pcap = _build_pcap(
+        [
+            _build_packet(b"\xcb\x00\x71\x07", b"\x05\x06\x07\x08", 51425, 80, syn=True),
+            _http_get_packet(
+                b"\xcb\x00\x71\x07",
+                b"\x05\x06\x07\x08",
+                51425,
+                80,
+                host="api.example.com",
+                path="/v1/health",
+            ),
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+
+    report = compute_explain_flow(p, {"u://x": cfg})
+    text = report.text_report
+    assert "ltm policy decisions" in text
+    assert "/Common/policy_api_routing" in text
+    assert "api_route" in text and "FIRED" in text
+    assert "/Common/pool_api" in text
+
+
 def test_extract_peer_tuple_from_trailer_legacy():
     """Legacy HIGH v0 trailer yields a peer 5-tuple."""
     trailer = _legacy_high_trailer(b"\x09\x09\x09\x09", b"\x0a\x0a\x0a\x0a", 12345, 8080)

@@ -57,6 +57,11 @@ from .pcap_remap import (
     _find_ip_offset,
     _ipv6_l4_locator,
 )
+from .policy_eval import (
+    PolicyDecision,
+    evaluate_policy,
+    request_state_from_session,
+)
 
 
 @dataclass(slots=True)
@@ -308,6 +313,10 @@ class SessionExplain:
     # Per event-block: (rule_path, event, [(line, command, captured_value), ...]).
     event_annotations: tuple[tuple[str, str, tuple[tuple[str, str, str], ...]], ...] = ()
     ltm_policies: tuple[str, ...] = ()
+    # Per-policy evaluation against the captured request state.  Empty
+    # when there are no policies attached, when the policy body wasn't
+    # parsed, or when the captured state was insufficient to evaluate.
+    policy_decisions: tuple[PolicyDecision, ...] = ()
     apm_profile: str = ""
     gtm_wide_ips: tuple[str, ...] = ()
     explain_text: str = ""
@@ -1634,6 +1643,31 @@ def _ltm_policies_for(cfg: BigipConfig, vs: BigipVirtualServer) -> list[str]:
     return out
 
 
+def _evaluate_attached_policies(
+    cfg: BigipConfig, attached_paths: list[str], session: Session
+) -> list[PolicyDecision]:
+    """Evaluate every parsed LTM policy attached to the matched VS.
+
+    Skips policies whose body wasn't parsed (e.g. attached by short
+    name we couldn't resolve, or a policy stanza absent from the
+    config slice we were handed).  The same evaluator runs under
+    static analysis and ``simulate=true`` — LTM policies are
+    declarative, so the captured state fully determines the outcome.
+    """
+    if not attached_paths:
+        return []
+    state = request_state_from_session(session)
+    out: list[PolicyDecision] = []
+    for path in attached_paths:
+        if path.endswith("(unresolved)"):
+            continue
+        policy = cfg.policies.get(path)
+        if policy is None:
+            continue
+        out.append(evaluate_policy(policy, state))
+    return out
+
+
 def _gtm_wide_ips_in_config(cfg: BigipConfig) -> list[str]:
     """Return every GTM wide-IP identifier in *cfg* (a global inventory).
 
@@ -2002,6 +2036,7 @@ def compute_explain_flow(
 
         vs_report = compute_explain(cfg_hit, vs.full_path, kind="virtual")
         ltm_policies = _ltm_policies_for(cfg_hit, vs)
+        policy_decisions = _evaluate_attached_policies(cfg_hit, ltm_policies, session)
         apm = _apm_profile_for(cfg_hit, vs)
         gtm = _gtm_wide_ips_in_config(cfg_hit)
 
@@ -2041,6 +2076,7 @@ def compute_explain_flow(
                 event_blocks=tuple(event_blocks),
                 event_annotations=tuple(event_annotations),
                 ltm_policies=tuple(ltm_policies),
+                policy_decisions=tuple(policy_decisions),
                 apm_profile=apm,
                 gtm_wide_ips=tuple(gtm),
                 explain_text=vs_report.text_report,
@@ -2172,6 +2208,32 @@ def _format_report(
             lines.append("  ltm policies:")
             for p in se.ltm_policies:
                 lines.append(f"    - {p}")
+        if se.policy_decisions:
+            lines.append("  ltm policy decisions:")
+            for pd in se.policy_decisions:
+                lines.append(f"    --- {pd.policy} (strategy: {pd.strategy}) ---")
+                for rd in pd.rules:
+                    state = "FIRED" if rd.fired else ("matched" if rd.matched else "no-match")
+                    lines.append(f"      rule {rd.rule!r} (ord {rd.ordinal}): {state}")
+                    for ct in rd.conditions:
+                        target = ct.operand
+                        if ct.name:
+                            target += f"[{ct.name}]"
+                        elif ct.selector:
+                            target += f".{ct.selector}"
+                        prefix = "      " + ("- " if ct.matched else "  ")
+                        if ct.note:
+                            lines.append(
+                                f"{prefix}{target} {ct.operator} {list(ct.expected)}"
+                                f" (skipped: {ct.note})"
+                            )
+                        else:
+                            lines.append(
+                                f"{prefix}{target} {ct.operator} {list(ct.expected)}"
+                                f" -> actual={ct.actual!r} match={ct.matched}"
+                            )
+                    for at in rd.actions:
+                        lines.append(f"        action: {at.target} {at.verb} {at.value}".rstrip())
         if se.apm_profile:
             lines.append(f"  apm: {se.apm_profile}")
         if se.gtm_wide_ips:
@@ -2297,6 +2359,7 @@ def report_to_dict(report: ExplainFlowReport) -> dict:
                     for r, e, anns in se.event_annotations
                 ],
                 "ltm_policies": list(se.ltm_policies),
+                "policy_decisions": [_policy_decision_to_dict(pd) for pd in se.policy_decisions],
                 "apm_profile": se.apm_profile,
                 "gtm_wide_ips": list(se.gtm_wide_ips),
                 "explain_text": se.explain_text,
@@ -2313,6 +2376,90 @@ def report_to_dict(report: ExplainFlowReport) -> dict:
             for se in report.sessions
         ],
     }
+
+
+def _policy_decision_to_dict(pd: PolicyDecision) -> dict:
+    """Verbose dict shape for ``report_to_dict`` — every condition / action."""
+    return {
+        "policy": pd.policy,
+        "strategy": pd.strategy,
+        "rules": [
+            {
+                "rule": rd.rule,
+                "ordinal": rd.ordinal,
+                "matched": rd.matched,
+                "fired": rd.fired,
+                "conditions": [
+                    {
+                        "operand": ct.operand,
+                        "selector": ct.selector,
+                        "operator": ct.operator,
+                        "expected": list(ct.expected),
+                        "actual": ct.actual,
+                        "matched": ct.matched,
+                        "name": ct.name,
+                        "negate": ct.negate,
+                        "event": ct.event,
+                        "note": ct.note,
+                    }
+                    for ct in rd.conditions
+                ],
+                "actions": [
+                    {"target": at.target, "verb": at.verb, "value": at.value}
+                    for at in rd.actions
+                ],
+            }
+            for rd in pd.rules
+        ],
+    }
+
+
+def _compact_policy_decision(pd: PolicyDecision) -> dict:
+    """Compact MCP shape — only fired rules with their action summaries.
+
+    The full per-rule trace is reachable via the verbose ``report_to_dict``
+    when needed; for LLM context we surface only the rule that won and
+    the action it produced — that's the answer to "what did the policy
+    do?".  If no rule fired, we still include the policy with an empty
+    ``fired`` list so the caller knows it was evaluated.
+    """
+    fired_entries: list[dict] = []
+    for rd in pd.rules:
+        if not rd.fired:
+            continue
+        entry: dict = {"rule": rd.rule, "ordinal": rd.ordinal}
+        # Compact condition trace: only matched conditions, just the
+        # operand/operator/value the LLM needs to retell the decision.
+        cond_trace: list[dict] = []
+        for ct in rd.conditions:
+            target = ct.operand
+            if ct.name:
+                target += f"[{ct.name}]"
+            elif ct.selector:
+                target += f".{ct.selector}"
+            cond_trace.append(
+                {
+                    "field": target,
+                    "operator": ct.operator,
+                    "expected": list(ct.expected),
+                    "actual": ct.actual,
+                }
+            )
+        if cond_trace:
+            entry["matched_on"] = cond_trace
+        if rd.actions:
+            entry["actions"] = [
+                {"target": at.target, "verb": at.verb, "value": at.value}
+                for at in rd.actions
+            ]
+        fired_entries.append(entry)
+    out: dict = {"policy": pd.policy, "strategy": pd.strategy}
+    if fired_entries:
+        out["fired"] = fired_entries
+    else:
+        # Surface the no-match case so the caller sees we did evaluate.
+        out["fired"] = []
+    return out
 
 
 def _profile_categories(profile_chain: tuple[str, ...]) -> list[str]:
@@ -2465,6 +2612,10 @@ def _compact_session(se: SessionExplain, *, max_event_body_lines: int = 8) -> di
         out["profiles"] = profiles
     if se.ltm_policies:
         out["ltm_policies"] = list(se.ltm_policies)
+    if se.policy_decisions:
+        out["policy_decisions"] = [
+            _compact_policy_decision(pd) for pd in se.policy_decisions
+        ]
     if se.apm_profile:
         out["apm_profile"] = se.apm_profile
     if se.event_sequence:

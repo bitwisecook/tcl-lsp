@@ -33,6 +33,10 @@ from .model import (
     BigipMonitor,
     BigipNode,
     BigipPersistence,
+    BigipPolicy,
+    BigipPolicyAction,
+    BigipPolicyCondition,
+    BigipPolicyRule,
     BigipPool,
     BigipPoolMember,
     BigipProfile,
@@ -605,6 +609,306 @@ def _parse_rule(full_path: str, body: str, source_map: DocumentBuffer, block: _B
     )
 
 
+# LTM policy parsing
+#
+# F5 LTM policies have an unusual grammar: condition / action bodies
+# carry positional bare-flag tokens (operand, selector, operator,
+# modifiers) interleaved with key/value properties (``name``, ``pool``,
+# ``location``) and a ``values { … }`` list block.  We classify each
+# bare token by membership in a finite vocabulary rather than parsing
+# positionally, since TMSH itself reorders bare tokens between save
+# generations.
+
+
+_POLICY_OPERANDS = frozenset(
+    {
+        "http-host",
+        "http-uri",
+        "http-method",
+        "http-version",
+        "http-status",
+        "http-header",
+        "http-cookie",
+        "http-referer",
+        "http-user-agent",
+        "tcp",
+        "ssl-extension",
+        "ssl-cert",
+        "geoip",
+        "client-accepted",
+    }
+)
+
+_POLICY_SELECTORS = frozenset(
+    {
+        "host",
+        "port",
+        "path",
+        "query",
+        "all",
+        "address",
+        "version",
+        "extension",
+        "method",
+        "scheme",
+    }
+)
+
+_POLICY_OPERATORS = frozenset(
+    {
+        "equals",
+        "starts-with",
+        "ends-with",
+        "contains",
+        "matches",
+        "exists",
+        "missing",
+        "less",
+        "greater",
+        "less-or-equal",
+        "greater-or-equal",
+    }
+)
+
+_POLICY_EVENTS = frozenset(
+    {
+        "request",
+        "response",
+        "client-accepted",
+        "server-connected",
+        "ssl-client-hello",
+        "ssl-server-hello",
+        "proxy-request",
+        "proxy-response",
+        "websocket-request",
+        "websocket-response",
+    }
+)
+
+_POLICY_ACTION_TARGETS = frozenset(
+    {
+        "forward",
+        "http-reply",
+        "http-uri",
+        "http-host",
+        "http-header",
+        "http-cookie",
+        "tcp",
+        "log",
+        "shutdown",
+    }
+)
+
+_POLICY_ACTION_VERBS = frozenset(
+    {
+        "select",
+        "redirect",
+        "replace",
+        "insert",
+        "remove",
+        "reset",
+        "drop",
+        "rewrite",
+        "enable",
+        "disable",
+    }
+)
+
+
+def _strip_outer_braces(text: str) -> str:
+    """Remove the surrounding ``{ … }`` from a sub-block value, if present."""
+    s = text.strip()
+    if s.startswith("{"):
+        s = s[1:]
+    if s.endswith("}"):
+        s = s[:-1]
+    return s
+
+
+def _strip_quotes(text: str) -> str:
+    s = text.strip()
+    if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+        return s[1:-1]
+    return s
+
+
+def _parse_policy_condition(index: int, body: str) -> BigipPolicyCondition:
+    """Parse a single ``conditions { N { … } }`` body."""
+    props = _parse_properties(body)
+    operand = ""
+    selector = ""
+    operator = "equals"
+    negate = False
+    case_insensitive = False
+    event = ""
+    name = ""
+    values: list[str] = []
+    for key, value in props.items():
+        if value:
+            if key == "values":
+                values = _parse_list_block(value)
+            elif key in ("name", "tm-name"):
+                name = _strip_quotes(value)
+            continue
+        # Bare flag token: classify by vocabulary.
+        if key in _POLICY_OPERANDS and not operand:
+            operand = key
+        elif key in _POLICY_SELECTORS and not selector:
+            selector = key
+        elif key in _POLICY_OPERATORS:
+            operator = key
+        elif key in _POLICY_EVENTS:
+            event = key
+        elif key == "not":
+            negate = True
+        elif key == "case-insensitive":
+            case_insensitive = True
+    return BigipPolicyCondition(
+        index=index,
+        operand=operand,
+        selector=selector,
+        operator=operator,
+        values=tuple(values),
+        name=name,
+        negate=negate,
+        case_insensitive=case_insensitive,
+        event=event,
+    )
+
+
+def _parse_policy_action(index: int, body: str) -> BigipPolicyAction:
+    """Parse a single ``actions { N { … } }`` body."""
+    props = _parse_properties(body)
+    target = ""
+    verb = ""
+    pool = ""
+    location = ""
+    name = ""
+    value = ""
+    path = ""
+    query = ""
+    event = ""
+    for key, val in props.items():
+        if val:
+            if key == "pool":
+                pool = val.strip()
+            elif key == "location":
+                location = _strip_quotes(val)
+            elif key in ("name", "tm-name"):
+                name = _strip_quotes(val)
+            elif key == "value":
+                value = _strip_quotes(val)
+            elif key == "path":
+                path = _strip_quotes(val)
+            elif key == "query":
+                query = _strip_quotes(val)
+            continue
+        if key in _POLICY_ACTION_TARGETS and not target:
+            target = key
+        elif key in _POLICY_ACTION_VERBS and not verb:
+            verb = key
+        elif key in _POLICY_EVENTS:
+            event = key
+    return BigipPolicyAction(
+        index=index,
+        target=target,
+        verb=verb,
+        pool=pool,
+        location=location,
+        name=name,
+        value=value,
+        path=path,
+        query=query,
+        event=event,
+    )
+
+
+def _parse_policy_rule(name: str, body: str) -> BigipPolicyRule:
+    props_with_spans = _parse_properties_with_spans(body)
+    props = {key: prop.value for key, prop in props_with_spans.items()}
+    try:
+        ordinal = int(props.get("ordinal", "0").strip())
+    except ValueError:
+        ordinal = 0
+
+    conditions: list[BigipPolicyCondition] = []
+    cond_block = props.get("conditions", "")
+    if cond_block:
+        for cond_idx_str, cond_prop in _parse_properties_with_spans(
+            _strip_outer_braces(cond_block)
+        ).items():
+            try:
+                idx = int(cond_idx_str)
+            except ValueError:
+                continue
+            conditions.append(
+                _parse_policy_condition(idx, _strip_outer_braces(cond_prop.value))
+            )
+
+    actions: list[BigipPolicyAction] = []
+    act_block = props.get("actions", "")
+    if act_block:
+        for act_idx_str, act_prop in _parse_properties_with_spans(
+            _strip_outer_braces(act_block)
+        ).items():
+            try:
+                idx = int(act_idx_str)
+            except ValueError:
+                continue
+            actions.append(_parse_policy_action(idx, _strip_outer_braces(act_prop.value)))
+
+    conditions.sort(key=lambda c: c.index)
+    actions.sort(key=lambda a: a.index)
+    return BigipPolicyRule(
+        name=name,
+        ordinal=ordinal,
+        conditions=tuple(conditions),
+        actions=tuple(actions),
+    )
+
+
+def _parse_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPolicy:
+    """Parse a ``ltm policy`` block."""
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    strategy = (props.get("strategy", "") or "first-match").strip()
+    # ``first-match`` is canonicalised — TMSH sometimes prepends the
+    # path of a published strategy (``/Common/first-match``).
+    strategy = strategy.rsplit("/", 1)[-1]
+
+    requires: list[str] = []
+    requires_block = props.get("requires", "")
+    if requires_block:
+        requires = _parse_list_block(requires_block)
+    controls: list[str] = []
+    controls_block = props.get("controls", "")
+    if controls_block:
+        controls = _parse_list_block(controls_block)
+
+    rules: list[BigipPolicyRule] = []
+    rules_block = props.get("rules", "")
+    if rules_block:
+        for rule_name, rule_prop in _parse_properties_with_spans(
+            _strip_outer_braces(rules_block)
+        ).items():
+            rules.append(
+                _parse_policy_rule(rule_name, _strip_outer_braces(rule_prop.value))
+            )
+    rules.sort(key=lambda r: (r.ordinal, r.name))
+
+    return BigipPolicy(
+        name=name,
+        full_path=full_path,
+        strategy=strategy,
+        requires=tuple(requires),
+        controls=tuple(controls),
+        rules=tuple(rules),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -666,6 +970,10 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             case "rule":
                 rule = _parse_rule(full_path, block.body, source_map, block)
                 config.rules[full_path] = rule
+            case "policy":
+                if module == "ltm":
+                    policy = _parse_policy(full_path, block.body, source_map, block)
+                    config.policies[full_path] = policy
             case _ if obj_type.startswith("profile "):
                 profile_type_str = obj_type.split(" ", 1)[1]
                 profile = _parse_profile(full_path, profile_type_str, source_map, block)
