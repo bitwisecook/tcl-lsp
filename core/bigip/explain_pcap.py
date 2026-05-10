@@ -96,9 +96,27 @@ class Flow:
     http_method: str = ""
     http_host: str = ""
     http_uri: str = ""
+    http_path: str = ""  # uri minus the query string
+    http_query: str = ""
+    http_request_version: str = ""  # "HTTP/1.1"
+    http_user_agent: str = ""
+    http_cookie: str = ""
+    http_referer: str = ""
+    http_request_content_type: str = ""
+    http_request_content_length: str = ""
+    http_request_headers: dict[str, str] = field(default_factory=dict)
     http_response_seen: bool = False
-    http_response_code: str = ""  # last response code observed (from tshark)
-    f5_reset_causes: list[str] = field(default_factory=list)  # decoded RST cause strings
+    http_response_code: str = ""
+    http_response_phrase: str = ""
+    http_response_content_type: str = ""
+    http_response_content_length: str = ""
+    http_response_headers: dict[str, str] = field(default_factory=dict)
+    f5_reset_causes: list[str] = field(default_factory=list)
+    # TLS handshake details (mostly tshark-sourced).
+    tls_cert_subject: str = ""
+    tls_cert_issuer: str = ""
+    tls_supported_groups: str = ""  # curves / groups
+    tls_signature_algos: str = ""
     # F5 trailer peer-side info (populated for `tcpdump -i <vlan>:np` captures
     # where each packet carries the proxied peer-side 5-tuple in the trailer).
     peer_remote_ip: str = ""
@@ -286,11 +304,22 @@ class SessionExplain:
     snat_observed: str = ""  # SNAT IP observed if back.client.src_ip != front.client.src_ip
     event_sequence: tuple[str, ...] = ()
     event_blocks: tuple[tuple[str, str, str], ...] = ()  # (rule_path, event, body)
+    # Per event-block: (rule_path, event, [(line, command, captured_value), ...]).
+    event_annotations: tuple[tuple[str, str, tuple[tuple[str, str, str], ...]], ...] = ()
     ltm_policies: tuple[str, ...] = ()
     apm_profile: str = ""
     gtm_wide_ips: tuple[str, ...] = ()
     explain_text: str = ""
     reset_analysis: str = ""  # human-readable narrative of why connection ended
+    # Outcome of running the iRule under the C-tcl test harness, when
+    # ``--simulate`` is passed.  Empty/blank if simulation was disabled
+    # or failed to start.
+    simulated_pool: str = ""
+    simulated_node: str = ""
+    simulated_response_committed: bool = False
+    simulated_logs: tuple[str, ...] = ()
+    simulated_decisions: tuple[tuple[str, str, str], ...] = ()
+    simulation_error: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,31 +471,71 @@ _HTTP_METHODS = (
 _HTTP_RESPONSE_PREFIX = b"HTTP/"
 
 
-def _peek_http(payload: bytes) -> tuple[str, str, str, bool]:
-    """Return ``(method, uri, host, is_response)`` from a request/response prefix."""
+def _split_http_headers(raw: bytes) -> dict[str, str]:
+    """Decode CRLF-separated HTTP headers into a lowercase-keyed dict."""
+    out: dict[str, str] = {}
+    for line in raw.split(b"\r\n"):
+        if not line or b":" not in line:
+            continue
+        name, _, value = line.partition(b":")
+        key = name.decode("ascii", errors="replace").strip().lower()
+        if not key:
+            continue
+        out[key] = value.decode("utf-8", errors="replace").strip()
+    return out
+
+
+def _peek_http(payload: bytes) -> dict:
+    """Return decoded HTTP request/response fields from a payload prefix.
+
+    The dict contains any of: ``is_response``, ``method``, ``uri``,
+    ``path``, ``query``, ``host``, ``version``, ``headers`` (lowercased
+    name → value), ``status``, ``phrase``.  Empty dict if the payload
+    doesn't look like an HTTP request line or status line.
+    """
     if not payload:
-        return "", "", "", False
+        return {}
     if payload.startswith(_HTTP_RESPONSE_PREFIX):
-        return "", "", "", True
+        try:
+            head = payload.split(b"\r\n\r\n", 1)[0]
+            first_line, _, rest = head.partition(b"\r\n")
+            parts = first_line.split(b" ", 2)
+            ver = parts[0].decode("ascii", errors="replace")
+            status = parts[1].decode("ascii", errors="replace") if len(parts) > 1 else ""
+            phrase = parts[2].decode("ascii", errors="replace") if len(parts) > 2 else ""
+            return {
+                "is_response": True,
+                "version": ver,
+                "status": status,
+                "phrase": phrase,
+                "headers": _split_http_headers(rest),
+            }
+        except (ValueError, IndexError):
+            return {"is_response": True}
     for method in _HTTP_METHODS:
         if payload.startswith(method):
             try:
-                head, _ = (
-                    payload.split(b"\r\n\r\n", 1) if b"\r\n\r\n" in payload else (payload, b"")
-                )
+                head = payload.split(b"\r\n\r\n", 1)[0]
                 first_line, _, rest = head.partition(b"\r\n")
-                parts = first_line.split(b" ")
+                parts = first_line.split(b" ", 2)
                 m = parts[0].decode("ascii", errors="replace")
                 u = parts[1].decode("ascii", errors="replace") if len(parts) > 1 else ""
-                host = ""
-                for line in rest.split(b"\r\n"):
-                    if line.lower().startswith(b"host:"):
-                        host = line.split(b":", 1)[1].strip().decode("ascii", errors="replace")
-                        break
-                return m, u, host, False
+                ver = parts[2].decode("ascii", errors="replace") if len(parts) > 2 else ""
+                path, _, query = u.partition("?")
+                headers = _split_http_headers(rest)
+                return {
+                    "is_response": False,
+                    "method": m,
+                    "uri": u,
+                    "path": path,
+                    "query": query,
+                    "version": ver,
+                    "host": headers.get("host", ""),
+                    "headers": headers,
+                }
             except (ValueError, IndexError):
-                return "", "", "", False
-    return "", "", "", False
+                return {}
+    return {}
 
 
 def _peek_tls_clienthello(payload: bytes) -> tuple[bool, str, str]:
@@ -718,14 +787,41 @@ def extract_flows(pcap_path: Path) -> dict[tuple[str, int, str, int, int], Flow]
                     flow.tls_version = ver
                 if sni and not flow.tls_sni:
                     flow.tls_sni = sni
-            method, uri, host, is_resp = _peek_http(payload)
-            if method:
-                flow.http_request_seen = True
-                flow.http_method = flow.http_method or method
-                flow.http_uri = flow.http_uri or uri
-                flow.http_host = flow.http_host or host
-            if is_resp:
-                flow.http_response_seen = True
+            http = _peek_http(payload)
+            if http:
+                if http.get("is_response"):
+                    flow.http_response_seen = True
+                    flow.http_response_code = flow.http_response_code or http.get("status", "")
+                    flow.http_response_phrase = flow.http_response_phrase or http.get("phrase", "")
+                    headers = http.get("headers") or {}
+                    if not flow.http_response_headers:
+                        flow.http_response_headers = dict(headers)
+                    flow.http_response_content_type = (
+                        flow.http_response_content_type or headers.get("content-type", "")
+                    )
+                    flow.http_response_content_length = (
+                        flow.http_response_content_length or headers.get("content-length", "")
+                    )
+                elif http.get("method"):
+                    flow.http_request_seen = True
+                    flow.http_method = flow.http_method or http.get("method", "")
+                    flow.http_uri = flow.http_uri or http.get("uri", "")
+                    flow.http_path = flow.http_path or http.get("path", "")
+                    flow.http_query = flow.http_query or http.get("query", "")
+                    flow.http_host = flow.http_host or http.get("host", "")
+                    flow.http_request_version = flow.http_request_version or http.get("version", "")
+                    headers = http.get("headers") or {}
+                    if not flow.http_request_headers:
+                        flow.http_request_headers = dict(headers)
+                    flow.http_user_agent = flow.http_user_agent or headers.get("user-agent", "")
+                    flow.http_cookie = flow.http_cookie or headers.get("cookie", "")
+                    flow.http_referer = flow.http_referer or headers.get("referer", "")
+                    flow.http_request_content_type = flow.http_request_content_type or headers.get(
+                        "content-type", ""
+                    )
+                    flow.http_request_content_length = (
+                        flow.http_request_content_length or headers.get("content-length", "")
+                    )
     return flows
 
 
@@ -825,28 +921,50 @@ def tshark_available() -> bool:
 
 
 _TSHARK_FIELDS = (
+    # 0..3 IP
     "ip.src",
     "ip.dst",
     "ipv6.src",
     "ipv6.dst",
+    # 4..7 ports
     "tcp.srcport",
     "tcp.dstport",
     "udp.srcport",
     "udp.dstport",
+    # 8 TLS SNI (request side)
     "tls.handshake.extensions_server_name",
+    # 9..12 HTTP request basics
     "http.request.method",
     "http.host",
     "http.request.uri",
     "http.response.code",
+    # 13..17 TLS handshake details
     "tls.handshake.ciphersuite",
     "tls.record.version",
     "tls.handshake.version",
     "tls.handshake.extensions_alpn_str",
     "tls.alert_message.desc",
+    # 18..21 TCP RST + F5 reset cause
     "tcp.flags.reset",
     "f5ethtrailer.rstcause.cause",
     "f5ethtrailer.rstcause.line",
     "f5ethtrailer.rstcause.peer",
+    # 22..28 deeper HTTP (request)
+    "http.request.full_uri",
+    "http.request.version",
+    "http.user_agent",
+    "http.cookie",
+    "http.referer",
+    "http.content_type",
+    "http.content_length",
+    # 29..31 HTTP response
+    "http.response.phrase",
+    "http.content_type",  # repeated for response capture
+    "http.content_length",  # repeated for response capture
+    # 32..34 TLS cert + algo
+    "x509sat.printableString",
+    "tls.handshake.sig_hash_alg",
+    "tls.handshake.extensions_supported_group",
 )
 _TLS_VERSION_NAMES = {
     "0x0301": "TLS1.0",
@@ -919,8 +1037,25 @@ def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -
             continue
 
         sni, method, host, uri, code = cols[8], cols[9], cols[10], cols[11], cols[12]
-        cipher, rec_ver, hs_ver, alpn, alert_desc = cols[13], cols[14], cols[15], cols[16], cols[17]
+        cipher, rec_ver, hs_ver, alpn, alert_desc = (
+            cols[13],
+            cols[14],
+            cols[15],
+            cols[16],
+            cols[17],
+        )
         rst_flag, rst_cause, rst_line, rst_peer = cols[18], cols[19], cols[20], cols[21]
+        full_uri, http_ver, ua, cookie, referer, content_type, content_length = (
+            cols[22],
+            cols[23],
+            cols[24],
+            cols[25],
+            cols[26],
+            cols[27],
+            cols[28],
+        )
+        resp_phrase, resp_ct, resp_cl = cols[29], cols[30], cols[31]
+        cert_subj, sig_alg, supp_groups = cols[32], cols[33], cols[34]
 
         if sni and not flow.tls_sni:
             flow.tls_sni = sni
@@ -932,9 +1067,40 @@ def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -
             flow.http_host = host
         if uri and not flow.http_uri:
             flow.http_uri = uri
+            # Only fill path/query if we got a fresh URI here.
+            path, _, query = uri.partition("?")
+            flow.http_path = flow.http_path or path
+            flow.http_query = flow.http_query or query
+        if full_uri and not flow.http_uri:
+            flow.http_uri = full_uri
+        if http_ver and not flow.http_request_version:
+            flow.http_request_version = http_ver
+        if ua and not flow.http_user_agent:
+            flow.http_user_agent = ua
+            flow.http_request_headers.setdefault("user-agent", ua)
+        if cookie and not flow.http_cookie:
+            flow.http_cookie = cookie
+            flow.http_request_headers.setdefault("cookie", cookie)
+        if referer and not flow.http_referer:
+            flow.http_referer = referer
+            flow.http_request_headers.setdefault("referer", referer)
+        if content_type and not flow.http_request_content_type:
+            flow.http_request_content_type = content_type
+            flow.http_request_headers.setdefault("content-type", content_type)
+        if content_length and not flow.http_request_content_length:
+            flow.http_request_content_length = content_length
+            flow.http_request_headers.setdefault("content-length", content_length)
         if code:
             flow.http_response_seen = True
             flow.http_response_code = code
+        if resp_phrase and not flow.http_response_phrase:
+            flow.http_response_phrase = resp_phrase
+        if resp_ct and not flow.http_response_content_type:
+            flow.http_response_content_type = resp_ct
+            flow.http_response_headers.setdefault("content-type", resp_ct)
+        if resp_cl and not flow.http_response_content_length:
+            flow.http_response_content_length = resp_cl
+            flow.http_response_headers.setdefault("content-length", resp_cl)
         if cipher and not flow.tls_chosen_cipher:
             flow.tls_chosen_cipher = cipher
         chosen_ver = hs_ver or rec_ver
@@ -945,6 +1111,12 @@ def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -
         if alert_desc:
             flow.tls_alert_seen = True
             flow.tls_alert_desc = alert_desc
+        if cert_subj and not flow.tls_cert_subject:
+            flow.tls_cert_subject = cert_subj
+        if sig_alg and not flow.tls_signature_algos:
+            flow.tls_signature_algos = sig_alg
+        if supp_groups and not flow.tls_supported_groups:
+            flow.tls_supported_groups = supp_groups
         if rst_flag in ("1", "True"):
             flow.tcp_rst = True
         for piece in (rst_cause, rst_line, rst_peer):
@@ -1054,6 +1226,124 @@ def _extract_event_blocks(rule_source: str) -> dict[str, str]:
         if depth == 0:
             blocks[event] = rule_source[start : i - 1]
     return blocks
+
+
+# ---------------------------------------------------------------------------
+# HUD-command annotation: tie iRule commands to captured state.
+# ---------------------------------------------------------------------------
+
+
+# Patterns that recognise iRule commands which read captured connection
+# state.  Each entry is a regex that matches the command (and optional
+# argument) inside ``[...]`` brackets, plus a callable that turns a
+# Session into the captured value the command would have returned.
+def _hud_value_for(token: str, conn: Connection) -> str | None:
+    """Resolve an iRule command token like ``HTTP::host`` against *conn*."""
+    f = conn.client
+    s = conn.server
+    t = token
+    # HTTP::* on the request side
+    if t == "HTTP::host":
+        return f.http_host or None
+    if t == "HTTP::method":
+        return f.http_method or None
+    if t == "HTTP::uri":
+        return f.http_uri or None
+    if t == "HTTP::path":
+        return f.http_path or None
+    if t == "HTTP::query":
+        return f.http_query or None
+    if t == "HTTP::version":
+        return f.http_request_version or None
+    if t == "HTTP::status":
+        return (s.http_response_code if s is not None else "") or None
+    if t.startswith("HTTP::header "):
+        name = t.split(None, 1)[1].strip().strip('"').strip("'").lower()
+        if name in f.http_request_headers:
+            return f.http_request_headers[name]
+        if s is not None and name in s.http_response_headers:
+            return s.http_response_headers[name]
+        return None
+    if t == "HTTP::cookie":
+        return f.http_cookie or None
+    if t == "HTTP::user_agent":
+        return f.http_user_agent or None
+    # SSL::*
+    if t == "SSL::extensions":
+        bits = []
+        if f.tls_sni:
+            bits.append(f"sni={f.tls_sni}")
+        if f.tls_alpn:
+            bits.append(f"alpn={f.tls_alpn}")
+        return ", ".join(bits) if bits else None
+    if t == "SSL::cipher":
+        return f.tls_chosen_cipher or None
+    if t == "SSL::cipher version":
+        return f.tls_chosen_version or None
+    if t == "SSL::cert subject":
+        return f.tls_cert_subject or None
+    if t == "SSL::cert":
+        return f.tls_cert_subject or None
+    # SNI::* style tokens that some iRules use.
+    if t.upper() == "SNI" or t == "SSL::extensions servername":
+        return f.tls_sni or None
+    # IP / TCP
+    if t == "IP::client_addr":
+        return f.src_ip
+    if t == "IP::local_addr":
+        return f.dst_ip
+    if t == "IP::remote_addr":
+        return f.dst_ip
+    if t == "TCP::client_port":
+        return str(f.src_port) if f.src_port else None
+    if t == "TCP::local_port":
+        return str(f.dst_port) if f.dst_port else None
+    if t == "TCP::remote_port":
+        return str(f.dst_port) if f.dst_port else None
+    # LB::server (only meaningful on a paired :np capture)
+    if t == "LB::server" or t == "LB::server addr":
+        return None  # filled by the caller from session.back if any
+    return None
+
+
+# Regex that finds iRule command invocations inside [ ... ] brackets.
+# We match the leading namespace (HTTP::, SSL::, IP::, TCP::, LB::) plus
+# the rest of the command up to ``]`` or whitespace.  Some commands take
+# an argument (e.g. ``[HTTP::header User-Agent]``); we capture up to the
+# closing bracket.
+_HUD_TOKEN_RE = re.compile(r"\[\s*(HTTP::|SSL::|IP::|TCP::|LB::|SNI\b)([^\]\n]*?)\s*\]")
+
+
+def _annotate_event_block(body: str, conn: Connection) -> list[tuple[str, str, str]]:
+    """Return ``[(line_excerpt, command, captured_value), ...]`` for *body*.
+
+    Walks *body* line-by-line, finds every ``[NAMESPACE::cmd ...]``
+    token, looks up the captured value for that command on *conn*, and
+    emits one tuple per line that referenced state we have.  Lines that
+    reference commands but where we don't have captured state (e.g.
+    ``[HTTP::host]`` on a TCP-only flow) are silently skipped — that
+    distinction stays visible because the line still appears verbatim
+    in the event body that's printed alongside the annotations.
+    """
+    out: list[tuple[str, str, str]] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        for m in _HUD_TOKEN_RE.finditer(line):
+            ns = m.group(1)
+            rest = m.group(2).strip()
+            # The namespace match already includes "::" (e.g. "HTTP::"),
+            # except for the special "SNI" token which has no namespace
+            # prefix.  Reconstruct the full command name accordingly.
+            full = "SNI" if ns == "SNI" else ns + rest
+            value = _hud_value_for(full, conn)
+            if value is None:
+                continue
+            out.append((stripped, full, value))
+            # Only one annotation per line keeps the output tidy.
+            break
+    return out
 
 
 def _expected_event_sequence(
@@ -1216,6 +1506,150 @@ def _analyse_reset(session: Session) -> str:
     return " ; ".join(parts)
 
 
+def _profiles_for_orchestrator(cfg: BigipConfig, vs: BigipVirtualServer) -> list[str]:
+    """Return the orchestrator profile labels (TCP / CLIENTSSL / HTTP / …) for *vs*."""
+    types = cfg.profile_types_for_virtual(vs.full_path)
+    out: list[str] = []
+    if ProfileType.TCP in types or vs.profiles:
+        out.append("TCP")
+    if ProfileType.UDP in types:
+        out.append("UDP")
+    if ProfileType.CLIENT_SSL in types:
+        out.append("CLIENTSSL")
+    if ProfileType.SERVER_SSL in types:
+        out.append("SERVERSSL")
+    if ProfileType.HTTP in types:
+        out.append("HTTP")
+    return out or ["TCP"]
+
+
+def _simulate_irule_for_session(
+    cfg: BigipConfig,
+    vs: BigipVirtualServer,
+    session: Session,
+) -> dict:
+    """Run the matched VS's iRule under the C-tcl orchestrator with captured state.
+
+    Returns a dict with keys: ``pool``, ``node``, ``response_committed``,
+    ``logs`` (list of preformatted strings), ``decisions`` (list of
+    ``(category, action, value)``), ``error`` (str, empty on success).
+
+    Best-effort — any exception starting the orchestrator or running
+    the request is captured into ``error`` and returned, so the caller
+    can still emit static analysis even when the simulation backend is
+    unavailable (e.g. no `tclsh` on PATH).
+    """
+    import asyncio
+
+    out: dict = {
+        "pool": "",
+        "node": "",
+        "response_committed": False,
+        "logs": [],
+        "decisions": [],
+        "error": "",
+    }
+
+    rules = []
+    for rref in vs.rules:
+        resolved = cfg.resolve_rule(rref) or rref
+        rule = cfg.rules.get(resolved)
+        if rule is not None:
+            rules.append(rule.source)
+    if not rules:
+        out["error"] = "no iRules attached to VS — nothing to simulate"
+        return out
+
+    front = session.front.client
+    headers: dict[str, str] = dict(front.http_request_headers)
+    method = front.http_method or "GET"
+    uri = front.http_uri or "/"
+    host = front.http_host or ""
+    sni = front.tls_sni or ""
+
+    profiles = _profiles_for_orchestrator(cfg, vs)
+
+    async def _run() -> dict:
+        try:
+            from core.irule_test import IruleTestSession
+        except ImportError as exc:
+            return {**out, "error": f"irule_test framework unavailable: {exc}"}
+
+        try:
+            sess = IruleTestSession(profiles=profiles)
+        except Exception as exc:  # pragma: no cover - defensive
+            return {**out, "error": f"cannot construct IruleTestSession: {exc}"}
+
+        try:
+            async with sess:
+                for source in rules:
+                    sess.load_irule(source)
+                # Add every pool referenced by the VS (default + any
+                # ``pool foo`` calls inside iRules will resolve through
+                # this set).
+                for pname, pool_obj in cfg.pools.items():
+                    members = [m.name.rsplit("/", 1)[-1] for m in pool_obj.members if m.name]
+                    if members:
+                        await sess.add_pool(pname.rsplit("/", 1)[-1], members)
+                if vs.pool:
+                    resolved_pool = cfg.resolve_pool(vs.pool)
+                    if resolved_pool is not None:
+                        members = [
+                            m.name.rsplit("/", 1)[-1]
+                            for m in cfg.pools[resolved_pool].members
+                            if m.name
+                        ]
+                        if members:
+                            await sess.add_pool(resolved_pool.rsplit("/", 1)[-1], members)
+                if "HTTP" in profiles:
+                    result = await sess.run_http_request(
+                        method=method, uri=uri, host=host, headers=headers or None, sni=sni
+                    )
+                else:
+                    # Non-HTTP: just fire CLIENT_ACCEPTED to exercise
+                    # any L4 logic the iRule has.
+                    await sess.fire_event("CLIENT_ACCEPTED")
+                    result = None
+        except Exception as exc:  # pragma: no cover - subprocess failure path
+            return {**out, "error": f"orchestrator failure: {exc}"}
+
+        if result is None:
+            return out
+
+        decisions: list[tuple[str, str, str]] = []
+        for d in result.decisions or []:
+            if isinstance(d, (list, tuple)) and len(d) >= 2:
+                cat = str(d[0])
+                act = str(d[1])
+                val = ""
+                if len(d) > 2:
+                    val = " ".join(
+                        str(x) for x in (d[2] if isinstance(d[2], (list, tuple)) else [d[2]])
+                    )
+                decisions.append((cat, act, val))
+        log_lines: list[str] = []
+        for entry in result.logs or []:
+            if isinstance(entry, (list, tuple)):
+                log_lines.append(" | ".join(str(x) for x in entry))
+            else:
+                log_lines.append(str(entry))
+
+        return {
+            "pool": result.pool_selected or "",
+            "node": result.node_selected or "",
+            "response_committed": bool(result.http_response_committed),
+            "logs": log_lines,
+            "decisions": decisions,
+            "error": "",
+        }
+
+    try:
+        return asyncio.run(_run())
+    except RuntimeError as exc:
+        # Already inside an event loop (rare from CLI but possible from MCP).
+        return {**out, "error": f"asyncio: {exc}"}
+
+
 def compute_explain_pcap(
     pcap_path: Path,
     configs: dict[str, BigipConfig],
@@ -1224,6 +1658,7 @@ def compute_explain_pcap(
     keylog_path: str = "",
     show_event_bodies: bool = True,
     max_event_body_lines: int = 40,
+    simulate: bool = False,
 ) -> ExplainPcapReport:
     """Build a per-session explanation for *pcap_path* against parsed *configs*.
 
@@ -1292,6 +1727,7 @@ def compute_explain_pcap(
                 profile_chain.append(f"{pref} (unresolved)")
 
         event_blocks: list[tuple[str, str, str]] = []
+        event_annotations: list[tuple[str, str, tuple[tuple[str, str, str], ...]]] = []
         sequence: list[str] = []
         for rref in vs.rules:
             resolved_rule = cfg_hit.resolve_rule(rref) or rref
@@ -1302,8 +1738,26 @@ def compute_explain_pcap(
             ordered_events = _expected_event_sequence(cfg_hit, vs, front, set(blocks.keys()))
             for ev in ordered_events:
                 sequence.append(f"{resolved_rule}::{ev}")
+                full_body = blocks[ev]
+                # Annotations always run on the full body so we don't
+                # miss tokens past the truncation cutoff.
+                ann = tuple(_annotate_event_block(full_body, front))
+                # If LB::server is referenced and we have a paired back side,
+                # synthesise the captured value.
+                if session.back is not None:
+                    bc = session.back.client
+                    lb_value = f"{bc.dst_ip}:{bc.dst_port}"
+                    extra: list[tuple[str, str, str]] = []
+                    for line in full_body.splitlines():
+                        if "LB::server" in line and not any(a[1].startswith("LB::") for a in ann):
+                            extra.append((line.strip(), "LB::server", lb_value))
+                            break
+                    if extra:
+                        ann = ann + tuple(extra)
+                if ann:
+                    event_annotations.append((resolved_rule, ev, ann))
                 if show_event_bodies:
-                    body = blocks[ev]
+                    body = full_body
                     body_lines = body.splitlines()
                     if len(body_lines) > max_event_body_lines:
                         body = "\n".join(body_lines[:max_event_body_lines]) + "\n... (truncated)"
@@ -1323,6 +1777,21 @@ def compute_explain_pcap(
             if bc.src_ip != front.client.src_ip:
                 snat_observed = f"{bc.src_ip}:{bc.src_port}"
 
+        sim_pool = ""
+        sim_node = ""
+        sim_resp = False
+        sim_logs: tuple[str, ...] = ()
+        sim_decisions: tuple[tuple[str, str, str], ...] = ()
+        sim_error = ""
+        if simulate:
+            sim = _simulate_irule_for_session(cfg_hit, vs, session)
+            sim_pool = sim["pool"]
+            sim_node = sim["node"]
+            sim_resp = sim["response_committed"]
+            sim_logs = tuple(sim["logs"])
+            sim_decisions = tuple(sim["decisions"])
+            sim_error = sim["error"]
+
         session_explains.append(
             SessionExplain(
                 session=session,
@@ -1333,11 +1802,18 @@ def compute_explain_pcap(
                 snat_observed=snat_observed,
                 event_sequence=tuple(sequence),
                 event_blocks=tuple(event_blocks),
+                event_annotations=tuple(event_annotations),
                 ltm_policies=tuple(ltm_policies),
                 apm_profile=apm,
                 gtm_wide_ips=tuple(gtm),
                 explain_text=vs_report.text_report,
                 reset_analysis=_analyse_reset(session),
+                simulated_pool=sim_pool,
+                simulated_node=sim_node,
+                simulated_response_committed=sim_resp,
+                simulated_logs=sim_logs,
+                simulated_decisions=sim_decisions,
+                simulation_error=sim_error,
             )
         )
 
@@ -1381,7 +1857,24 @@ def _flow_to_dict(f: Flow) -> dict:
         "http_host": f.http_host,
         "http_uri": f.http_uri,
         "http_response_seen": f.http_response_seen,
+        "http_path": f.http_path,
+        "http_query": f.http_query,
+        "http_request_version": f.http_request_version,
+        "http_user_agent": f.http_user_agent,
+        "http_cookie": f.http_cookie,
+        "http_referer": f.http_referer,
+        "http_request_content_type": f.http_request_content_type,
+        "http_request_content_length": f.http_request_content_length,
+        "http_request_headers": dict(f.http_request_headers),
         "http_response_code": f.http_response_code,
+        "http_response_phrase": f.http_response_phrase,
+        "http_response_content_type": f.http_response_content_type,
+        "http_response_content_length": f.http_response_content_length,
+        "http_response_headers": dict(f.http_response_headers),
+        "tls_cert_subject": f.tls_cert_subject,
+        "tls_cert_issuer": f.tls_cert_issuer,
+        "tls_supported_groups": f.tls_supported_groups,
+        "tls_signature_algos": f.tls_signature_algos,
         "f5_reset_causes": list(f.f5_reset_causes),
         "peer_remote_ip": f.peer_remote_ip,
         "peer_remote_port": f.peer_remote_port,
@@ -1455,6 +1948,72 @@ def _format_report(
                 lines.append(f"    --- {rule} :: when {ev} ---")
                 for body_line in body.splitlines():
                     lines.append(f"      {body_line}")
+        if se.event_annotations:
+            lines.append("  HUD-state captured for iRule commands:")
+            for rule, ev, anns in se.event_annotations:
+                lines.append(f"    --- {rule} :: when {ev} ---")
+                for line_excerpt, cmd, value in anns:
+                    lines.append(f"      [{cmd}] = {value!r}")
+                    lines.append(f"          ({line_excerpt})")
+        # Captured HTTP exchange details (front side of the session).
+        fc = se.session.front.client
+        if fc.http_request_seen or fc.tls_clienthello:
+            lines.append("  captured request:")
+            if fc.http_method or fc.http_uri:
+                req_line = f"{fc.http_method or '?'} {fc.http_uri or ''} {fc.http_request_version or ''}".strip()
+                lines.append(f"    request line: {req_line}")
+            if fc.http_host:
+                lines.append(f"    host: {fc.http_host}")
+            if fc.http_user_agent:
+                lines.append(f"    user-agent: {fc.http_user_agent}")
+            if fc.http_referer:
+                lines.append(f"    referer: {fc.http_referer}")
+            if fc.http_cookie:
+                lines.append(f"    cookie: {fc.http_cookie}")
+            if fc.tls_sni:
+                tls_line = f"    tls: SNI={fc.tls_sni}"
+                if fc.tls_chosen_version or fc.tls_version:
+                    tls_line += f" version={fc.tls_chosen_version or fc.tls_version}"
+                if fc.tls_chosen_cipher:
+                    tls_line += f" cipher={fc.tls_chosen_cipher}"
+                if fc.tls_alpn:
+                    tls_line += f" alpn={fc.tls_alpn}"
+                lines.append(tls_line)
+            if fc.tls_cert_subject:
+                lines.append(f"    server cert subject: {fc.tls_cert_subject}")
+        # Captured response (server-side flow).
+        sc = se.session.front.server
+        if sc is not None and (sc.http_response_seen or sc.http_response_code):
+            lines.append("  captured response:")
+            status = f"{sc.http_response_code} {sc.http_response_phrase}".strip() or "(none)"
+            lines.append(f"    status: {status}")
+            if sc.http_response_content_type:
+                lines.append(f"    content-type: {sc.http_response_content_type}")
+            if sc.http_response_content_length:
+                lines.append(f"    content-length: {sc.http_response_content_length}")
+        if se.simulation_error:
+            lines.append(f"  simulation skipped: {se.simulation_error}")
+        elif (
+            se.simulated_pool
+            or se.simulated_decisions
+            or se.simulated_logs
+            or se.simulated_response_committed
+        ):
+            lines.append("  iRule simulation outcome (run under c-tcl orchestrator):")
+            if se.simulated_pool:
+                lines.append(f"    pool selected: {se.simulated_pool}")
+            if se.simulated_node:
+                lines.append(f"    node selected: {se.simulated_node}")
+            if se.simulated_response_committed:
+                lines.append("    HTTP response committed by iRule (HTTP::respond / drop)")
+            if se.simulated_decisions:
+                lines.append("    decisions:")
+                for cat, act, val in se.simulated_decisions:
+                    lines.append(f"      - {cat} {act} {val}".rstrip())
+            if se.simulated_logs:
+                lines.append("    log lines:")
+                for entry in se.simulated_logs:
+                    lines.append(f"      {entry}")
         lines.append(f"  termination: {se.reset_analysis}")
         lines.append("  resolved plan:")
         for explain_line in se.explain_text.splitlines():
@@ -1484,11 +2043,29 @@ def report_to_dict(report: ExplainPcapReport) -> dict:
                 "snat_observed": se.snat_observed,
                 "event_sequence": list(se.event_sequence),
                 "event_blocks": [{"rule": r, "event": e, "body": b} for r, e, b in se.event_blocks],
+                "event_annotations": [
+                    {
+                        "rule": r,
+                        "event": e,
+                        "annotations": [
+                            {"line": ln, "command": cmd, "value": val} for ln, cmd, val in anns
+                        ],
+                    }
+                    for r, e, anns in se.event_annotations
+                ],
                 "ltm_policies": list(se.ltm_policies),
                 "apm_profile": se.apm_profile,
                 "gtm_wide_ips": list(se.gtm_wide_ips),
                 "explain_text": se.explain_text,
                 "reset_analysis": se.reset_analysis,
+                "simulated_pool": se.simulated_pool,
+                "simulated_node": se.simulated_node,
+                "simulated_response_committed": se.simulated_response_committed,
+                "simulated_logs": list(se.simulated_logs),
+                "simulated_decisions": [
+                    {"category": c, "action": a, "value": v} for c, a, v in se.simulated_decisions
+                ],
+                "simulation_error": se.simulation_error,
             }
             for se in report.sessions
         ],

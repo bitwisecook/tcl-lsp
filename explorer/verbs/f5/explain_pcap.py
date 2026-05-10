@@ -65,6 +65,15 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "TLS-wrapped sessions.  Implies --tshark.",
     )
     p.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Run each matched session's iRule under the C-tcl test "
+        "orchestrator with the captured HTTP/TLS state, and report the "
+        "actual pool/node selection, HTTP::respond decisions, log lines "
+        "and other side-effects.  Slower (spins a tclsh subprocess per "
+        "matched session); requires `tclsh` on PATH.",
+    )
+    p.add_argument(
         "--no-event-bodies",
         action="store_true",
         help="Suppress the verbatim `when EVENT { ... }` block for each "
@@ -112,6 +121,7 @@ def _run_explain_pcap(args: argparse.Namespace) -> int:
             keylog_path=args.keylog,
             show_event_bodies=not args.no_event_bodies,
             max_event_body_lines=args.max_event_lines,
+            simulate=args.simulate,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -446,3 +446,164 @@ def test_ltm_policies_only_lists_attached(tmp_path):
     policy_blob = " ".join(se.ltm_policies)
     assert "policy_attached" in policy_blob
     assert "policy_unrelated" not in policy_blob
+
+
+# ---------------------------------------------------------------------------
+# HUD annotation tests (HTTP block / SNI route).
+# ---------------------------------------------------------------------------
+
+
+def _build_http_request_payload(method: str, uri: str, host: str, ua: str = "") -> bytes:
+    parts = [
+        f"{method} {uri} HTTP/1.1\r\n".encode(),
+        f"Host: {host}\r\n".encode(),
+    ]
+    if ua:
+        parts.append(f"User-Agent: {ua}\r\n".encode())
+    parts.append(b"\r\n")
+    return b"".join(parts)
+
+
+_CONF_BLOCK_RULE = """\
+ltm virtual /Common/vs_block {
+    destination /Common/5.6.7.8:80
+    pool /Common/pool_app
+    profiles {
+        /Common/tcp { }
+        /Common/http { }
+    }
+    rules { /Common/rule_block }
+}
+ltm pool /Common/pool_app {
+    members { /Common/10.0.0.1:8080 { } }
+}
+ltm profile tcp /Common/tcp { }
+ltm profile http /Common/http { }
+ltm rule /Common/rule_block {
+when HTTP_REQUEST {
+    if { [HTTP::host] equals "blocked.example.com" } {
+        HTTP::respond 403 content "Blocked"
+    }
+}
+}
+"""
+
+
+def test_hud_annotations_capture_host_value(tmp_path):
+    """HUD annotations should surface the captured Host for `[HTTP::host]`."""
+    cfg = parse_bigip_conf(_CONF_BLOCK_RULE)
+    payload = _build_http_request_payload("GET", "/", "blocked.example.com", "curl/8.0")
+    pcap = _build_pcap(
+        [
+            _build_packet(
+                b"\x01\x02\x03\x04",
+                b"\x05\x06\x07\x08",
+                12345,
+                80,
+                syn=False,
+                payload=payload,
+            )
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+    report = compute_explain_pcap(p, {"u://x": cfg})
+    assert report.matched_count == 1
+    se = report.sessions[0]
+    assert se.matched_vs == "/Common/vs_block"
+    # The front-side flow captured Host + UA from the request payload.
+    front = se.session.front.client
+    assert front.http_host == "blocked.example.com"
+    assert front.http_user_agent == "curl/8.0"
+    # Annotations contain HTTP::host -> blocked.example.com.
+    annotated_cmds = [(cmd, val) for _r, _e, anns in se.event_annotations for _ln, cmd, val in anns]
+    assert ("HTTP::host", "blocked.example.com") in annotated_cmds
+
+
+_CONF_SNI_ROUTE = """\
+ltm virtual /Common/vs_sni {
+    destination /Common/5.6.7.8:443
+    pool /Common/pool_default
+    profiles {
+        /Common/tcp { }
+        /Common/clientssl { }
+    }
+    rules { /Common/rule_sni }
+}
+ltm pool /Common/pool_default {
+    members { /Common/10.0.0.1:443 { } }
+}
+ltm pool /Common/pool_api {
+    members { /Common/10.0.0.2:443 { } }
+}
+ltm profile tcp /Common/tcp { }
+ltm profile client-ssl /Common/clientssl { }
+ltm rule /Common/rule_sni {
+when CLIENTSSL_CLIENTHELLO {
+    if { [SSL::extensions exists -type 0] } {
+        set sni_name [SSL::extensions servername]
+        if { $sni_name equals "api.example.com" } {
+            pool /Common/pool_api
+        }
+    }
+}
+}
+"""
+
+
+def _build_tls_clienthello(sni: str) -> bytes:
+    """Build a minimal TLS 1.2 ClientHello with an SNI extension."""
+    sni_bytes = sni.encode("ascii")
+    sni_ext = b"\x00\x00" + (5 + len(sni_bytes)).to_bytes(2, "big")  # ext_type, ext_len
+    sni_list = (3 + len(sni_bytes)).to_bytes(2, "big")  # list len
+    sni_entry = b"\x00" + len(sni_bytes).to_bytes(2, "big") + sni_bytes  # name_type=host_name
+    sni_ext += sni_list + sni_entry
+    extensions = sni_ext
+    ext_block = len(extensions).to_bytes(2, "big") + extensions
+    body = (
+        b"\x03\x03"  # client_version TLS1.2
+        + b"\x00" * 32  # random
+        + b"\x00"  # session_id length 0
+        + b"\x00\x02\x00\x35"  # cipher_suites len=2 + AES128-SHA
+        + b"\x01\x00"  # compression methods: null
+        + ext_block
+    )
+    handshake = b"\x01" + len(body).to_bytes(3, "big") + body
+    record = b"\x16\x03\x03" + len(handshake).to_bytes(2, "big") + handshake
+    return record
+
+
+def test_hud_annotations_capture_sni_for_route_decision(tmp_path):
+    """HUD annotation should expose SNI when the iRule branches on it."""
+    cfg = parse_bigip_conf(_CONF_SNI_ROUTE)
+    pcap = _build_pcap(
+        [
+            _build_packet(
+                b"\x01\x02\x03\x04",
+                b"\x05\x06\x07\x08",
+                12345,
+                443,
+                syn=False,
+                payload=_build_tls_clienthello("api.example.com"),
+            )
+        ]
+    )
+    p = tmp_path / "in.pcap"
+    p.write_bytes(pcap)
+    report = compute_explain_pcap(p, {"u://x": cfg})
+    assert report.matched_count == 1
+    se = report.sessions[0]
+    assert se.matched_vs == "/Common/vs_sni"
+    assert se.session.front.client.tls_sni == "api.example.com"
+    # The CLIENTSSL_CLIENTHELLO event uses [SSL::extensions ...]; the
+    # annotation should map to the captured SNI value.
+    annotated = [
+        (cmd, val)
+        for _r, ev, anns in se.event_annotations
+        for _ln, cmd, val in anns
+        if ev == "CLIENTSSL_CLIENTHELLO"
+    ]
+    cmds = [c for c, _v in annotated]
+    # Either SSL::extensions or SNI tokens should resolve to the SNI value.
+    assert any("api.example.com" in v for _c, v in annotated), annotated
+    assert any(c.startswith("SSL::") or c == "SNI" for c in cmds), cmds

@@ -673,6 +673,13 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
             "description": "Include the verbatim `when EVENT { ... }` block for "
             "each fired event. Defaults to true.",
         },
+        "simulate": {
+            "type": "boolean",
+            "description": "Run each matched session's iRule under the C-tcl "
+            "orchestrator with the captured HTTP/TLS state, and report the "
+            "actual pool selection, HTTP::respond decisions, log lines, etc. "
+            "Slower; requires tclsh on PATH. Defaults to false.",
+        },
     },
     required=["pcap_path"],
 )
@@ -683,6 +690,7 @@ def _tool_explain_pcap(
     use_tshark: bool = False,
     keylog_path: str = "",
     show_event_bodies: bool = True,
+    simulate: bool = False,
 ) -> str:
     from pathlib import Path
 
@@ -708,6 +716,7 @@ def _tool_explain_pcap(
         use_tshark=use_tshark or bool(keylog_path),
         keylog_path=keylog_path,
         show_event_bodies=show_event_bodies,
+        simulate=simulate,
     )
     return json.dumps(report_to_dict(report))
 
