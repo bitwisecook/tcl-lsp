@@ -1,0 +1,286 @@
+#
+# explain-pcap test-lab SCF — a deliberately heterogeneous BIG-IP config
+# designed to exercise every feature `f5 explain-pcap` reports on:
+#
+#   * iRule decisions (HTTP block by Host, SNI-based pool routing, RST on
+#     payload pattern)
+#   * LTM policies (URI rewrite)
+#   * TLS issues that cause RST (expired cert chain, hostname mismatch,
+#     self-signed cert without trust anchor)
+#   * Pool member health (down member triggers reset cause string in the
+#     F5 ethernet trailer)
+#   * automap SNAT so the same host can run client + server
+#
+# All test traffic resolves to addresses in 10.255.42.0/24 (chosen to be
+# obviously synthetic — change `lab_*` defines below if your fleet uses
+# this range).  The orchestrator script
+# (scripts/explain_pcap_test_harness/run_tests.py) deploys this SCF onto a
+# BIG-IP via tmsh, runs tcpdump with `-i 0.0:nnnp` so the F5 ethernet
+# trailer is captured, drives the test scenarios, and pulls everything
+# back together with the SSLKEYLOGFILE for TLS decryption.
+#
+
+# ── Partition ─────────────────────────────────────────────────────────
+
+auth partition explain_pcap_lab {
+    description "explain-pcap test lab — created by run_tests.py; safe to delete"
+}
+
+# ── Profiles (referenced by VSes below) ──────────────────────────────
+
+ltm profile tcp /explain_pcap_lab/lab_tcp { }
+ltm profile http /explain_pcap_lab/lab_http {
+    insert-xforwarded-for enabled
+}
+
+# Client-SSL profile referencing certs created by gen_certs.sh.
+# The orchestrator uploads /explain_pcap_lab/lab_ca.crt etc. to /config/ssl/
+# before reloading; if those files aren't present the profile will fail
+# to load and the orchestrator will report which one was missing.
+ltm profile client-ssl /explain_pcap_lab/lab_client_ssl_valid {
+    cert /explain_pcap_lab/lab_server_valid.crt
+    key /explain_pcap_lab/lab_server_valid.key
+    chain /explain_pcap_lab/lab_ca.crt
+}
+
+ltm profile client-ssl /explain_pcap_lab/lab_client_ssl_expired {
+    cert /explain_pcap_lab/lab_server_expired.crt
+    key /explain_pcap_lab/lab_server_expired.key
+    chain /explain_pcap_lab/lab_ca.crt
+}
+
+ltm profile client-ssl /explain_pcap_lab/lab_client_ssl_selfsigned {
+    cert /explain_pcap_lab/lab_server_selfsigned.crt
+    key /explain_pcap_lab/lab_server_selfsigned.key
+}
+
+# ── Pools ─────────────────────────────────────────────────────────────
+
+ltm monitor http /explain_pcap_lab/lab_http_monitor {
+    interval 5
+    timeout 16
+    send "GET /healthz HTTP/1.1\r\nHost: lab\r\nConnection: close\r\n\r\n"
+    recv "200"
+}
+
+ltm pool /explain_pcap_lab/lab_pool_default {
+    members {
+        /explain_pcap_lab/10.255.42.10:8080 { address 10.255.42.10 }
+        /explain_pcap_lab/10.255.42.11:8080 { address 10.255.42.11 }
+    }
+    monitor /explain_pcap_lab/lab_http_monitor
+    load-balancing-mode round-robin
+}
+
+ltm pool /explain_pcap_lab/lab_pool_api {
+    members {
+        /explain_pcap_lab/10.255.42.20:8443 { address 10.255.42.20 }
+    }
+    monitor /explain_pcap_lab/lab_http_monitor
+    load-balancing-mode round-robin
+}
+
+# Intentionally points at an unreachable address so the monitor marks
+# every member down — exercises "pool member down → RST cause" reporting.
+ltm pool /explain_pcap_lab/lab_pool_dead {
+    members {
+        /explain_pcap_lab/10.255.42.99:8080 { address 10.255.42.99 }
+    }
+    monitor /explain_pcap_lab/lab_http_monitor
+    load-balancing-mode round-robin
+}
+
+# ── iRules ────────────────────────────────────────────────────────────
+
+ltm rule /explain_pcap_lab/lab_rule_http_block {
+when HTTP_REQUEST {
+    if { [HTTP::host] equals "blocked.lab.test" } {
+        log local0. "BLOCK host=[HTTP::host] uri=[HTTP::uri]"
+        HTTP::respond 403 content "Blocked by lab_rule_http_block"
+        return
+    }
+    if { [HTTP::path] starts_with "/admin" } {
+        log local0. "BLOCK admin path=[HTTP::path]"
+        HTTP::respond 403 content "Admin path blocked"
+        return
+    }
+    HTTP::header insert X-Lab-Touched "yes"
+}
+}
+
+ltm rule /explain_pcap_lab/lab_rule_sni_route {
+when CLIENTSSL_CLIENTHELLO {
+    if { [SSL::extensions exists -type 0] } {
+        binary scan [SSL::extensions -type 0] @9A* sni
+        set sni [string tolower $sni]
+        if { $sni equals "api.lab.test" } {
+            log local0. "SNI route -> pool_api ($sni)"
+            pool /explain_pcap_lab/lab_pool_api
+        }
+    }
+}
+when HTTP_REQUEST {
+    HTTP::header insert X-Lab-SNI [SSL::extensions servername]
+}
+}
+
+ltm rule /explain_pcap_lab/lab_rule_close_cause {
+when CLIENT_CLOSED {
+    log local0. "CLOSED client=[IP::client_addr]:[TCP::client_port] vip=[IP::local_addr]:[TCP::local_port]"
+}
+when SERVER_CLOSED {
+    log local0. "SERVER_CLOSED node=[IP::server_addr]:[TCP::server_port]"
+}
+}
+
+ltm rule /explain_pcap_lab/lab_rule_payload_reset {
+when CLIENT_DATA {
+    if { [TCP::payload] contains "RESETME" } {
+        log local0. "RESETME pattern hit — issuing TCP::close"
+        TCP::close
+        return
+    }
+    TCP::release
+}
+when CLIENT_ACCEPTED {
+    TCP::collect 1024
+}
+}
+
+# ── LTM Policy ────────────────────────────────────────────────────────
+
+ltm policy /explain_pcap_lab/lab_policy_rewrite {
+    requires { http }
+    controls { forwarding }
+    strategy first-match
+    rules {
+        old_api_v1 {
+            actions {
+                0 {
+                    http-uri
+                    request
+                    replace
+                    value "/api/v2/health"
+                }
+            }
+            conditions {
+                0 {
+                    http-uri
+                    request
+                    path
+                    equals
+                    values { "/api/v1/health" }
+                }
+            }
+            ordinal 1
+        }
+        force_pool_api {
+            actions {
+                0 {
+                    forward
+                    request
+                    pool
+                    pool /explain_pcap_lab/lab_pool_api
+                }
+            }
+            conditions {
+                0 {
+                    http-host
+                    request
+                    host
+                    equals
+                    values { "policy-route.lab.test" }
+                }
+            }
+            ordinal 2
+        }
+    }
+}
+
+# ── Virtual Servers ───────────────────────────────────────────────────
+
+# vs_block — plain HTTP, exercises HTTP::respond block + LTM policy rewrite.
+ltm virtual /explain_pcap_lab/vs_block {
+    destination /explain_pcap_lab/10.255.42.100:80
+    ip-protocol tcp
+    profiles {
+        /explain_pcap_lab/lab_tcp { }
+        /explain_pcap_lab/lab_http { }
+    }
+    pool /explain_pcap_lab/lab_pool_default
+    rules { /explain_pcap_lab/lab_rule_http_block /explain_pcap_lab/lab_rule_close_cause }
+    policies { /explain_pcap_lab/lab_policy_rewrite { } }
+    source-address-translation { type automap }
+}
+
+# vs_sni — HTTPS, exercises SNI-based pool routing.
+ltm virtual /explain_pcap_lab/vs_sni {
+    destination /explain_pcap_lab/10.255.42.101:443
+    ip-protocol tcp
+    profiles {
+        /explain_pcap_lab/lab_tcp { }
+        /explain_pcap_lab/lab_client_ssl_valid { context clientside }
+        /explain_pcap_lab/lab_http { }
+    }
+    pool /explain_pcap_lab/lab_pool_default
+    rules { /explain_pcap_lab/lab_rule_sni_route /explain_pcap_lab/lab_rule_close_cause }
+    source-address-translation { type automap }
+}
+
+# vs_tls_expired — HTTPS with an expired server cert; clients should
+# refuse to complete the handshake.  The captured pcap shows the alert
+# and BIG-IP issuing a RST with an F5-reset cause referencing TLS.
+ltm virtual /explain_pcap_lab/vs_tls_expired {
+    destination /explain_pcap_lab/10.255.42.102:443
+    ip-protocol tcp
+    profiles {
+        /explain_pcap_lab/lab_tcp { }
+        /explain_pcap_lab/lab_client_ssl_expired { context clientside }
+        /explain_pcap_lab/lab_http { }
+    }
+    pool /explain_pcap_lab/lab_pool_default
+    rules { /explain_pcap_lab/lab_rule_close_cause }
+    source-address-translation { type automap }
+}
+
+# vs_tls_selfsigned — HTTPS with a self-signed server cert (no chain to
+# the lab CA).  Strict clients reset; relaxed clients (curl -k) succeed.
+ltm virtual /explain_pcap_lab/vs_tls_selfsigned {
+    destination /explain_pcap_lab/10.255.42.103:443
+    ip-protocol tcp
+    profiles {
+        /explain_pcap_lab/lab_tcp { }
+        /explain_pcap_lab/lab_client_ssl_selfsigned { context clientside }
+        /explain_pcap_lab/lab_http { }
+    }
+    pool /explain_pcap_lab/lab_pool_default
+    rules { /explain_pcap_lab/lab_rule_close_cause }
+    source-address-translation { type automap }
+}
+
+# vs_pool_down — VS whose only pool member is unreachable; BIG-IP should
+# reset the client connection with cause "no usable pool member".
+ltm virtual /explain_pcap_lab/vs_pool_down {
+    destination /explain_pcap_lab/10.255.42.104:80
+    ip-protocol tcp
+    profiles {
+        /explain_pcap_lab/lab_tcp { }
+        /explain_pcap_lab/lab_http { }
+    }
+    pool /explain_pcap_lab/lab_pool_dead
+    rules { /explain_pcap_lab/lab_rule_close_cause }
+    source-address-translation { type automap }
+}
+
+# vs_payload_reset — TCP-only VS that resets when a magic byte pattern
+# appears on the wire.  Exercises CLIENT_DATA / TCP::collect / TCP::close.
+ltm virtual /explain_pcap_lab/vs_payload_reset {
+    destination /explain_pcap_lab/10.255.42.105:7777
+    ip-protocol tcp
+    profiles {
+        /explain_pcap_lab/lab_tcp { }
+    }
+    pool /explain_pcap_lab/lab_pool_default
+    rules { /explain_pcap_lab/lab_rule_payload_reset /explain_pcap_lab/lab_rule_close_cause }
+    source-address-translation { type automap }
+}

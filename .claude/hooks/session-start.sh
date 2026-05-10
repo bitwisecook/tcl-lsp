@@ -464,6 +464,25 @@ install_rust() {
     done
     "$rustup_bin" default "${RUST_VERSION}"
 
+    # The Zed extension's clippy check (`make check-rust`, used by
+    # `make test-slow`) cross-compiles to wasm32-wasip2, so the target
+    # has to be present in the toolchain.  Idempotent — rustup skips
+    # already-installed targets.
+    for attempt in 1 2 3 4; do
+        if "$rustup_bin" target add wasm32-wasip2 \
+                --toolchain "${RUST_VERSION}"; then
+            break
+        fi
+        if [ "$attempt" -lt 4 ]; then
+            local wait=$((2 ** attempt))
+            echo "session-start: rustup target retry $attempt (waiting ${wait}s) ..."
+            sleep "$wait"
+        else
+            echo "session-start: failed to install wasm32-wasip2 target after 4 attempts" >&2
+            return 1
+        fi
+    done
+
     # Resolve the cargo/rustc binaries the active rustup is configured
     # to front so symlinks always match the toolchain we just installed.
     local cargo_bin rustc_bin rustfmt_bin clippy_bin
