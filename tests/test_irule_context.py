@@ -15,7 +15,6 @@ from ai.shared.irule_context import (
 )
 from core.bigip.parser import parse_bigip_conf
 
-
 _SAMPLE_CONF = """\
 ltm pool /Common/web_pool {
     members { /Common/n1:80 { address 10.0.0.1 } }
@@ -39,11 +38,15 @@ when HTTP_REQUEST {
 def _bundle():
     cfg = parse_bigip_conf(_SAMPLE_CONF)
     rule = cfg.rules["/Common/foo"]
-    return cfg, rule, build_irule_context(
-        rule,
+    return (
         cfg,
-        sources={"inline://0": _SAMPLE_CONF},
-        config_origin="inline://0",
+        rule,
+        build_irule_context(
+            rule,
+            cfg,
+            sources={"inline://0": _SAMPLE_CONF},
+            config_origin="inline://0",
+        ),
     )
 
 
@@ -169,3 +172,63 @@ def test_mcp_irule_with_context_unknown_rule_returns_error():
         )
     )
     assert "error" in payload
+
+
+def test_mcp_irule_with_context_ucs_path(tmp_path):
+    """``config_paths`` must extract UCS archives, not feed gzip bytes
+    straight to the parser (regression for the original Codex review)."""
+    from ai.mcp.tcl_mcp_server import _tool_irule_with_context
+    from explorer.f5_remote.ucs import make_test_ucs
+
+    ucs_path = tmp_path / "device.ucs"
+    ucs_path.write_bytes(
+        make_test_ucs(
+            {
+                "config/bigip.conf": (
+                    "ltm pool /Common/web_pool { members { /Common/n1:80 { } } }\n"
+                    "ltm rule /Common/foo { when HTTP_REQUEST { pool /Common/web_pool } }\n"
+                ),
+            }
+        )
+    )
+    payload = json.loads(
+        _tool_irule_with_context(
+            rule_path="/Common/foo",
+            config_paths=[str(ucs_path)],
+            format="json",
+        )
+    )
+    assert payload["format"] == "json"
+    bundle = payload["bundles"][0]
+    assert bundle["rule"]["fullPath"] == "/Common/foo"
+    pool_paths = {p["fullPath"] for p in bundle["pools"]}
+    assert "/Common/web_pool" in pool_paths
+
+
+def test_f5_irule_context_multi_file_keeps_source_slices(tmp_path, capsys):
+    """Regression for the Codex P2 source-slice key-mismatch bug.
+
+    With more than one file input the source-slice map and the config
+    map must use the same keys so :func:`build_irule_context` can hand
+    each rule's slice back to the renderer.
+    """
+    a = tmp_path / "a.conf"
+    b = tmp_path / "b.conf"
+    a.write_text(
+        "ltm pool /Common/web_pool { members { /Common/n1:80 { } } }\n",
+        encoding="utf-8",
+    )
+    b.write_text(
+        "ltm rule /Common/foo { when HTTP_REQUEST { pool /Common/web_pool } }\n",
+        encoding="utf-8",
+    )
+
+    from explorer.f5_cli import main
+
+    rc = main(["irule", "context", str(a), str(b), "--rule", "/Common/foo"])
+    out = capsys.readouterr().out
+    # Slice from b.conf is reused verbatim — exact-text match,
+    # not the synthetic ``ltm rule … {`` wrapper that build_irule_context
+    # would emit when no source slice is available.
+    assert rc == 0
+    assert "ltm rule /Common/foo { when HTTP_REQUEST { pool /Common/web_pool } }" in out

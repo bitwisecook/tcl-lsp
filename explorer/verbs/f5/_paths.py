@@ -110,13 +110,21 @@ def _classify_text_input(
     synth_path = f"/{Path(label).stem or 'irule'}" if label else "/irule"
     rule = BigipRule(name=Path(label).stem or "irule", full_path=synth_path, source=text)
     synth = BigipConfig(rules={synth_path: rule})
-    return [
-        IruleInput(label=label, source=text, origin=origin, rule_full_path=None)
-    ], synth
+    return [IruleInput(label=label, source=text, origin=origin, rule_full_path=None)], synth
 
 
-def _load_one(path_str: str) -> tuple[list[IruleInput], dict[str, BigipConfig]]:
-    """Resolve a single CLI path to iRule inputs + (origin → config) pairs."""
+def _load_one(
+    path_str: str,
+) -> tuple[list[IruleInput], dict[str, BigipConfig], dict[str, str]]:
+    """Resolve a single CLI path to iRule inputs, configs, and source text.
+
+    The third element maps each input's *origin* URI to the post-decode
+    source text that was fed into :func:`parse_bigip_conf` — this is
+    the text that downstream consumers should use for source-slicing
+    (verbatim quoting in error messages, AI context bundles, etc.).
+    For UCS inputs it is the *extracted* SCF text, not the gzipped
+    archive bytes.
+    """
     origin, raw = _read_path_bytes(path_str)
     suffix = Path(path_str).suffix.lower() if path_str != "-" else ""
 
@@ -132,6 +140,7 @@ def _load_one(path_str: str) -> tuple[list[IruleInput], dict[str, BigipConfig]]:
         return (
             _config_to_irule_inputs(origin=origin, label_prefix=label, config=cfg),
             {origin: cfg},
+            {origin: text},
         )
 
     text = raw.decode("utf-8", errors="replace")
@@ -145,19 +154,20 @@ def _load_one(path_str: str) -> tuple[list[IruleInput], dict[str, BigipConfig]]:
         return (
             [IruleInput(label=label, source=text, origin=origin, rule_full_path=None)],
             {origin: synth},
+            {origin: text},
         )
 
     # bigip.conf / SCF / unknown extension / stdin text — sniff.
     inputs, cfg = _classify_text_input(text, origin=origin, label=label)
     configs = {origin: cfg} if cfg is not None else {}
-    return inputs, configs
+    return inputs, configs, {origin: text}
 
 
 def load_irule_inputs(
     paths: list[str],
     *,
     inline_sources: list[str] | None = None,
-) -> tuple[list[IruleInput], dict[str, BigipConfig]]:
+) -> tuple[list[IruleInput], dict[str, BigipConfig], dict[str, str]]:
     """Resolve a mix of paths and inline sources into iRule bodies.
 
     Each path may be:
@@ -175,15 +185,21 @@ def load_irule_inputs(
     *inline_sources* is a list of literal iRule snippets supplied via
     ``--source``; each becomes its own :class:`IruleInput`.
 
-    Returns ``(inputs, configs)``.  *configs* maps each input's origin
-    to the parsed (or synthetic single-rule) :class:`BigipConfig`,
-    which is what the lint / trace verbs consume.
+    Returns ``(inputs, configs, sources)``.  *configs* maps each
+    input's origin to the parsed (or synthetic single-rule)
+    :class:`BigipConfig`, which is what the lint / trace verbs
+    consume.  *sources* maps the same origin keys to the post-decode
+    source text (the *extracted* SCF for UCS, not the gzip bytes), so
+    callers that need to slice the original config text — context
+    bundles, error formatters, etc. — get a single canonical view
+    keyed identically to *configs*.
 
     Raises :class:`FileNotFoundError` for missing files,
     :class:`ValueError` for malformed UCS archives.
     """
     inputs: list[IruleInput] = []
     configs: dict[str, BigipConfig] = {}
+    sources: dict[str, str] = {}
 
     for index, source_text in enumerate(inline_sources or [], start=1):
         label = f"<inline:{index}>"
@@ -201,10 +217,12 @@ def load_irule_inputs(
             )
         )
         configs[origin] = synth_cfg
+        sources[origin] = source_text
 
     for path_str in paths:
-        loaded, loaded_configs = _load_one(path_str)
+        loaded, loaded_configs, loaded_sources = _load_one(path_str)
         inputs.extend(loaded)
         configs.update(loaded_configs)
+        sources.update(loaded_sources)
 
-    return inputs, configs
+    return inputs, configs, sources

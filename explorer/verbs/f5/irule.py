@@ -30,6 +30,7 @@ import re
 import sys
 from pathlib import Path
 
+from core.bigip.model import BigipConfig
 from core.commands.registry.info import lookup_event_info
 from core.commands.registry.namespace_data import event_multiplicity, order_events_for_file
 from core.commands.registry.runtime import configure_signatures
@@ -44,7 +45,7 @@ from .._utils import (
     _write_highlighted_output,
     _write_text_output,
 )
-from ._paths import IruleInput, load_irule_inputs, read_path
+from ._paths import IruleInput, load_irule_inputs
 
 
 def _add_irule_input_arguments(
@@ -61,10 +62,7 @@ def _add_irule_input_arguments(
     parser.add_argument(
         "paths",
         nargs="*",
-        help=(
-            "Input files: .tcl/.irul/.irule, bigip.conf/SCF, or .ucs."
-            "  Pass `-` to read stdin."
-        ),
+        help=("Input files: .tcl/.irul/.irule, bigip.conf/SCF, or .ucs.  Pass `-` to read stdin."),
     )
     parser.add_argument(
         "--source",
@@ -327,11 +325,11 @@ def add_irule_subparser(
 
 def _resolve_irule_inputs(
     args: argparse.Namespace,
-) -> tuple[list[IruleInput], dict[str, object]] | int:
+) -> tuple[list[IruleInput], dict[str, BigipConfig], dict[str, str]] | int:
     """Run :func:`load_irule_inputs` with CLI error handling.
 
-    Returns the loader's ``(inputs, configs)`` tuple on success or an
-    exit code (already-printed error) on failure.
+    Returns the loader's ``(inputs, configs, sources)`` tuple on
+    success or an exit code (already-printed error) on failure.
     """
     paths = list(args.paths or [])
     inline = list(getattr(args, "source", None) or [])
@@ -388,7 +386,7 @@ def _run_irule_lint(args: argparse.Namespace) -> int:
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
         return loaded
-    _inputs, configs = loaded
+    _inputs, configs, _sources = loaded
 
     # The iRule lint category only inspects rule bodies, so the
     # ``sources`` argument can be the rule bodies joined back together
@@ -428,7 +426,7 @@ def _run_irule_trace(args: argparse.Namespace) -> int:
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
         return loaded
-    inputs, configs = loaded
+    inputs, configs, _sources = loaded
     merged = _merge_configs_for_trace(configs)
 
     block_re = re.compile(
@@ -495,13 +493,11 @@ def _run_irule_trace(args: argparse.Namespace) -> int:
     return 0 if traces else 1
 
 
-def _merge_configs_for_trace(configs: dict) -> object:
+def _merge_configs_for_trace(configs: dict[str, BigipConfig]) -> BigipConfig:
     """Lazy import so we don't pull lint code at module load."""
     from core.bigip.lint import _merge_configs
 
     if not configs:
-        from core.bigip.model import BigipConfig
-
         return BigipConfig()
     if len(configs) == 1:
         return next(iter(configs.values()))
@@ -555,7 +551,7 @@ def _run_irule_extract(args: argparse.Namespace) -> int:
         print("error: no input provided; pass bigip.conf / SCF / UCS files", file=sys.stderr)
         return 2
     try:
-        _inputs, configs = load_irule_inputs(paths)
+        _inputs, configs, _sources = load_irule_inputs(paths)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -578,7 +574,7 @@ def _run_event_order(args: argparse.Namespace) -> int:
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
         return loaded
-    inputs, _configs = loaded
+    inputs, _configs, _sources = loaded
 
     configure_signatures(dialect=args.dialect)
     combined = "\n\n".join(entry.source.rstrip("\n") for entry in inputs)
@@ -699,7 +695,7 @@ def _run_irule_format(args: argparse.Namespace) -> int:
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
         return loaded
-    inputs, _configs = loaded
+    inputs, _configs, _sources = loaded
 
     configure_signatures(dialect=args.dialect)
     fmt_cfg = _resolve_formatter_config(args)
@@ -718,7 +714,7 @@ def _run_irule_minify(args: argparse.Namespace) -> int:
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
         return loaded
-    inputs, _configs = loaded
+    inputs, _configs, _sources = loaded
 
     configure_signatures(dialect=args.dialect)
     isolated = bool(getattr(args, "isolated", False))
@@ -783,23 +779,9 @@ def _run_irule_context(args: argparse.Namespace) -> int:
     loaded = _resolve_irule_inputs(args)
     if isinstance(loaded, int):
         return loaded
-    inputs, configs = loaded
+    _inputs, configs, sources_by_origin = loaded
 
     configure_signatures(dialect=args.dialect)
-
-    # Reuse load_paths-style sources for slicing.  load_irule_inputs
-    # already keeps each origin's BigipConfig but not its raw text;
-    # for slicing we need the original content, so re-read from disk
-    # for non-stdin paths.
-    sources_by_origin: dict[str, str] = {}
-    for path in args.paths or []:
-        if path == "-":
-            continue
-        try:
-            uri, src = read_path(path)
-        except OSError:
-            continue
-        sources_by_origin[uri] = src
 
     # Merge configs once so cross-file references (e.g. SCF split into
     # multiple files) all resolve.

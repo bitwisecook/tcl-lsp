@@ -2164,8 +2164,6 @@ def _tool_irule_with_context(
 ) -> str:
     _configure_dialect("f5-irules")
 
-    from pathlib import Path as _Path
-
     from ai.shared.irule_context import (
         build_irule_context,
         context_bundle_to_dict,
@@ -2173,23 +2171,37 @@ def _tool_irule_with_context(
     )
     from core.bigip.lint import _merge_configs
     from core.bigip.parser import parse_bigip_conf
+    from explorer.verbs.f5._paths import load_irule_inputs
+
+    paths = list(config_paths or [])
+    if not config_text and not paths:
+        return json.dumps({"error": "no input config provided; pass config_text or config_paths"})
 
     sources: dict[str, str] = {}
-    configs = {}
+    configs: dict = {}
+
     if config_text:
+        # Inline config_text is a *full bigip.conf* (or SCF) — parse it
+        # directly so the original ``ltm rule`` stanzas survive.  The
+        # loader's --source path is for raw iRule bodies, which is the
+        # opposite shape.
         sources["inline://config"] = config_text
         configs["inline://config"] = parse_bigip_conf(config_text)
-    for path_str in config_paths or []:
-        p = _Path(path_str).expanduser().resolve()
-        text = p.read_text(encoding="utf-8", errors="replace")
-        uri = p.as_uri()
-        sources[uri] = text
-        configs[uri] = parse_bigip_conf(text)
+
+    if paths:
+        # Funnel files through the same loader the f5 CLI uses so UCS
+        # archives, SCF split-files, and standalone .irule files all
+        # resolve consistently — and the source-slice keys match the
+        # config keys for verbatim quoting.
+        try:
+            _inputs, file_configs, file_sources = load_irule_inputs(paths)
+        except (OSError, ValueError) as exc:
+            return json.dumps({"error": str(exc)})
+        configs.update(file_configs)
+        sources.update(file_sources)
 
     if not configs:
-        return json.dumps(
-            {"error": "no input config provided; pass config_text or config_paths"}
-        )
+        return json.dumps({"error": "no parseable BIG-IP config in input"})
 
     merged = _merge_configs(configs) if len(configs) > 1 else next(iter(configs.values()))
 
@@ -2217,9 +2229,7 @@ def _tool_irule_with_context(
             config_origin=origin,
         )
         if format == "text":
-            bundles_payload.append(
-                {"rule": path, "text": context_bundle_to_text(bundle)}
-            )
+            bundles_payload.append({"rule": path, "text": context_bundle_to_text(bundle)})
         else:
             bundles_payload.append(context_bundle_to_dict(bundle))
 

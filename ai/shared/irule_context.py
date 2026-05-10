@@ -329,7 +329,9 @@ def _summarise_snat_pool(s: BigipSnatPool) -> dict[str, Any]:
 
 
 def _summarise_profile(p: BigipProfile) -> dict[str, Any]:
-    profile_type = p.profile_type.name.lower() if hasattr(p.profile_type, "name") else str(p.profile_type)
+    profile_type = (
+        p.profile_type.name.lower() if hasattr(p.profile_type, "name") else str(p.profile_type)
+    )
     return {"fullPath": p.full_path, "type": profile_type}
 
 
@@ -415,7 +417,9 @@ def _render_snat_pool_text(s: BigipSnatPool) -> str:
 
 
 def _render_profile_text(p: BigipProfile) -> str:
-    profile_type = p.profile_type.name.lower() if hasattr(p.profile_type, "name") else str(p.profile_type)
+    profile_type = (
+        p.profile_type.name.lower() if hasattr(p.profile_type, "name") else str(p.profile_type)
+    )
     return f"ltm profile {profile_type} {p.full_path} {{ }}\n"
 
 
@@ -464,7 +468,10 @@ def context_bundle_to_text(bundle: IruleContextBundle) -> str:
     sections: list[tuple[str, list[tuple[str, str]]]] = [
         (
             "pool",
-            [(p.full_path, _render_object_text(bundle, p, _render_pool_text(p))) for p in bundle.pools.values()],
+            [
+                (p.full_path, _render_object_text(bundle, p, _render_pool_text(p)))
+                for p in bundle.pools.values()
+            ],
         ),
         (
             "data-group",
