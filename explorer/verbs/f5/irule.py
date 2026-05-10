@@ -81,7 +81,11 @@ def _add_irule_input_arguments(
             "-o",
             "--output",
             default="-",
-            help="Output path ('-' for stdout, or a directory for multi-iRule input).",
+            help=(
+                "Output path: '-' for stdout, an existing directory (or a "
+                "trailing-slash path) for one file per iRule, or any other "
+                "path for a single concatenated file."
+            ),
         )
 
 
@@ -358,17 +362,17 @@ def _flatten_rule_path(rule_full_path: str | None, fallback_label: str) -> str:
 _KNOWN_SUFFIXES = (".tcl", ".irul", ".irule", ".conf", ".scf", ".ucs")
 
 
-def _is_directory_target(output: str, *, multi: bool) -> bool:
+def _is_directory_target(output: str) -> bool:
     """Decide whether *output* should be treated as a directory.
 
-    For multi-iRule input we always treat it as a directory.  For
-    single-iRule input we only treat it as a directory when the path
-    already exists as one (or ends with a separator).
+    Stdout (``-``) is never a directory.  Otherwise we treat *output*
+    as a directory when it already exists as one or ends with a path
+    separator — both single- and multi-rule input honour this so the
+    operator picks the shape with the path syntax (``-o out/`` for a
+    directory, ``-o out.irule`` for one concatenated file).
     """
     if output == "-":
         return False
-    if multi:
-        return True
     p = Path(output)
     return p.is_dir() or output.endswith(("/", "\\"))
 
@@ -664,37 +668,46 @@ def _write_iRule_outputs(
 ) -> int:
     """Common output dispatcher for irule format/minify.
 
-    Single iRule + ``-o FILE``-or-``-`` → write/print *transformed[0]*.
-    Multiple iRules → require a directory output; one file per rule.
+    Output shape is selected by the path passed to ``-o`` regardless of
+    how many iRules came out of the loader:
+
+    - ``-`` (default) → write the concatenated text to stdout.
+    - existing directory or trailing slash (``out/``) → write one file
+      per rule, named ``<flatten(rule_full_path)><file_extension>``.
+    - any other path → write the concatenated text to that single file.
+
+    For the concatenated forms, multi-rule output is separated by a
+    ``# ===== <rule_full_path or label> =====`` header per rule so the
+    boundary is obvious in the combined stream.
     """
-    multi = len(transformed) > 1
-    target_is_dir = _is_directory_target(args.output, multi=multi)
-
-    if multi and not target_is_dir:
-        print(
-            "error: input contains multiple iRules; -o must be a directory",
-            file=sys.stderr,
-        )
-        return 2
-
+    target_is_dir = _is_directory_target(args.output)
     use_colour = _resolve_use_colour(args)
     tab_width = _resolve_tab_width(args)
 
-    if not target_is_dir:
-        text = transformed[0] if transformed else ""
-        _write_highlighted_output(args.output, text, use_colour=use_colour, tab_width=tab_width)
+    if target_is_dir:
+        out_dir = Path(args.output)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for entry, text in zip(inputs, transformed, strict=True):
+            stem = _flatten_rule_path(entry.rule_full_path, entry.label)
+            target = out_dir / f"{stem}{file_extension}"
+            target.write_text(
+                text if text.endswith("\n") else text + "\n",
+                encoding="utf-8",
+            )
+        print(f"wrote {len(transformed)} iRule(s) to {out_dir}", file=sys.stderr)
         return 0
 
-    out_dir = Path(args.output)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for entry, text in zip(inputs, transformed, strict=True):
-        stem = _flatten_rule_path(entry.rule_full_path, entry.label)
-        target = out_dir / f"{stem}{file_extension}"
-        target.write_text(
-            text if text.endswith("\n") else text + "\n",
-            encoding="utf-8",
-        )
-    print(f"wrote {len(transformed)} iRule(s) to {out_dir}", file=sys.stderr)
+    # Single-file / stdout: emit the concatenation.  For one rule this
+    # is just the text; for many it gets per-rule banners.
+    if len(transformed) <= 1:
+        text = transformed[0] if transformed else ""
+    else:
+        chunks: list[str] = []
+        for entry, body in zip(inputs, transformed, strict=True):
+            label = entry.rule_full_path or entry.label
+            chunks.append(f"# ===== {label} =====\n{body.rstrip()}\n")
+        text = "\n".join(chunks)
+    _write_highlighted_output(args.output, text, use_colour=use_colour, tab_width=tab_width)
     return 0
 
 
@@ -818,30 +831,32 @@ def _run_irule_context(args: argparse.Namespace) -> int:
         print("error: no iRules found in input", file=sys.stderr)
         return 1
 
-    multi = len(bundles) > 1
-    target_is_dir = _is_directory_target(args.output, multi=multi)
+    target_is_dir = _is_directory_target(args.output)
 
-    if multi and not target_is_dir:
-        print(
-            "error: input contains multiple iRules; -o must be a directory",
-            file=sys.stderr,
-        )
-        return 2
-
-    def render(bundle) -> str:
-        if args.json:
-            return json.dumps(context_bundle_to_dict(bundle), indent=2) + "\n"
-        return context_bundle_to_text(bundle)
-
-    if not target_is_dir:
-        _write_text_output(args.output, render(bundles[0][1]))
+    if target_is_dir:
+        out_dir = Path(args.output)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        suffix = ".json" if args.json else ".tcl"
+        for rule_path, bundle in bundles:
+            flat = rule_path.lstrip("/").replace("/", "__")
+            if args.json:
+                payload = json.dumps(context_bundle_to_dict(bundle), indent=2) + "\n"
+            else:
+                payload = context_bundle_to_text(bundle)
+            (out_dir / f"{flat}{suffix}").write_text(payload, encoding="utf-8")
+        print(f"wrote {len(bundles)} iRule context bundle(s) to {out_dir}", file=sys.stderr)
         return 0
 
-    out_dir = Path(args.output)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    suffix = ".json" if args.json else ".tcl"
-    for rule_path, bundle in bundles:
-        flat = rule_path.lstrip("/").replace("/", "__")
-        (out_dir / f"{flat}{suffix}").write_text(render(bundle), encoding="utf-8")
-    print(f"wrote {len(bundles)} iRule context bundle(s) to {out_dir}", file=sys.stderr)
+    # Single-file / stdout: concatenate.  JSON gets a single ``bundles``
+    # array; text mode keeps each block contiguous so the existing
+    # ``# ===== iRule …`` headers separate them naturally.
+    if args.json:
+        payload = json.dumps(
+            {"bundles": [context_bundle_to_dict(b) for _, b in bundles]},
+            indent=2,
+        )
+        _write_text_output(args.output, payload + "\n")
+    else:
+        chunks = [context_bundle_to_text(b).rstrip() + "\n" for _, b in bundles]
+        _write_text_output(args.output, "\n".join(chunks))
     return 0

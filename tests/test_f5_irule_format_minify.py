@@ -59,7 +59,9 @@ def test_irule_format_bigip_conf_emits_directory(tmp_path, capsys):
     assert files == ["Common__foo.irule", "Partition_a__bar.irule"]
 
 
-def test_irule_format_multiple_rules_requires_directory(tmp_path, capsys):
+def test_irule_format_multiple_rules_concat_to_stdout(tmp_path, capsys):
+    """Multi-rule input + scalar -o (or stdout) emits a single
+    concatenated stream with per-rule banner headers."""
     conf = tmp_path / "bigip.conf"
     conf.write_text(
         "ltm rule /Common/foo {when HTTP_REQUEST {return}}\n"
@@ -67,10 +69,46 @@ def test_irule_format_multiple_rules_requires_directory(tmp_path, capsys):
         encoding="utf-8",
     )
 
-    # Default output is "-" (stdout) which is a scalar — should error.
-    code, _out, err = _run(["irule", "format", str(conf)], capsys)
-    assert code == 2
-    assert "multiple iRules" in err
+    code, out, err = _run(["irule", "format", str(conf)], capsys)
+    assert code == 0, err
+    assert "# ===== /Common/foo =====" in out
+    assert "# ===== /Common/bar =====" in out
+
+
+def test_irule_format_multiple_rules_to_single_file(tmp_path, capsys):
+    """Passing a non-directory ``-o FILE`` for multi-rule input writes
+    the concatenated stream to that file (no error)."""
+    conf = tmp_path / "bigip.conf"
+    conf.write_text(
+        "ltm rule /Common/foo {when HTTP_REQUEST {return}}\n"
+        "ltm rule /Common/bar {when HTTP_RESPONSE {return}}\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "all.irule"
+
+    code, _out, err = _run(["irule", "format", str(conf), "-o", str(target)], capsys)
+    assert code == 0, err
+    text = target.read_text(encoding="utf-8")
+    assert "# ===== /Common/foo =====" in text
+    assert "# ===== /Common/bar =====" in text
+
+
+def test_irule_format_directory_target_uses_trailing_slash(tmp_path, capsys):
+    """A path with a trailing separator is treated as a directory even
+    if it doesn't yet exist."""
+    conf = tmp_path / "bigip.conf"
+    conf.write_text(
+        "ltm rule /Common/foo {when HTTP_REQUEST {return}}\n"
+        "ltm rule /Common/bar {when HTTP_RESPONSE {return}}\n",
+        encoding="utf-8",
+    )
+    out_dir_arg = str(tmp_path / "fmt") + "/"
+
+    code, _out, err = _run(["irule", "format", str(conf), "-o", out_dir_arg], capsys)
+    assert code == 0, err
+    out_dir = tmp_path / "fmt"
+    assert (out_dir / "Common__foo.irule").exists()
+    assert (out_dir / "Common__bar.irule").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -195,8 +233,12 @@ def test_irule_context_json_smoke(tmp_path, capsys):
     code, out, err = _run(["irule", "context", str(conf), "--json"], capsys)
     assert code == 0, err
     payload = json.loads(out)
-    assert payload["rule"]["fullPath"] == "/Common/foo"
-    assert any(p["fullPath"] == "/Common/web_pool" for p in payload["pools"])
+    # Single-file JSON output wraps every rule in a ``bundles`` array
+    # for consistency between single- and multi-rule input.
+    assert len(payload["bundles"]) == 1
+    bundle = payload["bundles"][0]
+    assert bundle["rule"]["fullPath"] == "/Common/foo"
+    assert any(p["fullPath"] == "/Common/web_pool" for p in bundle["pools"])
 
 
 # ---------------------------------------------------------------------------
