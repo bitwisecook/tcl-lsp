@@ -4,6 +4,17 @@ Sub-subcommands:
 
 - ``f5 irule event-order`` — show iRules events in canonical firing order.
 - ``f5 irule event-info``  — look up iRules event metadata and valid commands.
+- ``f5 irule lint``        — apply iRule-only lint rules.
+- ``f5 irule trace``       — static event-flow trace from a starting event.
+- ``f5 irule extract``     — split a bigip.conf / SCF / UCS into per-rule files.
+- ``f5 irule format``      — pretty-print iRule source.
+- ``f5 irule minify``      — strip whitespace/comments from iRule source.
+
+Every sub-subcommand except ``extract`` and ``event-info`` accepts the
+same flexible mix of inputs: individual ``.irul`` / ``.irule`` / ``.tcl``
+files, ``bigip.conf`` / SCF files containing ``ltm rule`` stanzas, UCS
+archives, ``--source`` snippets, or stdin.  ``extract`` only consumes
+configs that may *contain* iRules (bigip.conf / SCF / UCS).
 
 These verbs are purely iRules-focused and are not available on the
 general-purpose ``tcl`` CLI.  Generally-useful verbs (``command-info``,
@@ -15,24 +26,72 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import sys
+from pathlib import Path
 
 from core.commands.registry.info import lookup_event_info
 from core.commands.registry.namespace_data import event_multiplicity, order_events_for_file
 from core.commands.registry.runtime import configure_signatures
 
+from ...pipeline import AVAILABLE_DIALECTS
 from .._utils import (
-    _add_input_arguments,
-    _combine_sources,
-    _read_input_documents,
+    _add_colour_arguments,
+    _add_formatter_arguments,
+    _resolve_formatter_config,
+    _resolve_tab_width,
+    _resolve_use_colour,
+    _write_highlighted_output,
     _write_text_output,
 )
+from ._paths import IruleInput, load_irule_inputs, read_path
+
+
+def _add_irule_input_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    include_output: bool = True,
+) -> None:
+    """Add the standard input arguments shared by irule sub-verbs.
+
+    Inputs may mix .irul / .irule / .tcl files, bigip.conf / SCF, UCS
+    archives, and ``-`` for stdin.  ``--source`` adds inline iRule
+    snippets (repeatable).
+    """
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        help=(
+            "Input files: .tcl/.irul/.irule, bigip.conf/SCF, or .ucs."
+            "  Pass `-` to read stdin."
+        ),
+    )
+    parser.add_argument(
+        "--source",
+        action="append",
+        default=[],
+        help="Inline iRule source text (can be repeated).",
+    )
+    parser.add_argument(
+        "--dialect",
+        choices=AVAILABLE_DIALECTS,
+        default="f5-irules",
+        help="Dialect profile (default: f5-irules).",
+    )
+    if include_output:
+        parser.add_argument(
+            "-o",
+            "--output",
+            default="-",
+            help="Output path ('-' for stdout, or a directory for multi-iRule input).",
+        )
 
 
 def add_irule_subparser(
     sub: argparse._SubParsersAction,  # noqa: SLF001
     *,
     prog_name: str = "f5",
-    default_dialect: str = "f5-irules",
+    default_dialect: str = "f5-irules",  # noqa: ARG001 — kept for parity with other registrars
 ) -> None:
     """Register the ``irule`` verb group and its sub-subparsers."""
     irule_p = sub.add_parser(
@@ -45,6 +104,8 @@ def add_irule_subparser(
             "Examples:\n"
             f"  {prog_name} irule event-order rules/policy.irule\n"
             f"  {prog_name} irule event-info HTTP_REQUEST\n"
+            f"  {prog_name} irule format rule.irule\n"
+            f"  {prog_name} irule minify bigip.conf -o minified/\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -56,7 +117,7 @@ def add_irule_subparser(
         aliases=["eventorder"],
         help="Show iRules events in canonical firing order.",
     )
-    _add_input_arguments(eo_p, include_output=True, default_dialect="f5-irules")
+    _add_irule_input_arguments(eo_p)
     eo_p.add_argument(
         "--json",
         action="store_true",
@@ -90,20 +151,21 @@ def add_irule_subparser(
     # ── lint ───────────────────────────────────────────────────────────
     lint_p = irule_sub.add_parser(
         "lint",
-        help="Run iRule-only lint rules over a bigip.conf / SCF.",
+        help="Run iRule-only lint rules over iRule sources.",
         description=(
             "Apply only the irule-category lint rules from `f5 validate`: "
-            "deprecated commands, empty when blocks, unknown events, etc."
+            "deprecated commands, empty when blocks, unknown events, etc.  "
+            "Accepts .irul / .irule / .tcl files, bigip.conf / SCF, UCS, "
+            "or --source snippets."
         ),
     )
-    lint_p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
+    _add_irule_input_arguments(lint_p)
     lint_p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     lint_p.add_argument(
         "--severity",
         choices=("error", "warning", "info"),
         help="Filter to one severity level.",
     )
-    lint_p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")
     lint_p.set_defaults(handler=_run_irule_lint)
 
     # ── trace ──────────────────────────────────────────────────────────
@@ -113,28 +175,204 @@ def add_irule_subparser(
         description=(
             "List every command an iRule fires when a given event is "
             "triggered, plus references to pools / data-groups / "
-            "persistence found inside the event's `when` block."
+            "persistence found inside the event's `when` block.  "
+            "Accepts .irul / .irule / .tcl files, bigip.conf / SCF, UCS, "
+            "or --source snippets."
         ),
     )
     trace_p.add_argument("event", help="Starting event name (e.g. HTTP_REQUEST).")
-    trace_p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
+    _add_irule_input_arguments(trace_p)
     trace_p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
-    trace_p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")
     trace_p.set_defaults(handler=_run_irule_trace)
 
     # ── extract ────────────────────────────────────────────────────────
     extract_p = irule_sub.add_parser(
         "extract",
-        help="Write each iRule body to a standalone .tcl file.",
+        help="Write each iRule body in a config to a standalone .tcl file.",
         description=(
             "For every `ltm rule` in the input config, write its source "
             "body to OUTDIR/<full-path-with-slashes-flattened>.tcl, "
-            "ready to load into an LSP-aware editor for editing."
+            "ready to load into an LSP-aware editor for editing.  "
+            "Accepts bigip.conf / SCF / UCS only — standalone .irule "
+            "files are already in the desired form."
         ),
     )
-    extract_p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
+    extract_p.add_argument(
+        "paths",
+        nargs="+",
+        help="bigip.conf / SCF / UCS files (`-` for stdin).",
+    )
     extract_p.add_argument("output", help="Output directory (created if needed).")
     extract_p.set_defaults(handler=_run_irule_extract)
+
+    # ── format ─────────────────────────────────────────────────────────
+    fmt_p = irule_sub.add_parser(
+        "format",
+        aliases=["fmt"],
+        help="Format iRule source and emit rewritten Tcl.",
+        description=(
+            "Pretty-print iRule source with canonical indentation and "
+            "spacing.  Accepts .irul / .irule / .tcl files, bigip.conf "
+            "/ SCF / UCS, --source snippets, or stdin.  When the input "
+            "yields a single iRule, the formatted body is written to "
+            "stdout (or -o FILE).  When it yields more than one, -o "
+            "must point at a directory and one file per rule is written."
+        ),
+        epilog=(
+            "Examples:\n"
+            f"  {prog_name} irule format rule.irule\n"
+            f"  {prog_name} irule format --source 'when HTTP_REQUEST {{ return }}'\n"
+            f"  {prog_name} irule format bigip.conf -o formatted/\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_irule_input_arguments(fmt_p)
+    _add_colour_arguments(fmt_p)
+    _add_formatter_arguments(fmt_p)
+    fmt_p.set_defaults(handler=_run_irule_format)
+
+    # ── minify ─────────────────────────────────────────────────────────
+    min_p = irule_sub.add_parser(
+        "minify",
+        aliases=["min"],
+        help="Minify iRule source: strip comments, collapse whitespace.",
+        description=(
+            "Minify iRule source: strip comments, collapse whitespace, "
+            "and join commands with semicolons.  Accepts .irul / .irule "
+            "/ .tcl files, bigip.conf / SCF / UCS, --source snippets, "
+            "or stdin.  When the input yields more than one iRule, -o "
+            "must point at a directory and one file per rule is written."
+        ),
+        epilog=(
+            "Examples:\n"
+            f"  {prog_name} irule minify rule.irule\n"
+            f"  {prog_name} irule minify rule.irule -o min.irule\n"
+            f"  {prog_name} irule minify --compact rule.irule --symbol-map symbols.txt\n"
+            f"  {prog_name} irule minify --aggressive bigip.conf -o tiny/\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_irule_input_arguments(min_p)
+    min_p.add_argument(
+        "--compact",
+        action="store_true",
+        help="Compact variable and proc names to short identifiers.",
+    )
+    min_p.add_argument(
+        "--symbol-map",
+        metavar="FILE",
+        default=None,
+        help="Write symbol map (original -> compacted names) to FILE.",
+    )
+    min_p.add_argument(
+        "--aggressive",
+        action="store_true",
+        help="Maximum compression: run all optimiser passes, then compact names and minify.",
+    )
+    min_p.add_argument(
+        "--isolated",
+        action="store_true",
+        help="Treat script as self-contained — also compact global-scope variable names.",
+    )
+    _add_colour_arguments(min_p)
+    min_p.set_defaults(handler=_run_irule_minify)
+
+    # ── context ────────────────────────────────────────────────────────
+    ctx_p = irule_sub.add_parser(
+        "context",
+        help="Bundle each iRule with the BIG-IP objects it references.",
+        description=(
+            "For every input iRule, emit the rule body together with "
+            "every BIG-IP object it references (pools, data groups, "
+            "persistence profiles, SNAT pools, profiles, monitors, "
+            "nodes, called rules) plus a one-hop transitive expansion "
+            "(pool members → nodes; pool monitor → monitor).  "
+            "Designed to be dropped into an LLM prompt or consumed by "
+            "AI tooling that needs the full context for an iRule."
+        ),
+        epilog=(
+            "Examples:\n"
+            f"  {prog_name} irule context bigip.conf\n"
+            f"  {prog_name} irule context bigip.conf --json\n"
+            f"  {prog_name} irule context bigip.conf -o ctx/  # one file per rule\n"
+            f"  {prog_name} irule context bigip.conf --rule /Common/foo\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_irule_input_arguments(ctx_p)
+    ctx_p.add_argument(
+        "--rule",
+        action="append",
+        default=[],
+        metavar="FULL_PATH",
+        help="Limit output to rules with these full paths (repeatable).",
+    )
+    ctx_p.add_argument(
+        "--no-transitive",
+        action="store_true",
+        help="Skip the one-hop transitive expansion (pool→node, pool→monitor).",
+    )
+    ctx_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit each bundle as a JSON object (default: Tcl-flavoured text).",
+    )
+    ctx_p.set_defaults(handler=_run_irule_context)
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_irule_inputs(
+    args: argparse.Namespace,
+) -> tuple[list[IruleInput], dict[str, object]] | int:
+    """Run :func:`load_irule_inputs` with CLI error handling.
+
+    Returns the loader's ``(inputs, configs)`` tuple on success or an
+    exit code (already-printed error) on failure.
+    """
+    paths = list(args.paths or [])
+    inline = list(getattr(args, "source", None) or [])
+    if not paths and not inline:
+        print("error: no input provided; pass files, --source, or `-` for stdin", file=sys.stderr)
+        return 2
+    try:
+        return load_irule_inputs(paths, inline_sources=inline)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
+def _flatten_rule_path(rule_full_path: str | None, fallback_label: str) -> str:
+    """Convert a rule path (or label) to a safe file-stem."""
+    if rule_full_path:
+        return rule_full_path.lstrip("/").replace("/", "__")
+    stem = Path(fallback_label).name
+    if stem in ("", "<stdin>", "-"):
+        stem = "irule"
+    if stem.endswith(tuple(_KNOWN_SUFFIXES)):
+        stem = Path(stem).stem
+    return stem.replace("/", "__")
+
+
+_KNOWN_SUFFIXES = (".tcl", ".irul", ".irule", ".conf", ".scf", ".ucs")
+
+
+def _is_directory_target(output: str, *, multi: bool) -> bool:
+    """Decide whether *output* should be treated as a directory.
+
+    For multi-iRule input we always treat it as a directory.  For
+    single-iRule input we only treat it as a directory when the path
+    already exists as one (or ends with a separator).
+    """
+    if output == "-":
+        return False
+    if multi:
+        return True
+    p = Path(output)
+    return p.is_dir() or output.endswith(("/", "\\"))
 
 
 # ---------------------------------------------------------------------------
@@ -143,22 +381,25 @@ def add_irule_subparser(
 
 
 def _run_irule_lint(args: argparse.Namespace) -> int:
-    import sys
-    from pathlib import Path
-
     from core.bigip.lint import run_lint
 
-    from ._paths import load_paths
     from .validate import _to_json, _to_text
 
-    try:
-        sources, configs = load_paths(args.paths)
-    except OSError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    _inputs, configs = loaded
+
+    # The iRule lint category only inspects rule bodies, so the
+    # ``sources`` argument can be the rule bodies joined back together
+    # by origin URI.
+    sources_for_lint = {
+        origin: "\n".join(rule.source for rule in cfg.rules.values())
+        for origin, cfg in configs.items()
+    }
 
     findings = run_lint(
-        sources=sources,
+        sources=sources_for_lint,
         configs=configs,
         category="irule",
         severity=args.severity,
@@ -169,10 +410,7 @@ def _run_irule_lint(args: argparse.Namespace) -> int:
     else:
         output = _to_text(findings) + "\n"
 
-    if args.output:
-        Path(args.output).write_text(output, encoding="utf-8")
-    else:
-        sys.stdout.write(output)
+    _write_text_output(args.output, output)
 
     has_error = any(f.severity == "error" for f in findings)
     has_warning = any(f.severity == "warning" for f in findings)
@@ -184,17 +422,14 @@ def _run_irule_lint(args: argparse.Namespace) -> int:
 
 
 def _run_irule_trace(args: argparse.Namespace) -> int:
-    import re
-    import sys
-    from pathlib import Path
+    from core.bigip.irules_refs import extract_irules_object_references
+    from core.bigip.lint import _classify_reference_kind, _resolve_reference
 
-    from ._paths import load_paths
-
-    try:
-        _sources, configs = load_paths(args.paths)
-    except OSError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    inputs, configs = loaded
+    merged = _merge_configs_for_trace(configs)
 
     block_re = re.compile(
         rf"\bwhen\s+{re.escape(args.event)}\s*\{{",
@@ -202,20 +437,45 @@ def _run_irule_trace(args: argparse.Namespace) -> int:
     )
 
     traces: list[dict] = []
-    for cfg in configs.values():
-        for rule_path, rule in cfg.rules.items():
-            match = block_re.search(rule.source)
-            if not match:
+    for entry in inputs:
+        match = block_re.search(entry.source)
+        if not match:
+            continue
+        body = _slice_balanced_braces(entry.source, match.end() - 1)
+        commands = _extract_commands(body)
+        rule_label = entry.rule_full_path or entry.label
+
+        # Extract object references from the *event-handler body* so
+        # `references` only covers what this event actually touches.
+        refs_payload: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for ref in extract_irules_object_references(body):
+            kind = _classify_reference_kind(ref.kinds)
+            if kind is None:
                 continue
-            body = _slice_balanced_braces(rule.source, match.end() - 1)
-            commands = _extract_commands(body)
-            traces.append(
+            key = (kind, ref.name)
+            if key in seen:
+                continue
+            seen.add(key)
+            resolved_path = _resolve_reference(merged, kind, ref.name)
+            refs_payload.append(
                 {
-                    "rule": rule_path,
-                    "commandCount": len(commands),
-                    "commands": commands,
+                    "kind": kind,
+                    "name": ref.name,
+                    "command": ref.command,
+                    "resolved": resolved_path is not None,
+                    "resolvedPath": resolved_path,
                 }
             )
+
+        traces.append(
+            {
+                "rule": rule_label,
+                "commandCount": len(commands),
+                "commands": commands,
+                "references": refs_payload,
+            }
+        )
 
     if args.json:
         out = json.dumps({"event": args.event, "traces": traces}, indent=2) + "\n"
@@ -225,13 +485,27 @@ def _run_irule_trace(args: argparse.Namespace) -> int:
             lines.append(f"  {trace['rule']} — {trace['commandCount']} command(s)")
             for cmd in trace["commands"]:
                 lines.append(f"    {cmd}")
+            for ref in trace["references"]:
+                marker = "✓" if ref["resolved"] else "✗"
+                target = ref["resolvedPath"] or ref["name"]
+                lines.append(f"    {marker} {ref['kind']}: {target}")
         out = "\n".join(lines) + "\n"
 
-    if args.output:
-        Path(args.output).write_text(out, encoding="utf-8")
-    else:
-        sys.stdout.write(out)
+    _write_text_output(args.output, out)
     return 0 if traces else 1
+
+
+def _merge_configs_for_trace(configs: dict) -> object:
+    """Lazy import so we don't pull lint code at module load."""
+    from core.bigip.lint import _merge_configs
+
+    if not configs:
+        from core.bigip.model import BigipConfig
+
+        return BigipConfig()
+    if len(configs) == 1:
+        return next(iter(configs.values()))
+    return _merge_configs(configs)
 
 
 def _slice_balanced_braces(source: str, open_brace: int) -> str:
@@ -264,9 +538,7 @@ def _extract_commands(body: str) -> list[str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        # Cheap tokenisation: first whitespace-delimited word.
         head = line.split(None, 1)[0]
-        # Strip stray closing brace from one-liners
         head = head.rstrip("{};")
         if head:
             cmds.append(head)
@@ -274,14 +546,17 @@ def _extract_commands(body: str) -> list[str]:
 
 
 def _run_irule_extract(args: argparse.Namespace) -> int:
-    import sys
-    from pathlib import Path
-
-    from ._paths import load_paths
-
+    # Extract only consumes config-style inputs; bypass the standalone
+    # .irule shortcut by going through load_irule_inputs anyway — for
+    # raw .irule input the synthetic single-rule config still produces
+    # a single output file, which is harmless.
+    paths = list(args.paths or [])
+    if not paths:
+        print("error: no input provided; pass bigip.conf / SCF / UCS files", file=sys.stderr)
+        return 2
     try:
-        _sources, configs = load_paths(args.paths)
-    except OSError as exc:
+        _inputs, configs = load_irule_inputs(paths)
+    except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -300,16 +575,15 @@ def _run_irule_extract(args: argparse.Namespace) -> int:
 
 
 def _run_event_order(args: argparse.Namespace) -> int:
-    documents = _read_input_documents(
-        args.inputs,
-        inline_sources=args.source,
-        package_paths=args.package_path,
-        recursive=not args.no_recursive,
-    )
-    configure_signatures(dialect=args.dialect)
-    source = _combine_sources(documents)
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    inputs, _configs = loaded
 
-    ordered = order_events_for_file(source)
+    configure_signatures(dialect=args.dialect)
+    combined = "\n\n".join(entry.source.rstrip("\n") for entry in inputs)
+
+    ordered = order_events_for_file(combined)
     events = [
         {
             "index": index,
@@ -369,3 +643,214 @@ def _run_event_info(args: argparse.Namespace) -> int:
     lines.append(f"valid commands: {info.valid_command_count}")
     _write_text_output(args.output, "\n".join(lines))
     return 0 if info.known else 1
+
+
+# ---------------------------------------------------------------------------
+# format / minify
+# ---------------------------------------------------------------------------
+
+
+def _write_iRule_outputs(
+    *,
+    args: argparse.Namespace,
+    inputs: list[IruleInput],
+    transformed: list[str],
+    file_extension: str,
+) -> int:
+    """Common output dispatcher for irule format/minify.
+
+    Single iRule + ``-o FILE``-or-``-`` → write/print *transformed[0]*.
+    Multiple iRules → require a directory output; one file per rule.
+    """
+    multi = len(transformed) > 1
+    target_is_dir = _is_directory_target(args.output, multi=multi)
+
+    if multi and not target_is_dir:
+        print(
+            "error: input contains multiple iRules; -o must be a directory",
+            file=sys.stderr,
+        )
+        return 2
+
+    use_colour = _resolve_use_colour(args)
+    tab_width = _resolve_tab_width(args)
+
+    if not target_is_dir:
+        text = transformed[0] if transformed else ""
+        _write_highlighted_output(args.output, text, use_colour=use_colour, tab_width=tab_width)
+        return 0
+
+    out_dir = Path(args.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for entry, text in zip(inputs, transformed, strict=True):
+        stem = _flatten_rule_path(entry.rule_full_path, entry.label)
+        target = out_dir / f"{stem}{file_extension}"
+        target.write_text(
+            text if text.endswith("\n") else text + "\n",
+            encoding="utf-8",
+        )
+    print(f"wrote {len(transformed)} iRule(s) to {out_dir}", file=sys.stderr)
+    return 0
+
+
+def _run_irule_format(args: argparse.Namespace) -> int:
+    from core.formatting import format_tcl
+
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    inputs, _configs = loaded
+
+    configure_signatures(dialect=args.dialect)
+    fmt_cfg = _resolve_formatter_config(args)
+    formatted = [format_tcl(entry.source, config=fmt_cfg) for entry in inputs]
+    return _write_iRule_outputs(
+        args=args,
+        inputs=inputs,
+        transformed=formatted,
+        file_extension=".irule",
+    )
+
+
+def _run_irule_minify(args: argparse.Namespace) -> int:
+    from core.minifier import minify_tcl
+
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    inputs, _configs = loaded
+
+    configure_signatures(dialect=args.dialect)
+    isolated = bool(getattr(args, "isolated", False))
+
+    minified: list[str] = []
+    symbol_maps: list[str] = []
+    if args.aggressive:
+        for entry in inputs:
+            result = minify_tcl(
+                entry.source,
+                aggressive=True,
+                isolated=isolated,
+                dialect=args.dialect,
+            )
+            minified.append(result.source)
+            symbol_maps.append(result.symbol_map.format())
+    elif args.compact:
+        for entry in inputs:
+            text, symbol_map = minify_tcl(
+                entry.source,
+                compact_names=True,
+                isolated=isolated,
+                dialect=args.dialect,
+            )
+            minified.append(text)
+            symbol_maps.append(symbol_map.format())
+    else:
+        for entry in inputs:
+            minified.append(minify_tcl(entry.source, dialect=args.dialect))
+
+    rc = _write_iRule_outputs(
+        args=args,
+        inputs=inputs,
+        transformed=minified,
+        file_extension=".irule",
+    )
+    if rc != 0:
+        return rc
+
+    if args.symbol_map and symbol_maps:
+        joined = "\n\n".join(
+            f"# {entry.rule_full_path or entry.label}\n{m}".rstrip()
+            for entry, m in zip(inputs, symbol_maps, strict=True)
+            if m
+        )
+        _write_text_output(args.symbol_map, joined + ("\n" if joined else ""))
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# context
+# ---------------------------------------------------------------------------
+
+
+def _run_irule_context(args: argparse.Namespace) -> int:
+    from ai.shared.irule_context import (
+        build_irule_context,
+        context_bundle_to_dict,
+        context_bundle_to_text,
+    )
+
+    loaded = _resolve_irule_inputs(args)
+    if isinstance(loaded, int):
+        return loaded
+    inputs, configs = loaded
+
+    configure_signatures(dialect=args.dialect)
+
+    # Reuse load_paths-style sources for slicing.  load_irule_inputs
+    # already keeps each origin's BigipConfig but not its raw text;
+    # for slicing we need the original content, so re-read from disk
+    # for non-stdin paths.
+    sources_by_origin: dict[str, str] = {}
+    for path in args.paths or []:
+        if path == "-":
+            continue
+        try:
+            uri, src = read_path(path)
+        except OSError:
+            continue
+        sources_by_origin[uri] = src
+
+    # Merge configs once so cross-file references (e.g. SCF split into
+    # multiple files) all resolve.
+    merged = _merge_configs_for_trace(configs)
+
+    rule_filter = set(args.rule or [])
+    transitive = not args.no_transitive
+
+    bundles = []
+    for cfg_origin, cfg in configs.items():
+        for rule_path, rule in cfg.rules.items():
+            if rule_filter and rule_path not in rule_filter:
+                continue
+            bundle = build_irule_context(
+                rule,
+                merged,
+                transitive=transitive,
+                sources=sources_by_origin or None,
+                config_origin=cfg_origin,
+                dialect=args.dialect,
+            )
+            bundles.append((rule_path, bundle))
+
+    if not bundles:
+        print("error: no iRules found in input", file=sys.stderr)
+        return 1
+
+    multi = len(bundles) > 1
+    target_is_dir = _is_directory_target(args.output, multi=multi)
+
+    if multi and not target_is_dir:
+        print(
+            "error: input contains multiple iRules; -o must be a directory",
+            file=sys.stderr,
+        )
+        return 2
+
+    def render(bundle) -> str:
+        if args.json:
+            return json.dumps(context_bundle_to_dict(bundle), indent=2) + "\n"
+        return context_bundle_to_text(bundle)
+
+    if not target_is_dir:
+        _write_text_output(args.output, render(bundles[0][1]))
+        return 0
+
+    out_dir = Path(args.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    suffix = ".json" if args.json else ".tcl"
+    for rule_path, bundle in bundles:
+        flat = rule_path.lstrip("/").replace("/", "__")
+        (out_dir / f"{flat}{suffix}").write_text(render(bundle), encoding="utf-8")
+    print(f"wrote {len(bundles)} iRule context bundle(s) to {out_dir}", file=sys.stderr)
+    return 0

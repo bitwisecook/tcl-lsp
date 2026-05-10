@@ -338,6 +338,137 @@ class _IruleUnknownEvent:
                     )
 
 
+# ── iRule cross-reference checks ─────────────────────────────────────
+#
+# These rules walk each iRule body for object references (pool /…/foo,
+# class match … <dg>, persist <profile>, …) and flag any reference that
+# fails to resolve against the surrounding bigip.conf.  When the merged
+# config has *no* objects of a given kind at all, the corresponding
+# checks are skipped — typically that means the user passed a single
+# .irule file with no surrounding context, and we don't want to spam
+# false positives.
+
+
+def _has_config_context(cfg: BigipConfig) -> bool:
+    """Return True if *cfg* carries surrounding-context objects.
+
+    A "surrounding-context" config is one that contains objects other
+    than the iRules themselves — pools, data groups, monitors, etc.
+    Standalone ``.irule`` input goes through a synthetic single-rule
+    config with all other collections empty; the bigip parser also
+    emits the rule itself into ``generic_objects`` keyed by
+    ``ltm::rule::*``, so when checking for "real" context we exclude
+    those entries from the count.
+    """
+    if (
+        cfg.pools
+        or cfg.data_groups
+        or cfg.persistence
+        or cfg.snat_pools
+        or cfg.monitors
+        or cfg.profiles
+        or cfg.nodes
+        or cfg.virtual_servers
+        or cfg.policies
+    ):
+        return True
+    for key in cfg.generic_objects:
+        if not key.startswith("ltm::rule::"):
+            return True
+    return False
+
+
+def _classify_reference_kind(ref_kinds: tuple[str, ...]) -> str | None:
+    """Map an :class:`IrulesObjectReference`'s kinds to a coarse bucket."""
+    if any(k == "ltm_pool" for k in ref_kinds):
+        return "pool"
+    if any(k.startswith("ltm_data_group") or k == "sys_file_data_group" for k in ref_kinds):
+        return "data-group"
+    if any(k.startswith("ltm_persistence") for k in ref_kinds):
+        return "persistence"
+    if any(k == "ltm_snatpool" for k in ref_kinds):
+        return "snat-pool"
+    if any(k.startswith("ltm_monitor") for k in ref_kinds):
+        return "monitor"
+    if any(k.startswith("ltm_profile") for k in ref_kinds):
+        return "profile"
+    if any(k == "ltm_node" for k in ref_kinds):
+        return "node"
+    if any(k == "ltm_rule" for k in ref_kinds):
+        return "rule"
+    return None
+
+
+def _resolve_reference(cfg: BigipConfig, kind: str, name: str) -> str | None:
+    if kind == "pool":
+        return cfg.resolve_pool(name)
+    if kind == "data-group":
+        return cfg.resolve_data_group(name)
+    if kind == "persistence":
+        return cfg.resolve_persistence(name)
+    if kind == "snat-pool":
+        return cfg.resolve_snat_pool(name)
+    if kind == "monitor":
+        return cfg.resolve_name(name, cfg.monitors)
+    if kind == "profile":
+        return cfg.resolve_profile(name)
+    if kind == "node":
+        return cfg.resolve_name(name, cfg.nodes)
+    if kind == "rule":
+        return cfg.resolve_rule(name)
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class _IruleMissingObject:
+    ID: str = "irule-missing-object"
+    SEVERITY: str = "warning"
+    CATEGORY: str = "irule"
+
+    def check(
+        self,
+        cfg: BigipConfig,
+        *,
+        sources: dict[str, str],
+        configs: dict[str, BigipConfig],
+    ) -> Iterable[Finding]:
+        try:
+            from ..irules_refs import extract_irules_object_references
+        except ImportError:
+            return
+
+        # Degraded analysis: standalone-.irule input has a synthetic
+        # single-rule config and no surrounding objects.  Without that
+        # context we cannot meaningfully resolve references, so skip
+        # the entire rule rather than emit false positives.
+        if not _has_config_context(cfg):
+            return
+
+        for path, rule in cfg.rules.items():
+            seen: set[tuple[str, str]] = set()
+            for ref in extract_irules_object_references(rule.source):
+                kind = _classify_reference_kind(ref.kinds)
+                if kind is None:
+                    continue
+                resolved = _resolve_reference(cfg, kind, ref.name)
+                if resolved is not None:
+                    continue
+                key = (kind, ref.name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                yield Finding(
+                    rule_id=f"irule-missing-{kind}",
+                    severity=self.SEVERITY,
+                    category=self.CATEGORY,
+                    full_path=path,
+                    message=(
+                        f"iRule references {kind} {ref.name!r} "
+                        f"(via `{ref.command}`) but no such object exists"
+                    ),
+                )
+
+
 # Register the built-in rules in a deterministic order.
 register(_OrphanMonitor())
 register(_EmptyPool())
@@ -346,3 +477,4 @@ register(_PoolWithoutMonitor())
 register(_IruleDeprecatedCommand())
 register(_IruleEmptyWhenBlock())
 register(_IruleUnknownEvent())
+register(_IruleMissingObject())

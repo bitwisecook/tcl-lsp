@@ -276,11 +276,11 @@ def test_report_to_dict_round_trips_through_json() -> None:
     again = json.loads(json.dumps(payload))
     assert again["pattern"] == "/Common/p1"
     assert again["direction"] == "both"
-    assert {item["fullPath"] for item in again["seeds"]} == {"/Common/p1"}
+    assert {item["fullPath"] for item in again["searches"]} == {"/Common/p1"}
     assert {item["fullPath"] for item in again["related"]} >= {"/Common/n1", "/Common/vs"}
     assert isinstance(again["edges"], list)
     # By default, body is omitted to keep the JSON payload compact.
-    assert "body" not in again["seeds"][0]
+    assert "body" not in again["searches"][0]
 
 
 def test_report_to_dict_with_include_body_emits_object_bodies() -> None:
@@ -296,8 +296,8 @@ def test_report_to_dict_with_include_body_emits_object_bodies() -> None:
     )
     report = _run(source, "/Common/p1", direction="both")
     payload = report_to_dict(report, include_body=True)
-    assert "body" in payload["seeds"][0]
-    assert payload["seeds"][0]["body"]
+    assert "body" in payload["searches"][0]
+    assert payload["searches"][0]["body"]
     for item in payload["related"]:
         assert "body" in item
 
@@ -408,7 +408,7 @@ def test_cli_grep_json_emits_valid_json(tmp_path: Path, capsys) -> None:
     data = json.loads(captured.out)
     assert data["pattern"] == "/Common/n1"
     assert data["direction"] == "both"
-    assert data["seeds"][0]["fullPath"] == "/Common/n1"
+    assert data["searches"][0]["fullPath"] == "/Common/n1"
 
 
 def test_cli_grep_writes_to_output_file(tmp_path: Path, capsys) -> None:
@@ -756,7 +756,7 @@ def test_cidr_report_to_dict_round_trips_use_cidr_flag() -> None:
     again = json.loads(json.dumps(payload))
     assert again["useCidr"] is True
     assert again["useRegex"] is False
-    assert {item["fullPath"] for item in again["seeds"]} == {"/Common/vs"}
+    assert {item["fullPath"] for item in again["searches"]} == {"/Common/vs"}
 
 
 def test_cli_grep_cidr_finds_irule_match(tmp_path: Path, capsys) -> None:
@@ -824,6 +824,6 @@ def test_cli_grep_full_json_emits_object_bodies(tmp_path: Path, capsys) -> None:
     captured = capsys.readouterr()
     assert rc == 0
     data = json.loads(captured.out)
-    assert data["seeds"][0]["fullPath"] == "/Common/n1"
-    assert "body" in data["seeds"][0]
-    assert "address 10.0.0.1" in data["seeds"][0]["body"]
+    assert data["searches"][0]["fullPath"] == "/Common/n1"
+    assert "body" in data["searches"][0]
+    assert "address 10.0.0.1" in data["searches"][0]["body"]
