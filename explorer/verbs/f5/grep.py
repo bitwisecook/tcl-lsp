@@ -21,14 +21,14 @@ from ._registry import verb
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
         "Find every BIG-IP object reachable through reference edges from "
-        "the seed objects whose full path matches PATTERN.  PATTERN is "
-        "a substring match by default; pass --regex to treat it as a "
-        "Python regular expression, or --cidr to match IP addresses and "
-        "CIDR ranges anywhere in an object — including deep inside iRule "
-        "script bodies.  The reference graph is the same one "
-        "`f5 cleanup` walks — both configuration-property references "
-        "and iRule body references (`pool`, `persist`, `class match ... "
-        "<data-group>`) are tracked."
+        "the search-match objects whose full path matches PATTERN.  "
+        "PATTERN is a substring match by default; pass --regex to treat "
+        "it as a Python regular expression, or --cidr to match IP "
+        "addresses and CIDR ranges anywhere in an object — including "
+        "deep inside iRule script bodies.  The reference graph is the "
+        "same one `f5 cleanup` walks — both configuration-property "
+        "references and iRule body references (`pool`, `persist`, "
+        "`class match ... <data-group>`) are tracked."
     )
     p.add_argument(
         "pattern",
@@ -68,10 +68,10 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         choices=sorted(DIRECTIONS),
         default="both",
         help=(
-            "Which edges to traverse from each seed.  `forward` follows "
-            "outgoing references (what the seed depends on), `reverse` "
-            "follows incoming references (what depends on the seed), "
-            "`both` walks both (default)."
+            "Which edges to traverse from each search match.  `forward` "
+            "follows outgoing references (what the match depends on), "
+            "`reverse` follows incoming references (what depends on the "
+            "match), `both` walks both (default)."
         ),
     )
     p.add_argument(
@@ -79,7 +79,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         type=int,
         default=None,
         metavar="N",
-        help="Stop the BFS after N hops from each seed (default: unlimited).",
+        help="Stop the BFS after N hops from each search match (default: unlimited).",
     )
     p.add_argument(
         "-r",
@@ -88,10 +88,10 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         default=True,
         action=argparse.BooleanOptionalAction,
         help=(
-            "Walk the related-object BFS from each seed (default).  "
-            "Pass --no-recurse to skip the BFS and report only the "
-            "objects that directly match PATTERN; --direction and "
-            "--max-depth are then ignored."
+            "Walk the related-object BFS from each search match "
+            "(default).  Pass --no-recurse to skip the BFS and report "
+            "only the objects that directly match PATTERN; --direction "
+            "and --max-depth are then ignored."
         ),
     )
     p.add_argument(
@@ -171,6 +171,6 @@ def _run_grep(args: argparse.Namespace) -> int:
     else:
         sys.stdout.write(output)
 
-    # Exit code: 0 when at least one seed matched, 1 when no seeds matched
+    # Exit code: 0 when at least one match was found, 1 otherwise
     # (mirrors `grep` convention: empty match is a non-zero exit).
     return 0 if report.seeds else 1

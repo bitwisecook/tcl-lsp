@@ -578,9 +578,9 @@ def _compact_names(
     Returns (renamed_source, symbol_map).
     """
     from core.analysis import analyse
+    from core.analysis.semantic_graph import find_proc_call_sites
     from core.analysis.semantic_model import Scope
     from core.commands.registry import REGISTRY
-    from lsp.features.references import find_proc_call_sites
 
     analysis = analyse(source)
     symbol_map = SymbolMap()
