@@ -653,13 +653,27 @@ def _extract_peer_tuple_from_trailer(
         total_len = _s.unpack(">H", trailer_bytes[4:6])[0]
         end = min(n, total_len)
         pos = DPT_HDR_LEN
+        # NOISE/HIGH v1 layout: [provider:2][type:2][length:2][version:2]
+        # then ipproto(1) + vlan(2) + peer_remote(16) + peer_local(16) +
+        # remote_port(2) + local_port(2) = 8 + 39 = 47 bytes total.
+        _NOISE_HIGH_V1_MIN_LEN = 47
         while pos + DPT_TLV_HDR_LEN <= end:
             provider = _s.unpack(">H", trailer_bytes[pos : pos + 2])[0]
             type_ = _s.unpack(">H", trailer_bytes[pos + 2 : pos + 4])[0]
             length = _s.unpack(">H", trailer_bytes[pos + 4 : pos + 6])[0]
+            version = _s.unpack(">H", trailer_bytes[pos + 6 : pos + 8])[0]
             if length < DPT_TLV_HDR_LEN or pos + length > end:
                 break
-            if provider == DPT_PROVIDER_NOISE and type_ == LEGACY_TYPE_HIGH and pos + 47 <= end:
+            # Require the schema we know how to parse (NOISE / HIGH / v1)
+            # AND that the offsets we're about to read fit *inside this
+            # TLV's declared length* — bounds against `end` alone could
+            # let a too-short HIGH TLV read into the next entry.
+            if (
+                provider == DPT_PROVIDER_NOISE
+                and type_ == LEGACY_TYPE_HIGH
+                and version == 1
+                and length >= _NOISE_HIGH_V1_MIN_LEN
+            ):
                 r_addr = trailer_bytes[pos + 11 : pos + 27]
                 l_addr = trailer_bytes[pos + 27 : pos + 43]
                 r_port = (trailer_bytes[pos + 43] << 8) | trailer_bytes[pos + 44]
@@ -971,9 +985,31 @@ _TLS_VERSION_NAMES = {
     "0x0302": "TLS1.1",
     "0x0303": "TLS1.2",
     "0x0304": "TLS1.3",
-    "0x00fe": "DTLS1.0",
-    "0x0fefd": "DTLS1.2",
+    "0xfeff": "DTLS1.0",
+    "0xfefd": "DTLS1.2",
 }
+
+
+def _name_tls_version(raw: str) -> str:
+    """Look up a tshark-rendered TLS/DTLS version against the name table.
+
+    tshark may emit the value in any of: ``0x0303`` / ``0x303`` /
+    ``0xFEFD`` / ``"771"`` (decimal) — case- and width-normalise to
+    ``0x%04x`` before lookup, falling back to the original string when
+    we don't recognise it.
+    """
+    if not raw:
+        return raw
+    s = raw.strip().lower()
+    try:
+        if s.startswith("0x"):
+            value = int(s, 16)
+        else:
+            value = int(s, 10)
+    except ValueError:
+        return raw
+    key = f"0x{value:04x}"
+    return _TLS_VERSION_NAMES.get(key, raw)
 
 
 def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -> bool:
@@ -1105,7 +1141,7 @@ def enrich_with_tshark(flows: dict, pcap_path: Path, *, keylog_path: str = "") -
             flow.tls_chosen_cipher = cipher
         chosen_ver = hs_ver or rec_ver
         if chosen_ver and not flow.tls_chosen_version:
-            flow.tls_chosen_version = _TLS_VERSION_NAMES.get(chosen_ver.lower(), chosen_ver)
+            flow.tls_chosen_version = _name_tls_version(chosen_ver)
         if alpn and not flow.tls_alpn:
             flow.tls_alpn = alpn
         if alert_desc:
@@ -1138,27 +1174,40 @@ _DEST_RE = re.compile(
 
 
 def _parse_destination(dest: str) -> tuple[str, int] | None:
-    """Parse a VS destination string like ``/Common/10.0.0.1:443`` or ``/p/[::1]:80``."""
+    """Parse a VS destination string like ``/Common/10.0.0.1:443`` or ``/p/[::1]:80``.
+
+    Returns the address in :mod:`ipaddress`-canonical form so it
+    compares equal to flow IPs, which we always render through
+    ``ipaddress.IPv4Address``/``IPv6Address`` (e.g. config dest
+    ``"0:0:0:0:0:0:0:1"`` matches flow dst ``"::1"``).
+    """
     m = _DEST_RE.match(dest.strip())
     if not m:
         return None
     addr = m.group("addr").strip("[]")
     port_raw = m.group("port")
     try:
-        ipaddress.ip_address(addr)
+        canonical = str(ipaddress.ip_address(addr))
     except ValueError:
         return None
     port = 0 if port_raw == "any" else int(port_raw)
-    return addr, port
+    return canonical, port
 
 
 def _match_virtual(cfg: BigipConfig, dst_ip: str, dst_port: int) -> str | None:
+    # Canonicalise the flow IP too so v6 forms match regardless of
+    # which side typed the address.  Invalid IPs fall through and
+    # never match.
+    try:
+        flow_ip = str(ipaddress.ip_address(dst_ip))
+    except ValueError:
+        flow_ip = dst_ip
     for path, vs in cfg.virtual_servers.items():
         parsed = _parse_destination(vs.destination)
         if parsed is None:
             continue
         vs_addr, vs_port = parsed
-        if vs_addr != dst_ip:
+        if vs_addr != flow_ip:
             continue
         if vs_port == 0 or vs_port == dst_port:
             return path
@@ -1424,8 +1473,19 @@ def _ltm_policies_for(cfg: BigipConfig, vs: BigipVirtualServer) -> list[str]:
     return out
 
 
-def _gtm_wide_ips_for(cfg: BigipConfig, vs: BigipVirtualServer) -> list[str]:
-    """Return GTM wide-IP identifiers in the parsed config (best effort)."""
+def _gtm_wide_ips_in_config(cfg: BigipConfig) -> list[str]:
+    """Return every GTM wide-IP identifier in *cfg* (a global inventory).
+
+    This is intentionally **not** filtered against the matched virtual
+    server: :class:`BigipGenericObject` retains only the stanza
+    *header* (module / object_type / identifier), not its body, so we
+    can't currently tell from the parsed config which wide-IP resolves
+    to which VS.  Callers should treat the returned list as "GTM
+    wide-IPs that exist in this config; one of them might point at the
+    matched VS — confirm by reading the source".  If we ever extend
+    the parser to retain wide-IP bodies, this helper should grow a
+    ``vs`` parameter and filter appropriately.
+    """
     out: list[str] = []
     for key, obj in cfg.generic_objects.items():
         if obj.module != "gtm":
@@ -1766,7 +1826,7 @@ def compute_explain_pcap(
         vs_report = compute_explain(cfg_hit, vs.full_path, kind="virtual")
         ltm_policies = _ltm_policies_for(cfg_hit, vs)
         apm = _apm_profile_for(cfg_hit, vs)
-        gtm = _gtm_wide_ips_for(cfg_hit, vs)
+        gtm = _gtm_wide_ips_in_config(cfg_hit)
 
         # Pool selection + SNAT inferred from the back-side flow if present.
         pool_selected = ""
@@ -1935,7 +1995,9 @@ def _format_report(
         if se.apm_profile:
             lines.append(f"  apm: {se.apm_profile}")
         if se.gtm_wide_ips:
-            lines.append("  gtm wide-ips in config:")
+            lines.append(
+                "  gtm wide-ips in config (global inventory; may or may not point at this VS):"
+            )
             for w in se.gtm_wide_ips:
                 lines.append(f"    - {w}")
         if se.event_sequence:

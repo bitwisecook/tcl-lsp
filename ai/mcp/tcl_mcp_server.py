@@ -697,6 +697,10 @@ def _tool_explain_pcap(
     from core.bigip.explain_pcap import compute_explain_pcap, report_to_dict
     from core.bigip.parser import parse_bigip_conf
 
+    pcap = Path(pcap_path).resolve()
+    if not pcap.is_file():
+        return json.dumps({"error": f"pcap not found or not readable: {pcap_path}"})
+
     configs: dict = {}
     if config_text:
         configs["inline://config"] = parse_bigip_conf(config_text)
@@ -710,14 +714,20 @@ def _tool_explain_pcap(
     if not configs:
         return json.dumps({"error": "explain_pcap requires either config_text or config_paths"})
 
-    report = compute_explain_pcap(
-        Path(pcap_path),
-        configs,
-        use_tshark=use_tshark or bool(keylog_path),
-        keylog_path=keylog_path,
-        show_event_bodies=show_event_bodies,
-        simulate=simulate,
-    )
+    try:
+        report = compute_explain_pcap(
+            pcap,
+            configs,
+            use_tshark=use_tshark or bool(keylog_path),
+            keylog_path=keylog_path,
+            show_event_bodies=show_event_bodies,
+            simulate=simulate,
+        )
+    except (OSError, ValueError) as exc:
+        # Surface bad pcap / unreadable file as a structured JSON error
+        # rather than letting the exception escape and crash the MCP
+        # tool framework.
+        return json.dumps({"error": f"compute_explain_pcap failed: {exc}"})
     return json.dumps(report_to_dict(report))
 
 

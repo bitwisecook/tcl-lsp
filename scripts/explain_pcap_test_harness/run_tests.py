@@ -468,7 +468,7 @@ def run_explain(
                 args.append("--json")
             args += [str(pcap), str(scf_path)]
             out = explain_dir / f"{scenario.name}.{fmt}"
-            with open(out, "w") as fh:
+            with open(out, "w", encoding="utf-8", errors="replace") as fh:
                 subprocess.run(args, stdout=fh, cwd=repo_root, check=False)
         print(f"  → explain output: {explain_dir / scenario.name}.text")
 

@@ -354,8 +354,14 @@ ensure_rust() {
 
     if [ "$need_rust" -eq 1 ]; then
         info "Installing rustup + rust stable (latest)"
-        local rustup_init
-        rustup_init="$(mktemp -d)/rustup-init.sh"
+        local rustup_dir rustup_init
+        rustup_dir="$(mktemp -d)"
+        # Make sure the temp dir is cleaned up even when the caller
+        # ^Cs out or rustup-init fails — `trap RETURN` runs on every
+        # function exit path.
+        # shellcheck disable=SC2064
+        trap "rm -rf '$rustup_dir'" RETURN
+        rustup_init="${rustup_dir}/rustup-init.sh"
         # Pull rustup-init from the official mirror and run it non-interactively.
         # `--profile minimal --default-toolchain stable -y` tracks the latest
         # stable toolchain and adds rustfmt/clippy explicitly so the
@@ -374,7 +380,6 @@ ensure_rust() {
             --profile minimal \
             --default-toolchain stable \
             --component rustfmt --component clippy
-        rm -f "$rustup_init"
         # Make cargo/rustup visible to the rest of this script + downstream
         # make targets in the same shell.
         export PATH="${HOME}/.cargo/bin:${PATH}"
