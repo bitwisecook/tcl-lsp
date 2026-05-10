@@ -250,6 +250,20 @@ def test_irule_lint_emits_missing_pool(tmp_path, capsys):
     assert "irule-missing-pool" in rule_ids
 
 
+def test_irule_extract_rejects_standalone_irule_files(tmp_path, capsys):
+    """``f5 irule extract`` is documented as accepting bigip.conf /
+    SCF / UCS only.  A standalone .irule path is meaningless (the body
+    is already in the desired form) and must be refused."""
+    rule = tmp_path / "x.irule"
+    rule.write_text("when HTTP_REQUEST { return }\n", encoding="utf-8")
+    out_dir = tmp_path / "out"
+
+    code, _out, err = _run(["irule", "extract", str(rule), str(out_dir)], capsys)
+    assert code == 2
+    assert "standalone" in err
+    assert "x.irule" in err
+
+
 def test_irule_lint_skips_missing_object_for_standalone_irule(tmp_path, capsys):
     rule = tmp_path / "r.irule"
     rule.write_text("when HTTP_REQUEST { pool /Common/missing }\n", encoding="utf-8")

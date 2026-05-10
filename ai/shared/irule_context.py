@@ -246,7 +246,13 @@ def build_irule_context(
                 unresolved.setdefault(kind, []).append(ref.name)
         elif kind == "rule":
             resolved = cfg.resolve_rule(ref.name)
-            if resolved and resolved in cfg.rules and resolved != rule.full_path:
+            if resolved == rule.full_path:
+                # Recursive / self-reference (e.g. ``call rule …``
+                # invoking the current rule).  The rule body is
+                # already part of the bundle; don't record it as
+                # unresolved.
+                continue
+            if resolved and resolved in cfg.rules:
                 obj = cfg.rules[resolved]
                 rules[resolved] = obj
                 _record_slice(obj)

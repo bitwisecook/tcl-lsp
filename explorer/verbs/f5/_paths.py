@@ -61,13 +61,19 @@ class IruleInput:
 
 
 def _read_path_bytes(path_str: str) -> tuple[str, bytes]:
-    """Return ``(origin, raw_bytes)`` for *path_str*; ``-`` reads stdin."""
+    """Return ``(origin, raw_bytes)`` for *path_str*; ``-`` reads stdin.
+
+    File origins are returned as ``file://`` URIs to match the
+    convention used by :func:`read_path` / :func:`load_paths`, so
+    callers that mix the two helpers see a single canonical key
+    format.
+    """
     if path_str == "-":
         return ("stdin://input", sys.stdin.buffer.read())
     path = Path(path_str).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"not a file: {path_str}")
-    return (str(path), path.read_bytes())
+    return (path.as_uri(), path.read_bytes())
 
 
 def _is_gzip(data: bytes) -> bool:
@@ -133,7 +139,7 @@ def _load_one(
         from explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
 
         if not is_ucs_bytes(raw):
-            raise ValueError(f"{path_str}: not a UCS archive (gzip magic missing)")
+            raise ValueError(f"{path_str}: not a valid UCS archive")
         text = ucs_to_scf(raw)
         cfg = parse_bigip_conf(text)
         label = path_str if path_str != "-" else "<stdin>"

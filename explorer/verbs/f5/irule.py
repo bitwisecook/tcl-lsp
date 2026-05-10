@@ -542,13 +542,22 @@ def _extract_commands(body: str) -> list[str]:
 
 
 def _run_irule_extract(args: argparse.Namespace) -> int:
-    # Extract only consumes config-style inputs; bypass the standalone
-    # .irule shortcut by going through load_irule_inputs anyway — for
-    # raw .irule input the synthetic single-rule config still produces
-    # a single output file, which is harmless.
+    # Extract pulls iRule bodies *out* of a config — standalone .irule
+    # / .irul / .tcl files are already in the desired form, so reject
+    # them up front to match the documented contract.
     paths = list(args.paths or [])
     if not paths:
         print("error: no input provided; pass bigip.conf / SCF / UCS files", file=sys.stderr)
+        return 2
+    standalone = {".tcl", ".irul", ".irule"}
+    bad = [p for p in paths if p != "-" and Path(p).suffix.lower() in standalone]
+    if bad:
+        joined = ", ".join(bad)
+        print(
+            f"error: extract only accepts bigip.conf / SCF / UCS; refusing standalone "
+            f"iRule file(s): {joined}",
+            file=sys.stderr,
+        )
         return 2
     try:
         _inputs, configs, _sources = load_irule_inputs(paths)

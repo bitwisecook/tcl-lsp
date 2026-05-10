@@ -205,6 +205,18 @@ def test_mcp_irule_with_context_ucs_path(tmp_path):
     assert "/Common/web_pool" in pool_paths
 
 
+def test_self_reference_in_rule_body_is_not_unresolved():
+    """Recursive ``call rule`` of the current rule should be silently
+    skipped — recording it as unresolved would surface a misleading
+    “missing rule” entry on every recursive iRule."""
+    src = "ltm rule /Common/recurse {\n  when HTTP_REQUEST {\n    call /Common/recurse\n  }\n}\n"
+    cfg = parse_bigip_conf(src)
+    rule = cfg.rules["/Common/recurse"]
+    bundle = build_irule_context(rule, cfg)
+    assert "rule" not in bundle.unresolved
+    assert "/Common/recurse" not in bundle.rules  # not added; it *is* the rule
+
+
 def test_f5_irule_context_multi_file_keeps_source_slices(tmp_path, capsys):
     """Regression for the Codex P2 source-slice key-mismatch bug.
 
