@@ -158,6 +158,7 @@ class BigipVirtualServer:
     rules: tuple[str, ...] = ()  # attached iRule paths
     profiles: tuple[str, ...] = ()  # attached profile paths
     persist: tuple[str, ...] = ()  # persistence profile paths
+    policies: tuple[str, ...] = ()  # ltm policy paths attached to this VS
     snatpool: str = ""
     source_address_translation: str = ""
     pool_range: Range | None = None
