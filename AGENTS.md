@@ -321,6 +321,43 @@ Commit any formatting changes that `make test-slow` applies before creating
 the PR (it runs `prep-pr` which auto-formats — re-running test-slow after
 any commits is required so the stamp matches the final tree).
 
+### When a PR is created, run test-slow locally
+
+When a PR is opened on this repository — whether by the agent, by the user,
+or by the Claude Code UI on the agent's behalf — the agent MUST kick off
+`make test-slow` **on its local machine** against the exact tip the PR is
+built from, without being asked.  This applies to PRs the agent didn't
+open: if the agent learns of a new PR (e.g. via `<github-webhook-activity>`
+subscription, a comment, or the user mentioning it), it must immediately
+verify the stamp and re-run test-slow locally if the worktree drifted, then
+act on whatever fails.
+
+**Do NOT add `test-slow` (or any subset of it beyond the existing
+`ci-fast`) to `.github/workflows/`.**  CI on this repo intentionally runs
+only the fast LSP-e2e subset; the rest of the gate is the agent's local
+responsibility.  Don't wire `test-slow` into a GitHub Action, don't trigger
+it via `workflow_dispatch`, and don't ask the user to enable it on the
+runner — run it on the local machine you're already working in.
+
+### Capturing build / test logs
+
+Long gates (`make test-slow`, `make test-py`, `make test-vm`, anything
+running for more than a few seconds) MUST have their full output captured
+to a file under `/tmp/` rather than only being read via `tail`.  Tailing
+loses signal: a failure in the middle of a 10-minute run won't appear in
+the last 50 lines if the harness keeps going, and pytest summary lines can
+get pushed off the bottom by skip-message spam.  The pattern:
+
+```
+make test-slow 2>&1 | tee /tmp/test-slow-<branch>.log
+# then, when investigating a failure:
+grep -nE 'FAIL|ERROR|Traceback|^E ' /tmp/test-slow-<branch>.log
+```
+
+For background runs use `tee` to a `/tmp/` path, then `grep` the file when
+you want a specific signal.  Keep the file around until the PR merges so
+you can re-investigate after a CI ping without having to re-run the gate.
+
 ## Knowledge base and documentation
 
 The project has two kinds of written content with different purposes, tones,
