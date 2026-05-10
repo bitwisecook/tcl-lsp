@@ -102,6 +102,9 @@ jobs:
         with:
           version: 0.16.0
 
+      - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
+        run: bash scripts/fetch_tcl_regex.sh
+
       - name: Sync Python environment
         run: uv sync --extra dev
 
