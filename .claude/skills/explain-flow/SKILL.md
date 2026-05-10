@@ -2,144 +2,204 @@
 name: explain-flow
 description: >
   Trace each session in a PCAP through a BIG-IP configuration and explain
-  what the device did to it: matched virtual server, ordered LTM profiles,
-  attached LTM policies and APM, iRule event firing order with each
-  `when EVENT { ... }` body, persistence, SNAT, observed pool member and
-  SNAT IP, GTM wide-IPs, and a termination analysis (TCP RST, F5 reset
-  cause, TLS alert).  Understands `tcpdump -i <vlan>:np` captures that
-  carry both the front (client↔VIP) and back (TMM↔pool member) sides of
-  the same conversation, paired via the F5 ethernet trailer.  Optionally
-  decrypts TLS using a NSS-format keylog file.  Use when a user asks
-  "what would BIG-IP do with this capture?", "which iRule events fired
-  for this flow?", "why did this connection reset?", or "explain this
-  PCAP against this bigip.conf".  Provides enriching context for an LLM
-  to narrate exactly what happened on the wire.
+  what the device did to it: matched virtual server, profiles, iRule HUD
+  decisions (the `[HTTP::host]`, `[SSL::extensions]`, `[LB::server]`
+  values the iRule branched on), event firing order, observed pool
+  member and SNAT, termination analysis (TCP RST, F5 reset cause, TLS
+  alert), and — with `simulate=true` — the actual outcome of running
+  the iRule under c-tcl.  Understands `tcpdump -i <vlan>:np` captures
+  that carry both front (client↔VIP) and back (TMM↔pool member) sides
+  of the same conversation, paired via the F5 ethernet trailer.
+  Decrypts TLS when given a NSS-format keylog file.  Use when a user
+  asks "what would BIG-IP do with this capture?", "which iRule events
+  fired for this flow?", "why did this connection reset?", or "explain
+  this PCAP against this bigip.conf".
 allowed-tools: Bash, Read
 ---
 
-# Explain PCAP against a BIG-IP config
+# Explain a flow against a BIG-IP config
 
-This skill drives the `f5 explain-flow` verb (also exposed as the
-`explain_flow` MCP tool) to produce per-session explanations: it pairs
-flows into bidirectional connections, then pairs front-side and
-back-side connections into one logical session via the F5 ethernet
-trailer's peer-tuple, finds the matching virtual server, and emits the
-resolved plan plus the event sequence the iRules would execute.
+This skill drives the `f5 explain-flow` verb / `explain_flow` MCP
+tool to narrate every session in a packet capture against the BIG-IP
+configuration that processed it.  Output is **pre-narrated and
+context-pruned** by the Python side: the MCP tool returns a compact
+JSON dict per session, not the raw per-flow dump.
 
-## When to use
+## How to invoke (low-bloat, MCP-first)
 
-Use this skill when the user wants an explanation of what BIG-IP did to
-real traffic.  Typical prompts:
+**Prefer the MCP tool.**  It returns the same data the CLI text
+report contains but already collapsed into the high-signal fields an
+LLM needs — full Flow dicts, raw header maps, and untruncated event
+bodies are dropped, empty fields omitted entirely.
 
-- "Explain what happened to traffic in `capture.pcap` against this
-  `bigip.conf`."
-- "Which iRule events fire for this flow, and in what order?"
-- "Show me the path through `/Common/rule_app` for the first HTTPS
-  flow in the capture."
-- "What profiles, SNAT, and pool members were involved?"
-
-## Running
-
-From the project root:
-
-```bash
-# Text report (default)
-python3 -m explorer.f5_cli explain-flow path/to/capture.pcap path/to/bigip.conf
-
-# JSON for downstream LLM consumption
-python3 -m explorer.f5_cli explain-flow --json capture.pcap bigip.conf
-
-# Use tshark for richer L7 decoding (HTTP/TLS, F5 reset cause)
-python3 -m explorer.f5_cli explain-flow --tshark capture.pcap bigip.conf
-
-# Decrypt TLS using a NSS-format keylog file (implies --tshark)
-python3 -m explorer.f5_cli explain-flow --keylog ssl.log capture.pcap bigip.conf
-
-# Just the event names — skip the verbatim Tcl bodies
-python3 -m explorer.f5_cli explain-flow --no-event-bodies capture.pcap bigip.conf
+```python
+explain_flow(
+    pcap_path="/path/to/flow.pcap",
+    config_paths=["/path/to/bigip.conf"],   # or config_text=...
+    use_tshark=True,                         # add tshark enrichment
+    keylog_path="/path/to/sslkeys.log",      # optional, for HTTPS
+    tshark_filter="host 10.0.0.5 and port 443",  # scope to one flow
+    max_event_body_lines=8,                  # tighten to keep context small
+    simulate=False,                          # set True to run iRule under c-tcl
+)
 ```
 
-Multiple config files may be passed; the first config containing a VS
-whose `destination` matches a flow's IP:port wins for that flow.
+Tweak `max_event_body_lines` down (e.g. `4` or `0`) when the user
+just wants the decision, not the iRule source.  Use `tshark_filter`
+to scope huge captures to the one flow under investigation rather
+than emitting a session per 5-tuple.
 
-Exit code is `0` if at least one flow matched a virtual server, `1`
-if no flow matched any VS in the supplied configs.
+**Fall back to the CLI** only when the MCP tool isn't reachable.  In
+that case prefer the **text** report — it's already operator-readable
+and uses fewer tokens than JSON for the same information:
 
-## Output structure
+```bash
+# Text report (recommended for context efficiency)
+python3 -m explorer.f5_cli explain-flow capture.pcap bigip.conf
 
-For each session:
+# Tighten event bodies — equivalent of MCP max_event_body_lines
+python3 -m explorer.f5_cli explain-flow --max-event-lines 8 capture.pcap bigip.conf
 
-1. **Front summary** — client↔VIP 5-tuple, packet counts each
-   direction, TCP flags, TLS SNI/version/cipher/ALPN (if observed or
-   decrypted via keylog), HTTP method/Host/URI, HTTP response code,
-   TLS alert (if any), TCP RST count, F5 reset-cause text.
-2. **Back summary** — TMM↔pool-member 5-tuple, same shape as front.
-   Present only when the capture was taken with `tcpdump -i <vlan>:np`
-   so the F5 trailer's HIGH TLV pairs the two sides.
-3. **Matched virtual server** — full path, partition.
-4. **Pool member chosen (observed)** — actual `address:port` the back
-   side reached, derived from the back-side flow's destination.
-5. **SNAT applied (observed)** — actual `address:port` TMM used as
-   the source on the back side, when it differs from the client.
-6. **Profiles** — in attach order, with type (`tcp`, `client_ssl`,
-   `http`, …).
-7. **LTM policies** attached to the VS.
-8. **APM access profile** if present.
-9. **GTM wide-IPs** parsed from the config.
-10. **Expected iRule event firing order** — events present in the
-    attached iRules, ordered by lifecycle and filtered to the events
-    the observed traffic would actually trigger (TLS ClientHello →
-    `CLIENTSSL_*`, HTTP request → `HTTP_REQUEST`, HTTP response →
-    `HTTP_RESPONSE`, RST/FIN → `*_CLOSED`).
-11. **iRule event bodies** — the verbatim `when EVENT { ... }` block
-    for each fired event (truncated past `--max-event-lines`, default
-    40, to keep LLM context manageable).
-12. **Termination analysis** — narrative of why the connection ended:
-    which side reset, after how many bytes, F5 reset-cause text from
-    the trailer (LOW/MED TLV) when present, TLS alert text, or
-    "graceful FIN teardown" when no RST occurred.
-13. **Resolved plan** — the same view as `f5 explain virtual` for the
-    matched VS (persistence, SNAT, default pool, pool members).
+# Just event names, no Tcl bodies at all
+python3 -m explorer.f5_cli explain-flow --no-event-bodies capture.pcap bigip.conf
 
-## How to reason about the output as an LLM
+# Scope to one flow via tshark display filter
+python3 -m explorer.f5_cli explain-flow \
+    --tshark-filter 'host 10.0.0.5 and tcp.port == 443' \
+    capture.pcap bigip.conf
+```
 
-The output contains everything you need to narrate what happened:
+`--json` exists but emits the *full* report (the verbose
+`report_to_dict` shape) and will flood the LLM context.  Use `--json`
+only when piping to another tool, never to feed back into your own
+reasoning.
 
-- The **front summary** tells you what the client tried to do.  The
-  **back summary** (when present) tells you what TMM did to the pool
-  member after the L7 work — observed pool member and SNAT IP let
-  you confirm load balancing and source-NAT actually executed as
-  configured.
-- The **profile list** tells you which of TCP/TLS/HTTP processing
-  was enabled and in what order.
-- The **event firing order** tells you which iRule hooks ran.
-- The **event bodies** are the actual Tcl that executed; read each
-  body and describe its effect (logging, header rewrites, pool
-  selection, etc.).  The skill does *not* symbolically execute the
-  Tcl — your job is to read it and explain.
-- The **resolved plan** tells you which pool members the request
-  could have reached and under what SNAT/persistence policy.
-- The **termination analysis** tells you whether the session ended
-  cleanly or via RST, which side reset, and what the F5 reset cause
-  was.  Combine this with TLS alerts and HTTP response codes to
-  explain *why*: e.g. "client sent RST after server replied 500" or
-  "BIG-IP reset because the F5 trailer reports 'POOL_DOWN — no usable
-  pool member'".
+## What the compact MCP shape looks like
+
+The MCP tool returns a JSON dict with fixed top-level keys:
+
+```jsonc
+{
+  "pcap": "/path/to/flow.pcap",
+  "matched": 1,                    // # sessions that matched a VS
+  "sessions_total": 3,             // total sessions, incl. unmatched
+  "tshark": true,
+  "keylog": "...",                 // present if used
+  "tshark_filter": "...",          // present if used
+  "gtm_wide_ips_in_config": [...], // GLOBAL inventory, not per-session
+  "sessions": [ /* one entry per session, see below */ ]
+}
+```
+
+Each session is the high-signal subset — empty fields are omitted:
+
+```jsonc
+{
+  "summary": "1.2.3.4:11111 → /partition/vs_app | SNI=api.example.com | GET /v1/health → 200 | pool→ 10.0.0.10:8080 | snat→ 10.0.0.5:22222",
+  "matched_vs": "/partition/vs_app",
+  "flow": { "client": "1.2.3.4:11111", "vip": "5.6.7.8:443",
+            "pool_member": "10.0.0.10:8080", "snat": "10.0.0.5:22222",
+            "proto": "tcp" },
+  "captured_request": { "method": "GET", "host": "api.example.com",
+                         "uri": "/v1/health", "tls_sni": "api.example.com",
+                         "tls_version": "TLS1.3", "tls_cipher": "..." },
+  "captured_response": { "status": "200" },
+  "profiles": ["tcp (lab_tcp)", "client_ssl (lab_clientssl_valid)", "http (lab_http)"],
+  "ltm_policies": ["/partition/lab_policy_rewrite"],
+  "events_fired": ["RULE_INIT", "CLIENT_ACCEPTED", "CLIENTSSL_CLIENTHELLO",
+                    "HTTP_REQUEST", "LB_SELECTED", "SERVER_CONNECTED"],
+  "irule_decisions": [
+    { "event": "CLIENTSSL_CLIENTHELLO", "command": "SSL::extensions",
+      "value": "sni=api.example.com, alpn=h2" },
+    { "event": "HTTP_REQUEST", "command": "HTTP::host",
+      "value": "api.example.com" }
+  ],
+  "irule_bodies": [
+    { "rule": "rule_sni", "event": "CLIENTSSL_CLIENTHELLO",
+      "body": "if { [SSL::extensions exists -type 0] } { ... }\n... (truncated)" }
+  ],
+  "termination": "graceful FIN teardown (no RST)",
+  "simulated": { "pool": "/partition/lab_pool_api",
+                 "decisions": [ { "category": "lb", "action": "pool_select",
+                                   "value": "/partition/lab_pool_api" } ] }
+}
+```
+
+## How to narrate the output
+
+The fields are designed so you can build the narrative directly:
+
+1. **Read `summary`** — that's the one-line gist; quote it to the user.
+2. **`captured_request` + `captured_response`** — what the client sent
+   and what came back (or, if the connection didn't get that far,
+   what was missing).
+3. **`profiles`** — which BIG-IP code paths ran (TCP-only,
+   TLS-decrypt, HTTP-aware, etc.).  Profile order is attach order.
+4. **`events_fired` + `irule_decisions`** — answer "which iRule
+   branches were taken and what state did they read?".  Each entry in
+   `irule_decisions` says "in event X, the iRule looked at command Y
+   and saw value Z" — exactly what you need to explain a
+   `[HTTP::host] equals "..."` branch or an
+   `[SSL::extensions servername]` route.
+5. **`irule_bodies`** — only consult these when you need to quote
+   Tcl.  They're already truncated; don't ask for
+   `max_event_body_lines>20` unless absolutely needed.
+6. **`flow.pool_member` + `flow.snat`** — observed values.  If
+   `simulated.pool` differs from `flow.pool_member`, mention it
+   ("the iRule would route to X, but the captured back-side went to
+   Y" — that gap usually means the capture pre-dates the rule edit
+   or another rule overrode the choice).
+7. **`termination`** — explain *why* the session ended.  RST + an F5
+   reset cause string (e.g. "POOL_DOWN") gives a definitive answer.
+8. **`simulated`** is the truth source when present — it's the
+   actual outcome from running the iRule under c-tcl with the
+   captured state.  If `simulated.error` is set, fall back to the
+   static analysis above.
+
+## Context-bloat controls (use them)
+
+- Set `max_event_body_lines=4` when the user wants the decision and
+  not the Tcl source.
+- Set `max_event_body_lines=0` to drop event bodies entirely.
+- Always pass `tshark_filter` when the user is asking about a
+  specific flow ("port 443 to 10.0.0.5") — captures with thousands of
+  sessions return one entry per 5-tuple otherwise.
+- Don't request `--json` from the CLI for your own consumption —
+  that's the verbose shape.  Use the MCP tool, or the text report.
 
 ## Limitations
 
+- `tshark_filter` runs the entire extraction through tshark; F5
+  trailer peer-tuples (used to pair `:np` front/back sides) are only
+  populated by the built-in walker, so a filtered run loses
+  front/back session pairing.  Drop the filter when investigating
+  proxied traffic.
+- `simulated` requires `tclsh` on PATH and one orchestrator
+  subprocess per matched session — slower; avoid on captures with
+  hundreds of sessions unless `tshark_filter` is also set.
 - The static event ordering is driven by attached profiles and
   observed L7 features.  It does not honour `event disable` or
-  conditional `when ... { return }` patterns at runtime.
-- Path-through-iRule analysis is *static*: the skill surfaces the
-  full `when` block bodies; it does not follow `if`/`switch`
-  branches based on payload bytes.
-- LTM policy bodies, GTM probe results, and APM session state are
-  not stored in the parsed config (only headers); those are listed
-  by name only.
+  conditional `when ... { return }` patterns at runtime; consult
+  `simulated` for runtime ground truth.
+- Path-through-iRule analysis is *static* unless `simulate=true`: the
+  skill surfaces the relevant `when` block bodies; it does not follow
+  `if`/`switch` branches based on payload bytes by itself.
+- LTM policy bodies / GTM probe results / APM session state aren't
+  retained in the parsed config (only headers).
+  `gtm_wide_ips_in_config` is therefore a *global* inventory at the
+  report level, not a per-session list — annotate accordingly when
+  citing it.
 
-## MCP equivalent
+## When to use the verbose `report_to_dict` shape instead
 
-The same logic is also exposed via the `explain_flow` tool of the
-tcl-lsp MCP server.  Pass `pcap_path` plus either `config_text` or
-`config_paths`; the JSON shape mirrors the CLI's `--json` output.
+Only when:
+
+- The user wants every captured packet's full 5-tuple + flag set,
+  not just matched sessions.
+- They're piping the output to another tool that expects the full
+  per-flow Flow dicts.
+- They explicitly asked for "the raw JSON" / "everything".
+
+In all other cases the compact MCP shape is the right answer — it's
+designed to give you the operator-relevant fields with the smallest
+possible token cost.
