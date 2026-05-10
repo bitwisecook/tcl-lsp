@@ -39,6 +39,18 @@ BLOCK_TYPE_SHB = 0x0A0D0D0A
 BLOCK_TYPE_IDB = 0x00000001
 BLOCK_TYPE_EPB = 0x00000006
 BLOCK_TYPE_SPB = 0x00000003  # Simple Packet Block — has no IDB ref; rare
+BLOCK_TYPE_NRB = 0x00000004  # Name Resolution Block
+BLOCK_TYPE_DSB = 0x0000000A  # Decryption Secrets Block
+
+# NRB record types (per the PCAPNG spec).
+NRB_RECORD_END = 0x0000
+NRB_RECORD_IPV4 = 0x0001
+NRB_RECORD_IPV6 = 0x0002
+
+# DSB secrets-type identifiers (per the PCAPNG spec, draft-tuexen-opsawg-pcapng).
+DSB_SECRETS_TYPE_TLS = 0x544C534B  # "TLSK" — NSS-format TLS keylog text
+DSB_SECRETS_TYPE_SSH = 0x5353484B  # "SSHK"
+DSB_SECRETS_TYPE_WIREGUARD = 0x57474B4C  # "WGKL"
 
 
 SHB_BYTE_ORDER_MAGIC = 0x1A2B3C4D
@@ -237,3 +249,78 @@ def is_pcapng_magic(four_bytes: bytes) -> bool:
     if len(four_bytes) < 4:
         return False
     return struct.unpack("<I", four_bytes)[0] == BLOCK_TYPE_SHB
+
+
+def build_nrb_block(
+    endian: str,
+    v4_names: dict[bytes, list[str]] | None = None,
+    v6_names: dict[bytes, list[str]] | None = None,
+) -> PcapngBlock:
+    """Build a Name Resolution Block (NRB) from per-address name lists.
+
+    *v4_names* maps 4-byte big-endian IPv4 packed addresses to a list of
+    UTF-8 names.  *v6_names* maps 16-byte big-endian IPv6 packed
+    addresses similarly.  At least one ``nrb_record_end`` (type 0,
+    length 0) record is always emitted to terminate the record list,
+    per the PCAPNG spec.
+
+    Each record is::
+
+        [type:2][length:2][value:length, padded to 4 bytes]
+
+    For an IPv4 record the value is ``[4-byte addr][name1\\0][name2\\0]…``;
+    for IPv6, ``[16-byte addr][name1\\0]…``.  *length* is the unpadded
+    value length; the padding bytes are excluded from the count.
+    """
+    body = bytearray()
+
+    def _append_record(rec_type: int, addr: bytes, names: list[str]) -> None:
+        names_blob = b"".join(n.encode("utf-8") + b"\x00" for n in names if n)
+        if not names_blob:
+            return
+        value = addr + names_blob
+        body.extend(struct.pack(endian + "HH", rec_type, len(value)))
+        body.extend(value)
+        pad = (-len(value)) & 3
+        if pad:
+            body.extend(b"\x00" * pad)
+
+    if v4_names:
+        for addr, names in v4_names.items():
+            if len(addr) != 4:
+                raise ValueError(f"v4 record address must be 4 bytes, got {len(addr)}")
+            _append_record(NRB_RECORD_IPV4, addr, names)
+
+    if v6_names:
+        for addr, names in v6_names.items():
+            if len(addr) != 16:
+                raise ValueError(f"v6 record address must be 16 bytes, got {len(addr)}")
+            _append_record(NRB_RECORD_IPV6, addr, names)
+
+    # End-of-records sentinel — required even when there are no name records.
+    body.extend(struct.pack(endian + "HH", NRB_RECORD_END, 0))
+
+    return PcapngBlock(block_type=BLOCK_TYPE_NRB, body=bytes(body), endian=endian)
+
+
+def build_dsb_block(endian: str, secrets_type: int, secrets_data: bytes) -> PcapngBlock:
+    """Build a Decryption Secrets Block (DSB) carrying *secrets_data*.
+
+    Used to inline TLS / SSH / WireGuard key material into a capture so
+    Wireshark can decrypt it without an external SSLKEYLOGFILE.  For TLS
+    NSS-format keylogs, pass *secrets_type* = :data:`DSB_SECRETS_TYPE_TLS`
+    and the raw keylog file content as *secrets_data*.
+
+    Body layout::
+
+        [secrets_type:4][secrets_length:4][secrets_data:secrets_length, padded to 4]
+    """
+    if not isinstance(secrets_data, (bytes, bytearray)):
+        raise TypeError("secrets_data must be bytes")
+    body = bytearray()
+    body.extend(struct.pack(endian + "II", secrets_type, len(secrets_data)))
+    body.extend(secrets_data)
+    pad = (-len(secrets_data)) & 3
+    if pad:
+        body.extend(b"\x00" * pad)
+    return PcapngBlock(block_type=BLOCK_TYPE_DSB, body=bytes(body), endian=endian)
