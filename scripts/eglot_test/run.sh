@@ -76,7 +76,7 @@ emacs -Q -batch \
   "${load_args[@]}" \
   --eval "(setq debug-on-error t)" \
   -l "$repo/scripts/eglot_test/test_issue333.el" 2>&1 | tee "$log" \
-  | { grep -E "^(==========|  (text-equal|PASS|FAIL|XFAIL|--|pos=|edit=|reload=|[a-z][a-z0-9-]+ +(PASS|FAIL|XFAIL)))" || true; }
+  | { grep -E "^(==========|  (text-equal|PASS|FAIL|XFAIL|XPASS|--|pos=|edit=|reload=|[a-z][a-z0-9-]+ +(PASS|FAIL|XFAIL|XPASS)))" || true; }
 status="${PIPESTATUS[0]}"
 echo
 echo "Full log: $log"

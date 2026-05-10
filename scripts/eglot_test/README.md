@@ -59,8 +59,17 @@ scripts/eglot_test/run.sh
 
 Current scenarios: `rename-only`, `insert-line-top`,
 `delete-line-middle`, `rapid-fire-no-wait`, `user-issue-code`,
-`many-small-edits`. As of 2026-05-05 all six pass — eglot 1.23's delta
-application matches a fresh full open in every case we've tried.
+`many-small-edits`. The first three plus `user-issue-code` and
+`many-small-edits` test our server's correctness via eglot and are
+expected to PASS. `rapid-fire-no-wait` is marked `:xfail` because it
+exercises eglot's didChange request coalescing, which is timing-
+sensitive and known to drop intermediate edits on some
+eglot/jsonrpc combinations — we report XFAIL when it mismatches
+and XPASS (loudly) if it ever stops mismatching, so we remember to
+drop the marker. The separate `painter-accumulation` test is
+likewise XFAIL'd as a deterministic reproducer for a known
+upstream eglot bug (issue #333) that can't be fixed from the
+server side.
 
 ## 3. `exercise_recorder.el` — smoke-test for the recorder
 
