@@ -212,7 +212,7 @@ def _format_text_report(
         f"# Pattern: {report_meta['pattern']}" + mode_suffix,
         f"# Direction: {report_meta['direction']}",
         f"# Sources: {', '.join(report_meta['source_uris']) or '(none)'}",
-        f"# Seeds: {len(seeds)} matched object(s)",
+        f"# Searches: {len(seeds)} matched object(s)",
         related_line,
     ]
     if summary:
@@ -236,7 +236,7 @@ def _format_text_report(
             lines.append("    }")
             lines.append("")
 
-    lines.append("# Seeds (matched by pattern):")
+    lines.append("# Searches (matched by pattern):")
     for obj in seeds:
         _emit(obj)
     lines.append("")
@@ -458,7 +458,7 @@ def report_to_dict(report: GrepReport, *, include_body: bool = False) -> dict:
             "kind": obj.kind,
             "header": obj.header,
             "depth": obj.depth,
-            "isSeed": obj.is_seed,
+            "isSearch": obj.is_seed,
             "range": {
                 "start": {
                     "line": obj.range.start.line,
@@ -480,7 +480,7 @@ def report_to_dict(report: GrepReport, *, include_body: bool = False) -> dict:
         "useCidr": report.use_cidr,
         "recurse": report.recurse,
         "direction": report.direction,
-        "seeds": [_obj_to_dict(o) for o in report.seeds],
+        "searches": [_obj_to_dict(o) for o in report.seeds],
         "related": [_obj_to_dict(o) for o in report.related],
         "edges": [
             {

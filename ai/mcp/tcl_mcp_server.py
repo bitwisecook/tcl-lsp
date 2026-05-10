@@ -2108,6 +2108,134 @@ def _tool_unminify_error(
     )
 
 
+@tool(
+    "irule_with_context",
+    "Bundle an iRule with the BIG-IP objects it references (pools, data groups, "
+    "persistence profiles, SNAT pools, profiles, monitors, nodes, called rules) "
+    "from a surrounding bigip.conf / SCF / UCS.  This is what an agent should "
+    "call before reasoning about an iRule end-to-end — the returned bundle "
+    "carries the rule body plus every referenced object's source so the "
+    "agent does not have to hand-walk the config.",
+    params={
+        "rule_path": {
+            **_STR,
+            "description": (
+                "Full BIG-IP path of the iRule (e.g. ``/Common/foo``).  "
+                "If empty, every iRule in the supplied config is bundled."
+            ),
+        },
+        "config_text": {
+            **_STR,
+            "description": (
+                "Inline bigip.conf / SCF source.  Provide either this or "
+                "``config_paths``.  Required for iRules that reference "
+                "objects defined elsewhere in the config."
+            ),
+        },
+        "config_paths": {
+            "type": "array",
+            "items": _STR,
+            "description": (
+                "Paths to bigip.conf / SCF / UCS files (alternative to "
+                "``config_text``).  All files are merged so cross-file "
+                "references resolve."
+            ),
+        },
+        "format": {
+            **_STR,
+            "description": "Output format: 'json' (default) or 'text' (Tcl-flavoured).",
+        },
+        "transitive": {
+            "type": "boolean",
+            "description": (
+                "When true (default) follow one hop deeper: pool members "
+                "→ nodes; pool monitor → monitor object."
+            ),
+        },
+    },
+    required=[],
+)
+def _tool_irule_with_context(
+    rule_path: str = "",
+    config_text: str = "",
+    config_paths: list | None = None,
+    format: str = "json",
+    transitive: bool = True,
+) -> str:
+    _configure_dialect("f5-irules")
+
+    from ai.shared.irule_context import (
+        build_irule_context,
+        context_bundle_to_dict,
+        context_bundle_to_text,
+    )
+    from core.bigip.lint import _merge_configs
+    from core.bigip.parser import parse_bigip_conf
+    from explorer.verbs.f5._paths import load_irule_inputs
+
+    paths = list(config_paths or [])
+    if not config_text and not paths:
+        return json.dumps({"error": "no input config provided; pass config_text or config_paths"})
+
+    sources: dict[str, str] = {}
+    configs: dict = {}
+
+    if config_text:
+        # Inline config_text is a *full bigip.conf* (or SCF) — parse it
+        # directly so the original ``ltm rule`` stanzas survive.  The
+        # loader's --source path is for raw iRule bodies, which is the
+        # opposite shape.
+        sources["inline://config"] = config_text
+        configs["inline://config"] = parse_bigip_conf(config_text)
+
+    if paths:
+        # Funnel files through the same loader the f5 CLI uses so UCS
+        # archives, SCF split-files, and standalone .irule files all
+        # resolve consistently — and the source-slice keys match the
+        # config keys for verbatim quoting.
+        try:
+            _inputs, file_configs, file_sources = load_irule_inputs(paths)
+        except (OSError, ValueError) as exc:
+            return json.dumps({"error": str(exc)})
+        configs.update(file_configs)
+        sources.update(file_sources)
+
+    if not configs:
+        return json.dumps({"error": "no parseable BIG-IP config in input"})
+
+    merged = _merge_configs(configs) if len(configs) > 1 else next(iter(configs.values()))
+
+    if rule_path:
+        if rule_path not in merged.rules:
+            return json.dumps({"error": f"rule not found: {rule_path}"})
+        targets = [(rule_path, merged.rules[rule_path])]
+    else:
+        targets = list(merged.rules.items())
+
+    bundles_payload = []
+    for path, rule in targets:
+        # Find the origin URI of this rule for source-slicing.
+        origin = None
+        for uri, cfg in configs.items():
+            if path in cfg.rules:
+                origin = uri
+                break
+
+        bundle = build_irule_context(
+            rule,
+            merged,
+            transitive=transitive,
+            sources=sources or None,
+            config_origin=origin,
+        )
+        if format == "text":
+            bundles_payload.append({"rule": path, "text": context_bundle_to_text(bundle)})
+        else:
+            bundles_payload.append(context_bundle_to_dict(bundle))
+
+    return json.dumps({"format": format, "bundles": bundles_payload}, indent=2)
+
+
 # Entry point
 
 if __name__ == "__main__":
