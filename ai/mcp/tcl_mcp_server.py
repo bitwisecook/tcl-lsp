@@ -645,7 +645,10 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     "bodies (8 lines by default), pool member + SNAT IP observed on the back "
     "side, termination analysis, and (when --simulate) the actual outcome of "
     "running the iRule under c-tcl.  Empty fields are omitted entirely so the "
-    "LLM context isn't flooded with noise.",
+    "LLM context isn't flooded with noise.  The full output schema, "
+    "field-by-field narration guide, and analyser limitations are documented "
+    "in `ai/prompts/explain_flow_system.md` (shared with the Claude "
+    "`explain-flow` skill); read that file before narrating the result.",
     params={
         "pcap_path": {**_STR, "description": "Path to a libpcap or pcapng file."},
         "config_text": {
