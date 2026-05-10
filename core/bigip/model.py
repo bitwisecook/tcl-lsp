@@ -198,8 +198,9 @@ class BigipPolicyAction:
     location: str = ""
     name: str = ""  # http-header / cookie target name
     value: str = ""
-    path: str = ""  # http-uri replace path / query
+    path: str = ""  # http-uri replace path / query / host component
     query: str = ""
+    host: str = ""
     event: str = ""
 
 

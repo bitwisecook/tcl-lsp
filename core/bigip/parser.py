@@ -635,7 +635,14 @@ _POLICY_OPERANDS = frozenset(
         "ssl-extension",
         "ssl-cert",
         "geoip",
-        "client-accepted",
+        # NOTE: ``client-accepted`` is intentionally NOT here even though
+        # it appears in some operand documentation — it overlaps with
+        # the event vocabulary in _POLICY_EVENTS, and the bare-token
+        # classifier resolves operands before events.  Including it
+        # would silently turn an event tag into a (broken) operand,
+        # losing the event annotation.  If we ever need a real
+        # ``client-accepted`` operand, give it a distinct name or add
+        # disambiguation logic to the classifier first.
     }
 )
 
@@ -732,6 +739,48 @@ def _strip_quotes(text: str) -> str:
     return s
 
 
+def _parse_policy_values_block(braced: str) -> list[str]:
+    """Quote-aware tokeniser for policy condition ``values { … }`` lists.
+
+    ``_parse_list_block`` is whitespace-only and turns
+    ``values { "Mozilla/5.0 (iPhone; CPU)" }`` into four tokens — that
+    corrupts UA strings, regex literals, and any header value with
+    spaces.  Policy values therefore need their own parser that
+    respects double-quoted strings (with ``\\`` escapes), strips the
+    surrounding quotes from each emitted value, and otherwise behaves
+    like the list-block parser (whitespace-separated bare tokens).
+    """
+    inner = _strip_outer_braces(braced)
+    out: list[str] = []
+    pos = 0
+    length = len(inner)
+    while pos < length:
+        ch = inner[pos]
+        if ch in " \t\n\r":
+            pos += 1
+            continue
+        if ch == '"':
+            pos += 1
+            buf: list[str] = []
+            while pos < length and inner[pos] != '"':
+                if inner[pos] == "\\" and pos + 1 < length:
+                    buf.append(inner[pos + 1])
+                    pos += 2
+                    continue
+                buf.append(inner[pos])
+                pos += 1
+            if pos < length and inner[pos] == '"':
+                pos += 1  # consume closing quote
+            out.append("".join(buf))
+            continue
+        # Bare token: read until whitespace.
+        start = pos
+        while pos < length and inner[pos] not in " \t\n\r":
+            pos += 1
+        out.append(inner[start:pos])
+    return out
+
+
 def _parse_policy_condition(index: int, body: str) -> BigipPolicyCondition:
     """Parse a single ``conditions { N { … } }`` body."""
     props = _parse_properties(body)
@@ -746,7 +795,7 @@ def _parse_policy_condition(index: int, body: str) -> BigipPolicyCondition:
     for key, value in props.items():
         if value:
             if key == "values":
-                values = _parse_list_block(value)
+                values = _parse_policy_values_block(value)
             elif key in ("name", "tm-name"):
                 name = _strip_quotes(value)
             continue
@@ -787,6 +836,7 @@ def _parse_policy_action(index: int, body: str) -> BigipPolicyAction:
     value = ""
     path = ""
     query = ""
+    host = ""
     event = ""
     for key, val in props.items():
         if val:
@@ -802,6 +852,12 @@ def _parse_policy_action(index: int, body: str) -> BigipPolicyAction:
                 path = _strip_quotes(val)
             elif key == "query":
                 query = _strip_quotes(val)
+            elif key == "host":
+                # ``http-uri replace host www.example.com`` — TMSH puts
+                # the host component in the same key=value form as path
+                # / query.  Without this branch the token would be
+                # silently dropped from the parsed action.
+                host = _strip_quotes(val)
             continue
         if key in _POLICY_ACTION_TARGETS and not target:
             target = key
@@ -819,6 +875,7 @@ def _parse_policy_action(index: int, body: str) -> BigipPolicyAction:
         value=value,
         path=path,
         query=query,
+        host=host,
         event=event,
     )
 
@@ -841,9 +898,7 @@ def _parse_policy_rule(name: str, body: str) -> BigipPolicyRule:
                 idx = int(cond_idx_str)
             except ValueError:
                 continue
-            conditions.append(
-                _parse_policy_condition(idx, _strip_outer_braces(cond_prop.value))
-            )
+            conditions.append(_parse_policy_condition(idx, _strip_outer_braces(cond_prop.value)))
 
     actions: list[BigipPolicyAction] = []
     act_block = props.get("actions", "")
@@ -893,9 +948,7 @@ def _parse_policy(
         for rule_name, rule_prop in _parse_properties_with_spans(
             _strip_outer_braces(rules_block)
         ).items():
-            rules.append(
-                _parse_policy_rule(rule_name, _strip_outer_braces(rule_prop.value))
-            )
+            rules.append(_parse_policy_rule(rule_name, _strip_outer_braces(rule_prop.value)))
     rules.sort(key=lambda r: (r.ordinal, r.name))
 
     return BigipPolicy(

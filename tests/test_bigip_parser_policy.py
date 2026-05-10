@@ -423,6 +423,110 @@ ltm policy /Common/p14 {
     assert cfg.policies["/Common/p14"].strategy == "first-match"
 
 
+def test_policy_values_preserve_quoted_string_with_spaces():
+    """Quoted UA strings / regex literals must survive policy values { } parsing."""
+    source = """\
+ltm policy /Common/p_quoted {
+    rules {
+        ua_match {
+            ordinal 1
+            conditions {
+                0 {
+                    http-header
+                    name User-Agent
+                    contains
+                    values { "Mozilla/5.0 (iPhone; CPU)" "curl/7.81.0" }
+                    request
+                }
+            }
+        }
+    }
+    strategy first-match
+}
+"""
+    cfg = parse_bigip_conf(source)
+    cond = cfg.policies["/Common/p_quoted"].rules[0].conditions[0]
+    assert cond.values == ("Mozilla/5.0 (iPhone; CPU)", "curl/7.81.0")
+
+
+def test_policy_values_quoted_with_escapes():
+    source = """\
+ltm policy /Common/p_esc {
+    rules {
+        r {
+            ordinal 1
+            conditions {
+                0 {
+                    http-header
+                    name X-Foo
+                    equals
+                    values { "a \\"b\\" c" }
+                    request
+                }
+            }
+        }
+    }
+    strategy first-match
+}
+"""
+    cfg = parse_bigip_conf(source)
+    cond = cfg.policies["/Common/p_esc"].rules[0].conditions[0]
+    assert cond.values == ('a "b" c',)
+
+
+def test_policy_http_uri_replace_host_action():
+    """`http-uri replace host <value>` must populate BigipPolicyAction.host."""
+    source = """\
+ltm policy /Common/p_replace_host {
+    rules {
+        rewrite_host {
+            ordinal 1
+            actions {
+                0 {
+                    http-uri
+                    replace
+                    host www.example.com
+                }
+            }
+        }
+    }
+    strategy first-match
+}
+"""
+    cfg = parse_bigip_conf(source)
+    act = cfg.policies["/Common/p_replace_host"].rules[0].actions[0]
+    assert act.target == "http-uri"
+    assert act.verb == "replace"
+    assert act.host == "www.example.com"
+
+
+def test_policy_client_accepted_event_not_misclassified_as_operand():
+    """`client-accepted` is an event tag, not an operand — must populate event."""
+    source = """\
+ltm policy /Common/p_event {
+    rules {
+        ca {
+            ordinal 1
+            conditions {
+                0 {
+                    tcp
+                    address
+                    equals
+                    values { 10.0.0.1 }
+                    client-accepted
+                }
+            }
+        }
+    }
+    strategy first-match
+}
+"""
+    cfg = parse_bigip_conf(source)
+    cond = cfg.policies["/Common/p_event"].rules[0].conditions[0]
+    assert cond.operand == "tcp"
+    assert cond.event == "client-accepted"
+
+
 def test_policy_does_not_collide_with_policy_strategy_stanza():
     """`ltm policy-strategy` is a different stanza type and must not match."""
     source = """\

@@ -314,8 +314,13 @@ class SessionExplain:
     event_annotations: tuple[tuple[str, str, tuple[tuple[str, str, str], ...]], ...] = ()
     ltm_policies: tuple[str, ...] = ()
     # Per-policy evaluation against the captured request state.  Empty
-    # when there are no policies attached, when the policy body wasn't
-    # parsed, or when the captured state was insufficient to evaluate.
+    # when no LTM policies are attached to the matched VS, when an
+    # attached path is unresolved (e.g. a short name we couldn't
+    # resolve to a full path), or when the policy body wasn't parsed
+    # into ``BigipConfig.policies``.  When evaluation runs, every
+    # parsed policy yields a ``PolicyDecision`` regardless of whether
+    # the captured state was sufficient — individual conditions
+    # surface their unevaluable-ness via ``ConditionTrace.note``.
     policy_decisions: tuple[PolicyDecision, ...] = ()
     apm_profile: str = ""
     gtm_wide_ips: tuple[str, ...] = ()
@@ -2405,8 +2410,7 @@ def _policy_decision_to_dict(pd: PolicyDecision) -> dict:
                     for ct in rd.conditions
                 ],
                 "actions": [
-                    {"target": at.target, "verb": at.verb, "value": at.value}
-                    for at in rd.actions
+                    {"target": at.target, "verb": at.verb, "value": at.value} for at in rd.actions
                 ],
             }
             for rd in pd.rules
@@ -2428,10 +2432,17 @@ def _compact_policy_decision(pd: PolicyDecision) -> dict:
         if not rd.fired:
             continue
         entry: dict = {"rule": rd.rule, "ordinal": rd.ordinal}
-        # Compact condition trace: only matched conditions, just the
-        # operand/operator/value the LLM needs to retell the decision.
+        # Compact condition trace: only conditions that actually
+        # matched.  For an unconditional default rule (zero
+        # conditions) ``matched_on`` is omitted entirely — there's
+        # nothing to attribute the firing to.  Unevaluable conditions
+        # (note set, matched=False) and non-matching conditions are
+        # also omitted; the verbose ``report_to_dict`` shape carries
+        # the full per-condition trace if a consumer needs it.
         cond_trace: list[dict] = []
         for ct in rd.conditions:
+            if not ct.matched:
+                continue
             target = ct.operand
             if ct.name:
                 target += f"[{ct.name}]"
@@ -2449,8 +2460,7 @@ def _compact_policy_decision(pd: PolicyDecision) -> dict:
             entry["matched_on"] = cond_trace
         if rd.actions:
             entry["actions"] = [
-                {"target": at.target, "verb": at.verb, "value": at.value}
-                for at in rd.actions
+                {"target": at.target, "verb": at.verb, "value": at.value} for at in rd.actions
             ]
         fired_entries.append(entry)
     out: dict = {"policy": pd.policy, "strategy": pd.strategy}
@@ -2613,9 +2623,7 @@ def _compact_session(se: SessionExplain, *, max_event_body_lines: int = 8) -> di
     if se.ltm_policies:
         out["ltm_policies"] = list(se.ltm_policies)
     if se.policy_decisions:
-        out["policy_decisions"] = [
-            _compact_policy_decision(pd) for pd in se.policy_decisions
-        ]
+        out["policy_decisions"] = [_compact_policy_decision(pd) for pd in se.policy_decisions]
     if se.apm_profile:
         out["apm_profile"] = se.apm_profile
     if se.event_sequence:

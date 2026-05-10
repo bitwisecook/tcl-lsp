@@ -347,9 +347,7 @@ def _http_get_packet(
     host: str,
     path: str,
 ) -> bytes:
-    payload = (
-        f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: tester\r\n\r\n".encode()
-    )
+    payload = f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: tester\r\n\r\n".encode()
     return _build_packet(src, dst, sp, dp, syn=False, payload=payload)
 
 
@@ -444,6 +442,56 @@ def test_explain_flow_policy_decisions_in_mcp_dict(tmp_path):
     assert fired["rule"] == "api_route"
     assert fired["actions"][0]["value"] == "/Common/pool_api"
     assert any(c["field"] == "http-host.host" for c in fired["matched_on"])
+
+
+def test_compact_policy_decision_omits_unmatched_conditions():
+    """`matched_on` in the compact MCP shape must list only conditions that matched."""
+    from core.bigip.explain_flow import _compact_policy_decision
+    from core.bigip.policy_eval import (
+        ConditionTrace,
+        PolicyDecision,
+        RuleDecision,
+    )
+
+    pd = PolicyDecision(
+        policy="/Common/p",
+        strategy="first-match",
+        rules=(
+            RuleDecision(
+                rule="r",
+                ordinal=1,
+                matched=True,
+                fired=True,
+                conditions=(
+                    # Unmatched condition must be hidden from `matched_on`.
+                    ConditionTrace(
+                        operand="http-host",
+                        selector="host",
+                        operator="equals",
+                        expected=("api.example.com",),
+                        actual="other.com",
+                        matched=False,
+                        note="",
+                    ),
+                    ConditionTrace(
+                        operand="http-method",
+                        selector="",
+                        operator="equals",
+                        expected=("GET",),
+                        actual="GET",
+                        matched=True,
+                        note="",
+                    ),
+                ),
+                actions=(),
+            ),
+        ),
+    )
+    out = _compact_policy_decision(pd)
+    assert len(out["fired"]) == 1
+    matched_on = out["fired"][0]["matched_on"]
+    assert len(matched_on) == 1
+    assert matched_on[0]["field"] == "http-method"
 
 
 def test_explain_flow_policy_decisions_text_report_mentions_decision(tmp_path):

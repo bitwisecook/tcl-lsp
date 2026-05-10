@@ -12,17 +12,13 @@ from core.bigip.policy_eval import RequestState, evaluate_policy
 
 
 def _policy(strategy: str, *rules: BigipPolicyRule) -> BigipPolicy:
-    return BigipPolicy(
-        name="p", full_path="/Common/p", strategy=strategy, rules=tuple(rules)
-    )
+    return BigipPolicy(name="p", full_path="/Common/p", strategy=strategy, rules=tuple(rules))
 
 
 def _rule(name: str, ordinal: int, *conds_and_acts) -> BigipPolicyRule:
     conds = tuple(c for c in conds_and_acts if isinstance(c, BigipPolicyCondition))
     acts = tuple(a for a in conds_and_acts if isinstance(a, BigipPolicyAction))
-    return BigipPolicyRule(
-        name=name, ordinal=ordinal, conditions=conds, actions=acts
-    )
+    return BigipPolicyRule(name=name, ordinal=ordinal, conditions=conds, actions=acts)
 
 
 def _cond(operand, **kw) -> BigipPolicyCondition:
@@ -91,11 +87,11 @@ def test_http_uri_default_selector_matches_full_uri():
 
 
 def test_http_method_equals():
-    r = _rule(
-        "r", 1, _cond("http-method", operator="equals", values=("POST",))
-    )
+    r = _rule("r", 1, _cond("http-method", operator="equals", values=("POST",)))
     assert evaluate_policy(_policy("first-match", r), RequestState(method="POST")).rules[0].matched
-    assert not evaluate_policy(_policy("first-match", r), RequestState(method="GET")).rules[0].matched
+    assert (
+        not evaluate_policy(_policy("first-match", r), RequestState(method="GET")).rules[0].matched
+    )
 
 
 def test_http_header_with_named_target():
@@ -169,9 +165,7 @@ def test_tcp_address_equals():
     r = _rule(
         "r",
         1,
-        _cond(
-            "tcp", selector="address", operator="equals", values=("203.0.113.7",)
-        ),
+        _cond("tcp", selector="address", operator="equals", values=("203.0.113.7",)),
     )
     state = RequestState(client_addr="203.0.113.7")
     assert evaluate_policy(_policy("first-match", r), state).rules[0].matched
@@ -232,12 +226,12 @@ def test_exists_operator_matches_when_field_present():
         1,
         _cond("http-header", name="X-Trace", operator="exists"),
     )
-    assert evaluate_policy(
-        _policy("first-match", r), RequestState(headers={"x-trace": "y"})
-    ).rules[0].matched
-    assert not evaluate_policy(
-        _policy("first-match", r), RequestState(headers={})
-    ).rules[0].matched
+    assert (
+        evaluate_policy(_policy("first-match", r), RequestState(headers={"x-trace": "y"}))
+        .rules[0]
+        .matched
+    )
+    assert not evaluate_policy(_policy("first-match", r), RequestState(headers={})).rules[0].matched
 
 
 # Strategy
@@ -302,9 +296,7 @@ def test_first_match_falls_through_to_unconditional_rule():
         99,
         _act("http-reply", verb="redirect", location="https://www.example.com/"),
     )
-    d = evaluate_policy(
-        _policy("first-match", r1, r_default), RequestState(host="other.com")
-    )
+    d = evaluate_policy(_policy("first-match", r1, r_default), RequestState(host="other.com"))
     assert not d.rules[0].fired
     assert d.rules[1].fired
     assert d.rules[1].actions[0].value == "https://www.example.com/"
@@ -354,6 +346,74 @@ def test_action_trace_summarises_tcp_reset():
 
 
 # request_state_from_session
+
+
+def test_unsupported_operand_no_match_even_with_missing_operator():
+    """`geoip missing` (or any unsupported-operand `missing`) must NOT fire.
+
+    Without this guard, `_extract_actual` returns `actual=""` for an
+    unsupported operand and `not bool("")` would be True, letting the
+    rule fire.  The contract is "unsupported operands no-match with a
+    note" — covered by the `unevaluable` flag from `_extract_actual`.
+    """
+    r = _rule("r", 1, _cond("geoip", selector="continent", operator="missing", values=()))
+    d = evaluate_policy(_policy("first-match", r), RequestState())
+    assert not d.rules[0].matched
+    assert not d.rules[0].fired
+    assert "not supported in v1" in d.rules[0].conditions[0].note
+
+
+def test_unsupported_ssl_extension_no_match_with_exists():
+    r = _rule("r", 1, _cond("ssl-extension", name="alpn", operator="exists"))
+    d = evaluate_policy(_policy("first-match", r), RequestState())
+    assert not d.rules[0].matched
+    assert "not supported in v1" in d.rules[0].conditions[0].note
+
+
+def test_http_header_exists_distinguishes_present_empty_from_absent():
+    """A header with explicit empty value is *present*; an absent header is missing."""
+    r_exists = _rule("r", 1, _cond("http-header", name="X-Foo", operator="exists"))
+    r_missing = _rule("r", 1, _cond("http-header", name="X-Foo", operator="missing"))
+
+    # Header present but value is empty: exists matches, missing does not.
+    state_present_empty = RequestState(headers={"x-foo": ""})
+    assert evaluate_policy(_policy("first-match", r_exists), state_present_empty).rules[0].matched
+    assert (
+        not evaluate_policy(_policy("first-match", r_missing), state_present_empty).rules[0].matched
+    )
+
+    # Header absent: missing matches, exists does not.
+    state_absent = RequestState(headers={})
+    assert not evaluate_policy(_policy("first-match", r_exists), state_absent).rules[0].matched
+    assert evaluate_policy(_policy("first-match", r_missing), state_absent).rules[0].matched
+
+
+def test_best_match_strategy_reports_as_approx():
+    """`best-match` should be surfaced as `best-match-approx` so consumers warn."""
+    r1 = _rule(
+        "more_specific",
+        1,
+        _cond("http-host", operator="equals", values=("a.com",)),
+        _cond("http-uri", selector="path", operator="starts-with", values=("/v1/",)),
+    )
+    r2 = _rule(
+        "less_specific",
+        2,
+        _cond("http-host", operator="equals", values=("a.com",)),
+    )
+    d = evaluate_policy(
+        _policy("best-match", r1, r2),
+        RequestState(host="a.com", path="/v1/health"),
+    )
+    assert d.strategy == "best-match-approx"
+    # The 2-condition rule should win (more conditions => better score).
+    assert [r.fired for r in d.rules] == [True, False]
+
+
+def test_unknown_strategy_falls_through_to_best_match_approx():
+    r = _rule("r", 1, _cond("http-host", operator="equals", values=("a.com",)))
+    d = evaluate_policy(_policy("custom-strategy-name", r), RequestState(host="a.com"))
+    assert d.strategy == "best-match-approx"
 
 
 def test_request_state_from_session_lowercases_headers():

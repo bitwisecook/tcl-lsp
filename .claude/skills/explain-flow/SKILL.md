@@ -165,13 +165,22 @@ The fields are designed so you can build the narrative directly:
    that matched (with the actual captured value beside the expected
    one), and the action(s) it produced.  Only **fired** rules are
    listed in the compact shape; an empty `fired` array means the
-   policy was evaluated but nothing matched (or only an unconditional
-   default exists and didn't run because of strategy).  Limited to
-   the medium-scope operand set (host / uri / method / header / SNI /
-   tcp address) and action set (forward / redirect / replace /
-   header insert+remove / reset).  For the full per-rule trace
-   including non-matched conditions, fall back to the verbose
-   `report_to_dict`.
+   policy was evaluated but no rule matched (every rule had at least
+   one condition that didn't match, or the policy had no rules at
+   all).  Note that a rule with zero conditions is treated as
+   unconditional and will always match — so if a "default" rule is
+   defined, it will be in `fired` for `first-match`/`all-match`
+   strategies whenever no earlier rule won.  Compact entries only
+   include the conditions that actually matched (`matched_on`); for
+   the full per-condition trace including non-matched and
+   unevaluable conditions, fall back to the verbose
+   `report_to_dict`.  Limited to the medium-scope operand set
+   (host / uri / method / header / SNI / tcp address) and action set
+   (forward / redirect / replace / header insert+remove / reset).
+   When a policy uses `best-match`, the reported `strategy` is
+   `best-match-approx` because we approximate F5's true best-match
+   as "rule with the most conditions wins" — operand-specificity
+   weighting isn't reproduced.
 6. **`flow.pool_member` + `flow.snat`** — observed values.  If
    `simulated.pool` differs from `flow.pool_member`, mention it
    ("the iRule would route to X, but the captured back-side went to

@@ -118,8 +118,9 @@ def evaluate_policy(policy: BigipPolicy, state: RequestState) -> PolicyDecision:
     * ``all-match`` — runs actions of every matched rule.
     * ``best-match`` (and unknown) — picks the matched rule with the
       largest condition count.  F5's true best-match weights operand
-      specificity; this is a deliberate approximation we surface in
-      :attr:`PolicyDecision.strategy` so consumers can warn.
+      specificity; this is a deliberate approximation we surface as
+      ``best-match-approx`` in :attr:`PolicyDecision.strategy` so
+      consumers can warn rather than assume F5-accurate semantics.
     """
     matched_indexes: list[int] = []
     rules_built: list[RuleDecision] = []
@@ -139,15 +140,17 @@ def evaluate_policy(policy: BigipPolicy, state: RequestState) -> PolicyDecision:
             )
         )
 
-    strategy = (policy.strategy or "first-match").lower()
-    if strategy == "first-match":
+    raw_strategy = (policy.strategy or "first-match").lower()
+    reported_strategy = raw_strategy
+    if raw_strategy == "first-match":
         for i, decision in enumerate(rules_built):
             if decision.matched:
                 matched_indexes.append(i)
                 break
-    elif strategy == "all-match":
+    elif raw_strategy == "all-match":
         matched_indexes = [i for i, d in enumerate(rules_built) if d.matched]
-    else:  # best-match approximation
+    else:  # best-match approximation (also used for unknown strategies)
+        reported_strategy = "best-match-approx"
         best_i = -1
         best_score = -1
         for i, decision in enumerate(rules_built):
@@ -178,7 +181,7 @@ def evaluate_policy(policy: BigipPolicy, state: RequestState) -> PolicyDecision:
         else:
             final.append(decision)
 
-    return PolicyDecision(policy=policy.full_path, strategy=strategy, rules=tuple(final))
+    return PolicyDecision(policy=policy.full_path, strategy=reported_strategy, rules=tuple(final))
 
 
 def request_state_from_session(session) -> RequestState:  # noqa: ANN001 — Session lives in explain_flow
@@ -209,13 +212,24 @@ def request_state_from_session(session) -> RequestState:  # noqa: ANN001 — Ses
 
 
 def _evaluate_condition(cond: BigipPolicyCondition, state: RequestState) -> ConditionTrace:
-    actual, note = _extract_actual(cond, state)
-    if cond.operator in ("exists", "missing"):
-        present = bool(actual)
-        raw = present if cond.operator == "exists" else not present
+    actual, present, note, unevaluable = _extract_actual(cond, state)
+    # Unevaluable conditions (unsupported operand, missing required
+    # `name`, etc.) must not be allowed to match.  Without this guard
+    # ``geoip missing`` would derive ``not bool("")`` = True and let
+    # an unsupported rule fire, contradicting the documented contract
+    # that unsupported operands no-match with an explanatory note.
+    # ``missing`` against a captured-empty field (note set but
+    # ``unevaluable=False``) is still allowed to match — that's the
+    # legitimate "the request didn't carry this header" case, where
+    # ``present=False`` even though we know which field to look at.
+    if unevaluable:
+        matched = False
     else:
-        raw = _apply_operator(cond.operator, actual, cond.values, cond.case_insensitive)
-    matched = raw if not cond.negate else not raw
+        if cond.operator in ("exists", "missing"):
+            raw = present if cond.operator == "exists" else not present
+        else:
+            raw = _apply_operator(cond.operator, actual, cond.values, cond.case_insensitive)
+        matched = raw if not cond.negate else not raw
     return ConditionTrace(
         operand=cond.operand,
         selector=cond.selector,
@@ -230,42 +244,65 @@ def _evaluate_condition(cond: BigipPolicyCondition, state: RequestState) -> Cond
     )
 
 
-def _extract_actual(cond: BigipPolicyCondition, state: RequestState) -> tuple[str, str]:
-    """Return ``(observed_value, note)`` for *cond*.
+def _extract_actual(cond: BigipPolicyCondition, state: RequestState) -> tuple[str, bool, str, bool]:
+    """Return ``(observed_value, present, note, unevaluable)`` for *cond*.
 
-    ``note`` is non-empty when we deliberately couldn't evaluate
-    (operand unsupported in v1, or required data absent from the
-    capture).  The trace surfaces it so the operator knows why a
-    condition didn't match.
+    * ``observed_value`` — the captured value we'll match against.
+    * ``present`` — distinct from ``bool(observed_value)``: an
+      explicitly-set empty header is *present* (so ``exists`` matches)
+      while a header that wasn't sent at all is *absent* (so
+      ``missing`` matches).  Without tracking this separately,
+      ``http-header X-Foo exists`` would wrongly no-match when
+      ``X-Foo: ""`` was actually sent.
+    * ``note`` — operator-readable explanation when something is off
+      (field absent, operand unsupported, condition malformed).
+    * ``unevaluable`` — ``True`` when we couldn't even attempt the
+      condition (operand outside the v1 surface, missing required
+      ``name``, …).  Callers must force a no-match in that case so an
+      unsupported ``geoip missing`` doesn't silently fire.
     """
     op = cond.operand
     sel = cond.selector
     if op == "http-host":
-        return state.host, ("" if state.host else "no Host captured")
+        present = bool(state.host)
+        return state.host, present, ("" if present else "no Host captured"), False
     if op == "http-uri":
         if sel == "path":
-            return state.path, ("" if state.path else "no URI captured")
+            present = bool(state.path)
+            return state.path, present, ("" if present else "no URI captured"), False
         if sel == "query":
-            return state.query, ("" if state.query else "no query string captured")
+            present = bool(state.query)
+            return (
+                state.query,
+                present,
+                ("" if present else "no query string captured"),
+                False,
+            )
         if sel == "host":
-            return state.host, ("" if state.host else "no Host captured")
-        return state.uri, ("" if state.uri else "no URI captured")
+            present = bool(state.host)
+            return state.host, present, ("" if present else "no Host captured"), False
+        present = bool(state.uri)
+        return state.uri, present, ("" if present else "no URI captured"), False
     if op == "http-method":
-        return state.method, ("" if state.method else "no method captured")
+        present = bool(state.method)
+        return state.method, present, ("" if present else "no method captured"), False
     if op == "http-header":
         if not cond.name:
-            return "", "http-header condition has no `name` — cannot evaluate"
-        v = state.headers.get(cond.name.lower(), "")
-        return v, ("" if v else f"header {cond.name!r} not seen in capture")
+            return "", False, "http-header condition has no `name` — cannot evaluate", True
+        key = cond.name.lower()
+        present = key in state.headers
+        v = state.headers.get(key, "")
+        return v, present, ("" if present else f"header {cond.name!r} not seen in capture"), False
     if op == "ssl-extension":
         if cond.name and cond.name.lower() != "server-name":
-            return "", f"ssl-extension {cond.name!r} not supported in v1"
-        return state.sni, ("" if state.sni else "no SNI captured")
+            return "", False, f"ssl-extension {cond.name!r} not supported in v1", True
+        present = bool(state.sni)
+        return state.sni, present, ("" if present else "no SNI captured"), False
     if op == "tcp":
         if sel == "address":
-            return state.client_addr, ""
-        return "", f"tcp selector {sel!r} not supported in v1"
-    return "", f"operand {op!r} not supported in v1"
+            return state.client_addr, bool(state.client_addr), "", False
+        return "", False, f"tcp selector {sel!r} not supported in v1", True
+    return "", False, f"operand {op!r} not supported in v1", True
 
 
 def _apply_operator(
@@ -333,6 +370,8 @@ def _action_summary_value(action: BigipPolicyAction) -> str:
             return f"path={action.path}"
         if action.query:
             return f"query={action.query}"
+        if action.host:
+            return f"host={action.host}"
     if action.target == "http-header":
         if action.verb == "insert":
             return f"{action.name}={action.value}"
@@ -342,7 +381,15 @@ def _action_summary_value(action: BigipPolicyAction) -> str:
         return "RST"
     # Fall back to the most relevant non-empty field so callers always
     # see something actionable in the trace.
-    for v in (action.pool, action.location, action.name, action.value, action.path, action.query):
+    for v in (
+        action.pool,
+        action.location,
+        action.name,
+        action.value,
+        action.path,
+        action.query,
+        action.host,
+    ):
         if v:
             return v
     return ""
