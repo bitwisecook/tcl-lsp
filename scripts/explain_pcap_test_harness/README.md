@@ -1,11 +1,47 @@
-# explain-pcap test harness
+# explain-pcap test harness — data gathering for the flow explainer
 
-End-to-end test lab for `f5 explain-pcap`.  Builds TLS certs, deploys an
-SCF onto a BIG-IP via tmsh, runs `tcpdump -i 0.0:nnnp` so the F5
-Ethernet trailer (legacy + DPT formats) is captured, drives a curated
-set of curl scenarios with `SSLKEYLOGFILE` set so HTTPS payloads are
-decryptable, pulls every pcap back, and finally runs `f5 explain-pcap`
-over each pcap to produce a text + JSON narrative of what happened.
+End-to-end test lab for `f5 explain-pcap` and (by extension) anyone who
+needs to capture *enough information* about a real BIG-IP flow that the
+flow explainer (CLI + MCP tool + Claude skill) can narrate what
+happened.  Use this harness either as a self-contained reproducer
+against a lab BIG-IP, or as a shopping list of the pieces you need to
+gather by hand from production:
+
+* the **bigip.conf / SCF** for every partition the flow touches;
+* a **pcap** that captures the packets the BIG-IP saw, including the
+  F5 Ethernet trailer so per-packet peer-IP and reset-cause info is
+  preserved;
+* a **TLS keylog file** (`SSLKEYLOGFILE` from curl, openssl, the
+  client's browser, or BIG-IP's TLS keylog provider) so HTTPS
+  payloads are decryptable;
+* enough **server-side context** that the captured response side
+  can be matched against what the origin actually did.
+
+The harness automates all four of those.
+
+## Data the explainer needs (and where each piece comes from)
+
+| Data piece | Source | How the harness gathers it |
+|------------|--------|----------------------------|
+| BIG-IP configuration (VS, profiles, iRules, pools, LTM policies) | `bigip.conf` / SCF | `tmsh save sys config file=…` (full export) or `tmsh load sys config merge file=… verify` of `bigip_test_lab.scf` for the lab |
+| Per-packet wire data + F5 trailer | `tcpdump` on the BIG-IP, with `:nnnp` so the host-side trailer (peer IP, reset cause TLVs, optional TLS keylog provider data) is included | `run_tests.py` SSHes in and runs `tcpdump -i 0.0:nnnp -s 0 -w …` per scenario |
+| TLS master secrets / pre-master keys | NSS keylog format (`SSLKEYLOGFILE` env var on the client; or `db tmm.tls.keylogger.enabled true` on TMOS 16+) | `run_tests.py` exports `SSLKEYLOGFILE=<out>/sslkeys.log` for every curl invocation that needs decryption |
+| Server-side request/response | The origin's access log + a side-by-side pcap on the backend | `test_server.py` logs every request to stdout; deploy on the pool member or run with `--server-here` so the same host does both |
+| iRule source | Already inside the SCF | Captured automatically when the SCF is loaded |
+| Reset cause text | F5 Ethernet trailer LOW/MED TLVs — only present in `:nnnp` captures from BIG-IP | Same `tcpdump` invocation as above |
+
+If any of those pieces is missing the explainer falls back gracefully
+(e.g. a pcap without keylogs still gives 5-tuple + TLS handshake
+metadata + reset analysis), but the richer the input, the richer the
+narrative.
+
+## What this lab adds on top of a raw capture
+
+This harness is *more* than a capture grabber: it deliberately
+exercises specific iRule / TLS / pool / policy code paths so you have
+known-good ground truth to compare the explainer's output against.
+Useful both as a regression test for `f5 explain-pcap` itself, and as
+a worked example for users learning how to gather production data.
 
 ## Layout
 
@@ -137,6 +173,98 @@ operator-facing.
 | `tls_selfsigned_relaxed`   | Same VS but `curl -k` so handshake completes; HTTPS payload decryptable via SSLKEYLOGFILE. |
 | `pool_down`                | Pool with one unreachable member; BIG-IP RSTs with cause text. |
 | `payload_reset`            | Plain TCP; iRule resets the connection on `RESETME` byte pattern. |
+
+## Gathering data from production (without this lab)
+
+If you're trying to explain a flow on a real production BIG-IP rather
+than reproduce one in the lab, you don't need `run_tests.py` — you
+need the same *artefacts* it collects.  Run these by hand in roughly
+this order:
+
+### 1. Pull the relevant BIG-IP config
+
+You only need the partitions the flow actually traverses.  The
+explainer accepts multiple `.conf` files via the CLI's positional
+`paths` argument, so partial dumps are fine.
+
+```bash
+# full SCF export (recommended — includes every referenced object)
+ssh admin@<bigip> "tmsh save sys config file=/var/tmp/prod.scf no-passphrase"
+scp admin@<bigip>:/var/tmp/prod.scf ./prod.scf
+
+# or, if the box won't let you save full SCF, just the LTM partition
+ssh admin@<bigip> "tmsh list ltm one-line | tee /var/tmp/prod-ltm.conf"
+scp admin@<bigip>:/var/tmp/prod-ltm.conf ./prod-ltm.conf
+```
+
+### 2. Capture with the F5 Ethernet trailer
+
+This is the critical step for the `f5 explain-pcap` extras (peer IP
+pairing, reset cause TLVs, decoded TMM annotations).  The
+`:nnnp` suffix is what makes BIG-IP write the trailer into each
+packet:
+
+```bash
+# on the BIG-IP, capture both directions of the flow you care about
+ssh admin@<bigip> "tcpdump -i 0.0:nnnp -s 0 -w /var/tmp/flow.pcap \
+    'host <client-ip> and host <vs-ip>'"
+# ...reproduce the issue...
+# Ctrl-C the tcpdump
+scp admin@<bigip>:/var/tmp/flow.pcap ./flow.pcap
+```
+
+`-i 0.0` captures across all VLANs; replace with `-i internal` /
+`-i external` / `-i <vlan>` if you know which side is interesting.
+Use `-C 100 -W 5` for a rolling 5x100MB ring if the issue is
+intermittent.
+
+### 3. Get a TLS keylog (optional but high-value)
+
+Three ways to obtain one, in order of preference:
+
+1. **From the client.**  If the client is curl, openssl, Firefox, or
+   Chrome, set `SSLKEYLOGFILE=/path/to/keys.log` in its environment
+   *before* the request — every TLS session it negotiates appends
+   PMS/TLS-1.3 keys to that file.  No BIG-IP-side change required.
+2. **From BIG-IP** (TMOS 16+).  Enable the F5 TLS keylogger so the
+   master secrets ride along inside the F5 Ethernet trailer (DPT
+   provider 4 — already understood by `core.bigip.f5_trailer`):
+   ```
+   tmsh modify sys db tmm.tls.keylogger.enabled value true
+   ```
+   The keylog material then gets parsed straight out of the pcap; no
+   external `--keylog` file is needed.
+3. **From the backend** (when the BIG-IP is acting as the TLS client
+   to a re-encrypted pool member).  Same `SSLKEYLOGFILE` env var on
+   whatever client library the backend service uses.
+
+### 4. (Optional) Backend-side log + pcap
+
+Useful when the question is "did the pool member ever see the
+request?".  `test_server.py` logs every request and is small enough
+to drop on any Linux box; or just run `tcpdump` on the member and
+correlate timestamps with the BIG-IP capture.
+
+### 5. Feed everything to `f5 explain-pcap`
+
+```bash
+python -m explorer.f5_cli explain-pcap \
+    --tshark \
+    --keylog ./keys.log \
+    --simulate \
+    ./flow.pcap ./prod.scf
+```
+
+* `--tshark` enriches the report with full HTTP/TLS decoding
+  (requires `tshark` on PATH).
+* `--keylog` decrypts HTTPS so HTTP::host / HTTP::method / response
+  codes are populated for TLS-wrapped sessions.
+* `--simulate` actually executes the matched VS's iRules under the
+  C-tcl orchestrator with the captured state, returning the real
+  pool/respond decisions.
+
+JSON output (`--json`) is what the `explain_pcap` MCP tool / Claude
+skill consume.
 
 ## Cleaning up
 

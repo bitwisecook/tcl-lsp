@@ -13,6 +13,8 @@ def load_verbs() -> None:
         completion,
         convert,
         diff,
+        enrich_pcapng,
+        enrich_wireshark,
         explain,
         explain_pcap,
         extract,
