@@ -156,7 +156,7 @@ def build_f5(version: str, output: Path) -> None:
 
 
 def build_tcl(version: str, output: Path) -> None:
-    """Build the unified Tcl zipapp: core/ + explorer/ + lsp/ + vm/."""
+    """Build the unified Tcl zipapp: core/ + explorer/ + lsp/ + vm/ + tclpkg/."""
     with tempfile.TemporaryDirectory(prefix="zipapp-tcl-") as tmp:
         stage = Path(tmp)
 
@@ -181,6 +181,12 @@ def build_tcl(version: str, output: Path) -> None:
         shutil.copytree(
             ROOT / "vm",
             stage / "vm",
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+
+        shutil.copytree(
+            ROOT / "tclpkg",
+            stage / "tclpkg",
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
 
