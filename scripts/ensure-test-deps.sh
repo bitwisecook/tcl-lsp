@@ -10,6 +10,11 @@
 #     compile checks (``editors/vscode/node_modules/.bin/tsc``).
 #   * ``kotlinc`` — the JetBrains plugin's DiagnosticCatalog.kt compile
 #     check.
+#   * ``rustup`` + Rust stable + the ``wasm32-wasip2`` target — the Zed
+#     extension's clippy check in ``make check-rust`` cross-compiles to
+#     WASI Preview 2 and fails without that target installed.  Installs
+#     the latest stable toolchain (rather than a pinned version) so it
+#     tracks the same channel as the local ``cargo`` developers expect.
 #   * ``tshark`` — Wireshark's CLI, used by the slow integration tests
 #     that validate the ``f5 enrich-wireshark`` profile by feeding it
 #     into a real Wireshark and confirming the rules / column / hosts
@@ -29,7 +34,7 @@
 #   bash scripts/ensure-test-deps.sh --check   # only report what's missing
 #
 # Skip individual tools with the matching env var, e.g. ``SKIP_TCLSH=1``,
-# ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_TSHARK=1``.
+# ``SKIP_NODE=1``, ``SKIP_KOTLINC=1``, ``SKIP_RUST=1``, ``SKIP_TSHARK=1``.
 
 set -euo pipefail
 
@@ -73,15 +78,16 @@ fi
 # nothing for the platform-specific package manager to do — succeed
 # without ever needing one.
 if [ "${SKIP_TCLSH:-}" = "1" ] && [ "${SKIP_NODE:-}" = "1" ] && \
-   [ "${SKIP_KOTLINC:-}" = "1" ] && [ "${SKIP_TSHARK:-}" = "1" ]; then
-    echo "ensure-test-deps: SKIP_TCLSH=1 SKIP_NODE=1 SKIP_KOTLINC=1 SKIP_TSHARK=1 — nothing to do."
+   [ "${SKIP_KOTLINC:-}" = "1" ] && [ "${SKIP_RUST:-}" = "1" ] && \
+   [ "${SKIP_TSHARK:-}" = "1" ]; then
+    echo "ensure-test-deps: SKIP_TCLSH=1 SKIP_NODE=1 SKIP_KOTLINC=1 SKIP_RUST=1 SKIP_TSHARK=1 — nothing to do."
     exit 0
 fi
 
 if [ -z "$PKG" ]; then
     echo "ensure-test-deps: unsupported platform ($OS / ${DISTRO:-unknown})." >&2
-    echo "Install tclsh9.0, node/npm, kotlinc, and tshark manually, or set the" >&2
-    echo "SKIP_TCLSH / SKIP_NODE / SKIP_KOTLINC / SKIP_TSHARK env vars to bypass." >&2
+    echo "Install tclsh9.0, node/npm, kotlinc, rustup, and tshark manually, or set the" >&2
+    echo "SKIP_TCLSH / SKIP_NODE / SKIP_KOTLINC / SKIP_RUST / SKIP_TSHARK env vars to bypass." >&2
     exit 2
 fi
 
@@ -319,6 +325,80 @@ install_kotlinc_zip() {
     info "Installed kotlinc → /usr/local/bin/kotlinc"
 }
 
+# ---------------------------------------------------------------- rustup + wasm32-wasip2
+
+ensure_rust() {
+    if [ "${SKIP_RUST:-}" = "1" ]; then info "SKIP_RUST=1 — skipping rust"; return 0; fi
+
+    local need_rust=0 need_wasm=0
+    if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
+        need_rust=1
+    fi
+    if ! rustup target list --installed 2>/dev/null | grep -q '^wasm32-wasip2$'; then
+        need_wasm=1
+    fi
+    if [ "$need_rust" -eq 0 ] && [ "$need_wasm" -eq 0 ]; then
+        info "rustup + cargo + wasm32-wasip2 target already present"
+        return 0
+    fi
+
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        if [ "$need_rust" -eq 1 ]; then
+            note_missing "rustup + rust stable (would install via https://sh.rustup.rs)"
+        fi
+        if [ "$need_wasm" -eq 1 ]; then
+            note_missing "wasm32-wasip2 target (would add via 'rustup target add wasm32-wasip2')"
+        fi
+        return 0
+    fi
+
+    if [ "$need_rust" -eq 1 ]; then
+        info "Installing rustup + rust stable (latest)"
+        local rustup_dir rustup_init
+        rustup_dir="$(mktemp -d)"
+        # Make sure the temp dir is cleaned up even when the caller
+        # ^Cs out or rustup-init fails — `trap RETURN` runs on every
+        # function exit path.
+        # shellcheck disable=SC2064
+        trap "rm -rf '$rustup_dir'" RETURN
+        rustup_init="${rustup_dir}/rustup-init.sh"
+        # Pull rustup-init from the official mirror and run it non-interactively.
+        # `--profile minimal --default-toolchain stable -y` tracks the latest
+        # stable toolchain and adds rustfmt/clippy explicitly so the
+        # downstream check-rust target works.
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL https://sh.rustup.rs -o "$rustup_init"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q https://sh.rustup.rs -O "$rustup_init"
+        else
+            warn "neither curl nor wget on PATH — install one or set up rustup manually"
+            return 1
+        fi
+        chmod +x "$rustup_init"
+        sh "$rustup_init" -y \
+            --no-modify-path \
+            --profile minimal \
+            --default-toolchain stable \
+            --component rustfmt --component clippy
+        # Make cargo/rustup visible to the rest of this script + downstream
+        # make targets in the same shell.
+        export PATH="${HOME}/.cargo/bin:${PATH}"
+    fi
+
+    if ! command -v rustup >/dev/null 2>&1; then
+        warn "rustup still not on PATH after install — add ~/.cargo/bin to PATH"
+        return 1
+    fi
+
+    # The Zed extension's clippy check (make check-rust) cross-compiles
+    # to wasm32-wasip2.  Without this target, `make test-slow` fails on
+    # ``can't find crate for `core` `` during the futures-core build.
+    if [ "$need_wasm" -eq 1 ] || ! rustup target list --installed | grep -q '^wasm32-wasip2$'; then
+        info "Adding wasm32-wasip2 target"
+        rustup target add wasm32-wasip2
+    fi
+}
+
 # ---------------------------------------------------------------- tshark
 
 ensure_tshark() {
@@ -360,6 +440,7 @@ ensure_tshark() {
 ensure_tclsh
 ensure_node
 ensure_kotlinc
+ensure_rust
 ensure_tshark
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "${#missing[@]}" -gt 0 ]; then

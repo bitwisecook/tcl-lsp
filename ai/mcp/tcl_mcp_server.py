@@ -631,6 +631,121 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     return json.dumps(result)
 
 
+# F5 BIG-IP analysis tools
+
+
+@tool(
+    "explain_flow",
+    "Trace each flow in a PCAP through one or more BIG-IP configs and return a "
+    "compact, LLM-friendly summary per matched session: a one-line narrative, "
+    "the matched virtual server, profile categories (TCP/HTTP/CLIENTSSL etc.), "
+    "captured HTTP request line + Host + UA + TLS SNI/version/cipher/ALPN, "
+    "captured response status, ordered iRule events that fired, deduplicated "
+    "`[HUD::cmd] = value` decisions the iRule looked at, truncated event "
+    "bodies (8 lines by default), pool member + SNAT IP observed on the back "
+    "side, termination analysis, and (when --simulate) the actual outcome of "
+    "running the iRule under c-tcl.  Empty fields are omitted entirely so the "
+    "LLM context isn't flooded with noise.",
+    params={
+        "pcap_path": {**_STR, "description": "Path to a libpcap or pcapng file."},
+        "config_text": {
+            **_STR,
+            "description": "BIG-IP `bigip.conf` / SCF source. Provide either this "
+            "or `config_paths`.",
+        },
+        "config_paths": {
+            "type": "array",
+            "items": _STR,
+            "description": "Paths to bigip.conf files (alternative to `config_text`).",
+        },
+        "use_tshark": {
+            "type": "boolean",
+            "description": "If true, enrich flows via tshark when available "
+            "(adds HTTP method/Host/URI/response code, TLS SNI/version/"
+            "cipher/ALPN, TLS alerts, F5 reset cause). Defaults to false.",
+        },
+        "keylog_path": {
+            **_STR,
+            "description": "NSS-format TLS keylog file (SSLKEYLOGFILE). "
+            "When supplied, passed to tshark so HTTPS payloads decrypt "
+            "and HTTP fields populate for TLS-wrapped sessions. Implies "
+            "use_tshark=true.",
+        },
+        "max_event_body_lines": {
+            **_INT,
+            "description": "Truncate each `when EVENT { ... }` body to this many "
+            "lines.  Defaults to 8 — kept low so the LLM context isn't "
+            "flooded.  Pass 0 to drop event bodies entirely.",
+        },
+        "tshark_filter": {
+            **_STR,
+            "description": "tshark display filter applied via -Y; only matching "
+            "packets contribute to the flow set.  When set, the entire "
+            "extraction pass runs through tshark (the built-in walker is "
+            "bypassed).  F5 trailer peer-tuples for `:np` capture pairing "
+            "are only populated by the built-in walker.",
+        },
+        "simulate": {
+            "type": "boolean",
+            "description": "Run each matched session's iRule under the C-tcl "
+            "orchestrator with the captured HTTP/TLS state, and report the "
+            "actual pool selection, HTTP::respond decisions, log lines, etc. "
+            "Slower; requires tclsh on PATH. Defaults to false.",
+        },
+    },
+    required=["pcap_path"],
+)
+def _tool_explain_flow(
+    pcap_path: str,
+    config_text: str = "",
+    config_paths: list | None = None,
+    use_tshark: bool = False,
+    keylog_path: str = "",
+    tshark_filter: str = "",
+    max_event_body_lines: int = 8,
+    simulate: bool = False,
+) -> str:
+    from pathlib import Path
+
+    from core.bigip.explain_flow import compute_explain_flow, report_to_mcp_dict
+    from core.bigip.parser import parse_bigip_conf
+
+    pcap = Path(pcap_path).resolve()
+    if not pcap.is_file():
+        return json.dumps({"error": f"pcap not found or not readable: {pcap_path}"})
+
+    configs: dict = {}
+    if config_text:
+        configs["inline://config"] = parse_bigip_conf(config_text)
+    for p in config_paths or []:
+        path = Path(p).resolve()
+        if not path.is_file():
+            return json.dumps({"error": f"config path not found: {p}"})
+        configs[path.as_uri()] = parse_bigip_conf(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
+    if not configs:
+        return json.dumps({"error": "explain_flow requires either config_text or config_paths"})
+
+    try:
+        report = compute_explain_flow(
+            pcap,
+            configs,
+            use_tshark=use_tshark or bool(keylog_path) or bool(tshark_filter),
+            keylog_path=keylog_path,
+            tshark_filter=tshark_filter,
+            show_event_bodies=max_event_body_lines > 0,
+            max_event_body_lines=max(max_event_body_lines, 1),
+            simulate=simulate,
+        )
+    except (OSError, ValueError) as exc:
+        # Surface bad pcap / unreadable file as a structured JSON error
+        # rather than letting the exception escape and crash the MCP
+        # tool framework.
+        return json.dumps({"error": f"compute_explain_flow failed: {exc}"})
+    return json.dumps(report_to_mcp_dict(report, max_event_body_lines=max_event_body_lines))
+
+
 # LSP-equivalent tools
 
 _SYNTHETIC_URI = "file:///source.tcl"
