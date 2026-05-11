@@ -111,7 +111,7 @@ make refresh-tcl9-vm-core-baseline
 #   ↳ overwrites/recreates tests/baselines/tcl9-tcltest-vm/categories/*.toml
 
 # Subset only (no gate, no baseline write):
-python scripts/run_tcl9_vm_core.py --stems parse basic info string set --no-baseline
+python scripts/dev/run_tcl9_vm_core.py --stems parse basic info string set --no-baseline
 
 # Reproduce one stem in isolation, in a real CLI process:
 python -m vm --enable-test-support tmp/tcl9.0.3/tests/<stem>.test

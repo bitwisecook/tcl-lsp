@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Ensure repo root is on sys.path so we can import vm/ and core/
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from vm.commands import tcltest_cmds  # noqa: E402

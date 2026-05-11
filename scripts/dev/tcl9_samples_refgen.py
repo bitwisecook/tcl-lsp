@@ -25,7 +25,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SAMPLES_DIR = _REPO_ROOT / "samples" / "tcl9_smoke"
 
 

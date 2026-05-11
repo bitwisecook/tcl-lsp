@@ -172,10 +172,10 @@ make refresh-tcl9-wasm-core-baseline
 # cpu_count), --timeout 180, --run-timeout 120) and differ from the
 # gate's pinned knobs — pass --workers / --timeout explicitly when
 # you want gate-equivalent behaviour.
-uv run --extra dev python scripts/run_tcl9_wasm_core.py --stems list lseq mathop --workers 1 --no-baseline
+uv run --extra dev python scripts/dev/run_tcl9_wasm_core.py --stems list lseq mathop --workers 1 --no-baseline
 ```
 
-The harness is `scripts/run_tcl9_wasm_core.py` and the regression
+The harness is `scripts/dev/run_tcl9_wasm_core.py` and the regression
 pytest is `tests/test_wasm_tcl9_core_baseline.py` (env-gated behind
 `RUN_WASM_TCL9_CORE`).  Read the source for the exact CLI flags and
 the per-stem timeout / parallelism knobs.
@@ -192,7 +192,7 @@ When a `W0-*` crash or `W-mixed-fail` row needs work:
    the bundle:
 
    ```bash
-   uv run --extra dev python scripts/run_tcl9_wasm_core.py \
+   uv run --extra dev python scripts/dev/run_tcl9_wasm_core.py \
        --stems <stem> --workers 1 --no-baseline
    ```
 

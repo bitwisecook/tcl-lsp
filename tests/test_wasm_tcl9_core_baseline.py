@@ -7,7 +7,7 @@ Unlike the Python-VM-side sibling
 correctness gate: regressions here represent real WASM-runtime gaps that
 block correctness against upstream Tcl 9.
 
-Runs the focused harness (``scripts/run_tcl9_wasm_core.py``) and asserts
+Runs the focused harness (``scripts/dev/run_tcl9_wasm_core.py``) and asserts
 that no stem regresses against the committed baseline at
 ``tests/baselines/tcl9-tcltest-wasm/summary.json``.
 

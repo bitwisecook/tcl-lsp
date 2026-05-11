@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = SCRIPT_DIR.parent.parent
 DB_PATH = PROJECT_DIR / "spicegentcl_perf.sqlite3"
 CLONE_DIR = PROJECT_DIR / "tmp" / "SpiceGenTcl"
 WORKTREE_DIR = PROJECT_DIR / "tmp" / "worktrees"

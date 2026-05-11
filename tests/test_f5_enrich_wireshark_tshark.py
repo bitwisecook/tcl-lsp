@@ -4,7 +4,7 @@ These tests build a profile, point a real tshark binary at it, and
 confirm Wireshark accepts every file we emit and resolves the right
 labels.  They're marked ``slow`` so they don't gate ``make prep-pr``;
 ``make test-slow`` (or ``AUTO_INSTALL_DEPS=1 make test-slow``) installs
-``tshark`` via :file:`scripts/ensure-test-deps.sh` and runs them.
+``tshark`` via :file:`scripts/dev/ensure-test-deps.sh` and runs them.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def _require_tshark() -> str:
         pytest.skip(
             "tshark not installed — run "
             "`AUTO_INSTALL_DEPS=1 make test-slow` to fetch it via "
-            "scripts/ensure-test-deps.sh"
+            "scripts/dev/ensure-test-deps.sh"
         )
     return tshark
 

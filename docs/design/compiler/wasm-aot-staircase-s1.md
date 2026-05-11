@@ -48,7 +48,7 @@ requires editing the conditional inline.
   ```
 - [ ] Surface the flag at the test-harness layer (`_compile_tcl(..., 
   frame_elision=False)`) and at the sweep harness 
-  (`scripts/run_tcl9_tcltest_sweep.py --no-frame-elision`).
+  (`scripts/dev/run_tcl9_tcltest_sweep.py --no-frame-elision`).
 - [ ] CLI: add `tcl-lsp wasm-codegen --no-frame-elision` (if a CLI exists 
   for the compiler) or a Make target `make sweep-no-elision`.
 
@@ -57,7 +57,7 @@ requires editing the conditional inline.
 - Modify: `core/compiler/codegen/wasm/__init__.py`
 - Modify: `core/compiler/codegen/wasm/_emitter/_core.py`
 - Modify: `tests/test_wasm_real_tcl.py` (`_compile_tcl` signature)
-- Modify: `scripts/run_tcl9_tcltest_sweep.py` (CLI flag)
+- Modify: `scripts/dev/run_tcl9_tcltest_sweep.py` (CLI flag)
 - Modify: `Makefile` (new `sweep-no-elision` target)
 - Reference: existing `var_escape/_types.py::ProcEscapeSummary`
 

@@ -25,7 +25,7 @@ import time
 import traceback
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
 from tests.external.run_tcl9_tests import (  # noqa: E402

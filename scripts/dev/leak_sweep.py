@@ -43,7 +43,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 # Force the runtime path before importing _run_wasm so the

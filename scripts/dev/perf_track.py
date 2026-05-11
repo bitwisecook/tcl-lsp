@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = SCRIPT_DIR.parent
+PROJECT_DIR = SCRIPT_DIR.parent.parent
 DB_PATH = PROJECT_DIR / "perf_history.sqlite3"
 
 # Sample files used for benchmarking (shipped with the repo).
