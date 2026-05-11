@@ -6,7 +6,7 @@ zipapps.  Pick one of the methods below.
 ## One-line installer
 
 ```sh
-curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
 ```
 
 Works on macOS, Debian/Ubuntu, RHEL/CentOS/Rocky/Alma, Fedora,
@@ -16,7 +16,7 @@ through the system package manager if it's missing.
 To inspect the script before running it:
 
 ```sh
-curl -fsSLo install.sh https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh
+curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh
 less install.sh
 sh install.sh --version
 sh install.sh
@@ -25,7 +25,7 @@ sh install.sh
 For fully unattended runs (skips every prompt, including PATH/rc edits):
 
 ```sh
-curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh \
+curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh \
   | TCL_LSP_ASSUME_YES=1 sh
 ```
 

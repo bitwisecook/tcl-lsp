@@ -27,7 +27,7 @@
 # (only do this when the network path is trustworthy end-to-end).
 #
 # Usage:
-#   curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
 #
 # Environment overrides:
 #   TCL_LSP_VERSION         - release tag to install (default: latest)
@@ -282,7 +282,7 @@ require_root_or_die() {
 Re-run as root with the two-step pattern (safer than \`curl | sudo sh\` —
 you can inspect the script first):
   curl -fsSLo /tmp/tcl-lsp-install.sh \\
-       https://github.com/${REPO}/releases/latest/download/install.sh
+       https://raw.githubusercontent.com/${REPO}/main/scripts/install.sh
   sudo sh /tmp/tcl-lsp-install.sh"
     die "$msg"
 }
