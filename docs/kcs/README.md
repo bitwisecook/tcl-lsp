@@ -53,6 +53,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
   when (and when not) to restart the Tcl Language Server.
+- [kcs-qa-rust-shim-env-vars.md](kcs-qa-rust-shim-env-vars.md) — which
+  environment variables steer the Rust LSP shim and the JSON-RPC test
+  client.
 
 ## How-Tos
 
