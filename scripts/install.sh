@@ -1110,8 +1110,7 @@ SUMS_STATE=""   # "present" | "absent" | ""
 ensure_sums() {
     # Download SHA256SUMS once. Missing SUMS aborts the install by
     # default; set TCL_LSP_NO_VERIFY=1 to install without integrity
-    # checks (e.g. for older releases that predate the SUMS publish
-    # pipeline — see scripts/backfill-sums.sh for how to retro-publish).
+    # checks (only do this if you trust the network path end-to-end).
     [ "${TCL_LSP_NO_VERIFY:-0}" = "1" ] && return 1
     [ "$SUMS_STATE" = "present" ] && return 0
     ensure_tag
@@ -1145,9 +1144,7 @@ Install cosign (\`brew install cosign\` / \`apt-get install cosign\` / etc.) and
     if ! try_download "$(asset_url SHA256SUMS.cosign.bundle)" "$bundle"; then
         if [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
             die "SHA256SUMS.cosign.bundle not published for $RESOLVED_TAG
-and TCL_LSP_REQUIRE_COSIGN=1. Refusing to proceed with hash-only verification.
-Older releases that predate the publish-checksums job may need the bundle
-backfilled — see scripts/backfill-sums.sh --sign."
+and TCL_LSP_REQUIRE_COSIGN=1. Refusing to proceed with hash-only verification."
         fi
         return 0
     fi
