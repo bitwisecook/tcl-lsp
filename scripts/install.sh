@@ -18,8 +18,9 @@
 #
 # Downloaded release artefacts are verified against the release's
 # SHA256SUMS file (and, if `cosign` is installed and the release
-# publishes one, the SHA256SUMS.cosign.bundle). Missing SUMS is a
-# warning by default; set TCL_LSP_REQUIRE_VERIFY=1 to fail instead.
+# publishes one, the SHA256SUMS.cosign.bundle). A missing SUMS file
+# aborts the install — set TCL_LSP_NO_VERIFY=1 to install unverified
+# (only do this when the network path is trustworthy end-to-end).
 #
 # Usage:
 #   curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
@@ -37,8 +38,7 @@
 #   TCL_LSP_NO_SKILLS       - 1 to skip Claude Code skills install
 #   TCL_LSP_NO_CLAUDE       - 1 to ignore Claude Code even if detected
 #   TCL_LSP_NO_CODEX        - 1 to ignore Codex even if detected
-#   TCL_LSP_NO_VERIFY            - 1 to skip SHA256SUMS verification
-#   TCL_LSP_REQUIRE_VERIFY       - 1 to fail when SHA256SUMS is missing
+#   TCL_LSP_NO_VERIFY            - 1 to install without SHA256SUMS verification
 #   TCL_LSP_REQUIRE_COSIGN       - 1 to fail when cosign signature is missing/invalid
 #   TCL_LSP_ALLOW_INSECURE_WGET  - 1 to allow wget without --https-only (DANGEROUS)
 #   TCL_LSP_ALLOW_TLS12          - 1 to skip the TLS 1.3 + HTTP/2 attempt and go
@@ -884,15 +884,19 @@ _curl_rc_implies_tls_retry() {
     esac
 }
 
-download() {
-    # download URL OUTPUT — pins TLS and refuses HTTP redirects. Always
-    # either succeeds or dies with a reason; never returns silently.
-    # Captures curl/wget stderr so the user sees the underlying error
-    # instead of a bare `exit 1` from set -e.
+# Set by _download_run after a terminal failure; cleared on success.
+LAST_DOWNLOAD_ERR=""
+
+# Returns 0 on success, non-zero on terminal failure. Captures the
+# downloader's stderr summary into LAST_DOWNLOAD_ERR. Used by both the
+# default `download()` (which dies) and the optional `try_download()`
+# (which lets the caller decide).
+_download_run() {
     url="$1"; out="$2"
     log "fetching $(basename "$out")"
     record "DOWNLOAD start url=$url"
     err_file="$WORKDIR/.dl.err"
+    LAST_DOWNLOAD_ERR=""
     : >"$err_file" 2>/dev/null || true
 
     rc=0
@@ -923,33 +927,49 @@ download() {
         warn "$(basename "$out") download failed ($DOWNLOADER rc=$rc, no stderr captured)"
     fi
     rm -f "$err_file" 2>/dev/null
+    LAST_DOWNLOAD_ERR="$err_summary"
 
-    # Don't bother prompting for TLS fallback when curl says the URL was
-    # reachable but errored (404, DNS, connect refused, etc.).
+    # Skip TLS fallback for errors that won't be fixed by lowering TLS.
     if [ "$DOWNLOADER" = "curl" ] && ! _curl_rc_implies_tls_retry "$rc"; then
-        die "download failed: $url${err_summary:+
-${err_summary}}"
+        return 1
     fi
     if maybe_fallback_tls; then
         : >"$err_file" 2>/dev/null || true
         if [ "$DOWNLOADER" = "wget" ]; then
             if wget_invoke -qO "$out" "$url" 2>"$err_file"; then
                 rm -f "$err_file" 2>/dev/null
+                LAST_DOWNLOAD_ERR=""
                 return 0
             fi
         else
             if curl_invoke -fsSL -o "$out" "$url" 2>"$err_file"; then
                 rm -f "$err_file" 2>/dev/null
+                LAST_DOWNLOAD_ERR=""
                 return 0
             fi
         fi
         if [ -s "$err_file" ]; then
-            err_summary="$(tr '\n' ' ' <"$err_file" 2>/dev/null | sed 's/  */ /g')"
+            LAST_DOWNLOAD_ERR="$(tr '\n' ' ' <"$err_file" 2>/dev/null | sed 's/  */ /g')"
         fi
         rm -f "$err_file" 2>/dev/null
     fi
-    die "download failed: $url${err_summary:+
-${err_summary}}"
+    return 1
+}
+
+# download URL OUTPUT — dies on failure with the URL + captured error.
+# Use for mandatory artefacts (CLI zipapps, SHA256SUMS). For files
+# that may legitimately be absent on a release, use try_download.
+download() {
+    _download_run "$@" && return 0
+    die "download failed: $1${LAST_DOWNLOAD_ERR:+
+${LAST_DOWNLOAD_ERR}}"
+}
+
+# try_download URL OUTPUT — returns 0 on success, 1 on failure.
+# Caller is responsible for surfacing whatever error message makes
+# sense in context. LAST_DOWNLOAD_ERR holds the captured stderr.
+try_download() {
+    _download_run "$@"
 }
 
 resolve_latest_tag() {
@@ -1004,29 +1024,27 @@ init_workdir() {
 SUMS_PATH=""
 SUMS_STATE=""   # "present" | "absent" | ""
 ensure_sums() {
-    # Download SHA256SUMS once; TCL_LSP_NO_VERIFY/REQUIRE_VERIFY control strictness.
+    # Download SHA256SUMS once. Missing SUMS aborts the install by
+    # default; set TCL_LSP_NO_VERIFY=1 to install without integrity
+    # checks (e.g. for older releases that predate the SUMS publish
+    # pipeline — see scripts/backfill-sums.sh for how to retro-publish).
     [ "${TCL_LSP_NO_VERIFY:-0}" = "1" ] && return 1
-    case "$SUMS_STATE" in
-        present) return 0 ;;
-        absent)  return 1 ;;
-    esac
+    [ "$SUMS_STATE" = "present" ] && return 0
     ensure_tag
     sums_tmp="$WORKDIR/SHA256SUMS"
-    if download "$(asset_url SHA256SUMS)" "$sums_tmp" 2>/dev/null; then
+    if try_download "$(asset_url SHA256SUMS)" "$sums_tmp"; then
         SUMS_PATH="$sums_tmp"
         SUMS_STATE=present
         verify_sums_signature "$SUMS_PATH" || die "cosign verification of SHA256SUMS failed"
         return 0
     fi
-    # REQUIRE_COSIGN implies REQUIRE_VERIFY — you can't verify a signature
-    # on a SUMS file you couldn't download.
-    if [ "${TCL_LSP_REQUIRE_VERIFY:-0}" = "1" ] || [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
-        die "SHA256SUMS not found at $(asset_url SHA256SUMS) — TCL_LSP_REQUIRE_VERIFY=1 or TCL_LSP_REQUIRE_COSIGN=1, refusing to proceed."
-    fi
-    warn "no SHA256SUMS file in release $RESOLVED_TAG — installing without integrity verification"
-    warn "(set TCL_LSP_REQUIRE_VERIFY=1 to fail on missing SUMS, or TCL_LSP_NO_VERIFY=1 to silence this)"
-    SUMS_STATE=absent
-    return 1
+    die "release $RESOLVED_TAG has no SHA256SUMS — refusing to install unverified artefacts.
+URL: $(asset_url SHA256SUMS)
+${LAST_DOWNLOAD_ERR:+Last error: $LAST_DOWNLOAD_ERR}
+Options:
+  - install a newer release with checksums published, or
+  - set TCL_LSP_NO_VERIFY=1 to install without integrity verification
+    (only do this if you trust the network path end-to-end)."
 }
 
 verify_sums_signature() {
@@ -1040,7 +1058,7 @@ Install cosign (\`brew install cosign\` / \`apt-get install cosign\` / etc.) and
         return 0
     fi
     bundle="$WORKDIR/SHA256SUMS.cosign.bundle"
-    if ! download "$(asset_url SHA256SUMS.cosign.bundle)" "$bundle" 2>/dev/null; then
+    if ! try_download "$(asset_url SHA256SUMS.cosign.bundle)" "$bundle"; then
         if [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
             die "SHA256SUMS.cosign.bundle not published for $RESOLVED_TAG
 and TCL_LSP_REQUIRE_COSIGN=1. Refusing to proceed with hash-only verification.
