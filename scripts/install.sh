@@ -848,22 +848,37 @@ curl_probe_feature() {
     curl "$1" --help all >/dev/null 2>&1
 }
 
+curl_probe_capabilities() {
+    [ -n "$CURL_HAS_HTTP2" ] && return 0
+    if curl_probe_feature --http2; then CURL_HAS_HTTP2=1; else CURL_HAS_HTTP2=0; fi
+    if curl_probe_feature --tlsv1.3; then CURL_HAS_TLS13=1; else CURL_HAS_TLS13=0; fi
+    if [ "$CURL_HAS_HTTP2" = 0 ] || [ "$CURL_HAS_TLS13" = 0 ]; then
+        missing=""
+        [ "$CURL_HAS_TLS13" = 0 ] && missing="${missing} TLS 1.3"
+        [ "$CURL_HAS_HTTP2" = 0 ] && missing="${missing} HTTP/2"
+        warn "curl missing build-time support for:${missing} — falling back automatically."
+    fi
+}
+
 curl_invoke() {
     # curl with the current transport-strictness, plus the caller's args.
     # Capabilities are probed once on first use because not every libcurl
     # build supports --http2 or --tlsv1.3 (e.g. Apple's stock curl).
-    if [ -z "$CURL_HAS_HTTP2" ]; then
-        if curl_probe_feature --http2; then CURL_HAS_HTTP2=1; else CURL_HAS_HTTP2=0; fi
-    fi
-    if [ -z "$CURL_HAS_TLS13" ]; then
-        if curl_probe_feature --tlsv1.3; then CURL_HAS_TLS13=1; else CURL_HAS_TLS13=0; fi
-    fi
+    curl_probe_capabilities
     set -- --proto '=https' --proto-redir '=https' "$@"
     if [ "$TLS_FALLBACK" = 1 ]; then
         set -- --tlsv1.2 --http1.1 "$@"
     else
-        [ "$CURL_HAS_TLS13" = 1 ] && set -- --tlsv1.3 "$@"
-        [ "$CURL_HAS_HTTP2" = 1 ] && set -- --http2 "$@"
+        if [ "$CURL_HAS_TLS13" = 1 ]; then
+            set -- --tlsv1.3 "$@"
+        else
+            set -- --tlsv1.2 "$@"
+        fi
+        if [ "$CURL_HAS_HTTP2" = 1 ]; then
+            set -- --http2 "$@"
+        else
+            set -- --http1.1 "$@"
+        fi
     fi
     curl "$@"
 }
