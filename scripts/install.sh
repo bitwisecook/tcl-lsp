@@ -869,16 +869,17 @@ curl_probe_capabilities() {
             }
         }')
     if curl_probe_setopt --http2; then CURL_HAS_HTTP2=1; else CURL_HAS_HTTP2=0; fi
+    tls13_by_backend=0
     case "$backend" in
-        SecureTransport) CURL_HAS_TLS13=0 ;;
+        SecureTransport) CURL_HAS_TLS13=0; tls13_by_backend=1 ;;
         *)
             if curl_probe_setopt --tlsv1.3; then CURL_HAS_TLS13=1; else CURL_HAS_TLS13=0; fi
             ;;
     esac
-    if [ "$CURL_HAS_HTTP2" = 0 ] || [ "$CURL_HAS_TLS13" = 0 ]; then
-        missing=""
-        [ "$CURL_HAS_TLS13" = 0 ] && missing="${missing} TLS 1.3"
-        [ "$CURL_HAS_HTTP2" = 0 ] && missing="${missing} HTTP/2"
+    missing=""
+    [ "$CURL_HAS_TLS13" = 0 ] && [ "$tls13_by_backend" = 0 ] && missing="${missing} TLS 1.3"
+    [ "$CURL_HAS_HTTP2" = 0 ] && missing="${missing} HTTP/2"
+    if [ -n "$missing" ]; then
         warn "curl (${backend:-unknown}) missing support for:${missing} — falling back automatically."
     fi
 }
