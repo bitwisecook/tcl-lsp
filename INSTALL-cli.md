@@ -81,6 +81,23 @@ menu, and yes/no questions are arrow-key-driven dialogs.  Set
 `TCL_LSP_NO_TUI=1` to keep the plain-text prompts.  In non-interactive
 mode (piped stdin) the TUI is never used.
 
+### Updating an existing install
+
+Before prompting for an install location, the installer scans `$PATH`
+for an existing `tcl` / `f5` and verifies that the file looks like one
+of our Python zipapps (shebang + `PK\x03\x04` signature in the header).
+When it finds one, it prompts:
+
+```
+==> found existing tcl at /usr/local/bin/tcl
+Update existing tcl at /usr/local/bin/tcl (in place)? [Y/n]
+```
+
+Saying yes pins `$PREFIX` to that directory and skips the install-location
+picker.  Saying no falls back to the normal picker.  If a file is on
+`PATH` but doesn't look like one of our zipapps the installer warns and
+runs the picker — it never overwrites unrelated binaries.
+
 The asymmetry is deliberate: rc-file and completion-directory
 mutation get an explicit yes from the user, while the AI integrations
 that only kick in when a client is already present are opt-out (a

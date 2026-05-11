@@ -748,9 +748,92 @@ choose_clis() {
     log "CLIs to install: $ONLY"
 }
 
+# ---------------------------------------------------------------------
+# Detect an existing install and offer to update in place
+# ---------------------------------------------------------------------
+
+find_on_path() {
+    # Print the first executable named $1 found on $PATH.
+    name="$1"
+    OLD_IFS="$IFS"; IFS=:
+    # shellcheck disable=SC2086
+    for d in $PATH; do
+        if [ -x "$d/$name" ] && [ -f "$d/$name" ]; then
+            IFS="$OLD_IFS"
+            printf '%s\n' "$d/$name"
+            return 0
+        fi
+    done
+    IFS="$OLD_IFS"
+    return 1
+}
+
+looks_like_our_zipapp() {
+    # Heuristic: file starts with #! python shebang and contains the
+    # ZIP local-file-header signature `PK\x03\x04` within the first 2KB.
+    # Cheap, no execution required.
+    f="$1"
+    [ -r "$f" ] || return 1
+    first="$(head -c 200 "$f" 2>/dev/null)"
+    case "$first" in
+        '#!'*python*) : ;;
+        *) return 1 ;;
+    esac
+    head -c 2048 "$f" 2>/dev/null | grep -q 'PK' || return 1
+    return 0
+}
+
+propose_update_install() {
+    # For each CLI the user selected, look for an existing copy on PATH.
+    # If found AND it looks like one of our zipapps, ask whether to
+    # update in place — point $PREFIX at its directory and mark explicit
+    # so choose_prefix() skips.
+    #
+    # If multiple selected CLIs live in the same directory, one prompt
+    # covers both. If they live in different dirs, prompt per-CLI and
+    # take the first agreed-on dir (an unusual layout — the picker
+    # always installs them side by side).
+    [ "$PREFIX_EXPLICIT" = "1" ] && return
+
+    case "$ONLY" in
+        tcl)  targets="tcl" ;;
+        f5)   targets="f5" ;;
+        both) targets="tcl f5" ;;
+        *)    return ;;
+    esac
+
+    found_dir=""
+    for name in $targets; do
+        if path="$(find_on_path "$name")" && looks_like_our_zipapp "$path"; then
+            found_dir="$(dirname "$path")"
+            log "found existing $name at $path"
+            if ! ask_optout "Update existing $name at $path (in place)? [Y/n]"; then
+                # User declined for this one — fall back to the normal
+                # picker for everything. (We don't try to split prefix
+                # per-CLI; it complicates rc-file / completion logic.)
+                log "leaving $path alone; will pick a fresh install location"
+                return
+            fi
+        elif [ -n "$path" ] && [ -x "$path" ]; then
+            warn "found '$name' at $path but it doesn't look like our zipapp"
+            warn "(missing python shebang or ZIP signature) — picker will run as usual"
+            return
+        fi
+    done
+
+    if [ -n "$found_dir" ]; then
+        set_prefix "$found_dir"
+        PREFIX_EXPLICIT=1
+        PREFIX_FROM_UPDATE=1
+        log "updating in place: $PREFIX"
+    fi
+}
+
 choose_prefix() {
     if [ "$PREFIX_EXPLICIT" = "1" ]; then
-        log "install location (TCL_LSP_PREFIX): $PREFIX"
+        if [ "${PREFIX_FROM_UPDATE:-0}" != "1" ]; then
+            log "install location (TCL_LSP_PREFIX): $PREFIX"
+        fi
         return
     fi
     if [ ! -t 0 ] || [ ! -t 1 ]; then
@@ -1125,6 +1208,7 @@ main() {
     log "using Python: $PYTHON"
 
     choose_clis
+    propose_update_install
     choose_prefix
 
     case "$ONLY" in
