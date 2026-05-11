@@ -62,15 +62,28 @@ sh install.sh
 
 ### Interactive vs non-interactive
 
-When the installer is run from a real terminal it prompts before
-modifying your shell rc file (PATH update) or installing shell
-completion.  When piped (`curl … | sh`) it defaults prompts to **no**
-so it never mutates dotfiles silently — it just drops the zipapps into
-`$PREFIX` and prints what to add.
+Each prompt has its own default tuned to whether silently doing the
+thing is safe:
 
-To opt in to the full unattended setup, set `TCL_LSP_ASSUME_YES=1`:
+| Prompt | Interactive default | Piped (`curl … | sh`) default | Opt-out |
+|--------|---------------------|-------------------------------|---------|
+| Choose install location | `$PREFIX` (currently `~/.local/bin`) | `$PREFIX` (no prompt) | `TCL_LSP_PREFIX=…` |
+| Add `$PREFIX` to PATH (modifies rc file) | **yes** | **no** | `TCL_LSP_NO_PATH=1` |
+| Install shell completion | **yes** | **no** | `TCL_LSP_NO_COMP=1` |
+| Install MCP server (detected AI client) | **yes** | **yes** | `TCL_LSP_NO_MCP=1` |
+| Install Claude Code skills (detected) | **yes** | **yes** | `TCL_LSP_NO_SKILLS=1` |
+
+The asymmetry is deliberate: rc-file and completion-directory
+mutation get an explicit yes from the user, while the AI integrations
+that only kick in when a client is already present are opt-out (a
+detected `claude` / `codex` install is treated as consent for the
+matching extras).
+
+`TCL_LSP_ASSUME_YES=1` forces yes on every prompt; `TCL_LSP_ASSUME_NO=1`
+forces no on every prompt.
 
 ```sh
+# Unattended install of everything, including rc-file edit + completion:
 curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh \
   | TCL_LSP_ASSUME_YES=1 sh
 ```

@@ -59,9 +59,9 @@ die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
 
 ask() {
     # ask "Prompt? [Y/n] "; returns 0 for yes, 1 for no.
-    # Non-interactive (piped stdin, e.g. `curl … | sh`): default to NO
-    # so we don't silently mutate rc files. Pass TCL_LSP_ASSUME_YES=1
-    # for full automation, or TCL_LSP_ASSUME_NO=1 to suppress prompts.
+    # Default-no when piped: protects rc files / shell completion dirs
+    # from silent mutation. Use ask_optout() for prompts that should
+    # default-yes even when piped.
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then
         return 0
     fi
@@ -70,6 +70,20 @@ ask() {
     fi
     printf '%s ' "$1"
     read -r reply || return 1
+    case "$reply" in
+        ''|y|Y|yes|YES|Yes) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ask_optout() {
+    # Like ask() but for opt-out prompts ("install foo? [Y/n]") that
+    # should proceed by default when piped. Override with the matching
+    # TCL_LSP_NO_<feature>=1 env var, or with TCL_LSP_ASSUME_NO=1.
+    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ ! -t 0 ]; then return 0; fi
+    printf '%s ' "$1"
+    read -r reply || return 0
     case "$reply" in
         ''|y|Y|yes|YES|Yes) return 0 ;;
         *) return 1 ;;
@@ -627,14 +641,14 @@ install_ai_integrations() {
         return
     fi
 
-    if [ "${TCL_LSP_NO_MCP:-0}" != "1" ] && ask "Install the tcl-lsp MCP server for detected AI client(s)? [Y/n]"; then
+    if [ "${TCL_LSP_NO_MCP:-0}" != "1" ] && ask_optout "Install the tcl-lsp MCP server for detected AI client(s)? [Y/n]"; then
         install_mcp_zipapp
         [ "$HAS_CLAUDE" = "1" ] && register_mcp_claude
         [ "$HAS_CODEX"  = "1" ] && register_mcp_codex
     fi
 
     if [ "$HAS_CLAUDE" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] \
-       && ask "Install Claude Code skills (irule-*, tcl-*, tk-*) into ~/.claude/? [Y/n]"; then
+       && ask_optout "Install Claude Code skills (irule-*, tcl-*, tk-*) into ~/.claude/? [Y/n]"; then
         install_claude_skills
     fi
 }
