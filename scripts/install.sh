@@ -1249,8 +1249,8 @@ choose_install_plan() {
             # Text mode: a numbered menu. Entries are dynamic based on
             # which AI clients (if any) were detected. With both clients
             # detected the full list is:
-            #   1) tcl   2) f5   3) mcp   4) skills
-            #   5) both CLIs   6) both AI   7) all
+            #   1) tcl   2) f5   3) both CLIs
+            #   4) mcp   5) skills   6) both AI   7) all
             WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
             has_ai=0; has_skills=0
             if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then has_ai=1; fi
@@ -1266,9 +1266,9 @@ choose_install_plan() {
             }
             add_menu tcl "tcl"
             add_menu f5  "f5"
+            add_menu cli "both CLIs (tcl + f5)"
             [ "$has_ai" = 1 ]     && add_menu mcp    "mcp"
             [ "$has_skills" = 1 ] && add_menu skills "skills"
-            add_menu cli "both CLIs (tcl + f5)"
             if [ "$has_ai" = 1 ] && [ "$has_skills" = 1 ]; then
                 add_menu ai "both AI (mcp + skills)"
             fi
