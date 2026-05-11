@@ -287,6 +287,9 @@ ensure_path() {
             printf '\n# Added by tcl-lsp installer\nfish_add_path %s\n' "$PREFIX" >> "$RC"
             ;;
         *)
+            # $PATH must be written verbatim — expanded by the user's
+            # shell at startup, not by us right now.
+            # shellcheck disable=SC2016
             printf '\n# Added by tcl-lsp installer\nexport PATH="%s:$PATH"\n' "$PREFIX" >> "$RC"
             ;;
     esac
@@ -359,6 +362,9 @@ main() {
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if ! path_contains "$PREFIX"; then
+        # $PATH here is the instruction string shown to the user — they
+        # paste it into their shell, where it expands.
+        # shellcheck disable=SC2016
         printf 'Open a new shell, or run:  %sexport PATH="%s:$PATH"%s\n' \
                "$BOLD" "$PREFIX" "$RESET"
     fi
