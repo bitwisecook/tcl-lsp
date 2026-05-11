@@ -215,7 +215,7 @@ def find_server_dir() -> str:
     cwd = Path.cwd()
     if (cwd / "lsp" / "__main__.py").exists():
         return str(cwd)
-    script_dir = Path(__file__).resolve().parent.parent
+    script_dir = Path(__file__).resolve().parents[2]
     if (script_dir / "lsp" / "__main__.py").exists():
         return str(script_dir)
     raise FileNotFoundError("Cannot find tcl-lsp server directory")

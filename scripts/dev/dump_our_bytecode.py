@@ -2,7 +2,7 @@
 """Dump our codegen disassembly for all bytecode snippets.
 
 Usage:
-    uv run python scripts/dump_our_bytecode.py [output_dir]
+    uv run python scripts/dev/dump_our_bytecode.py [output_dir]
 
 Writes one .disasm file per snippet to output_dir (default:
 tests/bytecode_reference/ours/).
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 # Ensure repo root is on sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.compiler.cfg import build_cfg
 from core.compiler.codegen import codegen_module, format_module_asm
@@ -29,11 +29,11 @@ def compile_and_format(source: str) -> str:
 
 
 def main() -> None:
-    snippets_dir = Path(__file__).resolve().parent.parent / "tests" / "bytecode_snippets"
+    snippets_dir = Path(__file__).resolve().parents[2] / "tests" / "bytecode_snippets"
     output_dir = (
         Path(sys.argv[1])
         if len(sys.argv) > 1
-        else (Path(__file__).resolve().parent.parent / "tests" / "bytecode_reference" / "ours")
+        else (Path(__file__).resolve().parents[2] / "tests" / "bytecode_reference" / "ours")
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 

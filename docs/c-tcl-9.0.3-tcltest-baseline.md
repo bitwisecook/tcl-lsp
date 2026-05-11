@@ -10,9 +10,9 @@ build, executed under wasmtime 43.0.1).
 The per-bundle data lives in
 [`c-tcl-9.0.3-tcltest-baseline.csv`](c-tcl-9.0.3-tcltest-baseline.csv).
 The two sweep harnesses live at
-[`scripts/tcl9_ctcl_baseline.py`](../scripts/tcl9_ctcl_baseline.py) and
-[`scripts/tcl9_wasm_sweep.py`](../scripts/tcl9_wasm_sweep.py); the CSV
-combiner is [`scripts/tcl9_baseline_to_csv.py`](../scripts/tcl9_baseline_to_csv.py).
+[`scripts/dev/tcl9_ctcl_baseline.py`](../scripts/dev/tcl9_ctcl_baseline.py) and
+[`scripts/dev/tcl9_wasm_sweep.py`](../scripts/dev/tcl9_wasm_sweep.py); the CSV
+combiner is [`scripts/dev/tcl9_baseline_to_csv.py`](../scripts/dev/tcl9_baseline_to_csv.py).
 
 ## Headline
 
@@ -411,13 +411,13 @@ mkdir -p /tmp/tcl-build
 ( cd runtime/zig && zig build -Doptimize=ReleaseFast )
 
 # 3. Run both sweeps (each ~5 minutes)
-uv run --extra dev python scripts/tcl9_ctcl_baseline.py \
+uv run --extra dev python scripts/dev/tcl9_ctcl_baseline.py \
     --timeout 60 --out /tmp/c-tcl-sweep.ndjson
-uv run --extra dev python scripts/tcl9_wasm_sweep.py \
+uv run --extra dev python scripts/dev/tcl9_wasm_sweep.py \
     --timeout 30 --out /tmp/tcltest-sweep-fast.ndjson
 
 # 4. Combine into the baseline CSV
-uv run --extra dev python scripts/tcl9_baseline_to_csv.py \
+uv run --extra dev python scripts/dev/tcl9_baseline_to_csv.py \
     --c /tmp/c-tcl-sweep.ndjson \
     --wasm /tmp/tcltest-sweep-fast.ndjson \
     --out docs/c-tcl-9.0.3-tcltest-baseline.csv

@@ -9,7 +9,7 @@ per-file coverage.
 
 from __future__ import annotations
 
-from scripts.tcl9_triage_report import _render_table
+from scripts.dev.tcl9_triage_report import _render_table
 from tests.external.run_tcl9_tests import _summarise_diag
 from tests.test_wasm_real_tcl import _compile_tcl_with_diag
 

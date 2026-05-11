@@ -182,7 +182,7 @@ to the post-S6 microbench, with a 20 % budget for noise and
 incidental future regressions.
 
 Thresholds are per-op nanoseconds with `--no-frame-elision=false`,
-captured by `scripts/perf_microbench.py` against the production
+captured by `scripts/dev/perf_microbench.py` against the production
 runtime build.  A run is green when each row stays under its
 threshold.
 
@@ -200,7 +200,7 @@ of them over its threshold, treat it as a regression and either:
   comment, then bump the committed
   `tests/baselines/wasm_microbench_baseline.json` row.
 
-`scripts/perf_microbench.py --baseline tests/baselines/wasm_microbench_baseline.json
+`scripts/dev/perf_microbench.py --baseline tests/baselines/wasm_microbench_baseline.json
 --regression-pct 20` is the CI-runnable form: it red-flags any row
 that drifts >20 % from the captured baseline.  This doubles as a
 *proxy* for the threshold gate — the baseline rows already encode

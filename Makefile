@@ -252,7 +252,7 @@ test-tcl9-vm-core: $(UV_STAMP) ## Run the Tcl 9 core slice regression gate (asse
 refresh-tcl9-vm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-vm/ from the current VM (use after a confirmed fix)
 	@echo "==> Refreshing Tcl 9 core slice baseline"
 	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_vm_core.py --refresh-baseline
+	cd $(ROOT) && $(UV) run --extra dev python scripts/dev/run_tcl9_vm_core.py --refresh-baseline
 
 test-tcl9-wasm-core: $(UV_STAMP) ## Run the Tcl 9 core slice WASM regression gate (asserts no stem regresses against tests/baselines/tcl9-tcltest-wasm/summary.json — production ship gate)
 	@echo "==> Running Tcl 9 core slice WASM regression gate (Zig runtime + WASM codegen, real init.tcl + tcltest.tcl)"
@@ -262,7 +262,7 @@ test-tcl9-wasm-core: $(UV_STAMP) ## Run the Tcl 9 core slice WASM regression gat
 refresh-tcl9-wasm-core-baseline: $(UV_STAMP) ## Snapshot tests/baselines/tcl9-tcltest-wasm/ from the current WASM runtime (use after a confirmed runtime/codegen fix)
 	@echo "==> Refreshing Tcl 9 core slice WASM baseline"
 	@mkdir -p $(ROOT)tmp
-	cd $(ROOT) && $(UV) run --extra dev python scripts/run_tcl9_wasm_core.py \
+	cd $(ROOT) && $(UV) run --extra dev python scripts/dev/run_tcl9_wasm_core.py \
 		--refresh-baseline --workers 4 --timeout 240 --run-timeout 180
 
 check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites against the baseline (issue #276)
@@ -274,7 +274,7 @@ check-tcl9-tcltest-io: $(UV_STAMP) ## Run the four upstream I/O tcltest suites a
 
 tcl9-triage: $(UV_STAMP) ## Refresh docs/kcs/kcs-tcl9-triage.md from tmp/tcl9-report.json
 	@echo "==> Refreshing Tcl 9 triage table"
-	cd $(ROOT) && $(UV) run python scripts/tcl9_triage_report.py tmp/tcl9-report.json
+	cd $(ROOT) && $(UV) run python scripts/dev/tcl9_triage_report.py tmp/tcl9-report.json
 
 lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 	@echo "==> Checking KCS docs index links"
@@ -286,7 +286,7 @@ lint-py: $(UV_STAMP) ## Lint Python code with Ruff (check, format, KCS docs)
 
 typecheck-py: $(UV_STAMP) $(BUILD_INFO) ## Type-check Python code with ty
 	@echo "==> Type-checking Python code with ty"
-	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/tcl_test_client.py
+	cd $(ROOT) && $(UV) run --extra dev ty check --exclude 'lsp/server.py' --exclude 'lsp/commands.py' lsp core explorer tclpkg tests scripts/dev/tcl_test_client.py
 
 typecheck-py-full: $(UV_STAMP) $(BUILD_INFO) ## Type-check all Python code with ty
 	@echo "==> Type-checking all Python code with ty"
@@ -503,10 +503,10 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
-		bash $(ROOT)scripts/ensure-test-deps.sh; \
+		bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
 	else \
 		echo "==> test-slow: dependency check (set AUTO_INSTALL_DEPS=1 to install missing tools)"; \
-		bash $(ROOT)scripts/ensure-test-deps.sh --check || \
+		bash $(ROOT)scripts/dev/ensure-test-deps.sh --check || \
 			echo "    -> proceeding; the missing tools above will turn into pytest skips"; \
 	fi
 	@$(MAKE) capture-bytecode-refs
@@ -522,7 +522,7 @@ install-hooks: ## Install project git hooks (pre-push gate enforcing check-all s
 	@bash $(ROOT)scripts/install-hooks.sh
 
 ensure-test-deps: ## Install optional test-slow deps (tclsh9.0, node, kotlinc) for the host platform
-	@bash $(ROOT)scripts/ensure-test-deps.sh
+	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
 capture-bytecode-refs: ## Capture missing tests/bytecode_reference/<ver>/*.disasm files using local tclsh
 	@set -eu; \
@@ -1160,10 +1160,10 @@ build-runtime-leakcheck: ## Build runtime with -Dleak-check=true (S0.2 instrumen
 .PHONY: leakcheck leakcheck-diff snapshot-leak-baseline
 
 leakcheck: build-runtime-leakcheck ## Run the in-scope tcltest suite under the leak-check runtime; emit per-file alloc / double-free counts.
-	uv run --with pytest --with wasmtime python scripts/leak_sweep.py
+	uv run --with pytest --with wasmtime python scripts/dev/leak_sweep.py
 
 leakcheck-diff: ## Diff the latest leak sweep against tests/baselines/wasm_leak_baseline.json
-	uv run python scripts/diff_leak_sweep.py
+	uv run python scripts/dev/diff_leak_sweep.py
 
 snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to the committed baseline
 	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json

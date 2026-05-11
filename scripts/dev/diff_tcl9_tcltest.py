@@ -11,34 +11,19 @@ Reports:
   - Total tests passing across the suite.
 
 Usage:
-  uv run python scripts/diff_tcl9_tcltest.py
+  uv run python scripts/dev/diff_tcl9_tcltest.py
 """
 
 import json
+import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _tcl9_classify import classify  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[2]
 BASELINE = REPO / "tests" / "baselines" / "tcl9_tcltest_baseline.json"
 RESULTS = REPO / "tmp" / "perf-output" / "tcltest_results.json"
-
-
-def classify(w: dict) -> str:
-    if w.get("compile_error"):
-        return "compile-fail"
-    if w.get("run_error"):
-        return "run-trap"
-    if "total" not in w:
-        return "no-summary"
-    failed = w.get("failed", 0)
-    passed = w.get("passed", 0)
-    total = w.get("total", 0)
-    if total == 0:
-        return "no-summary"
-    if failed == 0 and passed > 0 and passed == total - w.get("skipped", 0):
-        return "pass"
-    if passed > 0:
-        return "partial"
-    return "no-pass"
 
 
 # Status hierarchy: higher rank = better outcome.

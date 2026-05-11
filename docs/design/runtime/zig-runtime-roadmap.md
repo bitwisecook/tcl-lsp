@@ -366,8 +366,8 @@ tcltest sweep shows no parse-related regressions.
 
 ## Verification helpers
 
-`scripts/run_tcl9_tcltest_sweep.py` and `scripts/aggregate_tcl9_tcltest.py`
-remain the source of truth for "did this change unblock a file?".
+`scripts/dev/run_tcl9_tcltest_sweep.py` is the source of truth for
+"did this change unblock a file?".
 Each Phase 5/6 PR should:
 
 1. Run the sweep before and after.
@@ -375,7 +375,7 @@ Each Phase 5/6 PR should:
 3. Fail the build if any previously-`pass` or -`partial` file
    regresses to `trap`.
 
-`scripts/perf_microbench.py` and `tests/baselines/wasm_microbench_baseline.json`
+`scripts/dev/perf_microbench.py` and `tests/baselines/wasm_microbench_baseline.json`
 do the same for per-op cost.  Phase 5 acceptance numbers above are
 specific microbench rows; gate the PR on hitting them.
 

@@ -83,7 +83,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 TCL_TREE = REPO_ROOT / "tmp" / "tcl9.0.3"
 TESTS_DIR = TCL_TREE / "tests"
 

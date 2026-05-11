@@ -12,7 +12,7 @@ runtime never even sees the proc-call boundary.
 
 The deliverable is a measurable wall-time reduction on a workload
 that is dominated by short proc calls. The benchmark target is
-`scripts/perf_microbench.py` — a `proc add {a b} { return [expr {$a +
+`scripts/dev/perf_microbench.py` — a `proc add {a b} { return [expr {$a +
 $b}] }` invoked in a loop should run within 2× of an inline `expr {$a
 + $b}` after S4.
 

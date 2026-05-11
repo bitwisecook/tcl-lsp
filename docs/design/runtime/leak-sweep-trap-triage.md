@@ -18,7 +18,7 @@ exercises.  All 29 traps land in the runtime's `eval_script`,
 the *compiled* wasm dispatched to runtime eval, and the runtime
 hit a path it can't currently handle.
 
-The sweep harness (`scripts/leak_sweep.py`) captures the wasmtime
+The sweep harness (`scripts/dev/leak_sweep.py`) captures the wasmtime
 backtrace as `trap_message` but does not currently decode the
 runtime's `tcl trap: site=<id>` markers against the per-bundle
 `DiagMap`.  Adding that decoding would let triage drill straight to
@@ -127,7 +127,7 @@ support that the compiler currently approximates.
 
 ## Prerequisite for deeper triage
 
-Enrich `scripts/leak_sweep.py` to:
+Enrich `scripts/dev/leak_sweep.py` to:
 
 1. Capture the trap site's WASI stderr alongside the wasmtime
    backtrace.

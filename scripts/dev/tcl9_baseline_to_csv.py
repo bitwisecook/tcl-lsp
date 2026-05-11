@@ -17,7 +17,7 @@ from pathlib import Path
 # default ``--out`` path and for resolving the ``tests`` package
 # import — the previous hard-coded ``/home/user/tcl-lsp`` only
 # worked in one specific checkout layout.
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def load(path: Path) -> dict[str, dict]:
