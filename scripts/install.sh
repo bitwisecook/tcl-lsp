@@ -841,14 +841,10 @@ wget_supports_tls13() {
 
 CURL_HAS_HTTP2=
 CURL_HAS_TLS13=
-curl_probe_feature() {
-    # Probe whether `curl <flag>` is built into the active curl. The flag
-    # parser accepts options even when their backend isn't compiled in;
-    # CURLE_NOT_BUILT_IN (exit 4) is only raised when curl actually calls
-    # setopt for the transfer. So drive a real (but fast-failing) request
-    # against a refused local socket and look only at exit 4. Any other
-    # outcome (connection refused, DNS, timeout, success) means the flag
-    # itself was accepted.
+curl_probe_setopt() {
+    # Probe whether `curl <flag>` is accepted at setopt time. Drives a
+    # fast-failing request against a refused local socket. Exit 4 means
+    # the option was compiled out; anything else means it was accepted.
     rc=0
     curl "$1" --connect-timeout 1 -sS -o /dev/null \
         "https://127.0.0.1:1" >/dev/null 2>&1 || rc=$?
@@ -857,13 +853,33 @@ curl_probe_feature() {
 
 curl_probe_capabilities() {
     [ -n "$CURL_HAS_HTTP2" ] && return 0
-    if curl_probe_feature --http2; then CURL_HAS_HTTP2=1; else CURL_HAS_HTTP2=0; fi
-    if curl_probe_feature --tlsv1.3; then CURL_HAS_TLS13=1; else CURL_HAS_TLS13=0; fi
+    # The first parenthesised token after "libcurl/<version>" in curl -V
+    # is the active TLS backend. SecureTransport (Apple's stock curl on
+    # macOS) parses --tlsv1.3 fine but raises CURLE_NOT_BUILT_IN during
+    # the real TLS handshake, so treat it as TLS-1.3-incapable up front.
+    cv=$(curl -V 2>/dev/null || true)
+    backend=$(printf '%s\n' "$cv" | awk '
+        /^curl / {
+            for (i=1; i<=NF; i++) {
+                if ($i ~ /^libcurl\//) {
+                    gsub(/[()]/, "", $(i+1))
+                    print $(i+1)
+                    exit
+                }
+            }
+        }')
+    if curl_probe_setopt --http2; then CURL_HAS_HTTP2=1; else CURL_HAS_HTTP2=0; fi
+    case "$backend" in
+        SecureTransport) CURL_HAS_TLS13=0 ;;
+        *)
+            if curl_probe_setopt --tlsv1.3; then CURL_HAS_TLS13=1; else CURL_HAS_TLS13=0; fi
+            ;;
+    esac
     if [ "$CURL_HAS_HTTP2" = 0 ] || [ "$CURL_HAS_TLS13" = 0 ]; then
         missing=""
         [ "$CURL_HAS_TLS13" = 0 ] && missing="${missing} TLS 1.3"
         [ "$CURL_HAS_HTTP2" = 0 ] && missing="${missing} HTTP/2"
-        warn "curl missing build-time support for:${missing} — falling back automatically."
+        warn "curl (${backend:-unknown}) missing support for:${missing} — falling back automatically."
     fi
 }
 
