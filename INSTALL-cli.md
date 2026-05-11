@@ -87,12 +87,44 @@ menu, and yes/no questions are arrow-key-driven dialogs.  Set
 `TCL_LSP_NO_TUI=1` to keep the plain-text prompts.  In non-interactive
 mode (piped stdin) the TUI is never used.
 
+### Optional dependencies
+
+Right after Python and `curl`/`wget` are confirmed (the *required*
+dependencies), the installer surveys a small set of *optional*
+dependencies and reports any that are missing:
+
+| Dependency | What it unlocks |
+|------------|------------------|
+| `unzip` | Required to install the Claude Code skills bundle |
+| `coreutils` (`sha256sum` / `shasum`) | SHA256SUMS hash verification of downloaded artefacts |
+| `cosign` | SHA256SUMS keyless OIDC signature verification |
+| `whiptail` (or `dialog`) | Interactive TUI prompts (otherwise plain-text) |
+
+The installer prints a one-line summary of what's missing, then asks
+once (default **no**) whether to install the lot via the OS package
+manager.  Set `TCL_LSP_NO_DEPS=1` to skip the prompt entirely.
+Skipping is fine — every feature has a graceful fallback (skills
+install warns, SUMS install warns, prompts use plain text).
+
 ### Updating an existing install
 
 Before prompting for an install location, the installer scans `$PATH`
-for an existing `tcl` / `f5` and verifies that the file looks like one
-of our Python zipapps (shebang + `PK\x03\x04` signature in the header).
-When it finds one, it prompts:
+for an existing `tcl` / `f5` and runs a two-tier zipapp identity check:
+
+1. **Cheap fingerprint** — file starts with a `python` shebang and the
+   first 2 KB contains the ZIP local-file-header signature `PK\x03\x04`.
+2. **Deep peek** — opens the ZIP and looks for a tcl-lsp marker
+   (`lsp/_build_info.py` in the namelist, or one of our known module
+   imports like `explorer.tcl_cli` / `ai.mcp.tcl_mcp_server` /
+   `lsp.server` inside `__main__.py`).
+
+The deep peek tries `unzip` first (fast), falls back to a
+`python3 -c "import zipfile…"` snippet (Python is required anyway), and
+finally falls back to a raw `grep -aql 'lsp/_build_info.py'` against
+the file (the central directory stores filenames uncompressed, so the
+literal path appears verbatim regardless of compression).
+
+If a file looks like one of our zipapps, the installer prompts:
 
 ```
 ==> found existing tcl at /usr/local/bin/tcl
@@ -164,7 +196,7 @@ curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/insta
 | `TCL_LSP_VERSION` | `latest` | Pin a release tag (e.g. `v1.2.3`). |
 | `TCL_LSP_PREFIX`  | *prompt* (default `$HOME/.local/bin`) | Install directory. Set to bypass the interactive picker. |
 | `TCL_LSP_ONLY`    | `both` | `tcl`, `f5`, or `both`. |
-| `TCL_LSP_NO_DEPS` | unset | Skip Python install attempts (fail loudly instead). |
+| `TCL_LSP_NO_DEPS` | unset | Skip every package-manager install — Python (required), curl/wget, unzip, and the optional dependency batch.  Fails loudly when a required dep is missing. |
 | `TCL_LSP_NO_PATH` | unset | Do not modify the shell rc file. |
 | `TCL_LSP_NO_COMP` | unset | Skip shell completion install. |
 | `TCL_LSP_NO_MCP`    | unset | Skip MCP server install for AI clients. |

@@ -500,6 +500,115 @@ ensure_curl() {
     DOWNLOADER="curl"
 }
 
+# ---------------------------------------------------------------------
+# Optional dependency install — offered as a single batch with default-NO
+# ---------------------------------------------------------------------
+
+pkg_name_for() {
+    # pkg_name_for OS CMD — print the OS-package name for a given binary.
+    os="$1"; cmd="$2"
+    case "$os:$cmd" in
+        rhel:whiptail|fedora:whiptail) printf 'newt' ;;
+        arch:whiptail)                 printf 'libnewt' ;;
+        macos:whiptail)                printf '' ;;
+        macos:*)                       printf '%s' "$cmd" ;;
+        *:*)                           printf '%s' "$cmd" ;;
+    esac
+}
+
+install_pkg() {
+    # install_pkg CMD — best-effort install of the OS package providing CMD.
+    cmd="$1"
+    pkg="$(pkg_name_for "$OS" "$cmd")"
+    if [ -z "$pkg" ]; then
+        warn "no $cmd package mapping for $OS — install manually"
+        return 1
+    fi
+    case "$OS" in
+        macos)
+            if ! have brew; then
+                warn "brew not found — install $pkg manually"
+                return 1
+            fi
+            if brew install "$pkg" >/dev/null 2>&1; then
+                log "installed $cmd via brew"
+            else
+                warn "brew install $pkg failed"
+            fi
+            ;;
+        debian)
+            confirm_root_action "apt-get install -y $pkg"
+            if run_root apt-get install -y "$pkg" >/dev/null 2>&1; then
+                log "installed $cmd via apt-get"
+            else
+                warn "apt install $pkg failed"
+            fi
+            ;;
+        rhel|fedora)
+            PM="yum"; have dnf && PM="dnf"
+            confirm_root_action "$PM install -y $pkg"
+            if run_root "$PM" install -y "$pkg" >/dev/null 2>&1; then
+                log "installed $cmd via $PM"
+            else
+                warn "$PM install $pkg failed"
+            fi
+            ;;
+        arch)
+            confirm_root_action "pacman -Sy --noconfirm $pkg"
+            if run_root pacman -Sy --noconfirm "$pkg" >/dev/null 2>&1; then
+                log "installed $cmd via pacman"
+            else
+                warn "pacman install $pkg failed"
+            fi
+            ;;
+        alpine)
+            confirm_root_action "apk add --no-cache $pkg"
+            if run_root apk add --no-cache "$pkg" >/dev/null 2>&1; then
+                log "installed $cmd via apk"
+            else
+                warn "apk install $pkg failed"
+            fi
+            ;;
+        *)
+            warn "no package manager known for $OS — install $pkg manually" ;;
+    esac
+}
+
+check_optional_dependencies() {
+    # Survey optional deps that improve the install UX or unlock specific
+    # features. Prints a one-shot list of what's missing and why, then
+    # asks (default NO) whether to install them in batch.
+    [ "${TCL_LSP_NO_DEPS:-0}" = "1" ] && return
+
+    needs_unzip=0; needs_sha=0; needs_cosign=0; needs_tui=0
+    have unzip                                || needs_unzip=1
+    if ! have sha256sum && ! have shasum;     then needs_sha=1; fi
+    have cosign                               || needs_cosign=1
+    if ! have whiptail && ! have dialog;      then needs_tui=1; fi
+
+    total=$((needs_unzip + needs_sha + needs_cosign + needs_tui))
+    [ "$total" = 0 ] && return
+
+    log "optional dependencies missing ($total):"
+    [ "$needs_unzip"  = 1 ] && log "  unzip       — required for Claude Code skills install"
+    [ "$needs_sha"    = 1 ] && log "  coreutils   — sha256sum/shasum for SHA256SUMS verification"
+    [ "$needs_cosign" = 1 ] && log "  cosign      — keyless OIDC signature verification of SHA256SUMS"
+    [ "$needs_tui"    = 1 ] && log "  whiptail    — interactive TUI prompts (or 'dialog' alternative)"
+
+    if ! ask_default_no "Install missing optional dependencies via the package manager? [y/N]"; then
+        log "skipping optional dependency install — features above will be unavailable"
+        return
+    fi
+
+    [ "$needs_unzip"  = 1 ] && install_pkg unzip
+    [ "$needs_sha"    = 1 ] && install_pkg coreutils
+    [ "$needs_cosign" = 1 ] && install_pkg cosign
+    [ "$needs_tui"    = 1 ] && install_pkg whiptail
+
+    # Pick up newly-installed whiptail/dialog if relevant.
+    [ "$needs_tui" = 1 ] && ensure_ui
+}
+
 WGET_HAS_HTTPS_ONLY=""
 wget_supports_https_only() {
     [ -n "$WGET_HAS_HTTPS_ONLY" ] && { [ "$WGET_HAS_HTTPS_ONLY" = "1" ]; return; }
@@ -797,18 +906,74 @@ find_on_path() {
 }
 
 looks_like_our_zipapp() {
-    # Heuristic: file starts with #! python shebang and contains the
-    # ZIP local-file-header signature `PK\x03\x04` within the first 2KB.
-    # Cheap, no execution required.
+    # Two-tier check, fast and graceful-degradation:
+    #
+    # Tier 1 — cheap fingerprint: Python shebang + ZIP local-file-header
+    # signature in the first 2KB. Catches "is it a Python zipapp at all".
+    #
+    # Tier 2 — deep peek for tcl-lsp markers, using whatever's available:
+    #   a) `unzip` for speed (preinstalled on most macOS / linux desktops)
+    #   b) `python3 zipfile` (Python is anyway required to run our zipapps)
+    #   c) raw byte grep of the file (the central directory stores
+    #      filenames uncompressed, so `lsp/_build_info.py` literal is
+    #      visible even without ZIP tooling)
     f="$1"
     [ -r "$f" ] || return 1
+
     first="$(head -c 200 "$f" 2>/dev/null)"
     case "$first" in
         '#!'*python*) : ;;
         *) return 1 ;;
     esac
-    head -c 2048 "$f" 2>/dev/null | grep -q 'PK' || return 1
-    return 0
+    head -c 2048 "$f" 2>/dev/null | grep -aq 'PK' || return 1
+
+    # Tier 2a — unzip
+    if have unzip; then
+        if unzip -l -- "$f" 2>/dev/null | grep -q 'lsp/_build_info.py'; then
+            return 0
+        fi
+        if unzip -p -- "$f" __main__.py 2>/dev/null \
+            | grep -qE 'explorer\.(tcl|f5|wasm)_cli|ai\.mcp\.tcl_mcp_server|lsp\._build_info|lsp\.server'; then
+            return 0
+        fi
+        return 1
+    fi
+
+    # Tier 2b — Python zipfile
+    if [ -n "${PYTHON:-}" ]; then
+        if "$PYTHON" - "$f" >/dev/null 2>&1 <<'PY'
+import sys, zipfile
+try:
+    with zipfile.ZipFile(sys.argv[1]) as z:
+        if 'lsp/_build_info.py' in set(z.namelist()):
+            sys.exit(0)
+        try:
+            main = z.read('__main__.py').decode('utf-8', errors='replace')
+        except KeyError:
+            sys.exit(1)
+        for m in (
+            'explorer.tcl_cli', 'explorer.f5_cli', 'explorer.wasm_cli',
+            'ai.mcp.tcl_mcp_server', 'lsp._build_info', 'lsp.server',
+        ):
+            if m in main:
+                sys.exit(0)
+except (zipfile.BadZipFile, FileNotFoundError, OSError):
+    pass
+sys.exit(1)
+PY
+        then
+            return 0
+        fi
+        return 1
+    fi
+
+    # Tier 2c — raw byte grep. Filenames in the ZIP central directory
+    # are stored uncompressed, so the literal path lives in the file as
+    # a contiguous string regardless of whether the entry is DEFLATEd.
+    if grep -aql 'lsp/_build_info.py' "$f" 2>/dev/null; then
+        return 0
+    fi
+    return 1
 }
 
 propose_update_install() {
@@ -1353,6 +1518,8 @@ main() {
         install_python
     fi
     log "using Python: $PYTHON"
+
+    check_optional_dependencies
 
     choose_clis
     propose_update_install
