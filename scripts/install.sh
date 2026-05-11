@@ -52,7 +52,16 @@
 #   TCL_LSP_ASSUME_YES      - 1 to answer "yes" non-interactively
 #   TCL_LSP_ASSUME_NO       - 1 to answer "no" non-interactively
 #   TCL_LSP_NO_TUI          - 1 to force text prompts even when whiptail/dialog is present
+#   TCL_LSP_QUIET           - 1 to suppress the per-prompt stderr breadcrumb
+#                             (only the underlying TUI / text prompt is shown)
+#   TCL_LSP_TRACE           - 1 to print extra trace lines for downloads etc.
 #   TCL_LSP_SUFFIX          - suffix for installed binaries (e.g. "-lsp"; default: empty)
+#
+# Question + answer breadcrumb: every interactive prompt prints a
+# single-line `ask: [kind] question -> answer` to stderr.  This survives
+# whiptail/dialog clearing the screen, so an aborted run leaves a
+# visible record in the user's scrollback (no logfile needed).  Set
+# TCL_LSP_QUIET=1 to suppress.
 
 set -eu
 # IFS=\n only — defence against a poisoned caller IFS. Loops that need
@@ -74,7 +83,7 @@ REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
 VERSION="${TCL_LSP_VERSION:-latest}"
 
 # ONLY: which CLIs to install (tcl / f5 / both). ONLY_EXPLICIT=1 when
-# pinned via env so choose_clis() skips the prompt.
+# pinned via env so choose_install_plan() skips the prompt.
 if [ -n "${TCL_LSP_ONLY:-}" ]; then
     ONLY="$TCL_LSP_ONLY"
     ONLY_EXPLICIT=1
@@ -82,6 +91,14 @@ else
     ONLY=both
     ONLY_EXPLICIT=0
 fi
+
+# Plan flags set by choose_install_plan().  All "" (unset) until then,
+# at which point each becomes "1" or "0".  install_cli / install_ai_*
+# read these instead of asking again later.
+WANT_TCL=""
+WANT_F5=""
+WANT_MCP=""
+WANT_SKILLS=""
 
 GREEN=''; YELLOW=''; RED=''; BOLD=''; RESET=''
 if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
@@ -95,6 +112,24 @@ fi
 log()  { printf '%s==>%s %s\n'  "$GREEN" "$RESET" "$*"; }
 warn() { printf '%swarn:%s %s\n' "$YELLOW" "$RESET" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
+
+# Stderr breadcrumb for every interactive prompt, so a question + answer
+# pair survives whiptail/dialog clearing the screen.  TCL_LSP_QUIET=1
+# silences these (e.g. for CI runs that re-display the answer themselves).
+prompt_record() {
+    # prompt_record <KIND> <QUESTION> <ANSWER>
+    [ "${TCL_LSP_QUIET:-0}" = "1" ] && return 0
+    printf '%sask:%s [%s] %s -> %s\n' \
+           "$YELLOW" "$RESET" "$1" "$2" "$3" >&2
+}
+
+# No-op shim for download() / future call sites that want to leave a
+# breadcrumb without forcing a stderr line.  Kept as a function so a
+# future TCL_LSP_TRACE=1 mode can light it up without further edits.
+record() {
+    [ "${TCL_LSP_TRACE:-0}" = "1" ] || return 0
+    printf '%strace:%s %s\n' "$YELLOW" "$RESET" "$*" >&2
+}
 
 UI=text                 # text | whiptail | dialog (set by ensure_ui)
 TTY_IN=""               # stdin | /dev/tty | none (set by detect_tty)
@@ -156,17 +191,26 @@ tui_run() {
 
 # yes/no — default-yes highlight on the dialog backend.
 tui_yesno() {
-    tty_available || return 1
+    tty_available || { prompt_record yesno "$1" "no-tty"; return 1; }
     case "$UI" in
         whiptail|dialog)
-            tui_run --yesno "$1" 10 70
+            if tui_run --yesno "$1" 10 70; then
+                prompt_record yesno "$1" yes
+                return 0
+            fi
+            prompt_record yesno "$1" no
+            return 1
             ;;
         *)
             print_prompt "$1 [Y/n]"
-            read_user_line || return 1
+            read_user_line || { prompt_record yesno "$1" "read-failed"; return 1; }
             case "$reply" in
-                ''|y|Y|yes|YES|Yes) return 0 ;;
-                *) return 1 ;;
+                ''|y|Y|yes|YES|Yes)
+                    prompt_record yesno "$1" "yes (${reply:-default})"
+                    return 0 ;;
+                *)
+                    prompt_record yesno "$1" "no ($reply)"
+                    return 1 ;;
             esac
             ;;
     esac
@@ -175,12 +219,18 @@ tui_yesno() {
 tui_menu() {
     # tui_menu "prompt" tag1 desc1 tag2 desc2 ...   (must come in pairs)
     # Prints the chosen tag to stdout; non-zero on cancel.
-    tty_available || return 1
+    tty_available || { prompt_record menu "$1" "no-tty"; return 1; }
     prompt="$1"; shift
     case "$UI" in
         whiptail|dialog)
             count=$(($# / 2))
-            tui_run --menu "$prompt" $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
+            if chosen="$(tui_run --menu "$prompt" $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3)"; then
+                prompt_record menu "$prompt" "$chosen"
+                printf '%s\n' "$chosen"
+                return 0
+            fi
+            prompt_record menu "$prompt" "cancel"
+            return 1
             ;;
         *)
             print_prompt "$(printf '\n%s\n' "$prompt")"
@@ -195,22 +245,32 @@ tui_menu() {
             read_user_line || reply=1
             : "${reply:=1}"
             case "$reply" in
-                *[!0-9]*) return 1 ;;
+                *[!0-9]*) prompt_record menu "$prompt" "invalid:$reply"; return 1 ;;
             esac
-            eval "echo \"\${tag_$reply:-}\""
+            eval "chosen=\"\${tag_$reply:-}\""
+            prompt_record menu "$prompt" "$chosen"
+            printf '%s\n' "$chosen"
             ;;
     esac
 }
 
 # checklist — one tag per line on stdout for ticked entries.
 tui_checklist() {
-    tty_available || return 1
+    tty_available || { prompt_record checklist "$1" "no-tty"; return 1; }
     prompt="$1"; shift
     case "$UI" in
         whiptail|dialog)
             count=$(($# / 3))
-            tui_run --separate-output --checklist "$prompt" \
-                $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
+            if out="$(tui_run --separate-output --checklist "$prompt" \
+                        $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3)"; then
+                # Render answer as space-separated tags for the transcript.
+                ans="$(printf '%s' "$out" | tr '\n' ' ' | sed 's/ *$//')"
+                prompt_record checklist "$prompt" "${ans:-(none)}"
+                printf '%s\n' "$out"
+                return 0
+            fi
+            prompt_record checklist "$prompt" "cancel"
+            return 1
             ;;
         *)
             defaults=""
@@ -226,6 +286,7 @@ tui_checklist() {
             print_prompt "Enable [$defaults]:"
             read_user_line || reply=""
             : "${reply:=$defaults}"
+            prompt_record checklist "$prompt" "${reply:-(none)}"
             printf '%s\n' "$reply" | tr ',' '\n' | sed 's/^ *//; s/ *$//; /^$/d'
             ;;
     esac
@@ -260,36 +321,41 @@ fi
 
 # Opt-in prompt — default no when headless.
 ask() {
-    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
-    if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ]; then return 1; fi
-    tty_available || return 1
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
+    if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ]; then prompt_record ask "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
+    tty_available || { prompt_record ask "$1" "no (no-tty, default-no)"; return 1; }
     tui_yesno "$1"
 }
 
 # Opt-out prompt — default yes when headless (upstream signal was the opt-in).
 ask_optout() {
-    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
-    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
-    tty_available || return 0
+    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then prompt_record ask-optout "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask-optout "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
+    tty_available || { prompt_record ask-optout "$1" "yes (no-tty, default-yes)"; return 0; }
     tui_yesno "$1"
 }
 
 # Strict default-NO — for privilege escalation and destructive choices.
 # Empty input, headless run, dialog cancel all count as no.
 ask_default_no() {
-    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
-    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
-    tty_available || return 1
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask-no "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
+    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then prompt_record ask-no "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
+    tty_available || { prompt_record ask-no "$1" "no (no-tty, default-no)"; return 1; }
     case "$UI" in
         whiptail|dialog)
-            tui_run --defaultno --yesno "$1" 10 70
+            if tui_run --defaultno --yesno "$1" 10 70; then
+                prompt_record ask-no "$1" yes
+                return 0
+            fi
+            prompt_record ask-no "$1" no
+            return 1
             ;;
         *)
             print_prompt "$1"
-            read_user_line || return 1
+            read_user_line || { prompt_record ask-no "$1" "read-failed"; return 1; }
             case "$reply" in
-                y|Y|yes|YES|Yes) return 0 ;;
-                *) return 1 ;;
+                y|Y|yes|YES|Yes) prompt_record ask-no "$1" "yes ($reply)"; return 0 ;;
+                *) prompt_record ask-no "$1" "no (${reply:-default})"; return 1 ;;
             esac
             ;;
     esac
@@ -800,14 +866,46 @@ why TLS 1.3 / HTTP/2 isn't reachable from your network."
 
 download() {
     # download URL OUTPUT — pins TLS and refuses HTTP redirects.
+    # Captures curl/wget stderr so a silent failure (-fsSL/-q hides it
+    # from the user) is recorded in the transcript and surfaced as a
+    # warn line before any TLS-fallback prompt.
     url="$1"; out="$2"
     log "fetching $(basename "$out")"
+    record "DOWNLOAD start url=$url"
+    err="$WORKDIR/.dl.err"
+    : >"$err" 2>/dev/null || true
     if [ "$DOWNLOADER" = "wget" ]; then
-        if wget_invoke -qO "$out" "$url"; then return 0; fi
+        if wget_invoke -O "$out" "$url" 2>"$err"; then
+            record "DOWNLOAD ok url=$url"
+            rm -f "$err" 2>/dev/null
+            return 0
+        fi
+        rc=$?
+        record "DOWNLOAD wget rc=$rc url=$url"
+        if [ -s "$err" ]; then
+            record "DOWNLOAD stderr: $(tr '\n' ' ' <"$err" 2>/dev/null | sed 's/  */ /g')"
+            warn "$(basename "$out") download failed (wget rc=$rc): $(head -1 "$err")"
+        else
+            warn "$(basename "$out") download failed (wget rc=$rc, no stderr captured)"
+        fi
+        rm -f "$err" 2>/dev/null
         maybe_fallback_tls || return 1
         wget_invoke -qO "$out" "$url"
     else
-        if curl_invoke -fsSL -o "$out" "$url"; then return 0; fi
+        if curl_invoke -fSL -o "$out" "$url" 2>"$err"; then
+            record "DOWNLOAD ok url=$url"
+            rm -f "$err" 2>/dev/null
+            return 0
+        fi
+        rc=$?
+        record "DOWNLOAD curl rc=$rc url=$url"
+        if [ -s "$err" ]; then
+            record "DOWNLOAD stderr: $(tr '\n' ' ' <"$err" 2>/dev/null | sed 's/  */ /g')"
+            warn "$(basename "$out") download failed (curl rc=$rc): $(head -1 "$err")"
+        else
+            warn "$(basename "$out") download failed (curl rc=$rc, no stderr captured)"
+        fi
+        rm -f "$err" 2>/dev/null
         maybe_fallback_tls || return 1
         curl_invoke -fsSL -o "$out" "$url"
     fi
@@ -1011,50 +1109,132 @@ collect_install_candidates() {
     return 0
 }
 
-choose_clis() {
-    # Pick CLIs to install (tcl/f5/both). TCL_LSP_ONLY bypasses the prompt.
-    if [ "$ONLY_EXPLICIT" = "1" ]; then
-        log "CLIs (TCL_LSP_ONLY): $ONLY"
-        return
+choose_install_plan() {
+    # Single front-loaded question that picks every component up front:
+    # tcl CLI, f5 CLI, MCP server (when an AI client is detected), and
+    # the Claude Code skills (when Claude is detected).  All later
+    # phases read WANT_TCL / WANT_F5 / WANT_MCP / WANT_SKILLS and skip
+    # any further prompting.
+    #
+    # Honoured env opt-outs (no prompt fired when set):
+    #   TCL_LSP_ONLY=tcl|f5|both, TCL_LSP_NO_MCP=1, TCL_LSP_NO_SKILLS=1,
+    #   TCL_LSP_NO_CLAUDE=1, TCL_LSP_NO_CODEX=1.
+    detect_ai_clients
+
+    # Compute defaults from env / detection.
+    case "$ONLY" in
+        tcl)  d_tcl=ON; d_f5=OFF ;;
+        f5)   d_tcl=OFF; d_f5=ON ;;
+        both|*) d_tcl=ON; d_f5=ON ;;
+    esac
+    d_mcp=OFF
+    d_skills=OFF
+    if [ "${TCL_LSP_NO_MCP:-0}" != "1" ] && { [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; }; then
+        d_mcp=ON
     fi
-    if ! tty_available; then
-        log "CLIs (default): $ONLY"
-        return
+    if [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] && [ "$HAS_CLAUDE" = "1" ]; then
+        d_skills=ON
     fi
-    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
-        log "CLIs (default): $ONLY"
+
+    # Non-interactive paths take the defaults.  We still record them in
+    # the transcript so a head-less run leaves a clear paper trail.
+    if [ "$ONLY_EXPLICIT" = "1" ] || ! tty_available \
+       || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
+        case "$ONLY" in
+            both) WANT_TCL=1; WANT_F5=1 ;;
+            tcl)  WANT_TCL=1; WANT_F5=0 ;;
+            f5)   WANT_TCL=0; WANT_F5=1 ;;
+            *) die "invalid TCL_LSP_ONLY: $ONLY (expected tcl|f5|both)" ;;
+        esac
+        [ "$d_mcp"    = ON ] && WANT_MCP=1    || WANT_MCP=0
+        [ "$d_skills" = ON ] && WANT_SKILLS=1 || WANT_SKILLS=0
+        log "install plan (non-interactive): tcl=$WANT_TCL f5=$WANT_F5 mcp=$WANT_MCP skills=$WANT_SKILLS"
         return
     fi
 
     case "$UI" in
         whiptail|dialog)
-            sel="$(tui_checklist "Which CLIs to install?" \
-                tcl "Unified Tcl tools (format, lint, opt, ...)" ON \
-                f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" ON \
-                )" || die "aborted at CLI selection"
-            has_tcl=0; has_f5=0
-            for t in $sel; do
-                case "$t" in tcl) has_tcl=1 ;; f5) has_f5=1 ;; esac
-            done
-            if [ "$has_tcl" = 1 ] && [ "$has_f5" = 1 ]; then ONLY=both
-            elif [ "$has_tcl" = 1 ]; then ONLY=tcl
-            elif [ "$has_f5"  = 1 ]; then ONLY=f5
-            else die "no CLI selected — at least one of tcl/f5 is required"
+            # Build a single checklist; entries are skipped when the
+            # underlying integration isn't applicable (no AI client).
+            set -- tcl "Unified Tcl tools (format, lint, opt, ...)" "$d_tcl" \
+                   f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" "$d_f5"
+            if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
+                ai_label="MCP server"
+                [ "$HAS_CLAUDE" = "1" ] && [ "$HAS_CODEX" = "1" ] \
+                    && ai_label="MCP server (Claude + Codex)" \
+                    || { [ "$HAS_CLAUDE" = "1" ] && ai_label="MCP server (Claude)"; }
+                [ "$HAS_CODEX"  = "1" ] && [ "$HAS_CLAUDE" != "1" ] && ai_label="MCP server (Codex)"
+                set -- "$@" mcp "$ai_label" "$d_mcp"
             fi
+            if [ "$HAS_CLAUDE" = "1" ]; then
+                set -- "$@" skills "Claude Code skills (irule-*, tcl-*, tk-*)" "$d_skills"
+            fi
+            sel="$(tui_checklist "Choose what to install:" "$@")" \
+                || die "aborted at install-plan selection"
+            WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
+            for t in $sel; do
+                case "$t" in
+                    tcl)    WANT_TCL=1 ;;
+                    f5)     WANT_F5=1 ;;
+                    mcp)    WANT_MCP=1 ;;
+                    skills) WANT_SKILLS=1 ;;
+                esac
+            done
             ;;
         *)
-            print_prompt "$(printf '\nWhich CLIs to install? [both/tcl/f5] (default: both):')"
+            # Text mode: one combined line with bracketed defaults.
+            # User can press <enter> to take everything offered.
+            opts="tcl,f5"
+            defaults="$ONLY"
+            extras=""
+            if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
+                opts="$opts,mcp"
+                [ "$d_mcp" = ON ] && defaults="$defaults,mcp" && extras="$extras mcp"
+            fi
+            if [ "$HAS_CLAUDE" = "1" ]; then
+                opts="$opts,skills"
+                [ "$d_skills" = ON ] && defaults="$defaults,skills" && extras="$extras skills"
+            fi
+            print_prompt "$(printf '\nChoose what to install (comma-separated from: %s)\n  default: %s\n  selection: ' "$opts" "$defaults")"
             read_user_line || reply=""
-            ans="${reply:-both}"
-            case "$ans" in
-                both|b) ONLY=both ;;
-                tcl|t)  ONLY=tcl ;;
-                f5|F5)  ONLY=f5 ;;
-                *) die "invalid choice: $ans (expected both/tcl/f5)" ;;
-            esac
+            ans="${reply:-$defaults}"
+            WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
+            OLD_IFS="$IFS"; IFS=', '
+            # shellcheck disable=SC2086
+            set -- $ans
+            IFS="$OLD_IFS"
+            for t in "$@"; do
+                case "$t" in
+                    tcl|t)         WANT_TCL=1 ;;
+                    f5|F5)         WANT_F5=1 ;;
+                    both|b)        WANT_TCL=1; WANT_F5=1 ;;
+                    mcp)           WANT_MCP=1 ;;
+                    skills|skill)  WANT_SKILLS=1 ;;
+                    '') : ;;
+                    *) die "invalid plan token: $t (expected one of: $opts)" ;;
+                esac
+            done
+            prompt_record install-plan "selection from {$opts}" "$ans"
             ;;
     esac
-    log "CLIs to install: $ONLY"
+
+    # At least one CLI must be installed; MCP/skills alone has no
+    # backing CLI to point at.
+    if [ "$WANT_TCL" != "1" ] && [ "$WANT_F5" != "1" ]; then
+        die "no CLI selected — at least one of tcl/f5 is required"
+    fi
+    # Skills/MCP without their AI client is harmless but pointless.
+    [ "$WANT_MCP"    = "1" ] && [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ] \
+        && warn "MCP requested but no AI client detected — installing anyway"
+    [ "$WANT_SKILLS" = "1" ] && [ "$HAS_CLAUDE" != "1" ] \
+        && warn "skills requested but Claude Code not detected — installing anyway"
+
+    # Reflect plan back into ONLY for the rest of the script.
+    if   [ "$WANT_TCL" = "1" ] && [ "$WANT_F5" = "1" ]; then ONLY=both
+    elif [ "$WANT_TCL" = "1" ]; then ONLY=tcl
+    else ONLY=f5
+    fi
+    log "install plan: tcl=$WANT_TCL f5=$WANT_F5 mcp=$WANT_MCP skills=$WANT_SKILLS"
 }
 
 
@@ -1511,7 +1691,11 @@ have_codex_cli()  { have codex; }
 has_claude_dir()  { [ -d "$HOME/.claude" ]; }
 has_codex_dir()   { [ -d "$HOME/.codex" ]; }
 
+AI_DETECTED=0
 detect_ai_clients() {
+    # Idempotent — choose_install_plan() and install_ai_integrations()
+    # may both call it; only log the first time.
+    [ "$AI_DETECTED" = "1" ] && return 0
     HAS_CLAUDE=0
     HAS_CODEX=0
     if [ "${TCL_LSP_NO_CLAUDE:-0}" != "1" ]; then
@@ -1526,6 +1710,7 @@ detect_ai_clients() {
         [ "$HAS_CODEX"  = "1" ] && msg="${msg}Codex "
         log "detected AI client(s): ${msg}"
     fi
+    AI_DETECTED=1
 }
 
 ensure_unzip() {
@@ -1662,20 +1847,14 @@ install_claude_skills() {
 }
 
 install_ai_integrations() {
-    detect_ai_clients
-    if [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then return; fi
-    if [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" = "1" ]; then
-        return
-    fi
-
-    if [ "${TCL_LSP_NO_MCP:-0}" != "1" ] && ask_optout "Install the tcl-lsp MCP server for detected AI client(s)? [Y/n]"; then
+    # No further questions asked here — choose_install_plan() already
+    # captured the user's intent.  We just act on WANT_MCP / WANT_SKILLS.
+    if [ "$WANT_MCP" = "1" ]; then
         install_mcp_zipapp
         [ "$HAS_CLAUDE" = "1" ] && register_mcp_claude
         [ "$HAS_CODEX"  = "1" ] && register_mcp_codex
     fi
-
-    if [ "$HAS_CLAUDE" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] \
-       && ask_optout "Install Claude Code skills (irule-*, tcl-*, tk-*) into ~/.claude/? [Y/n]"; then
+    if [ "$WANT_SKILLS" = "1" ]; then
         install_claude_skills
     fi
 }
@@ -1695,7 +1874,9 @@ main() {
     fi
     log "using Python: $PYTHON"
 
-    choose_clis
+    # Front-load every install-time decision into one combined prompt
+    # before kicking off downloads, sudo, completion writes, etc.
+    choose_install_plan
     propose_update_install
     choose_prefix
     detect_conflicts
@@ -1731,6 +1912,13 @@ main() {
         f5)   printf 'Verify:  %sf5%s --help%s\n'  "$BOLD" "$s" "$RESET" ;;
         both) printf 'Verify:  %stcl%s --help && f5%s --help%s\n' "$BOLD" "$s" "$s" "$RESET" ;;
     esac
+    if [ "$WANT_MCP" = "1" ] || [ "$WANT_SKILLS" = "1" ]; then
+        printf 'AI integrations: '
+        sep=""
+        [ "$WANT_MCP"    = "1" ] && { printf '%sMCP server' "$sep"; sep=", "; }
+        [ "$WANT_SKILLS" = "1" ] && { printf '%sClaude skills' "$sep"; }
+        printf '\n'
+    fi
 }
 
 main "$@"
