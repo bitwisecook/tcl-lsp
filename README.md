@@ -15,8 +15,13 @@ and communicates over stdio, making it compatible with any LSP client.
 
 ## Editor support
 
-> **[Installation Guide](INSTALL.md)** — step-by-step instructions for
-> installing from GitHub Releases on macOS and Windows.
+> **Installation guides:**
+> [INSTALL-editors.md](INSTALL-editors.md) — step-by-step setup for
+> VS Code, Neovim, Zed, Emacs, Helix, Sublime Text, and JetBrains on
+> macOS (Homebrew), Linux (Debian/Ubuntu, RHEL/CentOS, Fedora), and
+> Windows.
+> [INSTALL-cli.md](INSTALL-cli.md) — the `tcl` and `f5` CLIs,
+> including a one-line `curl | sh` installer.
 
 ### All editors
 
@@ -58,10 +63,7 @@ Ctrl+Alt+E (compiler explorer).
 **Status bar:** shows the active dialect (clickable to change) and the
 extension version.
 
-```sh
-# Install from release
-code --install-extension tcl-lsp-0.1.0.vsix
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#vs-code).
 
 ### Neovim
 
@@ -96,16 +98,7 @@ Includes 16 built-in snippets (`tcl-proc`, `tcl-namespace`, `tcl-if`,
 exposing all 23 analysis tools, and slash commands (`/tcl-doc`, `/irule-event`,
 `/tcl-validate`).
 
-```sh
-# Install from the Zed extension registry (search "Tcl")
-# Or install from a release artifact (no Rust required):
-#   1. Download tcl-lsp-zed-*.zip from the GitHub Releases page
-#   2. unzip tcl-lsp-zed-*.zip -d /tmp/tcl-lsp-zed
-#   3. Command Palette (Cmd+Shift+P) > "zed: install dev extension" > select /tmp/tcl-lsp-zed
-# Or build from source (requires Rust via rustup — https://rustup.rs):
-#   1. make zed
-#   2. Command Palette > "zed: install dev extension" > select editors/zed/
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#zed).
 
 ### Emacs
 
@@ -151,14 +144,7 @@ enhanced (full LSP features when the LSP package is installed).
 
 Auto-discovers the bundled `.pyz` server from the package archive.
 
-```sh
-# Install via Package Control:
-#   Command Palette > Package Control: Install Package > Tcl
-
-# Or manual install:
-#   Download Tcl.sublime-package from Releases
-#   Place in ~/Library/Application Support/Sublime Text/Installed Packages/
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#sublime-text).
 
 **Commands:** Select Dialect, Restart Language Server, Format Document, Minify
 Document, Apply Safe Quick Fixes, Apply All Optimisations.
@@ -173,13 +159,8 @@ formatting option.
 Features a **Compiler Explorer tool window** with JCEF browser for inspecting
 IR, CFG, SSA, and optimiser output directly inside the IDE.
 
-```sh
-# Install from release:
-#   Settings > Plugins > ⚙️ > Install Plugin from Disk > tcl-lsp-jetbrains.zip
-
-# Build from source:
-make jetbrains
-```
+Install: see [INSTALL-editors.md](INSTALL-editors.md#jetbrains-intellij-idea-pycharm-webstorm-).
+Build from source: `make jetbrains`.
 
 ## Features
 
@@ -819,78 +800,9 @@ Highlights of the newer verbs:
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
-Download it from the
-[GitHub Releases page](https://github.com/bitwisecook/tcl-lsp/releases)
-and put it on `PATH`:
-
-```sh
-# Per-user install on ~/.local/bin (no sudo).
-mkdir -p ~/.local/bin
-curl -L -o ~/.local/bin/f5 \
-  https://github.com/bitwisecook/tcl-lsp/releases/latest/download/f5-<version>.pyz
-chmod +x ~/.local/bin/f5
-
-# Confirm: should print "f5 <verb> [options] [inputs...]"
-f5 --help
-```
-
-The downloaded `.pyz` is self-contained — no `pip install`, no
-virtualenv.  If you'd rather not rely on the embedded shebang, invoke
-it explicitly: `python3 ~/.local/bin/f5 cleanup …`.
-
-For a system-wide install, drop the same file into `/usr/local/bin/f5`
-and `chmod 755` it.
-
-**From source (development)** — clone the repo and use
-`python -m explorer.f5_cli` directly, or build a fresh zipapp with
-`make zipapp-f5` (output lands in `build/f5-<version>.pyz`):
-
-```sh
-git clone https://github.com/bitwisecook/tcl-lsp
-cd tcl-lsp
-uv sync --extra dev
-python -m explorer.f5_cli cleanup samples/bigip/bigip.conf
-# or:
-make zipapp-f5 && ./build/f5-*.pyz cleanup samples/bigip/bigip.conf
-```
-
-**Shell completion** — the `f5 completion <shell>` verb prints a
-ready-to-install completion script for **bash**, **fish**, or **zsh**.
-The script is bundled inside the zipapp, so it's the same with the
-local source build or the released `.pyz`.  Run the snippet for your
-shell **after** `f5` is on `PATH`:
-
-```sh
-# bash (per-user)
-mkdir -p ~/.local/share/bash-completion/completions
-f5 completion bash > ~/.local/share/bash-completion/completions/f5
-# Or eagerly source from ~/.bashrc:
-#   source <(f5 completion bash)
-
-# fish
-mkdir -p ~/.config/fish/completions
-f5 completion fish > ~/.config/fish/completions/f5.fish
-# Then start a new fish session.
-
-# zsh (per-user)
-mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
-f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
-# Then add to ~/.zshrc, before `compinit`:
-#   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
-#   autoload -Uz compinit && compinit
-```
-
-For a system-wide zsh install on hosts whose `$fpath` already covers
-it, write straight to `site-functions`:
-
-```sh
-sudo sh -c 'f5 completion zsh > /usr/share/zsh/site-functions/_f5'
-```
-
-Pass `--hint` to print the install instructions for the chosen shell
-to stderr alongside the script (`f5 completion bash --hint`).
-Completion covers verb names, every flag, and `*.conf` / `*.scf`
-positional paths.
+See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
+installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
+Fedora, shell completion setup, and source-build instructions.
 
 In VS Code, run the command palette entry **Tcl: Generate BIG-IP
 Cleanup Script** while a `bigip.conf` is open; the script and its JSON
@@ -1332,81 +1244,13 @@ iRules-specific verbs (`event-order`, `event-info`) live on the separate
 For source builds, run `make kcs-db` before packaging zipapps so `tcl.pyz help`
 can query the bundled KCS SQLite database.
 
-**Install the `tcl` CLI** — the released artefact is a single-file zipapp
-(`tcl-<version>.pyz`) that needs only Python 3.10+ on the host.  Download
-it from the
-[GitHub Releases page](https://github.com/bitwisecook/tcl-lsp/releases)
-and put it on `PATH`:
-
-```sh
-# Per-user install on ~/.local/bin (no sudo).
-mkdir -p ~/.local/bin
-curl -L -o ~/.local/bin/tcl \
-  https://github.com/bitwisecook/tcl-lsp/releases/latest/download/tcl-<version>.pyz
-chmod +x ~/.local/bin/tcl
-
-# Confirm: should print "tcl <verb> [options] [inputs...]"
-tcl --help
-```
-
-The downloaded `.pyz` is self-contained — no `pip install`, no virtualenv.
-For a system-wide install, drop the same file into `/usr/local/bin/tcl`
-and `chmod 755` it.
-
-**From source (development)** — clone the repo and use
-`python -m explorer.tcl_cli` directly, or build a fresh zipapp with
-`make zipapp-tcl` (output lands in `build/tcl-<version>.pyz`):
-
-```sh
-git clone https://github.com/bitwisecook/tcl-lsp
-cd tcl-lsp
-uv sync --extra dev
-python -m explorer.tcl_cli lint samples/
-# or:
-make zipapp-tcl && ./build/tcl-*.pyz lint samples/
-```
-
-**Shell completion** — the `tcl completion <shell>` verb prints a
-ready-to-install completion script for **bash**, **fish**, or **zsh**.
-The script is bundled inside the zipapp, so it's the same with the
-local source build or the released `.pyz`.  Run the snippet for your
-shell **after** `tcl` is on `PATH`:
-
-```sh
-# bash (per-user)
-mkdir -p ~/.local/share/bash-completion/completions
-tcl completion bash > ~/.local/share/bash-completion/completions/tcl
-# Or eagerly source from ~/.bashrc:
-#   source <(tcl completion bash)
-
-# fish
-mkdir -p ~/.config/fish/completions
-tcl completion fish > ~/.config/fish/completions/tcl.fish
-# Then start a new fish session.
-
-# zsh (per-user)
-mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"
-tcl completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl"
-# Then add to ~/.zshrc, before `compinit`:
-#   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
-#   autoload -Uz compinit && compinit
-```
-
-For a system-wide zsh install on hosts whose `$fpath` already covers
-it, write straight to `site-functions`:
-
-```sh
-sudo sh -c 'tcl completion zsh > /usr/share/zsh/site-functions/_tcl'
-```
-
-iRules-specific completion (the `f5 irule …` sub-verbs) is shipped by
-the separate `f5 completion <shell>` verb — install it the same way.
-
-Pass `--hint` to print the install instructions for the chosen shell
-to stderr alongside the script (`tcl completion bash --hint`).
-Completion covers verb names, every flag, dialect choices, optimiser
-profiles, `pkg` / `venv` / `docker` actions, and Tcl/iRules source
-paths (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
+**Install the `tcl` CLI** — the released artefact is a single-file
+zipapp (`tcl-<version>.pyz`) that needs only Python 3.10+ on the host.
+See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
+installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
+Fedora, source builds, and shell completion (`bash`, `zsh`, `fish`)
+that covers every verb, dialect, optimiser profile, and source-path
+glob (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
 `*.iapp`, `*.iappimpl`).
 
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
