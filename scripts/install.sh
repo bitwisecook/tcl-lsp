@@ -506,12 +506,33 @@ ensure_curl() {
 
 pkg_name_for() {
     # pkg_name_for OS CMD — print the OS-package name for a given binary.
+    # Empty output means "no equivalent on this OS" (usually preinstalled
+    # or distributed as part of something else).
     os="$1"; cmd="$2"
     case "$os:$cmd" in
+        # whiptail (newt on RHEL/Fedora, libnewt on Arch, none on macOS)
         rhel:whiptail|fedora:whiptail) printf 'newt' ;;
         arch:whiptail)                 printf 'libnewt' ;;
         macos:whiptail)                printf '' ;;
-        macos:*)                       printf '%s' "$cmd" ;;
+
+        # OpenSSH client (ships scp alongside ssh)
+        debian:ssh)                    printf 'openssh-client' ;;
+        rhel:ssh|fedora:ssh)           printf 'openssh-clients' ;;
+        arch:ssh)                      printf 'openssh' ;;
+        alpine:ssh)                    printf 'openssh-client' ;;
+        macos:ssh)                     printf '' ;;
+
+        # tshark — packaged as wireshark-cli on RPM-style distros
+        rhel:tshark|fedora:tshark)     printf 'wireshark-cli' ;;
+        arch:tshark)                   printf 'wireshark-cli' ;;
+        macos:tshark)                  printf 'wireshark' ;;
+
+        # tclsh (system Tcl interpreter)
+        macos:tclsh)                   printf 'tcl-tk' ;;
+        debian:tclsh|alpine:tclsh|arch:tclsh|rhel:tclsh|fedora:tclsh)
+                                       printf 'tcl' ;;
+
+        # default — package name = command name
         *:*)                           printf '%s' "$cmd" ;;
     esac
 }
@@ -574,39 +595,53 @@ install_pkg() {
     esac
 }
 
-check_optional_dependencies() {
-    # Survey optional deps that improve the install UX or unlock specific
-    # features. Prints a one-shot list of what's missing and why, then
-    # asks (default NO) whether to install them in batch.
+check_cli_runtime_dependencies() {
+    # Survey runtime tools the installed `tcl` / `f5` CLIs shell out to.
+    # The CLIs themselves are self-contained Python zipapps; these only
+    # affect verbs that explicitly need an external binary.
+    #
+    # Prints a one-shot list of what's missing and why, then asks once
+    # (default NO) whether to install the lot via the OS package manager.
     [ "${TCL_LSP_NO_DEPS:-0}" = "1" ] && return
 
-    needs_unzip=0; needs_sha=0; needs_cosign=0; needs_tui=0
-    have unzip                                || needs_unzip=1
-    if ! have sha256sum && ! have shasum;     then needs_sha=1; fi
-    have cosign                               || needs_cosign=1
-    if ! have whiptail && ! have dialog;      then needs_tui=1; fi
+    needs_tclsh=0      # tcl pkg / tcl venv / `tcl explore` against real tclsh
+    needs_ssh=0        # f5 fetch (required for that verb's SSH transport)
+    needs_sshpass=0    # f5 fetch password auth (optional fallback)
+    needs_tshark=0     # f5 explain-flow --tshark, enrich-pcapng, pcap-remap
 
-    total=$((needs_unzip + needs_sha + needs_cosign + needs_tui))
+    case "$ONLY" in
+        tcl|both)
+            if ! have tclsh && ! have tclsh9.0 && ! have tclsh8.6 && ! have tclsh8.5; then
+                needs_tclsh=1
+            fi
+            ;;
+    esac
+    case "$ONLY" in
+        f5|both)
+            have ssh     || needs_ssh=1
+            have sshpass || needs_sshpass=1
+            have tshark  || needs_tshark=1
+            ;;
+    esac
+
+    total=$((needs_tclsh + needs_ssh + needs_sshpass + needs_tshark))
     [ "$total" = 0 ] && return
 
-    log "optional dependencies missing ($total):"
-    [ "$needs_unzip"  = 1 ] && log "  unzip       — required for Claude Code skills install"
-    [ "$needs_sha"    = 1 ] && log "  coreutils   — sha256sum/shasum for SHA256SUMS verification"
-    [ "$needs_cosign" = 1 ] && log "  cosign      — keyless OIDC signature verification of SHA256SUMS"
-    [ "$needs_tui"    = 1 ] && log "  whiptail    — interactive TUI prompts (or 'dialog' alternative)"
+    log "$ONLY CLI runtime dependencies missing ($total):"
+    [ "$needs_tclsh"   = 1 ] && log "  tclsh    — tcl pkg / tcl venv / tcl explore against the real interpreter"
+    [ "$needs_ssh"     = 1 ] && log "  openssh  — f5 fetch over SSH (required for that verb)"
+    [ "$needs_sshpass" = 1 ] && log "  sshpass  — f5 fetch with password auth (optional fallback to keys)"
+    [ "$needs_tshark"  = 1 ] && log "  tshark   — f5 explain-flow / enrich-pcapng / pcap-remap libpcap support"
 
-    if ! ask_default_no "Install missing optional dependencies via the package manager? [y/N]"; then
-        log "skipping optional dependency install — features above will be unavailable"
+    if ! ask_default_no "Install missing CLI runtime dependencies via the package manager? [y/N]"; then
+        log "skipping CLI runtime dependency install — features above will be unavailable"
         return
     fi
 
-    [ "$needs_unzip"  = 1 ] && install_pkg unzip
-    [ "$needs_sha"    = 1 ] && install_pkg coreutils
-    [ "$needs_cosign" = 1 ] && install_pkg cosign
-    [ "$needs_tui"    = 1 ] && install_pkg whiptail
-
-    # Pick up newly-installed whiptail/dialog if relevant.
-    [ "$needs_tui" = 1 ] && ensure_ui
+    [ "$needs_tclsh"   = 1 ] && install_pkg tclsh
+    [ "$needs_ssh"     = 1 ] && install_pkg ssh
+    [ "$needs_sshpass" = 1 ] && install_pkg sshpass
+    [ "$needs_tshark"  = 1 ] && install_pkg tshark
 }
 
 WGET_HAS_HTTPS_ONLY=""
@@ -1519,8 +1554,6 @@ main() {
     fi
     log "using Python: $PYTHON"
 
-    check_optional_dependencies
-
     choose_clis
     propose_update_install
     choose_prefix
@@ -1532,6 +1565,8 @@ main() {
         both) install_cli tcl; install_cli f5 ;;
         *) die "invalid TCL_LSP_ONLY: $ONLY (expected tcl|f5|both)" ;;
     esac
+
+    check_cli_runtime_dependencies
 
     ensure_path
 

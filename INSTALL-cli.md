@@ -87,24 +87,40 @@ menu, and yes/no questions are arrow-key-driven dialogs.  Set
 `TCL_LSP_NO_TUI=1` to keep the plain-text prompts.  In non-interactive
 mode (piped stdin) the TUI is never used.
 
-### Optional dependencies
+### CLI runtime dependencies
 
-Right after Python and `curl`/`wget` are confirmed (the *required*
-dependencies), the installer surveys a small set of *optional*
-dependencies and reports any that are missing:
+After the `tcl` / `f5` zipapps land, the installer surveys the
+external tools those CLIs shell out to.  The CLIs themselves are
+self-contained Python zipapps; these extras only affect specific
+verbs.
 
-| Dependency | What it unlocks |
-|------------|------------------|
-| `unzip` | Required to install the Claude Code skills bundle |
-| `coreutils` (`sha256sum` / `shasum`) | SHA256SUMS hash verification of downloaded artefacts |
-| `cosign` | SHA256SUMS keyless OIDC signature verification |
-| `whiptail` (or `dialog`) | Interactive TUI prompts (otherwise plain-text) |
+| Dependency | Required for | Used by |
+|------------|--------------|---------|
+| `tclsh` (any of 8.5 / 8.6 / 9.0) | `tcl pkg`, `tcl venv`, `tcl explore` against a real interpreter | `tcl` |
+| `openssh` (`ssh`, `scp`) | `f5 fetch` over SSH to a BIG-IP | `f5` |
+| `sshpass` | `f5 fetch` with password auth (optional fallback to key auth) | `f5` |
+| `tshark` (Wireshark CLI) | `f5 explain-flow --tshark`, `f5 enrich-pcapng`, `f5 pcap-remap` libpcap input | `f5` |
 
-The installer prints a one-line summary of what's missing, then asks
-once (default **no**) whether to install the lot via the OS package
+The installer reports any that are missing and asks once
+(default **no**) whether to install the lot via the OS package
 manager.  Set `TCL_LSP_NO_DEPS=1` to skip the prompt entirely.
-Skipping is fine — every feature has a graceful fallback (skills
-install warns, SUMS install warns, prompts use plain text).
+
+The survey runs after `install_cli`, so what's offered depends on
+which CLIs you installed: install `tcl` only and you only get the
+`tclsh` prompt; install `f5` only and you skip `tclsh`.
+
+Skipping is fine — every CLI verb that needs an external tool detects
+its absence at runtime and prints a clear message (`ssh not found`,
+`tshark not available`, etc.).
+
+Package names per distro:
+
+|         | Debian/Ubuntu | RHEL/Fedora | Arch | Alpine | macOS (brew) |
+|---------|---------------|-------------|------|--------|--------------|
+| `tclsh` | `tcl` | `tcl` | `tcl` | `tcl` | `tcl-tk` |
+| `ssh`   | `openssh-client` | `openssh-clients` | `openssh` | `openssh-client` | preinstalled |
+| `sshpass` | `sshpass` | `sshpass` | `sshpass` | `sshpass` | `sshpass` |
+| `tshark` | `tshark` | `wireshark-cli` | `wireshark-cli` | `tshark` | `wireshark` |
 
 ### Updating an existing install
 
@@ -196,7 +212,7 @@ curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/insta
 | `TCL_LSP_VERSION` | `latest` | Pin a release tag (e.g. `v1.2.3`). |
 | `TCL_LSP_PREFIX`  | *prompt* (default `$HOME/.local/bin`) | Install directory. Set to bypass the interactive picker. |
 | `TCL_LSP_ONLY`    | `both` | `tcl`, `f5`, or `both`. |
-| `TCL_LSP_NO_DEPS` | unset | Skip every package-manager install — Python (required), curl/wget, unzip, and the optional dependency batch.  Fails loudly when a required dep is missing. |
+| `TCL_LSP_NO_DEPS` | unset | Skip every package-manager install — Python (required), curl/wget, unzip (for skills), and the CLI runtime dep batch.  Fails loudly when a required dep is missing. |
 | `TCL_LSP_NO_PATH` | unset | Do not modify the shell rc file. |
 | `TCL_LSP_NO_COMP` | unset | Skip shell completion install. |
 | `TCL_LSP_NO_MCP`    | unset | Skip MCP server install for AI clients. |
