@@ -414,6 +414,9 @@ prefix_for() {
 read_os_release_safe() {
     f=/etc/os-release
     [ -e "$f" ] || return 1
+    # All four predicates are POSIX or universally supported (BusyBox/
+    # BSD/GNU). If find itself is unusable, the user has TCL_LSP_OS as
+    # an explicit escape hatch.
     safe="$(find -L "$f" -maxdepth 0 -uid 0 ! -perm -002 -print 2>/dev/null)"
     if [ -z "$safe" ]; then
         die "$f is not root-owned or is world-writable — refusing to read it.
@@ -1243,57 +1246,80 @@ choose_install_plan() {
             done
             ;;
         *)
-            # Text mode: one combined line with bracketed defaults.
-            # User can press <enter> to take everything offered.
-            opts="tcl,f5"
-            defaults="$ONLY"
-            extras=""
-            if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
-                opts="$opts,mcp"
-                [ "$d_mcp" = ON ] && defaults="$defaults,mcp" && extras="$extras mcp"
-            fi
-            if [ "$HAS_CLAUDE" = "1" ]; then
-                opts="$opts,skills"
-                [ "$d_skills" = ON ] && defaults="$defaults,skills" && extras="$extras skills"
-            fi
-            print_prompt "$(printf '\nChoose what to install (comma-separated from: %s)\n  default: %s\n  selection: ' "$opts" "$defaults")"
-            read_user_line || reply=""
-            ans="${reply:-$defaults}"
+            # Text mode: a numbered menu. Entries are dynamic based on
+            # which AI clients (if any) were detected. With both clients
+            # detected the full list is:
+            #   1) tcl   2) f5   3) mcp   4) skills
+            #   5) both CLIs   6) both AI   7) all
             WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
-            OLD_IFS="$IFS"; IFS=', '
-            # shellcheck disable=SC2086
-            set -- $ans
-            IFS="$OLD_IFS"
-            for t in "$@"; do
-                case "$t" in
-                    tcl|t)         WANT_TCL=1 ;;
-                    f5|F5)         WANT_F5=1 ;;
-                    both|b)        WANT_TCL=1; WANT_F5=1 ;;
-                    mcp)           WANT_MCP=1 ;;
-                    skills|skill)  WANT_SKILLS=1 ;;
-                    '') : ;;
-                    *) die "invalid plan token: $t (expected one of: $opts)" ;;
-                esac
-            done
-            prompt_record install-plan "selection from {$opts}" "$ans"
+            has_ai=0; has_skills=0
+            if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then has_ai=1; fi
+            if [ "$HAS_CLAUDE" = "1" ]; then has_skills=1; fi
+
+            i=0
+            menu_labels=""
+            add_menu() {
+                i=$((i + 1))
+                menu_labels="${menu_labels}${menu_labels:+
+}  $i) $2"
+                eval "menu_key_$i=\"$1\""
+            }
+            add_menu tcl "tcl"
+            add_menu f5  "f5"
+            [ "$has_ai" = 1 ]     && add_menu mcp    "mcp"
+            [ "$has_skills" = 1 ] && add_menu skills "skills"
+            add_menu cli "both CLIs (tcl + f5)"
+            if [ "$has_ai" = 1 ] && [ "$has_skills" = 1 ]; then
+                add_menu ai "both AI (mcp + skills)"
+            fi
+            [ "$has_ai" = 1 ] && add_menu all "all"
+            menu_default="$i"   # most comprehensive entry
+
+            print_prompt "$(printf '\nChoose what to install:\n%s\n  selection [%s]: ' "$menu_labels" "$menu_default")"
+            read_user_line || reply=""
+            ans="${reply:-$menu_default}"
+            case "$ans" in
+                ''|*[!0-9]*) die "invalid selection: $ans (expected a number 1..$i)" ;;
+            esac
+            if [ "$ans" -lt 1 ] || [ "$ans" -gt "$i" ]; then
+                die "invalid selection: $ans (out of range 1..$i)"
+            fi
+            sel_key="$(eval "echo \"\$menu_key_$ans\"")"
+            case "$sel_key" in
+                tcl)     WANT_TCL=1 ;;
+                f5)      WANT_F5=1 ;;
+                mcp)     WANT_MCP=1 ;;
+                skills)  WANT_SKILLS=1 ;;
+                cli)     WANT_TCL=1; WANT_F5=1 ;;
+                ai)      WANT_MCP=1; WANT_SKILLS=1 ;;
+                all)
+                    WANT_TCL=1; WANT_F5=1
+                    [ "$has_ai" = 1 ]     && WANT_MCP=1
+                    [ "$has_skills" = 1 ] && WANT_SKILLS=1
+                    ;;
+            esac
+            prompt_record install-plan "menu pick (1..$i)" "$ans ($sel_key)"
             ;;
     esac
 
-    # At least one CLI must be installed; MCP/skills alone has no
-    # backing CLI to point at.
-    if [ "$WANT_TCL" != "1" ] && [ "$WANT_F5" != "1" ]; then
-        die "no CLI selected — at least one of tcl/f5 is required"
+    # Nothing selected at all is the only invalid plan.
+    if [ "$WANT_TCL" != "1" ] && [ "$WANT_F5" != "1" ] \
+       && [ "$WANT_MCP" != "1" ] && [ "$WANT_SKILLS" != "1" ]; then
+        die "nothing selected — at least one component must be picked"
     fi
     # Skills/MCP without their AI client is harmless but pointless.
-    [ "$WANT_MCP"    = "1" ] && [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ] \
-        && warn "MCP requested but no AI client detected — installing anyway"
-    [ "$WANT_SKILLS" = "1" ] && [ "$HAS_CLAUDE" != "1" ] \
-        && warn "skills requested but Claude Code not detected — installing anyway"
+    if [ "$WANT_MCP" = "1" ] && [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then
+        warn "MCP requested but no AI client detected — installing anyway"
+    fi
+    if [ "$WANT_SKILLS" = "1" ] && [ "$HAS_CLAUDE" != "1" ]; then
+        warn "skills requested but Claude Code not detected — installing anyway"
+    fi
 
-    # Reflect plan back into ONLY for the rest of the script.
+    # Reflect CLI plan back into ONLY. `none` means "AI-only install".
     if   [ "$WANT_TCL" = "1" ] && [ "$WANT_F5" = "1" ]; then ONLY=both
     elif [ "$WANT_TCL" = "1" ]; then ONLY=tcl
-    else ONLY=f5
+    elif [ "$WANT_F5"  = "1" ]; then ONLY=f5
+    else ONLY=none
     fi
     log "install plan: tcl=$WANT_TCL f5=$WANT_F5 mcp=$WANT_MCP skills=$WANT_SKILLS"
 }
@@ -1554,9 +1580,14 @@ detect_conflicts() {
                 || die "aborted: naming conflict not resolved"
             ;;
         *)
-            print_prompt "$(printf '\nHow to proceed? [keep / rename / abort] (default: keep):')"
-            read_user_line || reply=keep
-            sel="${reply:-keep}"
+            print_prompt "$(printf '\nHow to proceed?\n  1) keep (install with original name; existing shadow remains)\n  2) rename (install as <name>-lsp)\n  3) abort\n  selection [1]: ')"
+            read_user_line || reply=1
+            case "${reply:-1}" in
+                1|keep)   sel=keep ;;
+                2|rename) sel=rename ;;
+                3|abort)  sel=abort ;;
+                *) die "invalid selection: $reply (expected 1, 2, or 3)" ;;
+            esac
             ;;
     esac
     case "$sel" in
@@ -2006,12 +2037,14 @@ main() {
         tcl)  install_cli tcl ;;
         f5)   install_cli f5 ;;
         both) install_cli tcl; install_cli f5 ;;
+        none) : ;;
         *) die "invalid TCL_LSP_ONLY: $ONLY (expected tcl|f5|both)" ;;
     esac
 
-    check_cli_runtime_dependencies
-
-    ensure_path
+    if [ "$ONLY" != "none" ]; then
+        check_cli_runtime_dependencies
+        ensure_path
+    fi
 
     case "$ONLY" in
         tcl)  install_completion tcl ;;
@@ -2022,7 +2055,7 @@ main() {
     install_ai_integrations
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
-    if ! path_contains "$PREFIX"; then
+    if [ "$ONLY" != "none" ] && ! path_contains "$PREFIX"; then
         # shellcheck disable=SC2016  # instruction text shown to user
         printf 'Open a new shell, or run:  %sexport PATH="%s:$PATH"%s\n' \
                "$BOLD" "$PREFIX" "$RESET"

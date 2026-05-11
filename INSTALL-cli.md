@@ -73,7 +73,12 @@ covering it).  To verify a manual download:
 ```sh
 tag="v1.9.0"
 curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256SUMS"
-sha256sum -c SHA256SUMS 2>/dev/null || shasum -a 256 -c SHA256SUMS
+
+# `--ignore-missing` skips entries for assets you haven't downloaded —
+# `SHA256SUMS` covers every release artefact, but you usually only have
+# the one or two you actually installed.
+sha256sum --ignore-missing -c SHA256SUMS 2>/dev/null \
+    || shasum -a 256 --ignore-missing -c SHA256SUMS
 
 # Optional cosign signature check
 curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256SUMS.cosign.bundle"
@@ -118,7 +123,8 @@ common ones:
 | `TCL_LSP_VERSION` | Pin a release tag instead of `latest`. |
 | `TCL_LSP_ASSUME_YES` / `TCL_LSP_ASSUME_NO` | Answer yes / no to every prompt. |
 | `TCL_LSP_NO_DEPS` | Don't install Python / curl / wget / unzip / Tcl runtime deps. |
-| `TCL_LSP_REQUIRE_VERIFY` / `TCL_LSP_REQUIRE_COSIGN` | Refuse to install without SHA256SUMS / signature. |
+| `TCL_LSP_NO_VERIFY` | Install without SHA256SUMS verification (only do this if you trust the network path). |
+| `TCL_LSP_REQUIRE_COSIGN` | Also require a cosign signature on SHA256SUMS (SHA256SUMS alone is required by default). |
 
 ## Building from source
 

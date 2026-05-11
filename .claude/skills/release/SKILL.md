@@ -169,14 +169,14 @@ Also smoke-test the installer one-liner from a clean shell:
 
 ```bash
 curl -fsSL "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/install.sh" \
-  | TCL_LSP_REQUIRE_VERIFY=1 TCL_LSP_PREFIX=/tmp/verify-bin TCL_LSP_ASSUME_NO=1 sh
+  | TCL_LSP_PREFIX=/tmp/verify-bin TCL_LSP_ASSUME_NO=1 sh
 ls -la /tmp/verify-bin/
 rm -rf /tmp/verify-bin/
 ```
 
-`TCL_LSP_REQUIRE_VERIFY=1` makes the installer fail loudly if SUMS is
-absent (the safety net for a CI regression that drops the
-`publish-checksums` job).
+The installer aborts by default when `SHA256SUMS` is missing — this is
+the safety net for a CI regression that drops the `publish-checksums`
+job. If the smoke-test succeeds, integrity is intact.
 
 ### 7. Editor publishing
 

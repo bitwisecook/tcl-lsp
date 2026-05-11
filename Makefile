@@ -1085,11 +1085,14 @@ release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp 
 .PHONY: release-sums
 release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
 	@cd $(BUILD_DIR) && \
-	    if command -v sha256sum >/dev/null 2>&1; then \
-	        sha256sum -- *.pyz *.zip *.vsix 2>/dev/null | LC_ALL=C sort -k2 > SHA256SUMS; \
-	    else \
-	        shasum -a 256 -- *.pyz *.zip *.vsix 2>/dev/null | LC_ALL=C sort -k2 > SHA256SUMS; \
-	    fi
+	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
+	    else h="shasum -a 256"; fi; \
+	    find . -maxdepth 1 -type f \
+	        \( -name '*.pyz' -o -name '*.zip' -o -name '*.vsix' -o -name '*.sublime-package' \) \
+	        ! -name 'SHA256SUMS' ! -name 'SHA256SUMS.*' \
+	        -printf '%f\n' 2>/dev/null \
+	        | LC_ALL=C sort \
+	        | xargs -r $$h > SHA256SUMS
 	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)

@@ -159,7 +159,7 @@ formatting option.
 Features a **Compiler Explorer tool window** with JCEF browser for inspecting
 IR, CFG, SSA, and optimiser output directly inside the IDE.
 
-Install: see [INSTALL-editors.md](INSTALL-editors.md#jetbrains-intellij-idea-pycharm-webstorm-).
+Install: see [INSTALL-editors.md](INSTALL-editors.md#jetbrains).
 Build from source: `make jetbrains`.
 
 ## Features
