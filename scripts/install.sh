@@ -213,52 +213,40 @@ download() {
     fi
 }
 
-release_url() {
-    # release_url ASSET_NAME
-    asset="$1"
-    if [ "$VERSION" = "latest" ]; then
-        echo "https://github.com/$REPO/releases/latest/download/$asset"
+resolve_latest_tag() {
+    # Follow the redirect from /releases/latest (HTML) to /releases/tag/vX.Y.Z.
+    # Avoids the api.github.com 60/hr unauthenticated rate limit.
+    redirect_url="https://github.com/$REPO/releases/latest"
+    final_url=""
+    if [ "$DOWNLOADER" = "wget" ]; then
+        # wget prints the resolved Location on the "Location:" lines of -S.
+        final_url="$(wget -qS --max-redirect=10 -O /dev/null "$redirect_url" 2>&1 \
+            | awk '/^  Location:/ {loc=$2} END {print loc}' | tr -d '\r')"
     else
-        echo "https://github.com/$REPO/releases/download/$VERSION/$asset"
+        final_url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url")"
     fi
+    case "$final_url" in
+        *"/releases/tag/"*) printf '%s\n' "${final_url##*/tag/}" ;;
+        *) return 1 ;;
+    esac
 }
 
 install_cli() {
     # install_cli NAME (one of "tcl" or "f5")
     name="$1"
-    asset_glob="${name}-*.pyz"
 
-    # Releases ship versioned filenames (e.g. tcl-1.2.3.pyz), but the
-    # GitHub "latest" redirect requires the exact asset name. We resolve
-    # via the latest release JSON when VERSION=latest, otherwise we
-    # require the user to supply a tag.
     if [ "$VERSION" = "latest" ]; then
-        api_url="https://api.github.com/repos/$REPO/releases/latest"
-        if [ "$DOWNLOADER" = "wget" ]; then
-            json="$(wget -qO- "$api_url" || true)"
-        else
-            json="$(curl -fsSL "$api_url" || true)"
-        fi
-        if [ -z "$json" ]; then
-            die "could not query GitHub releases API. Set TCL_LSP_VERSION=vX.Y.Z to bypass."
-        fi
-        # Anchor on a digit after the CLI prefix so we don't match
-        # neighbouring artefacts (e.g. for name=tcl we must skip
-        # tcl-lsp-server-*.pyz and tcl-lsp-vscode-*.vsix).
-        asset="$(printf '%s' "$json" \
-            | grep -o "\"name\": *\"${name}-[0-9][^\"]*\\.pyz\"" \
-            | head -n1 \
-            | sed -E 's/.*"name": *"([^"]+)".*/\1/')"
-        if [ -z "$asset" ]; then
-            die "no '${name}-*.pyz' asset found in latest release."
-        fi
-        url="$(release_url "$asset")"
+        resolved_tag="$(resolve_latest_tag)" \
+            || die "could not resolve latest release tag from https://github.com/$REPO/releases/latest. Set TCL_LSP_VERSION=vX.Y.Z to bypass."
+        ver_no_v="${resolved_tag#v}"
     else
-        # Caller pinned a version; assume canonical naming.
+        resolved_tag="$VERSION"
         ver_no_v="${VERSION#v}"
-        asset="${name}-${ver_no_v}.pyz"
-        url="$(release_url "$asset")"
     fi
+
+    asset="${name}-${ver_no_v}.pyz"
+    url="https://github.com/$REPO/releases/download/${resolved_tag}/${asset}"
+    log "resolved $name -> $asset (tag $resolved_tag)"
 
     mkdir -p "$PREFIX"
     tmpfile="$(mktemp "${TMPDIR:-/tmp}/${name}.XXXXXX.pyz")"
