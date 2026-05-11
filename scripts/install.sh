@@ -398,12 +398,14 @@ fi
 # Per-CLI override dirs (split-directory update). Empty = use $PREFIX.
 TCL_PREFIX_OVERRIDE=""
 F5_PREFIX_OVERRIDE=""
+MCP_PREFIX_OVERRIDE=""
 
 # Install dir for binary $1.
 prefix_for() {
     case "$1" in
         tcl) printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
         f5)  printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        mcp) printf '%s' "${MCP_PREFIX_OVERRIDE:-$PREFIX}" ;;
         *)   printf '%s' "$PREFIX" ;;
     esac
 }
@@ -864,51 +866,88 @@ why TLS 1.3 / HTTP/2 isn't reachable from your network."
     return 0
 }
 
+_download_attempt() {
+    if [ "$DOWNLOADER" = "wget" ]; then
+        wget_invoke -qO "$1" "$2"
+    else
+        curl_invoke -fsSL -o "$1" "$2"
+    fi
+}
+
+# Did the curl exit code suggest a transport/TLS problem worth retrying
+# under TLS 1.2 fallback? 22 (HTTP error response) and 6 (couldn't
+# resolve host) and 7 (couldn't connect) won't be fixed by lowering TLS.
+_curl_rc_implies_tls_retry() {
+    case "$1" in
+        22|6|7|18|23) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 download() {
-    # download URL OUTPUT — pins TLS and refuses HTTP redirects.
-    # Captures curl/wget stderr so a silent failure (-fsSL/-q hides it
-    # from the user) is recorded in the transcript and surfaced as a
-    # warn line before any TLS-fallback prompt.
+    # download URL OUTPUT — pins TLS and refuses HTTP redirects. Always
+    # either succeeds or dies with a reason; never returns silently.
+    # Captures curl/wget stderr so the user sees the underlying error
+    # instead of a bare `exit 1` from set -e.
     url="$1"; out="$2"
     log "fetching $(basename "$out")"
     record "DOWNLOAD start url=$url"
-    err="$WORKDIR/.dl.err"
-    : >"$err" 2>/dev/null || true
+    err_file="$WORKDIR/.dl.err"
+    : >"$err_file" 2>/dev/null || true
+
+    rc=0
     if [ "$DOWNLOADER" = "wget" ]; then
-        if wget_invoke -O "$out" "$url" 2>"$err"; then
+        if wget_invoke -qO "$out" "$url" 2>"$err_file"; then
             record "DOWNLOAD ok url=$url"
-            rm -f "$err" 2>/dev/null
+            rm -f "$err_file" 2>/dev/null
             return 0
         fi
         rc=$?
-        record "DOWNLOAD wget rc=$rc url=$url"
-        if [ -s "$err" ]; then
-            record "DOWNLOAD stderr: $(tr '\n' ' ' <"$err" 2>/dev/null | sed 's/  */ /g')"
-            warn "$(basename "$out") download failed (wget rc=$rc): $(head -1 "$err")"
-        else
-            warn "$(basename "$out") download failed (wget rc=$rc, no stderr captured)"
-        fi
-        rm -f "$err" 2>/dev/null
-        maybe_fallback_tls || return 1
-        wget_invoke -qO "$out" "$url"
     else
-        if curl_invoke -fSL -o "$out" "$url" 2>"$err"; then
+        if curl_invoke -fsSL -o "$out" "$url" 2>"$err_file"; then
             record "DOWNLOAD ok url=$url"
-            rm -f "$err" 2>/dev/null
+            rm -f "$err_file" 2>/dev/null
             return 0
         fi
         rc=$?
-        record "DOWNLOAD curl rc=$rc url=$url"
-        if [ -s "$err" ]; then
-            record "DOWNLOAD stderr: $(tr '\n' ' ' <"$err" 2>/dev/null | sed 's/  */ /g')"
-            warn "$(basename "$out") download failed (curl rc=$rc): $(head -1 "$err")"
-        else
-            warn "$(basename "$out") download failed (curl rc=$rc, no stderr captured)"
-        fi
-        rm -f "$err" 2>/dev/null
-        maybe_fallback_tls || return 1
-        curl_invoke -fsSL -o "$out" "$url"
     fi
+
+    err_summary=""
+    if [ -s "$err_file" ]; then
+        err_summary="$(tr '\n' ' ' <"$err_file" 2>/dev/null | sed 's/  */ /g')"
+        record "DOWNLOAD stderr: $err_summary"
+        warn "$(basename "$out") download failed ($DOWNLOADER rc=$rc): $(head -n 1 "$err_file")"
+    else
+        warn "$(basename "$out") download failed ($DOWNLOADER rc=$rc, no stderr captured)"
+    fi
+    rm -f "$err_file" 2>/dev/null
+
+    # Don't bother prompting for TLS fallback when curl says the URL was
+    # reachable but errored (404, DNS, connect refused, etc.).
+    if [ "$DOWNLOADER" = "curl" ] && ! _curl_rc_implies_tls_retry "$rc"; then
+        die "download failed: $url${err_summary:+
+${err_summary}}"
+    fi
+    if maybe_fallback_tls; then
+        : >"$err_file" 2>/dev/null || true
+        if [ "$DOWNLOADER" = "wget" ]; then
+            if wget_invoke -qO "$out" "$url" 2>"$err_file"; then
+                rm -f "$err_file" 2>/dev/null
+                return 0
+            fi
+        else
+            if curl_invoke -fsSL -o "$out" "$url" 2>"$err_file"; then
+                rm -f "$err_file" 2>/dev/null
+                return 0
+            fi
+        fi
+        if [ -s "$err_file" ]; then
+            err_summary="$(tr '\n' ' ' <"$err_file" 2>/dev/null | sed 's/  */ /g')"
+        fi
+        rm -f "$err_file" 2>/dev/null
+    fi
+    die "download failed: $url${err_summary:+
+${err_summary}}"
 }
 
 resolve_latest_tag() {
@@ -1159,11 +1198,13 @@ choose_install_plan() {
             set -- tcl "Unified Tcl tools (format, lint, opt, ...)" "$d_tcl" \
                    f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" "$d_f5"
             if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
-                ai_label="MCP server"
-                [ "$HAS_CLAUDE" = "1" ] && [ "$HAS_CODEX" = "1" ] \
-                    && ai_label="MCP server (Claude + Codex)" \
-                    || { [ "$HAS_CLAUDE" = "1" ] && ai_label="MCP server (Claude)"; }
-                [ "$HAS_CODEX"  = "1" ] && [ "$HAS_CLAUDE" != "1" ] && ai_label="MCP server (Codex)"
+                if [ "$HAS_CLAUDE" = "1" ] && [ "$HAS_CODEX" = "1" ]; then
+                    ai_label="MCP server (Claude + Codex)"
+                elif [ "$HAS_CLAUDE" = "1" ]; then
+                    ai_label="MCP server (Claude)"
+                else
+                    ai_label="MCP server (Codex)"
+                fi
                 set -- "$@" mcp "$ai_label" "$d_mcp"
             fi
             if [ "$HAS_CLAUDE" = "1" ]; then
@@ -1312,9 +1353,61 @@ PY
     return 1
 }
 
+# Find an existing tcl-lsp MCP server zipapp by checking, in order:
+# Claude Code's registration, Codex's config.toml, $PATH.
+find_existing_mcp() {
+    if have claude; then
+        line="$(claude mcp list 2>/dev/null | awk '$1 == "tcl-lsp"' | head -n 1)"
+        if [ -n "$line" ]; then
+            p="$(printf '%s\n' "$line" | grep -oE '/[A-Za-z0-9._/+~:-]+\.pyz' | head -n 1)"
+            if [ -n "$p" ] && [ -r "$p" ]; then
+                printf '%s\n' "$p"; return 0
+            fi
+        fi
+    fi
+    cfg="$HOME/.codex/config.toml"
+    if [ -f "$cfg" ]; then
+        p="$(awk '
+            /^[[:space:]]*\[mcp_servers\.tcl_lsp\]/ { in=1; next }
+            in && /^[[:space:]]*\[/                 { in=0 }
+            in && /\.pyz/ {
+                if (match($0, /"[^"]+\.pyz"/)) {
+                    print substr($0, RSTART+1, RLENGTH-2); exit
+                }
+            }' "$cfg")"
+        if [ -n "$p" ] && [ -r "$p" ]; then
+            printf '%s\n' "$p"; return 0
+        fi
+    fi
+    if p="$(find_on_path tcl-lsp-mcp-server.pyz)"; then
+        printf '%s\n' "$p"; return 0
+    fi
+    return 1
+}
+
+# Detect an existing MCP zipapp and offer to update it in place.
+# Sets MCP_PREFIX_OVERRIDE.
+propose_update_mcp() {
+    [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && return 0
+    p="$(find_existing_mcp)" || return 0
+    if ! looks_like_our_zipapp "$p"; then
+        warn "found '$(basename "$p")' at $p but it doesn't look like our zipapp"
+        return 0
+    fi
+    log "found existing MCP server at $p"
+    if ask_optout "Update existing MCP server at $p (in place)? [Y/n]"; then
+        MCP_PREFIX_OVERRIDE="$(dirname "$p")"
+    fi
+    return 0
+}
+
 propose_update_install() {
-    # Offer to update each existing tcl/f5 on PATH in place; recorded
-    # per-CLI in TCL/F5_PREFIX_OVERRIDE for split-directory layouts.
+    # Offer to update each existing tcl/f5/MCP install in place;
+    # recorded per-artefact in *_PREFIX_OVERRIDE for split-directory layouts.
+    # MCP detection runs regardless of CLI-PREFIX state because it has
+    # its own override.
+    propose_update_mcp
+
     [ "$PREFIX_EXPLICIT" = "1" ] && return 0
 
     # `|| return 0` because propose_update_one's non-zero is an internal
@@ -1745,7 +1838,7 @@ install_mcp_zipapp() {
     tmpfile="$WORKDIR/$asset"
     download "$url" "$tmpfile"
     verify_artefact "$asset" "$tmpfile"
-    MCP_PATH="$PREFIX/tcl-lsp-mcp-server.pyz"
+    MCP_PATH="$(prefix_for mcp)/tcl-lsp-mcp-server.pyz"
     write_target "$tmpfile" "$MCP_PATH"
     log "installed MCP server -> $MCP_PATH"
 }
@@ -1808,6 +1901,14 @@ install_claude_skills() {
     ensure_tag
     asset="tcl-lsp-claude-skills-${VER_NO_V}.zip"
     url="$(asset_url "$asset")"
+    if [ -d "$HOME/.claude/skills" ]; then
+        existing="$(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 -type d \
+                    \( -name 'irule-*' -o -name 'tcl-*' -o -name 'tk-*' \) 2>/dev/null \
+                    | wc -l | tr -d ' ')"
+        if [ "$existing" -gt 0 ]; then
+            log "found $existing existing tcl-lsp skill(s) in $HOME/.claude/skills/ (will update in place)"
+        fi
+    fi
     log "downloading $asset"
     tmpzip="$WORKDIR/$asset"
     download "$url" "$tmpzip"
