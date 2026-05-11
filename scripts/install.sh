@@ -726,6 +726,30 @@ install_pkg() {
     esac
 }
 
+pkg_manager_label() {
+    # Human-readable package-manager identifier for the host.
+    case "$OS" in
+        macos)        printf 'brew' ;;
+        debian)       printf 'apt-get' ;;
+        rhel|fedora)  if have dnf; then printf 'dnf'; else printf 'yum'; fi ;;
+        arch)         printf 'pacman' ;;
+        alpine)       printf 'apk' ;;
+        *)            printf 'unknown' ;;
+    esac
+}
+
+pkg_manager_install_cmd() {
+    # The exact install invocation a user would type by hand.
+    case "$OS" in
+        macos)        printf 'brew install' ;;
+        debian)       printf 'sudo apt-get install -y' ;;
+        rhel|fedora)  if have dnf; then printf 'sudo dnf install -y'; else printf 'sudo yum install -y'; fi ;;
+        arch)         printf 'sudo pacman -Sy --noconfirm' ;;
+        alpine)       printf 'sudo apk add --no-cache' ;;
+        *)            printf '<unknown package manager>' ;;
+    esac
+}
+
 check_cli_runtime_dependencies() {
     # Survey external tools the tcl/f5 CLIs may shell out to.
     [ "${TCL_LSP_NO_DEPS:-0}" = "1" ] && return
@@ -753,19 +777,56 @@ check_cli_runtime_dependencies() {
     total=$((needs_tclsh + needs_ssh + needs_sshpass + needs_tshark))
     [ "$total" = 0 ] && return
 
-    log "$ONLY CLI runtime dependencies missing ($total):"
-    [ "$needs_tclsh"   = 1 ] && log "  tclsh    — tcl pkg / tcl venv / tcl explore against the real interpreter"
-    [ "$needs_ssh"     = 1 ] && log "  openssh  — f5 fetch over SSH (required for that verb)"
-    [ "$needs_sshpass" = 1 ] && log "  sshpass  — f5 fetch with password auth (optional fallback to keys)"
-    [ "$needs_tshark"  = 1 ] && log "  tshark   — f5 explain-flow / enrich-pcapng / pcap-remap libpcap support"
+    pm_label="$(pkg_manager_label)"
+    pm_cmd="$(pkg_manager_install_cmd)"
 
-    if ! ask_default_no "Install missing CLI runtime dependencies via the package manager? [y/N]"; then
+    log "$ONLY CLI runtime dependencies missing ($total):"
+    log "  package manager: $pm_label"
+    # Columns: status | tool | package on this OS | purpose
+    printf '    %-10s %-8s %-22s %s\n' \
+        "Status" "Tool" "Package ($pm_label)" "Used by"
+    printf '    %-10s %-8s %-22s %s\n' \
+        "------" "----" "----------------------" "-------"
+
+    pkgs_required=""
+    pkgs_optional=""
+    if [ "$needs_ssh" = 1 ]; then
+        pkg=$(pkg_name_for "$OS" ssh)
+        printf '    %-10s %-8s %-22s %s\n' \
+            "REQUIRED" "ssh" "${pkg:-<none>}" "f5 fetch over SSH"
+        [ -n "$pkg" ] && pkgs_required="$pkgs_required $pkg"
+    fi
+    if [ "$needs_tclsh" = 1 ]; then
+        pkg=$(pkg_name_for "$OS" tclsh)
+        printf '    %-10s %-8s %-22s %s\n' \
+            "optional" "tclsh" "${pkg:-<none>}" "tcl pkg / tcl venv / tcl explore"
+        [ -n "$pkg" ] && pkgs_optional="$pkgs_optional $pkg"
+    fi
+    if [ "$needs_sshpass" = 1 ]; then
+        pkg=$(pkg_name_for "$OS" sshpass)
+        printf '    %-10s %-8s %-22s %s\n' \
+            "optional" "sshpass" "${pkg:-<none>}" "f5 fetch password auth (fallback to keys)"
+        [ -n "$pkg" ] && pkgs_optional="$pkgs_optional $pkg"
+    fi
+    if [ "$needs_tshark" = 1 ]; then
+        pkg=$(pkg_name_for "$OS" tshark)
+        printf '    %-10s %-8s %-22s %s\n' \
+            "optional" "tshark" "${pkg:-<none>}" "f5 explain-flow / enrich-pcapng / pcap-remap"
+        [ -n "$pkg" ] && pkgs_optional="$pkgs_optional $pkg"
+    fi
+
+    # Strip leading spaces for the plan line.
+    all_pkgs="${pkgs_required# }${pkgs_optional}"
+    all_pkgs="${all_pkgs# }"
+    log "  plan: $pm_cmd $all_pkgs"
+
+    if ! ask_default_no "Install missing CLI runtime dependencies via $pm_label? [y/N]"; then
         log "skipping CLI runtime dependency install — features above will be unavailable"
         return
     fi
 
-    [ "$needs_tclsh"   = 1 ] && install_pkg tclsh
     [ "$needs_ssh"     = 1 ] && install_pkg ssh
+    [ "$needs_tclsh"   = 1 ] && install_pkg tclsh
     [ "$needs_sshpass" = 1 ] && install_pkg sshpass
     [ "$needs_tshark"  = 1 ] && install_pkg tshark
     return 0
