@@ -842,10 +842,17 @@ wget_supports_tls13() {
 CURL_HAS_HTTP2=
 CURL_HAS_TLS13=
 curl_probe_feature() {
-    # Probe whether `curl <flag>` is built into the active curl. Some
-    # platforms (notably stock macOS curl without nghttp2) lack --http2
-    # and reject it with exit 4 (CURLE_NOT_BUILT_IN).
-    curl "$1" --help all >/dev/null 2>&1
+    # Probe whether `curl <flag>` is built into the active curl. The flag
+    # parser accepts options even when their backend isn't compiled in;
+    # CURLE_NOT_BUILT_IN (exit 4) is only raised when curl actually calls
+    # setopt for the transfer. So drive a real (but fast-failing) request
+    # against a refused local socket and look only at exit 4. Any other
+    # outcome (connection refused, DNS, timeout, success) means the flag
+    # itself was accepted.
+    rc=0
+    curl "$1" --connect-timeout 1 -sS -o /dev/null \
+        "https://127.0.0.1:1" >/dev/null 2>&1 || rc=$?
+    [ "$rc" != 4 ]
 }
 
 curl_probe_capabilities() {
