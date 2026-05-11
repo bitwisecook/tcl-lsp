@@ -33,6 +33,18 @@ When the chosen location is not user-writable (e.g. `/usr/local/bin`)
 the installer escalates to `sudo` for the file copy only — Python
 package installs always go through `sudo`/`doas` already.
 
+If the `claude` or `codex` CLI is present (or `~/.claude` / `~/.codex`
+exists), the installer also offers to:
+
+- download `tcl-lsp-mcp-server-<version>.pyz` from the same release and
+  register it with each detected client (`claude mcp add tcl-lsp …`
+  for Claude Code; an `[mcp_servers.tcl_lsp]` block in
+  `~/.codex/config.toml` for Codex);
+- download `tcl-lsp-claude-skills-<version>.zip` and extract the 26
+  skill directories, the analysis zipapp, and the prompt bundle into
+  `~/.claude/` (so `/irule-fix`, `/tcl-explain`, etc. become available
+  inside Claude Code).
+
 In non-interactive use (`curl … | sh`), the location prompt is
 skipped and `$TCL_LSP_PREFIX` (default `~/.local/bin`) is used.
 
@@ -73,6 +85,10 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/in
 | `TCL_LSP_NO_DEPS` | unset | Skip Python install attempts (fail loudly instead). |
 | `TCL_LSP_NO_PATH` | unset | Do not modify the shell rc file. |
 | `TCL_LSP_NO_COMP` | unset | Skip shell completion install. |
+| `TCL_LSP_NO_MCP`    | unset | Skip MCP server install for AI clients. |
+| `TCL_LSP_NO_SKILLS` | unset | Skip Claude Code skills install. |
+| `TCL_LSP_NO_CLAUDE` | unset | Ignore Claude Code even if detected. |
+| `TCL_LSP_NO_CODEX`  | unset | Ignore Codex even if detected. |
 | `TCL_LSP_ASSUME_YES` | unset | Answer "yes" to every prompt (required for unattended PATH / completion install). |
 | `TCL_LSP_ASSUME_NO`  | unset | Answer "no" to every prompt (skip rc and completion entirely). |
 | `TCL_LSP_REPO`    | `bitwisecook/tcl-lsp` | Source repository. |
@@ -296,6 +312,59 @@ positional paths, and Tcl/iRules source paths (`*.tcl`, `*.tk`,
 
 ---
 
+## AI client integration
+
+The installer detects two AI clients:
+
+| Client | Detected when | What gets installed |
+|--------|---------------|---------------------|
+| **Claude Code** | `claude` is on PATH **or** `~/.claude/` exists | MCP server (`claude mcp add tcl-lsp -- python3 …`) and the skills bundle (26 `/irule-*`, `/tcl-*`, `/tk-*` slash commands under `~/.claude/skills/`) |
+| **Codex** | `codex` is on PATH **or** `~/.codex/` exists | MCP server registered as `[mcp_servers.tcl_lsp]` in `~/.codex/config.toml` (existing file is backed up with a timestamp suffix before append) |
+
+The MCP server zipapp lands in `$PREFIX/tcl-lsp-mcp-server.pyz` (same
+directory as `tcl` and `f5`).  Re-running the installer is safe — the
+Claude Code registration is `remove`-then-`add`, the Codex block is
+skipped if `[mcp_servers.tcl_lsp]` is already present, and the skills
+extract overwrites only the `skills/`, `prompts/`, and `tcl-ai.pyz`
+entries it ships.
+
+### Manual MCP install
+
+If you'd rather wire things up by hand, download
+`tcl-lsp-mcp-server-<version>.pyz` from
+[GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases) and
+register it:
+
+**Claude Code**:
+
+```sh
+claude mcp add tcl-lsp -- python3 ~/.local/bin/tcl-lsp-mcp-server.pyz
+```
+
+**Codex** — add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.tcl_lsp]
+command = "python3"
+args = ["/home/you/.local/bin/tcl-lsp-mcp-server.pyz"]
+```
+
+### Manual Claude Code skills install
+
+```sh
+curl -L -o /tmp/skills.zip \
+  https://github.com/bitwisecook/tcl-lsp/releases/latest/download/tcl-lsp-claude-skills-<version>.zip
+unzip /tmp/skills.zip -d /tmp/skills
+cp -R /tmp/skills/tcl-lsp-claude-skills-*/{skills,prompts} ~/.claude/
+cp    /tmp/skills/tcl-lsp-claude-skills-*/tcl-ai.pyz ~/.claude/
+```
+
+The `SKILL.md` files inside the zip already reference
+`~/.claude/tcl-ai.pyz` and `~/.claude/prompts/` — no further wiring
+needed.
+
+---
+
 ## Updating
 
 To pick up a new release, re-run the installer (it overwrites the
@@ -313,10 +382,19 @@ Or, for a manual install, replace the file in `~/.local/bin` (or
 ## Uninstall
 
 ```sh
-rm -f ~/.local/bin/tcl ~/.local/bin/f5
+rm -f ~/.local/bin/tcl ~/.local/bin/f5 ~/.local/bin/tcl-lsp-mcp-server.pyz
 rm -f ~/.local/share/bash-completion/completions/{tcl,f5}
 rm -f "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl" "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
 rm -f ~/.config/fish/completions/{tcl,f5}.fish
+
+# Claude Code skills and MCP registration
+rm -rf ~/.claude/skills/{irule,tcl,tk}-*
+rm -f  ~/.claude/tcl-ai.pyz
+rm -rf ~/.claude/prompts
+claude mcp remove tcl-lsp 2>/dev/null || true
+
+# Codex MCP registration — edit ~/.codex/config.toml and delete the
+# [mcp_servers.tcl_lsp] block.
 ```
 
 For a system-wide install, swap the paths to `/usr/local/bin/...` and

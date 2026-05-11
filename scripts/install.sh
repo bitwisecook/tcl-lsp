@@ -1,24 +1,32 @@
 #!/usr/bin/env sh
-# tcl-lsp CLI installer for the `tcl` and `f5` zipapps.
+# tcl-lsp installer for the released `tcl` / `f5` CLIs, the MCP server,
+# and the Claude Code skills bundle.
 #
 # Detects the host OS (macOS, Debian/Ubuntu, RHEL/CentOS/Fedora, Arch),
 # checks for a usable Python 3.10+, installs dependencies through the
-# native package manager when missing, downloads the latest release
-# zipapps into a user-local bin directory, and optionally writes shell
-# completion for bash/zsh/fish.
+# native package manager when missing, prompts for an install
+# directory (scanning $PATH for writable candidates), and optionally
+# writes shell completion. If the `claude` or `codex` CLI is detected
+# (or ~/.claude / ~/.codex exists), offers to install the MCP server
+# and — for Claude Code — the skills zip from the same GitHub release.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
 #
 # Environment overrides:
-#   TCL_LSP_VERSION    - release tag to install (default: latest)
-#   TCL_LSP_PREFIX     - install dir for binaries (default: $HOME/.local/bin)
-#   TCL_LSP_REPO       - GitHub owner/repo (default: bitwisecook/tcl-lsp)
-#   TCL_LSP_ONLY       - "tcl", "f5", or "both" (default: both)
-#   TCL_LSP_NO_DEPS    - set to 1 to skip Python install
-#   TCL_LSP_NO_PATH    - set to 1 to skip PATH/rc modification
-#   TCL_LSP_NO_COMP    - set to 1 to skip shell completion
-#   TCL_LSP_ASSUME_YES - set to 1 to answer "yes" non-interactively
+#   TCL_LSP_VERSION     - release tag to install (default: latest)
+#   TCL_LSP_PREFIX      - install dir (default: prompt; non-interactive: ~/.local/bin)
+#   TCL_LSP_REPO        - GitHub owner/repo (default: bitwisecook/tcl-lsp)
+#   TCL_LSP_ONLY        - "tcl", "f5", or "both" (default: both)
+#   TCL_LSP_NO_DEPS     - set to 1 to skip Python install
+#   TCL_LSP_NO_PATH     - set to 1 to skip PATH/rc modification
+#   TCL_LSP_NO_COMP     - set to 1 to skip shell completion
+#   TCL_LSP_NO_MCP      - set to 1 to skip MCP-server install for AI clients
+#   TCL_LSP_NO_SKILLS   - set to 1 to skip Claude Code skills install
+#   TCL_LSP_NO_CLAUDE   - set to 1 to ignore Claude Code even if detected
+#   TCL_LSP_NO_CODEX    - set to 1 to ignore Codex even if detected
+#   TCL_LSP_ASSUME_YES  - set to 1 to answer "yes" non-interactively
+#   TCL_LSP_ASSUME_NO   - set to 1 to answer "no" non-interactively
 
 set -eu
 
@@ -246,22 +254,33 @@ resolve_latest_tag() {
     esac
 }
 
+RESOLVED_TAG=""
+ensure_tag() {
+    # Lazy + memoised. Sets RESOLVED_TAG and VER_NO_V.
+    if [ -n "$RESOLVED_TAG" ]; then return; fi
+    if [ "$VERSION" = "latest" ]; then
+        RESOLVED_TAG="$(resolve_latest_tag)" \
+            || die "could not resolve latest release tag from https://github.com/$REPO/releases/latest. Set TCL_LSP_VERSION=vX.Y.Z to bypass."
+    else
+        RESOLVED_TAG="$VERSION"
+    fi
+    VER_NO_V="${RESOLVED_TAG#v}"
+}
+
+asset_url() {
+    # asset_url ASSET_NAME
+    ensure_tag
+    printf 'https://github.com/%s/releases/download/%s/%s\n' \
+        "$REPO" "$RESOLVED_TAG" "$1"
+}
+
 install_cli() {
     # install_cli NAME (one of "tcl" or "f5")
     name="$1"
-
-    if [ "$VERSION" = "latest" ]; then
-        resolved_tag="$(resolve_latest_tag)" \
-            || die "could not resolve latest release tag from https://github.com/$REPO/releases/latest. Set TCL_LSP_VERSION=vX.Y.Z to bypass."
-        ver_no_v="${resolved_tag#v}"
-    else
-        resolved_tag="$VERSION"
-        ver_no_v="${VERSION#v}"
-    fi
-
-    asset="${name}-${ver_no_v}.pyz"
-    url="https://github.com/$REPO/releases/download/${resolved_tag}/${asset}"
-    log "resolved $name -> $asset (tag $resolved_tag)"
+    ensure_tag
+    asset="${name}-${VER_NO_V}.pyz"
+    url="$(asset_url "$asset")"
+    log "resolved $name -> $asset (tag $RESOLVED_TAG)"
 
     # BSD/macOS mktemp requires the X-template at the end of the name.
     tmpfile="$(mktemp "${TMPDIR:-/tmp}/${name}-install.XXXXXX")"
@@ -474,6 +493,152 @@ install_completion() {
     esac
 }
 
+have_claude_cli() { have claude; }
+have_codex_cli()  { have codex; }
+has_claude_dir()  { [ -d "$HOME/.claude" ]; }
+has_codex_dir()   { [ -d "$HOME/.codex" ]; }
+
+detect_ai_clients() {
+    HAS_CLAUDE=0
+    HAS_CODEX=0
+    if [ "${TCL_LSP_NO_CLAUDE:-0}" != "1" ]; then
+        if have_claude_cli || has_claude_dir; then HAS_CLAUDE=1; fi
+    fi
+    if [ "${TCL_LSP_NO_CODEX:-0}" != "1" ]; then
+        if have_codex_cli || has_codex_dir; then HAS_CODEX=1; fi
+    fi
+    if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
+        msg=""
+        [ "$HAS_CLAUDE" = "1" ] && msg="${msg}Claude Code "
+        [ "$HAS_CODEX"  = "1" ] && msg="${msg}Codex "
+        log "detected AI client(s): ${msg}"
+    fi
+}
+
+ensure_unzip() {
+    if have unzip; then return 0; fi
+    case "$OS" in
+        macos)  warn "unzip missing on macOS — install Xcode Command Line Tools"; return 1 ;;
+        debian) run_root apt-get install -y unzip ;;
+        rhel|fedora)
+            if have dnf; then run_root dnf install -y unzip
+            else run_root yum install -y unzip; fi ;;
+        arch)   run_root pacman -Sy --noconfirm unzip ;;
+        alpine) run_root apk add --no-cache unzip ;;
+        *) warn "unzip not found and cannot auto-install"; return 1 ;;
+    esac
+    have unzip
+}
+
+MCP_PATH=""
+install_mcp_zipapp() {
+    # Download tcl-lsp-mcp-server-<ver>.pyz to $PREFIX. Idempotent —
+    # safe to call once even when both Claude Code and Codex want it.
+    if [ -n "$MCP_PATH" ] && [ -x "$MCP_PATH" ]; then return 0; fi
+    ensure_tag
+    asset="tcl-lsp-mcp-server-${VER_NO_V}.pyz"
+    url="$(asset_url "$asset")"
+    log "downloading $asset"
+    tmpfile="$(mktemp "${TMPDIR:-/tmp}/mcp-install.XXXXXX")"
+    download "$url" "$tmpfile"
+    MCP_PATH="$PREFIX/tcl-lsp-mcp-server.pyz"
+    write_target "$tmpfile" "$MCP_PATH"
+    log "installed MCP server -> $MCP_PATH"
+}
+
+register_mcp_claude() {
+    # Use `claude mcp add` when the CLI is on PATH (idempotent: remove
+    # any prior registration first, then add fresh). Otherwise instruct
+    # the user — we don't auto-mutate ~/.claude.json (its schema can
+    # change between Claude Code versions).
+    if ! have_claude_cli; then
+        warn "claude CLI not on PATH — add the MCP server manually:"
+        warn "  claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
+        return
+    fi
+    # `claude mcp remove` exits non-zero when the server is absent; ignore.
+    claude mcp remove tcl-lsp >/dev/null 2>&1 || true
+    if claude mcp add tcl-lsp -- "$PYTHON" "$MCP_PATH" >/dev/null 2>&1; then
+        log "registered MCP server with Claude Code (tcl-lsp)"
+    else
+        warn "claude mcp add failed — register manually:"
+        warn "  claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
+    fi
+}
+
+register_mcp_codex() {
+    # Codex CLI reads ~/.codex/config.toml; append an [mcp_servers.tcl_lsp]
+    # block, with a one-time backup of the existing file. Skip if a
+    # block of the same name already exists.
+    cfg="$HOME/.codex/config.toml"
+    mkdir -p "$HOME/.codex"
+    touch "$cfg"
+    if grep -q '^\[mcp_servers\.tcl_lsp\]' "$cfg" 2>/dev/null; then
+        log "Codex already has [mcp_servers.tcl_lsp] in $cfg — leaving as-is"
+        return
+    fi
+    cp "$cfg" "${cfg}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+    {
+        printf '\n[mcp_servers.tcl_lsp]\n'
+        printf 'command = "%s"\n' "$PYTHON"
+        printf 'args = ["%s"]\n'  "$MCP_PATH"
+    } >> "$cfg"
+    log "registered MCP server with Codex in $cfg"
+}
+
+install_claude_skills() {
+    # Download tcl-lsp-claude-skills-<ver>.zip and extract into ~/.claude/.
+    # The zip ships skills/, prompts/, and tcl-ai.pyz — the SKILL.md files
+    # already reference ~/.claude/tcl-ai.pyz and ~/.claude/prompts/.
+    ensure_unzip || { warn "unzip unavailable — skipping skills install"; return 1; }
+    ensure_tag
+    asset="tcl-lsp-claude-skills-${VER_NO_V}.zip"
+    url="$(asset_url "$asset")"
+    log "downloading $asset"
+    tmpzip="$(mktemp "${TMPDIR:-/tmp}/claude-skills-install.XXXXXX")"
+    download "$url" "$tmpzip"
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/claude-skills-extract.XXXXXX")"
+    unzip -q -o "$tmpzip" -d "$tmpdir"
+    rm -f "$tmpzip"
+    # The archive's top-level directory is tcl-lsp-claude-skills-<ver>/.
+    inner="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [ -z "$inner" ]; then
+        warn "could not locate extracted skill payload in $tmpdir"
+        rm -rf "$tmpdir"
+        return 1
+    fi
+    mkdir -p "$HOME/.claude"
+    # Merge skills/, prompts/, and the tcl-ai.pyz; existing entries are
+    # overwritten (this is an update path) but unrelated entries in
+    # ~/.claude are untouched.
+    [ -d "$inner/skills" ]  && cp -R "$inner/skills"  "$HOME/.claude/"
+    [ -d "$inner/prompts" ] && cp -R "$inner/prompts" "$HOME/.claude/"
+    [ -f "$inner/tcl-ai.pyz" ] && cp "$inner/tcl-ai.pyz" "$HOME/.claude/tcl-ai.pyz"
+    chmod 0755 "$HOME/.claude/tcl-ai.pyz" 2>/dev/null || true
+    rm -rf "$tmpdir"
+    n="$(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
+    log "installed Claude Code skills -> $HOME/.claude/skills/ ($n skills)"
+}
+
+install_ai_integrations() {
+    detect_ai_clients
+    if [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then return; fi
+    if [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" = "1" ]; then
+        return
+    fi
+
+    if [ "${TCL_LSP_NO_MCP:-0}" != "1" ] && ask "Install the tcl-lsp MCP server for detected AI client(s)? [Y/n]"; then
+        install_mcp_zipapp
+        [ "$HAS_CLAUDE" = "1" ] && register_mcp_claude
+        [ "$HAS_CODEX"  = "1" ] && register_mcp_codex
+    fi
+
+    if [ "$HAS_CLAUDE" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] \
+       && ask "Install Claude Code skills (irule-*, tcl-*, tk-*) into ~/.claude/? [Y/n]"; then
+        install_claude_skills
+    fi
+}
+
 main() {
     detect_os
     detect_shell
@@ -500,6 +665,8 @@ main() {
         f5)   install_completion f5 ;;
         both) install_completion tcl; install_completion f5 ;;
     esac
+
+    install_ai_integrations
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if ! path_contains "$PREFIX"; then
