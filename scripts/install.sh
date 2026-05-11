@@ -414,20 +414,36 @@ prefix_for() {
 # ---------------------------------------------------------------------
 
 read_os_release_safe() {
-    # Refuse to read /etc/os-release unless it is owned by uid 0 and not
-    # world-writable. Returns 0 and sets $ID / $ID_LIKE on success.
+    # Refuse to read /etc/os-release unless it is owned by uid 0 and
+    # not world-writable. Returns 0 and sets $ID / $ID_LIKE on success.
     #
-    # We extract individual fields with awk rather than dot-sourcing the
-    # whole file. The earlier sourced version clobbered our top-level
+    # We don't dot-source the file because every variable in
+    # /etc/os-release would land in our namespace; the awk path is
+    # surgical. (The original sourced version clobbered our top-level
     # VERSION="latest" with Ubuntu's VERSION="26.04 (Resolute Raccoon)",
-    # which then leaked into the asset URL — and any future os-release
-    # field that happened to share a name with one of our globals would
-    # break in the same silent way.
+    # which then leaked into the asset URL.)
+    #
+    # TOCTOU analysis — there are two windows between this find and the
+    # two awk reads. Both are unexploitable in practice:
+    #
+    #   - `find -L` confirms uid=0 + !world-writable on the *resolved*
+    #     file (symlinks followed). If the check passes, an
+    #     unprivileged attacker cannot write to the file, so cannot
+    #     swap its contents inside the window.
+    #   - If /etc/os-release is a symlink and an attacker controls the
+    #     *symlink*, they'd need write access to /etc/ — i.e. they
+    #     already have root, outside our threat model.
+    #   - A concurrent package-manager update uses atomic rename. Our
+    #     awk reads either the old inode (already validated) or the
+    #     new inode (root-owned post-rename); either way: trusted.
+    #   - Even if malicious content did sneak in, $ID / $ID_LIKE are
+    #     only ever consumed by a `case "${ID}:${ID_LIKE}" in …` block
+    #     with hard-coded glob patterns. No shell-evaluation context —
+    #     injection has no foothold and $OS only ever ends up as one
+    #     of our fixed labels (macos/debian/fedora/rhel/arch/alpine
+    #     /linux).
     f=/etc/os-release
     [ -e "$f" ] || return 1
-    # `find -L` follows symlinks before checking metadata, so a
-    # root-owned symlink targeting a world-writable file is rejected.
-    # `! -perm -002` matches files without the world-write bit.
     safe="$(find -L "$f" -maxdepth 0 -uid 0 ! -perm -002 -print 2>/dev/null)"
     if [ -z "$safe" ]; then
         die "$f is not root-owned or is world-writable — refusing to read it.
