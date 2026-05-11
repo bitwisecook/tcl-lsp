@@ -110,12 +110,69 @@ die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
 # ---------------------------------------------------------------------
 
 UI=text
+
+# Can we read user input? `curl | sh` makes our stdin a pipe, but the
+# user typically still has a controlling terminal at /dev/tty. We probe
+# once and route every prompt accordingly.
+TTY_IN=""       # empty | "stdin" | "/dev/tty" | "none"
+TTY_OUT=""      # empty | "stderr" | "/dev/tty" | "none"
+detect_tty() {
+    if [ -t 0 ]; then
+        TTY_IN=stdin
+    elif (exec 3</dev/tty) 2>/dev/null; then
+        # `[ -r /dev/tty ]` passes for device nodes that fail at open
+        # time (e.g. sandboxed containers, systemd services with
+        # TTYPath unset). Probe an actual open to be sure.
+        TTY_IN=/dev/tty
+    else
+        TTY_IN=none
+    fi
+    if [ -t 2 ]; then
+        TTY_OUT=stderr
+    elif (exec 3>/dev/tty) 2>/dev/null; then
+        TTY_OUT=/dev/tty
+    else
+        TTY_OUT=none
+    fi
+}
+
+# Tri-state probe: TTY_IN/TTY_OUT must both be non-"none" for us to
+# interact. Lazily initialised — anything that prompts calls
+# tty_available first.
+TTY_PROBED=0
+tty_available() {
+    [ "$TTY_PROBED" = 1 ] || { detect_tty; TTY_PROBED=1; }
+    [ "$TTY_IN" != none ] && [ "$TTY_OUT" != none ]
+}
+
+# print_prompt MESSAGE — write to the user's terminal, falling through
+# to /dev/tty when stderr is captured.
+print_prompt() {
+    tty_available || return 1
+    if [ "$TTY_OUT" = stderr ]; then
+        printf '%s ' "$1" >&2
+    else
+        printf '%s ' "$1" >/dev/tty
+    fi
+}
+
+# read_user_line — read one line of input into $reply, sourced from
+# stdin when interactive or /dev/tty when piped.
+read_user_line() {
+    tty_available || return 1
+    if [ "$TTY_IN" = stdin ]; then
+        IFS= read -r reply
+    else
+        IFS= read -r reply </dev/tty
+    fi
+}
+
 ensure_ui() {
-    # Probe whiptail/dialog and only enable when we have a real TTY.
-    # Set TCL_LSP_NO_TUI=1 to force the text path. Always returns 0 —
-    # the absence of a TTY is a normal mode, not an error.
+    # Probe whiptail/dialog when we have any path to the user's terminal
+    # (real stdin TTY or accessible /dev/tty). Set TCL_LSP_NO_TUI=1 to
+    # force the text path. Always returns 0 — no-TTY is a normal mode.
     [ "${TCL_LSP_NO_TUI:-0}" = "1" ] && return 0
-    if [ ! -t 0 ] || [ ! -t 1 ]; then return 0; fi
+    tty_available || return 0
     if command -v whiptail >/dev/null 2>&1; then UI=whiptail
     elif command -v dialog >/dev/null 2>&1; then UI=dialog
     fi
@@ -124,15 +181,28 @@ ensure_ui() {
 
 TUI_TITLE='tcl-lsp installer'
 
+# tui_run ARGS — invoke whiptail/dialog with stdin redirected from
+# /dev/tty when our stdin is piped. whiptail/dialog need a TTY for the
+# curses UI; under `curl | sh` stdin is the pipe but /dev/tty still
+# reaches the user's terminal.
+tui_run() {
+    if [ "$TTY_IN" = stdin ]; then
+        "$UI" --title "$TUI_TITLE" "$@"
+    else
+        "$UI" --title "$TUI_TITLE" "$@" </dev/tty
+    fi
+}
+
 tui_yesno() {
     # tui_yesno "prompt" — 0 = yes, 1 = no. Default highlight is "Yes".
+    tty_available || return 1
     case "$UI" in
         whiptail|dialog)
-            "$UI" --title "$TUI_TITLE" --yesno "$1" 10 70
+            tui_run --yesno "$1" 10 70
             ;;
         *)
-            printf '%s [Y/n] ' "$1"
-            read -r reply || return 1
+            print_prompt "$1 [Y/n]"
+            read_user_line || return 1
             case "$reply" in
                 ''|y|Y|yes|YES|Yes) return 0 ;;
                 *) return 1 ;;
@@ -144,30 +214,29 @@ tui_yesno() {
 tui_menu() {
     # tui_menu "prompt" tag1 desc1 tag2 desc2 ...   (must come in pairs)
     # Prints the chosen tag to stdout; non-zero on cancel.
+    tty_available || return 1
     prompt="$1"; shift
     case "$UI" in
         whiptail|dialog)
-            # Count tag/desc pairs to size the menu list.
             count=$(($# / 2))
-            "$UI" --title "$TUI_TITLE" --menu "$prompt" \
-                  $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
+            tui_run --menu "$prompt" $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
             ;;
         *)
-            printf '\n%s\n' "$prompt"
+            print_prompt "$(printf '\n%s\n' "$prompt")"
             i=0
             while [ $# -gt 0 ]; do
                 i=$((i + 1))
                 tag="$1"; desc="$2"; shift 2
                 eval "tag_$i=\"\$tag\""
-                printf '  %d) %-32s %s\n' "$i" "$tag" "$desc"
+                print_prompt "$(printf '  %d) %-32s %s\n' "$i" "$tag" "$desc")"
             done
-            printf 'Selection [1]: '
-            read -r ans || ans=1
-            : "${ans:=1}"
-            case "$ans" in
-                ''|*[!0-9]*) return 1 ;;
+            print_prompt 'Selection [1]:'
+            read_user_line || reply=1
+            : "${reply:=1}"
+            case "$reply" in
+                *[!0-9]*) return 1 ;;
             esac
-            eval "echo \"\${tag_$ans:-}\""
+            eval "echo \"\${tag_$reply:-}\""
             ;;
     esac
 }
@@ -175,31 +244,29 @@ tui_menu() {
 tui_checklist() {
     # tui_checklist "prompt" tag1 desc1 on/off  tag2 desc2 on/off  ...
     # Prints one tag per line for the boxes the user ticked.
+    tty_available || return 1
     prompt="$1"; shift
     case "$UI" in
         whiptail|dialog)
             count=$(($# / 3))
-            "$UI" --title "$TUI_TITLE" --separate-output \
-                  --checklist "$prompt" \
-                  $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
+            tui_run --separate-output --checklist "$prompt" \
+                $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
             ;;
         *)
-            # Text fallback: echo every "on" tag, then offer the user a
-            # comma-separated edit. Keeps the flow simple in plain shells.
             defaults=""
             args=""
             while [ $# -gt 0 ]; do
                 tag="$1"; desc="$2"; state="$3"; shift 3
-                args="${args}${tag}|${desc}\n"
+                args="${args}${tag}|${desc}
+"
                 [ "$state" = ON ] && defaults="${defaults}${defaults:+,}${tag}"
             done
-            printf '\n%s\n' "$prompt"
-            printf '%b' "$args" | awk -F'|' '{ printf "  %-24s %s\n", $1, $2 }'
-            printf 'Enable [%s]: ' "$defaults"
-            read -r ans || ans=""
-            : "${ans:=$defaults}"
-            # Normalise "tcl, f5" → "tcl\nf5"
-            printf '%s\n' "$ans" | tr ',' '\n' | sed 's/^ *//; s/ *$//; /^$/d'
+            print_prompt "$(printf '\n%s\n' "$prompt")"
+            print_prompt "$(printf '%s' "$args" | awk -F'|' '{ printf "  %-24s %s\n", $1, $2 }')"
+            print_prompt "Enable [$defaults]:"
+            read_user_line || reply=""
+            : "${reply:=$defaults}"
+            printf '%s\n' "$reply" | tr ',' '\n' | sed 's/^ *//; s/ *$//; /^$/d'
             ;;
     esac
 }
@@ -242,37 +309,40 @@ fi
 # ---------------------------------------------------------------------
 
 ask() {
-    # Opt-in prompt: 0 = yes, 1 = no. Default-no when piped so we don't
-    # silently mutate rc files. Routes through tui_yesno when whiptail
-    # or dialog is available.
+    # Opt-in prompt: 0 = yes, 1 = no. Default-no when we can't reach the
+    # user (no stdin TTY AND no /dev/tty) so we don't silently mutate
+    # rc files in headless contexts.
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
-    if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ] || [ ! -t 0 ]; then return 1; fi
+    if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ]; then return 1; fi
+    tty_available || return 1
     tui_yesno "$1"
 }
 
 ask_optout() {
-    # Like ask() but defaults yes when piped — for prompts where the
-    # action is presumed-on because some upstream signal (detected AI
+    # Like ask() but defaults yes when truly headless — opt-out prompts
+    # presume the action because some upstream signal (detected AI
     # client, existing rc entry) was the actual opt-in.
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
-    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ ! -t 0 ]; then return 0; fi
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
+    tty_available || return 0
     tui_yesno "$1"
 }
 
 ask_default_no() {
-    # Strict default-NO prompt — empty input, piped stdin, and dialog
+    # Strict default-NO prompt — empty input, headless run, and dialog
     # cancel all count as "no". Used for privilege escalation and any
     # other destructive choice the user must explicitly opt into.
-    # TCL_LSP_ASSUME_YES overrides the piped-stdin default.
+    # TCL_LSP_ASSUME_YES overrides the headless default.
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
-    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ] || [ ! -t 0 ]; then return 1; fi
+    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
+    tty_available || return 1
     case "$UI" in
         whiptail|dialog)
-            "$UI" --title "$TUI_TITLE" --defaultno --yesno "$1" 10 70
+            tui_run --defaultno --yesno "$1" 10 70
             ;;
         *)
-            printf '%s ' "$1"
-            read -r reply || return 1
+            print_prompt "$1"
+            read_user_line || return 1
             case "$reply" in
                 y|Y|yes|YES|Yes) return 0 ;;
                 *) return 1 ;;
@@ -344,8 +414,15 @@ prefix_for() {
 # ---------------------------------------------------------------------
 
 read_os_release_safe() {
-    # Refuse to source /etc/os-release unless it is owned by uid 0 and
-    # not world-writable. Returns 0 if the file was sourced.
+    # Refuse to read /etc/os-release unless it is owned by uid 0 and not
+    # world-writable. Returns 0 and sets $ID / $ID_LIKE on success.
+    #
+    # We extract individual fields with awk rather than dot-sourcing the
+    # whole file. The earlier sourced version clobbered our top-level
+    # VERSION="latest" with Ubuntu's VERSION="26.04 (Resolute Raccoon)",
+    # which then leaked into the asset URL — and any future os-release
+    # field that happened to share a name with one of our globals would
+    # break in the same silent way.
     f=/etc/os-release
     [ -e "$f" ] || return 1
     # `find -L` follows symlinks before checking metadata, so a
@@ -353,11 +430,12 @@ read_os_release_safe() {
     # `! -perm -002` matches files without the world-write bit.
     safe="$(find -L "$f" -maxdepth 0 -uid 0 ! -perm -002 -print 2>/dev/null)"
     if [ -z "$safe" ]; then
-        die "$f is not root-owned or is world-writable — refusing to source it.
+        die "$f is not root-owned or is world-writable — refusing to read it.
 Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detection."
     fi
-    # shellcheck disable=SC1090,SC1091
-    . "$f"
+    ID="$(awk -F= '$1 == "ID"      { gsub(/^"|"$/, "", $2); print $2; exit }' "$f")"
+    ID_LIKE="$(awk -F= '$1 == "ID_LIKE" { gsub(/^"|"$/, "", $2); print $2; exit }' "$f")"
+    return 0
 }
 
 detect_os() {
@@ -1070,7 +1148,7 @@ choose_clis() {
         log "CLIs (TCL_LSP_ONLY): $ONLY"
         return
     fi
-    if [ ! -t 0 ] || [ ! -t 1 ]; then
+    if ! tty_available; then
         log "CLIs (default): $ONLY"
         return
     fi
@@ -1085,7 +1163,6 @@ choose_clis() {
                 tcl "Unified Tcl tools (format, lint, opt, ...)" ON \
                 f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" ON \
                 )" || die "aborted at CLI selection"
-            # tui_checklist emits one tag per line.
             has_tcl=0; has_f5=0
             for t in $sel; do
                 case "$t" in tcl) has_tcl=1 ;; f5) has_f5=1 ;; esac
@@ -1097,9 +1174,9 @@ choose_clis() {
             fi
             ;;
         *)
-            printf '\nWhich CLIs to install? [both/tcl/f5] (default: both): '
-            read -r ans || ans=""
-            : "${ans:=both}"
+            print_prompt "$(printf '\nWhich CLIs to install? [both/tcl/f5] (default: both):')"
+            read_user_line || reply=""
+            ans="${reply:-both}"
             case "$ans" in
                 both|b) ONLY=both ;;
                 tcl|t)  ONLY=tcl ;;
@@ -1338,7 +1415,7 @@ detect_conflicts() {
         log "applying TCL_LSP_SUFFIX: binaries will install as <name>${INSTALL_SUFFIX}"
         return
     fi
-    if [ ! -t 0 ] || [ ! -t 1 ]; then
+    if ! tty_available; then
         warn "(set TCL_LSP_SUFFIX=-lsp to install as <name>-lsp and avoid the shadow)"
         return
     fi
@@ -1352,9 +1429,9 @@ detect_conflicts() {
                 || die "aborted: naming conflict not resolved"
             ;;
         *)
-            printf '\nHow to proceed? [keep / rename / abort] (default: keep): '
-            read -r sel || sel=keep
-            : "${sel:=keep}"
+            print_prompt "$(printf '\nHow to proceed? [keep / rename / abort] (default: keep):')"
+            read_user_line || reply=keep
+            sel="${reply:-keep}"
             ;;
     esac
     case "$sel" in
@@ -1378,7 +1455,7 @@ choose_prefix() {
         fi
         return
     fi
-    if [ ! -t 0 ] || [ ! -t 1 ]; then
+    if ! tty_available; then
         log "install location (default): $PREFIX"
         return
     fi
@@ -1391,8 +1468,6 @@ choose_prefix() {
 
     case "$UI" in
         whiptail|dialog)
-            # Build the tag/desc argv: each candidate gets one entry,
-            # plus a final "Other" entry that prompts for a free-form path.
             set --
             OLD_IFS="$IFS"; IFS='
 '
@@ -1405,9 +1480,7 @@ choose_prefix() {
             chosen="$(tui_menu "Choose install location" "$@")" \
                 || { log "install location: $PREFIX"; return; }
             if [ "$chosen" = "Other" ]; then
-                # whiptail/dialog inputbox: same redirect dance as menu.
-                custom="$("$UI" --title "$TUI_TITLE" --inputbox \
-                    "Path:" 8 70 "$PREFIX" 3>&1 1>&2 2>&3)" \
+                custom="$(tui_run --inputbox "Path:" 8 70 "$PREFIX" 3>&1 1>&2 2>&3)" \
                     || { log "install location: $PREFIX"; return; }
                 [ -n "$custom" ] && set_prefix "$custom"
             else
@@ -1415,7 +1488,7 @@ choose_prefix() {
             fi
             ;;
         *)
-            printf '\n%sChoose install location:%s\n' "$BOLD" "$RESET"
+            print_prompt "$(printf '\n%sChoose install location:%s' "$BOLD" "$RESET")"
             i=0
             OLD_IFS="$IFS"; IFS='
 '
@@ -1424,13 +1497,14 @@ choose_prefix() {
                 annot="$(annotate_candidate "$c")"
                 marker=" "
                 [ "$c" = "$PREFIX" ] && marker="*"
-                printf '  %s %d) %-32s %s\n' "$marker" "$i" "$c" "$annot"
+                print_prompt "$(printf '  %s %d) %-32s %s' "$marker" "$i" "$c" "$annot")"
             done
             IFS="$OLD_IFS"
             other_idx=$((i + 1))
-            printf '    %d) Other (enter a path)\n' "$other_idx"
-            printf '\nSelection [%s]: ' "$PREFIX"
-            read -r ans || ans=""
+            print_prompt "$(printf '    %d) Other (enter a path)' "$other_idx")"
+            print_prompt "$(printf '\nSelection [%s]:' "$PREFIX")"
+            read_user_line || reply=""
+            ans="$reply"
 
             if [ -z "$ans" ]; then
                 log "install location: $PREFIX"
@@ -1442,8 +1516,9 @@ choose_prefix() {
                     ;;
                 *)
                     if [ "$ans" = "$other_idx" ]; then
-                        printf 'Path: '
-                        read -r custom
+                        print_prompt 'Path:'
+                        read_user_line || reply=""
+                        custom="$reply"
                         if [ -n "$custom" ]; then set_prefix "$custom"; fi
                     else
                         i=0
@@ -1578,7 +1653,7 @@ install_completion() {
         return
     fi
     if ! ask "Install $name shell completion for $SHELL_NAME? [Y/n]"; then
-        if [ ! -t 0 ] && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
+        if ! tty_available && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
             log "skipped $name completion (non-interactive). Install later with:"
             log "  $name completion $SHELL_NAME  # see INSTALL-cli.md for paths"
         fi
@@ -1615,7 +1690,7 @@ comp_install() {
     # comp_install BIN OUT_PATH SHELL — write completion script, prompting
     # before overwrite when run interactively.
     cbin="$1"; cout="$2"; cshell="$3"
-    if [ -e "$cout" ] && [ -t 0 ] && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
+    if [ -e "$cout" ] && tty_available && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
         if ! ask "$cout already exists — overwrite? [Y/n]"; then
             log "kept existing $cout"
             return
