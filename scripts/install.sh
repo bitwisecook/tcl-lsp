@@ -1033,7 +1033,14 @@ asset_url() {
 WORKDIR=""
 init_workdir() {
     WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/tcl-lsp-install.XXXXXX")"
-    trap 'rm -rf -- "$WORKDIR"' EXIT INT TERM HUP
+    # Cleanup runs unconditionally on exit. Signals additionally `exit`
+    # — without this, the INT/TERM/HUP traps would run the cleanup and
+    # then return control to where the script was, so Ctrl+C just
+    # cleaned the workdir without stopping the install.
+    trap 'rm -rf -- "$WORKDIR"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
 }
 
 SUMS_PATH=""
