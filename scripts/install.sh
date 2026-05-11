@@ -418,13 +418,18 @@ read_os_release_safe() {
     # not world-writable. Returns 0 and sets $ID / $ID_LIKE on success.
     #
     # We don't dot-source the file because every variable in
-    # /etc/os-release would land in our namespace; the awk path is
-    # surgical. (The original sourced version clobbered our top-level
-    # VERSION="latest" with Ubuntu's VERSION="26.04 (Resolute Raccoon)",
-    # which then leaked into the asset URL.)
+    # /etc/os-release would land in our namespace. (The original sourced
+    # version clobbered our top-level VERSION="latest" with Ubuntu's
+    # VERSION="26.04 (Resolute Raccoon)", which then leaked into the
+    # asset URL.)
     #
-    # TOCTOU analysis — there are two windows between this find and the
-    # two awk reads. Both are unexploitable in practice:
+    # We parse with pure-shell `read` rather than awk / grep / sed:
+    # one open via the redirect, no external tool to mis-parse, the
+    # value is only ever assigned to a variable so neither command
+    # substitution nor parameter expansion fire on its contents.
+    #
+    # TOCTOU analysis — the single window between find and the
+    # redirect-open is unexploitable in practice:
     #
     #   - `find -L` confirms uid=0 + !world-writable on the *resolved*
     #     file (symlinks followed). If the check passes, an
@@ -449,8 +454,28 @@ read_os_release_safe() {
         die "$f is not root-owned or is world-writable — refusing to read it.
 Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detection."
     fi
-    ID="$(awk -F= '$1 == "ID"      { gsub(/^"|"$/, "", $2); print $2; exit }' "$f")"
-    ID_LIKE="$(awk -F= '$1 == "ID_LIKE" { gsub(/^"|"$/, "", $2); print $2; exit }' "$f")"
+    # Pure-shell parse — one open via the redirect, no external tool.
+    # `read -r` disables backslash line-continuation; IFS='=' splits on
+    # the first `=` so the value is preserved verbatim. The value never
+    # leaves variable assignment, so neither command substitution nor
+    # parameter expansion fire on its contents.
+    ID=""
+    ID_LIKE=""
+    while IFS='=' read -r _osr_key _osr_val; do
+        case "$_osr_key" in
+            ID|ID_LIKE) : ;;
+            *) continue ;;
+        esac
+        # Strip a single pair of surrounding double quotes if present.
+        case "$_osr_val" in
+            \"*\") _osr_val="${_osr_val#\"}"; _osr_val="${_osr_val%\"}" ;;
+        esac
+        case "$_osr_key" in
+            ID)      ID="$_osr_val" ;;
+            ID_LIKE) ID_LIKE="$_osr_val" ;;
+        esac
+    done <"$f"
+    unset _osr_key _osr_val
     return 0
 }
 
