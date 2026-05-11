@@ -104,6 +104,44 @@ picker.  Saying no falls back to the normal picker.  If a file is on
 `PATH` but doesn't look like one of our zipapps the installer warns and
 runs the picker — it never overwrites unrelated binaries.
 
+### Naming conflicts
+
+After the install location is locked in, the installer scans `$PATH`
+and your shell rc file again to surface conflicts that would shadow
+the new binary:
+
+- another `tcl` / `f5` earlier on `$PATH` (whether it's a prior
+  tcl-lsp install at a different location or an unrelated tool);
+- a shell `alias` / `abbr` in `$HOME/.{bashrc,bash_profile,zshrc,profile}`
+  or `$XDG_CONFIG_HOME/fish/config.fish` that would intercept the name.
+
+When either is found you get three options:
+
+| Choice | Effect |
+|--------|--------|
+| `keep`   | Install with the original name.  The existing shadow stays in place — you'll need to fix it (remove the alias, reorder `$PATH`) to actually use the new binary. |
+| `rename` | Install our binaries with a `-lsp` suffix (`tcl-lsp`, `f5-lsp`).  Shell completion is skipped because the bundled completion script registers handlers for the original name. |
+| `abort`  | Cancel the install. |
+
+For non-interactive runs (`curl … | sh`), set `TCL_LSP_SUFFIX=-lsp` to
+pick "rename" up front.  Otherwise the conflict warning is printed and
+the install proceeds with the original name.
+
+### Overwriting an existing file at the install location
+
+When the target path (e.g. `~/.local/bin/tcl`) already exists and
+*doesn't* look like one of our zipapps, the installer refuses to
+clobber it without confirmation:
+
+```
+warn: ~/.local/bin/tcl already exists and is not a tcl-lsp zipapp
+warn: (no Python shebang or ZIP signature in first 2KB)
+Overwrite ~/.local/bin/tcl anyway? [y/N]
+```
+
+The prompt defaults to **no** — declining aborts the install with a
+hint to remove the file or choose a different `TCL_LSP_PREFIX`.
+
 The asymmetry is deliberate: rc-file and completion-directory
 mutation get an explicit yes from the user, while the AI integrations
 that only kick in when a client is already present are opt-out (a
@@ -140,6 +178,7 @@ curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/insta
 | `TCL_LSP_NO_VERIFY`      | unset | Skip the SHA256SUMS verification step entirely. |
 | `TCL_LSP_REQUIRE_VERIFY` | unset | Fail the install if the release has no `SHA256SUMS` file. Default behaviour is to warn and continue. |
 | `TCL_LSP_NO_TUI` | unset | Force plain-text prompts even when `whiptail` or `dialog` is on PATH. |
+| `TCL_LSP_SUFFIX` | unset  | Suffix to append to installed binary names (e.g. `-lsp` → `tcl-lsp`, `f5-lsp`). Used to avoid clashing with an existing `tcl` / `f5` on PATH. |
 
 Example — install only `f5`, system-wide, fully automated:
 

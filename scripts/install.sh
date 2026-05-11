@@ -42,6 +42,7 @@
 #   TCL_LSP_ASSUME_YES      - 1 to answer "yes" non-interactively
 #   TCL_LSP_ASSUME_NO       - 1 to answer "no" non-interactively
 #   TCL_LSP_NO_TUI          - 1 to force text prompts even when whiptail/dialog is present
+#   TCL_LSP_SUFFIX          - suffix for installed binaries (e.g. "-lsp"; default: empty)
 
 set -eu
 # Defence-in-depth: a poisoned IFS in the caller's env can split values
@@ -856,6 +857,97 @@ propose_update_install() {
     fi
 }
 
+# ---------------------------------------------------------------------
+# Detect PATH conflicts and offer to rename our install
+# ---------------------------------------------------------------------
+
+# Suffix applied to our binaries (e.g. "-lsp"). Set by detect_conflicts
+# when the user picks "rename" or via the TCL_LSP_SUFFIX env override.
+INSTALL_SUFFIX="${TCL_LSP_SUFFIX:-}"
+
+alias_in_rc() {
+    # Cheap, best-effort grep for an alias/abbr that would shadow $1.
+    # Catches the common forms; doesn't follow source/sourced rc fragments.
+    n="$1"
+    for rc in "$RC" "$HOME/.profile" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"; do
+        [ -f "$rc" ] || continue
+        if grep -qE "^[[:space:]]*(alias[[:space:]]+|abbr([[:space:]]+--add)?[[:space:]]+)${n}[[:space:]=]" "$rc" 2>/dev/null; then
+            printf '%s\n' "$rc"
+            return 0
+        fi
+    done
+    return 1
+}
+
+detect_conflicts() {
+    # For each CLI we're about to install, check whether something on
+    # PATH (or an alias) will shadow it once we drop our binary in
+    # $PREFIX. Offer the user three options: keep the name, rename to
+    # <name>-lsp, or abort. Skipped during update-in-place (the existing
+    # layout is already what the user wants).
+    [ "${PREFIX_FROM_UPDATE:-0}" = "1" ] && return
+
+    case "$ONLY" in
+        tcl)  names="tcl" ;;
+        f5)   names="f5" ;;
+        both) names="tcl f5" ;;
+        *)    return ;;
+    esac
+
+    conflicts=0
+    for n in $names; do
+        if other="$(find_on_path "$n")" && [ "$other" != "$PREFIX/$n" ]; then
+            if looks_like_our_zipapp "$other"; then
+                warn "another tcl-lsp '$n' is already at $other (will shadow $PREFIX/$n)"
+            else
+                warn "an unrelated '$n' exists at $other (will shadow $PREFIX/$n)"
+            fi
+            conflicts=$((conflicts + 1))
+        fi
+        if rc_with_alias="$(alias_in_rc "$n")"; then
+            warn "shell alias for '$n' in $rc_with_alias may shadow our install"
+            conflicts=$((conflicts + 1))
+        fi
+    done
+    [ "$conflicts" = 0 ] && return
+
+    if [ -n "$INSTALL_SUFFIX" ]; then
+        log "applying TCL_LSP_SUFFIX: binaries will install as <name>${INSTALL_SUFFIX}"
+        return
+    fi
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        warn "(set TCL_LSP_SUFFIX=-lsp to install as <name>-lsp and avoid the shadow)"
+        return
+    fi
+
+    case "$UI" in
+        whiptail|dialog)
+            sel="$(tui_menu "Resolve naming conflict" \
+                "keep"   "Install with original name (may be shadowed)" \
+                "rename" "Install as <name>-lsp instead" \
+                "abort"  "Cancel install")" \
+                || die "aborted: naming conflict not resolved"
+            ;;
+        *)
+            printf '\nHow to proceed? [keep / rename / abort] (default: keep): '
+            read -r sel || sel=keep
+            : "${sel:=keep}"
+            ;;
+    esac
+    case "$sel" in
+        rename)
+            INSTALL_SUFFIX="-lsp"
+            log "binaries will install as <name>-lsp"
+            ;;
+        abort)
+            die "aborted: naming conflict not resolved"
+            ;;
+        keep|*)
+            log "keeping original names — be aware existing shadows remain in effect"
+            ;;
+    esac
+}
+
 choose_prefix() {
     if [ "$PREFIX_EXPLICIT" = "1" ]; then
         if [ "${PREFIX_FROM_UPDATE:-0}" != "1" ]; then
@@ -956,10 +1048,21 @@ write_target() {
     # `install -m 0755` replaces mv+chmod with a single tool that does
     # the right thing on cross-filesystem copies.
     #
-    # When the target directory is not user-writable, prompt for sudo
-    # explicitly with default-NO. Declining aborts the install with a
-    # clear next-step.
+    # Two safety prompts:
+    #   - If DST exists but isn't one of our zipapps, prompt (default NO)
+    #     before clobbering — refuses to silently overwrite an unrelated
+    #     file that happens to share the name.
+    #   - If the target directory isn't user-writable, prompt (default NO)
+    #     before escalating to sudo.
     src="$1"; dst="$2"
+    if [ -e "$dst" ] && ! looks_like_our_zipapp "$dst"; then
+        warn "$dst already exists and is not a tcl-lsp zipapp"
+        warn "(no Python shebang or ZIP signature in first 2KB)"
+        if ! ask_default_no "Overwrite $dst anyway? [y/N]"; then
+            die "aborted: existing $dst is unrelated and overwrite declined.
+Re-run with TCL_LSP_PREFIX=/other/dir, or remove $dst first."
+        fi
+    fi
     target_dir="$(dirname "$dst")"
     if dir_writable "$target_dir"; then
         mkdir -p "$target_dir"
@@ -980,8 +1083,10 @@ Re-run with TCL_LSP_PREFIX=/path/you/can/write/to, or accept the sudo prompt."
 # ---------------------------------------------------------------------
 
 install_cli() {
-    # install_cli NAME (one of "tcl" or "f5")
+    # install_cli NAME (one of "tcl" or "f5"). INSTALL_SUFFIX may rename
+    # the on-disk binary (e.g. "tcl" → "tcl-lsp") to avoid PATH conflicts.
     name="$1"
+    final_name="${name}${INSTALL_SUFFIX}"
     ensure_tag
     asset="${name}-${VER_NO_V}.pyz"
     url="$(asset_url "$asset")"
@@ -990,8 +1095,8 @@ install_cli() {
     tmpfile="$WORKDIR/$asset"
     download "$url" "$tmpfile"
     verify_artefact "$asset" "$tmpfile"
-    write_target "$tmpfile" "$PREFIX/$name"
-    log "installed $name -> $PREFIX/$name"
+    write_target "$tmpfile" "$PREFIX/$final_name"
+    log "installed $name -> $PREFIX/$final_name"
 }
 
 # ---------------------------------------------------------------------
@@ -1037,7 +1142,15 @@ ensure_path() {
 
 install_completion() {
     name="$1"
+    final_name="${name}${INSTALL_SUFFIX}"
     if [ "${TCL_LSP_NO_COMP:-0}" = "1" ]; then return; fi
+    if [ -n "$INSTALL_SUFFIX" ]; then
+        # The bundled completion script registers handlers for the
+        # original name (`tcl`/`f5`). When we rename the binary the
+        # script won't match — skip rather than install a dead handler.
+        log "skipping $name completion ($final_name has no matching completion script)"
+        return
+    fi
     if ! ask "Install $name shell completion for $SHELL_NAME? [Y/n]"; then
         if [ ! -t 0 ] && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
             log "skipped $name completion (non-interactive). Install later with:"
@@ -1244,6 +1357,7 @@ main() {
     choose_clis
     propose_update_install
     choose_prefix
+    detect_conflicts
 
     case "$ONLY" in
         tcl)  install_cli tcl ;;
@@ -1270,10 +1384,11 @@ main() {
         printf 'Open a new shell, or run:  %sexport PATH="%s:$PATH"%s\n' \
                "$BOLD" "$PREFIX" "$RESET"
     fi
+    s="$INSTALL_SUFFIX"
     case "$ONLY" in
-        tcl)  printf 'Verify:  %stcl --help%s\n' "$BOLD" "$RESET" ;;
-        f5)   printf 'Verify:  %sf5 --help%s\n'  "$BOLD" "$RESET" ;;
-        both) printf 'Verify:  %stcl --help && f5 --help%s\n' "$BOLD" "$RESET" ;;
+        tcl)  printf 'Verify:  %stcl%s --help%s\n' "$BOLD" "$s" "$RESET" ;;
+        f5)   printf 'Verify:  %sf5%s --help%s\n'  "$BOLD" "$s" "$RESET" ;;
+        both) printf 'Verify:  %stcl%s --help && f5%s --help%s\n' "$BOLD" "$s" "$s" "$RESET" ;;
     esac
 }
 
