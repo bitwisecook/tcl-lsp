@@ -6,10 +6,15 @@
 # Alpine), checks for a usable Python 3.10+, installs dependencies
 # through the native package manager when missing (after confirming),
 # prompts for an install directory (scanning $PATH for writable
-# candidates), and optionally writes shell completion. If the `claude`
-# or `codex` CLI is detected (or ~/.claude / ~/.codex exists), offers
-# to install the MCP server and — for Claude Code — the skills zip
-# from the same GitHub release.
+# candidates), and optionally writes shell completion.
+#
+# Before prompting, looks for an existing `tcl` / `f5` on $PATH and
+# offers to update in place. When the chosen install directory is not
+# user-writable, asks explicitly (default NO) before escalating to sudo.
+#
+# If the `claude` or `codex` CLI is detected (or ~/.claude / ~/.codex
+# exists), offers to install the MCP server and — for Claude Code —
+# the skills zip from the same GitHub release.
 #
 # Downloaded release artefacts are verified against the release's
 # SHA256SUMS file (and, if `cosign` is installed and the release
@@ -223,6 +228,28 @@ ask_optout() {
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ ! -t 0 ]; then return 0; fi
     tui_yesno "$1"
+}
+
+ask_default_no() {
+    # Strict default-NO prompt — empty input, piped stdin, and dialog
+    # cancel all count as "no". Used for privilege escalation and any
+    # other destructive choice the user must explicitly opt into.
+    # TCL_LSP_ASSUME_YES overrides the piped-stdin default.
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
+    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ] || [ ! -t 0 ]; then return 1; fi
+    case "$UI" in
+        whiptail|dialog)
+            "$UI" --title "$TUI_TITLE" --defaultno --yesno "$1" 10 70
+            ;;
+        *)
+            printf '%s ' "$1"
+            read -r reply || return 1
+            case "$reply" in
+                y|Y|yes|YES|Yes) return 0 ;;
+                *) return 1 ;;
+            esac
+            ;;
+    esac
 }
 
 confirm_root_action() {
@@ -926,19 +953,26 @@ choose_prefix() {
 
 write_target() {
     # write_target SRC DST — install SRC to DST atomically with mode 0755.
-    # `install -m 0755` replaces mv+chmod with a single tool that does the
-    # right thing on cross-filesystem copies. Escalates to root only after
-    # confirming with the user.
+    # `install -m 0755` replaces mv+chmod with a single tool that does
+    # the right thing on cross-filesystem copies.
+    #
+    # When the target directory is not user-writable, prompt for sudo
+    # explicitly with default-NO. Declining aborts the install with a
+    # clear next-step.
     src="$1"; dst="$2"
     target_dir="$(dirname "$dst")"
     if dir_writable "$target_dir"; then
         mkdir -p "$target_dir"
         install -m 0755 "$src" "$dst"
-    else
-        confirm_root_action "install $(basename "$dst") to $target_dir"
-        run_root mkdir -p "$target_dir"
-        run_root install -m 0755 "$src" "$dst"
+        return
     fi
+    warn "Target directory not writable by $(id -un): $target_dir"
+    if ! ask_default_no "Use sudo to install $(basename "$dst") into $target_dir? [y/N]"; then
+        die "aborted: $target_dir not writable and sudo declined.
+Re-run with TCL_LSP_PREFIX=/path/you/can/write/to, or accept the sudo prompt."
+    fi
+    run_root mkdir -p "$target_dir"
+    run_root install -m 0755 "$src" "$dst"
 }
 
 # ---------------------------------------------------------------------

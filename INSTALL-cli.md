@@ -29,9 +29,13 @@ any user-owned directory already on `PATH`), downloads the latest
 `tcl` and `f5` zipapps there, and offers to wire up `PATH` and shell
 completion.
 
-When the chosen location is not user-writable (e.g. `/usr/local/bin`)
-the installer escalates to `sudo` for the file copy only — Python
-package installs always go through `sudo`/`doas` already.
+When the chosen location is not user-writable (e.g. `/usr/local/bin`
+under a non-root user) the installer **asks explicitly** before
+escalating to `sudo` for the file copy.  The prompt defaults to **no**
+— declining aborts the install with a hint to re-run with a different
+`TCL_LSP_PREFIX`.  Set `TCL_LSP_ASSUME_YES=1` to opt in to sudo
+non-interactively.  Python package installs go through `sudo`/`doas`
+separately and have their own confirmation gate.
 
 If the `claude` or `codex` CLI is present (or `~/.claude` / `~/.codex`
 exists), the installer also offers to:
@@ -69,6 +73,8 @@ thing is safe:
 |--------|---------------------|-------------------------------|---------|
 | Choose CLIs (`tcl`, `f5`) | both | both | `TCL_LSP_ONLY=tcl` or `=f5` |
 | Choose install location | `$PREFIX` (currently `~/.local/bin`) | `$PREFIX` (no prompt) | `TCL_LSP_PREFIX=…` |
+| Update existing install in place (when detected) | **yes** | **yes** | answer no, or `TCL_LSP_ASSUME_NO=1` |
+| Use sudo to write to a non-writable directory | **no** | **no** (install aborts) | `TCL_LSP_ASSUME_YES=1` |
 | Add `$PREFIX` to PATH (modifies rc file) | **yes** | **no** | `TCL_LSP_NO_PATH=1` |
 | Install shell completion | **yes** | **no** | `TCL_LSP_NO_COMP=1` |
 | Install MCP server (detected AI client) | **yes** | **yes** | `TCL_LSP_NO_MCP=1` |
