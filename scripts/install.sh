@@ -901,15 +901,17 @@ download() {
             record "DOWNLOAD ok url=$url"
             rm -f "$err_file" 2>/dev/null
             return 0
+        else
+            rc=$?
         fi
-        rc=$?
     else
         if curl_invoke -fsSL -o "$out" "$url" 2>"$err_file"; then
             record "DOWNLOAD ok url=$url"
             rm -f "$err_file" 2>/dev/null
             return 0
+        else
+            rc=$?
         fi
-        rc=$?
     fi
 
     err_summary=""
