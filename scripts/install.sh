@@ -147,12 +147,19 @@ install_python() {
             run_root apt-get update
             run_root apt-get install -y python3 ca-certificates curl
             ;;
-        rhel|fedora)
-            if have dnf; then
-                run_root dnf install -y python3 ca-certificates curl
-            else
-                run_root yum install -y python3 ca-certificates curl
+        rhel)
+            # RHEL 9 / Rocky 9 / Alma 9 ship Python 3.9 as `python3`.
+            # Prefer a versioned 3.10+ interpreter (AppStream module).
+            PM="yum"; have dnf && PM="dnf"
+            run_root "$PM" install -y ca-certificates curl
+            if   run_root "$PM" install -y python3.12 2>/dev/null; then :
+            elif run_root "$PM" install -y python3.11 2>/dev/null; then :
+            else run_root "$PM" install -y python3
             fi
+            ;;
+        fedora)
+            PM="yum"; have dnf && PM="dnf"
+            run_root "$PM" install -y python3 ca-certificates curl
             ;;
         arch)
             run_root pacman -Sy --noconfirm python ca-certificates curl
@@ -235,8 +242,11 @@ install_cli() {
         if [ -z "$json" ]; then
             die "could not query GitHub releases API. Set TCL_LSP_VERSION=vX.Y.Z to bypass."
         fi
+        # Anchor on a digit after the CLI prefix so we don't match
+        # neighbouring artefacts (e.g. for name=tcl we must skip
+        # tcl-lsp-server-*.pyz and tcl-lsp-vscode-*.vsix).
         asset="$(printf '%s' "$json" \
-            | grep -o "\"name\": *\"${name}-[^\"]*\\.pyz\"" \
+            | grep -o "\"name\": *\"${name}-[0-9][^\"]*\\.pyz\"" \
             | head -n1 \
             | sed -E 's/.*"name": *"([^"]+)".*/\1/')"
         if [ -z "$asset" ]; then
