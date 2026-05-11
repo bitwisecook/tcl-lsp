@@ -55,22 +55,13 @@
 #   TCL_LSP_SUFFIX          - suffix for installed binaries (e.g. "-lsp"; default: empty)
 
 set -eu
-# Defence-in-depth: a poisoned IFS in the caller's env can split values
-# in places we don't expect. Force IFS to a single newline so unquoted
-# expansions only split on line boundaries — the POSIX default
-# (<space><tab><newline>) is intentionally tighter here. Any loop that
-# needs whitespace splitting saves and restores IFS locally.
+# IFS=\n only — defence against a poisoned caller IFS. Loops that need
+# whitespace splitting save and restore locally.
 IFS='
 '
 
-# Stamped at release time by the publish-checksums CI job, which sed-
-# replaces the @@…@@ markers with the actual tag and short SHA before
-# uploading scripts/install.sh as a release asset. Any unstamped copy
-# (e.g. someone running the script directly out of main) keeps the
-# placeholders and reports itself as "dev". The placeholders are split
-# across two assignments so that running this very file through sed
-# (as the build step does) only ever matches the intended values, not
-# the literal block here.
+# Stamped at release time by the publish-checksums CI job. Unstamped
+# copies (e.g. running from main) report as "dev".
 INSTALLER_VERSION_TAG="@@INSTALLER_VERSION_TAG@@"
 INSTALLER_VERSION_SHA="@@INSTALLER_VERSION_SHA@@"
 case "$INSTALLER_VERSION_TAG" in
@@ -81,9 +72,9 @@ INSTALLER_VERSION="${INSTALLER_VERSION_TAG} ${INSTALLER_VERSION_SHA}"
 DEFAULT_REPO="bitwisecook/tcl-lsp"
 REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
 VERSION="${TCL_LSP_VERSION:-latest}"
-# ONLY is set from TCL_LSP_ONLY (env wins) or filled in interactively by
-# choose_clis(). When choose_clis runs it sets ONLY_EXPLICIT=1 to mark the
-# value as user-confirmed; otherwise main() expects the env default.
+
+# ONLY: which CLIs to install (tcl / f5 / both). ONLY_EXPLICIT=1 when
+# pinned via env so choose_clis() skips the prompt.
 if [ -n "${TCL_LSP_ONLY:-}" ]; then
     ONLY="$TCL_LSP_ONLY"
     ONLY_EXPLICIT=1
@@ -105,72 +96,46 @@ log()  { printf '%s==>%s %s\n'  "$GREEN" "$RESET" "$*"; }
 warn() { printf '%swarn:%s %s\n' "$YELLOW" "$RESET" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
 
-# ---------------------------------------------------------------------
-# TUI (whiptail / dialog) — used opportunistically when present
-# ---------------------------------------------------------------------
+UI=text                 # text | whiptail | dialog (set by ensure_ui)
+TTY_IN=""               # stdin | /dev/tty | none (set by detect_tty)
+TTY_OUT=""              # stderr | /dev/tty | none
+TTY_PROBED=0
+TUI_TITLE='tcl-lsp installer'
 
-UI=text
-
-# Can we read user input? `curl | sh` makes our stdin a pipe, but the
-# user typically still has a controlling terminal at /dev/tty. We probe
-# once and route every prompt accordingly.
-TTY_IN=""       # empty | "stdin" | "/dev/tty" | "none"
-TTY_OUT=""      # empty | "stderr" | "/dev/tty" | "none"
+# Probe once; `curl | sh` pipes stdin but /dev/tty is usually reachable.
 detect_tty() {
-    if [ -t 0 ]; then
-        TTY_IN=stdin
-    elif (exec 3</dev/tty) 2>/dev/null; then
-        # `[ -r /dev/tty ]` passes for device nodes that fail at open
-        # time (e.g. sandboxed containers, systemd services with
-        # TTYPath unset). Probe an actual open to be sure.
-        TTY_IN=/dev/tty
-    else
-        TTY_IN=none
+    if [ -t 0 ]; then TTY_IN=stdin
+    elif (exec 3</dev/tty) 2>/dev/null; then TTY_IN=/dev/tty
+    else TTY_IN=none
     fi
-    if [ -t 2 ]; then
-        TTY_OUT=stderr
-    elif (exec 3>/dev/tty) 2>/dev/null; then
-        TTY_OUT=/dev/tty
-    else
-        TTY_OUT=none
+    if [ -t 2 ]; then TTY_OUT=stderr
+    elif (exec 3>/dev/tty) 2>/dev/null; then TTY_OUT=/dev/tty
+    else TTY_OUT=none
     fi
 }
 
-# Tri-state probe: TTY_IN/TTY_OUT must both be non-"none" for us to
-# interact. Lazily initialised — anything that prompts calls
-# tty_available first.
-TTY_PROBED=0
 tty_available() {
     [ "$TTY_PROBED" = 1 ] || { detect_tty; TTY_PROBED=1; }
     [ "$TTY_IN" != none ] && [ "$TTY_OUT" != none ]
 }
 
-# print_prompt MESSAGE — write to the user's terminal, falling through
-# to /dev/tty when stderr is captured.
 print_prompt() {
     tty_available || return 1
-    if [ "$TTY_OUT" = stderr ]; then
-        printf '%s ' "$1" >&2
-    else
-        printf '%s ' "$1" >/dev/tty
+    if [ "$TTY_OUT" = stderr ]; then printf '%s ' "$1" >&2
+    else printf '%s ' "$1" >/dev/tty
     fi
 }
 
-# read_user_line — read one line of input into $reply, sourced from
-# stdin when interactive or /dev/tty when piped.
 read_user_line() {
     tty_available || return 1
-    if [ "$TTY_IN" = stdin ]; then
-        IFS= read -r reply
-    else
-        IFS= read -r reply </dev/tty
+    if [ "$TTY_IN" = stdin ]; then IFS= read -r reply
+    else IFS= read -r reply </dev/tty
     fi
 }
 
+# Probe whiptail/dialog when we have a path to the user. TCL_LSP_NO_TUI=1
+# forces text. Always returns 0; no-TTY is a normal mode.
 ensure_ui() {
-    # Probe whiptail/dialog when we have any path to the user's terminal
-    # (real stdin TTY or accessible /dev/tty). Set TCL_LSP_NO_TUI=1 to
-    # force the text path. Always returns 0 — no-TTY is a normal mode.
     [ "${TCL_LSP_NO_TUI:-0}" = "1" ] && return 0
     tty_available || return 0
     if command -v whiptail >/dev/null 2>&1; then UI=whiptail
@@ -179,12 +144,8 @@ ensure_ui() {
     return 0
 }
 
-TUI_TITLE='tcl-lsp installer'
-
-# tui_run ARGS — invoke whiptail/dialog with stdin redirected from
-# /dev/tty when our stdin is piped. whiptail/dialog need a TTY for the
-# curses UI; under `curl | sh` stdin is the pipe but /dev/tty still
-# reaches the user's terminal.
+# whiptail/dialog need a TTY for the curses UI; redirect stdin from
+# /dev/tty when our stdin is piped.
 tui_run() {
     if [ "$TTY_IN" = stdin ]; then
         "$UI" --title "$TUI_TITLE" "$@"
@@ -193,8 +154,8 @@ tui_run() {
     fi
 }
 
+# yes/no — default-yes highlight on the dialog backend.
 tui_yesno() {
-    # tui_yesno "prompt" — 0 = yes, 1 = no. Default highlight is "Yes".
     tty_available || return 1
     case "$UI" in
         whiptail|dialog)
@@ -241,9 +202,8 @@ tui_menu() {
     esac
 }
 
+# checklist — one tag per line on stdout for ticked entries.
 tui_checklist() {
-    # tui_checklist "prompt" tag1 desc1 on/off  tag2 desc2 on/off  ...
-    # Prints one tag per line for the boxes the user ticked.
     tty_available || return 1
     prompt="$1"; shift
     case "$UI" in
@@ -271,14 +231,12 @@ tui_checklist() {
     esac
 }
 
+# --help prints the leading comment block as documentation.
 usage() {
-    # Print the leading comment block (lines 2 onward, until the first
-    # non-comment line — which is `set -eu`).
     awk 'NR > 1 && /^[^#]/ {exit} NR > 1 {sub(/^# ?/, ""); print}' "$0"
     exit 0
 }
 
-# Minimal CLI: --help / -h, --version / -V.
 for arg in "$@"; do
     case "$arg" in
         -h|--help)    usage ;;
@@ -287,10 +245,6 @@ for arg in "$@"; do
         -*) die "unknown flag: $arg (try --help)" ;;
     esac
 done
-
-# ---------------------------------------------------------------------
-# REPO validation + non-default warning
-# ---------------------------------------------------------------------
 
 case "$REPO" in
     */*) : ;;
@@ -304,35 +258,25 @@ if [ "$REPO" != "$DEFAULT_REPO" ]; then
     warn "(default is github.com/$DEFAULT_REPO)"
 fi
 
-# ---------------------------------------------------------------------
-# Prompts
-# ---------------------------------------------------------------------
-
+# Opt-in prompt — default no when headless.
 ask() {
-    # Opt-in prompt: 0 = yes, 1 = no. Default-no when we can't reach the
-    # user (no stdin TTY AND no /dev/tty) so we don't silently mutate
-    # rc files in headless contexts.
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ]; then return 1; fi
     tty_available || return 1
     tui_yesno "$1"
 }
 
+# Opt-out prompt — default yes when headless (upstream signal was the opt-in).
 ask_optout() {
-    # Like ask() but defaults yes when truly headless — opt-out prompts
-    # presume the action because some upstream signal (detected AI
-    # client, existing rc entry) was the actual opt-in.
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
     tty_available || return 0
     tui_yesno "$1"
 }
 
+# Strict default-NO — for privilege escalation and destructive choices.
+# Empty input, headless run, dialog cancel all count as no.
 ask_default_no() {
-    # Strict default-NO prompt — empty input, headless run, and dialog
-    # cancel all count as "no". Used for privilege escalation and any
-    # other destructive choice the user must explicitly opt into.
-    # TCL_LSP_ASSUME_YES overrides the headless default.
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
     tty_available || return 1
@@ -351,9 +295,8 @@ ask_default_no() {
     esac
 }
 
+# Surface every sudo/doas escalation.
 confirm_root_action() {
-    # confirm_root_action "human description of the privileged action"
-    # Surface every sudo/doas escalation. Bypassed by TCL_LSP_ASSUME_YES.
     if [ "$(id -u)" = 0 ] || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then
         return 0
     fi
@@ -361,14 +304,9 @@ confirm_root_action() {
     ask "Proceed? [Y/n]" || die "aborted: root step declined"
 }
 
-# ---------------------------------------------------------------------
-# $PREFIX validation — central choke point for any assignment
-# ---------------------------------------------------------------------
-
+# Validate + assign $PREFIX. Rejects values that would escape the
+# rc-file `export PATH="…:$PATH"` quoting or aren't absolute.
 set_prefix() {
-    # Validate a candidate install location and assign $PREFIX.
-    # Rejects anything that would let the value escape the rc-file
-    # `export PATH="…:$PATH"` write, or that isn't an absolute path.
     p="$1"
     case "$p" in
         '')
@@ -382,8 +320,7 @@ Allowed: A-Z a-z 0-9 . _ / + ~ : - (no quotes, spaces, dollars, newlines)" ;;
     PREFIX="$p"
 }
 
-# Tri-state: explicit env var => use as-is; otherwise the picker may
-# overwrite $PREFIX from a numbered choice or free-form path.
+# Tri-state $PREFIX: env wins; otherwise picker may overwrite.
 if [ -n "${TCL_LSP_PREFIX:-}" ]; then
     set_prefix "$TCL_LSP_PREFIX"
     PREFIX_EXPLICIT=1
@@ -392,16 +329,12 @@ else
     PREFIX_EXPLICIT=0
 fi
 
-# Per-CLI directory overrides. Populated by propose_update_install when
-# an existing in-place update lives at a directory other than $PREFIX —
-# the common case is `tcl` in /usr/local/bin and `f5` in ~/.local/bin
-# (or vice versa) where we must update each at its own location rather
-# than collapsing both into one $PREFIX. Empty string = "use $PREFIX".
+# Per-CLI override dirs (split-directory update). Empty = use $PREFIX.
 TCL_PREFIX_OVERRIDE=""
 F5_PREFIX_OVERRIDE=""
 
+# Install dir for binary $1.
 prefix_for() {
-    # prefix_for NAME — print the install directory for binary NAME.
     case "$1" in
         tcl) printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
         f5)  printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
@@ -409,44 +342,8 @@ prefix_for() {
     esac
 }
 
-# ---------------------------------------------------------------------
-# OS detection (with /etc/os-release safety check)
-# ---------------------------------------------------------------------
-
+# Read /etc/os-release (uid-0, not world-writable) and set $ID/$ID_LIKE.
 read_os_release_safe() {
-    # Refuse to read /etc/os-release unless it is owned by uid 0 and
-    # not world-writable. Returns 0 and sets $ID / $ID_LIKE on success.
-    #
-    # We don't dot-source the file because every variable in
-    # /etc/os-release would land in our namespace. (The original sourced
-    # version clobbered our top-level VERSION="latest" with Ubuntu's
-    # VERSION="26.04 (Resolute Raccoon)", which then leaked into the
-    # asset URL.)
-    #
-    # We parse with pure-shell `read` rather than awk / grep / sed:
-    # one open via the redirect, no external tool to mis-parse, the
-    # value is only ever assigned to a variable so neither command
-    # substitution nor parameter expansion fire on its contents.
-    #
-    # TOCTOU analysis — the single window between find and the
-    # redirect-open is unexploitable in practice:
-    #
-    #   - `find -L` confirms uid=0 + !world-writable on the *resolved*
-    #     file (symlinks followed). If the check passes, an
-    #     unprivileged attacker cannot write to the file, so cannot
-    #     swap its contents inside the window.
-    #   - If /etc/os-release is a symlink and an attacker controls the
-    #     *symlink*, they'd need write access to /etc/ — i.e. they
-    #     already have root, outside our threat model.
-    #   - A concurrent package-manager update uses atomic rename. Our
-    #     awk reads either the old inode (already validated) or the
-    #     new inode (root-owned post-rename); either way: trusted.
-    #   - Even if malicious content did sneak in, $ID / $ID_LIKE are
-    #     only ever consumed by a `case "${ID}:${ID_LIKE}" in …` block
-    #     with hard-coded glob patterns. No shell-evaluation context —
-    #     injection has no foothold and $OS only ever ends up as one
-    #     of our fixed labels (macos/debian/fedora/rhel/arch/alpine
-    #     /linux).
     f=/etc/os-release
     [ -e "$f" ] || return 1
     safe="$(find -L "$f" -maxdepth 0 -uid 0 ! -perm -002 -print 2>/dev/null)"
@@ -454,11 +351,6 @@ read_os_release_safe() {
         die "$f is not root-owned or is world-writable — refusing to read it.
 Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detection."
     fi
-    # Pure-shell parse — one open via the redirect, no external tool.
-    # `read -r` disables backslash line-continuation; IFS='=' splits on
-    # the first `=` so the value is preserved verbatim. The value never
-    # leaves variable assignment, so neither command substitution nor
-    # parameter expansion fire on its contents.
     ID=""
     ID_LIKE=""
     while IFS='=' read -r _osr_key _osr_val; do
@@ -466,7 +358,6 @@ Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detectio
             ID|ID_LIKE) : ;;
             *) continue ;;
         esac
-        # Strip a single pair of surrounding double quotes if present.
         case "$_osr_val" in
             \"*\") _osr_val="${_osr_val#\"}"; _osr_val="${_osr_val%\"}" ;;
         esac
@@ -507,9 +398,9 @@ detect_os() {
     log "detected OS: $OS"
 }
 
+# $SHELL is the login shell — not necessarily what's running us.
+# Trusted for rc-file path resolution.
 detect_shell() {
-    # $SHELL is the login shell; not necessarily the shell running this
-    # script (we are running under /bin/sh). Trust it for rc-file paths.
     SHELL_NAME=""
     case "${SHELL:-}" in
         */zsh)  SHELL_NAME=zsh ;;
@@ -535,9 +426,6 @@ detect_shell() {
     log "detected shell: $SHELL_NAME (rc: $RC)"
 }
 
-# ---------------------------------------------------------------------
-# Tool probing
-# ---------------------------------------------------------------------
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -642,9 +530,7 @@ install_python() {
 }
 
 ensure_curl() {
-    # Prefer curl when present — it can pin redirects to HTTPS via
-    # --proto-redir, which some `wget` builds (notably BusyBox) cannot.
-    # If neither is present we install curl via the package manager.
+    # Prefer curl (--proto-redir-pins) over wget; install curl if neither present.
     if have curl; then DOWNLOADER="curl"; return; fi
     if have wget; then DOWNLOADER="wget"; return; fi
     if [ "${TCL_LSP_NO_DEPS:-0}" = "1" ]; then
@@ -667,14 +553,9 @@ ensure_curl() {
     DOWNLOADER="curl"
 }
 
-# ---------------------------------------------------------------------
-# Optional dependency install — offered as a single batch with default-NO
-# ---------------------------------------------------------------------
 
 pkg_name_for() {
-    # pkg_name_for OS CMD — print the OS-package name for a given binary.
-    # Empty output means "no equivalent on this OS" (usually preinstalled
-    # or distributed as part of something else).
+    # OS-package name for CMD on OS. Empty = no equivalent on this OS.
     os="$1"; cmd="$2"
     case "$os:$cmd" in
         # whiptail (newt on RHEL/Fedora, libnewt on Arch, none on macOS)
@@ -763,12 +644,7 @@ install_pkg() {
 }
 
 check_cli_runtime_dependencies() {
-    # Survey runtime tools the installed `tcl` / `f5` CLIs shell out to.
-    # The CLIs themselves are self-contained Python zipapps; these only
-    # affect verbs that explicitly need an external binary.
-    #
-    # Prints a one-shot list of what's missing and why, then asks once
-    # (default NO) whether to install the lot via the OS package manager.
+    # Survey external tools the tcl/f5 CLIs may shell out to.
     [ "${TCL_LSP_NO_DEPS:-0}" = "1" ] && return
 
     needs_tclsh=0      # tcl pkg / tcl venv / `tcl explore` against real tclsh
@@ -814,14 +690,7 @@ check_cli_runtime_dependencies() {
 
 WGET_HAS_HTTPS_ONLY=""
 require_wget_https_only() {
-    # Memoised probe. Aborts the install when wget lacks --https-only —
-    # a follow-on http:// redirect from a MITM would otherwise compromise
-    # both the artefact download and the SHA256SUMS verification (the
-    # attacker could simply serve their own SUMS over plaintext).
-    #
-    # Escape hatch: TCL_LSP_ALLOW_INSECURE_WGET=1 explicitly opts in to a
-    # wget without redirect-protocol pinning. Don't set this unless you
-    # know your network path is trustworthy end-to-end.
+    # Aborts when wget lacks --https-only; TCL_LSP_ALLOW_INSECURE_WGET=1 to bypass.
     case "$WGET_HAS_HTTPS_ONLY" in
         1) return 0 ;;
         0) return 1 ;;
@@ -846,17 +715,8 @@ Options:
     untrusted network)"
 }
 
-# ---------------------------------------------------------------------
-# Proxy detection
-# ---------------------------------------------------------------------
 
 detect_proxy() {
-    # curl and wget both honour http_proxy / https_proxy / no_proxy from
-    # the environment automatically. We just surface a log line so the
-    # user can spot misconfiguration, and on macOS we additionally check
-    # the system proxy config (System Settings > Network > Proxies) and
-    # warn when it's set but no env vars override it — curl will bypass
-    # the system proxy because it only reads env vars / curlrc.
     h="${https_proxy:-${HTTPS_PROXY:-}}"
     p="${http_proxy:-${HTTP_PROXY:-}}"
     n="${no_proxy:-${NO_PROXY:-}}"
@@ -875,14 +735,8 @@ detect_proxy() {
     fi
 }
 
-# ---------------------------------------------------------------------
-# Downloads (HTTPS-only, strict TLS 1.3 + HTTP/2 by default)
-# ---------------------------------------------------------------------
 
-# Transport-strictness state. 0 = strict (TLS 1.3 + HTTP/2 for curl,
-# TLS 1.3 only for wget); 1 = lax (TLS 1.2 + HTTP/1.1) after the user
-# approved the fallback once. TCL_LSP_ALLOW_TLS12=1 in the env starts
-# the run in lax mode without ever offering strict.
+# TLS_FALLBACK: 0 = strict (TLS 1.3 + HTTP/2); 1 = lax (TLS 1.2 + HTTP/1.1).
 TLS_FALLBACK=0
 if [ "${TCL_LSP_ALLOW_TLS12:-0}" = "1" ]; then
     TLS_FALLBACK=1
@@ -932,10 +786,7 @@ wget_invoke() {
 }
 
 maybe_fallback_tls() {
-    # Called after a strict curl/wget request just failed. Prompts the
-    # user once for the per-run TLS 1.2 + HTTP/1.1 fallback. Returns
-    # success if the caller should retry under the lax setting; dies if
-    # declined. Already-lax (TLS_FALLBACK=1) returns failure unchanged.
+    # Prompt once per run for TLS 1.2 + HTTP/1.1 fallback. Dies on decline.
     [ "$TLS_FALLBACK" = 1 ] && return 1
     warn "TLS 1.3 / HTTP/2 negotiation failed (corporate proxy or older intermediary?)"
     if ! ask_default_no "Fall back to TLS 1.2 + HTTP/1.1 for this and subsequent downloads? [y/N]"; then
@@ -963,9 +814,7 @@ download() {
 }
 
 resolve_latest_tag() {
-    # Follow the redirect from /releases/latest to /releases/tag/vX.Y.Z.
-    # Avoids the api.github.com 60/hr unauthenticated rate limit.
-    # Uses the same strict-then-lax flow as download().
+    # Resolve via the /releases/latest HTML redirect (no API rate-limit).
     redirect_url="https://github.com/$REPO/releases/latest"
     final_url=""
     if [ "$DOWNLOADER" = "wget" ]; then
@@ -1006,9 +855,6 @@ asset_url() {
         "$REPO" "$RESOLVED_TAG" "$1"
 }
 
-# ---------------------------------------------------------------------
-# Workdir + SHA256SUMS verification
-# ---------------------------------------------------------------------
 
 WORKDIR=""
 init_workdir() {
@@ -1019,9 +865,7 @@ init_workdir() {
 SUMS_PATH=""
 SUMS_STATE=""   # "present" | "absent" | ""
 ensure_sums() {
-    # Download SHA256SUMS once per run. Memoises in SUMS_STATE.
-    # TCL_LSP_NO_VERIFY=1     → skip entirely (returns 1 silently).
-    # TCL_LSP_REQUIRE_VERIFY=1 → die if missing.
+    # Download SHA256SUMS once; TCL_LSP_NO_VERIFY/REQUIRE_VERIFY control strictness.
     [ "${TCL_LSP_NO_VERIFY:-0}" = "1" ] && return 1
     case "$SUMS_STATE" in
         present) return 0 ;;
@@ -1047,13 +891,7 @@ ensure_sums() {
 }
 
 verify_sums_signature() {
-    # Verify the SUMS file against a cosign keyless signature when both
-    # cosign and a SHA256SUMS.cosign.bundle are available.
-    #
-    # TCL_LSP_REQUIRE_COSIGN=1 promotes "missing cosign" or "missing
-    # bundle" from a silent downgrade to a hard failure. This catches a
-    # network adversary stripping the bundle to coerce a signature-
-    # verified install down to hash-only.
+    # Verify SUMS against cosign keyless signature. TCL_LSP_REQUIRE_COSIGN=1 makes missing fatal.
     sums="$1"
     if ! have cosign; then
         if [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
@@ -1088,9 +926,7 @@ verify_artefact() {
     # No-op when SUMS unavailable and not required (warning was already emitted).
     asset="$1"; local="$2"
     ensure_sums || return 0
-    # Match either `<hash> NAME` (GNU text mode) or `<hash> *NAME` (binary).
-    # Assumes filenames contain no whitespace — true for every release
-    # artefact we publish; would break for `foo bar.pyz`.
+    # Match `<hash> NAME` or `<hash> *NAME` (binary mode). Assumes no whitespace in NAME.
     expected="$(awk -v a="$asset" '$2 == a || $2 == "*"a {print $1; exit}' "$SUMS_PATH")"
     [ -n "$expected" ] || die "no SHA256 entry for $asset in SHA256SUMS"
     if have sha256sum; then
@@ -1108,9 +944,6 @@ actual:   $actual"
     log "verified $asset (sha256)"
 }
 
-# ---------------------------------------------------------------------
-# Install destination picker
-# ---------------------------------------------------------------------
 
 path_contains() {
     case ":${PATH}:" in
@@ -1120,9 +953,7 @@ path_contains() {
 }
 
 dir_writable() {
-    # Returns 0 if $1 is a writable directory, or if the deepest
-    # existing ancestor of $1 is writable. Decorative — the actual
-    # write attempt is what enforces; the annotation can race.
+    # 0 if $1 is writable (or its deepest existing ancestor is). Decorative.
     d="$1"
     while [ -n "$d" ] && [ "$d" != "/" ]; do
         if [ -d "$d" ]; then
@@ -1147,10 +978,7 @@ annotate_candidate() {
 }
 
 collect_install_candidates() {
-    # Emit one candidate path per line. Walks $PATH without clobbering
-    # the caller's $@. Skips hidden dirs from the PATH-scan (poisoned
-    # ~/.evil/bin won't appear in the picker; ~/.local/bin is re-added
-    # via the promoted defaults below).
+    # Emit one candidate install dir per line.
     seen=""
     emit() {
         case "$seen" in *":$1:"*) return ;; esac
@@ -1184,9 +1012,7 @@ collect_install_candidates() {
 }
 
 choose_clis() {
-    # Ask which CLIs to install (tcl, f5, both). TCL_LSP_ONLY in the env
-    # bypasses the prompt entirely. ASSUME_YES / ASSUME_NO / piped stdin
-    # all fall through to the env default ("both").
+    # Pick CLIs to install (tcl/f5/both). TCL_LSP_ONLY bypasses the prompt.
     if [ "$ONLY_EXPLICIT" = "1" ]; then
         log "CLIs (TCL_LSP_ONLY): $ONLY"
         return
@@ -1231,9 +1057,6 @@ choose_clis() {
     log "CLIs to install: $ONLY"
 }
 
-# ---------------------------------------------------------------------
-# Detect an existing install and offer to update in place
-# ---------------------------------------------------------------------
 
 find_on_path() {
     # Print the first executable named $1 found on $PATH.
@@ -1252,25 +1075,8 @@ find_on_path() {
 }
 
 looks_like_our_zipapp() {
-    # Two-tier identity check:
-    #
-    # Tier 1 — cheap fingerprint: Python shebang + ZIP local-file-header
-    # signature in the first 2KB. Catches "is it a Python zipapp at all".
-    #
-    # Tier 2 — deep peek for tcl-lsp markers via whichever tool is
-    # available:
-    #   a) `unzip -l` / `unzip -p __main__.py` (fast)
-    #   b) `python3 zipfile` (always present — Python is anyway
-    #      required to run any of our zipapps, and the installer
-    #      ensures Python 3.10+ before this function is ever called)
-    #
-    # A raw-grep fallback (looking for 'lsp/_build_info.py' as a literal
-    # in the file) was considered but is too easy to spoof: an attacker
-    # could embed the marker string anywhere in an arbitrary executable.
-    # When both unzip AND Python are missing we instead refuse to
-    # confirm the file as ours — the caller falls back to "treat as
-    # unrelated", which surfaces the right prompts (overwrite y/N,
-    # picker for fresh install).
+    # Tier 1: python shebang + ZIP signature. Tier 2: unzip or python
+    # zipfile to look for our markers.
     f="$1"
     [ -r "$f" ] || return 1
 
@@ -1327,20 +1133,12 @@ PY
 }
 
 propose_update_install() {
-    # For each CLI the user selected, look for an existing copy on PATH.
-    # If found AND it looks like one of our zipapps, ask whether to
-    # update in place. Each CLI's prior location is recorded separately
-    # in TCL_PREFIX_OVERRIDE / F5_PREFIX_OVERRIDE so split-directory
-    # layouts (tcl in /usr/local/bin, f5 in ~/.local/bin, etc.) update
-    # each at its own location instead of collapsing both into one dir.
-    [ "$PREFIX_EXPLICIT" = "1" ] && return
+    # Offer to update each existing tcl/f5 on PATH in place; recorded
+    # per-CLI in TCL/F5_PREFIX_OVERRIDE for split-directory layouts.
+    [ "$PREFIX_EXPLICIT" = "1" ] && return 0
 
-    # propose_update_one returns non-zero to signal "fall back to the
-    # picker" (user declined, or the existing binary isn't ours). We
-    # propagate that as a *successful* return from this function — the
-    # caller (main) continues into choose_prefix. Without the explicit
-    # `return 0` the function would return 1, and `set -e` in main would
-    # kill the script silently right after `CLIs to install: both`.
+    # `|| return 0` because propose_update_one's non-zero is an internal
+    # "fall back to picker" signal, not a failure to propagate.
     case "$ONLY" in
         tcl)  propose_update_one tcl  || return 0 ;;
         f5)   propose_update_one f5   || return 0 ;;
@@ -1354,9 +1152,7 @@ propose_update_install() {
         return
     fi
 
-    # Pick the $PREFIX used for the "global" install concerns (PATH
-    # entry, completion install, MCP server). Each CLI's actual binary
-    # still lands at its own override; $PREFIX is just the anchor.
+    # $PREFIX anchors PATH/completion/MCP; per-CLI overrides still apply per binary.
     if [ -n "$TCL_PREFIX_OVERRIDE" ] && [ -n "$F5_PREFIX_OVERRIDE" ] \
        && [ "$TCL_PREFIX_OVERRIDE" != "$F5_PREFIX_OVERRIDE" ]; then
         log "split-directory update:"
@@ -1376,10 +1172,7 @@ propose_update_install() {
 }
 
 propose_update_one() {
-    # propose_update_one NAME — invoked once per CLI from
-    # propose_update_install. Returns non-zero when the caller should
-    # abort the in-place-update flow entirely (user declined, or PATH
-    # has a non-zipapp at this name).
+    # Returns non-zero to signal the caller should bail to the picker.
     n="$1"
     path="$(find_on_path "$n")" || return 0
     if looks_like_our_zipapp "$path"; then
@@ -1400,9 +1193,6 @@ propose_update_one() {
     return 1
 }
 
-# ---------------------------------------------------------------------
-# Detect PATH conflicts and offer to rename our install
-# ---------------------------------------------------------------------
 
 # Suffix applied to our binaries (e.g. "-lsp"). Set by detect_conflicts
 # when the user picks "rename" or via the TCL_LSP_SUFFIX env override.
@@ -1423,10 +1213,7 @@ alias_in_rc() {
 }
 
 count_conflicts_for() {
-    # Increments the parent's $conflicts when name $1 would be shadowed
-    # by something earlier on PATH or by a shell alias. Uses prefix_for
-    # so per-CLI overrides (split-directory update) don't fire a
-    # false-positive shadow against their own dir.
+    # Increment parent's $conflicts when $1 would be shadowed on PATH or by an alias.
     n="$1"
     own_dir="$(prefix_for "$n")"
     if other="$(find_on_path "$n")" && [ "$other" != "$own_dir/$n" ]; then
@@ -1444,11 +1231,7 @@ count_conflicts_for() {
 }
 
 detect_conflicts() {
-    # For each CLI we're about to install, check whether something on
-    # PATH (or an alias) will shadow it once we drop our binary in
-    # $PREFIX. Offer the user three options: keep the name, rename to
-    # <name>-lsp, or abort. Skipped during update-in-place (the existing
-    # layout is already what the user wants).
+    # Warn on PATH/alias shadows and offer keep / rename / abort.
     [ "${PREFIX_FROM_UPDATE:-0}" = "1" ] && return
 
     conflicts=0
@@ -1586,21 +1369,10 @@ choose_prefix() {
     log "install location: $PREFIX"
 }
 
-# ---------------------------------------------------------------------
-# Privileged file install
-# ---------------------------------------------------------------------
 
 write_target() {
-    # write_target SRC DST — install SRC to DST atomically with mode 0755.
-    # `install -m 0755` replaces mv+chmod with a single tool that does
-    # the right thing on cross-filesystem copies.
-    #
-    # Two safety prompts:
-    #   - If DST exists but isn't one of our zipapps, prompt (default NO)
-    #     before clobbering — refuses to silently overwrite an unrelated
-    #     file that happens to share the name.
-    #   - If the target directory isn't user-writable, prompt (default NO)
-    #     before escalating to sudo.
+    # Atomic install of SRC to DST. Prompts before clobbering a non-zipapp
+    # or escalating to sudo for a non-writable target dir.
     src="$1"; dst="$2"
     if [ -e "$dst" ] && ! looks_like_our_zipapp "$dst"; then
         warn "$dst already exists and is not a tcl-lsp zipapp"
@@ -1625,15 +1397,9 @@ Re-run with TCL_LSP_PREFIX=/path/you/can/write/to, or accept the sudo prompt."
     run_root install -m 0755 "$src" "$dst"
 }
 
-# ---------------------------------------------------------------------
-# CLI install
-# ---------------------------------------------------------------------
 
 install_cli() {
-    # install_cli NAME (one of "tcl" or "f5"). INSTALL_SUFFIX may rename
-    # the on-disk binary (e.g. "tcl" → "tcl-lsp") to avoid PATH conflicts.
-    # prefix_for() resolves the per-CLI install dir, so a split-directory
-    # update sends each binary back to its existing location.
+    # Install CLI $1 (tcl or f5) to its prefix_for() dir.
     name="$1"
     final_name="${name}${INSTALL_SUFFIX}"
     dir="$(prefix_for "$name")"
@@ -1649,9 +1415,6 @@ install_cli() {
     log "installed $name -> $dir/$final_name"
 }
 
-# ---------------------------------------------------------------------
-# rc-file PATH entry (idempotent)
-# ---------------------------------------------------------------------
 
 PATH_MARKER='# Added by tcl-lsp installer'
 
@@ -1676,28 +1439,20 @@ ensure_path() {
             printf '\n%s\nfish_add_path %s\n' "$PATH_MARKER" "$PREFIX" >> "$RC"
             ;;
         *)
-            # $PATH must be written verbatim — the user's shell expands
-            # it at login, not us. set_prefix() already rejected anything
-            # that could escape the double quotes below.
-            # shellcheck disable=SC2016
+            # shellcheck disable=SC2016  # $PATH must be written verbatim
             printf '\n%s\nexport PATH="%s:$PATH"\n' "$PATH_MARKER" "$PREFIX" >> "$RC"
             ;;
     esac
     log "appended PATH entry to $RC"
 }
 
-# ---------------------------------------------------------------------
-# Shell completion
-# ---------------------------------------------------------------------
 
 install_completion() {
     name="$1"
     final_name="${name}${INSTALL_SUFFIX}"
     if [ "${TCL_LSP_NO_COMP:-0}" = "1" ]; then return; fi
     if [ -n "$INSTALL_SUFFIX" ]; then
-        # The bundled completion script registers handlers for the
-        # original name (`tcl`/`f5`). When we rename the binary the
-        # script won't match — skip rather than install a dead handler.
+        # The bundled completion script registers for $name, not $name-lsp.
         log "skipping $name completion ($final_name has no matching completion script)"
         return
     fi
@@ -1750,9 +1505,6 @@ comp_install() {
         || warn "$(basename "$cbin") completion failed"
 }
 
-# ---------------------------------------------------------------------
-# AI client integration (Claude Code / Codex)
-# ---------------------------------------------------------------------
 
 have_claude_cli() { have claude; }
 have_codex_cli()  { have codex; }
@@ -1814,9 +1566,7 @@ install_mcp_zipapp() {
 }
 
 register_mcp_claude() {
-    # Idempotent re-registration: capture the prior entry (when present)
-    # so a failed `mcp add` after a successful `mcp remove` doesn't leave
-    # the user worse off than they started.
+    # Capture prior entry so a failed add can be restored.
     if ! have_claude_cli; then
         warn "claude CLI not on PATH — add the MCP server manually:"
         warn "  claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
@@ -1852,9 +1602,7 @@ register_mcp_codex() {
         return
     fi
     cp "$cfg" "${cfg}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
-    # Defensive escape — Unix paths can contain " or \ and the TOML
-    # parser would mis-tokenise either. set_prefix already validates
-    # $MCP_PATH; we still guard $PYTHON which comes from `command -v`.
+    # Escape \ and " so a path with TOML-meaningful chars can't break the file.
     py_escaped="$(toml_basic_escape "$PYTHON")"
     mcp_escaped="$(toml_basic_escape "$MCP_PATH")"
     {
@@ -1866,9 +1614,7 @@ register_mcp_codex() {
 }
 
 toml_basic_escape() {
-    # Escape \ and " for a TOML basic string ("…"). Leaves printables
-    # alone; control chars in paths are pathological enough we let TOML
-    # reject them at load time.
+    # Escape \ and " for a TOML basic string.
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
@@ -1891,13 +1637,7 @@ install_claude_skills() {
     fi
     mkdir -p "$HOME/.claude"
 
-    # Snapshot existing skills / prompts before we overwrite them. The
-    # archive ships under canonical skill dirs (irule-*, tcl-*, tk-*) and
-    # if the user has hand-edited any of those, the cp -R below replaces
-    # them silently. A timestamped tarball makes the swap reversible.
-    #
-    # We only back up if at least one of the target trees has actual
-    # content. Backups live next to the targets and rotate per timestamp.
+    # Snapshot existing ~/.claude/{skills,prompts,tcl-ai.pyz} before overwrite.
     if [ -d "$HOME/.claude/skills" ] || [ -d "$HOME/.claude/prompts" ]; then
         bak_stamp="$(date +%Y%m%d%H%M%S)"
         bak_dir="$HOME/.claude/.tcl-lsp-bak-${bak_stamp}"
@@ -1940,9 +1680,6 @@ install_ai_integrations() {
     fi
 }
 
-# ---------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------
 
 main() {
     init_workdir
@@ -1984,9 +1721,7 @@ main() {
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
     if ! path_contains "$PREFIX"; then
-        # Instruction text shown to the user; they paste this into their
-        # shell where it expands.
-        # shellcheck disable=SC2016
+        # shellcheck disable=SC2016  # instruction text shown to user
         printf 'Open a new shell, or run:  %sexport PATH="%s:$PATH"%s\n' \
                "$BOLD" "$PREFIX" "$RESET"
     fi
