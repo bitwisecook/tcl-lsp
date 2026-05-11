@@ -201,12 +201,32 @@ jobs:
             fi
           fi
 
-      - name: Upload installer script to release
+      - name: Stamp + upload installer script to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release upload "$tag" scripts/install.sh --clobber
+          sha="$(git rev-parse --short HEAD)"
+          # Replace the @@INSTALLER_VERSION_*@@ placeholders so a user
+          # running --version on the published asset sees the actual
+          # release. The in-tree script on main stays unstamped so
+          # contributors don't see misleading version strings locally.
+          tmp="$(mktemp)"
+          sed \
+            -e "s/@@INSTALLER_VERSION_TAG@@/${tag}/" \
+            -e "s/@@INSTALLER_VERSION_SHA@@/(${sha})/" \
+            scripts/install.sh > "$tmp"
+          # Sanity-check that both placeholders were actually replaced
+          # before we upload — failing loudly here beats publishing a
+          # script that reports itself as "dev (unstamped)".
+          if grep -q '@@INSTALLER_VERSION_' "$tmp"; then
+              echo "ERROR: installer placeholder was not stamped" >&2
+              grep '@@INSTALLER_VERSION_' "$tmp" >&2
+              exit 1
+          fi
+          install -m 0755 "$tmp" install.sh
+          rm -f "$tmp"
+          gh release upload "$tag" install.sh --clobber
 
   # Build: VSIX package
   build-vsix:

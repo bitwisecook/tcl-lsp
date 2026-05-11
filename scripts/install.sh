@@ -41,6 +41,14 @@
 #   TCL_LSP_REQUIRE_VERIFY       - 1 to fail when SHA256SUMS is missing
 #   TCL_LSP_REQUIRE_COSIGN       - 1 to fail when cosign signature is missing/invalid
 #   TCL_LSP_ALLOW_INSECURE_WGET  - 1 to allow wget without --https-only (DANGEROUS)
+#   TCL_LSP_ALLOW_TLS12          - 1 to skip the TLS 1.3 + HTTP/2 attempt and go
+#                                  straight to TLS 1.2 + HTTP/1.1 (e.g. behind a
+#                                  proxy that doesn't negotiate TLS 1.3)
+#
+# Proxy: curl and wget both honour the standard http_proxy / https_proxy /
+# no_proxy environment variables. On macOS, the system proxy (System
+# Settings > Network > Proxies) is NOT auto-discovered — export the env
+# vars manually if you need the proxy.
 #   TCL_LSP_ASSUME_YES      - 1 to answer "yes" non-interactively
 #   TCL_LSP_ASSUME_NO       - 1 to answer "no" non-interactively
 #   TCL_LSP_NO_TUI          - 1 to force text prompts even when whiptail/dialog is present
@@ -54,6 +62,21 @@ set -eu
 # needs whitespace splitting saves and restores IFS locally.
 IFS='
 '
+
+# Stamped at release time by the publish-checksums CI job, which sed-
+# replaces the @@…@@ markers with the actual tag and short SHA before
+# uploading scripts/install.sh as a release asset. Any unstamped copy
+# (e.g. someone running the script directly out of main) keeps the
+# placeholders and reports itself as "dev". The placeholders are split
+# across two assignments so that running this very file through sed
+# (as the build step does) only ever matches the intended values, not
+# the literal block here.
+INSTALLER_VERSION_TAG="@@INSTALLER_VERSION_TAG@@"
+INSTALLER_VERSION_SHA="@@INSTALLER_VERSION_SHA@@"
+case "$INSTALLER_VERSION_TAG" in
+    @@*) INSTALLER_VERSION_TAG="dev"; INSTALLER_VERSION_SHA="(unstamped)" ;;
+esac
+INSTALLER_VERSION="${INSTALLER_VERSION_TAG} ${INSTALLER_VERSION_SHA}"
 
 DEFAULT_REPO="bitwisecook/tcl-lsp"
 REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
@@ -192,7 +215,7 @@ usage() {
 for arg in "$@"; do
     case "$arg" in
         -h|--help)    usage ;;
-        -V|--version) printf 'tcl-lsp installer (in-tree script)\n'; exit 0 ;;
+        -V|--version) printf 'tcl-lsp installer %s\n' "$INSTALLER_VERSION"; exit 0 ;;
         --) break ;;
         -*) die "unknown flag: $arg (try --help)" ;;
     esac
@@ -704,41 +727,139 @@ Options:
 }
 
 # ---------------------------------------------------------------------
-# Downloads (HTTPS-only)
+# Proxy detection
 # ---------------------------------------------------------------------
 
+detect_proxy() {
+    # curl and wget both honour http_proxy / https_proxy / no_proxy from
+    # the environment automatically. We just surface a log line so the
+    # user can spot misconfiguration, and on macOS we additionally check
+    # the system proxy config (System Settings > Network > Proxies) and
+    # warn when it's set but no env vars override it — curl will bypass
+    # the system proxy because it only reads env vars / curlrc.
+    h="${https_proxy:-${HTTPS_PROXY:-}}"
+    p="${http_proxy:-${HTTP_PROXY:-}}"
+    n="${no_proxy:-${NO_PROXY:-}}"
+
+    if [ -n "$h" ] || [ -n "$p" ]; then
+        log "proxy: https_proxy=${h:-(unset)} http_proxy=${p:-(unset)}${n:+ no_proxy=$n}"
+        return
+    fi
+
+    if [ "$OS" = macos ] && have scutil; then
+        if scutil --proxy 2>/dev/null | grep -qE '^[[:space:]]*HTTP(S)?Enable[[:space:]]*:[[:space:]]*1'; then
+            warn "macOS system proxy is configured but http_proxy / https_proxy are unset."
+            warn "curl/wget read only environment variables — the system proxy will be bypassed."
+            warn "If you need the proxy, export https_proxy=http://host:port before re-running."
+        fi
+    fi
+}
+
+# ---------------------------------------------------------------------
+# Downloads (HTTPS-only, strict TLS 1.3 + HTTP/2 by default)
+# ---------------------------------------------------------------------
+
+# Transport-strictness state. 0 = strict (TLS 1.3 + HTTP/2 for curl,
+# TLS 1.3 only for wget); 1 = lax (TLS 1.2 + HTTP/1.1) after the user
+# approved the fallback once. TCL_LSP_ALLOW_TLS12=1 in the env starts
+# the run in lax mode without ever offering strict.
+TLS_FALLBACK=0
+if [ "${TCL_LSP_ALLOW_TLS12:-0}" = "1" ]; then
+    TLS_FALLBACK=1
+fi
+
+WGET_HAS_TLS13=""
+wget_supports_tls13() {
+    case "$WGET_HAS_TLS13" in
+        1) return 0 ;;
+        0) return 1 ;;
+    esac
+    if wget --help 2>&1 | grep -q -- '--secure-protocol'; then
+        WGET_HAS_TLS13=1
+        return 0
+    fi
+    WGET_HAS_TLS13=0
+    return 1
+}
+
+curl_invoke() {
+    # curl with the current transport-strictness, plus the caller's args.
+    if [ "$TLS_FALLBACK" = 1 ]; then
+        curl --tlsv1.2 --http1.1 --proto '=https' --proto-redir '=https' "$@"
+    else
+        curl --tlsv1.3 --http2  --proto '=https' --proto-redir '=https' "$@"
+    fi
+}
+
+wget_invoke() {
+    # wget with the current transport-strictness, plus the caller's args.
+    # HTTP/2 isn't supported by wget(1), so we only switch TLS levels.
+    https_arg=
+    require_wget_https_only && https_arg=--https-only
+    if [ "$TLS_FALLBACK" = 1 ] || ! wget_supports_tls13; then
+        if [ -n "$https_arg" ]; then
+            wget "$https_arg" "$@"
+        else
+            wget "$@"
+        fi
+    else
+        if [ -n "$https_arg" ]; then
+            wget "$https_arg" --secure-protocol=TLSv1_3 "$@"
+        else
+            wget --secure-protocol=TLSv1_3 "$@"
+        fi
+    fi
+}
+
+maybe_fallback_tls() {
+    # Called after a strict curl/wget request just failed. Prompts the
+    # user once for the per-run TLS 1.2 + HTTP/1.1 fallback. Returns
+    # success if the caller should retry under the lax setting; dies if
+    # declined. Already-lax (TLS_FALLBACK=1) returns failure unchanged.
+    [ "$TLS_FALLBACK" = 1 ] && return 1
+    warn "TLS 1.3 / HTTP/2 negotiation failed (corporate proxy or older intermediary?)"
+    if ! ask_default_no "Fall back to TLS 1.2 + HTTP/1.1 for this and subsequent downloads? [y/N]"; then
+        die "aborted: TLS 1.3 + HTTP/2 download failed and fallback declined.
+Set TCL_LSP_ALLOW_TLS12=1 to opt in non-interactively, or investigate
+why TLS 1.3 / HTTP/2 isn't reachable from your network."
+    fi
+    TLS_FALLBACK=1
+    return 0
+}
+
 download() {
-    # download URL OUTPUT — pins TLS, refuses HTTP redirects.
+    # download URL OUTPUT — pins TLS and refuses HTTP redirects.
     url="$1"; out="$2"
     log "fetching $(basename "$out")"
     if [ "$DOWNLOADER" = "wget" ]; then
-        if require_wget_https_only; then
-            wget --https-only -qO "$out" "$url"
-        else
-            # Reached only when TCL_LSP_ALLOW_INSECURE_WGET=1.
-            wget -qO "$out" "$url"
-        fi
+        if wget_invoke -qO "$out" "$url"; then return 0; fi
+        maybe_fallback_tls || return 1
+        wget_invoke -qO "$out" "$url"
     else
-        curl --proto '=https' --proto-redir '=https' -fsSL -o "$out" "$url"
+        if curl_invoke -fsSL -o "$out" "$url"; then return 0; fi
+        maybe_fallback_tls || return 1
+        curl_invoke -fsSL -o "$out" "$url"
     fi
 }
 
 resolve_latest_tag() {
     # Follow the redirect from /releases/latest to /releases/tag/vX.Y.Z.
     # Avoids the api.github.com 60/hr unauthenticated rate limit.
+    # Uses the same strict-then-lax flow as download().
     redirect_url="https://github.com/$REPO/releases/latest"
     final_url=""
     if [ "$DOWNLOADER" = "wget" ]; then
-        if require_wget_https_only; then
-            final_url="$(wget --https-only -qS --max-redirect=10 -O /dev/null "$redirect_url" 2>&1 \
-                | awk '/^  Location:/ {loc=$2} END {print loc}' | tr -d '\r')"
-        else
-            final_url="$(wget -qS --max-redirect=10 -O /dev/null "$redirect_url" 2>&1 \
+        final_url="$(wget_invoke -qS --max-redirect=10 -O /dev/null "$redirect_url" 2>&1 \
+            | awk '/^  Location:/ {loc=$2} END {print loc}' | tr -d '\r')"
+        if [ -z "$final_url" ] && maybe_fallback_tls; then
+            final_url="$(wget_invoke -qS --max-redirect=10 -O /dev/null "$redirect_url" 2>&1 \
                 | awk '/^  Location:/ {loc=$2} END {print loc}' | tr -d '\r')"
         fi
     else
-        final_url="$(curl --proto '=https' --proto-redir '=https' \
-            -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url")"
+        final_url="$(curl_invoke -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url" 2>/dev/null)"
+        if [ -z "$final_url" ] && maybe_fallback_tls; then
+            final_url="$(curl_invoke -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url" 2>/dev/null)"
+        fi
     fi
     case "$final_url" in
         *"/releases/tag/"*) printf '%s\n' "${final_url##*/tag/}" ;;
@@ -1702,8 +1823,10 @@ install_ai_integrations() {
 main() {
     init_workdir
     ensure_ui
+    log "tcl-lsp installer $INSTALLER_VERSION"
     detect_os
     detect_shell
+    detect_proxy
     ensure_curl
 
     if ! find_python; then

@@ -61,8 +61,15 @@ Prefer not to pipe straight into `sh`?  Download and read it first:
 ```sh
 curl -fsSLo install.sh https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh
 less install.sh
+sh install.sh --version    # → "tcl-lsp installer v1.9.0 (abc1234)"
 sh install.sh
 ```
+
+The release CI stamps the tag and short commit SHA into each
+published `install.sh` before uploading it, so `--version` and the
+startup banner identify the exact tree the script came from.  An
+unstamped copy (e.g. running directly from `main`) reports itself as
+`dev (unstamped)`.
 
 ### Interactive vs non-interactive
 
@@ -244,6 +251,7 @@ curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/insta
 | `TCL_LSP_REQUIRE_VERIFY` | unset | Fail the install if the release has no `SHA256SUMS` file. Default behaviour is to warn and continue. |
 | `TCL_LSP_REQUIRE_COSIGN` | unset | Fail the install if `cosign` is missing or if the release has no `SHA256SUMS.cosign.bundle`.  Prevents a network adversary from stripping the signature bundle to coerce a signature-verified install down to hash-only. |
 | `TCL_LSP_ALLOW_INSECURE_WGET` | unset | Allow `wget` without `--https-only` (older / BusyBox builds).  **Do not set on an untrusted network** — a MITM that rewrites the HTTPS redirect to `http://` could replace the artefact and SUMS together. |
+| `TCL_LSP_ALLOW_TLS12` | unset | Skip the TLS 1.3 + HTTP/2 attempt and go straight to TLS 1.2 + HTTP/1.1.  Useful behind older corporate proxies that don't negotiate TLS 1.3. |
 | `TCL_LSP_NO_TUI` | unset | Force plain-text prompts even when `whiptail` or `dialog` is on PATH. |
 | `TCL_LSP_SUFFIX` | unset  | Suffix to append to installed binary names (e.g. `-lsp` → `tcl-lsp`, `f5-lsp`). Used to avoid clashing with an existing `tcl` / `f5` on PATH. |
 
@@ -295,6 +303,51 @@ curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256S
        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
        SHA256SUMS
 ```
+
+---
+
+## Network: TLS, HTTP/2, and proxies
+
+The installer's default transport is **TLS 1.3 + HTTP/2** for every
+download (artefacts, `SHA256SUMS`, the cosign bundle, and the
+`/releases/latest` redirect probe).  If the initial connect fails —
+typically because a corporate proxy hasn't been upgraded — the
+installer prints
+
+```
+warn: TLS 1.3 / HTTP/2 negotiation failed (corporate proxy or older intermediary?)
+Fall back to TLS 1.2 + HTTP/1.1 for this and subsequent downloads? [y/N]
+```
+
+and **defaults to no**: declining aborts the install rather than
+silently downgrading.  Saying yes pins the rest of the run to
+TLS 1.2 + HTTP/1.1.  Set `TCL_LSP_ALLOW_TLS12=1` to skip the prompt
+non-interactively.
+
+Both `curl` and `wget` honour the standard environment proxy
+variables — `https_proxy`, `http_proxy`, `no_proxy` (lowercase or
+uppercase).  The installer prints the values it sees so a
+mis-spelled or duplicated entry doesn't go unnoticed:
+
+```
+==> proxy: https_proxy=http://corp.example:8080 http_proxy=(unset) no_proxy=localhost
+```
+
+**macOS note** — `curl`/`wget` on macOS read the env vars but **not**
+the system proxy (System Settings > Network > Proxies).  When the
+system has a proxy configured and no env var matches it, the
+installer prints a warning and continues without the proxy.  Export
+the env vars manually if you need the proxy:
+
+```sh
+export https_proxy=http://corp.example:8080
+export no_proxy=localhost,127.0.0.1
+curl -fsSL https://github.com/.../install.sh | sh
+```
+
+`wget`'s HTTP/2 support is limited to `wget2` — `wget1` only honours
+the TLS portion of the strict setting (`--secure-protocol=TLSv1_3`
+when available).  `curl` does both.
 
 ---
 
