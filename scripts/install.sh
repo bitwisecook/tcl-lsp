@@ -161,6 +161,16 @@ print_prompt() {
     fi
 }
 
+# Same target as print_prompt, but terminates the line — for menu
+# entries that need to appear on their own line above the final
+# inline prompt.
+print_line() {
+    tty_available || return 1
+    if [ "$TTY_OUT" = stderr ]; then printf '%s\n' "$1" >&2
+    else printf '%s\n' "$1" >/dev/tty
+    fi
+}
+
 read_user_line() {
     tty_available || return 1
     if [ "$TTY_IN" = stdin ]; then IFS= read -r reply
@@ -233,13 +243,14 @@ tui_menu() {
             return 1
             ;;
         *)
-            print_prompt "$(printf '\n%s\n' "$prompt")"
+            print_line ""
+            print_line "$prompt"
             i=0
             while [ $# -gt 0 ]; do
                 i=$((i + 1))
                 tag="$1"; desc="$2"; shift 2
                 eval "tag_$i=\"\$tag\""
-                print_prompt "$(printf '  %d) %-32s %s\n' "$i" "$tag" "$desc")"
+                print_line "$(printf '  %d) %-32s %s' "$i" "$tag" "$desc")"
             done
             print_prompt 'Selection [1]:'
             read_user_line || reply=1
@@ -281,8 +292,9 @@ tui_checklist() {
 "
                 [ "$state" = ON ] && defaults="${defaults}${defaults:+,}${tag}"
             done
-            print_prompt "$(printf '\n%s\n' "$prompt")"
-            print_prompt "$(printf '%s' "$args" | awk -F'|' '{ printf "  %-24s %s\n", $1, $2 }')"
+            print_line ""
+            print_line "$prompt"
+            print_line "$(printf '%s' "$args" | awk -F'|' '{ printf "  %-24s %s\n", $1, $2 }')"
             print_prompt "Enable [$defaults]:"
             read_user_line || reply=""
             : "${reply:=$defaults}"
@@ -1414,9 +1426,9 @@ find_existing_mcp() {
     cfg="$HOME/.codex/config.toml"
     if [ -f "$cfg" ]; then
         p="$(awk '
-            /^[[:space:]]*\[mcp_servers\.tcl_lsp\]/ { in=1; next }
-            in && /^[[:space:]]*\[/                 { in=0 }
-            in && /\.pyz/ {
+            /^[[:space:]]*\[mcp_servers\.tcl_lsp\]/ { inside=1; next }
+            inside && /^[[:space:]]*\[/             { inside=0 }
+            inside && /\.pyz/ {
                 if (match($0, /"[^"]+\.pyz"/)) {
                     print substr($0, RSTART+1, RLENGTH-2); exit
                 }
@@ -1644,7 +1656,8 @@ choose_prefix() {
             fi
             ;;
         *)
-            print_prompt "$(printf '\n%sChoose install location:%s' "$BOLD" "$RESET")"
+            print_line ""
+            print_line "${BOLD}Choose install location:${RESET}"
             i=0
             OLD_IFS="$IFS"; IFS='
 '
@@ -1653,11 +1666,11 @@ choose_prefix() {
                 annot="$(annotate_candidate "$c")"
                 marker=" "
                 [ "$c" = "$PREFIX" ] && marker="*"
-                print_prompt "$(printf '  %s %d) %-32s %s' "$marker" "$i" "$c" "$annot")"
+                print_line "$(printf '  %s %d) %-32s %s' "$marker" "$i" "$c" "$annot")"
             done
             IFS="$OLD_IFS"
             other_idx=$((i + 1))
-            print_prompt "$(printf '    %d) Other (enter a path)' "$other_idx")"
+            print_line "$(printf '    %d) Other (enter a path)' "$other_idx")"
             print_prompt "$(printf '\nSelection [%s]:' "$PREFIX")"
             read_user_line || reply=""
             ans="$reply"
