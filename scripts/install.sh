@@ -24,8 +24,17 @@ set -eu
 
 REPO="${TCL_LSP_REPO:-bitwisecook/tcl-lsp}"
 VERSION="${TCL_LSP_VERSION:-latest}"
-PREFIX="${TCL_LSP_PREFIX:-$HOME/.local/bin}"
 ONLY="${TCL_LSP_ONLY:-both}"
+
+# Tri-state: if TCL_LSP_PREFIX is set in env we honour it without
+# prompting; otherwise choose_prefix() may run interactively.
+if [ -n "${TCL_LSP_PREFIX:-}" ]; then
+    PREFIX="$TCL_LSP_PREFIX"
+    PREFIX_EXPLICIT=1
+else
+    PREFIX="$HOME/.local/bin"
+    PREFIX_EXPLICIT=0
+fi
 
 GREEN=''; YELLOW=''; RED=''; BOLD=''; RESET=''
 if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
@@ -254,12 +263,10 @@ install_cli() {
     url="https://github.com/$REPO/releases/download/${resolved_tag}/${asset}"
     log "resolved $name -> $asset (tag $resolved_tag)"
 
-    mkdir -p "$PREFIX"
     # BSD/macOS mktemp requires the X-template at the end of the name.
     tmpfile="$(mktemp "${TMPDIR:-/tmp}/${name}-install.XXXXXX")"
     download "$url" "$tmpfile"
-    mv "$tmpfile" "$PREFIX/$name"
-    chmod +x "$PREFIX/$name"
+    write_target "$tmpfile" "$PREFIX/$name"
     log "installed $name -> $PREFIX/$name"
 }
 
@@ -268,6 +275,138 @@ path_contains() {
         *":$1:"*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+dir_writable() {
+    # Returns 0 if $1 is a writable directory, or if the deepest
+    # existing ancestor of $1 is writable (so we can mkdir into it).
+    d="$1"
+    while [ -n "$d" ] && [ "$d" != "/" ]; do
+        if [ -d "$d" ]; then
+            [ -w "$d" ]
+            return $?
+        fi
+        d="$(dirname "$d")"
+    done
+    return 1
+}
+
+annotate_candidate() {
+    # Print a parenthesised tag describing PATH-membership and writability.
+    d="$1"
+    on_path="not on PATH"
+    if path_contains "$d"; then on_path="on PATH"; fi
+    if dir_writable "$d"; then
+        if [ -d "$d" ]; then perms="writable"; else perms="will create"; fi
+    else
+        perms="needs sudo"
+    fi
+    printf '(%s, %s)' "$on_path" "$perms"
+}
+
+collect_install_candidates() {
+    # Emit one candidate path per line. Order: user-owned dirs already
+    # on PATH, then promoted defaults, then well-known system dirs.
+    seen=""
+    emit() {
+        case "$seen" in *":$1:"*) return ;; esac
+        seen="$seen:$1:"
+        printf '%s\n' "$1"
+    }
+    OLD_IFS="$IFS"; IFS=:
+    # shellcheck disable=SC2086
+    set -- $PATH
+    IFS="$OLD_IFS"
+    for d in "$@"; do
+        case "$d" in
+            "$HOME"/*) emit "$d" ;;
+        esac
+    done
+    emit "$HOME/.local/bin"
+    emit "$HOME/bin"
+    for d in /usr/local/bin /opt/homebrew/bin /opt/local/bin; do
+        [ -d "$d" ] && emit "$d"
+    done
+}
+
+choose_prefix() {
+    # Skip if the user pinned a location, or if we can't interact.
+    if [ "$PREFIX_EXPLICIT" = "1" ]; then
+        log "install location (TCL_LSP_PREFIX): $PREFIX"
+        return
+    fi
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        log "install location (default): $PREFIX"
+        return
+    fi
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
+        log "install location (default): $PREFIX"
+        return
+    fi
+
+    printf '\n%sChoose install location:%s\n' "$BOLD" "$RESET"
+    i=0
+    cands="$(collect_install_candidates)"
+    OLD_IFS="$IFS"; IFS='
+'
+    for c in $cands; do
+        i=$((i + 1))
+        annot="$(annotate_candidate "$c")"
+        marker=" "
+        [ "$c" = "$PREFIX" ] && marker="*"
+        printf '  %s %d) %-32s %s\n' "$marker" "$i" "$c" "$annot"
+    done
+    IFS="$OLD_IFS"
+    other_idx=$((i + 1))
+    printf '    %d) Other (enter a path)\n' "$other_idx"
+    printf '\nSelection [%s]: ' "$PREFIX"
+    read -r ans || ans=""
+
+    if [ -z "$ans" ]; then
+        log "install location: $PREFIX"
+        return
+    fi
+    # Numeric pick?
+    case "$ans" in
+        ''|*[!0-9]*)
+            # Treat as a literal path
+            PREFIX="$ans"
+            ;;
+        *)
+            if [ "$ans" = "$other_idx" ]; then
+                printf 'Path: '
+                read -r custom
+                [ -n "$custom" ] && PREFIX="$custom"
+            else
+                i=0
+                IFS='
+'
+                for c in $cands; do
+                    i=$((i + 1))
+                    if [ "$i" = "$ans" ]; then PREFIX="$c"; break; fi
+                done
+                IFS="$OLD_IFS"
+            fi
+            ;;
+    esac
+    log "install location: $PREFIX"
+}
+
+write_target() {
+    # write_target SRC DST — move SRC to DST, escalating to sudo when
+    # the destination directory is not user-writable.
+    src="$1"; dst="$2"
+    target_dir="$(dirname "$dst")"
+    if dir_writable "$target_dir"; then
+        mkdir -p "$target_dir"
+        mv "$src" "$dst"
+        chmod 0755 "$dst"
+    else
+        log "$target_dir not writable — installing with sudo"
+        run_root mkdir -p "$target_dir"
+        run_root mv "$src" "$dst"
+        run_root chmod 0755 "$dst"
+    fi
 }
 
 ensure_path() {
@@ -344,6 +483,8 @@ main() {
         install_python
     fi
     log "using Python: $PYTHON"
+
+    choose_prefix
 
     case "$ONLY" in
         tcl)  install_cli tcl ;;

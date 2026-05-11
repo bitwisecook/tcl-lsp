@@ -22,9 +22,19 @@ For editor / LSP server installation see [INSTALL-editors.md](INSTALL-editors.md
 
 The installer detects the host OS (macOS, Debian/Ubuntu, Fedora/RHEL,
 Arch, Alpine) and the login shell (bash, zsh, fish), installs Python
-3.10+ through the native package manager when missing, downloads the
-latest `tcl` and `f5` zipapps into `~/.local/bin`, and offers to wire
-up `PATH` and shell completion.
+3.10+ through the native package manager when missing, scans `PATH`
+for a writable install directory (prompts you to pick between
+`~/.local/bin`, `~/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, and
+any user-owned directory already on `PATH`), downloads the latest
+`tcl` and `f5` zipapps there, and offers to wire up `PATH` and shell
+completion.
+
+When the chosen location is not user-writable (e.g. `/usr/local/bin`)
+the installer escalates to `sudo` for the file copy only — Python
+package installs always go through `sudo`/`doas` already.
+
+In non-interactive use (`curl … | sh`), the location prompt is
+skipped and `$TCL_LSP_PREFIX` (default `~/.local/bin`) is used.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
@@ -58,7 +68,7 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/in
 | Variable | Default | Effect |
 |----------|---------|--------|
 | `TCL_LSP_VERSION` | `latest` | Pin a release tag (e.g. `v1.2.3`). |
-| `TCL_LSP_PREFIX`  | `$HOME/.local/bin` | Install directory for the executables. |
+| `TCL_LSP_PREFIX`  | *prompt* (default `$HOME/.local/bin`) | Install directory. Set to bypass the interactive picker. |
 | `TCL_LSP_ONLY`    | `both` | `tcl`, `f5`, or `both`. |
 | `TCL_LSP_NO_DEPS` | unset | Skip Python install attempts (fail loudly instead). |
 | `TCL_LSP_NO_PATH` | unset | Do not modify the shell rc file. |
