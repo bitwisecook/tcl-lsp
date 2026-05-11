@@ -37,8 +37,10 @@
 #   TCL_LSP_NO_SKILLS       - 1 to skip Claude Code skills install
 #   TCL_LSP_NO_CLAUDE       - 1 to ignore Claude Code even if detected
 #   TCL_LSP_NO_CODEX        - 1 to ignore Codex even if detected
-#   TCL_LSP_NO_VERIFY       - 1 to skip SHA256SUMS verification
-#   TCL_LSP_REQUIRE_VERIFY  - 1 to fail when SHA256SUMS is missing
+#   TCL_LSP_NO_VERIFY            - 1 to skip SHA256SUMS verification
+#   TCL_LSP_REQUIRE_VERIFY       - 1 to fail when SHA256SUMS is missing
+#   TCL_LSP_REQUIRE_COSIGN       - 1 to fail when cosign signature is missing/invalid
+#   TCL_LSP_ALLOW_INSECURE_WGET  - 1 to allow wget without --https-only (DANGEROUS)
 #   TCL_LSP_ASSUME_YES      - 1 to answer "yes" non-interactively
 #   TCL_LSP_ASSUME_NO       - 1 to answer "no" non-interactively
 #   TCL_LSP_NO_TUI          - 1 to force text prompts even when whiptail/dialog is present
@@ -46,7 +48,10 @@
 
 set -eu
 # Defence-in-depth: a poisoned IFS in the caller's env can split values
-# in places we don't expect. Reset to the POSIX default for the run.
+# in places we don't expect. Force IFS to a single newline so unquoted
+# expansions only split on line boundaries — the POSIX default
+# (<space><tab><newline>) is intentionally tighter here. Any loop that
+# needs whitespace splitting saves and restores IFS locally.
 IFS='
 '
 
@@ -478,6 +483,9 @@ install_python() {
 }
 
 ensure_curl() {
+    # Prefer curl when present — it can pin redirects to HTTPS via
+    # --proto-redir, which some `wget` builds (notably BusyBox) cannot.
+    # If neither is present we install curl via the package manager.
     if have curl; then DOWNLOADER="curl"; return; fi
     if have wget; then DOWNLOADER="wget"; return; fi
     if [ "${TCL_LSP_NO_DEPS:-0}" = "1" ]; then
@@ -645,15 +653,37 @@ check_cli_runtime_dependencies() {
 }
 
 WGET_HAS_HTTPS_ONLY=""
-wget_supports_https_only() {
-    [ -n "$WGET_HAS_HTTPS_ONLY" ] && { [ "$WGET_HAS_HTTPS_ONLY" = "1" ]; return; }
+require_wget_https_only() {
+    # Memoised probe. Aborts the install when wget lacks --https-only —
+    # a follow-on http:// redirect from a MITM would otherwise compromise
+    # both the artefact download and the SHA256SUMS verification (the
+    # attacker could simply serve their own SUMS over plaintext).
+    #
+    # Escape hatch: TCL_LSP_ALLOW_INSECURE_WGET=1 explicitly opts in to a
+    # wget without redirect-protocol pinning. Don't set this unless you
+    # know your network path is trustworthy end-to-end.
+    case "$WGET_HAS_HTTPS_ONLY" in
+        1) return 0 ;;
+        0) return 1 ;;
+    esac
     if wget --help 2>&1 | grep -q -- --https-only; then
         WGET_HAS_HTTPS_ONLY=1
-    else
-        WGET_HAS_HTTPS_ONLY=0
-        warn "wget on this host does not support --https-only — HTTPS-only redirects cannot be enforced"
+        return 0
     fi
-    [ "$WGET_HAS_HTTPS_ONLY" = "1" ]
+    WGET_HAS_HTTPS_ONLY=0
+    if [ "${TCL_LSP_ALLOW_INSECURE_WGET:-0}" = "1" ]; then
+        warn "wget here does not support --https-only — HTTPS redirect pinning OFF"
+        warn "(TCL_LSP_ALLOW_INSECURE_WGET=1 set, proceeding anyway)"
+        return 1
+    fi
+    die "wget on this host does not support --https-only.
+A MITM that redirected an HTTPS request to http:// could replace
+the downloaded artefact AND the SHA256SUMS file in the same response.
+Options:
+  - install curl (\`apt-get install curl\` / \`brew install curl\` / etc.) and re-run
+  - upgrade wget to >= 1.14
+  - set TCL_LSP_ALLOW_INSECURE_WGET=1 to bypass (do NOT do this on an
+    untrusted network)"
 }
 
 # ---------------------------------------------------------------------
@@ -665,9 +695,10 @@ download() {
     url="$1"; out="$2"
     log "fetching $(basename "$out")"
     if [ "$DOWNLOADER" = "wget" ]; then
-        if wget_supports_https_only; then
+        if require_wget_https_only; then
             wget --https-only -qO "$out" "$url"
         else
+            # Reached only when TCL_LSP_ALLOW_INSECURE_WGET=1.
             wget -qO "$out" "$url"
         fi
     else
@@ -681,7 +712,7 @@ resolve_latest_tag() {
     redirect_url="https://github.com/$REPO/releases/latest"
     final_url=""
     if [ "$DOWNLOADER" = "wget" ]; then
-        if wget_supports_https_only; then
+        if require_wget_https_only; then
             final_url="$(wget --https-only -qS --max-redirect=10 -O /dev/null "$redirect_url" 2>&1 \
                 | awk '/^  Location:/ {loc=$2} END {print loc}' | tr -d '\r')"
         else
@@ -746,8 +777,10 @@ ensure_sums() {
         verify_sums_signature "$SUMS_PATH" || die "cosign verification of SHA256SUMS failed"
         return 0
     fi
-    if [ "${TCL_LSP_REQUIRE_VERIFY:-0}" = "1" ]; then
-        die "SHA256SUMS not found at $(asset_url SHA256SUMS) — TCL_LSP_REQUIRE_VERIFY=1, refusing to proceed."
+    # REQUIRE_COSIGN implies REQUIRE_VERIFY — you can't verify a signature
+    # on a SUMS file you couldn't download.
+    if [ "${TCL_LSP_REQUIRE_VERIFY:-0}" = "1" ] || [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
+        die "SHA256SUMS not found at $(asset_url SHA256SUMS) — TCL_LSP_REQUIRE_VERIFY=1 or TCL_LSP_REQUIRE_COSIGN=1, refusing to proceed."
     fi
     warn "no SHA256SUMS file in release $RESOLVED_TAG — installing without integrity verification"
     warn "(set TCL_LSP_REQUIRE_VERIFY=1 to fail on missing SUMS, or TCL_LSP_NO_VERIFY=1 to silence this)"
@@ -756,13 +789,30 @@ ensure_sums() {
 }
 
 verify_sums_signature() {
-    # Verify the SUMS file against cosign keyless signature, if both
+    # Verify the SUMS file against a cosign keyless signature when both
     # cosign and a SHA256SUMS.cosign.bundle are available.
+    #
+    # TCL_LSP_REQUIRE_COSIGN=1 promotes "missing cosign" or "missing
+    # bundle" from a silent downgrade to a hard failure. This catches a
+    # network adversary stripping the bundle to coerce a signature-
+    # verified install down to hash-only.
     sums="$1"
-    have cosign || return 0
+    if ! have cosign; then
+        if [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
+            die "cosign not installed but TCL_LSP_REQUIRE_COSIGN=1.
+Install cosign (\`brew install cosign\` / \`apt-get install cosign\` / etc.) and retry."
+        fi
+        return 0
+    fi
     bundle="$WORKDIR/SHA256SUMS.cosign.bundle"
     if ! download "$(asset_url SHA256SUMS.cosign.bundle)" "$bundle" 2>/dev/null; then
-        return 0   # bundle not published — nothing to verify
+        if [ "${TCL_LSP_REQUIRE_COSIGN:-0}" = "1" ]; then
+            die "SHA256SUMS.cosign.bundle not published for $RESOLVED_TAG
+and TCL_LSP_REQUIRE_COSIGN=1. Refusing to proceed with hash-only verification.
+Older releases that predate the publish-checksums job may need the bundle
+backfilled — see scripts/backfill-sums.sh --sign."
+        fi
+        return 0
     fi
     if cosign verify-blob \
         --bundle "$bundle" \
@@ -780,6 +830,9 @@ verify_artefact() {
     # No-op when SUMS unavailable and not required (warning was already emitted).
     asset="$1"; local="$2"
     ensure_sums || return 0
+    # Match either `<hash> NAME` (GNU text mode) or `<hash> *NAME` (binary).
+    # Assumes filenames contain no whitespace — true for every release
+    # artefact we publish; would break for `foo bar.pyz`.
     expected="$(awk -v a="$asset" '$2 == a || $2 == "*"a {print $1; exit}' "$SUMS_PATH")"
     [ -n "$expected" ] || die "no SHA256 entry for $asset in SHA256SUMS"
     if have sha256sum; then
@@ -941,17 +994,25 @@ find_on_path() {
 }
 
 looks_like_our_zipapp() {
-    # Two-tier check, fast and graceful-degradation:
+    # Two-tier identity check:
     #
     # Tier 1 — cheap fingerprint: Python shebang + ZIP local-file-header
     # signature in the first 2KB. Catches "is it a Python zipapp at all".
     #
-    # Tier 2 — deep peek for tcl-lsp markers, using whatever's available:
-    #   a) `unzip` for speed (preinstalled on most macOS / linux desktops)
-    #   b) `python3 zipfile` (Python is anyway required to run our zipapps)
-    #   c) raw byte grep of the file (the central directory stores
-    #      filenames uncompressed, so `lsp/_build_info.py` literal is
-    #      visible even without ZIP tooling)
+    # Tier 2 — deep peek for tcl-lsp markers via whichever tool is
+    # available:
+    #   a) `unzip -l` / `unzip -p __main__.py` (fast)
+    #   b) `python3 zipfile` (always present — Python is anyway
+    #      required to run any of our zipapps, and the installer
+    #      ensures Python 3.10+ before this function is ever called)
+    #
+    # A raw-grep fallback (looking for 'lsp/_build_info.py' as a literal
+    # in the file) was considered but is too easy to spoof: an attacker
+    # could embed the marker string anywhere in an arbitrary executable.
+    # When both unzip AND Python are missing we instead refuse to
+    # confirm the file as ours — the caller falls back to "treat as
+    # unrelated", which surfaces the right prompts (overwrite y/N,
+    # picker for fresh install).
     f="$1"
     [ -r "$f" ] || return 1
 
@@ -1002,12 +1063,8 @@ PY
         return 1
     fi
 
-    # Tier 2c — raw byte grep. Filenames in the ZIP central directory
-    # are stored uncompressed, so the literal path lives in the file as
-    # a contiguous string regardless of whether the entry is DEFLATEd.
-    if grep -aql 'lsp/_build_info.py' "$f" 2>/dev/null; then
-        return 0
-    fi
+    # Neither unzip nor Python — can't confirm. Treat as not-ours so
+    # downstream logic surfaces the safer "overwrite anyway?" prompt.
     return 1
 }
 
@@ -1023,31 +1080,14 @@ propose_update_install() {
     # always installs them side by side).
     [ "$PREFIX_EXPLICIT" = "1" ] && return
 
+    found_dir=""
     case "$ONLY" in
-        tcl)  targets="tcl" ;;
-        f5)   targets="f5" ;;
-        both) targets="tcl f5" ;;
+        tcl)  propose_update_one tcl  || return ;;
+        f5)   propose_update_one f5   || return ;;
+        both) propose_update_one tcl  || return
+              propose_update_one f5   || return ;;
         *)    return ;;
     esac
-
-    found_dir=""
-    for name in $targets; do
-        if path="$(find_on_path "$name")" && looks_like_our_zipapp "$path"; then
-            found_dir="$(dirname "$path")"
-            log "found existing $name at $path"
-            if ! ask_optout "Update existing $name at $path (in place)? [Y/n]"; then
-                # User declined for this one — fall back to the normal
-                # picker for everything. (We don't try to split prefix
-                # per-CLI; it complicates rc-file / completion logic.)
-                log "leaving $path alone; will pick a fresh install location"
-                return
-            fi
-        elif [ -n "$path" ] && [ -x "$path" ]; then
-            warn "found '$name' at $path but it doesn't look like our zipapp"
-            warn "(missing python shebang or ZIP signature) — picker will run as usual"
-            return
-        fi
-    done
 
     if [ -n "$found_dir" ]; then
         set_prefix "$found_dir"
@@ -1055,6 +1095,27 @@ propose_update_install() {
         PREFIX_FROM_UPDATE=1
         log "updating in place: $PREFIX"
     fi
+}
+
+propose_update_one() {
+    # propose_update_one NAME — invoked once per CLI from
+    # propose_update_install. Returns non-zero when the caller should
+    # abort the in-place-update flow entirely (user declined, or PATH
+    # has a non-zipapp at this name).
+    n="$1"
+    path="$(find_on_path "$n")" || return 0
+    if looks_like_our_zipapp "$path"; then
+        found_dir="$(dirname "$path")"
+        log "found existing $n at $path"
+        if ! ask_optout "Update existing $n at $path (in place)? [Y/n]"; then
+            log "leaving $path alone; will pick a fresh install location"
+            return 1
+        fi
+        return 0
+    fi
+    warn "found '$n' at $path but it doesn't look like our zipapp"
+    warn "(missing python shebang or ZIP signature) — picker will run as usual"
+    return 1
 }
 
 # ---------------------------------------------------------------------
@@ -1079,6 +1140,26 @@ alias_in_rc() {
     return 1
 }
 
+count_conflicts_for() {
+    # Increments the parent's $conflicts when name $1 would be shadowed
+    # by something earlier on PATH or by a shell alias. No subshell —
+    # we share scope with detect_conflicts to keep the $conflicts
+    # tally simple and avoid stdout-capture acrobatics.
+    n="$1"
+    if other="$(find_on_path "$n")" && [ "$other" != "$PREFIX/$n" ]; then
+        if looks_like_our_zipapp "$other"; then
+            warn "another tcl-lsp '$n' is already at $other (will shadow $PREFIX/$n)"
+        else
+            warn "an unrelated '$n' exists at $other (will shadow $PREFIX/$n)"
+        fi
+        conflicts=$((conflicts + 1))
+    fi
+    if rc_with_alias="$(alias_in_rc "$n")"; then
+        warn "shell alias for '$n' in $rc_with_alias may shadow our install"
+        conflicts=$((conflicts + 1))
+    fi
+}
+
 detect_conflicts() {
     # For each CLI we're about to install, check whether something on
     # PATH (or an alias) will shadow it once we drop our binary in
@@ -1087,28 +1168,13 @@ detect_conflicts() {
     # layout is already what the user wants).
     [ "${PREFIX_FROM_UPDATE:-0}" = "1" ] && return
 
+    conflicts=0
     case "$ONLY" in
-        tcl)  names="tcl" ;;
-        f5)   names="f5" ;;
-        both) names="tcl f5" ;;
+        tcl)  count_conflicts_for tcl ;;
+        f5)   count_conflicts_for f5  ;;
+        both) count_conflicts_for tcl; count_conflicts_for f5 ;;
         *)    return ;;
     esac
-
-    conflicts=0
-    for n in $names; do
-        if other="$(find_on_path "$n")" && [ "$other" != "$PREFIX/$n" ]; then
-            if looks_like_our_zipapp "$other"; then
-                warn "another tcl-lsp '$n' is already at $other (will shadow $PREFIX/$n)"
-            else
-                warn "an unrelated '$n' exists at $other (will shadow $PREFIX/$n)"
-            fi
-            conflicts=$((conflicts + 1))
-        fi
-        if rc_with_alias="$(alias_in_rc "$n")"; then
-            warn "shell alias for '$n' in $rc_with_alias may shadow our install"
-            conflicts=$((conflicts + 1))
-        fi
-    done
     [ "$conflicts" = 0 ] && return
 
     if [ -n "$INSTALL_SUFFIX" ]; then
@@ -1462,35 +1528,62 @@ install_mcp_zipapp() {
 }
 
 register_mcp_claude() {
+    # Idempotent re-registration: capture the prior entry (when present)
+    # so a failed `mcp add` after a successful `mcp remove` doesn't leave
+    # the user worse off than they started.
     if ! have_claude_cli; then
         warn "claude CLI not on PATH — add the MCP server manually:"
         warn "  claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
         return
     fi
-    claude mcp remove tcl-lsp >/dev/null 2>&1 || true
+    prior=""
+    if claude mcp list 2>/dev/null | awk '{print $1}' | grep -qx 'tcl-lsp'; then
+        # The exact `mcp list` format isn't a stable contract; capture
+        # the full record so we can echo it back as restore guidance.
+        prior="$(claude mcp list 2>/dev/null | awk '$1=="tcl-lsp" {sub(/^tcl-lsp[[:space:]]+/,""); print; exit}')"
+        claude mcp remove tcl-lsp >/dev/null 2>&1 || true
+    fi
     if claude mcp add tcl-lsp -- "$PYTHON" "$MCP_PATH" >/dev/null 2>&1; then
         log "registered MCP server with Claude Code (tcl-lsp)"
-    else
-        warn "claude mcp add failed — register manually:"
-        warn "  claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
+        return
     fi
+    warn "claude mcp add failed"
+    if [ -n "$prior" ]; then
+        warn "prior registration was: $prior"
+        warn "restore it manually if needed"
+    fi
+    warn "or register fresh with: claude mcp add tcl-lsp -- $PYTHON $MCP_PATH"
 }
 
 register_mcp_codex() {
     cfg="$HOME/.codex/config.toml"
     mkdir -p "$HOME/.codex"
     touch "$cfg"
-    if grep -q '^\[mcp_servers\.tcl_lsp\]' "$cfg" 2>/dev/null; then
+    # Allow leading whitespace — TOML accepts indented section headers
+    # and a hand-edited config may use them.
+    if grep -qE '^[[:space:]]*\[mcp_servers\.tcl_lsp\]' "$cfg" 2>/dev/null; then
         log "Codex already has [mcp_servers.tcl_lsp] in $cfg — leaving as-is"
         return
     fi
     cp "$cfg" "${cfg}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+    # Defensive escape — Unix paths can contain " or \ and the TOML
+    # parser would mis-tokenise either. set_prefix already validates
+    # $MCP_PATH; we still guard $PYTHON which comes from `command -v`.
+    py_escaped="$(toml_basic_escape "$PYTHON")"
+    mcp_escaped="$(toml_basic_escape "$MCP_PATH")"
     {
         printf '\n[mcp_servers.tcl_lsp]\n'
-        printf 'command = "%s"\n' "$PYTHON"
-        printf 'args = ["%s"]\n'  "$MCP_PATH"
+        printf 'command = "%s"\n' "$py_escaped"
+        printf 'args = ["%s"]\n'  "$mcp_escaped"
     } >> "$cfg"
     log "registered MCP server with Codex in $cfg"
+}
+
+toml_basic_escape() {
+    # Escape \ and " for a TOML basic string ("…"). Leaves printables
+    # alone; control chars in paths are pathological enough we let TOML
+    # reject them at load time.
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
 install_claude_skills() {
@@ -1511,6 +1604,29 @@ install_claude_skills() {
         return 1
     fi
     mkdir -p "$HOME/.claude"
+
+    # Snapshot existing skills / prompts before we overwrite them. The
+    # archive ships under canonical skill dirs (irule-*, tcl-*, tk-*) and
+    # if the user has hand-edited any of those, the cp -R below replaces
+    # them silently. A timestamped tarball makes the swap reversible.
+    #
+    # We only back up if at least one of the target trees has actual
+    # content. Backups live next to the targets and rotate per timestamp.
+    if [ -d "$HOME/.claude/skills" ] || [ -d "$HOME/.claude/prompts" ]; then
+        bak_stamp="$(date +%Y%m%d%H%M%S)"
+        bak_dir="$HOME/.claude/.tcl-lsp-bak-${bak_stamp}"
+        mkdir -p "$bak_dir"
+        [ -d "$HOME/.claude/skills"  ] && cp -R "$HOME/.claude/skills"  "$bak_dir/" 2>/dev/null
+        [ -d "$HOME/.claude/prompts" ] && cp -R "$HOME/.claude/prompts" "$bak_dir/" 2>/dev/null
+        [ -f "$HOME/.claude/tcl-ai.pyz" ] && cp "$HOME/.claude/tcl-ai.pyz" "$bak_dir/" 2>/dev/null
+        # Drop the backup dir entirely if nothing was actually staged.
+        if [ -z "$(ls -A "$bak_dir" 2>/dev/null)" ]; then
+            rmdir "$bak_dir" 2>/dev/null
+        else
+            log "backed up prior ~/.claude/{skills,prompts,tcl-ai.pyz} → $bak_dir"
+        fi
+    fi
+
     [ -d "$inner/skills" ]  && cp -R "$inner/skills"  "$HOME/.claude/"
     [ -d "$inner/prompts" ] && cp -R "$inner/prompts" "$HOME/.claude/"
     [ -f "$inner/tcl-ai.pyz" ] && cp "$inner/tcl-ai.pyz" "$HOME/.claude/tcl-ai.pyz"

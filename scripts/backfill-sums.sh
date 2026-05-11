@@ -90,8 +90,36 @@ fi
 echo "   all hashes match"
 
 if [ "$SIGN" = 1 ]; then
-    echo "==> cosign sign-blob (keyless OIDC)"
-    cosign sign-blob --yes --bundle SHA256SUMS.cosign.bundle SHA256SUMS
+    # Cosign keyless OIDC produces a fresh bundle each time — if the
+    # release already carries a valid one, re-signing would create a
+    # divergent local artefact that nobody verifies against. Check the
+    # release first; only sign when missing or explicitly forced via
+    # --force-sign.
+    existing_bundle=0
+    if gh release view "$TAG" --repo "$REPO" --json assets \
+         --jq '.assets[].name' 2>/dev/null \
+         | grep -qx 'SHA256SUMS.cosign.bundle'; then
+        existing_bundle=1
+    fi
+    if [ "$existing_bundle" = 1 ]; then
+        echo "==> release already has SHA256SUMS.cosign.bundle — verifying:"
+        gh release download "$TAG" --repo "$REPO" \
+            --pattern 'SHA256SUMS.cosign.bundle' --clobber
+        if cosign verify-blob \
+             --bundle SHA256SUMS.cosign.bundle \
+             --certificate-identity-regexp "^https://github.com/${REPO}/\.github/workflows/.+@refs/tags/" \
+             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+             SHA256SUMS >/dev/null 2>&1; then
+            echo "   existing bundle verifies — not re-signing"
+            SIGN=0
+        else
+            echo "   existing bundle does NOT verify — re-signing"
+        fi
+    fi
+    if [ "$SIGN" = 1 ]; then
+        echo "==> cosign sign-blob (keyless OIDC)"
+        cosign sign-blob --yes --bundle SHA256SUMS.cosign.bundle SHA256SUMS
+    fi
 fi
 
 if [ "$UPLOAD" = 1 ]; then

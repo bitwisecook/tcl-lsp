@@ -72,7 +72,7 @@ thing is safe:
 | Prompt | Interactive default | Piped (`curl … | sh`) default | Opt-out |
 |--------|---------------------|-------------------------------|---------|
 | Choose CLIs (`tcl`, `f5`) | both | both | `TCL_LSP_ONLY=tcl` or `=f5` |
-| Choose install location | `$PREFIX` (currently `~/.local/bin`) | `$PREFIX` (no prompt) | `TCL_LSP_PREFIX=…` |
+| Choose install location | discovered existing install dir, else `~/.local/bin` | `$PREFIX` (no prompt) | `TCL_LSP_PREFIX=…` |
 | Update existing install in place (when detected) | **yes** | **yes** | answer no, or `TCL_LSP_ASSUME_NO=1` |
 | Use sudo to write to a non-writable directory | **no** | **no** (install aborts) | `TCL_LSP_ASSUME_YES=1` |
 | Add `$PREFIX` to PATH (modifies rc file) | **yes** | **no** | `TCL_LSP_NO_PATH=1` |
@@ -160,7 +160,7 @@ the new binary:
 
 - another `tcl` / `f5` earlier on `$PATH` (whether it's a prior
   tcl-lsp install at a different location or an unrelated tool);
-- a shell `alias` / `abbr` in `$HOME/.{bashrc,bash_profile,zshrc,profile}`
+- a shell `alias` / `abbr` in `$HOME/.{bashrc,bash_profile,zshrc,profile}` or your fish config (sourced rc fragments like `~/.bashrc.d/*.sh` are *not* scanned — best-effort warning only)
   or `$XDG_CONFIG_HOME/fish/config.fish` that would intercept the name.
 
 When either is found you get three options:
@@ -225,6 +225,8 @@ curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/insta
 | `TCL_LSP_OS`      | auto-detected | Bypass `/etc/os-release` detection: `debian`, `rhel`, `fedora`, `arch`, `alpine`, or `macos`. Useful in containers or hosts where `/etc/os-release` is locked down. |
 | `TCL_LSP_NO_VERIFY`      | unset | Skip the SHA256SUMS verification step entirely. |
 | `TCL_LSP_REQUIRE_VERIFY` | unset | Fail the install if the release has no `SHA256SUMS` file. Default behaviour is to warn and continue. |
+| `TCL_LSP_REQUIRE_COSIGN` | unset | Fail the install if `cosign` is missing or if the release has no `SHA256SUMS.cosign.bundle`.  Prevents a network adversary from stripping the signature bundle to coerce a signature-verified install down to hash-only. |
+| `TCL_LSP_ALLOW_INSECURE_WGET` | unset | Allow `wget` without `--https-only` (older / BusyBox builds).  **Do not set on an untrusted network** — a MITM that rewrites the HTTPS redirect to `http://` could replace the artefact and SUMS together. |
 | `TCL_LSP_NO_TUI` | unset | Force plain-text prompts even when `whiptail` or `dialog` is on PATH. |
 | `TCL_LSP_SUFFIX` | unset  | Suffix to append to installed binary names (e.g. `-lsp` → `tcl-lsp`, `f5-lsp`). Used to avoid clashing with an existing `tcl` / `f5` on PATH. |
 
