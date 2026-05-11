@@ -49,13 +49,13 @@ In non-interactive use (`curl … | sh`), the location prompt is
 skipped and `$TCL_LSP_PREFIX` (default `~/.local/bin`) is used.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
+curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
 ```
 
 Prefer not to pipe straight into `sh`?  Download and read it first:
 
 ```sh
-curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh
+curl -fsSLo install.sh https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh
 less install.sh
 sh install.sh
 ```
@@ -84,7 +84,7 @@ forces no on every prompt.
 
 ```sh
 # Unattended install of everything, including rc-file edit + completion:
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh \
+curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh \
   | TCL_LSP_ASSUME_YES=1 sh
 ```
 
@@ -104,13 +104,58 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/in
 | `TCL_LSP_NO_CODEX`  | unset | Ignore Codex even if detected. |
 | `TCL_LSP_ASSUME_YES` | unset | Answer "yes" to every prompt (required for unattended PATH / completion install). |
 | `TCL_LSP_ASSUME_NO`  | unset | Answer "no" to every prompt (skip rc and completion entirely). |
-| `TCL_LSP_REPO`    | `bitwisecook/tcl-lsp` | Source repository. |
+| `TCL_LSP_REPO`    | `bitwisecook/tcl-lsp` | Source repository. Non-default values print a warning. |
+| `TCL_LSP_OS`      | auto-detected | Bypass `/etc/os-release` detection: `debian`, `rhel`, `fedora`, `arch`, `alpine`, or `macos`. Useful in containers or hosts where `/etc/os-release` is locked down. |
+| `TCL_LSP_NO_VERIFY`      | unset | Skip the SHA256SUMS verification step entirely. |
+| `TCL_LSP_REQUIRE_VERIFY` | unset | Fail the install if the release has no `SHA256SUMS` file. Default behaviour is to warn and continue. |
 
 Example — install only `f5`, system-wide, fully automated:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh \
+curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh \
   | sudo TCL_LSP_ONLY=f5 TCL_LSP_PREFIX=/usr/local/bin TCL_LSP_ASSUME_YES=1 sh
+```
+
+---
+
+## Integrity verification
+
+Each release publishes a `SHA256SUMS` file listing the SHA-256 hash of
+every artefact, plus an optional `SHA256SUMS.cosign.bundle` with a
+cosign keyless signature bound to the
+[GitHub Actions OIDC identity](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
+of the publish workflow.
+
+The installer automatically downloads `SHA256SUMS` and verifies every
+artefact it installs.  When `cosign` is available on the host and the
+release ships the bundle, the signature is verified against the
+workflow identity.
+
+If `SHA256SUMS` is missing from a release (e.g. an older release that
+predates this feature), the installer prints a warning and proceeds.
+Set `TCL_LSP_REQUIRE_VERIFY=1` to fail instead.
+
+### Manual verification
+
+```sh
+tag="v1.9.0"
+mkdir -p /tmp/verify && cd /tmp/verify
+
+# Pull SUMS and the artefact(s) you intend to install
+curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256SUMS"
+curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/tcl-${tag#v}.pyz"
+curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/f5-${tag#v}.pyz"
+
+# Verify hashes
+sha256sum -c SHA256SUMS 2>/dev/null || shasum -a 256 -c SHA256SUMS
+
+# (Optional) verify the cosign signature
+curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256SUMS.cosign.bundle" 2>/dev/null \
+  && cosign verify-blob \
+       --bundle SHA256SUMS.cosign.bundle \
+       --certificate-identity-regexp "^https://github.com/bitwisecook/tcl-lsp/\.github/workflows/.+@refs/tags/" \
+       --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+       SHA256SUMS
 ```
 
 ---
@@ -384,7 +429,7 @@ To pick up a new release, re-run the installer (it overwrites the
 binaries in place):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh | sh
+curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
 ```
 
 Or, for a manual install, replace the file in `~/.local/bin` (or

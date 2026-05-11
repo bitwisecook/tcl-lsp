@@ -1074,9 +1074,23 @@ publish-zed: zed ## Publish Zed extension (via GitHub Release)
 
 # Release
 
-release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
+
+# Aggregate sha256 hashes for every release artefact in BUILD_DIR. The
+# CI workflow runs the canonical version of this and uploads SHA256SUMS
+# as a release asset; `make release` produces a local SUMS so developers
+# can sanity-check parity with the published file.
+.PHONY: release-sums
+release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
+	@cd $(BUILD_DIR) && \
+	    if command -v sha256sum >/dev/null 2>&1; then \
+	        sha256sum -- *.pyz *.zip *.vsix 2>/dev/null | LC_ALL=C sort -k2 > SHA256SUMS; \
+	    else \
+	        shasum -a 256 -- *.pyz *.zip *.vsix 2>/dev/null | LC_ALL=C sort -k2 > SHA256SUMS; \
+	    fi
+	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)
