@@ -4,13 +4,17 @@
 #
 # Detects the host OS (macOS, Debian/Ubuntu, RHEL/CentOS/Fedora, Arch,
 # Alpine), checks for a usable Python 3.10+, installs dependencies
-# through the native package manager when missing (after confirming),
-# prompts for an install directory (scanning $PATH for writable
-# candidates), and optionally writes shell completion.
+# through the native package manager when missing, prompts for an
+# install directory (scanning $PATH for writable candidates), and
+# optionally writes shell completion.
 #
 # Before prompting, looks for an existing `tcl` / `f5` on $PATH and
-# offers to update in place. When the chosen install directory is not
-# user-writable, asks explicitly (default NO) before escalating to sudo.
+# offers to update in place. Does NOT use sudo: if a step needs root
+# (installing OS packages, writing to /usr/local/bin, ...) the script
+# stops and prints how to re-run as root, or how to avoid needing it.
+#
+# All prompts run up front, before any download or install action — so
+# you can answer the questions and then walk away.
 #
 # If the `claude` or `codex` CLI is detected (or ~/.claude / ~/.codex
 # exists), offers to install the MCP server and — for Claude Code —
@@ -51,17 +55,13 @@
 # vars manually if you need the proxy.
 #   TCL_LSP_ASSUME_YES      - 1 to answer "yes" non-interactively
 #   TCL_LSP_ASSUME_NO       - 1 to answer "no" non-interactively
-#   TCL_LSP_NO_TUI          - 1 to force text prompts even when whiptail/dialog is present
 #   TCL_LSP_QUIET           - 1 to suppress the per-prompt stderr breadcrumb
-#                             (only the underlying TUI / text prompt is shown)
 #   TCL_LSP_TRACE           - 1 to print extra trace lines for downloads etc.
 #   TCL_LSP_SUFFIX          - suffix for installed binaries (e.g. "-lsp"; default: empty)
 #
-# Question + answer breadcrumb: every interactive prompt prints a
-# single-line `ask: [kind] question -> answer` to stderr.  This survives
-# whiptail/dialog clearing the screen, so an aborted run leaves a
-# visible record in the user's scrollback (no logfile needed).  Set
-# TCL_LSP_QUIET=1 to suppress.
+# Every interactive prompt prints a `ask: [kind] question -> answer`
+# breadcrumb to stderr so an aborted run leaves a visible record in
+# the user's scrollback. Set TCL_LSP_QUIET=1 to suppress.
 
 set -eu
 # IFS=\n only — defence against a poisoned caller IFS. Loops that need
@@ -114,8 +114,7 @@ warn() { printf '%swarn:%s %s\n' "$YELLOW" "$RESET" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
 
 # Stderr breadcrumb for every interactive prompt, so a question + answer
-# pair survives whiptail/dialog clearing the screen.  TCL_LSP_QUIET=1
-# silences these (e.g. for CI runs that re-display the answer themselves).
+# pair stays visible in scrollback. TCL_LSP_QUIET=1 silences these.
 prompt_record() {
     # prompt_record <KIND> <QUESTION> <ANSWER>
     [ "${TCL_LSP_QUIET:-0}" = "1" ] && return 0
@@ -131,11 +130,9 @@ record() {
     printf '%strace:%s %s\n' "$YELLOW" "$RESET" "$*" >&2
 }
 
-UI=text                 # text | whiptail | dialog (set by ensure_ui)
 TTY_IN=""               # stdin | /dev/tty | none (set by detect_tty)
 TTY_OUT=""              # stderr | /dev/tty | none
 TTY_PROBED=0
-TUI_TITLE='tcl-lsp installer'
 
 # Probe once; `curl | sh` pipes stdin but /dev/tty is usually reachable.
 detect_tty() {
@@ -161,9 +158,7 @@ print_prompt() {
     fi
 }
 
-# Same target as print_prompt, but terminates the line — for menu
-# entries that need to appear on their own line above the final
-# inline prompt.
+# Terminating-newline sibling for prompts that span multiple lines.
 print_line() {
     tty_available || return 1
     if [ "$TTY_OUT" = stderr ]; then printf '%s\n' "$1" >&2
@@ -176,132 +171,6 @@ read_user_line() {
     if [ "$TTY_IN" = stdin ]; then IFS= read -r reply
     else IFS= read -r reply </dev/tty
     fi
-}
-
-# Probe whiptail/dialog when we have a path to the user. TCL_LSP_NO_TUI=1
-# forces text. Always returns 0; no-TTY is a normal mode.
-ensure_ui() {
-    [ "${TCL_LSP_NO_TUI:-0}" = "1" ] && return 0
-    tty_available || return 0
-    if command -v whiptail >/dev/null 2>&1; then UI=whiptail
-    elif command -v dialog >/dev/null 2>&1; then UI=dialog
-    fi
-    return 0
-}
-
-# whiptail/dialog need a TTY for the curses UI; redirect stdin from
-# /dev/tty when our stdin is piped.
-tui_run() {
-    if [ "$TTY_IN" = stdin ]; then
-        "$UI" --title "$TUI_TITLE" "$@"
-    else
-        "$UI" --title "$TUI_TITLE" "$@" </dev/tty
-    fi
-}
-
-# yes/no — default-yes highlight on the dialog backend.
-tui_yesno() {
-    tty_available || { prompt_record yesno "$1" "no-tty"; return 1; }
-    case "$UI" in
-        whiptail|dialog)
-            if tui_run --yesno "$1" 10 70; then
-                prompt_record yesno "$1" yes
-                return 0
-            fi
-            prompt_record yesno "$1" no
-            return 1
-            ;;
-        *)
-            print_prompt "$1 [Y/n]"
-            read_user_line || { prompt_record yesno "$1" "read-failed"; return 1; }
-            case "$reply" in
-                ''|y|Y|yes|YES|Yes)
-                    prompt_record yesno "$1" "yes (${reply:-default})"
-                    return 0 ;;
-                *)
-                    prompt_record yesno "$1" "no ($reply)"
-                    return 1 ;;
-            esac
-            ;;
-    esac
-}
-
-tui_menu() {
-    # tui_menu "prompt" tag1 desc1 tag2 desc2 ...   (must come in pairs)
-    # Prints the chosen tag to stdout; non-zero on cancel.
-    tty_available || { prompt_record menu "$1" "no-tty"; return 1; }
-    prompt="$1"; shift
-    case "$UI" in
-        whiptail|dialog)
-            count=$(($# / 2))
-            if chosen="$(tui_run --menu "$prompt" $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3)"; then
-                prompt_record menu "$prompt" "$chosen"
-                printf '%s\n' "$chosen"
-                return 0
-            fi
-            prompt_record menu "$prompt" "cancel"
-            return 1
-            ;;
-        *)
-            print_line ""
-            print_line "$prompt"
-            i=0
-            while [ $# -gt 0 ]; do
-                i=$((i + 1))
-                tag="$1"; desc="$2"; shift 2
-                eval "tag_$i=\"\$tag\""
-                print_line "$(printf '  %d) %-32s %s' "$i" "$tag" "$desc")"
-            done
-            print_prompt 'Selection [1]:'
-            read_user_line || reply=1
-            : "${reply:=1}"
-            case "$reply" in
-                *[!0-9]*) prompt_record menu "$prompt" "invalid:$reply"; return 1 ;;
-            esac
-            eval "chosen=\"\${tag_$reply:-}\""
-            prompt_record menu "$prompt" "$chosen"
-            printf '%s\n' "$chosen"
-            ;;
-    esac
-}
-
-# checklist — one tag per line on stdout for ticked entries.
-tui_checklist() {
-    tty_available || { prompt_record checklist "$1" "no-tty"; return 1; }
-    prompt="$1"; shift
-    case "$UI" in
-        whiptail|dialog)
-            count=$(($# / 3))
-            if out="$(tui_run --separate-output --checklist "$prompt" \
-                        $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3)"; then
-                # Render answer as space-separated tags for the transcript.
-                ans="$(printf '%s' "$out" | tr '\n' ' ' | sed 's/ *$//')"
-                prompt_record checklist "$prompt" "${ans:-(none)}"
-                printf '%s\n' "$out"
-                return 0
-            fi
-            prompt_record checklist "$prompt" "cancel"
-            return 1
-            ;;
-        *)
-            defaults=""
-            args=""
-            while [ $# -gt 0 ]; do
-                tag="$1"; desc="$2"; state="$3"; shift 3
-                args="${args}${tag}|${desc}
-"
-                [ "$state" = ON ] && defaults="${defaults}${defaults:+,}${tag}"
-            done
-            print_line ""
-            print_line "$prompt"
-            print_line "$(printf '%s' "$args" | awk -F'|' '{ printf "  %-24s %s\n", $1, $2 }')"
-            print_prompt "Enable [$defaults]:"
-            read_user_line || reply=""
-            : "${reply:=$defaults}"
-            prompt_record checklist "$prompt" "${reply:-(none)}"
-            printf '%s\n' "$reply" | tr ',' '\n' | sed 's/^ *//; s/ *$//; /^$/d'
-            ;;
-    esac
 }
 
 # --help prints the leading comment block as documentation.
@@ -331,12 +200,35 @@ if [ "$REPO" != "$DEFAULT_REPO" ]; then
     warn "(default is github.com/$DEFAULT_REPO)"
 fi
 
+_ask_yesno_text() {
+    # Text-mode yes/no. $1 = prompt, $2 = default (yes/no).
+    default="$2"
+    print_prompt "$1"
+    read_user_line || { prompt_record yesno "$1" "read-failed"; return 1; }
+    case "$reply" in
+        y|Y|yes|YES|Yes)        prompt_record yesno "$1" "yes ($reply)";       return 0 ;;
+        n|N|no|NO|No)           prompt_record yesno "$1" "no ($reply)";        return 1 ;;
+        '')
+            if [ "$default" = yes ]; then
+                prompt_record yesno "$1" "yes (default)";    return 0
+            else
+                prompt_record yesno "$1" "no (default)";     return 1
+            fi ;;
+        *)
+            if [ "$default" = yes ]; then
+                prompt_record yesno "$1" "yes ($reply)";     return 0
+            else
+                prompt_record yesno "$1" "no ($reply)";      return 1
+            fi ;;
+    esac
+}
+
 # Opt-in prompt — default no when headless.
 ask() {
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ]; then prompt_record ask "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
     tty_available || { prompt_record ask "$1" "no (no-tty, default-no)"; return 1; }
-    tui_yesno "$1"
+    _ask_yesno_text "$1" yes
 }
 
 # Opt-out prompt — default yes when headless (upstream signal was the opt-in).
@@ -344,42 +236,55 @@ ask_optout() {
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then prompt_record ask-optout "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask-optout "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
     tty_available || { prompt_record ask-optout "$1" "yes (no-tty, default-yes)"; return 0; }
-    tui_yesno "$1"
+    _ask_yesno_text "$1" yes
 }
 
-# Strict default-NO — for privilege escalation and destructive choices.
-# Empty input, headless run, dialog cancel all count as no.
+# Strict default-NO — destructive / privileged choices. Empty input, headless
+# run, anything other than y/yes counts as no.
 ask_default_no() {
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then prompt_record ask-no "$1" "yes (TCL_LSP_ASSUME_YES)"; return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then prompt_record ask-no "$1" "no (TCL_LSP_ASSUME_NO)"; return 1; fi
     tty_available || { prompt_record ask-no "$1" "no (no-tty, default-no)"; return 1; }
-    case "$UI" in
-        whiptail|dialog)
-            if tui_run --defaultno --yesno "$1" 10 70; then
-                prompt_record ask-no "$1" yes
-                return 0
-            fi
-            prompt_record ask-no "$1" no
-            return 1
-            ;;
-        *)
-            print_prompt "$1"
-            read_user_line || { prompt_record ask-no "$1" "read-failed"; return 1; }
-            case "$reply" in
-                y|Y|yes|YES|Yes) prompt_record ask-no "$1" "yes ($reply)"; return 0 ;;
-                *) prompt_record ask-no "$1" "no (${reply:-default})"; return 1 ;;
-            esac
-            ;;
+    print_prompt "$1"
+    read_user_line || { prompt_record ask-no "$1" "read-failed"; return 1; }
+    case "$reply" in
+        y|Y|yes|YES|Yes) prompt_record ask-no "$1" "yes ($reply)"; return 0 ;;
+        *)               prompt_record ask-no "$1" "no (${reply:-default})"; return 1 ;;
     esac
 }
 
-# Surface every sudo/doas escalation.
-confirm_root_action() {
-    if [ "$(id -u)" = 0 ] || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then
-        return 0
-    fi
-    warn "Next step needs root: $1"
-    ask "Proceed? [Y/n]" || die "aborted: root step declined"
+# Root-requirement accumulator. Each entry: "<what>|<how to avoid>".
+# require_root_or_die() is called once in phase 2.5; if non-empty and the
+# script isn't already running as root, we print the full report and exit.
+ROOT_REASONS=""
+need_root() {
+    # need_root <what> <how-to-avoid>
+    ROOT_REASONS="${ROOT_REASONS}${ROOT_REASONS:+
+}$1|$2"
+}
+
+require_root_or_die() {
+    [ -z "$ROOT_REASONS" ] && return 0
+    [ "$(id -u)" = 0 ] && return 0
+    msg="this install needs root for the following steps:
+"
+    OLD_IFS="$IFS"; IFS='
+'
+    for line in $ROOT_REASONS; do
+        what="${line%%|*}"
+        avoid="${line#*|}"
+        msg="${msg}  - ${what}
+      avoid by: ${avoid}
+"
+    done
+    IFS="$OLD_IFS"
+    msg="${msg}
+Re-run as root with the two-step pattern (safer than \`curl | sudo sh\` —
+you can inspect the script first):
+  curl -fsSLo /tmp/tcl-lsp-install.sh \\
+       https://github.com/${REPO}/releases/latest/download/install.sh
+  sudo sh /tmp/tcl-lsp-install.sh"
+    die "$msg"
 }
 
 # Validate + assign $PREFIX. Rejects values that would escape the
@@ -543,97 +448,119 @@ find_python() {
     return 1
 }
 
-run_root() {
+# Echo a command before running it; do not suppress its stdout/stderr.
+run_cmd() {
+    log "+ $*"
+    "$@"
+}
+
+run_as_root() {
+    # Run a command that requires root. Caller must have already gone
+    # through need_root + require_root_or_die, so by the time we get here
+    # we're either uid 0 (just run it) or something has gone wrong.
+    log "+ $*"
     if [ "$(id -u)" = 0 ]; then
         "$@"
-    elif have sudo; then
-        sudo "$@"
-    elif have doas; then
-        doas "$@"
     else
-        die "Need root for: $*  (install sudo, or run this script as root)"
+        die "internal: tried to run as root without escalation gate: $*"
     fi
 }
 
-install_python() {
+# Phase 1: detect Python and record (without installing) whether we'll
+# need to install it. install_python() is called in phase 3.
+PYTHON_INSTALL_PLANNED=0
+plan_python_if_needed() {
+    if find_python; then return 0; fi
     if [ "${TCL_LSP_NO_DEPS:-0}" = "1" ]; then
         die "Python 3.10+ not found and TCL_LSP_NO_DEPS=1 — install Python manually and retry."
     fi
-    log "Python 3.10+ not found — attempting install via package manager"
     case "$OS" in
         macos)
             if ! have brew; then
-                die "Homebrew not found. Install from https://brew.sh and re-run."
-            fi
-            brew install python@3.14 || brew install python@3.13 || brew install python3
-            ;;
-        debian)
-            confirm_root_action "apt-get update && apt-get install -y python3 ca-certificates curl"
-            run_root apt-get update
-            run_root apt-get install -y python3 ca-certificates curl
-            ;;
-        rhel)
-            # RHEL 9 / Rocky 9 / Alma 9 ship Python 3.9 as `python3`;
-            # try a versioned 3.10+ interpreter from AppStream first.
-            PM="yum"; have dnf && PM="dnf"
-            confirm_root_action "$PM install -y ca-certificates curl"
-            run_root "$PM" install -y ca-certificates curl
-            installed=0
-            for v in python3.12 python3.11; do
-                # Probe availability quietly, then install loudly.
-                if "$PM" list --available "$v" >/dev/null 2>&1 \
-                   || "$PM" info "$v" >/dev/null 2>&1; then
-                    confirm_root_action "$PM install -y $v"
-                    if run_root "$PM" install -y "$v"; then installed=1; break; fi
-                fi
-            done
-            if [ "$installed" = 0 ]; then
-                confirm_root_action "$PM install -y python3"
-                run_root "$PM" install -y python3
+                die "Python 3.10+ not found and Homebrew is not installed.
+Install Homebrew (https://brew.sh) or Python 3.10+ manually, then re-run."
             fi
             ;;
-        fedora)
-            PM="yum"; have dnf && PM="dnf"
-            confirm_root_action "$PM install -y python3 ca-certificates curl"
-            run_root "$PM" install -y python3 ca-certificates curl
-            ;;
-        arch)
-            confirm_root_action "pacman -Sy --noconfirm python ca-certificates curl"
-            run_root pacman -Sy --noconfirm python ca-certificates curl
-            ;;
-        alpine)
-            confirm_root_action "apk add --no-cache python3 ca-certificates curl"
-            run_root apk add --no-cache python3 ca-certificates curl
+        debian|rhel|fedora|arch|alpine)
+            need_root "install Python 3.10+ via $(pkg_manager_label)" \
+                      "install Python 3.10+ manually (e.g. \`$(pkg_manager_install_cmd) python3\`) or set TCL_LSP_NO_DEPS=1"
             ;;
         *)
             die "Cannot auto-install Python on this OS. Install Python 3.10+ manually and retry." ;;
     esac
+    PYTHON_INSTALL_PLANNED=1
+}
 
+# Phase 3: actually install Python — only reached after require_root_or_die.
+install_python() {
+    [ "$PYTHON_INSTALL_PLANNED" = 1 ] || return 0
+    log "Python 3.10+ not found — installing via package manager"
+    case "$OS" in
+        macos)
+            run_cmd brew install python@3.14 \
+                || run_cmd brew install python@3.13 \
+                || run_cmd brew install python3
+            ;;
+        debian)
+            run_as_root apt-get update
+            run_as_root apt-get install -y python3 ca-certificates curl
+            ;;
+        rhel)
+            PM="yum"; have dnf && PM="dnf"
+            run_as_root "$PM" install -y ca-certificates curl
+            installed=0
+            for v in python3.12 python3.11; do
+                if "$PM" list --available "$v" >/dev/null 2>&1 \
+                   || "$PM" info "$v" >/dev/null 2>&1; then
+                    if run_as_root "$PM" install -y "$v"; then installed=1; break; fi
+                fi
+            done
+            [ "$installed" = 0 ] && run_as_root "$PM" install -y python3
+            ;;
+        fedora)
+            PM="yum"; have dnf && PM="dnf"
+            run_as_root "$PM" install -y python3 ca-certificates curl
+            ;;
+        arch)
+            run_as_root pacman -Sy --noconfirm python ca-certificates curl
+            ;;
+        alpine)
+            run_as_root apk add --no-cache python3 ca-certificates curl
+            ;;
+    esac
     find_python || die "Python install completed but no python3.10+ found on PATH."
 }
 
-ensure_curl() {
-    # Prefer curl (--proto-redir-pins) over wget; install curl if neither present.
+# Phase 1: pick a downloader, recording an install need if both are missing.
+CURL_INSTALL_PLANNED=0
+plan_downloader() {
     if have curl; then DOWNLOADER="curl"; return; fi
     if have wget; then DOWNLOADER="wget"; return; fi
     if [ "${TCL_LSP_NO_DEPS:-0}" = "1" ]; then
         die "Neither curl nor wget found and TCL_LSP_NO_DEPS=1 — install one and retry."
     fi
     case "$OS" in
-        macos)  die "curl missing on macOS — install Xcode Command Line Tools and retry." ;;
-        debian) confirm_root_action "apt-get install -y curl"; run_root apt-get install -y curl ;;
-        rhel|fedora)
-            if have dnf; then
-                confirm_root_action "dnf install -y curl"; run_root dnf install -y curl
-            else
-                confirm_root_action "yum install -y curl"; run_root yum install -y curl
-            fi ;;
-        arch)   confirm_root_action "pacman -Sy --noconfirm curl"; run_root pacman -Sy --noconfirm curl ;;
-        alpine) confirm_root_action "apk add --no-cache curl";     run_root apk add --no-cache curl ;;
-        *)      die "Need curl or wget to download release artefacts." ;;
+        macos) die "curl missing on macOS — install Xcode Command Line Tools and retry." ;;
+        debian|rhel|fedora|arch|alpine)
+            need_root "install curl via $(pkg_manager_label)" \
+                      "install curl or wget manually, then re-run" ;;
+        *) die "Need curl or wget to download release artefacts." ;;
+    esac
+    CURL_INSTALL_PLANNED=1
+    DOWNLOADER="curl"
+}
+
+install_downloader() {
+    [ "$CURL_INSTALL_PLANNED" = 1 ] || return 0
+    log "installing curl via package manager"
+    case "$OS" in
+        debian)        run_as_root apt-get install -y curl ;;
+        rhel|fedora)   if have dnf; then run_as_root dnf install -y curl
+                       else run_as_root yum install -y curl; fi ;;
+        arch)          run_as_root pacman -Sy --noconfirm curl ;;
+        alpine)        run_as_root apk add --no-cache curl ;;
     esac
     have curl || die "curl install failed."
-    DOWNLOADER="curl"
 }
 
 
@@ -641,11 +568,6 @@ pkg_name_for() {
     # OS-package name for CMD on OS. Empty = no equivalent on this OS.
     os="$1"; cmd="$2"
     case "$os:$cmd" in
-        # whiptail (newt on RHEL/Fedora, libnewt on Arch, none on macOS)
-        rhel:whiptail|fedora:whiptail) printf 'newt' ;;
-        arch:whiptail)                 printf 'libnewt' ;;
-        macos:whiptail)                printf '' ;;
-
         # OpenSSH client (ships scp alongside ssh)
         debian:ssh)                    printf 'openssh-client' ;;
         rhel:ssh|fedora:ssh)           printf 'openssh-clients' ;;
@@ -670,6 +592,7 @@ pkg_name_for() {
 
 install_pkg() {
     # install_pkg CMD — best-effort install of the OS package providing CMD.
+    # Caller must have passed require_root_or_die already.
     cmd="$1"
     pkg="$(pkg_name_for "$OS" "$cmd")"
     if [ -z "$pkg" ]; then
@@ -682,47 +605,34 @@ install_pkg() {
                 warn "brew not found — install $pkg manually"
                 return 1
             fi
-            if brew install "$pkg" >/dev/null 2>&1; then
-                log "installed $cmd via brew"
-            else
-                warn "brew install $pkg failed"
-            fi
+            run_cmd brew install "$pkg" \
+                || { warn "brew install $pkg failed"; return 1; }
+            log "installed $cmd via brew"
             ;;
         debian)
-            confirm_root_action "apt-get install -y $pkg"
-            if run_root apt-get install -y "$pkg" >/dev/null 2>&1; then
-                log "installed $cmd via apt-get"
-            else
-                warn "apt install $pkg failed"
-            fi
+            run_as_root apt-get install -y "$pkg" \
+                || { warn "apt install $pkg failed"; return 1; }
+            log "installed $cmd via apt-get"
             ;;
         rhel|fedora)
             PM="yum"; have dnf && PM="dnf"
-            confirm_root_action "$PM install -y $pkg"
-            if run_root "$PM" install -y "$pkg" >/dev/null 2>&1; then
-                log "installed $cmd via $PM"
-            else
-                warn "$PM install $pkg failed"
-            fi
+            run_as_root "$PM" install -y "$pkg" \
+                || { warn "$PM install $pkg failed"; return 1; }
+            log "installed $cmd via $PM"
             ;;
         arch)
-            confirm_root_action "pacman -Sy --noconfirm $pkg"
-            if run_root pacman -Sy --noconfirm "$pkg" >/dev/null 2>&1; then
-                log "installed $cmd via pacman"
-            else
-                warn "pacman install $pkg failed"
-            fi
+            run_as_root pacman -Sy --noconfirm "$pkg" \
+                || { warn "pacman install $pkg failed"; return 1; }
+            log "installed $cmd via pacman"
             ;;
         alpine)
-            confirm_root_action "apk add --no-cache $pkg"
-            if run_root apk add --no-cache "$pkg" >/dev/null 2>&1; then
-                log "installed $cmd via apk"
-            else
-                warn "apk install $pkg failed"
-            fi
+            run_as_root apk add --no-cache "$pkg" \
+                || { warn "apk install $pkg failed"; return 1; }
+            log "installed $cmd via apk"
             ;;
         *)
-            warn "no package manager known for $OS — install $pkg manually" ;;
+            warn "no package manager known for $OS — install $pkg manually"
+            return 1 ;;
     esac
 }
 
@@ -750,14 +660,56 @@ pkg_manager_install_cmd() {
     esac
 }
 
-check_cli_runtime_dependencies() {
-    # Survey external tools the tcl/f5 CLIs may shell out to.
+# Phase 2 planning state. Set by plan_cli_runtime_dependencies (in the
+# question phase); read by install_cli_runtime_dependencies (in the
+# execute phase) after require_root_or_die has cleared.
+DEPS_PLAN_TCLSH=0
+DEPS_PLAN_SSH=0
+DEPS_PLAN_SSHPASS=0
+DEPS_PLAN_TSHARK=0
+
+# Ask the user about a single optional/required dep. $1=tool $2=required
+# (REQUIRED|optional) $3=description. Returns 0 if user accepted (and
+# updates DEPS_PLAN_<TOOL>); the package name is also accumulated for the
+# "needs root" report.
+_plan_one_dep() {
+    tool="$1"; status="$2"; description="$3"
+    pkg="$(pkg_name_for "$OS" "$tool")"
+    pm_label="$(pkg_manager_label)"
+    print_line ""
+    print_line "${BOLD}${tool}${RESET} — ${status}"
+    print_line "  ${description}"
+    if [ -n "$pkg" ]; then
+        print_line "  package: ${pkg} (via ${pm_label})"
+    else
+        print_line "  package: <no mapping for $OS — install manually>"
+        return 1
+    fi
+    if [ "$status" = "REQUIRED" ]; then
+        if ask "Install ${tool}? [Y/n]"; then
+            PLANNED_PKGS="${PLANNED_PKGS} ${pkg}"
+            return 0
+        fi
+        warn "skipped ${tool}: ${description}"
+        return 1
+    fi
+    if ask_default_no "Install ${tool}? [y/N]"; then
+        PLANNED_PKGS="${PLANNED_PKGS} ${pkg}"
+        return 0
+    fi
+    return 1
+}
+
+plan_cli_runtime_dependencies() {
+    # Survey external tools the tcl/f5 CLIs may shell out to. Asks the
+    # user about each missing dep individually. The install itself runs
+    # later in phase 3.
     [ "${TCL_LSP_NO_DEPS:-0}" = "1" ] && return
 
-    needs_tclsh=0      # tcl pkg / tcl venv / `tcl explore` against real tclsh
-    needs_ssh=0        # f5 fetch (required for that verb's SSH transport)
-    needs_sshpass=0    # f5 fetch password auth (optional fallback)
-    needs_tshark=0     # f5 explain-flow --tshark, enrich-pcapng, pcap-remap
+    needs_tclsh=0
+    needs_ssh=0
+    needs_sshpass=0
+    needs_tshark=0
 
     case "$ONLY" in
         tcl|both)
@@ -777,58 +729,48 @@ check_cli_runtime_dependencies() {
     total=$((needs_tclsh + needs_ssh + needs_sshpass + needs_tshark))
     [ "$total" = 0 ] && return
 
-    pm_label="$(pkg_manager_label)"
-    pm_cmd="$(pkg_manager_install_cmd)"
+    log "CLI runtime dependencies missing (${total})"
+    PLANNED_PKGS=""
 
-    log "$ONLY CLI runtime dependencies missing ($total):"
-    log "  package manager: $pm_label"
-    # Columns: status | tool | package on this OS | purpose
-    printf '    %-10s %-8s %-22s %s\n' \
-        "Status" "Tool" "Package ($pm_label)" "Used by"
-    printf '    %-10s %-8s %-22s %s\n' \
-        "------" "----" "----------------------" "-------"
-
-    pkgs_required=""
-    pkgs_optional=""
     if [ "$needs_ssh" = 1 ]; then
-        pkg=$(pkg_name_for "$OS" ssh)
-        printf '    %-10s %-8s %-22s %s\n' \
-            "REQUIRED" "ssh" "${pkg:-<none>}" "f5 fetch over SSH"
-        [ -n "$pkg" ] && pkgs_required="$pkgs_required $pkg"
+        _plan_one_dep ssh "REQUIRED" \
+            "f5 fetch downloads BIG-IP configs over SSH; without this, fetch will fail." \
+            && DEPS_PLAN_SSH=1
     fi
     if [ "$needs_tclsh" = 1 ]; then
-        pkg=$(pkg_name_for "$OS" tclsh)
-        printf '    %-10s %-8s %-22s %s\n' \
-            "optional" "tclsh" "${pkg:-<none>}" "tcl pkg / tcl venv / tcl explore"
-        [ -n "$pkg" ] && pkgs_optional="$pkgs_optional $pkg"
+        _plan_one_dep tclsh "optional" \
+            "the real Tcl interpreter; required for 'tcl pkg', 'tcl venv', and 'tcl explore' against live code." \
+            && DEPS_PLAN_TCLSH=1
     fi
     if [ "$needs_sshpass" = 1 ]; then
-        pkg=$(pkg_name_for "$OS" sshpass)
-        printf '    %-10s %-8s %-22s %s\n' \
-            "optional" "sshpass" "${pkg:-<none>}" "f5 fetch password auth (fallback to keys)"
-        [ -n "$pkg" ] && pkgs_optional="$pkgs_optional $pkg"
+        _plan_one_dep sshpass "optional" \
+            "fallback password auth for 'f5 fetch'; not needed if you use SSH keys." \
+            && DEPS_PLAN_SSHPASS=1
     fi
     if [ "$needs_tshark" = 1 ]; then
-        pkg=$(pkg_name_for "$OS" tshark)
-        printf '    %-10s %-8s %-22s %s\n' \
-            "optional" "tshark" "${pkg:-<none>}" "f5 explain-flow / enrich-pcapng / pcap-remap"
-        [ -n "$pkg" ] && pkgs_optional="$pkgs_optional $pkg"
+        _plan_one_dep tshark "optional" \
+            "Wireshark CLI; powers 'f5 explain-flow --tshark', 'enrich-pcapng', and 'pcap-remap'." \
+            && DEPS_PLAN_TSHARK=1
     fi
 
-    # Strip leading spaces for the plan line.
-    all_pkgs="${pkgs_required# }${pkgs_optional}"
-    all_pkgs="${all_pkgs# }"
-    log "  plan: $pm_cmd $all_pkgs"
+    PLANNED_PKGS="${PLANNED_PKGS# }"
+    [ -z "$PLANNED_PKGS" ] && return
 
-    if ! ask_default_no "Install missing CLI runtime dependencies via $pm_label? [y/N]"; then
-        log "skipping CLI runtime dependency install — features above will be unavailable"
-        return
+    log "will install: $(pkg_manager_install_cmd) $PLANNED_PKGS"
+
+    # macOS brew runs as the user; everything else needs root.
+    if [ "$OS" != "macos" ]; then
+        need_root "install $PLANNED_PKGS via $(pkg_manager_label)" \
+                  "decline the prompts above, or set TCL_LSP_NO_DEPS=1 (you'll lose the listed features)"
     fi
+}
 
-    [ "$needs_ssh"     = 1 ] && install_pkg ssh
-    [ "$needs_tclsh"   = 1 ] && install_pkg tclsh
-    [ "$needs_sshpass" = 1 ] && install_pkg sshpass
-    [ "$needs_tshark"  = 1 ] && install_pkg tshark
+install_cli_runtime_dependencies() {
+    # Phase 3 — execute the plan recorded by plan_cli_runtime_dependencies.
+    [ "$DEPS_PLAN_SSH"     = 1 ] && install_pkg ssh
+    [ "$DEPS_PLAN_TCLSH"   = 1 ] && install_pkg tclsh
+    [ "$DEPS_PLAN_SSHPASS" = 1 ] && install_pkg sshpass
+    [ "$DEPS_PLAN_TSHARK"  = 1 ] && install_pkg tshark
     return 0
 }
 
@@ -1271,7 +1213,7 @@ annotate_candidate() {
     if dir_writable "$d"; then
         if [ -d "$d" ]; then perms="writable"; else perms="will create"; fi
     else
-        perms="needs sudo"
+        perms="not writable (needs root)"
     fi
     printf '(%s, %s)' "$on_path" "$perms"
 }
@@ -1327,39 +1269,25 @@ choose_clis() {
         return
     fi
 
-    case "$UI" in
-        whiptail|dialog)
-            set -- tcl "Unified Tcl tools (format, lint, opt, ...)" "$([ "$d_tcl" = 1 ] && echo ON || echo OFF)" \
-                   f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" "$([ "$d_f5" = 1 ] && echo ON || echo OFF)"
-            sel="$(tui_checklist "Choose which CLIs to install:" "$@")" \
-                || die "aborted at CLI selection"
-            WANT_TCL=0; WANT_F5=0
-            for t in $sel; do
-                case "$t" in tcl) WANT_TCL=1 ;; f5) WANT_F5=1 ;; esac
-            done
-            ;;
-        *)
-            menu_default=3
-            case "$d_default" in tcl) menu_default=1 ;; f5) menu_default=2 ;; both) menu_default=3 ;; esac
-            print_line ""
-            print_line "Choose which CLIs to install:"
-            print_line "  1) tcl"
-            print_line "  2) f5"
-            print_line "  3) both (tcl + f5)"
-            print_line "  4) none (AI-only install)"
-            print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-            read_user_line || reply=""
-            ans="${reply:-$menu_default}"
-            case "$ans" in
-                1) WANT_TCL=1; WANT_F5=0 ;;
-                2) WANT_TCL=0; WANT_F5=1 ;;
-                3) WANT_TCL=1; WANT_F5=1 ;;
-                4) WANT_TCL=0; WANT_F5=0 ;;
-                *) die "invalid selection: $ans (expected 1..4)" ;;
-            esac
-            prompt_record cli-plan "menu pick (1..4)" "$ans"
-            ;;
+    menu_default=3
+    case "$d_default" in tcl) menu_default=1 ;; f5) menu_default=2 ;; both) menu_default=3 ;; esac
+    print_line ""
+    print_line "Choose which CLIs to install:"
+    print_line "  1) tcl"
+    print_line "  2) f5"
+    print_line "  3) both (tcl + f5)"
+    print_line "  4) none (AI-only install)"
+    print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+    read_user_line || reply=""
+    ans="${reply:-$menu_default}"
+    case "$ans" in
+        1) WANT_TCL=1; WANT_F5=0 ;;
+        2) WANT_TCL=0; WANT_F5=1 ;;
+        3) WANT_TCL=1; WANT_F5=1 ;;
+        4) WANT_TCL=0; WANT_F5=0 ;;
+        *) die "invalid selection: $ans (expected 1..4)" ;;
     esac
+    prompt_record cli-plan "menu pick (1..4)" "$ans"
     _finalise_only
     log "CLIs: tcl=$WANT_TCL f5=$WANT_F5"
 }
@@ -1400,55 +1328,40 @@ choose_ai_components() {
         return
     fi
 
-    case "$UI" in
-        whiptail|dialog)
-            set -- mcp "MCP server" "$([ "$d_mcp" = 1 ] && echo ON || echo OFF)"
-            [ "$has_skills" = 1 ] && set -- "$@" skills "Claude Code skills" \
-                "$([ "$d_skills" = 1 ] && echo ON || echo OFF)"
-            sel="$(tui_checklist "Choose which AI components to install:" "$@")" \
-                || die "aborted at AI selection"
-            for t in $sel; do
-                case "$t" in mcp) WANT_MCP=1 ;; skills) WANT_SKILLS=1 ;; esac
-            done
-            ;;
-        *)
-            if [ "$has_skills" = 1 ]; then
-                menu_default=3
-                print_line ""
-                print_line "Choose which AI components to install:"
-                print_line "  1) mcp"
-                print_line "  2) skills"
-                print_line "  3) both (mcp + skills)"
-                print_line "  4) none"
-                print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-                read_user_line || reply=""
-                ans="${reply:-$menu_default}"
-                case "$ans" in
-                    1) WANT_MCP=1; WANT_SKILLS=0 ;;
-                    2) WANT_MCP=0; WANT_SKILLS=1 ;;
-                    3) WANT_MCP=1; WANT_SKILLS=1 ;;
-                    4) WANT_MCP=0; WANT_SKILLS=0 ;;
-                    *) die "invalid selection: $ans (expected 1..4)" ;;
-                esac
-            else
-                # Codex only (no Claude) — just MCP available.
-                menu_default=1
-                print_line ""
-                print_line "Choose AI components (Codex only — no skills):"
-                print_line "  1) mcp"
-                print_line "  2) none"
-                print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
-                read_user_line || reply=""
-                ans="${reply:-$menu_default}"
-                case "$ans" in
-                    1) WANT_MCP=1 ;;
-                    2) WANT_MCP=0 ;;
-                    *) die "invalid selection: $ans (expected 1..2)" ;;
-                esac
-            fi
-            prompt_record ai-plan "menu pick" "$ans"
-            ;;
-    esac
+    if [ "$has_skills" = 1 ]; then
+        menu_default=3
+        print_line ""
+        print_line "Choose which AI components to install:"
+        print_line "  1) mcp"
+        print_line "  2) skills"
+        print_line "  3) both (mcp + skills)"
+        print_line "  4) none"
+        print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+        read_user_line || reply=""
+        ans="${reply:-$menu_default}"
+        case "$ans" in
+            1) WANT_MCP=1; WANT_SKILLS=0 ;;
+            2) WANT_MCP=0; WANT_SKILLS=1 ;;
+            3) WANT_MCP=1; WANT_SKILLS=1 ;;
+            4) WANT_MCP=0; WANT_SKILLS=0 ;;
+            *) die "invalid selection: $ans (expected 1..4)" ;;
+        esac
+    else
+        menu_default=1
+        print_line ""
+        print_line "Choose AI components (Codex only — no skills):"
+        print_line "  1) mcp"
+        print_line "  2) none"
+        print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+        read_user_line || reply=""
+        ans="${reply:-$menu_default}"
+        case "$ans" in
+            1) WANT_MCP=1 ;;
+            2) WANT_MCP=0 ;;
+            *) die "invalid selection: $ans (expected 1..2)" ;;
+        esac
+    fi
+    prompt_record ai-plan "menu pick" "$ans"
     log "AI: mcp=$WANT_MCP skills=$WANT_SKILLS"
 }
 
@@ -1706,24 +1619,13 @@ detect_conflicts() {
         return
     fi
 
-    case "$UI" in
-        whiptail|dialog)
-            sel="$(tui_menu "Resolve naming conflict" \
-                "keep"   "Install with original name (may be shadowed)" \
-                "rename" "Install as <name>-lsp instead" \
-                "abort"  "Cancel install")" \
-                || die "aborted: naming conflict not resolved"
-            ;;
-        *)
-            print_prompt "$(printf '\nHow to proceed?\n  1) keep (install with original name; existing shadow remains)\n  2) rename (install as <name>-lsp)\n  3) abort\n  selection [1]: ')"
-            read_user_line || reply=1
-            case "${reply:-1}" in
-                1|keep)   sel=keep ;;
-                2|rename) sel=rename ;;
-                3|abort)  sel=abort ;;
-                *) die "invalid selection: $reply (expected 1, 2, or 3)" ;;
-            esac
-            ;;
+    print_prompt "$(printf '\nHow to proceed?\n  1) keep (install with original name; existing shadow remains)\n  2) rename (install as <name>-lsp)\n  3) abort\n  selection [1]: ')"
+    read_user_line || reply=1
+    case "${reply:-1}" in
+        1|keep)   sel=keep ;;
+        2|rename) sel=rename ;;
+        3|abort)  sel=abort ;;
+        *) die "invalid selection: $reply (expected 1, 2, or 3)" ;;
     esac
     case "$sel" in
         rename)
@@ -1757,73 +1659,49 @@ choose_prefix() {
 
     cands="$(collect_install_candidates)"
 
-    case "$UI" in
-        whiptail|dialog)
-            set --
-            OLD_IFS="$IFS"; IFS='
+    print_line ""
+    print_line "${BOLD}Choose install location:${RESET}"
+    i=0
+    OLD_IFS="$IFS"; IFS='
 '
-            for c in $cands; do
-                set -- "$@" "$c" "$(annotate_candidate "$c")"
-            done
-            IFS="$OLD_IFS"
-            set -- "$@" "Other" "Enter a path manually"
+    for c in $cands; do
+        i=$((i + 1))
+        annot="$(annotate_candidate "$c")"
+        marker=" "
+        [ "$c" = "$PREFIX" ] && marker="*"
+        print_line "$(printf '  %s %d) %-32s %s' "$marker" "$i" "$c" "$annot")"
+    done
+    IFS="$OLD_IFS"
+    other_idx=$((i + 1))
+    print_line "$(printf '    %d) Other (enter a path)' "$other_idx")"
+    print_prompt "$(printf '\nSelection [%s]:' "$PREFIX")"
+    read_user_line || reply=""
+    ans="$reply"
 
-            chosen="$(tui_menu "Choose install location" "$@")" \
-                || { log "install location: $PREFIX"; return; }
-            if [ "$chosen" = "Other" ]; then
-                custom="$(tui_run --inputbox "Path:" 8 70 "$PREFIX" 3>&1 1>&2 2>&3)" \
-                    || { log "install location: $PREFIX"; return; }
-                [ -n "$custom" ] && set_prefix "$custom"
-            else
-                set_prefix "$chosen"
-            fi
+    if [ -z "$ans" ]; then
+        log "install location: $PREFIX"
+        return
+    fi
+    case "$ans" in
+        *[!0-9]*)
+            set_prefix "$ans"
             ;;
         *)
-            print_line ""
-            print_line "${BOLD}Choose install location:${RESET}"
-            i=0
-            OLD_IFS="$IFS"; IFS='
+            if [ "$ans" = "$other_idx" ]; then
+                print_prompt 'Path:'
+                read_user_line || reply=""
+                custom="$reply"
+                if [ -n "$custom" ]; then set_prefix "$custom"; fi
+            else
+                i=0
+                IFS='
 '
-            for c in $cands; do
-                i=$((i + 1))
-                annot="$(annotate_candidate "$c")"
-                marker=" "
-                [ "$c" = "$PREFIX" ] && marker="*"
-                print_line "$(printf '  %s %d) %-32s %s' "$marker" "$i" "$c" "$annot")"
-            done
-            IFS="$OLD_IFS"
-            other_idx=$((i + 1))
-            print_line "$(printf '    %d) Other (enter a path)' "$other_idx")"
-            print_prompt "$(printf '\nSelection [%s]:' "$PREFIX")"
-            read_user_line || reply=""
-            ans="$reply"
-
-            if [ -z "$ans" ]; then
-                log "install location: $PREFIX"
-                return
+                for c in $cands; do
+                    i=$((i + 1))
+                    if [ "$i" = "$ans" ]; then set_prefix "$c"; break; fi
+                done
+                IFS="$OLD_IFS"
             fi
-            case "$ans" in
-                *[!0-9]*)
-                    set_prefix "$ans"
-                    ;;
-                *)
-                    if [ "$ans" = "$other_idx" ]; then
-                        print_prompt 'Path:'
-                        read_user_line || reply=""
-                        custom="$reply"
-                        if [ -n "$custom" ]; then set_prefix "$custom"; fi
-                    else
-                        i=0
-                        IFS='
-'
-                        for c in $cands; do
-                            i=$((i + 1))
-                            if [ "$i" = "$ans" ]; then set_prefix "$c"; break; fi
-                        done
-                        IFS="$OLD_IFS"
-                    fi
-                    ;;
-            esac
             ;;
     esac
     log "install location: $PREFIX"
@@ -1846,20 +1724,11 @@ choose_mcp_prefix() {
         return
     fi
 
-    case "$UI" in
-        whiptail|dialog)
-            chosen="$(tui_run --inputbox "MCP server install directory:" 8 70 "$default" 3>&1 1>&2 2>&3)" \
-                || { MCP_PREFIX_OVERRIDE="$default"; log "MCP install location: $MCP_PREFIX_OVERRIDE"; return; }
-            [ -n "$chosen" ] && MCP_PREFIX_OVERRIDE="$chosen" || MCP_PREFIX_OVERRIDE="$default"
-            ;;
-        *)
-            print_line ""
-            print_line "MCP server install directory:"
-            print_prompt "$(printf '  path [%s]: ' "$default")"
-            read_user_line || reply=""
-            MCP_PREFIX_OVERRIDE="${reply:-$default}"
-            ;;
-    esac
+    print_line ""
+    print_line "MCP server install directory:"
+    print_prompt "$(printf '  path [%s]: ' "$default")"
+    read_user_line || reply=""
+    MCP_PREFIX_OVERRIDE="${reply:-$default}"
     # Validate via set_prefix-style charset check.
     case "$MCP_PREFIX_OVERRIDE" in
         '')                          die "MCP install location cannot be empty" ;;
@@ -1869,31 +1738,38 @@ choose_mcp_prefix() {
     log "MCP install location: $MCP_PREFIX_OVERRIDE"
 }
 
-write_target() {
-    # Atomic install of SRC to DST. Prompts before clobbering a non-zipapp
-    # or escalating to sudo for a non-writable target dir.
-    src="$1"; dst="$2"
-    if [ -e "$dst" ] && ! looks_like_our_zipapp "$dst"; then
-        warn "$dst already exists and is not a tcl-lsp zipapp"
-        warn "(no Python shebang or ZIP signature in first 2KB)"
-        if ! ask_default_no "Overwrite $dst anyway? [y/N]"; then
-            die "aborted: existing $dst is unrelated and overwrite declined.
+# Planned destination paths the user already approved overwriting. Used
+# by write_target() to skip its existence check.
+OVERWRITE_OK=""
+
+plan_overwrite_check() {
+    # Front-loaded: for each binary we plan to write, if a non-tcl-lsp
+    # file already exists there, ask now whether to overwrite. Record
+    # the decision so phase 3 doesn't have to ask again.
+    dst="$1"
+    [ -e "$dst" ] || return 0
+    looks_like_our_zipapp "$dst" && return 0
+    warn "$dst already exists and is not a tcl-lsp zipapp"
+    warn "(no Python shebang or ZIP signature in first 2KB)"
+    if ! ask_default_no "Overwrite $dst anyway? [y/N]"; then
+        die "aborted: existing $dst is unrelated and overwrite declined.
 Re-run with TCL_LSP_PREFIX=/other/dir, or remove $dst first."
-        fi
     fi
+    OVERWRITE_OK="${OVERWRITE_OK} ${dst}"
+}
+
+write_target() {
+    # Atomic install of SRC to DST. Phase 2 already settled writability
+    # and overwrite consent; phase 3 just executes.
+    src="$1"; dst="$2"
     target_dir="$(dirname "$dst")"
     if dir_writable "$target_dir"; then
         mkdir -p "$target_dir"
         install -m 0755 "$src" "$dst"
-        return
+    else
+        run_as_root mkdir -p "$target_dir"
+        run_as_root install -m 0755 "$src" "$dst"
     fi
-    warn "Target directory not writable by $(id -un): $target_dir"
-    if ! ask_default_no "Use sudo to install $(basename "$dst") into $target_dir? [y/N]"; then
-        die "aborted: $target_dir not writable and sudo declined.
-Re-run with TCL_LSP_PREFIX=/path/you/can/write/to, or accept the sudo prompt."
-    fi
-    run_root mkdir -p "$target_dir"
-    run_root install -m 0755 "$src" "$dst"
 }
 
 
@@ -1916,22 +1792,28 @@ install_cli() {
 
 
 PATH_MARKER='# Added by tcl-lsp installer'
+WANT_PATH_UPDATE=0
 
-ensure_path() {
+plan_path_update() {
     if path_contains "$PREFIX"; then return; fi
     if [ "${TCL_LSP_NO_PATH:-0}" = "1" ]; then
         warn "$PREFIX is not on PATH — TCL_LSP_NO_PATH=1, skipping rc update."
         return
     fi
     if [ -f "$RC" ] && grep -qF "$PATH_MARKER" "$RC" 2>/dev/null; then
-        log "PATH entry already present in $RC (skipping append)"
+        log "PATH entry already present in $RC"
         return
     fi
-    if ! ask "Add $PREFIX to PATH in $RC? [Y/n]"; then
+    if ask "Add $PREFIX to PATH in $RC? [Y/n]"; then
+        WANT_PATH_UPDATE=1
+    else
         warn "Skipped PATH update. Add this to $RC manually:"
         warn "  export PATH=\"$PREFIX:\$PATH\""
-        return
     fi
+}
+
+apply_path_update() {
+    [ "$WANT_PATH_UPDATE" = 1 ] || return 0
     mkdir -p "$(dirname "$RC")"
     case "$SHELL_NAME" in
         fish)
@@ -1946,25 +1828,37 @@ ensure_path() {
 }
 
 
+WANT_COMP_TCL=0
+WANT_COMP_F5=0
+plan_completion() {
+    # Front-loaded decision: install shell completion for each chosen CLI.
+    [ "${TCL_LSP_NO_COMP:-0}" = "1" ] && return
+    [ -n "$INSTALL_SUFFIX" ] && {
+        log "shell completion: skipped (binaries install as <name>${INSTALL_SUFFIX})"
+        return
+    }
+    case "$ONLY" in
+        tcl|both)
+            if ask "Install tcl shell completion for $SHELL_NAME? [Y/n]"; then
+                WANT_COMP_TCL=1
+            fi
+            ;;
+    esac
+    case "$ONLY" in
+        f5|both)
+            if ask "Install f5 shell completion for $SHELL_NAME? [Y/n]"; then
+                WANT_COMP_F5=1
+            fi
+            ;;
+    esac
+}
+
 install_completion() {
     name="$1"
-    final_name="${name}${INSTALL_SUFFIX}"
-    if [ "${TCL_LSP_NO_COMP:-0}" = "1" ]; then return; fi
-    if [ -n "$INSTALL_SUFFIX" ]; then
-        # The bundled completion script registers for $name, not $name-lsp.
-        log "skipping $name completion ($final_name has no matching completion script)"
-        return
-    fi
-    if ! ask "Install $name shell completion for $SHELL_NAME? [Y/n]"; then
-        if ! tty_available && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
-            log "skipped $name completion (non-interactive). Install later with:"
-            log "  $name completion $SHELL_NAME  # see INSTALL-cli.md for paths"
-        fi
-        return
-    fi
-
-    # Resolve the actual binary path — may be a per-CLI override under
-    # split-directory update.
+    case "$name" in
+        tcl) [ "$WANT_COMP_TCL" = 1 ] || return 0 ;;
+        f5)  [ "$WANT_COMP_F5"  = 1 ] || return 0 ;;
+    esac
     bin="$(prefix_for "$name")/$name"
     case "$SHELL_NAME" in
         bash)
@@ -1990,15 +1884,7 @@ install_completion() {
 }
 
 comp_install() {
-    # comp_install BIN OUT_PATH SHELL — write completion script, prompting
-    # before overwrite when run interactively.
     cbin="$1"; cout="$2"; cshell="$3"
-    if [ -e "$cout" ] && tty_available && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
-        if ! ask "$cout already exists — overwrite? [Y/n]"; then
-            log "kept existing $cout"
-            return
-        fi
-    fi
     mkdir -p "$(dirname "$cout")"
     "$cbin" completion "$cshell" > "$cout" \
         || warn "$(basename "$cbin") completion failed"
@@ -2032,24 +1918,36 @@ detect_ai_clients() {
     AI_DETECTED=1
 }
 
-ensure_unzip() {
-    if have unzip; then return 0; fi
+UNZIP_INSTALL_PLANNED=0
+plan_unzip_if_needed() {
+    # Called in phase 2 if skills install was requested. Records root need
+    # without doing anything yet.
+    [ "$WANT_SKILLS" = "1" ] || return 0
+    have unzip && return 0
     if [ "${TCL_LSP_NO_DEPS:-0}" = "1" ]; then
-        warn "unzip missing and TCL_LSP_NO_DEPS=1 — skipping skills install"
-        return 1
+        warn "unzip missing and TCL_LSP_NO_DEPS=1 — skills install will be skipped"
+        return 0
     fi
     case "$OS" in
-        macos)  warn "unzip missing on macOS — install Xcode Command Line Tools"; return 1 ;;
-        debian) confirm_root_action "apt-get install -y unzip"; run_root apt-get install -y unzip ;;
-        rhel|fedora)
-            if have dnf; then
-                confirm_root_action "dnf install -y unzip"; run_root dnf install -y unzip
-            else
-                confirm_root_action "yum install -y unzip"; run_root yum install -y unzip
-            fi ;;
-        arch)   confirm_root_action "pacman -Sy --noconfirm unzip"; run_root pacman -Sy --noconfirm unzip ;;
-        alpine) confirm_root_action "apk add --no-cache unzip";     run_root apk add --no-cache unzip ;;
-        *) warn "unzip not found and cannot auto-install"; return 1 ;;
+        macos)  warn "unzip missing on macOS — install Xcode Command Line Tools or skills will be skipped"; return 0 ;;
+        debian|rhel|fedora|arch|alpine)
+            need_root "install unzip via $(pkg_manager_label)" \
+                      "install unzip manually, set TCL_LSP_NO_DEPS=1, or skip the skills install"
+            UNZIP_INSTALL_PLANNED=1
+            ;;
+        *) warn "unzip not found and cannot auto-install on $OS — skills install will be skipped" ;;
+    esac
+}
+
+ensure_unzip() {
+    if have unzip; then return 0; fi
+    [ "$UNZIP_INSTALL_PLANNED" = 1 ] || { warn "unzip unavailable — skipping skills install"; return 1; }
+    case "$OS" in
+        debian)        run_as_root apt-get install -y unzip ;;
+        rhel|fedora)   if have dnf; then run_as_root dnf install -y unzip
+                       else run_as_root yum install -y unzip; fi ;;
+        arch)          run_as_root pacman -Sy --noconfirm unzip ;;
+        alpine)        run_as_root apk add --no-cache unzip ;;
     esac
     have unzip
 }
@@ -2189,34 +2087,70 @@ install_ai_integrations() {
 
 main() {
     init_workdir
-    ensure_ui
     log "tcl-lsp installer $INSTALLER_VERSION"
+
+    # === PHASE 1: detect environment (no prompts, no installs) ===
     detect_os
     detect_shell
     detect_proxy
-    ensure_curl
+    plan_downloader              # record curl-install need if missing
+    plan_python_if_needed        # record python-install need if missing
+    detect_ai_clients
 
-    if ! find_python; then
-        install_python
-    fi
-    log "using Python: $PYTHON"
-
-    # CLI phase: pick CLIs, then their install location, then install.
-    detect_ai_clients   # needed by guard + the AI phase below
+    # === PHASE 2: gather every decision the user needs to make ===
     choose_clis
 
     if [ "$ONLY" != "none" ]; then
         propose_update_clis
         choose_prefix
         detect_conflicts
+        plan_cli_runtime_dependencies
+        plan_path_update
+        plan_completion
+        if ! dir_writable "$PREFIX"; then
+            need_root "write to ${PREFIX}" \
+                      "pick a writable directory (e.g. TCL_LSP_PREFIX=\$HOME/.local/bin)"
+        fi
+        # Check for non-tcl-lsp files at each planned target path.
+        case "$ONLY" in
+            tcl)  plan_overwrite_check "$(prefix_for tcl)/tcl${INSTALL_SUFFIX}" ;;
+            f5)   plan_overwrite_check "$(prefix_for f5)/f5${INSTALL_SUFFIX}" ;;
+            both) plan_overwrite_check "$(prefix_for tcl)/tcl${INSTALL_SUFFIX}"
+                  plan_overwrite_check "$(prefix_for f5)/f5${INSTALL_SUFFIX}" ;;
+        esac
+    fi
+
+    choose_ai_components
+    guard_install_plan
+    if [ "$WANT_MCP" = "1" ]; then
+        propose_update_mcp
+        choose_mcp_prefix
+        mcp_target_dir="$(prefix_for mcp)"
+        if ! dir_writable "$mcp_target_dir"; then
+            need_root "write the MCP zipapp to ${mcp_target_dir}" \
+                      "pick a writable MCP directory"
+        fi
+        plan_overwrite_check "${mcp_target_dir}/tcl-lsp-mcp-server.pyz"
+    fi
+    plan_unzip_if_needed
+
+    # === PHASE 2.5: pre-flight — abort with consolidated root message ===
+    require_root_or_die
+
+    # === PHASE 3: execute the plan (no more questions) ===
+    install_python
+    install_downloader
+    log "using Python: $PYTHON"
+
+    if [ "$ONLY" != "none" ]; then
         case "$ONLY" in
             tcl)  install_cli tcl ;;
             f5)   install_cli f5 ;;
             both) install_cli tcl; install_cli f5 ;;
             *) die "invalid ONLY=$ONLY" ;;
         esac
-        check_cli_runtime_dependencies
-        ensure_path
+        install_cli_runtime_dependencies
+        apply_path_update
     fi
 
     case "$ONLY" in
@@ -2225,14 +2159,6 @@ main() {
         both) install_completion tcl; install_completion f5 ;;
     esac
 
-    # AI phase: pick AI components, then the MCP install location,
-    # then install. Skips entirely if no AI client was detected.
-    choose_ai_components
-    guard_install_plan
-    if [ "$WANT_MCP" = "1" ]; then
-        propose_update_mcp
-        choose_mcp_prefix
-    fi
     install_ai_integrations
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
