@@ -1333,12 +1333,18 @@ propose_update_install() {
     # each at its own location instead of collapsing both into one dir.
     [ "$PREFIX_EXPLICIT" = "1" ] && return
 
+    # propose_update_one returns non-zero to signal "fall back to the
+    # picker" (user declined, or the existing binary isn't ours). We
+    # propagate that as a *successful* return from this function — the
+    # caller (main) continues into choose_prefix. Without the explicit
+    # `return 0` the function would return 1, and `set -e` in main would
+    # kill the script silently right after `CLIs to install: both`.
     case "$ONLY" in
-        tcl)  propose_update_one tcl  || return ;;
-        f5)   propose_update_one f5   || return ;;
-        both) propose_update_one tcl  || return
-              propose_update_one f5   || return ;;
-        *)    return ;;
+        tcl)  propose_update_one tcl  || return 0 ;;
+        f5)   propose_update_one f5   || return 0 ;;
+        both) propose_update_one tcl  || return 0
+              propose_update_one f5   || return 0 ;;
+        *)    return 0 ;;
     esac
 
     # No CLI was found on PATH — choose_prefix handles the picker.
