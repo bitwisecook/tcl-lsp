@@ -839,13 +839,33 @@ wget_supports_tls13() {
     return 1
 }
 
+CURL_HAS_HTTP2=
+CURL_HAS_TLS13=
+curl_probe_feature() {
+    # Probe whether `curl <flag>` is built into the active curl. Some
+    # platforms (notably stock macOS curl without nghttp2) lack --http2
+    # and reject it with exit 4 (CURLE_NOT_BUILT_IN).
+    curl "$1" --help all >/dev/null 2>&1
+}
+
 curl_invoke() {
     # curl with the current transport-strictness, plus the caller's args.
-    if [ "$TLS_FALLBACK" = 1 ]; then
-        curl --tlsv1.2 --http1.1 --proto '=https' --proto-redir '=https' "$@"
-    else
-        curl --tlsv1.3 --http2  --proto '=https' --proto-redir '=https' "$@"
+    # Capabilities are probed once on first use because not every libcurl
+    # build supports --http2 or --tlsv1.3 (e.g. Apple's stock curl).
+    if [ -z "$CURL_HAS_HTTP2" ]; then
+        if curl_probe_feature --http2; then CURL_HAS_HTTP2=1; else CURL_HAS_HTTP2=0; fi
     fi
+    if [ -z "$CURL_HAS_TLS13" ]; then
+        if curl_probe_feature --tlsv1.3; then CURL_HAS_TLS13=1; else CURL_HAS_TLS13=0; fi
+    fi
+    set -- --proto '=https' --proto-redir '=https' "$@"
+    if [ "$TLS_FALLBACK" = 1 ]; then
+        set -- --tlsv1.2 --http1.1 "$@"
+    else
+        [ "$CURL_HAS_TLS13" = 1 ] && set -- --tlsv1.3 "$@"
+        [ "$CURL_HAS_HTTP2" = 1 ] && set -- --http2 "$@"
+    fi
+    curl "$@"
 }
 
 wget_invoke() {
