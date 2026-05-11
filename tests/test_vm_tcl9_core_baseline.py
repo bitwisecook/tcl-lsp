@@ -7,7 +7,7 @@ invisible to this gate by construction.  Use this to keep the Python
 VM from regressing on upstream Tcl 9 semantics; the WASM equivalent
 is tracked separately.
 
-Runs the focused harness (``scripts/run_tcl9_vm_core.py``) and asserts
+Runs the focused harness (``scripts/dev/run_tcl9_vm_core.py``) and asserts
 that no stem regresses against the committed baseline at
 ``tests/baselines/tcl9-tcltest-vm/summary.json``.
 

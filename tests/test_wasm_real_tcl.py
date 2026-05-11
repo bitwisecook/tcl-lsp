@@ -61,7 +61,7 @@ def _get_engine() -> wasmtime.Engine:
 def _get_engine_with_timeout() -> wasmtime.Engine:
     """Engine variant with epoch-interruption enabled.
 
-    Used by long-running sweeps (``scripts/run_tcl9_tcltest_sweep.py``)
+    Used by long-running sweeps (``scripts/dev/run_tcl9_tcltest_sweep.py``)
     that need to bound per-test execution against runaway loops.  A
     watchdog ``threading.Timer`` bumps the engine's epoch after the
     deadline; the next wasm op then traps with an epoch-deadline

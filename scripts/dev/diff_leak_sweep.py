@@ -29,7 +29,7 @@ import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 BASELINE = REPO / "tests" / "baselines" / "wasm_leak_baseline.json"
 RESULTS = REPO / "tmp" / "perf-output" / "leak_sweep_results.json"
 

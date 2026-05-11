@@ -14,7 +14,7 @@ tcltest-based ``run_tcl9_tests.py`` which groups by upstream test
 file rather than by primitive.
 
 When the expected output changes (Tcl 9 semantic update), regenerate
-with ``scripts/tcl9_samples_refgen.py`` from a host that has
+with ``scripts/dev/tcl9_samples_refgen.py`` from a host that has
 ``tclsh9.0`` installed.  See ``samples/tcl9_smoke/README.md`` for
 the workflow.
 """
