@@ -999,9 +999,9 @@ resolve_latest_tag() {
                 | awk '/^  Location:/ {loc=$2} END {print loc}' | tr -d '\r')"
         fi
     else
-        final_url="$(curl_invoke -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url" 2>/dev/null)"
+        final_url="$(curl_invoke -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url")"
         if [ -z "$final_url" ] && maybe_fallback_tls; then
-            final_url="$(curl_invoke -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url" 2>/dev/null)"
+            final_url="$(curl_invoke -fsSLI -o /dev/null -w '%{url_effective}' "$redirect_url")"
         fi
     fi
     case "$final_url" in
