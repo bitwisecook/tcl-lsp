@@ -147,10 +147,27 @@ If a file looks like one of our zipapps, the installer prompts:
 Update existing tcl at /usr/local/bin/tcl (in place)? [Y/n]
 ```
 
-Saying yes pins `$PREFIX` to that directory and skips the install-location
-picker.  Saying no falls back to the normal picker.  If a file is on
-`PATH` but doesn't look like one of our zipapps the installer warns and
-runs the picker — it never overwrites unrelated binaries.
+Saying yes pins the install dir to that directory and skips the
+install-location picker.  Saying no falls back to the normal picker.
+If a file is on `PATH` but doesn't look like one of our zipapps the
+installer warns and runs the picker — it never overwrites unrelated
+binaries.
+
+**Split-directory installs** — when `tcl` and `f5` live in different
+directories on `PATH` (e.g. `tcl` in `/usr/local/bin` and `f5` in
+`~/.local/bin`), the installer updates each at its own location
+rather than collapsing both to a single directory.  PATH/completion
+and MCP-server install anchor on the first found directory; the
+binaries themselves go back to where they came from:
+
+```
+==> found existing tcl at /usr/local/bin/tcl
+==> found existing f5 at /home/you/.local/bin/f5
+==> split-directory update:
+==>   tcl will update at /usr/local/bin/tcl
+==>   f5  will update at /home/you/.local/bin/f5
+==> (PATH / completion / MCP install will anchor on /usr/local/bin)
+```
 
 ### Naming conflicts
 

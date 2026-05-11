@@ -299,6 +299,23 @@ else
     PREFIX_EXPLICIT=0
 fi
 
+# Per-CLI directory overrides. Populated by propose_update_install when
+# an existing in-place update lives at a directory other than $PREFIX —
+# the common case is `tcl` in /usr/local/bin and `f5` in ~/.local/bin
+# (or vice versa) where we must update each at its own location rather
+# than collapsing both into one $PREFIX. Empty string = "use $PREFIX".
+TCL_PREFIX_OVERRIDE=""
+F5_PREFIX_OVERRIDE=""
+
+prefix_for() {
+    # prefix_for NAME — print the install directory for binary NAME.
+    case "$1" in
+        tcl) printf '%s' "${TCL_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        f5)  printf '%s' "${F5_PREFIX_OVERRIDE:-$PREFIX}" ;;
+        *)   printf '%s' "$PREFIX" ;;
+    esac
+}
+
 # ---------------------------------------------------------------------
 # OS detection (with /etc/os-release safety check)
 # ---------------------------------------------------------------------
@@ -1071,16 +1088,12 @@ PY
 propose_update_install() {
     # For each CLI the user selected, look for an existing copy on PATH.
     # If found AND it looks like one of our zipapps, ask whether to
-    # update in place — point $PREFIX at its directory and mark explicit
-    # so choose_prefix() skips.
-    #
-    # If multiple selected CLIs live in the same directory, one prompt
-    # covers both. If they live in different dirs, prompt per-CLI and
-    # take the first agreed-on dir (an unusual layout — the picker
-    # always installs them side by side).
+    # update in place. Each CLI's prior location is recorded separately
+    # in TCL_PREFIX_OVERRIDE / F5_PREFIX_OVERRIDE so split-directory
+    # layouts (tcl in /usr/local/bin, f5 in ~/.local/bin, etc.) update
+    # each at its own location instead of collapsing both into one dir.
     [ "$PREFIX_EXPLICIT" = "1" ] && return
 
-    found_dir=""
     case "$ONLY" in
         tcl)  propose_update_one tcl  || return ;;
         f5)   propose_update_one f5   || return ;;
@@ -1089,12 +1102,30 @@ propose_update_install() {
         *)    return ;;
     esac
 
-    if [ -n "$found_dir" ]; then
-        set_prefix "$found_dir"
-        PREFIX_EXPLICIT=1
-        PREFIX_FROM_UPDATE=1
+    # No CLI was found on PATH — choose_prefix handles the picker.
+    if [ -z "$TCL_PREFIX_OVERRIDE" ] && [ -z "$F5_PREFIX_OVERRIDE" ]; then
+        return
+    fi
+
+    # Pick the $PREFIX used for the "global" install concerns (PATH
+    # entry, completion install, MCP server). Each CLI's actual binary
+    # still lands at its own override; $PREFIX is just the anchor.
+    if [ -n "$TCL_PREFIX_OVERRIDE" ] && [ -n "$F5_PREFIX_OVERRIDE" ] \
+       && [ "$TCL_PREFIX_OVERRIDE" != "$F5_PREFIX_OVERRIDE" ]; then
+        log "split-directory update:"
+        log "  tcl will update at $TCL_PREFIX_OVERRIDE/tcl"
+        log "  f5  will update at $F5_PREFIX_OVERRIDE/f5"
+        log "(PATH / completion / MCP install will anchor on $TCL_PREFIX_OVERRIDE)"
+        set_prefix "$TCL_PREFIX_OVERRIDE"
+    elif [ -n "$TCL_PREFIX_OVERRIDE" ]; then
+        set_prefix "$TCL_PREFIX_OVERRIDE"
+        log "updating in place: $PREFIX"
+    else
+        set_prefix "$F5_PREFIX_OVERRIDE"
         log "updating in place: $PREFIX"
     fi
+    PREFIX_EXPLICIT=1
+    PREFIX_FROM_UPDATE=1
 }
 
 propose_update_one() {
@@ -1105,12 +1136,16 @@ propose_update_one() {
     n="$1"
     path="$(find_on_path "$n")" || return 0
     if looks_like_our_zipapp "$path"; then
-        found_dir="$(dirname "$path")"
+        dir="$(dirname "$path")"
         log "found existing $n at $path"
         if ! ask_optout "Update existing $n at $path (in place)? [Y/n]"; then
             log "leaving $path alone; will pick a fresh install location"
             return 1
         fi
+        case "$n" in
+            tcl) TCL_PREFIX_OVERRIDE="$dir" ;;
+            f5)  F5_PREFIX_OVERRIDE="$dir" ;;
+        esac
         return 0
     fi
     warn "found '$n' at $path but it doesn't look like our zipapp"
@@ -1142,15 +1177,16 @@ alias_in_rc() {
 
 count_conflicts_for() {
     # Increments the parent's $conflicts when name $1 would be shadowed
-    # by something earlier on PATH or by a shell alias. No subshell —
-    # we share scope with detect_conflicts to keep the $conflicts
-    # tally simple and avoid stdout-capture acrobatics.
+    # by something earlier on PATH or by a shell alias. Uses prefix_for
+    # so per-CLI overrides (split-directory update) don't fire a
+    # false-positive shadow against their own dir.
     n="$1"
-    if other="$(find_on_path "$n")" && [ "$other" != "$PREFIX/$n" ]; then
+    own_dir="$(prefix_for "$n")"
+    if other="$(find_on_path "$n")" && [ "$other" != "$own_dir/$n" ]; then
         if looks_like_our_zipapp "$other"; then
-            warn "another tcl-lsp '$n' is already at $other (will shadow $PREFIX/$n)"
+            warn "another tcl-lsp '$n' is already at $other (will shadow $own_dir/$n)"
         else
-            warn "an unrelated '$n' exists at $other (will shadow $PREFIX/$n)"
+            warn "an unrelated '$n' exists at $other (will shadow $own_dir/$n)"
         fi
         conflicts=$((conflicts + 1))
     fi
@@ -1351,8 +1387,11 @@ Re-run with TCL_LSP_PREFIX=/path/you/can/write/to, or accept the sudo prompt."
 install_cli() {
     # install_cli NAME (one of "tcl" or "f5"). INSTALL_SUFFIX may rename
     # the on-disk binary (e.g. "tcl" → "tcl-lsp") to avoid PATH conflicts.
+    # prefix_for() resolves the per-CLI install dir, so a split-directory
+    # update sends each binary back to its existing location.
     name="$1"
     final_name="${name}${INSTALL_SUFFIX}"
+    dir="$(prefix_for "$name")"
     ensure_tag
     asset="${name}-${VER_NO_V}.pyz"
     url="$(asset_url "$asset")"
@@ -1361,8 +1400,8 @@ install_cli() {
     tmpfile="$WORKDIR/$asset"
     download "$url" "$tmpfile"
     verify_artefact "$asset" "$tmpfile"
-    write_target "$tmpfile" "$PREFIX/$final_name"
-    log "installed $name -> $PREFIX/$final_name"
+    write_target "$tmpfile" "$dir/$final_name"
+    log "installed $name -> $dir/$final_name"
 }
 
 # ---------------------------------------------------------------------
@@ -1425,7 +1464,9 @@ install_completion() {
         return
     fi
 
-    bin="$PREFIX/$name"
+    # Resolve the actual binary path — may be a per-CLI override under
+    # split-directory update.
+    bin="$(prefix_for "$name")/$name"
     case "$SHELL_NAME" in
         bash)
             dir="$HOME/.local/share/bash-completion/completions"
