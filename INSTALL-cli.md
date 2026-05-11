@@ -67,11 +67,19 @@ thing is safe:
 
 | Prompt | Interactive default | Piped (`curl … | sh`) default | Opt-out |
 |--------|---------------------|-------------------------------|---------|
+| Choose CLIs (`tcl`, `f5`) | both | both | `TCL_LSP_ONLY=tcl` or `=f5` |
 | Choose install location | `$PREFIX` (currently `~/.local/bin`) | `$PREFIX` (no prompt) | `TCL_LSP_PREFIX=…` |
 | Add `$PREFIX` to PATH (modifies rc file) | **yes** | **no** | `TCL_LSP_NO_PATH=1` |
 | Install shell completion | **yes** | **no** | `TCL_LSP_NO_COMP=1` |
 | Install MCP server (detected AI client) | **yes** | **yes** | `TCL_LSP_NO_MCP=1` |
 | Install Claude Code skills (detected) | **yes** | **yes** | `TCL_LSP_NO_SKILLS=1` |
+
+When the installer is run interactively and either `whiptail` (preinstalled
+on Debian/Ubuntu/RHEL) or `dialog` is on `PATH`, the prompts switch to a
+TUI: the CLI picker is a checklist, the install-location picker is a
+menu, and yes/no questions are arrow-key-driven dialogs.  Set
+`TCL_LSP_NO_TUI=1` to keep the plain-text prompts.  In non-interactive
+mode (piped stdin) the TUI is never used.
 
 The asymmetry is deliberate: rc-file and completion-directory
 mutation get an explicit yes from the user, while the AI integrations
@@ -108,6 +116,7 @@ curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/insta
 | `TCL_LSP_OS`      | auto-detected | Bypass `/etc/os-release` detection: `debian`, `rhel`, `fedora`, `arch`, `alpine`, or `macos`. Useful in containers or hosts where `/etc/os-release` is locked down. |
 | `TCL_LSP_NO_VERIFY`      | unset | Skip the SHA256SUMS verification step entirely. |
 | `TCL_LSP_REQUIRE_VERIFY` | unset | Fail the install if the release has no `SHA256SUMS` file. Default behaviour is to warn and continue. |
+| `TCL_LSP_NO_TUI` | unset | Force plain-text prompts even when `whiptail` or `dialog` is on PATH. |
 
 Example — install only `f5`, system-wide, fully automated:
 

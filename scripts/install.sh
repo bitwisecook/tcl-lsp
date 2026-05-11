@@ -36,6 +36,7 @@
 #   TCL_LSP_REQUIRE_VERIFY  - 1 to fail when SHA256SUMS is missing
 #   TCL_LSP_ASSUME_YES      - 1 to answer "yes" non-interactively
 #   TCL_LSP_ASSUME_NO       - 1 to answer "no" non-interactively
+#   TCL_LSP_NO_TUI          - 1 to force text prompts even when whiptail/dialog is present
 
 set -eu
 # Defence-in-depth: a poisoned IFS in the caller's env can split values
@@ -46,7 +47,16 @@ IFS='
 DEFAULT_REPO="bitwisecook/tcl-lsp"
 REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
 VERSION="${TCL_LSP_VERSION:-latest}"
-ONLY="${TCL_LSP_ONLY:-both}"
+# ONLY is set from TCL_LSP_ONLY (env wins) or filled in interactively by
+# choose_clis(). When choose_clis runs it sets ONLY_EXPLICIT=1 to mark the
+# value as user-confirmed; otherwise main() expects the env default.
+if [ -n "${TCL_LSP_ONLY:-}" ]; then
+    ONLY="$TCL_LSP_ONLY"
+    ONLY_EXPLICIT=1
+else
+    ONLY=both
+    ONLY_EXPLICIT=0
+fi
 
 GREEN=''; YELLOW=''; RED=''; BOLD=''; RESET=''
 if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
@@ -60,6 +70,105 @@ fi
 log()  { printf '%s==>%s %s\n'  "$GREEN" "$RESET" "$*"; }
 warn() { printf '%swarn:%s %s\n' "$YELLOW" "$RESET" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
+
+# ---------------------------------------------------------------------
+# TUI (whiptail / dialog) — used opportunistically when present
+# ---------------------------------------------------------------------
+
+UI=text
+ensure_ui() {
+    # Probe whiptail/dialog and only enable when we have a real TTY.
+    # Set TCL_LSP_NO_TUI=1 to force the text path. Always returns 0 —
+    # the absence of a TTY is a normal mode, not an error.
+    [ "${TCL_LSP_NO_TUI:-0}" = "1" ] && return 0
+    if [ ! -t 0 ] || [ ! -t 1 ]; then return 0; fi
+    if command -v whiptail >/dev/null 2>&1; then UI=whiptail
+    elif command -v dialog >/dev/null 2>&1; then UI=dialog
+    fi
+    return 0
+}
+
+TUI_TITLE='tcl-lsp installer'
+
+tui_yesno() {
+    # tui_yesno "prompt" — 0 = yes, 1 = no. Default highlight is "Yes".
+    case "$UI" in
+        whiptail|dialog)
+            "$UI" --title "$TUI_TITLE" --yesno "$1" 10 70
+            ;;
+        *)
+            printf '%s [Y/n] ' "$1"
+            read -r reply || return 1
+            case "$reply" in
+                ''|y|Y|yes|YES|Yes) return 0 ;;
+                *) return 1 ;;
+            esac
+            ;;
+    esac
+}
+
+tui_menu() {
+    # tui_menu "prompt" tag1 desc1 tag2 desc2 ...   (must come in pairs)
+    # Prints the chosen tag to stdout; non-zero on cancel.
+    prompt="$1"; shift
+    case "$UI" in
+        whiptail|dialog)
+            # Count tag/desc pairs to size the menu list.
+            count=$(($# / 2))
+            "$UI" --title "$TUI_TITLE" --menu "$prompt" \
+                  $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
+            ;;
+        *)
+            printf '\n%s\n' "$prompt"
+            i=0
+            while [ $# -gt 0 ]; do
+                i=$((i + 1))
+                tag="$1"; desc="$2"; shift 2
+                eval "tag_$i=\"\$tag\""
+                printf '  %d) %-32s %s\n' "$i" "$tag" "$desc"
+            done
+            printf 'Selection [1]: '
+            read -r ans || ans=1
+            : "${ans:=1}"
+            case "$ans" in
+                ''|*[!0-9]*) return 1 ;;
+            esac
+            eval "echo \"\${tag_$ans:-}\""
+            ;;
+    esac
+}
+
+tui_checklist() {
+    # tui_checklist "prompt" tag1 desc1 on/off  tag2 desc2 on/off  ...
+    # Prints one tag per line for the boxes the user ticked.
+    prompt="$1"; shift
+    case "$UI" in
+        whiptail|dialog)
+            count=$(($# / 3))
+            "$UI" --title "$TUI_TITLE" --separate-output \
+                  --checklist "$prompt" \
+                  $((count + 8)) 70 "$count" "$@" 3>&1 1>&2 2>&3
+            ;;
+        *)
+            # Text fallback: echo every "on" tag, then offer the user a
+            # comma-separated edit. Keeps the flow simple in plain shells.
+            defaults=""
+            args=""
+            while [ $# -gt 0 ]; do
+                tag="$1"; desc="$2"; state="$3"; shift 3
+                args="${args}${tag}|${desc}\n"
+                [ "$state" = ON ] && defaults="${defaults}${defaults:+,}${tag}"
+            done
+            printf '\n%s\n' "$prompt"
+            printf '%b' "$args" | awk -F'|' '{ printf "  %-24s %s\n", $1, $2 }'
+            printf 'Enable [%s]: ' "$defaults"
+            read -r ans || ans=""
+            : "${ans:=$defaults}"
+            # Normalise "tcl, f5" → "tcl\nf5"
+            printf '%s\n' "$ans" | tr ',' '\n' | sed 's/^ *//; s/ *$//; /^$/d'
+            ;;
+    esac
+}
 
 usage() {
     # Print the leading comment block (lines 2 onward, until the first
@@ -99,17 +208,12 @@ fi
 # ---------------------------------------------------------------------
 
 ask() {
-    # ask "Prompt? [Y/n]" — returns 0 for yes, 1 for no.
-    # Default-no when piped: protects rc files / shell completion dirs
-    # from silent mutation. Use ask_optout() for opt-out prompts.
+    # Opt-in prompt: 0 = yes, 1 = no. Default-no when piped so we don't
+    # silently mutate rc files. Routes through tui_yesno when whiptail
+    # or dialog is available.
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then return 0; fi
     if [ "${TCL_LSP_ASSUME_NO:-0}"  = "1" ] || [ ! -t 0 ]; then return 1; fi
-    printf '%s ' "$1"
-    read -r reply || return 1
-    case "$reply" in
-        ''|y|Y|yes|YES|Yes) return 0 ;;
-        *) return 1 ;;
-    esac
+    tui_yesno "$1"
 }
 
 ask_optout() {
@@ -118,12 +222,7 @@ ask_optout() {
     # client, existing rc entry) was the actual opt-in.
     if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then return 1; fi
     if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ ! -t 0 ]; then return 0; fi
-    printf '%s ' "$1"
-    read -r reply || return 0
-    case "$reply" in
-        ''|y|Y|yes|YES|Yes) return 0 ;;
-        *) return 1 ;;
-    esac
+    tui_yesno "$1"
 }
 
 confirm_root_action() {
@@ -600,6 +699,55 @@ collect_install_candidates() {
     done
 }
 
+choose_clis() {
+    # Ask which CLIs to install (tcl, f5, both). TCL_LSP_ONLY in the env
+    # bypasses the prompt entirely. ASSUME_YES / ASSUME_NO / piped stdin
+    # all fall through to the env default ("both").
+    if [ "$ONLY_EXPLICIT" = "1" ]; then
+        log "CLIs (TCL_LSP_ONLY): $ONLY"
+        return
+    fi
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        log "CLIs (default): $ONLY"
+        return
+    fi
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
+        log "CLIs (default): $ONLY"
+        return
+    fi
+
+    case "$UI" in
+        whiptail|dialog)
+            sel="$(tui_checklist "Which CLIs to install?" \
+                tcl "Unified Tcl tools (format, lint, opt, ...)" ON \
+                f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" ON \
+                )" || die "aborted at CLI selection"
+            # tui_checklist emits one tag per line.
+            has_tcl=0; has_f5=0
+            for t in $sel; do
+                case "$t" in tcl) has_tcl=1 ;; f5) has_f5=1 ;; esac
+            done
+            if [ "$has_tcl" = 1 ] && [ "$has_f5" = 1 ]; then ONLY=both
+            elif [ "$has_tcl" = 1 ]; then ONLY=tcl
+            elif [ "$has_f5"  = 1 ]; then ONLY=f5
+            else die "no CLI selected — at least one of tcl/f5 is required"
+            fi
+            ;;
+        *)
+            printf '\nWhich CLIs to install? [both/tcl/f5] (default: both): '
+            read -r ans || ans=""
+            : "${ans:=both}"
+            case "$ans" in
+                both|b) ONLY=both ;;
+                tcl|t)  ONLY=tcl ;;
+                f5|F5)  ONLY=f5 ;;
+                *) die "invalid choice: $ans (expected both/tcl/f5)" ;;
+            esac
+            ;;
+    esac
+    log "CLIs to install: $ONLY"
+}
+
 choose_prefix() {
     if [ "$PREFIX_EXPLICIT" = "1" ]; then
         log "install location (TCL_LSP_PREFIX): $PREFIX"
@@ -614,48 +762,76 @@ choose_prefix() {
         return
     fi
 
-    printf '\n%sChoose install location:%s\n' "$BOLD" "$RESET"
-    i=0
     cands="$(collect_install_candidates)"
-    OLD_IFS="$IFS"; IFS='
-'
-    for c in $cands; do
-        i=$((i + 1))
-        annot="$(annotate_candidate "$c")"
-        marker=" "
-        [ "$c" = "$PREFIX" ] && marker="*"
-        printf '  %s %d) %-32s %s\n' "$marker" "$i" "$c" "$annot"
-    done
-    IFS="$OLD_IFS"
-    other_idx=$((i + 1))
-    printf '    %d) Other (enter a path)\n' "$other_idx"
-    printf '\nSelection [%s]: ' "$PREFIX"
-    read -r ans || ans=""
 
-    if [ -z "$ans" ]; then
-        log "install location: $PREFIX"
-        return
-    fi
-    case "$ans" in
-        *[!0-9]*)
-            # Non-numeric → treat as a literal path.
-            set_prefix "$ans"
+    case "$UI" in
+        whiptail|dialog)
+            # Build the tag/desc argv: each candidate gets one entry,
+            # plus a final "Other" entry that prompts for a free-form path.
+            set --
+            OLD_IFS="$IFS"; IFS='
+'
+            for c in $cands; do
+                set -- "$@" "$c" "$(annotate_candidate "$c")"
+            done
+            IFS="$OLD_IFS"
+            set -- "$@" "Other" "Enter a path manually"
+
+            chosen="$(tui_menu "Choose install location" "$@")" \
+                || { log "install location: $PREFIX"; return; }
+            if [ "$chosen" = "Other" ]; then
+                # whiptail/dialog inputbox: same redirect dance as menu.
+                custom="$("$UI" --title "$TUI_TITLE" --inputbox \
+                    "Path:" 8 70 "$PREFIX" 3>&1 1>&2 2>&3)" \
+                    || { log "install location: $PREFIX"; return; }
+                [ -n "$custom" ] && set_prefix "$custom"
+            else
+                set_prefix "$chosen"
+            fi
             ;;
         *)
-            if [ "$ans" = "$other_idx" ]; then
-                printf 'Path: '
-                read -r custom
-                if [ -n "$custom" ]; then set_prefix "$custom"; fi
-            else
-                i=0
-                IFS='
+            printf '\n%sChoose install location:%s\n' "$BOLD" "$RESET"
+            i=0
+            OLD_IFS="$IFS"; IFS='
 '
-                for c in $cands; do
-                    i=$((i + 1))
-                    if [ "$i" = "$ans" ]; then set_prefix "$c"; break; fi
-                done
-                IFS="$OLD_IFS"
+            for c in $cands; do
+                i=$((i + 1))
+                annot="$(annotate_candidate "$c")"
+                marker=" "
+                [ "$c" = "$PREFIX" ] && marker="*"
+                printf '  %s %d) %-32s %s\n' "$marker" "$i" "$c" "$annot"
+            done
+            IFS="$OLD_IFS"
+            other_idx=$((i + 1))
+            printf '    %d) Other (enter a path)\n' "$other_idx"
+            printf '\nSelection [%s]: ' "$PREFIX"
+            read -r ans || ans=""
+
+            if [ -z "$ans" ]; then
+                log "install location: $PREFIX"
+                return
             fi
+            case "$ans" in
+                *[!0-9]*)
+                    set_prefix "$ans"
+                    ;;
+                *)
+                    if [ "$ans" = "$other_idx" ]; then
+                        printf 'Path: '
+                        read -r custom
+                        if [ -n "$custom" ]; then set_prefix "$custom"; fi
+                    else
+                        i=0
+                        IFS='
+'
+                        for c in $cands; do
+                            i=$((i + 1))
+                            if [ "$i" = "$ans" ]; then set_prefix "$c"; break; fi
+                        done
+                        IFS="$OLD_IFS"
+                    fi
+                    ;;
+            esac
             ;;
     esac
     log "install location: $PREFIX"
@@ -938,6 +1114,7 @@ install_ai_integrations() {
 
 main() {
     init_workdir
+    ensure_ui
     detect_os
     detect_shell
     ensure_curl
@@ -947,6 +1124,7 @@ main() {
     fi
     log "using Python: $PYTHON"
 
+    choose_clis
     choose_prefix
 
     case "$ONLY" in
