@@ -3,8 +3,8 @@
 Step-by-step instructions for installing the tcl-lsp editor extensions
 and language server from
 [GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases) on
-**macOS** (Homebrew), **Linux** (Debian/Ubuntu, RHEL/CentOS, Fedora),
-and **Windows**.
+**macOS** (Homebrew), **Linux** (Debian/Ubuntu, RHEL/CentOS, Fedora,
+Arch/Manjaro), and **Windows**.
 
 For the `tcl` and `f5` command-line tools see [INSTALL-cli.md](INSTALL-cli.md).
 

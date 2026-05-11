@@ -42,8 +42,14 @@ die()  { printf '%serror:%s %s\n' "$RED"   "$RESET" "$*" >&2; exit 1; }
 
 ask() {
     # ask "Prompt? [Y/n] "; returns 0 for yes, 1 for no.
-    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ ! -t 0 ]; then
+    # Non-interactive (piped stdin, e.g. `curl … | sh`): default to NO
+    # so we don't silently mutate rc files. Pass TCL_LSP_ASSUME_YES=1
+    # for full automation, or TCL_LSP_ASSUME_NO=1 to suppress prompts.
+    if [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ]; then
         return 0
+    fi
+    if [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ] || [ ! -t 0 ]; then
+        return 1
     fi
     printf '%s ' "$1"
     read -r reply || return 1
@@ -249,7 +255,8 @@ install_cli() {
     log "resolved $name -> $asset (tag $resolved_tag)"
 
     mkdir -p "$PREFIX"
-    tmpfile="$(mktemp "${TMPDIR:-/tmp}/${name}.XXXXXX.pyz")"
+    # BSD/macOS mktemp requires the X-template at the end of the name.
+    tmpfile="$(mktemp "${TMPDIR:-/tmp}/${name}-install.XXXXXX")"
     download "$url" "$tmpfile"
     mv "$tmpfile" "$PREFIX/$name"
     chmod +x "$PREFIX/$name"
@@ -290,7 +297,13 @@ install_completion() {
     # install_completion CLI_NAME
     name="$1"
     if [ "${TCL_LSP_NO_COMP:-0}" = "1" ]; then return; fi
-    if ! ask "Install $name shell completion for $SHELL_NAME? [Y/n]"; then return; fi
+    if ! ask "Install $name shell completion for $SHELL_NAME? [Y/n]"; then
+        if [ ! -t 0 ] && [ "${TCL_LSP_ASSUME_YES:-0}" != "1" ]; then
+            log "skipped $name completion (non-interactive). Install later with:"
+            log "  $name completion $SHELL_NAME  # see INSTALL-cli.md for paths"
+        fi
+        return
+    fi
 
     bin="$PREFIX/$name"
     case "$SHELL_NAME" in

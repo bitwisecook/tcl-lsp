@@ -1,7 +1,8 @@
 # CLI installation guide
 
 Step-by-step instructions for installing the `tcl` and `f5` command-line
-tools on **macOS**, **Debian/Ubuntu**, and **RHEL/CentOS/Fedora**.
+tools on **macOS** (Homebrew), **Debian/Ubuntu**,
+**RHEL/CentOS/Rocky/Alma**, **Fedora**, **Arch/Manjaro**, and **Alpine**.
 
 Both CLIs are distributed as self-contained Python
 [zipapps](https://docs.python.org/3/library/zipapp.html) (`.pyz`) — no
@@ -37,6 +38,21 @@ less install.sh
 sh install.sh
 ```
 
+### Interactive vs non-interactive
+
+When the installer is run from a real terminal it prompts before
+modifying your shell rc file (PATH update) or installing shell
+completion.  When piped (`curl … | sh`) it defaults prompts to **no**
+so it never mutates dotfiles silently — it just drops the zipapps into
+`$PREFIX` and prints what to add.
+
+To opt in to the full unattended setup, set `TCL_LSP_ASSUME_YES=1`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh \
+  | TCL_LSP_ASSUME_YES=1 sh
+```
+
 ### Installer environment overrides
 
 | Variable | Default | Effect |
@@ -47,10 +63,11 @@ sh install.sh
 | `TCL_LSP_NO_DEPS` | unset | Skip Python install attempts (fail loudly instead). |
 | `TCL_LSP_NO_PATH` | unset | Do not modify the shell rc file. |
 | `TCL_LSP_NO_COMP` | unset | Skip shell completion install. |
-| `TCL_LSP_ASSUME_YES` | unset | Non-interactive: answer "yes" to every prompt. |
+| `TCL_LSP_ASSUME_YES` | unset | Answer "yes" to every prompt (required for unattended PATH / completion install). |
+| `TCL_LSP_ASSUME_NO`  | unset | Answer "no" to every prompt (skip rc and completion entirely). |
 | `TCL_LSP_REPO`    | `bitwisecook/tcl-lsp` | Source repository. |
 
-Example — install only `f5`, system-wide, non-interactively:
+Example — install only `f5`, system-wide, fully automated:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/scripts/install.sh \
@@ -111,6 +128,18 @@ sudo dnf install -y python3 ca-certificates curl
 ```
 
 Fedora 37+ already ships 3.10+.
+
+### Arch / Manjaro
+
+```sh
+sudo pacman -Sy python ca-certificates curl
+```
+
+### Alpine
+
+```sh
+sudo apk add --no-cache python3 ca-certificates curl
+```
 
 ### Verify
 
