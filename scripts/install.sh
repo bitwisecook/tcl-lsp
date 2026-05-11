@@ -83,7 +83,7 @@ REPO="${TCL_LSP_REPO:-$DEFAULT_REPO}"
 VERSION="${TCL_LSP_VERSION:-latest}"
 
 # ONLY: which CLIs to install (tcl / f5 / both). ONLY_EXPLICIT=1 when
-# pinned via env so choose_install_plan() skips the prompt.
+# pinned via env so choose_clis() skips the prompt.
 if [ -n "${TCL_LSP_ONLY:-}" ]; then
     ONLY="$TCL_LSP_ONLY"
     ONLY_EXPLICIT=1
@@ -92,7 +92,7 @@ else
     ONLY_EXPLICIT=0
 fi
 
-# Plan flags set by choose_install_plan().  All "" (unset) until then,
+# Plan flags set by choose_clis().  All "" (unset) until then,
 # at which point each becomes "1" or "0".  install_cli / install_ai_*
 # read these instead of asking again later.
 WANT_TCL=""
@@ -1190,157 +1190,159 @@ collect_install_candidates() {
     return 0
 }
 
-choose_install_plan() {
-    # Single front-loaded question that picks every component up front:
-    # tcl CLI, f5 CLI, MCP server (when an AI client is detected), and
-    # the Claude Code skills (when Claude is detected).  All later
-    # phases read WANT_TCL / WANT_F5 / WANT_MCP / WANT_SKILLS and skip
-    # any further prompting.
-    #
-    # Honoured env opt-outs (no prompt fired when set):
-    #   TCL_LSP_ONLY=tcl|f5|both, TCL_LSP_NO_MCP=1, TCL_LSP_NO_SKILLS=1,
-    #   TCL_LSP_NO_CLAUDE=1, TCL_LSP_NO_CODEX=1.
-    detect_ai_clients
-
-    # Compute defaults from env / detection.
+choose_clis() {
+    # Phase 1: which CLI binaries to install. Sets WANT_TCL / WANT_F5
+    # and reflects the result into $ONLY (tcl|f5|both|none).
     case "$ONLY" in
-        tcl)  d_tcl=ON; d_f5=OFF ;;
-        f5)   d_tcl=OFF; d_f5=ON ;;
-        both|*) d_tcl=ON; d_f5=ON ;;
+        tcl)    d_tcl=1; d_f5=0; d_default=tcl ;;
+        f5)     d_tcl=0; d_f5=1; d_default=f5 ;;
+        both|*) d_tcl=1; d_f5=1; d_default=both ;;
     esac
-    d_mcp=OFF
-    d_skills=OFF
-    if [ "${TCL_LSP_NO_MCP:-0}" != "1" ] && { [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; }; then
-        d_mcp=ON
-    fi
-    if [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] && [ "$HAS_CLAUDE" = "1" ]; then
-        d_skills=ON
-    fi
 
-    # Non-interactive paths take the defaults.  We still record them in
-    # the transcript so a head-less run leaves a clear paper trail.
     if [ "$ONLY_EXPLICIT" = "1" ] || ! tty_available \
        || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
-        case "$ONLY" in
-            both) WANT_TCL=1; WANT_F5=1 ;;
-            tcl)  WANT_TCL=1; WANT_F5=0 ;;
-            f5)   WANT_TCL=0; WANT_F5=1 ;;
-            *) die "invalid TCL_LSP_ONLY: $ONLY (expected tcl|f5|both)" ;;
-        esac
-        [ "$d_mcp"    = ON ] && WANT_MCP=1    || WANT_MCP=0
-        [ "$d_skills" = ON ] && WANT_SKILLS=1 || WANT_SKILLS=0
-        log "install plan (non-interactive): tcl=$WANT_TCL f5=$WANT_F5 mcp=$WANT_MCP skills=$WANT_SKILLS"
+        WANT_TCL="$d_tcl"; WANT_F5="$d_f5"
+        log "CLIs (non-interactive): tcl=$WANT_TCL f5=$WANT_F5"
+        _finalise_only
         return
     fi
 
     case "$UI" in
         whiptail|dialog)
-            # Build a single checklist; entries are skipped when the
-            # underlying integration isn't applicable (no AI client).
-            set -- tcl "Unified Tcl tools (format, lint, opt, ...)" "$d_tcl" \
-                   f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" "$d_f5"
-            if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then
-                if [ "$HAS_CLAUDE" = "1" ] && [ "$HAS_CODEX" = "1" ]; then
-                    ai_label="MCP server (Claude + Codex)"
-                elif [ "$HAS_CLAUDE" = "1" ]; then
-                    ai_label="MCP server (Claude)"
-                else
-                    ai_label="MCP server (Codex)"
-                fi
-                set -- "$@" mcp "$ai_label" "$d_mcp"
-            fi
-            if [ "$HAS_CLAUDE" = "1" ]; then
-                set -- "$@" skills "Claude Code skills (irule-*, tcl-*, tk-*)" "$d_skills"
-            fi
-            sel="$(tui_checklist "Choose what to install:" "$@")" \
-                || die "aborted at install-plan selection"
-            WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
+            set -- tcl "Unified Tcl tools (format, lint, opt, ...)" "$([ "$d_tcl" = 1 ] && echo ON || echo OFF)" \
+                   f5  "F5 BIG-IP tools (cleanup, irule, redact, ...)" "$([ "$d_f5" = 1 ] && echo ON || echo OFF)"
+            sel="$(tui_checklist "Choose which CLIs to install:" "$@")" \
+                || die "aborted at CLI selection"
+            WANT_TCL=0; WANT_F5=0
             for t in $sel; do
-                case "$t" in
-                    tcl)    WANT_TCL=1 ;;
-                    f5)     WANT_F5=1 ;;
-                    mcp)    WANT_MCP=1 ;;
-                    skills) WANT_SKILLS=1 ;;
-                esac
+                case "$t" in tcl) WANT_TCL=1 ;; f5) WANT_F5=1 ;; esac
             done
             ;;
         *)
-            # Text mode: a numbered menu. Entries are dynamic based on
-            # which AI clients (if any) were detected. With both clients
-            # detected the full list is:
-            #   1) tcl   2) f5   3) both CLIs
-            #   4) mcp   5) skills   6) both AI   7) all
-            WANT_TCL=0; WANT_F5=0; WANT_MCP=0; WANT_SKILLS=0
-            has_ai=0; has_skills=0
-            if [ "$HAS_CLAUDE" = "1" ] || [ "$HAS_CODEX" = "1" ]; then has_ai=1; fi
-            if [ "$HAS_CLAUDE" = "1" ]; then has_skills=1; fi
-
-            i=0
-            menu_labels=""
-            add_menu() {
-                i=$((i + 1))
-                menu_labels="${menu_labels}${menu_labels:+
-}  $i) $2"
-                eval "menu_key_$i=\"$1\""
-            }
-            add_menu tcl "tcl"
-            add_menu f5  "f5"
-            add_menu cli "both CLIs (tcl + f5)"
-            [ "$has_ai" = 1 ]     && add_menu mcp    "mcp"
-            [ "$has_skills" = 1 ] && add_menu skills "skills"
-            if [ "$has_ai" = 1 ] && [ "$has_skills" = 1 ]; then
-                add_menu ai "both AI (mcp + skills)"
-            fi
-            [ "$has_ai" = 1 ] && add_menu all "all"
-            menu_default="$i"   # most comprehensive entry
-
-            print_prompt "$(printf '\nChoose what to install:\n%s\n  selection [%s]: ' "$menu_labels" "$menu_default")"
+            menu_default=3
+            case "$d_default" in tcl) menu_default=1 ;; f5) menu_default=2 ;; both) menu_default=3 ;; esac
+            print_line ""
+            print_line "Choose which CLIs to install:"
+            print_line "  1) tcl"
+            print_line "  2) f5"
+            print_line "  3) both (tcl + f5)"
+            print_line "  4) none (AI-only install)"
+            print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
             read_user_line || reply=""
             ans="${reply:-$menu_default}"
             case "$ans" in
-                ''|*[!0-9]*) die "invalid selection: $ans (expected a number 1..$i)" ;;
+                1) WANT_TCL=1; WANT_F5=0 ;;
+                2) WANT_TCL=0; WANT_F5=1 ;;
+                3) WANT_TCL=1; WANT_F5=1 ;;
+                4) WANT_TCL=0; WANT_F5=0 ;;
+                *) die "invalid selection: $ans (expected 1..4)" ;;
             esac
-            if [ "$ans" -lt 1 ] || [ "$ans" -gt "$i" ]; then
-                die "invalid selection: $ans (out of range 1..$i)"
-            fi
-            sel_key="$(eval "echo \"\$menu_key_$ans\"")"
-            case "$sel_key" in
-                tcl)     WANT_TCL=1 ;;
-                f5)      WANT_F5=1 ;;
-                mcp)     WANT_MCP=1 ;;
-                skills)  WANT_SKILLS=1 ;;
-                cli)     WANT_TCL=1; WANT_F5=1 ;;
-                ai)      WANT_MCP=1; WANT_SKILLS=1 ;;
-                all)
-                    WANT_TCL=1; WANT_F5=1
-                    [ "$has_ai" = 1 ]     && WANT_MCP=1
-                    [ "$has_skills" = 1 ] && WANT_SKILLS=1
-                    ;;
-            esac
-            prompt_record install-plan "menu pick (1..$i)" "$ans ($sel_key)"
+            prompt_record cli-plan "menu pick (1..4)" "$ans"
             ;;
     esac
+    _finalise_only
+    log "CLIs: tcl=$WANT_TCL f5=$WANT_F5"
+}
 
-    # Nothing selected at all is the only invalid plan.
+_finalise_only() {
+    if   [ "$WANT_TCL" = "1" ] && [ "$WANT_F5" = "1" ]; then ONLY=both
+    elif [ "$WANT_TCL" = "1" ]; then ONLY=tcl
+    elif [ "$WANT_F5"  = "1" ]; then ONLY=f5
+    else ONLY=none
+    fi
+}
+
+choose_ai_components() {
+    # Phase 2: which AI components to install. Sets WANT_MCP / WANT_SKILLS.
+    # Short-circuits when no AI client was detected.
+    WANT_MCP=0; WANT_SKILLS=0
+    if [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then
+        log "no AI client detected — skipping AI component selection"
+        return
+    fi
+    # Env opt-outs.
+    if [ "${TCL_LSP_NO_MCP:-0}" = "1" ] && [ "${TCL_LSP_NO_SKILLS:-0}" = "1" ]; then
+        log "AI components disabled via TCL_LSP_NO_MCP=1 TCL_LSP_NO_SKILLS=1"
+        return
+    fi
+    has_skills=0
+    [ "$HAS_CLAUDE" = "1" ] && has_skills=1
+
+    # Defaults — install everything the env didn't disable.
+    d_mcp=0; d_skills=0
+    [ "${TCL_LSP_NO_MCP:-0}"    != "1" ] && d_mcp=1
+    [ "${TCL_LSP_NO_SKILLS:-0}" != "1" ] && [ "$has_skills" = 1 ] && d_skills=1
+
+    if ! tty_available \
+       || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
+        WANT_MCP="$d_mcp"; WANT_SKILLS="$d_skills"
+        log "AI (non-interactive): mcp=$WANT_MCP skills=$WANT_SKILLS"
+        return
+    fi
+
+    case "$UI" in
+        whiptail|dialog)
+            set -- mcp "MCP server" "$([ "$d_mcp" = 1 ] && echo ON || echo OFF)"
+            [ "$has_skills" = 1 ] && set -- "$@" skills "Claude Code skills" \
+                "$([ "$d_skills" = 1 ] && echo ON || echo OFF)"
+            sel="$(tui_checklist "Choose which AI components to install:" "$@")" \
+                || die "aborted at AI selection"
+            for t in $sel; do
+                case "$t" in mcp) WANT_MCP=1 ;; skills) WANT_SKILLS=1 ;; esac
+            done
+            ;;
+        *)
+            if [ "$has_skills" = 1 ]; then
+                menu_default=3
+                print_line ""
+                print_line "Choose which AI components to install:"
+                print_line "  1) mcp"
+                print_line "  2) skills"
+                print_line "  3) both (mcp + skills)"
+                print_line "  4) none"
+                print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+                read_user_line || reply=""
+                ans="${reply:-$menu_default}"
+                case "$ans" in
+                    1) WANT_MCP=1; WANT_SKILLS=0 ;;
+                    2) WANT_MCP=0; WANT_SKILLS=1 ;;
+                    3) WANT_MCP=1; WANT_SKILLS=1 ;;
+                    4) WANT_MCP=0; WANT_SKILLS=0 ;;
+                    *) die "invalid selection: $ans (expected 1..4)" ;;
+                esac
+            else
+                # Codex only (no Claude) — just MCP available.
+                menu_default=1
+                print_line ""
+                print_line "Choose AI components (Codex only — no skills):"
+                print_line "  1) mcp"
+                print_line "  2) none"
+                print_prompt "$(printf '  selection [%s]: ' "$menu_default")"
+                read_user_line || reply=""
+                ans="${reply:-$menu_default}"
+                case "$ans" in
+                    1) WANT_MCP=1 ;;
+                    2) WANT_MCP=0 ;;
+                    *) die "invalid selection: $ans (expected 1..2)" ;;
+                esac
+            fi
+            prompt_record ai-plan "menu pick" "$ans"
+            ;;
+    esac
+    log "AI: mcp=$WANT_MCP skills=$WANT_SKILLS"
+}
+
+guard_install_plan() {
     if [ "$WANT_TCL" != "1" ] && [ "$WANT_F5" != "1" ] \
        && [ "$WANT_MCP" != "1" ] && [ "$WANT_SKILLS" != "1" ]; then
         die "nothing selected — at least one component must be picked"
     fi
-    # Skills/MCP without their AI client is harmless but pointless.
     if [ "$WANT_MCP" = "1" ] && [ "$HAS_CLAUDE" != "1" ] && [ "$HAS_CODEX" != "1" ]; then
         warn "MCP requested but no AI client detected — installing anyway"
     fi
     if [ "$WANT_SKILLS" = "1" ] && [ "$HAS_CLAUDE" != "1" ]; then
         warn "skills requested but Claude Code not detected — installing anyway"
     fi
-
-    # Reflect CLI plan back into ONLY. `none` means "AI-only install".
-    if   [ "$WANT_TCL" = "1" ] && [ "$WANT_F5" = "1" ]; then ONLY=both
-    elif [ "$WANT_TCL" = "1" ]; then ONLY=tcl
-    elif [ "$WANT_F5"  = "1" ]; then ONLY=f5
-    else ONLY=none
-    fi
-    log "install plan: tcl=$WANT_TCL f5=$WANT_F5 mcp=$WANT_MCP skills=$WANT_SKILLS"
 }
 
 
@@ -1466,13 +1468,9 @@ propose_update_mcp() {
     return 0
 }
 
-propose_update_install() {
-    # Offer to update each existing tcl/f5/MCP install in place;
-    # recorded per-artefact in *_PREFIX_OVERRIDE for split-directory layouts.
-    # MCP detection runs regardless of CLI-PREFIX state because it has
-    # its own override.
-    propose_update_mcp
-
+propose_update_clis() {
+    # Offer to update each existing tcl/f5 install in place; recorded
+    # per-CLI in *_PREFIX_OVERRIDE for split-directory layouts.
     [ "$PREFIX_EXPLICIT" = "1" ] && return 0
 
     # `|| return 0` because propose_update_one's non-zero is an internal
@@ -1485,18 +1483,16 @@ propose_update_install() {
         *)    return 0 ;;
     esac
 
-    # No CLI was found on PATH — choose_prefix handles the picker.
     if [ -z "$TCL_PREFIX_OVERRIDE" ] && [ -z "$F5_PREFIX_OVERRIDE" ]; then
         return
     fi
 
-    # $PREFIX anchors PATH/completion/MCP; per-CLI overrides still apply per binary.
     if [ -n "$TCL_PREFIX_OVERRIDE" ] && [ -n "$F5_PREFIX_OVERRIDE" ] \
        && [ "$TCL_PREFIX_OVERRIDE" != "$F5_PREFIX_OVERRIDE" ]; then
         log "split-directory update:"
         log "  tcl will update at $TCL_PREFIX_OVERRIDE/tcl"
         log "  f5  will update at $F5_PREFIX_OVERRIDE/f5"
-        log "(PATH / completion / MCP install will anchor on $TCL_PREFIX_OVERRIDE)"
+        log "(PATH / completion anchor on $TCL_PREFIX_OVERRIDE)"
         set_prefix "$TCL_PREFIX_OVERRIDE"
     elif [ -n "$TCL_PREFIX_OVERRIDE" ]; then
         set_prefix "$TCL_PREFIX_OVERRIDE"
@@ -1713,6 +1709,45 @@ choose_prefix() {
     log "install location: $PREFIX"
 }
 
+choose_mcp_prefix() {
+    # Pick the directory where the MCP server zipapp lands. Defaults to
+    # the existing install dir (set by propose_update_mcp) when one was
+    # detected; otherwise to $PREFIX (the CLI dir, or ~/.local/bin when
+    # no CLI was installed).
+    if [ -n "$MCP_PREFIX_OVERRIDE" ]; then
+        log "MCP install location (existing): $MCP_PREFIX_OVERRIDE"
+        return
+    fi
+    default="$PREFIX"
+    if ! tty_available \
+       || [ "${TCL_LSP_ASSUME_YES:-0}" = "1" ] || [ "${TCL_LSP_ASSUME_NO:-0}" = "1" ]; then
+        MCP_PREFIX_OVERRIDE="$default"
+        log "MCP install location (default): $MCP_PREFIX_OVERRIDE"
+        return
+    fi
+
+    case "$UI" in
+        whiptail|dialog)
+            chosen="$(tui_run --inputbox "MCP server install directory:" 8 70 "$default" 3>&1 1>&2 2>&3)" \
+                || { MCP_PREFIX_OVERRIDE="$default"; log "MCP install location: $MCP_PREFIX_OVERRIDE"; return; }
+            [ -n "$chosen" ] && MCP_PREFIX_OVERRIDE="$chosen" || MCP_PREFIX_OVERRIDE="$default"
+            ;;
+        *)
+            print_line ""
+            print_line "MCP server install directory:"
+            print_prompt "$(printf '  path [%s]: ' "$default")"
+            read_user_line || reply=""
+            MCP_PREFIX_OVERRIDE="${reply:-$default}"
+            ;;
+    esac
+    # Validate via set_prefix-style charset check.
+    case "$MCP_PREFIX_OVERRIDE" in
+        '')                          die "MCP install location cannot be empty" ;;
+        [!/]*)                       die "MCP install location must be absolute: $MCP_PREFIX_OVERRIDE" ;;
+        *[!A-Za-z0-9._/+~:-]*)       die "MCP install location contains unsupported characters: $MCP_PREFIX_OVERRIDE" ;;
+    esac
+    log "MCP install location: $MCP_PREFIX_OVERRIDE"
+}
 
 write_target() {
     # Atomic install of SRC to DST. Prompts before clobbering a non-zipapp
@@ -1857,7 +1892,7 @@ has_codex_dir()   { [ -d "$HOME/.codex" ]; }
 
 AI_DETECTED=0
 detect_ai_clients() {
-    # Idempotent — choose_install_plan() and install_ai_integrations()
+    # Idempotent — choose_clis() and install_ai_integrations()
     # may both call it; only log the first time.
     [ "$AI_DETECTED" = "1" ] && return 0
     HAS_CLAUDE=0
@@ -2019,8 +2054,8 @@ install_claude_skills() {
 }
 
 install_ai_integrations() {
-    # No further questions asked here — choose_install_plan() already
-    # captured the user's intent.  We just act on WANT_MCP / WANT_SKILLS.
+    # No further questions asked here — choose_ai_components already
+    # set WANT_MCP / WANT_SKILLS, and choose_mcp_prefix set the path.
     if [ "$WANT_MCP" = "1" ]; then
         install_mcp_zipapp
         [ "$HAS_CLAUDE" = "1" ] && register_mcp_claude
@@ -2046,22 +2081,20 @@ main() {
     fi
     log "using Python: $PYTHON"
 
-    # Front-load every install-time decision into one combined prompt
-    # before kicking off downloads, sudo, completion writes, etc.
-    choose_install_plan
-    propose_update_install
-    choose_prefix
-    detect_conflicts
-
-    case "$ONLY" in
-        tcl)  install_cli tcl ;;
-        f5)   install_cli f5 ;;
-        both) install_cli tcl; install_cli f5 ;;
-        none) : ;;
-        *) die "invalid TCL_LSP_ONLY: $ONLY (expected tcl|f5|both)" ;;
-    esac
+    # CLI phase: pick CLIs, then their install location, then install.
+    detect_ai_clients   # needed by guard + the AI phase below
+    choose_clis
 
     if [ "$ONLY" != "none" ]; then
+        propose_update_clis
+        choose_prefix
+        detect_conflicts
+        case "$ONLY" in
+            tcl)  install_cli tcl ;;
+            f5)   install_cli f5 ;;
+            both) install_cli tcl; install_cli f5 ;;
+            *) die "invalid ONLY=$ONLY" ;;
+        esac
         check_cli_runtime_dependencies
         ensure_path
     fi
@@ -2072,6 +2105,14 @@ main() {
         both) install_completion tcl; install_completion f5 ;;
     esac
 
+    # AI phase: pick AI components, then the MCP install location,
+    # then install. Skips entirely if no AI client was detected.
+    choose_ai_components
+    guard_install_plan
+    if [ "$WANT_MCP" = "1" ]; then
+        propose_update_mcp
+        choose_mcp_prefix
+    fi
     install_ai_integrations
 
     printf '\n%sInstall complete.%s\n' "$BOLD" "$RESET"
