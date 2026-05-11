@@ -809,6 +809,7 @@ check_cli_runtime_dependencies() {
     [ "$needs_ssh"     = 1 ] && install_pkg ssh
     [ "$needs_sshpass" = 1 ] && install_pkg sshpass
     [ "$needs_tshark"  = 1 ] && install_pkg tshark
+    return 0
 }
 
 WGET_HAS_HTTPS_ONLY=""
@@ -1179,6 +1180,7 @@ collect_install_candidates() {
     for d in /usr/local/bin /opt/homebrew/bin /opt/local/bin; do
         [ -d "$d" ] && emit "$d"
     done
+    return 0
 }
 
 choose_clis() {
