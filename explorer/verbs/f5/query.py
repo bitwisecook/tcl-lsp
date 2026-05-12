@@ -37,6 +37,7 @@ from core.bigip.query import (
 from core.bigip.query.errors import QueryError
 from core.bigip.query.output import render
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -63,7 +64,7 @@ _EPILOG = (
     "\n"
     "  # VSes whose pool member is in 10.0.0.0/8\n"
     "  f5 query '.ltm.virtual[] | select(any(.pool.members[].address "
-    '| map(in_cidr(., "10.0.0.0/8")))) | .name\' bigip.conf\n'
+    '| in_cidr(., "10.0.0.0/8"))) | .name\' bigip.conf\n'
     "\n"
     "  # Readdress every VS into 192.168.9.0/24 (dry-run diff)\n"
     "  f5 query '.ltm.virtual[] | .destination |= ip(\"192.168.9.0/24\", .)' "
@@ -183,6 +184,8 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         help=("When the query mutates, overwrite each input file with the rewritten config."),
     )
 
+    add_format_arg(p, tmsh_default_verb="modify")
+
     p.add_argument(
         "--help-dsl",
         nargs=0,
@@ -291,11 +294,16 @@ def _emit_mutation(
             continue
         any_changed = True
         path_str = path_for_uri.get(uri, uri)
+        # ``--format tmsh`` re-renders the rewritten SCF as a
+        # ``tmsh modify`` script for persisting onto a live device.
+        # The unified-diff path stays SCF↔SCF because the on-disk
+        # source is always SCF.
+        rewritten = render_config(applied.new_source, fmt=args.output_format, tmsh_verb="modify")
         if args.in_place and path_str != "-":
-            Path(path_str).write_text(applied.new_source, encoding="utf-8")
+            Path(path_str).write_text(rewritten, encoding="utf-8")
             continue
         if args.write:
-            sys.stdout.write(applied.new_source)
+            sys.stdout.write(rewritten)
             continue
         diff = difflib.unified_diff(
             applied.original.splitlines(keepends=True),

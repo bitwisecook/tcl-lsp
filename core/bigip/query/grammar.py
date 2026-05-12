@@ -27,8 +27,11 @@ root.
   cmp_expr      := add_expr (('==' | '!=' | '<' | '<=' | '>' | '>=') add_expr)?
   add_expr      := mul_expr (('+' | '-') mul_expr)*
   mul_expr      := unary    (('*' | '/') unary)*
-  unary         := '-' unary | primary
-  primary       := literal | call | path | '(' pipeline ')'
+  unary         := '-' unary | postfix
+  postfix       := primary path_tail
+  primary       := literal | call | path | list_literal
+                 | '(' pipeline ')'
+  list_literal  := '[' pipeline? ']'        /* jq's array constructor */
   path          := '.'
                  | '.' field path_tail
                  | '.' '[' subscript ']' path_tail
@@ -41,8 +44,18 @@ root.
                                             inside [ ] is the regex
                                             subscript form            */
                  | pipeline              /* dynamic subscript          */
-  call          := IDENT '(' (pipeline (',' pipeline)*)? ')'
+  call          := IDENT ('(' (pipeline (',' pipeline)*)? ')')?
+                                         /* parens optional for 1-arg
+                                            builtins — bare ``length``
+                                            is equivalent to
+                                            ``length(.)``               */
   literal       := NUMBER | STRING | 'true' | 'false' | 'null'
+
+Pipelines iterate **streams**, not plain lists.  ``[]`` produces a
+stream and stream-returning builtins do too; ``|`` then runs the next
+stage once per item.  Plain lists (e.g. the value of ``.rules``) pass
+through ``|`` whole — to fold a stream into a list for aggregators
+like ``sort`` / ``unique``, wrap it: ``[.ltm.virtual[].name] | sort``.
 
 Assignment is a *trailing operator* on a pipe-stage, not a top-level
 statement.  That makes ``.ltm.virtual[] | .destination |= ip(...)``
@@ -105,18 +118,30 @@ OPERATORS AND PRECEDENCE
     8. '=' '|=' '+=' '-=' (assignment)
     9. ';' (statement separator)
 
-DIFFERENCES FROM jq
+JQ COMPATIBILITY
 
-  * Function arguments are comma-separated, not semicolon-separated.
-    ``sub(.name, "foo", "bar")`` rather than ``sub("foo"; "bar")``.
-  * No stream-comma operator — combine streams with explicit lists or
-    repeated statements separated by ``;``.
-  * Identifiers may contain ``-`` so TMSH-spelt keys like
-    ``data-group`` and ``source-address-translation`` are bareword
-    tokens; you still need quotes when a hyphen would otherwise be
-    parsed as subtraction (``."source-address-translation"``).
-  * Regex matching has a dedicated subscript form ``["~pattern"]``
-    rather than the ``test`` builtin.
+  Core idioms match jq exactly:
+    * ``.X[]`` is a stream-generator; ``|`` iterates it.
+    * ``[ ... ]`` collects a stream into an array.
+    * Bare builtin names (``length``, ``sort``, ``unique``) operate
+      on ``.`` — equivalent to ``length(.)`` etc.
+    * Plain lists pass through ``|`` whole — to iterate a list, use
+      ``.[]`` (or pass it to a list-aware builtin like ``map``).
+
+  Differences:
+    * Function arguments are comma-separated, not semicolon-separated.
+      ``sub(.name, "foo", "bar")`` rather than ``sub("foo"; "bar")``.
+    * No stream-comma operator — use ``;`` between statements (each
+      runs against the evolving source) or wrap with a list literal.
+    * Identifiers may contain ``-`` so TMSH-spelt keys like
+      ``data-group`` and ``source-address-translation`` are bareword
+      tokens; you still need quotes when a hyphen would otherwise be
+      parsed as subtraction (``."source-address-translation"``).
+    * Regex matching has a dedicated subscript form ``["~pattern"]``
+      rather than the ``test`` builtin.
+    * No object-literal ``{ ... }`` or string-interpolation ``"\(.x)"``
+      in v1 — use ``--json`` to render whole objects as structured
+      output.
 
 See also:
   --help-builtins      every function this DSL exposes

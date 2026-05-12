@@ -26,6 +26,7 @@ from .ast import (
     Expr,
     Field,
     Identity,
+    ListLiteral,
     Literal,
     PathExpr,
     Pipe,
@@ -91,6 +92,10 @@ def _eval(node: Expr, current: Any, ctx: EvalContext) -> Any:
         return node.value
     if isinstance(node, Identity):
         return current
+    if isinstance(node, ListLiteral):
+        if node.inner is None:
+            return []
+        return _flatten(_eval(node.inner, current, ctx))
     if isinstance(node, PathExpr):
         return _eval_path(node, current, ctx)
     if isinstance(node, Pipe):
@@ -108,15 +113,21 @@ def _eval(node: Expr, current: Any, ctx: EvalContext) -> Any:
 
 
 def _pipe_through(values: Any, rhs: Expr, ctx: EvalContext) -> Any:
-    items = _stream_items(values)
-    out: list[Any] = []
-    for item in items:
-        out.extend(_flatten(_eval(rhs, item, ctx)))
+    """Apply *rhs* to each value flowing out of the LHS.
+
+    Only :class:`Stream` values iterate through the pipe one item at
+    a time — plain Python lists are passed to *rhs* as a single value.
+    This matches jq's "arrays don't iterate, generators do" rule and
+    lets ``.rules | length`` measure the rules list rather than
+    running ``length`` on each PathRef.  Use ``.[]`` (or ``collect``)
+    to convert between forms explicitly.
+    """
     if isinstance(values, Stream):
+        out: list[Any] = []
+        for item in values.items:
+            out.extend(_flatten(_eval(rhs, item, ctx)))
         return Stream(items=out)
-    if len(out) == 1:
-        return out[0]
-    return Stream(items=out)
+    return _eval(rhs, values, ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +308,19 @@ def _eval_call(node: Call, current: Any, ctx: EvalContext) -> Any:
     if spec is None:
         raise EvalError(f"unknown function {node.name!r}")
     arity = len(node.args)
+
+    # jq-style implicit ``.``: when a single-argument builtin is
+    # called with no parentheses (``.rules | count`` instead of
+    # ``.rules | count(.)``), the current input is passed as the one
+    # argument.  Only applies to non-special-form builtins whose
+    # arity is exactly one — special forms (``select`` / ``map``)
+    # already require a body, and multi-arg builtins need explicit
+    # arguments to be unambiguous.
+    if arity == 0 and not spec.special_form and spec.min_args == 1 and spec.max_args == 1:
+        if spec.with_ctx:
+            return spec.impl(current, ctx=ctx)
+        return spec.impl(current)
+
     if arity < spec.min_args or (spec.max_args is not None and arity > spec.max_args):
         if spec.min_args == spec.max_args:
             expected = f"{spec.min_args}"

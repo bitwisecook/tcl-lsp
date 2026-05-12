@@ -113,23 +113,23 @@ $ f5 query '.ltm.pool[]
 
 # Names of VSes whose pool has any member outside the chosen range:
 $ f5 query --raw '.ltm.virtual[]
-  | select(any(.pool.members[].address | map(in_cidr(., "192.168.0.0/16") | not)))
+  | select(any(.pool.members[].address | in_cidr(., "192.168.0.0/16") | not))
   | .name' bigip.conf
 
 # Same VSes as JSON — payload includes destination and member addresses:
 $ f5 query --json '.ltm.virtual[]
-  | select(any(.pool.members[].address | map(in_cidr(., "192.168.0.0/16") | not)))' bigip.conf
+  | select(any(.pool.members[].address | in_cidr(., "192.168.0.0/16") | not))' bigip.conf
 ```
+
+The stream of member addresses is piped through `in_cidr(., "...")` and then `not` (each item becomes the boolean "outside the range"); `any` collapses the stream of booleans into a single decision.
 
 ### iRule reference hygiene
 
 ```
-# iRules referencing a pool that no longer exists — surface as needs-fix
+# iRules with no pool references (often a sign of a half-cleaned rule)
 $ f5 query --paths-only '.ltm.rule[]
-  | select(any(.refs.pools | map(. | not)))' bigip.conf
+  | select(.refs.pools | count == 0)' bigip.conf
 ```
-
-(The `.refs.pools` field returns `PathRef`s; an unresolved path stringifies to a placeholder that `not` catches.)
 
 ### Putting it together: a one-shot audit script
 

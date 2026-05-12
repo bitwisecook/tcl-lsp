@@ -59,35 +59,77 @@ cmp_expr      := add_expr (CMP add_expr)?
 CMP           := '==' | '!=' | '<' | '<=' | '>' | '>='
 add_expr      := mul_expr (('+' | '-') mul_expr)*
 mul_expr      := unary    (('*' | '/') unary)*
-unary         := '-' unary | primary
-primary       := literal | call | path | '(' pipeline ')'
+unary         := '-' unary | postfix
+postfix       := primary path_tail
+primary       := literal | call | path | list_literal | '(' pipeline ')'
+list_literal  := '[' pipeline? ']'
 path          := '.' | '.' field path_tail | '.' subscript path_tail
 path_tail     := ('.' field | subscript)*
 field         := IDENT | STRING
-subscript     := '[' (pipeline | REGEX | /* empty */) ']'
-call          := IDENT '(' (pipeline (',' pipeline)*)? ')'
+subscript     := '[' (pipeline | /* empty stream */) ']'
+                 /* A STRING subscript whose contents start with "~"
+                    is the regex-subscript form ["~pattern"]. */
+call          := IDENT ('(' (pipeline (',' pipeline)*)? ')')?
+                 /* parens optional for single-arg builtins —
+                    bare `length` is sugar for `length(.)` */
 literal       := NUMBER | STRING | 'true' | 'false' | 'null'
 ```
 
-### Divergences from jq
+### Pipe semantics
 
-The DSL borrows jq's path-and-pipe spelling because operators know it,
-but we made several deliberate departures:
+The pipe operator iterates **streams**, not plain lists.  `[]` and
+stream-returning builtins produce streams; lists (such as the value of
+`.rules`) pass through `|` as a single value.  Two consequences:
+
+- `.rules | length` returns the length of the rules list (the list
+  flows whole into `length`).
+- `.X[] | length` returns the length **of each X** (the stream
+  iterates `length` per item).
+
+To fold a stream into a list — the input most aggregators want — wrap
+it with a list literal:
+
+```
+[.ltm.virtual[]] | length              # number of VSes
+[.ltm.virtual[].name] | sort | first   # alphabetical first VS name
+[.ltm.virtual[] | refs(.)[]] | unique  # union of every VS's deps
+```
+
+This matches jq's `[.foo[]] | length` idiom exactly.
+
+### Compatibility with jq
+
+The core idioms are deliberately jq-compatible — anyone reading the
+docs with jq experience should be able to use `f5 query` without
+surprise.  Shared semantics:
+
+- `.X[]` is a stream-generator; `|` iterates it.
+- `[ ... ]` is the array constructor — collects a stream into a list
+  for aggregators (`[.X[].name] | sort | first`).
+- Bare builtin names (`length`, `sort`, `unique`, …) operate on `.`.
+- Plain lists pass through `|` whole; iterate with `.[]` to flow each
+  item, or pass directly to a list-aware builtin like `map`.
+- `length` of a string is its character count; of a list/stream, its
+  item count; of an object, its field count.
+
+Deliberate divergences:
 
 | Concern | jq | f5 query |
 |---|---|---|
 | Function arguments | `;` separated | `,` separated |
-| Stream concat | `,` operator | not present — use lists or `;` statements |
+| Stream concat `,` | yes | not present — use lists or `;` statements |
 | Regex test | `test("pat")` builtin | `["~pat"]` subscript form |
 | Identifier hyphens | quoted only | bareword (`source-address-translation`) |
+| Object literals `{...}` | yes | not present in v1 — use `--json` output |
+| String interpolation `"\(.x)"` | yes | not present in v1 |
 | Assignment + pipe | `path \|= f` binds tight via custom precedence | `\|=` is a pipe-stage trailing operator, so `a \| b \|= c` parses as `a \| (b \|= c)` |
 
-The last row is the most consequential.  In jq, `a \| b \|= c` is
-`(a \| b) \|= c` — the LHS is a "path expression that may span pipes".
-We chose the simpler reading because the readdressing pattern
-(`.ltm.virtual[] \| .destination \|= ip(net, .)`) is the most common
-mutating query, and it reads naturally as "for each VS, update its
-destination".
+The assignment-precedence divergence is the most consequential.  In
+jq, `a \| b \|= c` is `(a \| b) \|= c` — the LHS is a "path expression
+that may span pipes".  We chose the simpler reading because the
+readdressing pattern (`.ltm.virtual[] \| .destination \|= ip(net, .)`)
+is the most common mutating query, and it reads naturally as "for
+each VS, update its destination".
 
 ## Value model
 

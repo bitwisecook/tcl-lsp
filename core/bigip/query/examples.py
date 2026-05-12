@@ -38,12 +38,14 @@ _EXAMPLES: tuple[Example, ...] = (
         title="VSes whose pool member is in 10.0.0.0/8",
         query=(
             ".ltm.virtual[] "
-            '| select(any(.pool.members[].address | map(in_cidr(., "10.0.0.0/8")))) '
+            '| select(any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))) '
             "| .name"
         ),
         comment=(
             "PathRefs dereference transparently: `.pool.members[]` walks "
-            "VS -> pool -> members in one chain."
+            "VS -> pool -> members in one chain.  The pipe iterates the "
+            "stream of addresses, `in_cidr` runs per item producing "
+            "booleans, `any` collapses."
         ),
     ),
     Example(
@@ -134,10 +136,11 @@ _EXAMPLES: tuple[Example, ...] = (
     ),
     Example(
         title="Count VSes grouped by partition",
-        query=".ltm.virtual[].name | map(partition(.)) | sort",
+        query="[.ltm.virtual[].name | partition(.)] | sort",
         comment=(
-            "Combine builtins for ad-hoc reporting.  `--raw` emits one "
-            "value per line, easy to pipe through `uniq -c`."
+            "List literal `[...]` collects the stream of partition "
+            "names; `sort` then operates on the list.  `--raw` emits "
+            "one value per line, easy to pipe through `uniq -c`."
         ),
     ),
     Example(

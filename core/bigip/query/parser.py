@@ -51,6 +51,7 @@ from .ast import (
     Expr,
     Field,
     Identity,
+    ListLiteral,
     Literal,
     PathExpr,
     Pipe,
@@ -232,12 +233,35 @@ class _Parser:
         return self._parse_primary_with_postfix()
 
     def _parse_primary_with_postfix(self) -> Expr:
+        """Parse a primary followed by any chain of postfix path-steps.
+
+        Trailing ``.field`` and ``[...]`` are accepted after any
+        primary, not just after a leading ``.`` — that matches jq's
+        ``f[]`` / ``f.field`` postfix and lets idioms like
+        ``refs(.)[]`` (iterate the result of a call) work.  When
+        postfix steps follow a non-path primary the primary's value
+        is fed into a synthetic path via :class:`Pipe`.
+        """
         primary = self._parse_primary()
-        # ``foo(...)[...]`` is not in the grammar; subscripts only chain
-        # after a path expression.  This keeps the AST clean — the
-        # special PathExpr handling only has to consider field/subscript
-        # steps emitted by ``_parse_path_starting_with_dot``.
-        return primary
+        steps: list = []
+        while True:
+            tok = self._peek()
+            if tok.kind is TokenKind.DOT and self._peek(1).kind in (
+                TokenKind.IDENT,
+                TokenKind.STRING,
+            ):
+                self._consume()  # '.'
+                steps.append(self._parse_field_step())
+                continue
+            if tok.kind is TokenKind.LBRACKET:
+                steps.append(self._parse_subscript_step())
+                continue
+            break
+        if not steps:
+            return primary
+        offset = getattr(primary, "offset", 0)
+        path = PathExpr(steps=tuple(steps), offset=offset)
+        return Pipe(lhs=primary, rhs=path, offset=offset)
 
     def _parse_primary(self) -> Expr:
         tok = self._peek()
@@ -258,10 +282,26 @@ class _Parser:
             self._expect(TokenKind.RPAREN, msg="expected ')'")
             return inner
 
+        if tok.kind is TokenKind.LBRACKET:
+            # ``[ expr ]`` is a list literal that collects the stream
+            # of values produced by *expr* into a single list — jq's
+            # standard idiom for folding a generator before piping it
+            # into an aggregator (``[.X[].name] | sort | first``).
+            # The empty form ``[]`` is the empty list.
+            self._consume()
+            if self._peek().kind is TokenKind.RBRACKET:
+                self._consume()
+                return ListLiteral(inner=None, offset=tok.offset)
+            inner_expr = self._parse_pipeline()
+            self._expect(TokenKind.RBRACKET, msg="expected ']' to close list literal")
+            return ListLiteral(inner=inner_expr, offset=tok.offset)
+
         if tok.kind is TokenKind.IDENT:
-            # Bare identifier is always a call — there are no
-            # user-defined variables in v1.  A function with zero
-            # arguments still uses the ``f()`` form.
+            # Bare identifier is a call.  When invoked with no
+            # parentheses ``length`` is treated by the evaluator as
+            # ``length(.)`` for single-argument non-special-form
+            # builtins (matches jq's bare-filter convention).  An
+            # empty arg list ``f()`` is also accepted.
             self._consume()
             args: list[Expr] = []
             if self._peek().kind is TokenKind.LPAREN:

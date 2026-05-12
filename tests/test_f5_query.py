@@ -607,6 +607,67 @@ def test_cli_help_builtins_by_name(capsys):
     assert "ip(addr: string)" in out
 
 
+# ---------------------------------------------------------------------------
+# jq-compatibility idioms
+# ---------------------------------------------------------------------------
+
+
+def test_list_literal_collects_a_stream():
+    [n] = _run("[.ltm.virtual[]] | length").values_per_file["mem://1"]
+    assert n == 2
+
+
+def test_list_literal_unwraps_for_aggregators():
+    result = _run("[.ltm.virtual[].name] | sort | first")
+    assert result.values_per_file["mem://1"] == ["api_vs"]
+
+
+def test_pipe_iterates_streams_not_plain_lists():
+    # `.rules` is a list (not Stream) — the pipe passes it whole to
+    # length rather than iterating.
+    [n] = _run(".ltm.virtual.web_vs.rules | length").values_per_file["mem://1"]
+    assert n == 1  # web_vs has one rule
+
+
+def test_bare_builtin_implicit_dot():
+    # `length` with no parens is sugar for `length(.)`.
+    [n] = _run(".ltm.virtual.web_vs.rules | length").values_per_file["mem://1"]
+    assert n == 1
+
+
+def test_bare_builtin_in_select_predicate():
+    result = _run(".ltm.virtual[] | select(.rules | count > 0) | .name")
+    assert result.values_per_file["mem://1"] == ["web_vs"]
+
+
+def test_postfix_subscript_after_call():
+    # `refs(.)[]` iterates the list returned by refs.
+    result = _run("[.ltm.virtual.web_vs | refs(.)[]] | sort")
+    [deps] = result.values_per_file["mem://1"]
+    assert "/Common/web_pool" in deps
+    assert "/Common/log_rule" in deps
+
+
+def test_any_over_stream_no_map_needed():
+    # The jq idiom for "any value in CIDR" — pipe iterates the
+    # stream, in_cidr produces booleans, any() collapses.  Both
+    # VS destinations are in 10.10.0.0/16, so any() is true.
+    [hit] = _run('any(.ltm.virtual[].destination | in_cidr(., "10.10.0.0/16"))').values_per_file[
+        "mem://1"
+    ]
+    assert hit is True
+    # And false when the network excludes them.
+    [miss] = _run('any(.ltm.virtual[].destination | in_cidr(., "192.168.0.0/16"))').values_per_file[
+        "mem://1"
+    ]
+    assert miss is False
+
+
+def test_empty_list_literal():
+    [empty] = _run("[]").values_per_file["mem://1"]
+    assert empty == []
+
+
 def test_every_builtin_has_a_details_block():
     """Catch regressions where a new builtin is added without prose docs."""
     for spec in list_builtins():

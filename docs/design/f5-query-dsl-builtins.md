@@ -57,8 +57,9 @@ Short-circuits on the first falsy item.  An empty input returns
 ``true`` (vacuous truth — there's no falsy item to find).
 
 Common pattern: validate an invariant across the config —
-``all(.ltm.virtual[].pool | map(startswith(., "/Common/")))``
-is "are all default pools in Common?".
+``all(.ltm.virtual[].pool | startswith(., "/Common/"))``
+is "are all default pools in Common?".  Pipe iterates the stream
+of pools, ``startswith`` runs per item, ``all`` collapses.
 
 Related: ``any``, ``select``, ``map``.
 
@@ -66,7 +67,7 @@ Related: ``any``, ``select``, ``map``.
 
 ```
 all(.rules | map(startswith(., "/Common/")))
-all(.ltm.virtual[].pool | map(. != ""))     # every VS has a default pool?
+all(.ltm.virtual[].pool | . != "")          # every VS has a default pool?
 ```
 
 ### `any`
@@ -83,9 +84,12 @@ Tests whether **any** item in a list or stream is truthy.
 Truthy means non-null, non-empty-string, non-empty-collection,
 and non-zero — same conventions as ``select``.
 
-Used most often after ``map`` to apply a per-item predicate:
-``any(.pool.members[].address | map(in_cidr(., "10.0.0.0/8")))``
-is "does any member's address lie in 10/8?".
+Used most often with a per-item predicate piped through a
+stream:
+``any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))``
+is "does any member's address lie in 10/8?".  The pipe iterates
+the stream of addresses (each becomes ``.``), produces a stream
+of booleans, and ``any`` collapses it.
 
 Short-circuits — stops at the first truthy item.
 
@@ -95,7 +99,7 @@ Related: ``all``, ``select``, ``map``.
 
 ```
 any(.rules | map(. == "/Common/log"))
-.ltm.virtual[] | select(any(.pool.members[].address | map(in_cidr(., "10.0.0.0/8")))) | .name
+.ltm.virtual[] | select(any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))) | .name
 ```
 
 ### `count`
@@ -116,7 +120,7 @@ Related: ``length``.
 **Examples**
 
 ```
-.ltm.virtual[] | count                  # number of VSes
+[.ltm.virtual[]] | count                 # number of VSes
 .ltm.virtual[] | select(.rules | count > 0) | .name
 ```
 
@@ -144,7 +148,7 @@ Related: ``last``, ``count``, ``length``, ``sort``.
 
 ```
 first(.rules)
-.ltm.virtual[].name | sort | first       # alphabetical first VS
+[.ltm.virtual[].name] | sort | first     # alphabetical first VS
 ```
 
 ### `keys`
@@ -172,8 +176,8 @@ Related: ``values``, ``length``, ``type``.
 **Examples**
 
 ```
-keys(.ltm.virtual.web_vs)              # all field names of one VS
-.ltm.virtual[] | first(.) | keys(.)    # discover the VS field set
+keys(.ltm.virtual.web_vs)                # all field names of one VS
+[.ltm.virtual[]] | first | keys          # discover the VS field set
 ```
 
 ### `last`
@@ -221,12 +225,16 @@ the current item throughout.
 
 Common patterns:
 
-- **Project a field**: ``.rules | map(basename(.))`` — list of
-  basenames.
-- **Predicate→boolean list** (for use with ``any`` / ``all``):
-  ``.pool.members[].address | map(in_cidr(., "10.0.0.0/8"))``.
-- **Compose with sort + unique**: ``.ltm.virtual[].name |
-  map(partition(.)) | unique | sort``.
+- **Project a field of a list**: ``.rules | map(basename(.))`` —
+  ``.rules`` is a list, the pipe passes it whole, ``map``
+  iterates it.
+- **Predicate over a stream** (don't use ``map`` for this): pipe
+  the stream through the predicate instead —
+  ``.pool.members[].address | in_cidr(., "10.0.0.0/8")``
+  yields a stream of booleans suitable for ``any`` / ``all``.
+- **Compose with sort + unique on a stream**: wrap with a list
+  literal first so subsequent stages see one list:
+  ``[.ltm.virtual[].name | partition(.)] | unique | sort``.
 
 For *filtering* without transforming, use ``select`` inside the
 pipeline rather than inside ``map`` (so dropped items don't
@@ -238,8 +246,8 @@ Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
 
 ```
 .rules | map(basename(.))
-.ltm.virtual[].name | map(partition(.)) | unique | sort
-.pool.members[].address | map(in_cidr(., "10.0.0.0/8")) | any
+[.ltm.virtual[].name | partition(.)] | unique | sort
+any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))
 ```
 
 ### `select`
@@ -298,17 +306,18 @@ types in the same list raise — sort what comes back from a
 projection (always one type) rather than mixed object/scalar
 streams.
 
-Stable (Python's ``sorted`` is); for custom key ordering, sort by
-a projected key first then sort by that:
-``.ltm.virtual[].name | sort``.
+Stable (Python's ``sorted`` is).  Use the list-literal collection
+idiom ``[.X[].name] | sort`` to gather a stream from ``[]`` before
+sorting — bare ``... | sort`` after a stream would sort each item
+individually, not the stream as a whole.
 
 Related: ``unique``, ``first``, ``last``.
 
 **Examples**
 
 ```
-.ltm.virtual[].name | sort
-.ltm.virtual[].pool | unique | sort     # sorted distinct pools
+[.ltm.virtual[].name] | sort
+[.ltm.virtual[].pool] | unique | sort    # sorted distinct pools
 ```
 
 ### `unique`
@@ -331,15 +340,15 @@ linear scan, so worst-case is O(n^2); for the typical case of
 strings, integers, and path-refs it's O(n).
 
 Pairs nicely with ``sort`` for stable de-duplicated output:
-``.ltm.virtual[].pool | unique | sort``.
+``[.ltm.virtual[].pool] | unique | sort``.
 
 Related: ``sort``, ``count``, ``map``.
 
 **Examples**
 
 ```
-.ltm.virtual[].pool | unique             # every distinct default pool
-.ltm.virtual[].name | map(partition(.)) | unique  # used partitions
+[.ltm.virtual[].pool] | unique           # every distinct default pool
+[.ltm.virtual[].name | partition(.)] | unique  # used partitions
 ```
 
 ### `values`
@@ -509,7 +518,7 @@ Related: ``split``, ``map``, ``sort``.
 
 ```
 join(.rules, ", ")
-.ltm.virtual[].name | sort | join(.., ", ")
+join(sort([.ltm.virtual[].name]), ", ")
 ```
 
 ### `match`
@@ -1253,18 +1262,19 @@ to.  For a :class:`PathRef` returns the ``expected_kind`` (which
 is the kind the surrounding field declared, e.g. ``"ltm pool"``
 for ``.ltm.virtual[].pool``).
 
-Useful for grouping or for filtering across kinds: ``.ltm.pool[]
-| kind(.) | unique`` returns the single string ``"ltm pool"``,
-while ``.ltm.virtual[] | refs(.) | …`` mixes kinds and
-``kind(...)`` distinguishes them downstream.
+Useful for grouping or for filtering across kinds:
+``[.ltm.pool[] | kind(.)] | unique`` returns the single-element
+list ``["ltm pool"]``, and ``[.ltm.virtual[] | refs(.)[]]``
+surfaces every dependency path; ``kind`` distinguishes them
+downstream.
 
 Related: ``path``, ``type``, ``refs``.
 
 **Examples**
 
 ```
-kind(.ltm.virtual.web_vs)               # -> 'ltm virtual'
-.ltm.virtual[] | refs(.) | unique
+kind(.ltm.virtual.web_vs)                  # -> 'ltm virtual'
+[.ltm.virtual[] | refs(.)[]] | unique | sort
 ```
 
 ### `length`
@@ -1318,7 +1328,8 @@ pipelines.
 
 Useful when you have a stream of mixed objects and want to print
 a flat list of paths:
-``.ltm.virtual.web_vs | refs(.) | map(path(.))``.
+``.ltm.virtual.web_vs | refs(.) | map(path(.))`` (refs returns a
+list, pipe passes it whole, ``map`` iterates it).
 
 Raises ``BuiltinError`` for scalars (use the value directly when
 it's already a string).
@@ -1328,8 +1339,8 @@ Related: ``kind``, ``partition``, ``basename``.
 **Examples**
 
 ```
-path(.ltm.virtual.web_vs)               # -> '/Common/web_vs'
-.ltm.virtual[] | map(path(.))
+path(.ltm.virtual.web_vs)                # -> '/Common/web_vs'
+[.ltm.virtual[] | path(.)]               # collect every VS full-path
 ```
 
 ### `type`

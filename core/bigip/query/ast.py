@@ -30,6 +30,20 @@ class Identity:
 
 
 @dataclass(frozen=True, slots=True)
+class ListLiteral:
+    """``[ inner ]`` — collect *inner*'s output into a list.
+
+    Matches jq's array constructor: ``[.X[].name]`` collects the
+    stream of names produced inside the brackets into a single list
+    value, so subsequent pipe stages see one list rather than the
+    stream iterating per item.  An empty ``[]`` is the empty list.
+    """
+
+    inner: "Expr | None"
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
 class Field:
     """``.foo`` or ``."foo-bar"`` — a single named step."""
 
@@ -127,6 +141,7 @@ class Program:
 Expr = Union[
     Literal,
     Identity,
+    ListLiteral,
     PathExpr,
     Call,
     BinOp,
