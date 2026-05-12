@@ -43,7 +43,12 @@ _FOOTER = "}\n"
 
 def _load(csv_path: Path) -> list[tuple[str, int]]:
     rows: list[tuple[str, int]] = []
-    seen: set[str] = set()
+    seen_names: set[str] = set()
+    # Tracks where each port was first seen so duplicate errors can point
+    # at both rows.  ``port_names.py`` builds the reverse lookup as a
+    # plain dict comprehension, so a silent collision would drop one
+    # entry — fail the codegen instead.
+    first_port_line: dict[int, int] = {}
     with csv_path.open(encoding="utf-8", newline="") as fh:
         for lineno, row in enumerate(csv.reader(fh), start=1):
             if len(row) != 2:
@@ -57,9 +62,15 @@ def _load(csv_path: Path) -> list[tuple[str, int]]:
             if not 0 <= port <= 65535:
                 raise SystemExit(f"{csv_path}:{lineno}: port {port} out of range")
             key = name.lower()
-            if key in seen:
+            if key in seen_names:
                 raise SystemExit(f"{csv_path}:{lineno}: duplicate name {name!r}")
-            seen.add(key)
+            if port in first_port_line:
+                raise SystemExit(
+                    f"{csv_path}:{lineno}: duplicate port {port} "
+                    f"(also at line {first_port_line[port]})"
+                )
+            seen_names.add(key)
+            first_port_line[port] = lineno
             rows.append((key, port))
     rows.sort(key=lambda item: (item[1], item[0]))
     return rows

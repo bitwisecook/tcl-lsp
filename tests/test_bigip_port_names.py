@@ -93,6 +93,20 @@ def test_as3_split_destination_handles_any():
     assert _as3_split_destination("/Common/10.0.0.5:any") == ("10.0.0.5", 0)
 
 
+def test_as3_split_destination_handles_ipv6_numeric_port():
+    assert _as3_split_destination("/Common/2001:db8::1.443") == ("2001:db8::1", 443)
+
+
+def test_as3_split_destination_handles_ipv6_named_port():
+    assert _as3_split_destination("/Common/2001:db8::1.https") == ("2001:db8::1", 443)
+
+
+def test_as3_split_destination_preserves_wildcard_host():
+    # Hostname / wildcard destinations don't have to parse as an IP —
+    # the ``:`` fallback splits them so the port still gets extracted.
+    assert _as3_split_destination("/Common/*:443") == ("*", 443)
+
+
 def test_pcap_split_destination_accepts_named_port_ipv4():
     assert _pcap_split_destination("/Common/10.0.0.5:https") == "10.0.0.5"
 
