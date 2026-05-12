@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..model import BigipConfig, ProfileType
+from ..port_names import resolve_port
 
 
 @dataclass
@@ -28,16 +29,21 @@ def _short_name(full_path: str) -> str:
 
 
 def _split_destination(dest: str) -> tuple[str, int | None]:
-    """Parse ``/Common/10.0.0.5:80`` -> ``("10.0.0.5", 80)``."""
+    """Parse ``/Common/10.0.0.5:80`` -> ``("10.0.0.5", 80)``.
+
+    The port half may be either a decimal port number or a BIG-IP
+    service name (``https``, ``f5-iquery``, …) — SCFs rewrite numeric
+    ports to mcpd's name table on save.
+    """
     if not dest:
         return "", None
     base = dest.rsplit("/", 1)[-1]
     if ":" in base:
         host, _, port = base.rpartition(":")
-        try:
-            return host, int(port)
-        except ValueError:
-            return base, None
+        resolved = resolve_port(port)
+        if resolved is not None:
+            return host, resolved
+        return base, None
     return base, None
 
 

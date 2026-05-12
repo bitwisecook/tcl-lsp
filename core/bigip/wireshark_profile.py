@@ -52,6 +52,7 @@ from .pcap_enrich import (
     _split_destination,
     build_merged_name_index,
 )
+from .port_names import resolve_port
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,13 +425,11 @@ def _vs_port_proto(dest: str) -> tuple[int, str] | None:
         if sep not in base:
             continue
         _host, _, port_str = base.rpartition(sep)
-        if port_str.isdigit():
-            try:
-                port = int(port_str)
-            except ValueError:
-                continue
-            if 0 < port < 65536:
-                return port, "tcp"
+        port = resolve_port(port_str)
+        # Port 0 is BIG-IP's "any-port" wildcard — Wireshark services
+        # entries need a real port to be useful, so skip it.
+        if port is not None and 0 < port < 65536:
+            return port, "tcp"
     return None
 
 
