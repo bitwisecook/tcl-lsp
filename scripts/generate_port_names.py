@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,10 +68,31 @@ def _load(csv_path: Path) -> list[tuple[str, int]]:
 def _render(rows: list[tuple[str, int]]) -> str:
     parts = [_HEADER]
     for name, port in rows:
-        # Stay on one line per row so diffs are easy to read.
-        parts.append(f"    {name!r}: {port},\n")
+        # One row per line for readable diffs; the final string is piped
+        # through ``ruff format`` below so the on-disk file is exactly
+        # what the lint gate expects no matter how ruff's defaults shift.
+        parts.append(f'    "{name}": {port},\n')
     parts.append(_FOOTER)
-    return "".join(parts)
+    return _ruff_format("".join(parts))
+
+
+def _ruff_format(source: str) -> str:
+    """Normalise *source* through ``ruff format -`` so the result always
+    matches what ``ruff format --check`` expects.  Falls back to the raw
+    text if ruff isn't installed — the check job will still catch any
+    formatting drift, just with a less helpful error message.
+    """
+    try:
+        result = subprocess.run(
+            ["ruff", "format", "-"],
+            input=source,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return source
+    return result.stdout
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -32,8 +32,7 @@ def test_reverse_table_is_complete():
 
 
 def test_well_known_names_resolve():
-    # Note: mcpd's table does NOT include "http" — BIG-IP leaves port 80
-    # as a literal number in scfs.  Pick names that are actually present.
+    assert port_name_to_number("http") == 80
     assert port_name_to_number("https") == 443
     assert port_name_to_number("ssh") == 22
     assert port_name_to_number("domain") == 53
@@ -58,10 +57,9 @@ def test_unknown_name_returns_none():
 
 
 def test_reverse_lookup_returns_canonical_name():
+    assert port_number_to_name(80) == "http"
     assert port_number_to_name(443) == "https"
     assert port_number_to_name(4353) == "f5-iquery"
-    # Port 80 has no mcpd name — see module docstring.
-    assert port_number_to_name(80) is None
 
 
 def test_resolve_port_accepts_numeric_string():
