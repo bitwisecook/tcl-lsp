@@ -240,24 +240,45 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
     return out
 
 
+# Fields where ``+=`` against a missing block should materialise a
+# fresh ``<field> { ... }`` compound block inside the stanza.  These
+# are the common BIG-IP list-shaped property slots; the value
+# projected by the evaluator is already a Python ``list``, so the
+# splice just wraps it in a brace block.
+_MATERIALISABLE_LIST_FIELDS = frozenset(
+    {"rules", "profiles", "persist", "policies", "members"}
+)
+
+
 def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
     """Apply non-identity edits to *source* bottom-up.
 
-    Each op must carry a :attr:`EditOp.field_slot`; without one we
-    cannot place the edit, so we reject the query with a clear error
-    rather than guessing.  Slots are checked for overlap before
-    application so two writes against the same span fail loudly.
+    Each op must either carry a :attr:`EditOp.field_slot` (an existing
+    property to overwrite) or target a missing **list field** on a
+    stanza we know how to extend.  In the materialise case we insert
+    a fresh ``<field> { ... }`` block before the stanza's closing
+    ``}``; this is how ``.ltm.virtual[].rules += "/Common/log"``
+    works against VSes that didn't have a ``rules`` block before.
+
+    Slots are checked for overlap before application so two writes
+    against the same span fail loudly.
     """
     placed: list[tuple[int, int, str, EditOp]] = []
     for op in ops:
-        if op.field_slot is None:
-            raise EditError(
-                f"cannot edit {op.field_name!r} on {op.object_path!r}: "
-                "this field has no single-line slot in the source "
-                "(compound values are not writable in v1)"
-            )
-        new_text = _format_value(op.new_value, original_raw=op.field_slot.raw_text)
-        placed.append((op.field_slot.start, op.field_slot.end, new_text, op))
+        if op.field_slot is not None:
+            new_text = _format_value(op.new_value, original_raw=op.field_slot.raw_text)
+            placed.append((op.field_slot.start, op.field_slot.end, new_text, op))
+            continue
+        # No field_slot — see if we can materialise a fresh compound block.
+        insert = _materialise_compound_block(source, op)
+        if insert is not None:
+            placed.append(insert)
+            continue
+        raise EditError(
+            f"cannot edit {op.field_name!r} on {op.object_path!r}: "
+            "this field has no single-line slot in the source "
+            "(compound values are not writable in v1)"
+        )
 
     placed.sort(key=lambda t: (t[0], t[1]))
     for i in range(1, len(placed)):
@@ -304,6 +325,142 @@ def _format_value(value: Any, *, original_raw: str) -> str:
     if isinstance(value, bool):
         return "enabled" if value else "disabled"
     return str(value)
+
+
+def _materialise_compound_block(
+    source: str, op: EditOp
+) -> tuple[int, int, str, EditOp] | None:
+    """Return an edit that overwrites or materialises a ``<field> { ... }``
+    compound block on the op's stanza, or ``None`` when the op isn't a
+    candidate.
+
+    When the stanza already has an existing ``<field> { ... }`` block,
+    the returned edit overwrites that block's byte range.  When the
+    block is absent, the edit inserts a fresh ``<field> { ... }``
+    line before the stanza's closing brace.  Either way the indent
+    is sniffed from the stanza body so the rewritten source stays
+    consistent with the surrounding properties.
+
+    Eligibility:
+
+    - The op's ``field_name`` is one of the known
+      :data:`_MATERIALISABLE_LIST_FIELDS` (``rules`` / ``profiles`` /
+      ``persist`` / ``policies`` / ``members``).
+    - The op has a ``stanza_slot`` so we know where to insert.
+    - The op's ``new_value`` is a non-empty list (an empty list would
+      produce ``<field> { }`` — no-op, skipped).
+    - The operator is ``+=`` or ``=``.  ``-=`` against an absent
+      block is a no-op (nothing to remove); we leave it to the
+      existing error path.
+    """
+    if op.field_name not in _MATERIALISABLE_LIST_FIELDS:
+        return None
+    if op.stanza_slot is None:
+        return None
+    if op.operator not in ("+=", "="):
+        return None
+    new_value = op.new_value
+    if not isinstance(new_value, list) or not new_value:
+        return None
+
+    stanza_start = op.stanza_slot.start
+    stanza_end = op.stanza_slot.end
+    closing_brace = source.rfind("}", stanza_start, stanza_end)
+    if closing_brace == -1:
+        return None
+    body_text = source[stanza_start:stanza_end]
+
+    # Sniff indent from the line immediately before the closing brace.
+    line_before_close_start = source.rfind("\n", stanza_start, closing_brace) + 1
+    if line_before_close_start > 0:
+        prev_line_end = line_before_close_start - 1
+        prev_line_start = source.rfind("\n", stanza_start, prev_line_end) + 1
+        prev_line = source[prev_line_start:prev_line_end]
+        indent = prev_line[: len(prev_line) - len(prev_line.lstrip(" \t"))]
+        if not indent:
+            indent = "    "
+    else:
+        indent = "    "
+
+    items_text = " ".join(_format_value(v, original_raw="") for v in new_value)
+
+    # Is there an existing ``<field> { ... }`` block to overwrite?
+    # Search the body for a top-level ``<indent>?<field>\s*{`` and
+    # walk to its matching closing brace.
+    existing = _find_top_level_block(body_text, op.field_name)
+    if existing is not None:
+        start_in_body, end_in_body = existing
+        abs_start = stanza_start + start_in_body
+        abs_end = stanza_start + end_in_body
+        # Reuse the existing line's indent (preserve leading whitespace
+        # on the original block's line).
+        line_start = source.rfind("\n", stanza_start, abs_start) + 1
+        existing_indent = source[line_start:abs_start]
+        new_text = f"{op.field_name} {{ {items_text} }}"
+        return (abs_start, abs_end, new_text, op)
+
+    # No existing block — insert before the closing brace.  Need a
+    # leading indent and a trailing newline so the closing ``}``
+    # stays on its own line.
+    block = f"{indent}{op.field_name} {{ {items_text} }}\n"
+    return (closing_brace, closing_brace, block, op)
+
+
+def _find_top_level_block(body: str, name: str) -> tuple[int, int] | None:
+    """Locate ``<name> { ... }`` at the top level of *body*.
+
+    Top-level means brace-depth 0 outside the candidate block.  The
+    returned span covers ``<name> { ... }`` exactly (the name token
+    through the matching closing brace).  Returns ``None`` when no
+    such block exists.
+    """
+    pattern = re.compile(rf"\b{re.escape(name)}\s*\{{")
+    depth = 0
+    i = 0
+    n = len(body)
+    while i < n:
+        ch = body[i]
+        if ch == "{":
+            depth += 1
+            i += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            i += 1
+            continue
+        if ch == '"':
+            i += 1
+            while i < n and body[i] != '"':
+                if body[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                i += 1
+            i += 1
+            continue
+        if depth == 1 and ch == name[0]:
+            match = pattern.match(body, i)
+            if match is not None:
+                # Walk to the matching closing brace.
+                inner_depth = 1
+                j = match.end()
+                while j < n and inner_depth > 0:
+                    if body[j] == "{":
+                        inner_depth += 1
+                    elif body[j] == "}":
+                        inner_depth -= 1
+                    elif body[j] == '"':
+                        j += 1
+                        while j < n and body[j] != '"':
+                            if body[j] == "\\" and j + 1 < n:
+                                j += 2
+                                continue
+                            j += 1
+                    j += 1
+                if inner_depth == 0:
+                    return (match.start(), j)
+                return None
+        i += 1
+    return None
 
 
 def _stringify(value: Any) -> str:

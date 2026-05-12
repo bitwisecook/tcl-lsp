@@ -850,6 +850,77 @@ def test_bare_rename_builtin_is_unscoped():
     assert "ltm virtual /Common/new" in new_src
 
 
+# Issue 4 — ``+=`` materialises a missing compound block.
+_NO_RULES_SCF = (
+    "ltm virtual /Common/no_rules_yet {\n"
+    "    destination /Common/198.51.100.5:443\n"
+    "    ip-protocol tcp\n"
+    "    mask 255.255.255.255\n"
+    "}\n"
+)
+
+_MIXED_RULES_SCF = (
+    "ltm virtual /Common/has_rules {\n"
+    "    destination /Common/198.51.100.5:443\n"
+    "    rules { /Common/audit_rule }\n"
+    "}\n"
+    "ltm virtual /Common/no_rules {\n"
+    "    destination /Common/198.51.100.6:80\n"
+    "}\n"
+)
+
+
+def test_plus_eq_on_missing_rules_block_materialises_it():
+    """``.rules += "..."`` against a VS with no ``rules { … }`` block
+    now creates one — matching cookbook example #7.  Regression for
+    the v1.9.0-14 zipapp behaviour where this raised "compound values
+    are not writable in v1".
+    """
+    result = run_query(
+        '.ltm.virtual[] | .rules += "/Common/log_rule"', {"m": _NO_RULES_SCF}
+    )
+    new_src = result.edits_per_file["m"].new_source
+    assert "rules { /Common/log_rule }" in new_src
+
+
+def test_plus_eq_extends_existing_rules_block():
+    """When the rules block already exists, ``+=`` extends it rather
+    than appending a duplicate."""
+    result = run_query(
+        '.ltm.virtual[] | .rules += "/Common/log_rule"', {"m": _MIXED_RULES_SCF}
+    )
+    new_src = result.edits_per_file["m"].new_source
+    # The has_rules VS sees ``audit_rule`` and ``log_rule`` in one block.
+    assert "rules { /Common/audit_rule /Common/log_rule }" in new_src
+    # And no_rules gets a freshly materialised block.
+    assert "rules { /Common/log_rule }" in new_src
+    # No duplicated blocks anywhere — every "    rules {" property
+    # line (indented, not a stanza header) appears exactly once per VS.
+    assert new_src.count("    rules {") == 2
+
+
+def test_cookbook_idempotent_attach_idiom_works():
+    """Cookbook example #7 — the canonical "attach this iRule to every
+    VS that doesn't already have it" idiom now works end-to-end."""
+    result = run_query(
+        '.ltm.virtual[] '
+        '| select(not contains(.rules, "/Common/log_rule")) '
+        '| .rules += "/Common/log_rule"',
+        {"m": _MIXED_RULES_SCF},
+    )
+    new_src = result.edits_per_file["m"].new_source
+    assert new_src.count("/Common/log_rule") == 2
+    # Running it again is a no-op (idempotent).
+    again = run_query(
+        '.ltm.virtual[] '
+        '| select(not contains(.rules, "/Common/log_rule")) '
+        '| .rules += "/Common/log_rule"',
+        {"m": new_src},
+    )
+    applied = again.edits_per_file.get("m")
+    assert applied is None or applied.new_source == applied.original
+
+
 # Issue 5 — ``--json`` of scalar / path-ref projections.
 _JSON_SCALAR_SCF = (
     "ltm pool /Common/web_pool {\n"
