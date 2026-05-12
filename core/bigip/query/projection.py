@@ -258,7 +258,7 @@ _NET_SELF_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "address": FieldSpec("address"),
     "vlan": FieldSpec("vlan", ref_kind="net vlan"),
-    "traffic-group": FieldSpec("traffic_group"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
     "allow-service": FieldSpec("allow_service"),
 }
 
@@ -341,8 +341,8 @@ _SYS_PROVISION_FIELDS: dict[str, FieldSpec] = {
 _SYS_FOLDER_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
-    "device-group": FieldSpec("device_group"),
-    "traffic-group": FieldSpec("traffic_group"),
+    "device-group": FieldSpec("device_group", ref_kind="cm device-group"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
     "hidden": FieldSpec("hidden"),
 }
 

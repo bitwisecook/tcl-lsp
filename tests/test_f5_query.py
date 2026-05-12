@@ -946,6 +946,25 @@ def test_net_port_list_projects_ports():
     assert sorted(ports) == ["443", "80"]
 
 
+def test_net_self_traffic_group_pathref_walks_into_cm_traffic_group():
+    """``net self.traffic-group`` PathRefs into ``cm traffic-group``;
+    chaining ``.unit-id`` should pull the trafficked unit id.  This
+    is a *cross-module* PathRef (``net`` → ``cm``).
+    """
+    src = _NET_SCF + (
+        "cm traffic-group /Common/traffic-group-1 {\n"
+        "    unit-id 1\n"
+        "}\n"
+        "cm traffic-group /Common/traffic-group-local-only { }\n"
+    )
+    result = run_query(
+        '.net.self[] | select(.traffic-group.full-path == "/Common/traffic-group-1") '
+        "| .traffic-group.unit-id",
+        {"m": src},
+    )
+    assert result.values_per_file["m"] == ["1"]
+
+
 def test_net_identity_rename_is_kind_scoped():
     """``.net.vlan["X"].name = "Y"`` must not touch references in
     other modules — same kind-scope correctness as the ltm/virtual
@@ -1184,9 +1203,11 @@ def test_sys_provision_projects_level():
 def test_sys_folder_projects_traffic_group():
     """``sys folder /`` uses ``/`` as its full-path key — make sure
     indexing works for both the root folder and named partitions.
+    ``traffic-group`` is a PathRef into ``cm traffic-group``.
     """
     result = run_query('.sys.folder["/"].traffic-group', {"m": _SYS_SCF})
-    assert result.values_per_file["m"] == ["/Common/traffic-group-1"]
+    [tg] = result.values_per_file["m"]
+    assert tg.full_path == "/Common/traffic-group-1"
     result = run_query('.sys.folder["/Common"].name', {"m": _SYS_SCF})
     assert result.values_per_file["m"] == ["Common"]
 
