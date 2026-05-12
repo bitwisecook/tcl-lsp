@@ -851,6 +851,90 @@ def test_bare_rename_builtin_is_unscoped():
 
 
 # ---------------------------------------------------------------------------
+# ltm policy.rules[] with nested conditions / actions
+# ---------------------------------------------------------------------------
+
+_POLICY_SCF = (
+    "ltm pool /AS3/app/p_home { }\n"
+    "ltm policy /AS3/app/policy_routing {\n"
+    "    controls { forwarding }\n"
+    "    requires { http }\n"
+    "    rules {\n"
+    "        HomePage {\n"
+    "            actions {\n"
+    "                0 {\n"
+    "                    forward\n"
+    "                    select\n"
+    "                    pool /AS3/app/p_home\n"
+    "                }\n"
+    "            }\n"
+    "            conditions {\n"
+    "                0 {\n"
+    "                    http-uri\n"
+    "                    path\n"
+    "                    starts-with\n"
+    "                    values { /HomePage }\n"
+    "                }\n"
+    "            }\n"
+    "            ordinal 5\n"
+    "        }\n"
+    "        Default {\n"
+    "            actions {\n"
+    "                0 {\n"
+    "                    shutdown\n"
+    "                    connection\n"
+    "                }\n"
+    "            }\n"
+    "            ordinal 1\n"
+    "        }\n"
+    "    }\n"
+    "    strategy /Common/first-match\n"
+    "}\n"
+)
+
+
+def test_ltm_policy_projects_rules_with_names_and_ordinals():
+    """``.ltm.policy[].rules[]`` exposes each named rule with its
+    ``ordinal`` and ``name`` fields.
+    """
+    result = run_query(".ltm.policy[].rules[].name", {"m": _POLICY_SCF})
+    assert sorted(result.values_per_file["m"]) == ["Default", "HomePage"]
+    result = run_query(".ltm.policy[].rules[].ordinal", {"m": _POLICY_SCF})
+    assert sorted(result.values_per_file["m"]) == [1, 5]
+
+
+def test_ltm_policy_rule_conditions_expose_operand_and_operator():
+    """``rules[].conditions[]`` surfaces the classified operand /
+    selector / operator / values for each condition entry."""
+    result = run_query(".ltm.policy[].rules[].conditions[].operand", {"m": _POLICY_SCF})
+    assert result.values_per_file["m"] == ["http-uri"]
+    result = run_query(".ltm.policy[].rules[].conditions[].operator", {"m": _POLICY_SCF})
+    assert result.values_per_file["m"] == ["starts-with"]
+    result = run_query(".ltm.policy[].rules[].conditions[].values", {"m": _POLICY_SCF})
+    [vals] = result.values_per_file["m"]
+    assert list(vals) == ["/HomePage"]
+
+
+def test_ltm_policy_rule_action_pool_pathref_walks_into_ltm_pool():
+    """``rules[].actions[].pool`` is a PathRef into ``ltm pool`` —
+    chaining ``.full-path`` resolves through the action into the
+    target pool's identity field."""
+    result = run_query(
+        ".ltm.policy[].rules[].actions[].pool.full-path",
+        {"m": _POLICY_SCF},
+    )
+    assert result.values_per_file["m"] == ["/AS3/app/p_home"]
+
+
+def test_ltm_policy_rule_actions_carry_verb_and_target():
+    """Surface each action's classified ``target`` / ``verb`` —
+    ``forward select`` for the routing rule, ``shutdown`` (no verb
+    captured) for the default deny."""
+    result = run_query(".ltm.policy[].rules[].actions[].target", {"m": _POLICY_SCF})
+    assert sorted(result.values_per_file["m"]) == ["forward", "shutdown"]
+
+
+# ---------------------------------------------------------------------------
 # net.* — typed projection for the network module
 # ---------------------------------------------------------------------------
 

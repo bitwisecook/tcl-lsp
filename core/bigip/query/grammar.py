@@ -91,7 +91,13 @@ MODULES
   .ltm.<kind>             Local Traffic Manager kinds: ``virtual``,
                           ``pool``, ``node``, ``rule``, ``profile``,
                           ``monitor``, ``persistence``, ``snatpool``,
-                          ``policy``, ``data-group``.
+                          ``policy``, ``data-group``.  Each
+                          ``ltm policy`` exposes ``.rules[]`` with
+                          nested ``.conditions[]`` and
+                          ``.actions[]`` sub-objects — chained
+                          access like ``.ltm.policy[].rules[]
+                          .actions[].pool`` walks into the target
+                          pool via a PathRef.
   .net.<kind>             Network module: ``route``, ``vlan``,
                           ``self``, ``route-domain``, ``port-list``,
                           ``interface``, ``dns-resolver``,

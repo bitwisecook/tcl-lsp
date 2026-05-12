@@ -56,6 +56,9 @@ from ..model import (
     BigipNode,
     BigipPersistence,
     BigipPolicy,
+    BigipPolicyAction,
+    BigipPolicyCondition,
+    BigipPolicyRule,
     BigipPool,
     BigipPoolMember,
     BigipProfile,
@@ -228,6 +231,10 @@ _POLICY_FIELDS: dict[str, FieldSpec] = {
     "strategy": FieldSpec("strategy"),
     "controls": FieldSpec("controls"),
     "requires": FieldSpec("requires"),
+    # ``rules`` is special-cased in ``_project_field`` so each rule
+    # surfaces as an ``ltm policy-rule`` ObjectRef with nested
+    # ``conditions`` / ``actions`` sub-objects.
+    "rules": FieldSpec("rules"),
 }
 
 _DATAGROUP_FIELDS: dict[str, FieldSpec] = {
@@ -934,6 +941,8 @@ def _project_field(
         return PathRef(full_path=raw or "", root=root, expected_kind=spec.ref_kind)
     if kind == "ltm pool" and spec.attr == "members":
         return [_member_object_ref(m) for m in raw or ()]
+    if kind == "ltm policy" and spec.attr == "rules":
+        return [_policy_rule_object_ref(r, root) for r in raw or ()]
     if isinstance(raw, tuple):
         return list(raw)
     return raw
@@ -948,6 +957,60 @@ def _member_object_ref(member: BigipPoolMember) -> ObjectRef:
             "address": member.address,
             "port": member.port,
             "monitor": member.monitor,
+        },
+    )
+
+
+def _policy_condition_object_ref(cond: BigipPolicyCondition) -> ObjectRef:
+    return ObjectRef(
+        kind="ltm policy-condition",
+        full_path=str(cond.index),
+        fields={
+            "index": cond.index,
+            "operand": cond.operand,
+            "selector": cond.selector,
+            "operator": cond.operator,
+            "values": list(cond.values),
+            "name": cond.name,
+            "negate": cond.negate,
+            "case-insensitive": cond.case_insensitive,
+            "event": cond.event,
+        },
+    )
+
+
+def _policy_action_object_ref(action: BigipPolicyAction, root: Root) -> ObjectRef:
+    return ObjectRef(
+        kind="ltm policy-action",
+        full_path=str(action.index),
+        fields={
+            "index": action.index,
+            "target": action.target,
+            "verb": action.verb,
+            # ``pool`` is a PathRef into ``ltm pool`` — chaining
+            # ``.pool.members`` from a policy action walks into the
+            # target pool.
+            "pool": PathRef(full_path=action.pool, root=root, expected_kind="ltm pool"),
+            "location": action.location,
+            "name": action.name,
+            "value": action.value,
+            "path": action.path,
+            "query": action.query,
+            "host": action.host,
+            "event": action.event,
+        },
+    )
+
+
+def _policy_rule_object_ref(rule: BigipPolicyRule, root: Root) -> ObjectRef:
+    return ObjectRef(
+        kind="ltm policy-rule",
+        full_path=rule.name,
+        fields={
+            "name": rule.name,
+            "ordinal": rule.ordinal,
+            "conditions": [_policy_condition_object_ref(c) for c in rule.conditions],
+            "actions": [_policy_action_object_ref(a, root) for a in rule.actions],
         },
     )
 

@@ -190,7 +190,20 @@ top-level child per recognised module:
                           .persists[]
                           .data-groups[]
   .profile     .monitor     .persistence
-  .snatpool    .policy      .data-group
+  .snatpool    .data-group
+  .policy["/AS3/app/p1"].strategy
+                        .controls[]
+                        .requires[]
+                        .rules[].name
+                                .ordinal
+                                .conditions[].operand
+                                              .selector
+                                              .operator
+                                              .values[]
+                                              .negate
+                                .actions[].target
+                                           .verb
+                                           .pool   (path-ref → ltm pool)
 .net
   .route["/Common/default_gw"].network
                               .gw
