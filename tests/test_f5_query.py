@@ -2773,3 +2773,160 @@ def test_apm_policy_item_description():
 def test_apm_customization_source_description():
     desc = _run(".apm.customization-source.cust1.description", _ENRICH_APM_CONF)
     assert desc.values_per_file["mem://1"] == ["branded"]
+
+
+# ---------------------------------------------------------------------------
+# pem.* — Policy Enforcement Manager projection
+# ---------------------------------------------------------------------------
+
+_PEM_CONF = """ltm virtual /Common/sub_vs {
+    destination /Common/10.1.1.1:80
+}
+ltm pool /Common/fwd_pool { }
+ltm pool /Common/icap_pool { }
+ltm snatpool /Common/sp1 {
+    members { 10.0.0.99 }
+}
+pem profile spm /Common/spm_parent { }
+pem profile spm /Common/spm1 {
+    defaults-from /Common/spm_parent
+    description "subscriber policy mgmt"
+}
+pem profile subscriber-mgmt /Common/submgmt1 {
+    description "subscriber mgmt"
+}
+pem profile radius-aaa /Common/radius1 {
+    description "radius AAA"
+}
+pem profile diameter-endpoint /Common/diam1 {
+    description "diameter endpoint"
+}
+pem policy /Common/pol_main {
+    description "main PEM policy"
+    rules {
+        block_streaming { }
+        log_session { }
+    }
+}
+pem irule /Common/pem_log {
+    when PEM_POLICY {
+        log local0. "policy hit"
+    }
+}
+pem listener /Common/listener1 {
+    description "front listener"
+    profile-spm /Common/spm1
+    profile-subscriber-mgmt /Common/submgmt1
+    virtual-servers { /Common/sub_vs }
+}
+pem forwarding-endpoint /Common/fwd1 {
+    description "forward to CDN"
+    pool /Common/fwd_pool
+    snat-pool /Common/sp1
+    source-ip 10.0.0.1
+    type endpoint
+    persistence src-ip
+    translate-address enabled
+    translate-service enabled
+}
+pem interception-endpoint /Common/icap1 {
+    description "ICAP tap"
+    pool /Common/icap_pool
+    persistence src-ip
+}
+pem service-chain-endpoint /Common/chain1 {
+    description "two-step chain"
+    service-endpoints {
+        step_a { order 1 }
+        step_b { order 2 }
+    }
+    steering-policy /Common/pol_main
+}
+pem quota-mgmt rating-group /Common/rg1 {
+    description "streaming quota"
+    rating-group-id 100
+    default-quota 1000
+    default-quota-holding-time 3600
+    default-validity-time 86400
+    total-octets 5000000
+    time 60
+}
+"""
+
+
+def test_pem_policy_description_and_rules():
+    desc = _run(".pem.policy.pol_main.description", _PEM_CONF)
+    assert desc.values_per_file["mem://1"] == ["main PEM policy"]
+    rules = _run(".pem.policy.pol_main.rules", _PEM_CONF)
+    [rule_list] = rules.values_per_file["mem://1"]
+    assert sorted(rule_list) == ["block_streaming", "log_session"]
+
+
+def test_pem_irule_body_carries_pem_event():
+    body = _run(".pem.irule.pem_log.body", _PEM_CONF)
+    [src] = body.values_per_file["mem://1"]
+    assert "PEM_POLICY" in src
+    assert "policy hit" in src
+
+
+def test_pem_listener_profile_spm_chains_to_defaults_from():
+    result = _run(".pem.listener.listener1.profile-spm.defaults-from.full-path", _PEM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/spm_parent"]
+
+
+def test_pem_listener_virtual_servers_resolve_to_destinations():
+    result = _run(".pem.listener.listener1.virtual-servers[].destination", _PEM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/10.1.1.1:80"]
+
+
+def test_pem_forwarding_endpoint_pool_pathref_resolves():
+    result = _run(".pem.forwarding-endpoint.fwd1.pool.full-path", _PEM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/fwd_pool"]
+
+
+def test_pem_forwarding_endpoint_snat_pool_walks_to_members():
+    result = _run(".pem.forwarding-endpoint.fwd1.snat-pool.members", _PEM_CONF)
+    [members] = result.values_per_file["mem://1"]
+    assert members == ["10.0.0.99"]
+
+
+def test_pem_forwarding_endpoint_scalar_fields():
+    typ = _run(".pem.forwarding-endpoint.fwd1.type", _PEM_CONF)
+    assert typ.values_per_file["mem://1"] == ["endpoint"]
+    src = _run(".pem.forwarding-endpoint.fwd1.source-ip", _PEM_CONF)
+    assert src.values_per_file["mem://1"] == ["10.0.0.1"]
+
+
+def test_pem_interception_endpoint_pool_resolves():
+    result = _run(".pem.interception-endpoint.icap1.pool.full-path", _PEM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/icap_pool"]
+
+
+def test_pem_service_chain_endpoint_lists_steps():
+    result = _run(".pem.service-chain-endpoint.chain1.service-endpoints", _PEM_CONF)
+    [steps] = result.values_per_file["mem://1"]
+    assert sorted(steps) == ["step_a", "step_b"]
+
+
+def test_pem_service_chain_steering_policy_walks_to_rules():
+    result = _run(".pem.service-chain-endpoint.chain1.steering-policy.rules", _PEM_CONF)
+    [rule_list] = result.values_per_file["mem://1"]
+    assert sorted(rule_list) == ["block_streaming", "log_session"]
+
+
+def test_pem_profile_type_distinguishes_sub_kinds():
+    result = _run(".pem.profile[] | .type", _PEM_CONF)
+    assert sorted(result.values_per_file["mem://1"]) == [
+        "diameter-endpoint",
+        "radius-aaa",
+        "spm",
+        "spm",
+        "subscriber-mgmt",
+    ]
+
+
+def test_pem_rating_group_quota_fields():
+    qid = _run(".pem.rating-group.rg1.rating-group-id", _PEM_CONF)
+    assert qid.values_per_file["mem://1"] == ["100"]
+    quota = _run(".pem.rating-group.rg1.default-quota", _PEM_CONF)
+    assert quota.values_per_file["mem://1"] == ["1000"]

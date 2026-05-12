@@ -61,6 +61,14 @@ from .model import (
     BigipNetTunnel,
     BigipNetVlan,
     BigipNode,
+    BigipPemForwardingEndpoint,
+    BigipPemInterceptionEndpoint,
+    BigipPemListener,
+    BigipPemPolicy,
+    BigipPemProfile,
+    BigipPemRatingGroup,
+    BigipPemRule,
+    BigipPemServiceChainEndpoint,
     BigipPersistence,
     BigipPolicy,
     BigipPolicyAction,
@@ -509,6 +517,12 @@ _TWO_WORD_TYPES = frozenset(
         "wideip mx",
         "wideip srv",
         "wideip naptr",
+        # pem.* — multi-word kinds.
+        "profile diameter-endpoint",
+        "profile radius-aaa",
+        "profile spm",
+        "profile subscriber-mgmt",
+        "quota-mgmt rating-group",
     }
 )
 
@@ -2381,6 +2395,168 @@ def _parse_gtm_rule(
     )
 
 
+# pem.* parsers
+
+
+def _parse_pem_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemPolicy:
+    props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
+    name = full_path.rsplit("/", 1)[-1]
+    rules: tuple[str, ...] = ()
+    if "rules" in props:
+        # Each rule is a named sub-block — surface the top-level keys
+        # (rule names) so consumers know what is defined without
+        # modelling the full action/condition grammar in v1.
+        rule_props = _parse_properties_with_spans(_strip_outer_braces(props["rules"].value))
+        rules = tuple(rule_props.keys())
+    return BigipPemPolicy(
+        name=name,
+        full_path=full_path,
+        description=_description(plain),
+        rules=rules,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_irule(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemRule:
+    # PEM iRule bodies are Tcl — store verbatim, surface description
+    # only when emitted as a top-level property (rare).
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipPemRule(
+        name=name,
+        full_path=full_path,
+        source=body.strip(),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_listener(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemListener:
+    props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
+    name = full_path.rsplit("/", 1)[-1]
+    virtual_servers: tuple[str, ...] = ()
+    if "virtual-servers" in props:
+        virtual_servers = tuple(_parse_list_block(props["virtual-servers"].value))
+    return BigipPemListener(
+        name=name,
+        full_path=full_path,
+        description=_description(plain),
+        profile_spm=plain.get("profile-spm", ""),
+        profile_subscriber_mgmt=plain.get("profile-subscriber-mgmt", ""),
+        virtual_servers=virtual_servers,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_forwarding_endpoint(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemForwardingEndpoint:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipPemForwardingEndpoint(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        pool=props.get("pool", ""),
+        snat_pool=props.get("snat-pool", ""),
+        source_ip=props.get("source-ip", ""),
+        destination_ip=props.get("destination-ip", ""),
+        type_=props.get("type", ""),
+        persistence=props.get("persistence", ""),
+        translate_address=props.get("translate-address", ""),
+        translate_service=props.get("translate-service", ""),
+        fallback=props.get("fallback", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_interception_endpoint(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemInterceptionEndpoint:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipPemInterceptionEndpoint(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        pool=props.get("pool", ""),
+        persistence=props.get("persistence", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_service_chain_endpoint(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemServiceChainEndpoint:
+    props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
+    name = full_path.rsplit("/", 1)[-1]
+    service_endpoints: tuple[str, ...] = ()
+    if "service-endpoints" in props:
+        # Service-endpoints is a block of named sub-blocks keyed by
+        # endpoint name; surface the top-level keys.
+        sub = _parse_properties_with_spans(_strip_outer_braces(props["service-endpoints"].value))
+        service_endpoints = tuple(sub.keys())
+    return BigipPemServiceChainEndpoint(
+        name=name,
+        full_path=full_path,
+        description=_description(plain),
+        service_endpoints=service_endpoints,
+        steering_policy=plain.get("steering-policy", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_profile(
+    full_path: str,
+    profile_type: str,
+    body: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipPemProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipPemProfile(
+        name=name,
+        full_path=full_path,
+        profile_type=profile_type,
+        defaults_from=props.get("defaults-from", ""),
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_pem_rating_group(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipPemRatingGroup:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipPemRatingGroup(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        rating_group_id=props.get("rating-group-id", ""),
+        default_quota=props.get("default-quota", ""),
+        default_quota_holding_time=props.get("default-quota-holding-time", ""),
+        default_validity_time=props.get("default-validity-time", ""),
+        default_threshold=props.get("default-threshold", ""),
+        total_octets=props.get("total-octets", ""),
+        input_octets=props.get("input-octets", ""),
+        output_octets=props.get("output-octets", ""),
+        time=props.get("time", ""),
+        consumption_time=props.get("consumption-time", ""),
+        usage_time=props.get("usage-time", ""),
+        volume=props.get("volume", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -2637,6 +2813,47 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     full_path, block.body, source_map, block
                 )
                 continue
+
+        if module == "pem":
+            if obj_type == "policy":
+                config.pem_policies[full_path] = _parse_pem_policy(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "irule":
+                config.pem_rules[full_path] = _parse_pem_irule(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "listener":
+                config.pem_listeners[full_path] = _parse_pem_listener(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "forwarding-endpoint":
+                config.pem_forwarding_endpoints[full_path] = _parse_pem_forwarding_endpoint(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "interception-endpoint":
+                config.pem_interception_endpoints[full_path] = _parse_pem_interception_endpoint(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "service-chain-endpoint":
+                config.pem_service_chain_endpoints[full_path] = _parse_pem_service_chain_endpoint(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type in (
+                "profile diameter-endpoint",
+                "profile radius-aaa",
+                "profile spm",
+                "profile subscriber-mgmt",
+            ):
+                profile_type = obj_type.split(" ", 1)[1]
+                config.pem_profiles[full_path] = _parse_pem_profile(
+                    full_path, profile_type, block.body, source_map, block
+                )
+            elif obj_type == "quota-mgmt rating-group":
+                config.pem_rating_groups[full_path] = _parse_pem_rating_group(
+                    full_path, block.body, source_map, block
+                )
+            continue
 
         if module not in ("ltm", "gtm"):
             continue

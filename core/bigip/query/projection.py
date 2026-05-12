@@ -54,6 +54,14 @@ from ..model import (
     BigipNetTunnel,
     BigipNetVlan,
     BigipNode,
+    BigipPemForwardingEndpoint,
+    BigipPemInterceptionEndpoint,
+    BigipPemListener,
+    BigipPemPolicy,
+    BigipPemProfile,
+    BigipPemRatingGroup,
+    BigipPemRule,
+    BigipPemServiceChainEndpoint,
     BigipPersistence,
     BigipPolicy,
     BigipPolicyAction,
@@ -791,6 +799,86 @@ _GTM_RULE_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
 }
 
+_PEM_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rules": FieldSpec("rules"),
+}
+
+_PEM_RULE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "body": FieldSpec("source"),
+    "description": FieldSpec("description"),
+}
+
+_PEM_LISTENER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "profile-spm": FieldSpec("profile_spm", ref_kind="pem profile"),
+    "profile-subscriber-mgmt": FieldSpec("profile_subscriber_mgmt", ref_kind="pem profile"),
+    "virtual-servers": FieldSpec("virtual_servers", ref_kind="ltm virtual", list_ref=True),
+}
+
+_PEM_FORWARDING_ENDPOINT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "pool": FieldSpec("pool", ref_kind="ltm pool"),
+    "snat-pool": FieldSpec("snat_pool", ref_kind="ltm snatpool"),
+    "source-ip": FieldSpec("source_ip"),
+    "destination-ip": FieldSpec("destination_ip"),
+    "type": FieldSpec("type_"),
+    "persistence": FieldSpec("persistence"),
+    "translate-address": FieldSpec("translate_address"),
+    "translate-service": FieldSpec("translate_service"),
+    "fallback": FieldSpec("fallback"),
+}
+
+_PEM_INTERCEPTION_ENDPOINT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "pool": FieldSpec("pool", ref_kind="ltm pool"),
+    "persistence": FieldSpec("persistence"),
+}
+
+_PEM_SERVICE_CHAIN_ENDPOINT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "service-endpoints": FieldSpec("service_endpoints"),
+    "steering-policy": FieldSpec("steering_policy", ref_kind="pem policy"),
+}
+
+_PEM_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "type": FieldSpec("profile_type"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="pem profile"),
+    "description": FieldSpec("description"),
+}
+
+_PEM_RATING_GROUP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rating-group-id": FieldSpec("rating_group_id"),
+    "default-quota": FieldSpec("default_quota"),
+    "default-quota-holding-time": FieldSpec("default_quota_holding_time"),
+    "default-validity-time": FieldSpec("default_validity_time"),
+    "default-threshold": FieldSpec("default_threshold"),
+    "total-octets": FieldSpec("total_octets"),
+    "input-octets": FieldSpec("input_octets"),
+    "output-octets": FieldSpec("output_octets"),
+    "time": FieldSpec("time"),
+    "consumption-time": FieldSpec("consumption_time"),
+    "usage-time": FieldSpec("usage_time"),
+    "volume": FieldSpec("volume"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -881,6 +969,23 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "gtm prober-pool": (BigipGtmProberPool, _GTM_PROBER_POOL_FIELDS),
     "gtm region": (BigipGtmRegion, _GTM_REGION_FIELDS),
     "gtm rule": (BigipGtmRule, _GTM_RULE_FIELDS),
+    "pem policy": (BigipPemPolicy, _PEM_POLICY_FIELDS),
+    "pem rule": (BigipPemRule, _PEM_RULE_FIELDS),
+    "pem listener": (BigipPemListener, _PEM_LISTENER_FIELDS),
+    "pem forwarding-endpoint": (
+        BigipPemForwardingEndpoint,
+        _PEM_FORWARDING_ENDPOINT_FIELDS,
+    ),
+    "pem interception-endpoint": (
+        BigipPemInterceptionEndpoint,
+        _PEM_INTERCEPTION_ENDPOINT_FIELDS,
+    ),
+    "pem service-chain-endpoint": (
+        BigipPemServiceChainEndpoint,
+        _PEM_SERVICE_CHAIN_ENDPOINT_FIELDS,
+    ),
+    "pem profile": (BigipPemProfile, _PEM_PROFILE_FIELDS),
+    "pem quota-mgmt rating-group": (BigipPemRatingGroup, _PEM_RATING_GROUP_FIELDS),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -990,6 +1095,25 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "security_device_id_attributes",
             "security device-id attribute",
         ),
+    },
+    "pem": {
+        "policy": ("pem_policies", "pem policy"),
+        "irule": ("pem_rules", "pem rule"),
+        "listener": ("pem_listeners", "pem listener"),
+        "forwarding-endpoint": (
+            "pem_forwarding_endpoints",
+            "pem forwarding-endpoint",
+        ),
+        "interception-endpoint": (
+            "pem_interception_endpoints",
+            "pem interception-endpoint",
+        ),
+        "service-chain-endpoint": (
+            "pem_service_chain_endpoints",
+            "pem service-chain-endpoint",
+        ),
+        "profile": ("pem_profiles", "pem profile"),
+        "rating-group": ("pem_rating_groups", "pem quota-mgmt rating-group"),
     },
 }
 
