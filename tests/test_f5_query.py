@@ -964,6 +964,117 @@ def test_net_identity_rename_is_kind_scoped():
     assert "/Common/external" not in new_src
 
 
+# .net extensions: interface, dns-resolver, tunnels-tunnel, stp.
+
+_NET_EXT_SCF = (
+    "net interface 1.1 {\n"
+    "    media-fixed 10000T-FD\n"
+    "}\n"
+    "net interface 1.2 {\n"
+    "    media-fixed 1000T-FD\n"
+    "}\n"
+    "net route-domain /Common/0 {\n"
+    "    id 0\n"
+    "}\n"
+    "net dns-resolver /Common/dns_default {\n"
+    "    route-domain /Common/0\n"
+    "    forward-zones {\n"
+    "        example.test {\n"
+    "            nameservers {\n"
+    "                192.0.2.53:53 { }\n"
+    "            }\n"
+    "        }\n"
+    "        internal.test {\n"
+    "            nameservers {\n"
+    "                198.51.100.53:53 { }\n"
+    "            }\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "ltm profile tcp-forward /Common/tcp-forward { }\n"
+    "net tunnels tunnel /Common/http_tunnel {\n"
+    "    profile /Common/tcp-forward\n"
+    "    local-address 192.0.2.10\n"
+    "    remote-address 203.0.113.20\n"
+    '    description "Tunnel for http-explicit profile"\n'
+    "}\n"
+    "net stp /Common/cist {\n"
+    "    interfaces {\n"
+    "        1.1 { }\n"
+    "        1.2 { }\n"
+    "    }\n"
+    "}\n"
+)
+
+
+def test_net_interface_projects_media_fixed():
+    result = run_query(".net.interface[].media-fixed", {"m": _NET_EXT_SCF})
+    assert sorted(result.values_per_file["m"]) == ["10000T-FD", "1000T-FD"]
+
+
+def test_net_interface_indexed_by_bare_slot_port():
+    """Interfaces use bare slot/port (``1.1``) — no ``/Common/`` prefix."""
+    result = run_query('.net.interface["1.1"].media-fixed', {"m": _NET_EXT_SCF})
+    assert result.values_per_file["m"] == ["10000T-FD"]
+
+
+def test_net_dns_resolver_projects_forward_zones():
+    result = run_query(
+        '.net.dns-resolver["/Common/dns_default"].forward-zones',
+        {"m": _NET_EXT_SCF},
+    )
+    [zones] = result.values_per_file["m"]
+    assert sorted(zones) == ["example.test", "internal.test"]
+
+
+def test_net_dns_resolver_route_domain_pathref():
+    """The ``route-domain`` field is a PathRef into ``net route-domain``;
+    chaining ``.id`` should follow the ref into the RD object.
+    """
+    result = run_query(
+        ".net.dns-resolver[].route-domain.id",
+        {"m": _NET_EXT_SCF},
+    )
+    assert result.values_per_file["m"] == [0]
+
+
+def test_net_tunnel_projects_addresses_and_description():
+    result = run_query(
+        '.net.tunnels-tunnel["/Common/http_tunnel"].local-address',
+        {"m": _NET_EXT_SCF},
+    )
+    assert result.values_per_file["m"] == ["192.0.2.10"]
+    result = run_query(
+        '.net.tunnels-tunnel["/Common/http_tunnel"].remote-address',
+        {"m": _NET_EXT_SCF},
+    )
+    assert result.values_per_file["m"] == ["203.0.113.20"]
+    result = run_query(
+        '.net.tunnels-tunnel["/Common/http_tunnel"].description',
+        {"m": _NET_EXT_SCF},
+    )
+    # Outer quotes are stripped during parse.
+    assert result.values_per_file["m"] == ["Tunnel for http-explicit profile"]
+
+
+def test_net_tunnel_profile_pathref():
+    """``net tunnels tunnel`` is a two-word kind; the parser must
+    recognise it so the projection sees a populated ``profile`` field.
+    """
+    result = run_query(
+        ".net.tunnels-tunnel[].profile",
+        {"m": _NET_EXT_SCF},
+    )
+    [profile] = result.values_per_file["m"]
+    assert profile.full_path == "/Common/tcp-forward"
+
+
+def test_net_stp_projects_interfaces():
+    result = run_query('.net.stp["/Common/cist"].interfaces', {"m": _NET_EXT_SCF})
+    [ifaces] = result.values_per_file["m"]
+    assert sorted(ifaces) == ["1.1", "1.2"]
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"

@@ -24,10 +24,14 @@ from typing import Any
 from ..model import (
     BigipDataGroup,
     BigipMonitor,
+    BigipNetDnsResolver,
+    BigipNetInterface,
     BigipNetPortList,
     BigipNetRoute,
     BigipNetRouteDomain,
     BigipNetSelf,
+    BigipNetStp,
+    BigipNetTunnel,
     BigipNetVlan,
     BigipNode,
     BigipPersistence,
@@ -235,6 +239,34 @@ _NET_PORT_LIST_FIELDS: dict[str, FieldSpec] = {
     "ports": FieldSpec("ports"),
 }
 
+_NET_INTERFACE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "media-fixed": FieldSpec("media_fixed"),
+}
+
+_NET_DNS_RESOLVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "route-domain": FieldSpec("route_domain", ref_kind="net route-domain"),
+    "forward-zones": FieldSpec("forward_zones"),
+}
+
+_NET_TUNNEL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "profile": FieldSpec("profile", ref_kind="ltm profile"),
+    "local-address": FieldSpec("local_address"),
+    "remote-address": FieldSpec("remote_address"),
+    "description": FieldSpec("description"),
+}
+
+_NET_STP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "interfaces": FieldSpec("interfaces"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -252,6 +284,10 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "net self": (BigipNetSelf, _NET_SELF_FIELDS),
     "net route-domain": (BigipNetRouteDomain, _NET_ROUTE_DOMAIN_FIELDS),
     "net port-list": (BigipNetPortList, _NET_PORT_LIST_FIELDS),
+    "net interface": (BigipNetInterface, _NET_INTERFACE_FIELDS),
+    "net dns-resolver": (BigipNetDnsResolver, _NET_DNS_RESOLVER_FIELDS),
+    "net tunnels tunnel": (BigipNetTunnel, _NET_TUNNEL_FIELDS),
+    "net stp": (BigipNetStp, _NET_STP_FIELDS),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -278,6 +314,10 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "self": ("net_selves", "net self"),
         "route-domain": ("net_route_domains", "net route-domain"),
         "port-list": ("net_port_lists", "net port-list"),
+        "interface": ("net_interfaces", "net interface"),
+        "dns-resolver": ("net_dns_resolvers", "net dns-resolver"),
+        "tunnels-tunnel": ("net_tunnels", "net tunnels tunnel"),
+        "stp": ("net_stps", "net stp"),
     },
 }
 

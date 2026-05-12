@@ -298,6 +298,60 @@ class BigipNetPortList:
     range: Range | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class BigipNetInterface:
+    """A ``net interface`` object — a physical / logical NIC.
+
+    Interface ``name`` is the bare slot/port (``1.1``, ``mgmt``) — no
+    partition prefix and no full-path slash.  ``full_path`` mirrors
+    ``name`` for consistency with the other typed kinds.
+    """
+
+    name: str
+    full_path: str
+    media_fixed: str = ""  # e.g. "10000T-FD"
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetDnsResolver:
+    """A ``net dns-resolver`` object."""
+
+    name: str
+    full_path: str
+    route_domain: str = ""  # full-path of bound route-domain
+    forward_zones: tuple[str, ...] = ()  # top-level zone names only
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetTunnel:
+    """A ``net tunnels tunnel`` object."""
+
+    name: str
+    full_path: str
+    profile: str = ""  # tunnel profile path
+    local_address: str = ""
+    remote_address: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetStp:
+    """A ``net stp`` object — spanning-tree instance.
+
+    ``interfaces`` is the list of bare interface names this STP
+    instance attaches to; nested per-interface costs are not modelled
+    in v1.
+    """
+
+    name: str
+    full_path: str
+    interfaces: tuple[str, ...] = ()
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -321,6 +375,10 @@ class BigipConfig:
     net_selves: dict[str, BigipNetSelf] = field(default_factory=dict)
     net_route_domains: dict[str, BigipNetRouteDomain] = field(default_factory=dict)
     net_port_lists: dict[str, BigipNetPortList] = field(default_factory=dict)
+    net_interfaces: dict[str, BigipNetInterface] = field(default_factory=dict)
+    net_dns_resolvers: dict[str, BigipNetDnsResolver] = field(default_factory=dict)
+    net_tunnels: dict[str, BigipNetTunnel] = field(default_factory=dict)
+    net_stps: dict[str, BigipNetStp] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

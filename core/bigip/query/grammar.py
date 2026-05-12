@@ -93,7 +93,9 @@ MODULES
                           ``monitor``, ``persistence``, ``snatpool``,
                           ``policy``, ``data-group``.
   .net.<kind>             Network module: ``route``, ``vlan``,
-                          ``self``, ``route-domain``, ``port-list``.
+                          ``self``, ``route-domain``, ``port-list``,
+                          ``interface``, ``dns-resolver``,
+                          ``tunnels-tunnel``, ``stp``.
                           PathRefs from ``net self.vlan`` and
                           ``net route-domain.vlans[]`` auto-deref
                           into the target ``net vlan`` so chained

@@ -31,10 +31,14 @@ from .model import (
     BigipDataGroup,
     BigipGenericObject,
     BigipMonitor,
+    BigipNetDnsResolver,
+    BigipNetInterface,
     BigipNetPortList,
     BigipNetRoute,
     BigipNetRouteDomain,
     BigipNetSelf,
+    BigipNetStp,
+    BigipNetTunnel,
     BigipNetVlan,
     BigipNode,
     BigipPersistence,
@@ -411,6 +415,8 @@ _TWO_WORD_TYPES = frozenset(
         "monitor gateway-icmp",
         "monitor inband",
         "monitor external",
+        # net.* — multi-word kinds.
+        "tunnels tunnel",
     }
 )
 
@@ -1102,6 +1108,83 @@ def _parse_net_port_list(
     )
 
 
+def _parse_net_interface(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetInterface:
+    props = _parse_properties(body)
+    # ``net interface`` uses a bare slot/port name (``1.1``, ``mgmt``)
+    # without a partition prefix.  Keep ``name`` and ``full_path`` as
+    # the same bare token so downstream consumers don't have to
+    # special-case the missing prefix.
+    return BigipNetInterface(
+        name=full_path,
+        full_path=full_path,
+        media_fixed=props.get("media-fixed", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_dns_resolver(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetDnsResolver:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    forward_zones: tuple[str, ...] = ()
+    if "forward-zones" in props:
+        # The forward-zones block is keyed by domain name.  Use the
+        # list-block parser to extract the top-level keys; nested
+        # ``nameservers { ... }`` sub-blocks are skipped.
+        forward_zones = tuple(_parse_list_block(props["forward-zones"].value))
+    return BigipNetDnsResolver(
+        name=name,
+        full_path=full_path,
+        route_domain=props["route-domain"].value if "route-domain" in props else "",
+        forward_zones=forward_zones,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_tunnel(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetTunnel:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    description = ""
+    if "description" in props:
+        desc = props["description"].value
+        # Description values are usually quoted; strip the outermost
+        # double quotes when present so users see the raw text.
+        if desc.startswith('"') and desc.endswith('"'):
+            description = desc[1:-1]
+        else:
+            description = desc
+    return BigipNetTunnel(
+        name=name,
+        full_path=full_path,
+        profile=props["profile"].value if "profile" in props else "",
+        local_address=props["local-address"].value if "local-address" in props else "",
+        remote_address=props["remote-address"].value if "remote-address" in props else "",
+        description=description,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_stp(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetStp:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    interfaces: tuple[str, ...] = ()
+    if "interfaces" in props:
+        interfaces = tuple(_parse_list_block(props["interfaces"].value))
+    return BigipNetStp(
+        name=name,
+        full_path=full_path,
+        interfaces=interfaces,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1155,6 +1238,22 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 )
             elif obj_type == "port-list":
                 config.net_port_lists[full_path] = _parse_net_port_list(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "interface":
+                config.net_interfaces[full_path] = _parse_net_interface(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "dns-resolver":
+                config.net_dns_resolvers[full_path] = _parse_net_dns_resolver(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "tunnels tunnel":
+                config.net_tunnels[full_path] = _parse_net_tunnel(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "stp":
+                config.net_stps[full_path] = _parse_net_stp(
                     full_path, block.body, source_map, block
                 )
             continue

@@ -204,6 +204,14 @@ top-level child per recognised module:
   .route-domain["/Common/0"].id
                             .vlans[]         (path-refs → net vlan)
   .port-list["/Common/web_ports"].ports[]
+  .interface["1.1"].media-fixed
+  .dns-resolver["/Common/r1"].route-domain   (path-ref → net route-domain)
+                              .forward-zones[]
+  .tunnels-tunnel["/Common/t1"].profile      (path-ref → ltm profile)
+                               .local-address
+                               .remote-address
+                               .description
+  .stp["/Common/cist"].interfaces[]
 ```
 
 PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
