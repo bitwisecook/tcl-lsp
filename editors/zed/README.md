@@ -71,7 +71,7 @@ interpreter on your system. The zipapp is downloaded automatically from
 GitHub releases on first use. You can also place it in your workspace
 root or PATH for offline use.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 ## Installation
