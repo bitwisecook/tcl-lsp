@@ -22,7 +22,8 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.description = (
         "Write one file per partition: e.g. /Common/, /Common2/, ... "
         "Stanzas without an identifier-style partition are gathered "
-        "under '_no_partition.conf'.  Source ordering and whitespace "
+        "under '_no_partition' (suffix `.conf` for `--format scf`, "
+        "`.tmsh` for `--format tmsh`).  Source ordering and whitespace "
         "are preserved within each chunk."
     )
     p.add_argument("path", help="bigip.conf / SCF file (`-` for stdin).")

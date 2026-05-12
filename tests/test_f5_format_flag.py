@@ -109,7 +109,7 @@ def test_split_scf_writes_dot_conf_files(tmp_path, capsys):
     out_dir = tmp_path / "out"
     code, _out, _err = _run(["split", str(p), str(out_dir)], capsys)
     assert code == 0
-    assert (out_dir / "/Common/.conf").exists() or any(out_dir.glob("*.conf"))
+    assert any(out_dir.glob("*.conf"))
     assert not any(out_dir.glob("*.tmsh"))
 
 
