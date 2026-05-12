@@ -75,9 +75,7 @@ def _other_kind_header_spans(source: str, old: str, kind_scope: str) -> list[tup
     return spans
 
 
-def rename_object(
-    source: str, old: str, new: str, *, kind_scope: str = ""
-) -> RenameReport:
+def rename_object(source: str, old: str, new: str, *, kind_scope: str = "") -> RenameReport:
     """Rename *old* to *new* everywhere in *source* (text-level).
 
     Only full-path references are rewritten.  The match is bounded so

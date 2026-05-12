@@ -922,9 +922,7 @@ def test_plus_eq_on_missing_rules_block_materialises_it():
     the v1.9.0-14 zipapp behaviour where this raised "compound values
     are not writable in v1".
     """
-    result = run_query(
-        '.ltm.virtual[] | .rules += "/Common/log_rule"', {"m": _NO_RULES_SCF}
-    )
+    result = run_query('.ltm.virtual[] | .rules += "/Common/log_rule"', {"m": _NO_RULES_SCF})
     new_src = result.edits_per_file["m"].new_source
     assert "rules { /Common/log_rule }" in new_src
 
@@ -932,9 +930,7 @@ def test_plus_eq_on_missing_rules_block_materialises_it():
 def test_plus_eq_extends_existing_rules_block():
     """When the rules block already exists, ``+=`` extends it rather
     than appending a duplicate."""
-    result = run_query(
-        '.ltm.virtual[] | .rules += "/Common/log_rule"', {"m": _MIXED_RULES_SCF}
-    )
+    result = run_query('.ltm.virtual[] | .rules += "/Common/log_rule"', {"m": _MIXED_RULES_SCF})
     new_src = result.edits_per_file["m"].new_source
     # The has_rules VS sees ``audit_rule`` and ``log_rule`` in one block.
     assert "rules { /Common/audit_rule /Common/log_rule }" in new_src
@@ -949,7 +945,7 @@ def test_cookbook_idempotent_attach_idiom_works():
     """Cookbook example #7 — the canonical "attach this iRule to every
     VS that doesn't already have it" idiom now works end-to-end."""
     result = run_query(
-        '.ltm.virtual[] '
+        ".ltm.virtual[] "
         '| select(not contains(.rules, "/Common/log_rule")) '
         '| .rules += "/Common/log_rule"',
         {"m": _MIXED_RULES_SCF},
@@ -958,7 +954,7 @@ def test_cookbook_idempotent_attach_idiom_works():
     assert new_src.count("/Common/log_rule") == 2
     # Running it again is a no-op (idempotent).
     again = run_query(
-        '.ltm.virtual[] '
+        ".ltm.virtual[] "
         '| select(not contains(.rules, "/Common/log_rule")) '
         '| .rules += "/Common/log_rule"',
         {"m": new_src},

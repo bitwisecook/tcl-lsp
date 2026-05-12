@@ -211,9 +211,7 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
             # virtual server both called ``/Common/shared``).  The
             # ``rename()`` builtin and ``f5 rename`` CLI leave
             # ``object_kind`` empty for legacy global behaviour.
-            report = rename_object(
-                current, op.object_path, new_path, kind_scope=op.object_kind
-            )
+            report = rename_object(current, op.object_path, new_path, kind_scope=op.object_kind)
             if report.occurrences == 0:
                 if op.strict:
                     raise EditError(f"rename of {op.object_path!r} matched no source text")
@@ -245,9 +243,7 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
 # are the common BIG-IP list-shaped property slots; the value
 # projected by the evaluator is already a Python ``list``, so the
 # splice just wraps it in a brace block.
-_MATERIALISABLE_LIST_FIELDS = frozenset(
-    {"rules", "profiles", "persist", "policies", "members"}
-)
+_MATERIALISABLE_LIST_FIELDS = frozenset({"rules", "profiles", "persist", "policies", "members"})
 
 
 def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
@@ -327,9 +323,7 @@ def _format_value(value: Any, *, original_raw: str) -> str:
     return str(value)
 
 
-def _materialise_compound_block(
-    source: str, op: EditOp
-) -> tuple[int, int, str, EditOp] | None:
+def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str, EditOp] | None:
     """Return an edit that overwrites or materialises a ``<field> { ... }``
     compound block on the op's stanza, or ``None`` when the op isn't a
     candidate.
@@ -392,10 +386,9 @@ def _materialise_compound_block(
         start_in_body, end_in_body = existing
         abs_start = stanza_start + start_in_body
         abs_end = stanza_start + end_in_body
-        # Reuse the existing line's indent (preserve leading whitespace
-        # on the original block's line).
-        line_start = source.rfind("\n", stanza_start, abs_start) + 1
-        existing_indent = source[line_start:abs_start]
+        # The replacement starts at the existing block's name token,
+        # so the source's leading indent for the line is preserved
+        # implicitly — no need to re-emit it here.
         new_text = f"{op.field_name} {{ {items_text} }}"
         return (abs_start, abs_end, new_text, op)
 
