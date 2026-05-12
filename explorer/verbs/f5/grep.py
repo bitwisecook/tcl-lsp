@@ -10,6 +10,7 @@ from pathlib import Path
 from core.bigip.grep import DIRECTIONS, compute_grep, report_to_dict
 from core.bigip.parser import parse_bigip_conf
 
+from ._emit import add_format_arg, render_config
 from ._registry import verb
 
 
@@ -121,6 +122,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         metavar="FILE",
         help="Write the report here (default: stdout).",
     )
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_grep)
 
 
@@ -161,6 +163,13 @@ def _run_grep(args: argparse.Namespace) -> int:
 
     if args.json:
         output = json.dumps(report_to_dict(report, include_body=args.full), indent=2) + "\n"
+    elif args.output_format == "tmsh":
+        # tmsh mode strips the report scaffolding and emits only the
+        # matched stanzas (seeds + related) as `tmsh create` commands.
+        # `--full` is implied — without object bodies there's nothing
+        # tmsh-shaped to render.
+        scf = _matched_stanzas_to_scf(report)
+        output = render_config(scf, fmt="tmsh", tmsh_verb="create")
     else:
         output = report.text_report
         if not output.endswith("\n"):
@@ -174,3 +183,24 @@ def _run_grep(args: argparse.Namespace) -> int:
     # Exit code: 0 when at least one match was found, 1 otherwise
     # (mirrors `grep` convention: empty match is a non-zero exit).
     return 0 if report.seeds else 1
+
+
+def _matched_stanzas_to_scf(report) -> str:  # noqa: ANN001
+    """Concatenate every matched object's stanza as a synthetic SCF.
+
+    Each :class:`GrepObject` carries its original ``header`` and
+    ``body`` text, so we can reassemble the stanza verbatim and feed
+    it to the standard parser → emit_tmsh pipeline.  Order is seeds
+    first, then related (matching the text report's ordering).
+    """
+    parts: list[str] = []
+    seen: set[str] = set()
+    for obj in tuple(report.seeds) + tuple(report.related):
+        key = obj.full_path or obj.header
+        if key in seen:
+            continue
+        seen.add(key)
+        header = obj.header.rstrip()
+        body = obj.body.rstrip("\n")
+        parts.append(f"{header} {{\n{body}\n}}\n")
+    return "".join(parts)

@@ -9,6 +9,7 @@ import sys
 from explorer.f5_remote.auth import resolve_credentials
 from explorer.f5_remote.object_io import object_to_scf_stanza, pull_object
 
+from ._emit import add_format_arg, render_config
 from ._registry import verb
 
 
@@ -44,6 +45,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.add_argument(
         "--timeout", type=float, default=60.0, help="Per-request timeout (default: 60s)."
     )
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_pull)
 
 
@@ -75,5 +77,6 @@ def _run_pull(args: argparse.Namespace) -> int:
     if args.json:
         sys.stdout.write(json.dumps(obj, indent=2) + "\n")
     else:
-        sys.stdout.write(object_to_scf_stanza(args.kind, obj))
+        scf = object_to_scf_stanza(args.kind, obj)
+        sys.stdout.write(render_config(scf, fmt=args.output_format, tmsh_verb="create"))
     return 0

@@ -801,7 +801,10 @@ Highlights of the newer verbs:
   ignores property ordering and iRule whitespace.  Each side may be an
   SCF / `bigip.conf` stanza dump *or* a tmsh command script
   (`tmsh create` / `tmsh modify` lines, as emitted by `f5 tmsh` or
-  pasted from a BIG-IP shell), and the two formats may be mixed.
+  pasted from a BIG-IP shell), and the two formats may be mixed.  Every
+  config-producing verb (`extract`, `pull`, `grep`, `split`, `merge`,
+  `rename`, `redact`, `unredact`) also takes `--format scf|tmsh` so the
+  same artefact can be replayed either way.
 - **`f5 redact` + `f5 unredact`** — strip secrets and remap public IPs
   while preserving CIDR relationships (a /24 of real IPs lands in a /24
   of redacted IPs).  A sidecar map file makes the redaction reversible

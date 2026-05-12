@@ -9,6 +9,7 @@ from pathlib import Path
 from core.bigip.redact_map import DEFAULT_TARGET_CIDRS_V4, DEFAULT_TARGET_CIDRS_V6, RedactionMap
 from core.bigip.rewrite import redact_secrets
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -101,6 +102,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "use this flag to force a coarser or finer grouping."
         ),
     )
+    add_format_arg(p, tmsh_default_verb="modify")
     p.set_defaults(handler=_run_redact)
 
 
@@ -149,10 +151,11 @@ def _run_redact(args: argparse.Namespace) -> int:
         remap_private=args.remap_private,
     )
 
+    rendered = render_config(report.new_source, fmt=args.output_format, tmsh_verb="modify")
     if args.output:
-        Path(args.output).write_text(report.new_source, encoding="utf-8")
+        Path(args.output).write_text(rendered, encoding="utf-8")
     else:
-        sys.stdout.write(report.new_source)
+        sys.stdout.write(rendered)
 
     if not args.keep_ips and map_path is not None:
         map_path.parent.mkdir(parents=True, exist_ok=True)

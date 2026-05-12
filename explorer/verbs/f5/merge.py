@@ -8,6 +8,7 @@ from pathlib import Path
 
 from core.bigip.emit import emit_merged
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -26,6 +27,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     )
     p.add_argument("paths", nargs="+", help="Per-partition .conf files (or one directory).")
     p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_merge)
 
 
@@ -50,6 +52,7 @@ def _run_merge(args: argparse.Namespace) -> int:
     output = emit_merged(chunks)
     if not output.endswith("\n"):
         output += "\n"
+    output = render_config(output, fmt=args.output_format, tmsh_verb="create")
     if args.output:
         Path(args.output).write_text(output, encoding="utf-8")
     else:
