@@ -28,7 +28,7 @@ from core.bigip.query import (
     parse_query,
     run_query,
 )
-from core.bigip.query.errors import EditError, EvalError, ParseError
+from core.bigip.query.errors import EvalError, ParseError
 from core.bigip.query.output import render
 from explorer.f5_cli import main
 
@@ -314,13 +314,30 @@ def test_with_route_domain_strips_when_passed_empty():
     assert "%5:443" not in new_src
 
 
-def test_overlapping_edits_raise_conflict():
-    # Two statements writing to the same destination field.
-    with pytest.raises(EditError):
-        _run(
-            '.ltm.virtual.web_vs.destination = "1.1.1.1" ; '
-            '.ltm.virtual.web_vs.destination = "2.2.2.2"'
-        )
+def test_semicolon_statements_apply_in_order_last_write_wins():
+    # Two statements writing to the same field — the runner applies
+    # them in order against the evolving source, so the second
+    # assignment lands on top of the first.
+    result = _run(
+        '.ltm.virtual.web_vs.destination = "1.1.1.1" ; .ltm.virtual.web_vs.destination = "2.2.2.2"'
+    )
+    new_src = result.edits_per_file["mem://1"].new_source
+    assert "destination 2.2.2.2" in new_src
+    assert "destination 1.1.1.1" not in new_src
+
+
+def test_semicolon_lets_prefix_cascade_compose_with_field_edits():
+    # Prefix-cascade + field edits in one statement is rejected, but
+    # `;` splits them into separate statements that each see the
+    # post-rewrite source.
+    result = run_query(
+        'rename_partition("Common", "Tenant_A") ; '
+        '.ltm.virtual["/Tenant_A/web_vs"].destination = "9.9.9.9:443"',
+        {"mem://1": PARTITION_CONF},
+    )
+    new_src = result.edits_per_file["mem://1"].new_source
+    assert "destination 9.9.9.9:443" in new_src
+    assert "ltm virtual /Tenant_A/web_vs" in new_src
 
 
 def test_assignment_to_unknown_field_raises():
@@ -471,6 +488,65 @@ def test_cli_parse_error_returns_two(sample_conf, capsys):
     rc, _, err = _cli(["query", "this is not a query", str(sample_conf)], capsys)
     assert rc == 2
     assert "error:" in err
+
+
+def test_cli_exit_code_one_when_mutating_query_changes_nothing(sample_conf, capsys):
+    # `rename_partition` on a partition the source doesn't use produces
+    # no textual diff — exit code 1, matching the `f5 rename` "no
+    # occurrence" convention.
+    rc, _, _ = _cli(
+        ["query", 'rename_partition("Nonexistent", "Other")', str(sample_conf)],
+        capsys,
+    )
+    assert rc == 1
+
+
+def test_tilde_prefix_string_outside_subscript_is_a_plain_string():
+    # The lexer used to emit a REGEX token for any string starting with
+    # ``~``, which made it impossible to pass a literal starting with
+    # ``~`` to a builtin.  The fix lexes it as a plain STRING and only
+    # recognises the regex form inside ``[ ... ]``.
+    result = _run('contains("~something", "~")')
+    [matched] = result.values_per_file["mem://1"]
+    assert matched is True
+
+
+def test_object_cache_disambiguates_kinds_sharing_a_path(tmp_path: Path):
+    # A pool and an iRule sharing the same full-path used to collide in
+    # the cache; field access on the second kind would return the
+    # first kind's ObjectRef and fail with "no field".
+    src = (
+        "ltm pool /Common/shared {\n"
+        "    monitor /Common/http\n"
+        "}\n"
+        "ltm rule /Common/shared {\n"
+        "when HTTP_REQUEST { pool /Common/shared }\n"
+        "}\n"
+    )
+    result = run_query(
+        '.ltm.pool["/Common/shared"].monitor ; .ltm.rule["/Common/shared"].body',
+        {"mem://1": src},
+    )
+    # Both kinds resolved cleanly under the same path.
+    assert result.values_per_file["mem://1"]
+
+
+def test_from_file_promotes_expression_when_extra_paths_given(tmp_path: Path, capsys):
+    # ``f5 query -f q.fq a.conf b.conf`` used to silently drop ``a.conf``
+    # because argparse parked it in ``expression``.  The fix promotes
+    # it back into ``paths`` whenever --from-file is present.
+    conf_a = tmp_path / "a.conf"
+    conf_a.write_text(SAMPLE_CONF, encoding="utf-8")
+    conf_b = tmp_path / "b.conf"
+    conf_b.write_text(SAMPLE_CONF, encoding="utf-8")
+    script = tmp_path / "q.fq"
+    script.write_text(".ltm.virtual[].name", encoding="utf-8")
+
+    rc, out, _ = _cli(["query", "-f", str(script), str(conf_a), str(conf_b)], capsys)
+    assert rc == 0
+    # Both files were processed; output includes per-file headers.
+    assert str(conf_a) in out or "a.conf" in out
+    assert str(conf_b) in out or "b.conf" in out
 
 
 def test_cli_help_dsl(capsys):

@@ -124,8 +124,9 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
         if prefixes and any(op.field_name not in _IDENTITY_FIELDS for op in ops):
             raise EditError(
                 "cannot mix prefix-cascade rewrites (e.g. rename_partition) "
-                "with field edits in the same statement; split them with ';' "
-                "to apply them in order"
+                "with field edits in a single statement; split them with ';' "
+                "and the runner will apply each statement against the post-"
+                "rewrite source"
             )
 
         source = sources[uri]

@@ -25,7 +25,7 @@ By default the verb is a dry-run: read-only queries print their projected values
 
 ```
 f5 query '.ltm.virtual[] | .name' bigip.conf
-f5 query '.ltm.virtual["~^vs_prod_"] | .pool' bigip.conf
+f5 query '.ltm.virtual["~/vs_prod_"] | .pool' bigip.conf
 f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
 f5 query '.ltm.pool["/Common/old"].name = "/Common/new"' --write bigip.conf > new.conf
 ```

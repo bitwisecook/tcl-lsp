@@ -287,8 +287,14 @@ def _build_object_ref(
     obj: object,
     root: Root,
 ) -> ObjectRef:
-    if full_path in root._object_cache:
-        return root._object_cache[full_path]
+    # Key the cache by (kind, full_path).  BIG-IP allows different
+    # object kinds to live under the same path string (a pool, a node,
+    # and an iRule can all share ``/Common/shared``), so a single
+    # ``full_path``-only key would let one kind's :class:`ObjectRef`
+    # leak into a query that asks for another kind.
+    cache_key = (kind, full_path)
+    if cache_key in root._object_cache:
+        return root._object_cache[cache_key]
 
     _, field_map = _KIND_FIELD_MAPS[kind]
     fields: dict[str, Any] = {}
@@ -319,7 +325,7 @@ def _build_object_ref(
         stanza_slot=stanza_slot,
         config_uri=root.uri,
     )
-    root._object_cache[full_path] = ref
+    root._object_cache[cache_key] = ref
     return ref
 
 

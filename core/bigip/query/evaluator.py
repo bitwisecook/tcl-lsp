@@ -51,27 +51,34 @@ class EvalContext:
 # ---------------------------------------------------------------------------
 
 
-def evaluate(program: Program, ctx: EvalContext) -> list[Any]:
-    """Evaluate every statement against the root config.
+def evaluate_statement(stmt: Expr, ctx: EvalContext) -> list[Any]:
+    """Evaluate a single statement against ``ctx.root``.
 
-    Returns the flattened list of values produced by the *final*
-    statement of the program; earlier statements run for their edit
-    side-effects only.  Streams are unwrapped into the result list so
-    callers get a single flat sequence.
+    Returns the flattened list of values produced.  Side-effects (edits)
+    are recorded on ``ctx.edits`` for the caller to apply.
+    """
+    root_input = root_container(ctx.root)
+    return _flatten(_eval(stmt, root_input, ctx))
+
+
+def evaluate(program: Program, ctx: EvalContext) -> list[Any]:
+    """Evaluate every statement against the root, returning the last result.
+
+    This entry point is convenient for read-only queries.  Multi-
+    statement *mutating* queries should drive ``evaluate_statement``
+    one statement at a time and apply each statement's edits before
+    moving to the next — the runner does exactly that so a
+    ``rename_partition(...) ; .ltm.virtual[].destination = ...``
+    chain works the way users expect.
     """
     if not program.statements:
         return []
     last_values: list[Any] = []
     for index, stmt in enumerate(program.statements):
-        results = _eval_top(stmt, ctx)
+        results = evaluate_statement(stmt, ctx)
         if index == len(program.statements) - 1:
             last_values = results
     return last_values
-
-
-def _eval_top(stmt: Expr, ctx: EvalContext) -> list[Any]:
-    root_input = root_container(ctx.root)
-    return _flatten(_eval(stmt, root_input, ctx))
 
 
 # ---------------------------------------------------------------------------
@@ -239,24 +246,44 @@ def _resolve_pathref(ref: PathRef, ctx: EvalContext) -> ObjectRef | None:
     if not ref.full_path or ref.root is None:
         return None
     root = ref.root
-    cached = root._object_cache.get(ref.full_path)
-    if cached is not None:
-        return cached
-    # Walk every kind container we know about so unexpected ref kinds
-    # still resolve.  Each container's ``entries()`` populates the
-    # root's object cache as a side-effect.
+    # Fast path: try the cache first using the expected kind (or the
+    # ``ltm pool``/etc. recorded on the :class:`PathRef`).
+    if ref.expected_kind:
+        cached = root._object_cache.get((ref.expected_kind, ref.full_path))
+        if cached is not None:
+            return cached
     container = root_container(root)
     try:
         ltm = container.lookup("ltm")
     except EvalError:
         return None
+    # Targeted scope: if we know the kind we're looking for, only build
+    # that container's entries.  This is the common case and keeps the
+    # ``lazy projection`` cost proportional to the kinds the query
+    # actually touches.
+    if ref.expected_kind:
+        from .projection import LTM_KINDS
+
+        for label, (_, kind) in LTM_KINDS.items():
+            if kind != ref.expected_kind:
+                continue
+            try:
+                ltm.entries()[label].entries()
+            except (KeyError, EvalError):
+                return None
+            return root._object_cache.get((ref.expected_kind, ref.full_path))
+        return None
+    # Fallback: when we have no expected kind, walk every container
+    # until we find a match.  Only reached for hand-built PathRefs
+    # without an expected_kind.
     for label in ltm.entries():
         try:
             ltm.entries()[label].entries()
         except EvalError:
             continue
-        if ref.full_path in root._object_cache:
-            return root._object_cache[ref.full_path]
+        for cache_key, cached in root._object_cache.items():
+            if cache_key[1] == ref.full_path:
+                return cached
     return None
 
 

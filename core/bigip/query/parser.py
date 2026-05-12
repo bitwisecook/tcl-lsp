@@ -3,23 +3,22 @@
 Grammar (informal — the canonical version lives in
 ``docs/design/f5-query-dsl.md``)::
 
-    program     := statement (';' statement)* EOF
-    statement   := assignment | pipeline
-    assignment  := path ASSIGN_OP pipeline
-    pipeline    := or_expr ('|' or_expr)*
+    program     := pipeline (';' pipeline)* EOF
+    pipeline    := pipe_stage ('|' pipe_stage)*
+    pipe_stage  := or_expr (ASSIGN_OP pipe_stage)?
+    ASSIGN_OP   := '=' | '|=' | '+=' | '-='
     or_expr     := and_expr ('or' and_expr)*
     and_expr    := not_expr ('and' not_expr)*
     not_expr    := 'not' not_expr | cmp_expr
     cmp_expr    := add_expr (CMP_OP add_expr)?
     add_expr    := mul_expr (('+' | '-') mul_expr)*
     mul_expr    := unary    (('*' | '/') unary)*
-    unary       := '-' unary | postfix
-    postfix     := primary path_step*
+    unary       := '-' unary | primary
     primary     := literal | call | path_start | '(' pipeline ')'
-    path_start  := '.' | '.' field path_step*
-    path_step   := '.' field | '[' subscript ']'
+    path_start  := '.' | '.' field path_step* | '.' subscript path_step*
+    path_step   := '.' field | subscript
     field       := IDENT | STRING
-    subscript   := /* empty */ | pipeline | REGEX | NUMBER
+    subscript   := '[' (']' | STRING-with-leading-'~' ']' | pipeline ']')
     call        := IDENT '(' (pipeline (',' pipeline)*)? ')'
 
 A few divergences from jq:
@@ -27,13 +26,20 @@ A few divergences from jq:
 - Function arguments are separated by ``,`` rather than ``;`` —
   ``select(.a == "x", .b)`` is unambiguous because we keep ``,`` out of
   the expression grammar entirely.  jq's stream-comma is not in v1.
+- Assignment is parsed as a trailing operator on a pipe-stage rather
+  than as a top-level statement, so ``a | b |= c`` parses as
+  ``a | (b |= c)``.  That binds ``|=`` to its direct LHS, which is
+  what users want when streaming edits across many objects
+  (``.ltm.virtual[] | .destination |= ...``).
 - The bare ``.`` is the identity expression (matches jq), but
   ``.foo.bar`` is a single :class:`.ast.PathExpr` node rather than a
   pipe of two field accesses.  This makes assignment ergonomic: the
   whole LHS of an ``=`` is one path.
-- Regex subscripts use ``["~pattern"]`` rather than jq's
-  ``test("pattern")``, so they nest naturally with the rest of the
-  subscript forms.
+- Regex subscripts use ``["~pattern"]`` (a STRING literal whose
+  contents start with ``~``) rather than jq's ``test("pattern")``,
+  so they nest naturally with the rest of the subscript forms.  The
+  ``~``-prefix is only treated specially inside ``[ ... ]``; in any
+  other position the string is just a string.
 """
 
 from __future__ import annotations
@@ -319,10 +325,20 @@ class _Parser:
         if nxt.kind is TokenKind.RBRACKET:
             self._consume()
             return Subscript(stream=True, index=None, regex=None, offset=lb.offset)
-        if nxt.kind is TokenKind.REGEX:
+        # A bare string subscript whose contents start with ``~`` is a
+        # regex subscript.  We recognise it here rather than in the
+        # lexer so a string literal starting with ``~`` in any other
+        # position (e.g. ``sub(.x, "~lit", "y")``) is still just a
+        # string.  ``["~"]`` matches everything (empty pattern).
+        if (
+            nxt.kind is TokenKind.STRING
+            and isinstance(nxt.value, str)
+            and nxt.value.startswith("~")
+            and self._peek(1).kind is TokenKind.RBRACKET
+        ):
             self._consume()
             self._expect(TokenKind.RBRACKET, msg="expected ']' after regex subscript")
-            return Subscript(stream=False, index=None, regex=str(nxt.value), offset=lb.offset)
+            return Subscript(stream=False, index=None, regex=nxt.value[1:], offset=lb.offset)
         inner = self._parse_pipeline()
         self._expect(TokenKind.RBRACKET, msg="expected ']'")
         return Subscript(stream=False, index=inner, regex=None, offset=lb.offset)

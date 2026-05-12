@@ -13,7 +13,7 @@ from typing import Any
 
 from ..parser import parse_bigip_conf
 from .edit_plan import AppliedSource, apply
-from .evaluator import EvalContext, evaluate
+from .evaluator import EvalContext, evaluate_statement
 from .parser import parse_query
 from .source_map import SourceMap
 from .values import Root
@@ -27,7 +27,16 @@ _ACTIVE_ROOTS: dict[str, Root] = {}
 
 @dataclass
 class QueryResult:
-    """The combined output of a single ``f5 query`` invocation."""
+    """The combined output of a single ``f5 query`` invocation.
+
+    ``has_mutation`` reports whether the query *attempted* a mutation
+    (queued any edit op or prefix rewrite).  The actual textual diff
+    may still be empty when the query targets nothing — the CLI uses
+    ``has_mutation`` to pick between the diff-or-write code path and
+    the value-rendering one, and then independently checks whether
+    each :class:`AppliedSource` actually changed to decide the exit
+    code.
+    """
 
     values_per_file: dict[str, list[Any]] = field(default_factory=dict)
     edits_per_file: dict[str, AppliedSource] = field(default_factory=dict)
@@ -47,30 +56,57 @@ def _active_root(root: Root):
             _ACTIVE_ROOTS[root.uri] = prior
 
 
+def _build_root(uri: str, source: str) -> Root:
+    return Root(
+        uri=uri,
+        source=source,
+        config=parse_bigip_conf(source),
+        source_map=SourceMap.build(source),
+    )
+
+
 def run_query(query: str, sources: dict[str, str]) -> QueryResult:
     """Parse *query* and run it against each file in *sources*.
 
-    Returns one :class:`QueryResult` capturing the projected values
-    (per file) and the applied edits (per file).  The caller decides
-    whether to print the dry-run diff, write the new source out, or
-    propagate the values.
+    Statements separated by ``;`` are evaluated and applied in order:
+    each statement's edits land before the next runs, so a
+    ``rename_partition("Common","Tenant_A"); .ltm.virtual[].destination = "..."``
+    chain sees a coherent post-rewrite source by the second statement.
+    Inside a single statement the planner still rejects mixing a
+    prefix-cascade rewrite with field edits — the byte ranges captured
+    at projection time would otherwise be wrong after the rewrite.
     """
     program = parse_query(query)
     result = QueryResult()
     for uri, source in sources.items():
-        config = parse_bigip_conf(source)
-        root = Root(
-            uri=uri,
-            source=source,
-            config=config,
-            source_map=SourceMap.build(source),
-        )
-        ctx = EvalContext(root=root)
-        with _active_root(root):
-            values = evaluate(program, ctx)
-        result.values_per_file[uri] = values
-        if ctx.edits.has_edits():
+        current_source = source
+        accumulated_renames: list = []
+        accumulated_field_edits = 0
+        last_values: list[Any] = []
+
+        attempted_mutation = False
+        for index, stmt in enumerate(program.statements):
+            root = _build_root(uri, current_source)
+            ctx = EvalContext(root=root)
+            with _active_root(root):
+                values = evaluate_statement(stmt, ctx)
+            if index == len(program.statements) - 1:
+                last_values = values
+            if ctx.edits.has_edits():
+                attempted_mutation = True
+                applied = apply(ctx.edits, {uri: current_source})[uri]
+                current_source = applied.new_source
+                accumulated_renames.extend(applied.rename_reports)
+                accumulated_field_edits += applied.field_edits
+
+        result.values_per_file[uri] = last_values
+        if attempted_mutation:
             result.has_mutation = True
-            edits = apply(ctx.edits, {uri: source})
-            result.edits_per_file.update(edits)
+            result.edits_per_file[uri] = AppliedSource(
+                uri=uri,
+                original=source,
+                new_source=current_source,
+                rename_reports=tuple(accumulated_renames),
+                field_edits=accumulated_field_edits,
+            )
     return result

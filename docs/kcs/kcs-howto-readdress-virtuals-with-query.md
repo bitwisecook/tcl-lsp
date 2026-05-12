@@ -41,12 +41,12 @@ How do I bulk-readdress virtual servers into a new subnet?
 
    ```
    f5 query --in-place '
-     .ltm.virtual["~^vs_prod_"]
+     .ltm.virtual["~/vs_prod_"]
      | .destination |= ip("192.168.9.0/24", .)
    ' bigip.conf
    ```
 
-   The regex subscript narrows the stream to VSes whose full-path matches `^vs_prod_`; the same `|=` rewrite then runs against each one.
+   Regex subscripts are matched against each entry's full-path, so the pattern `/vs_prod_` selects every VS whose name starts with `vs_prod_` in any partition (`/Common/vs_prod_web`, `/Tenant_A/vs_prod_api`, …).  The same `|=` rewrite then runs against each match.
 
 The partition prefix on `destination` (`/Common/...`) and the `:port` suffix are preserved automatically — `ip()` strips and re-attaches them around the address-arithmetic.
 

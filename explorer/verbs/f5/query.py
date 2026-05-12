@@ -253,9 +253,13 @@ def _run_query(args: argparse.Namespace) -> int:
 
 def _resolve_expression(args: argparse.Namespace) -> str | None:
     if args.from_file:
-        if args.expression and not args.paths:
-            # User wrote `f5 query -f script.fq input.conf` — argparse
-            # parked ``input.conf`` in ``expression``.  Promote it.
+        # When --from-file is set the positional ``expression`` is
+        # always the first input file (argparse fills the positional
+        # slot before it gets to ``paths``).  Promote it unconditionally
+        # so commands like ``f5 query -f q.fq a.conf b.conf`` see both
+        # files; the previous ``and not args.paths`` guard silently
+        # dropped ``a.conf`` when more than one input was given.
+        if args.expression:
             args.paths = [args.expression, *args.paths]
             args.expression = None
         try:
@@ -272,13 +276,20 @@ def _emit_mutation(
     result,
     path_for_uri: dict[str, str],
 ) -> int:
-    rc = 0
+    any_changed = False
     for uri, applied in result.edits_per_file.items():
         for rep in applied.rename_reports:
             print(
                 f"renamed {rep.old!r} -> {rep.new!r} ({rep.occurrences} occurrence(s))",
                 file=sys.stderr,
             )
+        # A "mutating" query that produced no actual textual change
+        # (e.g. ``rename_partition(...)`` on a source with no matches)
+        # should report no-op via exit code 1, mirroring the
+        # convention ``f5 rename`` already uses.
+        if applied.new_source == applied.original:
+            continue
+        any_changed = True
         path_str = path_for_uri.get(uri, uri)
         if args.in_place and path_str != "-":
             Path(path_str).write_text(applied.new_source, encoding="utf-8")
@@ -293,7 +304,7 @@ def _emit_mutation(
             tofile=f"{path_str} (modified)",
         )
         sys.stdout.writelines(diff)
-    return rc
+    return 0 if any_changed else 1
 
 
 def _emit_values(

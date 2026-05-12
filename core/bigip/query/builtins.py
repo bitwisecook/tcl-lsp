@@ -513,14 +513,15 @@ def _builtin_with_route_domain(value: Any, rd: Any) -> str:
 @_register(
     "rename_partition",
     summary=(
-        "Rename a BIG-IP partition and every object that lives inside it.  "
-        "Schedules an identity rename for each object whose full-path "
-        "starts with ``/<old>/``, so a single statement migrates virtuals, "
-        "pools, nodes, profiles, monitors, persistence, snatpools, "
-        "policies, data-groups, and iRules together — and every reference "
-        "(in config properties and iRule bodies) is rewritten along with "
-        "them.  Pair with --in-place to persist or with the default dry-run "
-        "diff to preview."
+        "Rename a BIG-IP partition by rewriting every textual occurrence "
+        "of the ``/<old>/`` prefix across the whole source.  The match "
+        "is token-bounded — neighbouring identifiers (``/<old>Ext/...``) "
+        "are not touched — and applies to object headers, references in "
+        "config properties, destination address prefixes, pool-member "
+        "identifiers, and iRule body literals.  The bare "
+        "``auth partition <old>`` stanza header is renamed too.  Pair "
+        "with --in-place to persist or with the default dry-run diff to "
+        "preview.  Returns the textual-match count."
     ),
     signatures=("rename_partition(old: string, new: string) -> integer",),
     examples=(

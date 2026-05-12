@@ -144,6 +144,9 @@ class Root:
     config: BigipConfig
     source_map: SourceMap
 
-    # Lazily built: full-path → ObjectRef.  Populated as the user
-    # navigates so we don't pay for objects no query touches.
-    _object_cache: dict[str, ObjectRef] = field(default_factory=dict)
+    # Lazily built: (kind, full-path) → ObjectRef.  The compound key
+    # disambiguates objects that share a full-path across kinds — a
+    # pool, a node, and an iRule can all be named ``/Common/shared``.
+    # Populated as the user navigates so objects no query touches stay
+    # unprojected.
+    _object_cache: dict[tuple[str, str], ObjectRef] = field(default_factory=dict)

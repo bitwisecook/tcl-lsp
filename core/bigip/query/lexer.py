@@ -39,7 +39,6 @@ class TokenKind(Enum):
     GT = auto()
     GE = auto()
     STRING = auto()
-    REGEX = auto()  # "~...": only valid inside a subscript
     NUMBER = auto()
     IDENT = auto()  # bareword (may contain '-' after the first char)
     AND = auto()
@@ -185,9 +184,12 @@ def tokenise(source: str) -> list[Token]:
                 i += 1
             continue
 
-        # Strings: double-quoted, with the usual backslash escapes.  A
-        # leading ``~`` flags a regex subscript ("~pattern") — the
-        # caller distinguishes the kinds by token.
+        # Strings: double-quoted, with the usual backslash escapes.
+        # A leading ``~`` is *not* a token kind of its own — the parser
+        # checks for it when the string appears as the body of a
+        # subscript ``[ ... ]``.  That keeps ``sub(.x, "~lit", "y")``
+        # working: the literal happens to start with ``~``, but it is
+        # not a regex subscript and is passed through unchanged.
         if ch == '"':
             j = i + 1
             buf: list[str] = []
@@ -211,10 +213,7 @@ def tokenise(source: str) -> list[Token]:
                 raise LexError("unterminated string literal", start)
             text = "".join(buf)
             j += 1  # consume closing quote
-            if text.startswith("~"):
-                out.append(Token(TokenKind.REGEX, source[start:j], start, value=text[1:]))
-            else:
-                out.append(Token(TokenKind.STRING, source[start:j], start, value=text))
+            out.append(Token(TokenKind.STRING, source[start:j], start, value=text))
             i = j
             continue
 

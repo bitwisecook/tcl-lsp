@@ -49,13 +49,18 @@ PATH ACCESS
   .ltm.virtual            Field access — chained.
   .ltm.virtual.web_vs     TMSH partition shorthand: bare names resolve to
                           ``/Common/web_vs`` when unambiguous in the
-                          target container.  Quote the full path to be
-                          explicit: ``."[/Common/web_vs]"``.
+                          target container.  Use the subscript form
+                          ``.ltm.virtual["/Common/web_vs"]`` (see below)
+                          for an explicit full-path lookup.
   .ltm.virtual["/Common/web_vs"]
                           Exact subscript by full-path.
-  .ltm.virtual["~^vs_prod_"]
+  .ltm.virtual["~/vs_prod_"]
                           Regex subscript — matches every key whose
-                          full-path matches the pattern.
+                          full-path (including the partition prefix)
+                          contains the pattern.  Use the explicit
+                          partition prefix in the pattern when you
+                          want to anchor the match
+                          (``"~^/Common/vs_prod_"``).
   .ltm.virtual[]          Stream every value in the container.
   .ltm.virtual[].pool     A path-ref to the default pool of each VS.
                           PathRefs act as strings AND as the referenced

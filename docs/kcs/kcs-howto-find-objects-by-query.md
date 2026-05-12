@@ -47,7 +47,7 @@ How do I find BIG-IP objects matching arbitrary conditions on their properties, 
 5. Emit full SCF stanzas for selected VSes (so the output is pipeable into other `f5` verbs):
 
    ```
-   f5 query --scf '.ltm.virtual["~^vs_prod_"]' bigip.conf | f5 cleanup -
+   f5 query --scf '.ltm.virtual["~/vs_prod_"]' bigip.conf | f5 cleanup -
    ```
 
    `--scf` renders the matched objects as parseable SCF; the `cleanup` verb (or any other) reads it from stdin.

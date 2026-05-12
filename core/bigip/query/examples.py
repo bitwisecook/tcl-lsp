@@ -26,7 +26,7 @@ _EXAMPLES: tuple[Example, ...] = (
     ),
     Example(
         title="Names of VSes whose name starts with ``vs_prod_``",
-        query='.ltm.virtual["~^vs_prod_"] | .name',
+        query='.ltm.virtual["~/vs_prod_"] | .name',
         comment="Regex subscript filters keys; the dot-chain projects the name.",
     ),
     Example(
