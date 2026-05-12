@@ -53,6 +53,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
   when (and when not) to restart the Tcl Language Server.
+- [kcs-qa-query-vs-grep-vs-rename.md](kcs-qa-query-vs-grep-vs-rename.md) —
+  which `f5` verb to pick for filter / find / rename tasks.
 
 ## How-Tos
 
@@ -76,6 +78,12 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-readdress-virtuals-with-query.md](kcs-howto-readdress-virtuals-with-query.md)
+  — bulk-readdress virtual servers into a new subnet with `f5 query`.
+- [kcs-howto-rewrite-pool-refs-in-irules.md](kcs-howto-rewrite-pool-refs-in-irules.md)
+  — rename a pool everywhere, including inside iRule bodies.
+- [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)
+  — filter BIG-IP objects by arbitrary property predicates.
 - [kcs-tcl-corner-cases.md](kcs-tcl-corner-cases.md)
   — empirical reference of Tcl 9.0.3 variable-handling behaviour
   with a machine-runnable probe set in `tests/data/tcl_probes_full.tcl`.

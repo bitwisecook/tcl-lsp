@@ -54,6 +54,7 @@ stdout.  `--format ucs|both` keeps the UCS bytes too.
 | `f5 explain {virtual\|pool\|auto} <name>` | Resolve the profile chain, iRule chain, persistence, SNAT, and pool members for one object. |
 | `f5 diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). |
 | `f5 grep` | Find every object related to a name, regex, or CIDR. |
+| `f5 query` (alias `q`) | jq-flavoured DSL for filtering and projecting object properties; see [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
 | `f5 cleanup` | Generate `tmsh delete` commands for objects no virtual references. |
 | `f5 validate` (alias `lint`) | Best-practice / structural checks (orphan monitors, empty pools, deprecated iRule commands, unknown events, …). |
 
@@ -74,6 +75,7 @@ references don't trigger false-positive orphan findings.
 | Verb | Purpose |
 | --- | --- |
 | `f5 rename` (alias `mv`) | Rename a full-path and update every reference (dry-run by default). |
+| `f5 query` (alias `q`) | DSL-driven property edits and identity renames; readdressing, bulk field rewrites, and iRule reference edits all land here.  See [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
 | `f5 redact` (alias `sanitize`) | Strip secrets and remap public IPs into a configurable CIDR pool. |
 | `f5 unredact` (alias `unmap`) | Reverse a `redact` using its sidecar map file. |
 | `f5 pcap-remap` (alias `pcapmap`) | Apply a redaction map to a PCAP capture. |

@@ -1,0 +1,149 @@
+# KCS: feature — BIG-IP Query DSL
+
+> **Audience:** User
+> **Type:** Functionality
+
+## Summary
+
+`f5` CLI tool with a `query` verb that runs a small jq-flavoured DSL over a `bigip.conf` / SCF, projecting fields, filtering objects, and rewriting matched values — including readdressing virtual servers, renaming objects everywhere they appear, and adjusting iRule references.
+
+## Applies to
+
+tcl-lsp CLI
+
+## Question
+
+How do I select or rewrite many BIG-IP objects at once with a single expression, instead of chaining `grep`, `sed`, and `rename`?
+
+## How to use
+
+`f5 query` parses one or more `bigip.conf` / SCF files into the same object model the rest of the `f5` CLI uses, then runs a jq-flavoured expression against each one.  The expression navigates the parsed tree (`.ltm.virtual["/Common/web_vs"].pool`), filters with `select(...)`, and — with `=` / `|=` / `+=` / `-=` — rewrites matched values.  Identity-field writes (assigning to `.name` or `."full-path"`) automatically route through the same engine `f5 rename` uses, so renaming a pool also moves every reference to it.
+
+By default the verb is a dry-run: read-only queries print their projected values, mutating queries print a unified diff.  Pass `--write` to send the rewritten config to stdout, or `--in-place` to overwrite the input.
+
+### tcl-lsp CLI
+
+```
+f5 query '.ltm.virtual[] | .name' bigip.conf
+f5 query '.ltm.virtual["~^vs_prod_"] | .pool' bigip.conf
+f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
+f5 query '.ltm.pool["/Common/old"].name = "/Common/new"' --write bigip.conf > new.conf
+```
+
+The `q` alias is provided as a shorthand:
+
+```
+f5 q '.ltm.virtual[] | .name' bigip.conf
+```
+
+In dev, before the zipapp ships the bare `f5` script, invoke the same module directly: `python -m explorer.f5_cli query …`.
+
+The DSL itself has three companion help screens, all served from the verb's own argparse so they work offline:
+
+- `f5 query --help-dsl` — full grammar reference (operators, precedence, divergences from jq).
+- `f5 query --help-builtins` — every function exposed to the DSL, with signature, summary, and example.  Pass a name (`--help-builtins ip`) to drill down to one entry.
+- `f5 query --help-examples` — a cookbook of common one-liners covering filter, projection, mutation, rename, and iRule rewrites.
+
+The companion design doc at [`docs/design/f5-query-dsl.md`](../../design/f5-query-dsl.md) covers the value model, edit pipeline, and how to add new builtins.
+
+## Options
+
+- `-f, --from-file FILE` — read the query expression from `FILE` instead of the positional argument.  Useful for multi-line queries that share comments and intermediate computations.
+- `--scf` — render every selected value as an SCF stanza when possible.  Pairs well with `f5 query ... | f5 cleanup`.
+- `--raw` — render scalar values one per line with no quoting; matches jq's `--raw-output`.
+- `--paths-only` — print only the full-path of each object or path-ref produced.  Cheap and pipeable, useful in shell loops.
+- `--json` — render the result as a JSON array; objects serialise as `{"kind", "full-path", "fields"}`.
+- `--write` — when the query mutates, print the rewritten config to stdout (default: print a unified-diff preview).  Mutually exclusive with `--in-place`.
+- `--in-place` — when the query mutates, overwrite each input file with the rewritten config.
+- `--help-dsl` — print the DSL grammar reference and exit.
+- `--help-builtins [NAME]` — print every builtin's signature and example, or one named entry.
+- `--help-examples` — print the worked-example cookbook.
+
+The exit code is `0` when the query produced at least one value or applied at least one edit, `1` when a read-only query produced nothing, and `2` for a parse / type / edit error.
+
+## Example
+
+### Input
+
+```
+ltm pool /Common/web_pool {
+    members { /Common/n1:80 { address 10.0.0.1 } }
+    monitor /Common/http
+}
+ltm virtual /Common/web_vs {
+    destination /Common/10.10.0.5:443
+    pool /Common/web_pool
+}
+ltm virtual /Common/api_vs {
+    destination /Common/10.10.0.6:80
+    pool /Common/web_pool
+}
+```
+
+### Project every VS's default pool
+
+```
+$ f5 query --paths-only '.ltm.virtual[].pool' bigip.conf
+/Common/web_pool
+/Common/web_pool
+```
+
+### Filter VSes by destination CIDR
+
+```
+$ f5 query '.ltm.virtual[] | select(in_cidr(.destination, "10.10.0.0/24")) | .name' bigip.conf
+web_vs
+api_vs
+```
+
+### Readdress every VS, keeping host bits
+
+```
+$ f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
+--- bigip.conf
++++ bigip.conf (modified)
+@@ -7,7 +7,7 @@
+ ltm virtual /Common/web_vs {
+-    destination /Common/10.10.0.5:443
++    destination /Common/192.168.9.5:443
+     pool /Common/web_pool
+ }
+ ltm virtual /Common/api_vs {
+-    destination /Common/10.10.0.6:80
++    destination /Common/192.168.9.6:80
+     pool /Common/web_pool
+ }
+```
+
+### Rename a pool everywhere
+
+```
+$ f5 query '.ltm.pool["/Common/web_pool"].name = "/Common/app_pool"' --write bigip.conf
+ltm pool /Common/app_pool {
+    members { /Common/n1:80 { address 10.0.0.1 } }
+    monitor /Common/http
+}
+ltm virtual /Common/web_vs {
+    destination /Common/10.10.0.5:443
+    pool /Common/app_pool
+}
+ltm virtual /Common/api_vs {
+    destination /Common/10.10.0.6:80
+    pool /Common/app_pool
+}
+```
+
+A `renamed /Common/web_pool -> /Common/app_pool (3 occurrence(s))` line is also printed to stderr so the multi-stanza rewrite is visible.
+
+## Out of scope
+
+- General command-argument rewriting inside iRule bodies is deferred to v2.  In v1 the only writable slots inside an iRule are the reference lists `.refs.pools[]`, `.refs.persists[]`, and `.refs.data-groups[]`, which are rewritten via the same token-bounded engine `f5 rename` uses.
+- Compound property values (sub-blocks like `members { ... }`) are not writable in v1.  Add or remove members by editing the pool object directly, or pipe through `f5 cleanup` after a query that emits SCF stanzas.
+- The DSL is intentionally minimal — there are no user-defined functions, no variable bindings, and no stream-comma operator.  Each of those is a deliberate non-goal; chain `f5 query` with the rest of the verbs or compose multiple statements with `;` instead.
+
+## Related
+
+- [BIG-IP Related-Object Grep](kcs-feature-bigip-grep.md) — uses the same reference graph for "which objects touch X?" queries.
+- [BIG-IP Config Cleanup](kcs-feature-bigip-cleanup.md) — pairs with `f5 query --scf` to emit a tidy projection.
+- [F5 CLI](kcs-feature-f5-cli.md) — the umbrella verb catalogue.
+- [F5 query DSL design](../../design/f5-query-dsl.md) — grammar, value model, and edit pipeline internals.

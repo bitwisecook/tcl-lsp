@@ -33,6 +33,8 @@ rules for the KCS/documentation split live in
 - [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,
   reference graph, IP-redaction model, tmsh emitter, file layout, and
   the recipe for adding a new verb.
+- [f5-query-dsl.md](f5-query-dsl.md) — grammar, value model, builtin
+  registry, and edit-application pipeline for the `f5 query` verb.
 
 ## tclpkg package manager
 

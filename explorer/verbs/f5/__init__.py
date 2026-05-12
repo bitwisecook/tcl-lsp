@@ -25,6 +25,7 @@ def load_verbs() -> None:
         pcap_remap,
         pull,
         push,
+        query,
         redact,
         rename,
         split,
