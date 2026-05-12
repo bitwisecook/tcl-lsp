@@ -48,11 +48,14 @@ The installer does this automatically.
 ## Uninstall
 
 ```sh
-rm -f ~/.local/bin/{tcl,f5,tcl-lsp-mcp-server.pyz}
-rm -f ~/.local/share/bash-completion/completions/{tcl,f5}
-rm -f "${ZDOTDIR:-$HOME}/.zsh/completions/_"{tcl,f5}
-rm -f ~/.config/fish/completions/{tcl,f5}.fish
-rm -rf ~/.claude/skills/{irule,tcl,tk}-* ~/.claude/tcl-ai.pyz ~/.claude/prompts
+rm -f ~/.local/bin/tcl ~/.local/bin/f5 ~/.local/bin/tcl-lsp-mcp-server.pyz
+rm -f ~/.local/share/bash-completion/completions/tcl
+rm -f ~/.local/share/bash-completion/completions/f5
+rm -f "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl"
+rm -f "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
+rm -f ~/.config/fish/completions/tcl.fish ~/.config/fish/completions/f5.fish
+rm -rf ~/.claude/skills/irule-* ~/.claude/skills/tcl-* ~/.claude/skills/tk-*
+rm -rf ~/.claude/tcl-ai.pyz ~/.claude/prompts
 claude mcp remove tcl-lsp 2>/dev/null || true
 ```
 

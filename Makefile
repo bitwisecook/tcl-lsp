@@ -1079,16 +1079,16 @@ release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp 
 	@echo "Built release artifacts in $(BUILD_DIR)"
 
 # Aggregate sha256 hashes for every release artefact in BUILD_DIR. The
-# CI workflow runs the canonical version of this and uploads SHA256SUMS
-# as a release asset; `make release` produces a local SUMS so developers
-# can sanity-check parity with the published file.
+# CI publish-checksums job hashes every release-asset file (except
+# SHA256SUMS itself and its signature bundle); this target mirrors that
+# selection so developers can compare locally-built SUMS against the
+# published file.
 .PHONY: release-sums
 release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
 	    else h="shasum -a 256"; fi; \
 	    files=$$(find . -maxdepth 1 -type f \
-	        \( -name '*.pyz' -o -name '*.zip' -o -name '*.vsix' -o -name '*.sublime-package' \) \
 	        ! -name 'SHA256SUMS' ! -name 'SHA256SUMS.*' \
 	        | sed 's|^\./||' \
 	        | LC_ALL=C sort); \

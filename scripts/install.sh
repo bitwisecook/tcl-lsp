@@ -332,11 +332,21 @@ prefix_for() {
 read_os_release_safe() {
     f=/etc/os-release
     [ -e "$f" ] || return 1
-    # All four predicates are POSIX or universally supported (BusyBox/
-    # BSD/GNU). If find itself is unusable, the user has TCL_LSP_OS as
-    # an explicit escape hatch.
-    safe="$(find -L "$f" -maxdepth 0 -uid 0 ! -perm -002 -print 2>/dev/null)"
-    if [ -z "$safe" ]; then
+    # `ls -ldn` is POSIX and available on BusyBox/BSD/GNU. Parse the
+    # mode string (column 1) and numeric uid (column 3).
+    lsout=$(ls -ldn "$f" 2>/dev/null)
+    if [ -z "$lsout" ]; then
+        die "cannot stat $f.
+Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detection."
+    fi
+    _osr_mode=$(printf '%s' "$lsout" | awk '{print $1}')
+    _osr_uid=$(printf '%s' "$lsout" | awk '{print $3}')
+    # Mode string: type + 9 perm chars. Position 9 is the others-write bit.
+    case "$_osr_mode" in
+        ????????w*) _osr_world_writable=1 ;;
+        *)          _osr_world_writable=0 ;;
+    esac
+    if [ "$_osr_uid" != 0 ] || [ "$_osr_world_writable" = 1 ]; then
         die "$f is not root-owned or is world-writable — refusing to read it.
 Re-run with TCL_LSP_OS=<debian|rhel|fedora|arch|alpine|macos> to bypass detection."
     fi
