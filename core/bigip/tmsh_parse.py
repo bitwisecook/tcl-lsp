@@ -56,7 +56,15 @@ def normalise_tmsh_to_scf(text: str) -> str:
 
 
 def _net_brace_delta(line: str) -> int:
-    """Return ``{`` count minus ``}`` count outside quoted strings."""
+    """Return ``{`` count minus ``}`` count outside quoted strings and comments.
+
+    A ``#`` outside a quoted string starts a comment that runs to end of
+    line — Tcl-style, mirroring how an iRule body would lex.  Without
+    this the counter would treat ``# }`` inside a rule body as a real
+    closing brace and drop the tracked nesting depth prematurely, which
+    then causes top-level ``tmsh create`` / ``tmsh modify`` lines that
+    follow the rule to slip through unstripped.
+    """
     depth = 0
     in_string = False
     i = 0
@@ -69,6 +77,8 @@ def _net_brace_delta(line: str) -> int:
         if c == '"':
             in_string = not in_string
         elif not in_string:
+            if c == "#":
+                break
             if c == "{":
                 depth += 1
             elif c == "}":

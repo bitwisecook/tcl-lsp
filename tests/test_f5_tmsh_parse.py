@@ -85,3 +85,43 @@ def test_normalise_handles_multiline_stanzas():
 def test_normalise_preserves_pure_scf_unchanged():
     scf = "ltm pool /Common/p1 { load-balancing-mode round-robin }\n"
     assert normalise_tmsh_to_scf(scf) == scf
+
+
+def test_normalise_ignores_braces_inside_comments_when_tracking_depth():
+    # Regression: a `# }` (or `# {`) inside an iRule body must not affect
+    # the brace-depth tracker.  Otherwise a later top-level `tmsh create`
+    # line slips through unstripped and parse_bigip_conf misclassifies
+    # the stanza as a generic object.
+    text = textwrap.dedent(
+        """\
+        tmsh create ltm rule /Common/r1 {
+            when HTTP_REQUEST {
+                # closing brace coming: }
+                # and an open one too: {
+                log local0. "hi"
+            }
+        }
+        tmsh create ltm pool /Common/p1 { load-balancing-mode round-robin }
+        """
+    )
+    cfg = parse_bigip_conf(normalise_tmsh_to_scf(text))
+    assert "/Common/r1" in cfg.rules
+    assert "/Common/p1" in cfg.pools
+
+
+def test_normalise_handles_braces_inside_quoted_strings():
+    # Quoted-string contents are already ignored by the depth tracker;
+    # this guards against a regression of that behaviour.
+    text = textwrap.dedent(
+        """\
+        tmsh create ltm rule /Common/r2 {
+            when HTTP_REQUEST {
+                log local0. "stray brace: }{"
+            }
+        }
+        tmsh create ltm pool /Common/p2 { }
+        """
+    )
+    cfg = parse_bigip_conf(normalise_tmsh_to_scf(text))
+    assert "/Common/r2" in cfg.rules
+    assert "/Common/p2" in cfg.pools
