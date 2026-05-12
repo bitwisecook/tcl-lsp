@@ -23,8 +23,26 @@ from ._utils import (
 _PROBLEM_SEVERITIES = frozenset({Severity.ERROR, Severity.WARNING})
 
 
-@verb("diag", aliases=("diagnostics",), help="Run diagnostics across all resolved inputs.")
+@verb(
+    "diag",
+    aliases=("diagnostics",),
+    help="Run diagnostics across all resolved inputs.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_diag(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "Run the analyser over each resolved input and print every emitted\n"
+        "diagnostic (errors, warnings, and info notes).  Exit code is 1 if\n"
+        "any error- or warning-level diagnostic is reported, 0 otherwise.\n"
+        "Use --disable / --enable to toggle individual codes (e.g. W100,W110).\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} diag script.tcl\n"
+        f"  {prog_name} diag src/ --dialect f5-irules\n"
+        f"  {prog_name} diag script.tcl --json\n"
+        f"  {prog_name} diag script.tcl --disable W100,W110\n"
+    )
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--json",
@@ -35,8 +53,23 @@ def _configure_diag(p: argparse.ArgumentParser, *, prog_name: str, default_diale
     p.set_defaults(handler=_run_diag)
 
 
-@verb("lint", help="Run lint diagnostics across all resolved inputs.")
+@verb(
+    "lint",
+    help="Run lint diagnostics across all resolved inputs.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_lint(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "Alias-flavour of `diag`: runs the same analyser and emits the same\n"
+        "diagnostic set, kept as a separate verb so it slots into editors,\n"
+        "CI gates, and habit memory that expect a `lint` command.  Use the\n"
+        "same --disable / --enable / --json switches.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} lint script.tcl\n"
+        f"  {prog_name} lint src/ --dialect f5-irules --json\n"
+    )
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--json",
@@ -47,10 +80,26 @@ def _configure_lint(p: argparse.ArgumentParser, *, prog_name: str, default_diale
     p.set_defaults(handler=_run_diag)
 
 
-@verb("validate", help="Validate source (error-level diagnostics only).")
+@verb(
+    "validate",
+    help="Validate source (error-level diagnostics only).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_validate(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
+    p.description = (
+        "Stricter cousin of `diag`: only error-severity diagnostics are\n"
+        "reported, and the exit code is non-zero whenever any error is\n"
+        "found.  Intended for CI gates that want to fail fast on syntax /\n"
+        "structural problems without being noisy about style warnings.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} validate script.tcl\n"
+        f"  {prog_name} validate src/ --json\n"
+        f"  {prog_name} validate src/ --dialect f5-irules\n"
+    )
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--json",

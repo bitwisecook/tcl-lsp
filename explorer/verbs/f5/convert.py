@@ -19,14 +19,23 @@ from ._registry import verb
     "convert",
     aliases=(),
     help="Convert between UCS / SCF / AS3 declaration formats.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Format conversion: ucs2scf unpacks a UCS archive (same as "
-        "`f5 extract`), scf2as3 converts a bigip.conf into a best-effort "
-        "AS3 declaration (Application Services 3).  AS3 conversion only "
-        "covers common LTM objects; unmapped objects are listed in the "
-        "report so nothing silently disappears."
+        "Format conversion between BIG-IP serialisation formats.\n"
+        "  ucs2scf  unpack a UCS archive (same shape as `f5 extract`).\n"
+        "  scf2as3  convert a bigip.conf to an AS3 (Application Services 3)\n"
+        "           declaration.  AS3 conversion only covers common LTM\n"
+        "           objects; unmapped objects are listed in the coverage\n"
+        "           report so nothing silently disappears."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 convert ucs2scf prod.ucs -o prod.scf\n"
+        "  f5 convert scf2as3 bigip.conf -o app.as3.json\n"
+        "  f5 convert scf2as3 bigip.conf --tenant Prod --application web\n"
+        "  f5 convert scf2as3 bigip.conf --report   # coverage report on stderr\n"
     )
     p.add_argument(
         "format",

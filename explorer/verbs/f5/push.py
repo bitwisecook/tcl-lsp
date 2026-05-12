@@ -17,12 +17,22 @@ from ._registry import verb
     "push",
     aliases=(),
     help="Replace or create a single object on a live BIG-IP via iControl REST.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Send a JSON payload (typically the output of `f5 pull --json` "
-        "after editing) to a live device.  Defaults to PUT (replace); "
-        "use --create to POST a brand-new object."
+        "Send a JSON payload (typically the output of `f5 pull --json`\n"
+        "after editing) to a live device.  Defaults to PUT (replace);\n"
+        "use --create to POST a brand-new object.  Pair with --dry-run\n"
+        "to print the HTTP request without sending it."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 pull virtual /Common/vs --host bigip --json > vs.json\n"
+        "  $EDITOR vs.json\n"
+        "  f5 push virtual vs.json --host bigip                # replace\n"
+        "  f5 push pool new_pool.json --host bigip --create    # create\n"
+        "  f5 push virtual vs.json --host bigip --dry-run\n"
     )
     p.add_argument(
         "kind",

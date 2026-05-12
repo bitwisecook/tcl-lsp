@@ -201,6 +201,33 @@ jobs:
             fi
           fi
 
+      - name: Stamp + upload installer script to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          sha="$(git rev-parse --short HEAD)"
+          # Replace the @@INSTALLER_VERSION_*@@ placeholders so a user
+          # running --version on the published asset sees the actual
+          # release. The in-tree script on main stays unstamped so
+          # contributors don't see misleading version strings locally.
+          tmp="$(mktemp)"
+          sed \
+            -e "s/@@INSTALLER_VERSION_TAG@@/${tag}/" \
+            -e "s/@@INSTALLER_VERSION_SHA@@/(${sha})/" \
+            scripts/install.sh > "$tmp"
+          # Sanity-check that both placeholders were actually replaced
+          # before we upload — failing loudly here beats publishing a
+          # script that reports itself as "dev (unstamped)".
+          if grep -q '@@INSTALLER_VERSION_' "$tmp"; then
+              echo "ERROR: installer placeholder was not stamped" >&2
+              grep '@@INSTALLER_VERSION_' "$tmp" >&2
+              exit 1
+          fi
+          install -m 0755 "$tmp" install.sh
+          rm -f "$tmp"
+          gh release upload "$tag" install.sh --clobber
+
   # Build: VSIX package
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -385,7 +412,7 @@ jobs:
           python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
-          python3 build/tcl-*.pyz convert samples/for_screenshots/ai-scene.irul --json
+          python3 build/tcl-*.pyz find-legacy samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
           python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
           python3 build/tcl-*.pyz help taint --dialect f5-irules
@@ -803,10 +830,75 @@ jobs:
           tag="${GITHUB_REF#refs/tags/}"
           gh release upload "$tag" build/tcl-lsp-zed-*.zip --clobber
 
+  # Publish: aggregate SHA256SUMS over every artefact attached to the
+  # release, plus an optional cosign keyless signature. The installer
+  # verifies downloaded artefacts against this file.
+  publish-checksums:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release, build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # gh release upload
+      id-token: write   # cosign keyless OIDC signing
+    steps:
+      - name: Determine tag
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Download every release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          # Pull every asset currently attached to the release; this
+          # gives a single SUMS covering whatever was uploaded by the
+          # 12 build jobs (or by future ones, without further edits).
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --dir dist \
+            --clobber
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: |
+          # Sort for deterministic ordering. Exclude any pre-existing
+          # SHA256SUMS{,.cosign.bundle} so a rerun doesn't hash itself.
+          find . -maxdepth 1 -type f \
+            ! -name SHA256SUMS \
+            ! -name 'SHA256SUMS.*' \
+            -printf '%f\n' \
+            | LC_ALL=C sort \
+            | xargs -r sha256sum > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" dist/SHA256SUMS \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign SHA256SUMS (keyless OIDC)
+        working-directory: dist
+        run: |
+          cosign sign-blob --yes \
+            --bundle SHA256SUMS.cosign.bundle \
+            SHA256SUMS
+
+      - name: Upload SHA256SUMS.cosign.bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" dist/SHA256SUMS.cosign.bundle \
+            --repo "${{ github.repository }}" --clobber
+
   # Cleanup: delete workflow artifacts for all releases except the 3 most recent
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, publish-checksums]
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -857,7 +949,7 @@ jobs:
   # Cleanup: delete all non-release artifacts (runs only during releases)
   cleanup-untagged-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
+    needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, publish-checksums]
     runs-on: ubuntu-latest
     permissions:
       actions: write

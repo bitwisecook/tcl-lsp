@@ -621,7 +621,7 @@ _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz symbols samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz callgraph samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz command-info HTTP::uri --dialect f5-irules --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz convert samples/for_screenshots/ai-scene.irul --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz find-legacy samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null
@@ -1074,9 +1074,30 @@ publish-zed: zed ## Publish Zed extension (via GitHub Release)
 
 # Release
 
-release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed ## Build all release artifacts (parity with tagged CI release jobs)
+release: package-vsix zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp claude-skills zipapp-mcp zipapp-wasm jetbrains sublime zed release-sums ## Build all release artifacts (parity with tagged CI release jobs)
 	@echo ""
 	@echo "Built release artifacts in $(BUILD_DIR)"
+
+# Aggregate sha256 hashes for every release artefact in BUILD_DIR. The
+# CI publish-checksums job hashes every release-asset file (except
+# SHA256SUMS itself and its signature bundle); this target mirrors that
+# selection so developers can compare locally-built SUMS against the
+# published file.
+.PHONY: release-sums
+release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-mcp zipapp-wasm claude-skills package-vsix jetbrains sublime zed
+	@cd $(BUILD_DIR) && \
+	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
+	    else h="shasum -a 256"; fi; \
+	    files=$$(find . -maxdepth 1 -type f \
+	        ! -name 'SHA256SUMS' ! -name 'SHA256SUMS.*' \
+	        | sed 's|^\./||' \
+	        | LC_ALL=C sort); \
+	    if [ -z "$$files" ]; then \
+	        : > SHA256SUMS; \
+	    else \
+	        printf '%s\n' $$files | xargs $$h > SHA256SUMS; \
+	    fi
+	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)

@@ -506,15 +506,15 @@ def _tool_review(source: str, dialect: str = "") -> str:
 
 
 @tool(
-    "convert",
-    "Detect legacy patterns eligible for modernisation.",
+    "find-legacy",
+    "Detect legacy patterns eligible for modernisation (detection only — does not rewrite).",
     params={
         "source": {**_STR, "description": "Tcl or iRules source code to scan"},
         "dialect": {**_STR, "description": "Language dialect. Auto-detected if empty."},
     },
     required=["source"],
 )
-def _tool_convert(source: str, dialect: str = "") -> str:
+def _tool_find_legacy(source: str, dialect: str = "") -> str:
     _configure_dialect(dialect or _detect_dialect(source))
 
     from core.analysis import analyse

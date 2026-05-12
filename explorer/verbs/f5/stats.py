@@ -17,12 +17,21 @@ from ._registry import verb
     "stats",
     aliases=("summary",),
     help="Print object counts, partition breakdown, and top-references.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Aggregate counts of pools / virtuals / nodes / iRules / etc. "
-        "across one or more bigip.conf / SCF files.  Useful first-look "
-        "before running heavier analysis."
+        "Aggregate counts of pools / virtuals / nodes / iRules / etc.\n"
+        "across one or more bigip.conf / SCF files.  Useful first-look\n"
+        "before running heavier analysis: how big is this config, where\n"
+        "are objects concentrated, what's most referenced."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 stats bigip.conf\n"
+        "  f5 stats bigip.conf --top 20\n"
+        "  f5 stats bigip.conf --json -o stats.json\n"
+        "  f5 stats prod.conf staging.conf   # combined across both\n"
     )
     p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
     p.add_argument("--json", action="store_true", help="Emit JSON instead of text.")

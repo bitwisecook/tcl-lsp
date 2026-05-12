@@ -17,13 +17,19 @@ from ._registry import verb
     "merge",
     aliases=(),
     help="Concatenate split per-partition SCFs back into a single bigip.conf.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Inverse of `f5 split`: read every *.conf file under DIR (or "
-        "the explicit list of paths) in lexicographic order, "
-        "concatenate them into one SCF, and emit the result to stdout "
+        "Inverse of `f5 split`: read every *.conf file under DIR (or\n"
+        "the explicit list of paths) in lexicographic order,\n"
+        "concatenate them into one SCF, and emit the result to stdout\n"
         "or --output."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 merge partitions/ -o bigip.conf\n"
+        "  f5 merge common.conf prod.conf gtm.conf -o bigip.conf\n"
     )
     p.add_argument("paths", nargs="+", help="Per-partition .conf files (or one directory).")
     p.add_argument("-o", "--output", metavar="FILE", help="Write here (default: stdout).")

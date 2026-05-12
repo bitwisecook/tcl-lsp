@@ -19,18 +19,27 @@ from ._registry import verb
     "diff",
     aliases=("changes",),
     help="Object-aware diff between two SCF or tmsh-output files.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Compare two parsed BIG-IP configurations and report objects "
-        "added, removed, or modified.  Each input may be either an SCF "
-        "/ bigip.conf stanza dump or a tmsh command script "
-        "(`tmsh create` / `tmsh modify` lines, as emitted by `f5 tmsh` "
-        "or pasted from a real BIG-IP shell) — the two formats may even "
-        "be mixed across the two sides.  Property ordering and "
-        "whitespace are ignored; iRule bodies are compared after "
-        "stripping comments and collapsing whitespace.  Exits 1 when "
-        "the two configs differ (makes the verb easy to use in scripts)."
+        "Compare two parsed BIG-IP configurations and report objects\n"
+        "added, removed, or modified.  Each input may be either an SCF\n"
+        "/ bigip.conf stanza dump or a tmsh command script\n"
+        "(`tmsh create` / `tmsh modify` lines, as emitted by `f5 tmsh`\n"
+        "or pasted from a real BIG-IP shell) — the two formats may\n"
+        "even be mixed across the two sides.  Property ordering and\n"
+        "whitespace are ignored; iRule bodies are compared after\n"
+        "stripping comments and collapsing whitespace.  Exits 1 when\n"
+        "the two configs differ (makes the verb easy to use in CI\n"
+        "gates and pre-flight checks)."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 diff old.conf new.conf\n"
+        "  f5 diff old.conf new.conf --json -o changes.json\n"
+        "  f5 diff prev.scf current.scf && echo no changes\n"
+        "  f5 diff before.scf after.tmsh        # mixed SCF + tmsh input\n"
     )
     p.add_argument(
         "before",

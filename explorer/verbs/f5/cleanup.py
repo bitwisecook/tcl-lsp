@@ -17,13 +17,24 @@ from ._registry import verb
     "cleanup",
     aliases=("clean",),
     help="Generate `tmsh delete` commands for objects unreferenced by any virtual.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Walk the BIG-IP object reference graph from every ltm virtual / "
-        "gtm wide-IP and emit a tmsh script that deletes everything else, "
-        "in reverse-topological order so each delete runs only after the "
-        "objects that reference its target have already been removed."
+        "Walk the BIG-IP object reference graph from every ltm virtual /\n"
+        "gtm wide-IP and emit a tmsh script that deletes everything else,\n"
+        "in reverse-topological order so each delete runs only after the\n"
+        "objects that reference its target have already been removed.\n"
+        "Objects under /Common/ are kept by default — pass --no-keep-common\n"
+        "to delete factory-shipped objects too."
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} cleanup bigip.conf\n"
+        f"  {prog_name} cleanup bigip.conf --json -o cleanup.json\n"
+        f"  {prog_name} cleanup bigip.conf --keep /Common/myproxy_pool\n"
+        f"  {prog_name} cleanup bigip.conf --keep /Sandbox/  # keep whole partition\n"
+        f"  {prog_name} cleanup bigip.conf --no-keep-common -o tmsh-delete.tcl\n"
     )
     p.add_argument(
         "paths",

@@ -22,12 +22,22 @@ from ._registry import verb
     "extract",
     aliases=("ucs2scf",),
     help="Convert a local UCS archive to an SCF text file.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Read a BIG-IP UCS backup archive (.ucs is gzip+tar of /config) "
-        "and write a concatenated Single Configuration File text suitable "
-        "for the rest of the f5 CLI verbs."
+        "Read a BIG-IP UCS backup archive (.ucs is gzip+tar of /config)\n"
+        "and write a concatenated Single Configuration File text suitable\n"
+        "for the rest of the f5 CLI verbs.  By default only the canonical\n"
+        "bigip_base / bigip / bigip_gtm / bigip_user / bigip_script members\n"
+        "are included; use --include-extras to pull every additional\n"
+        "config/*.conf member found inside the archive."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 extract prod.ucs > prod.scf\n"
+        "  f5 extract prod.ucs -o prod.scf\n"
+        "  f5 extract prod.ucs --include-extras -o full.scf\n"
     )
     p.add_argument(
         "ucs",

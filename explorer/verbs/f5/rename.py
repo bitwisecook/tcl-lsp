@@ -17,15 +17,23 @@ from ._registry import verb
     "rename",
     aliases=("mv",),
     help="Rename a BIG-IP object full-path and update every reference.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Replace every occurrence of OLD with NEW in a bigip.conf / SCF "
-        "— both the object's own header and every reference in property "
-        "values, iRule bodies (`pool foo`, `class match ... <data-group>`), "
-        "and pool member addresses.  Token-bounded so substring "
-        "collisions don't fire.  Dry-run by default; pass --write or "
-        "--in-place to persist."
+        "Replace every occurrence of OLD with NEW in a bigip.conf / SCF\n"
+        "— both the object's own header and every reference in property\n"
+        "values, iRule bodies (`pool foo`, `class match ... <data-group>`),\n"
+        "and pool member addresses.  Token-bounded so substring\n"
+        "collisions don't fire.  Dry-run by default (emits a unified\n"
+        "diff); pass --write or --in-place to persist."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf       # dry-run diff\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf --write > new.conf\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf --in-place\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf -o new.conf\n"
     )
     p.add_argument("old", help="Old full-path (e.g. /Common/old_pool).")
     p.add_argument("new", help="New full-path (e.g. /Common/new_pool).")

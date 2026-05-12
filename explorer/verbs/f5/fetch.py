@@ -29,13 +29,25 @@ from ._registry import verb
     "fetch",
     aliases=("get",),
     help="Pull SCF or UCS from a live BIG-IP device (REST or SSH).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Connect to a BIG-IP, save its running config, and download "
-        "either an SCF text file, a UCS archive, or both.  UCS inputs "
-        "are converted to SCF on the fly so downstream verbs always "
-        "have a usable text artefact."
+        "Connect to a BIG-IP, save its running config, and download\n"
+        "either an SCF text file, a UCS archive, or both.  UCS inputs\n"
+        "are converted to SCF on the fly so downstream verbs always\n"
+        "have a usable text artefact.  Credentials may come from --user\n"
+        "/ --password, F5_USER / F5_PASSWORD env vars, or an interactive\n"
+        "prompt.  Use --transport auto (default) to try REST first and\n"
+        "fall back to SSH if the iControl endpoint isn't available."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 fetch --host bigip.example.com\n"
+        "  F5_USER=admin F5_PASSWORD=... f5 fetch --host 10.0.0.1\n"
+        "  f5 fetch --host bigip --format ucs -o backups/\n"
+        "  f5 fetch --host bigip --format both --transport ssh\n"
+        "  f5 fetch --host bigip -o - > running.scf\n"
     )
     p.add_argument("--host", help="Device hostname / IP / alias (or set F5_HOST).")
     p.add_argument("--user", help="Username (or set F5_USER).")

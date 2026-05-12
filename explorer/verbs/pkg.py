@@ -638,7 +638,23 @@ def add_pkg_subparser(
     pkg_p = sub.add_parser(
         "pkg",
         help="Manage Tcl packages and lockfiles.",
-        description="Manage Tcl packages, dependencies, and the tclpkg.lock lockfile.",
+        description=(
+            "Manage Tcl packages, dependencies, and the tclpkg.lock lockfile.\n"
+            "Each sub-action runs against the manifest in the current "
+            "directory (or --manifest PATH).  Use `pkg <action> --help` for "
+            "per-action flags."
+        ),
+        epilog=(
+            "Examples:\n"
+            f"  {prog_name} pkg init --name myproj\n"
+            f"  {prog_name} pkg install\n"
+            f"  {prog_name} pkg add tcllib\n"
+            f"  {prog_name} pkg tree --json\n"
+            f"  {prog_name} pkg why http\n"
+            f"  {prog_name} pkg sync   # lock-driven install\n"
+            f"  {prog_name} pkg outdated\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     pkg_sub = pkg_p.add_subparsers(dest="pkg_action", required=True)
 
