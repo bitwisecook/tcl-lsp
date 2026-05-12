@@ -963,6 +963,27 @@ def test_cookbook_idempotent_attach_idiom_works():
     assert applied is None or applied.new_source == applied.original
 
 
+def test_pool_members_writes_are_rejected_not_corrupted():
+    """``.ltm.pool[].members`` is sub-block-shaped — each element is an
+    object with ``address`` / ``port`` / ``monitor`` fields, not a
+    flat token.  The compound-block materialiser would stringify the
+    member objects into a meaningless token sequence and produce
+    invalid SCF; pool-member edits stay out of scope for v1.  The
+    edit pipeline must reject the write with a clear error rather
+    than corrupt the config silently.
+    """
+    from core.bigip.query.errors import EditError
+
+    src = (
+        "ltm pool /Common/web_pool {\n"
+        "    members { /Common/n1:80 { address 192.0.2.10 } }\n"
+        "    monitor /Common/http\n"
+        "}\n"
+    )
+    with pytest.raises(EditError):
+        run_query(".ltm.pool[].members = []", {"m": src})
+
+
 # Issue 5 — ``--json`` of scalar / path-ref projections.
 _JSON_SCALAR_SCF = (
     "ltm pool /Common/web_pool {\n"

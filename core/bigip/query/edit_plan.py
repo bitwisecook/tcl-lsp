@@ -243,7 +243,18 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
 # are the common BIG-IP list-shaped property slots; the value
 # projected by the evaluator is already a Python ``list``, so the
 # splice just wraps it in a brace block.
-_MATERIALISABLE_LIST_FIELDS = frozenset({"rules", "profiles", "persist", "policies", "members"})
+# Fields that ``+=`` / ``=`` can materialise as a fresh
+# ``<field> { ... }`` block on a stanza that doesn't already have one.
+# Restricted to *flat* list slots whose elements stringify cleanly to
+# bare tokens — VS attachments by full-path.  Pool members are
+# intentionally excluded: their list elements are sub-block-shaped
+# objects (``/Common/n1:80 { address … port … monitor … }``) that the
+# generic materialiser would flatten into a meaningless token sequence
+# and produce invalid SCF.  Pool-member edits stay out of scope for
+# v1; reach for ``f5 cleanup`` round-trip or hand-edit the stanza.
+_MATERIALISABLE_LIST_FIELDS = frozenset(
+    {"rules", "profiles", "persist", "policies"}
+)
 
 
 def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
@@ -339,7 +350,8 @@ def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str,
 
     - The op's ``field_name`` is one of the known
       :data:`_MATERIALISABLE_LIST_FIELDS` (``rules`` / ``profiles`` /
-      ``persist`` / ``policies`` / ``members``).
+      ``persist`` / ``policies``).  ``members`` is intentionally out
+      of scope — its elements are sub-block-shaped objects.
     - The op has a ``stanza_slot`` so we know where to insert.
     - The op's ``new_value`` is a non-empty list (an empty list would
       produce ``<field> { }`` — no-op, skipped).
