@@ -38,7 +38,7 @@ _EXAMPLES: tuple[Example, ...] = (
         title="VSes whose pool member is in 10.0.0.0/8",
         query=(
             ".ltm.virtual[] "
-            "| select(any(.pool.members[].address | map(in_cidr(., \"10.0.0.0/8\")))) "
+            '| select(any(.pool.members[].address | map(in_cidr(., "10.0.0.0/8")))) '
             "| .name"
         ),
         comment=(
@@ -67,7 +67,7 @@ _EXAMPLES: tuple[Example, ...] = (
     Example(
         title="Add ``/Common/log_rule`` to every VS that does not already have it",
         query=(
-            '.ltm.virtual[] '
+            ".ltm.virtual[] "
             '| select(not contains(.rules, "/Common/log_rule")) '
             '| .rules += "/Common/log_rule"'
         ),
@@ -78,16 +78,12 @@ _EXAMPLES: tuple[Example, ...] = (
     ),
     Example(
         title="Find every iRule that mentions a removed pool",
-        query=(
-            '.ltm.rule[] '
-            '| select(contains(.refs.pools, "/Common/old_pool")) '
-            '| .name'
-        ),
+        query=('.ltm.rule[] | select(contains(.refs.pools, "/Common/old_pool")) | .name'),
         comment="The iRule sub-tree exposes parsed ref slots without sub-parsing every command.",
     ),
     Example(
         title="Strip the ``/Common/`` partition from every default pool",
-        query='.ltm.virtual[].pool |= basename(.)',
+        query=".ltm.virtual[].pool |= basename(.)",
         comment="One-line projection-then-rewrite using `|=` plus the path helper.",
     ),
     Example(
@@ -111,7 +107,7 @@ _EXAMPLES: tuple[Example, ...] = (
     ),
     Example(
         title="Set the route domain on every destination",
-        query='.ltm.virtual[] | .destination |= with_route_domain(., 7)',
+        query=".ltm.virtual[] | .destination |= with_route_domain(., 7)",
         comment=(
             "Route domain is part of the routable identity; "
             "`with_route_domain` sets, replaces, or strips it while "
@@ -138,7 +134,7 @@ _EXAMPLES: tuple[Example, ...] = (
     Example(
         title="Park every dev VS on port 0 (a common maintenance trick)",
         query=(
-            '.ltm.virtual[] '
+            ".ltm.virtual[] "
             '| select(contains(.name, "_dev_")) '
             '| .destination |= sub(., ":[0-9]+$", ":0")'
         ),

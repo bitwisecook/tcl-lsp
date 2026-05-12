@@ -22,7 +22,6 @@ from ..rewrite import RenameReport, rename_object
 from .errors import EditError
 from .values import FieldSlot, PathRef
 
-
 _IDENTITY_FIELDS = frozenset({"name", "full-path"})
 
 
@@ -122,9 +121,7 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
         ops = by_uri.get(uri, [])
         prefixes = prefix_by_uri.get(uri, [])
 
-        if prefixes and any(
-            op.field_name not in _IDENTITY_FIELDS for op in ops
-        ):
+        if prefixes and any(op.field_name not in _IDENTITY_FIELDS for op in ops):
             raise EditError(
                 "cannot mix prefix-cascade rewrites (e.g. rename_partition) "
                 "with field edits in the same statement; split them with ';' "
@@ -181,14 +178,10 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
         for op in identity_ops:
             new_path = _stringify(op.new_value)
             if not new_path:
-                raise EditError(
-                    f"rename target for {op.object_path!r} produced an empty value"
-                )
+                raise EditError(f"rename target for {op.object_path!r} produced an empty value")
             report = rename_object(current, op.object_path, new_path)
             if report.occurrences == 0:
-                raise EditError(
-                    f"rename of {op.object_path!r} matched no source text"
-                )
+                raise EditError(f"rename of {op.object_path!r} matched no source text")
             current = report.new_source
             rename_reports.append(report)
 

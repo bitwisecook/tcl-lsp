@@ -147,9 +147,7 @@ class _Parser:
             target = _as_path(lhs, tok.offset)
             self._consume()
             rhs = self._parse_pipe_stage()
-            return Assignment(
-                target=target, op=_ASSIGN_OPS[tok.kind], rhs=rhs, offset=tok.offset
-            )
+            return Assignment(target=target, op=_ASSIGN_OPS[tok.kind], rhs=rhs, offset=tok.offset)
         return lhs
 
     def _parse_or(self) -> Expr:
@@ -238,7 +236,13 @@ class _Parser:
     def _parse_primary(self) -> Expr:
         tok = self._peek()
 
-        if tok.kind in (TokenKind.NUMBER, TokenKind.STRING, TokenKind.TRUE, TokenKind.FALSE, TokenKind.NULL):
+        if tok.kind in (
+            TokenKind.NUMBER,
+            TokenKind.STRING,
+            TokenKind.TRUE,
+            TokenKind.FALSE,
+            TokenKind.NULL,
+        ):
             self._consume()
             return Literal(value=tok.value, offset=tok.offset)
 
@@ -330,8 +334,7 @@ def _as_path(expr: Expr, op_offset: int) -> PathExpr:
     if isinstance(expr, Identity):
         return PathExpr(steps=(), offset=expr.offset)
     raise ParseError(
-        "left-hand side of an assignment must be a path expression "
-        "(starting with '.')",
+        "left-hand side of an assignment must be a path expression (starting with '.')",
         op_offset,
     )
 

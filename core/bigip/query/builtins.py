@@ -25,12 +25,11 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from .errors import BuiltinError
 from .values import ObjectRef, PathRef, Stream
-
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -184,9 +183,7 @@ def _as_sequence(value: object, *, name: str, arg: int) -> list[Any]:
         return list(value)
     if isinstance(value, tuple):
         return list(value)
-    raise BuiltinError(
-        f"{name}: argument {arg} must be a list or stream, got {_type_name(value)}"
-    )
+    raise BuiltinError(f"{name}: argument {arg} must be a list or stream, got {_type_name(value)}")
 
 
 def _type_name(value: object) -> str:
@@ -245,9 +242,7 @@ def _split_destination(value: str) -> tuple[str, str, str, str]:
     )
 
 
-def _rebuild_destination(
-    partition: str, address: str, route_domain: str, port: str
-) -> str:
+def _rebuild_destination(partition: str, address: str, route_domain: str, port: str) -> str:
     """Inverse of :func:`_split_destination`."""
     out = f"{partition}{address}"
     if route_domain:
@@ -301,13 +296,9 @@ def _builtin_ip(*args: Any) -> str:
         src_ip = ipaddress.ip_address(src_addr)
     except ValueError as exc:
         raise BuiltinError(f"ip: invalid source address {src_addr!r}: {exc}") from exc
-    if isinstance(network, ipaddress.IPv4Network) and not isinstance(
-        src_ip, ipaddress.IPv4Address
-    ):
+    if isinstance(network, ipaddress.IPv4Network) and not isinstance(src_ip, ipaddress.IPv4Address):
         raise BuiltinError("ip: cannot rebase an IPv6 address into an IPv4 network")
-    if isinstance(network, ipaddress.IPv6Network) and not isinstance(
-        src_ip, ipaddress.IPv6Address
-    ):
+    if isinstance(network, ipaddress.IPv6Network) and not isinstance(src_ip, ipaddress.IPv6Address):
         raise BuiltinError("ip: cannot rebase an IPv4 address into an IPv6 network")
     host_bits = int(src_ip) & (~int(network.netmask))
     new_int = int(network.network_address) | host_bits
@@ -344,7 +335,7 @@ def _builtin_net(value: Any) -> str:
     ),
     signatures=("host(value: string) -> string",),
     examples=(
-        'host(.destination)',
+        "host(.destination)",
         'host("/Common/192.168.1.1:80")   # -> "192.168.1.1"',
     ),
     category="net",
@@ -364,7 +355,7 @@ def _builtin_host(value: Any) -> str:
         "``null`` if no port is present."
     ),
     signatures=("port(value: string) -> integer | null",),
-    examples=('port(.destination)', 'port("192.168.1.1:80")   # -> 80'),
+    examples=("port(.destination)", 'port("192.168.1.1:80")   # -> 80'),
     category="net",
     min_args=1,
     max_args=1,
@@ -466,7 +457,7 @@ def _builtin_in_cidr(addr: Any, network: Any) -> bool:
     ),
     signatures=("route_domain(value: string) -> string | null",),
     examples=(
-        'route_domain(.destination)',
+        "route_domain(.destination)",
         'route_domain("10.0.0.1%5:80")   # -> "5"',
     ),
     category="net",
@@ -488,9 +479,9 @@ def _builtin_route_domain(value: Any) -> str | None:
     ),
     signatures=("with_route_domain(value: string, rd: string | integer | null) -> string",),
     examples=(
-        'with_route_domain(.destination, 5)',
+        "with_route_domain(.destination, 5)",
         'with_route_domain("/Common/10.0.0.1%5:80", "")   # strip rd',
-        '.ltm.virtual[] | .destination |= with_route_domain(., 7)',
+        ".ltm.virtual[] | .destination |= with_route_domain(., 7)",
     ),
     category="net",
     min_args=2,
@@ -509,8 +500,7 @@ def _builtin_with_route_domain(value: Any, rd: Any) -> str:
         new_rd = rd
     else:
         raise BuiltinError(
-            f"with_route_domain: rd must be a string, integer, or null, "
-            f"got {_type_name(rd)}"
+            f"with_route_domain: rd must be a string, integer, or null, got {_type_name(rd)}"
         )
     return _rebuild_destination(partition, addr, new_rd, port)
 
@@ -554,9 +544,7 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
     if not re.fullmatch(r"[A-Za-z0-9_.\-]+", old_name) or not re.fullmatch(
         r"[A-Za-z0-9_.\-]+", new_name
     ):
-        raise BuiltinError(
-            "rename_partition: partition names must match [A-Za-z0-9_.-]+"
-        )
+        raise BuiltinError("rename_partition: partition names must match [A-Za-z0-9_.-]+")
     if old_name == new_name:
         return 0
 
@@ -564,9 +552,7 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
     # ("/OldExt/...") isn't matched.  The trailing lookahead requires
     # an identifier or address character after the prefix, so bare
     # occurrences of the partition name on their own do not match.
-    prefix_pattern = re.compile(
-        rf"(?<![A-Za-z0-9_/.\-])/{re.escape(old_name)}/(?=[A-Za-z0-9_])"
-    )
+    prefix_pattern = re.compile(rf"(?<![A-Za-z0-9_/.\-])/{re.escape(old_name)}/(?=[A-Za-z0-9_])")
     # ``auth partition Old { ... }`` — the standalone partition stanza.
     header_pattern = re.compile(
         rf"(?<![A-Za-z0-9_/.\-])(auth\s+partition\s+){re.escape(old_name)}"
@@ -605,7 +591,7 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
     "length",
     summary="Length of a string, list, stream, or object's field map.",
     signatures=("length(value: any) -> integer",),
-    examples=("length(.rules)", '.rules | length'),
+    examples=("length(.rules)", ".rules | length"),
     category="value",
     min_args=1,
     max_args=1,
@@ -649,9 +635,7 @@ def _builtin_startswith(value: Any, prefix: Any) -> bool:
     max_args=2,
 )
 def _builtin_endswith(value: Any, suffix: Any) -> bool:
-    return _as_str(value, name="endswith", arg=1).endswith(
-        _as_str(suffix, name="endswith", arg=2)
-    )
+    return _as_str(value, name="endswith", arg=1).endswith(_as_str(suffix, name="endswith", arg=2))
 
 
 @_register(
@@ -770,7 +754,7 @@ def _builtin_join(values: Any, sep: Any) -> str:
     "upcase",
     summary="Uppercase a string.",
     signatures=("upcase(value: string) -> string",),
-    examples=('upcase(.name)',),
+    examples=("upcase(.name)",),
     category="string",
     min_args=1,
     max_args=1,
@@ -783,7 +767,7 @@ def _builtin_upcase(value: Any) -> str:
     "downcase",
     summary="Lowercase a string.",
     signatures=("downcase(value: string) -> string",),
-    examples=('downcase(.name)',),
+    examples=("downcase(.name)",),
     category="string",
     min_args=1,
     max_args=1,
@@ -914,7 +898,7 @@ def _builtin_sort(value: Any) -> list[Any]:
     items = _as_sequence(value, name="sort", arg=1)
     return sorted(
         items,
-        key=lambda v: (v.full_path if isinstance(v, PathRef) else v),
+        key=lambda v: v.full_path if isinstance(v, PathRef) else v,
     )
 
 
@@ -971,7 +955,7 @@ def _builtin_select(*_args):  # pragma: no cover - dispatched specially
     "map",
     summary="Apply the body to every item, returning the list of results.",
     signatures=("map(body) -> list",),
-    examples=('.rules | map(basename(.))',),
+    examples=(".rules | map(basename(.))",),
     category="stream",
     min_args=1,
     max_args=1,
@@ -1093,9 +1077,7 @@ def _builtin_referenced_by(value: Any) -> list[str]:
     from .graph import reverse_refs
 
     if not isinstance(value, ObjectRef):
-        raise BuiltinError(
-            f"referenced_by: argument 1 must be an object, got {_type_name(value)}"
-        )
+        raise BuiltinError(f"referenced_by: argument 1 must be an object, got {_type_name(value)}")
     return reverse_refs(value)
 
 

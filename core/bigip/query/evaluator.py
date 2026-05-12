@@ -36,7 +36,7 @@ from .ast import (
 from .builtins import _truthy
 from .edit_plan import EditOp, EditPlan
 from .errors import EvalError
-from .projection import Container, _OBJECT_KIND_ALIASES, root_container
+from .projection import Container, root_container
 from .values import ObjectRef, PathRef, Root, Stream
 
 
@@ -375,7 +375,7 @@ def _eq(lhs: Any, rhs: Any) -> bool:
 
 
 def _cmp(lhs: Any, rhs: Any, op: str) -> bool:
-    if type(lhs) != type(rhs) and not (
+    if type(lhs) is not type(rhs) and not (
         isinstance(lhs, (int, float)) and isinstance(rhs, (int, float))
     ):
         raise EvalError(f"cannot compare {_describe(lhs)} with {_describe(rhs)}")
@@ -482,9 +482,7 @@ def _resolve_assignment_targets(
         if isinstance(obj, PathRef):
             resolved = _resolve_pathref(obj, ctx)
             if resolved is None:
-                raise EvalError(
-                    f"cannot assign through unresolved path {obj.full_path!r}"
-                )
+                raise EvalError(f"cannot assign through unresolved path {obj.full_path!r}")
             obj = resolved
         if not isinstance(obj, ObjectRef):
             raise EvalError(
@@ -494,9 +492,7 @@ def _resolve_assignment_targets(
         if final.name not in obj.fields:
             raise EvalError(f"{obj.kind}: no field {final.name!r}")
         targets.append(
-            _AssignTarget(
-                obj=obj, field_name=final.name, current_value=obj.fields[final.name]
-            )
+            _AssignTarget(obj=obj, field_name=final.name, current_value=obj.fields[final.name])
         )
     return targets
 

@@ -40,11 +40,10 @@ from core.bigip.query.output import render
 from ._paths import read_path
 from ._registry import verb
 
-
 _DESCRIPTION = (
     "Inspect and rewrite BIG-IP configuration with a small jq-flavoured "
     "DSL.  Queries navigate the parsed object tree (``.ltm.virtual[]``, "
-    "``.ltm.pool[\"/Common/web_pool\"]``, ``.ltm.rule[]``), filter with "
+    '``.ltm.pool["/Common/web_pool"]``, ``.ltm.rule[]``), filter with '
     "``select(...)``, project fields, and — with ``=`` / ``|=`` / "
     "``+=`` / ``-=`` — rewrite matched values.  Identity-field "
     "writes auto-route through the same engine ``f5 rename`` uses, so "
@@ -64,14 +63,14 @@ _EPILOG = (
     "\n"
     "  # VSes whose pool member is in 10.0.0.0/8\n"
     "  f5 query '.ltm.virtual[] | select(any(.pool.members[].address "
-    "| map(in_cidr(., \"10.0.0.0/8\")))) | .name' bigip.conf\n"
+    '| map(in_cidr(., "10.0.0.0/8")))) | .name\' bigip.conf\n'
     "\n"
     "  # Readdress every VS into 192.168.9.0/24 (dry-run diff)\n"
     "  f5 query '.ltm.virtual[] | .destination |= ip(\"192.168.9.0/24\", .)' "
     "bigip.conf\n"
     "\n"
     "  # Rename a pool everywhere (header + references)\n"
-    "  f5 query '.ltm.pool[\"/Common/old\"].name = \"/Common/new\"' "
+    '  f5 query \'.ltm.pool["/Common/old"].name = "/Common/new"\' '
     "--write bigip.conf > new.conf\n"
     "\n"
     "Run --help-dsl for the grammar, --help-builtins for the function\n"
@@ -117,17 +116,13 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.add_argument(
         "expression",
         nargs="?",
-        help=(
-            "Query expression.  Use ``-f FILE`` to read a multi-line "
-            "query from a file instead."
-        ),
+        help=("Query expression.  Use ``-f FILE`` to read a multi-line query from a file instead."),
     )
     p.add_argument(
         "paths",
         nargs="*",
         help=(
-            "bigip.conf / SCF files (one or more).  Pass ``-`` to read "
-            "a single config from stdin."
+            "bigip.conf / SCF files (one or more).  Pass ``-`` to read a single config from stdin."
         ),
     )
     p.add_argument(
@@ -185,10 +180,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     write_group.add_argument(
         "--in-place",
         action="store_true",
-        help=(
-            "When the query mutates, overwrite each input file with the "
-            "rewritten config."
-        ),
+        help=("When the query mutates, overwrite each input file with the rewritten config."),
     )
 
     p.add_argument(
@@ -226,8 +218,7 @@ def _run_query(args: argparse.Namespace) -> int:
     expression = _resolve_expression(args)
     if expression is None:
         print(
-            "error: no query expression supplied "
-            "(positional or --from-file)",
+            "error: no query expression supplied (positional or --from-file)",
             file=sys.stderr,
         )
         return 2
@@ -285,8 +276,7 @@ def _emit_mutation(
     for uri, applied in result.edits_per_file.items():
         for rep in applied.rename_reports:
             print(
-                f"renamed {rep.old!r} -> {rep.new!r} "
-                f"({rep.occurrences} occurrence(s))",
+                f"renamed {rep.old!r} -> {rep.new!r} ({rep.occurrences} occurrence(s))",
                 file=sys.stderr,
             )
         path_str = path_for_uri.get(uri, uri)

@@ -18,7 +18,6 @@ from .parser import parse_query
 from .source_map import SourceMap
 from .values import Root
 
-
 # Active roots are looked up by URI by graph builtins (``refs`` /
 # ``referenced_by``) which need the per-file context without it being
 # threaded through every call.  This is a module-level map rather than

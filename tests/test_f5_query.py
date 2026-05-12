@@ -32,7 +32,6 @@ from core.bigip.query.errors import EditError, EvalError, ParseError
 from core.bigip.query.output import render
 from explorer.f5_cli import main
 
-
 SAMPLE_CONF = """ltm node /Common/n1 {
     address 10.0.0.1
 }
@@ -91,7 +90,7 @@ def test_parser_accepts_pipeline_assignment():
 
 
 def test_parser_accepts_semicolon_statements():
-    parse_query('.ltm.virtual[].name ; .ltm.pool[].name')
+    parse_query(".ltm.virtual[].name ; .ltm.pool[].name")
 
 
 # ---------------------------------------------------------------------------
@@ -131,16 +130,12 @@ def test_partition_shorthand():
 
 
 def test_select_filters_stream():
-    result = _run(
-        '.ltm.virtual[] | select(startswith(.name, "api")) | .name'
-    )
+    result = _run('.ltm.virtual[] | select(startswith(.name, "api")) | .name')
     assert result.values_per_file["mem://1"] == ["api_vs"]
 
 
 def test_in_cidr_filter():
-    result = _run(
-        '.ltm.virtual[] | select(in_cidr(.destination, "10.10.0.0/24")) | .name'
-    )
+    result = _run('.ltm.virtual[] | select(in_cidr(.destination, "10.10.0.0/24")) | .name')
     assert sorted(result.values_per_file["mem://1"]) == ["api_vs", "web_vs"]
 
 
@@ -185,9 +180,7 @@ def test_with_partition_replaces_partition():
 
 
 def test_contains_matches_lists_and_strings():
-    result = _run(
-        '.ltm.virtual[] | select(contains(.rules, "/Common/log_rule")) | .name'
-    )
+    result = _run('.ltm.virtual[] | select(contains(.rules, "/Common/log_rule")) | .name')
     assert result.values_per_file["mem://1"] == ["web_vs"]
 
 
@@ -215,9 +208,7 @@ def test_update_assignment_uses_current_value():
 
 
 def test_identity_rename_rewrites_every_reference():
-    result = _run(
-        '.ltm.pool["/Common/web_pool"].name = "/Common/new_web_pool"'
-    )
+    result = _run('.ltm.pool["/Common/web_pool"].name = "/Common/new_web_pool"')
     applied = result.edits_per_file["mem://1"]
     assert any(rep.old == "/Common/web_pool" for rep in applied.rename_reports)
     new_src = applied.new_source
@@ -262,9 +253,7 @@ when HTTP_REQUEST {
 
 
 def test_rename_partition_cascades_through_compound_values():
-    result = run_query(
-        'rename_partition("Common", "Tenant_A")', {"mem://1": PARTITION_CONF}
-    )
+    result = run_query('rename_partition("Common", "Tenant_A")', {"mem://1": PARTITION_CONF})
     new_src = result.edits_per_file["mem://1"].new_source
     # Every /Common/ occurrence — including the destination address
     # prefix and the pool-member identifier — has moved.
@@ -468,17 +457,13 @@ def test_cli_in_place_overwrites_file(sample_conf, capsys):
 
 
 def test_cli_paths_only_mode(sample_conf, capsys):
-    rc, out, _ = _cli(
-        ["query", "--paths-only", ".ltm.virtual[]", str(sample_conf)], capsys
-    )
+    rc, out, _ = _cli(["query", "--paths-only", ".ltm.virtual[]", str(sample_conf)], capsys)
     assert rc == 0
     assert "/Common/web_vs" in out
 
 
 def test_cli_exit_code_when_no_matches(sample_conf, capsys):
-    rc, _, _ = _cli(
-        ["query", '.ltm.virtual["~no-match"] | .name', str(sample_conf)], capsys
-    )
+    rc, _, _ = _cli(["query", '.ltm.virtual["~no-match"] | .name', str(sample_conf)], capsys)
     assert rc == 1
 
 

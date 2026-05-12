@@ -10,7 +10,6 @@ so inline.
 
 from __future__ import annotations
 
-
 _GRAMMAR = r"""F5 QUERY DSL — GRAMMAR
 
 A query is a pipeline of stages joined by ``|``.  Each stage transforms

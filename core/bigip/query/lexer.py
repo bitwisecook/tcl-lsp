@@ -212,9 +212,7 @@ def tokenise(source: str) -> list[Token]:
             text = "".join(buf)
             j += 1  # consume closing quote
             if text.startswith("~"):
-                out.append(
-                    Token(TokenKind.REGEX, source[start:j], start, value=text[1:])
-                )
+                out.append(Token(TokenKind.REGEX, source[start:j], start, value=text[1:]))
             else:
                 out.append(Token(TokenKind.STRING, source[start:j], start, value=text))
             i = j

@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..model import (
-    BigipConfig,
     BigipDataGroup,
     BigipMonitor,
     BigipNode,
@@ -37,7 +36,6 @@ from ..model import (
 )
 from .errors import EvalError
 from .values import FieldSlot, ObjectRef, PathRef, Root
-
 
 # ---------------------------------------------------------------------------
 # Container abstraction
@@ -224,9 +222,7 @@ _LTM_KINDS: dict[str, tuple[str, str]] = {
     "data-group": ("data_groups", "ltm data-group"),
 }
 
-_OBJECT_KIND_ALIASES = frozenset(
-    kind for _, kind in _LTM_KINDS.values()
-)
+_OBJECT_KIND_ALIASES = frozenset(kind for _, kind in _LTM_KINDS.values())
 
 
 # Public alias so ``builtins.rename_partition`` and other consumers can
@@ -335,7 +331,7 @@ def _project_field(
 ) -> Any:
     # Synthesised fields first.
     if spec.attr == "__refs__":
-        if kind == "ltm rule":
+        if kind == "ltm rule" and isinstance(obj, BigipRule):
             return _rule_refs_value(obj, root)
         return None
 
@@ -389,9 +385,7 @@ def _rule_refs_value(obj: BigipRule, root: Root) -> ObjectRef:
     )
 
 
-def _extract_rule_refs(
-    obj: BigipRule, root: Root
-) -> tuple[list[str], list[str], list[str]]:
+def _extract_rule_refs(obj: BigipRule, root: Root) -> tuple[list[str], list[str], list[str]]:
     from ..grep import compute_grep
 
     report = compute_grep(
