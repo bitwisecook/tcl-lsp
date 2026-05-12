@@ -106,12 +106,20 @@ MODULES
                           each, streamed via ``.sys.dns[]``);
                           ``provision``, ``folder``, ``file-ssl-cert``,
                           ``file-ssl-key``, ``management-route``.
+  .security.<kind>        Security module:
+                          ``firewall-port-list``,
+                          ``firewall-rule-list``,
+                          ``firewall-config-entity-id``,
+                          ``ip-intelligence-policy``,
+                          ``protocol-inspection-compliance-map``,
+                          ``protocol-inspection-compliance-objects``,
+                          ``device-id-attribute``.
 
-  Unmodelled kinds (``apm.*``, ``security.*``, ``cm.*``, ``pem.*``, …)
-  still parse and are surfaced via ``rename_partition`` /
-  cross-module rewrites, but they are not navigable from the DSL in
-  v1.  Reach into them with ``f5 query --scf`` after a partition
-  cascade, or wait for the follow-on typed-projection rounds.
+  Unmodelled kinds (``apm.*``, ``cm.*``, ``pem.*``, …) still parse
+  and are surfaced via ``rename_partition`` / cross-module rewrites,
+  but they are not navigable from the DSL in v1.  Reach into them
+  with ``f5 query --scf`` after a partition cascade, or wait for the
+  follow-on typed-projection rounds.
 
 ASSIGNMENT
 

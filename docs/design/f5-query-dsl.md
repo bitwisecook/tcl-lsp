@@ -233,6 +233,20 @@ Singletons (``sys.dns``, ``sys.ntp``, ``sys.snmp``,
 the empty-string key, so ``.sys.dns[]`` streams the one entry and
 ``.sys.dns[""]`` is an exact lookup.
 
+```
+.security
+  .firewall-port-list["/Common/web"].ports[]
+  .firewall-rule-list["/Common/rl1"].rules[]
+  .firewall-config-entity-id["/Common/id1"].entity-id
+  .ip-intelligence-policy["/Common/ip-intel"].name
+  .protocol-inspection-compliance-map["/Common/m1"].insp-id
+                                                   .key-type
+                                                   .value-type
+  .protocol-inspection-compliance-objects["/Common/o1"].insp-id
+                                                       .type
+  .device-id-attribute["/Common/att01"].id
+```
+
 PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `net self → net vlan → tag` in one chain, and
 `.ltm.virtual[].pool.members[].address` walks the existing

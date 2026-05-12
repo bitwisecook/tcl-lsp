@@ -468,6 +468,95 @@ class BigipSysManagementRoute:
     range: Range | None = None
 
 
+# security.* — typed projection for AFM / DDoS / device-id / inspection.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallPortList:
+    """A ``security firewall port-list`` object."""
+
+    name: str
+    full_path: str
+    ports: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallRuleList:
+    """A ``security firewall rule-list`` object.
+
+    Only top-level rule names are surfaced in v1; the nested
+    per-rule ``action`` / ``ip-protocol`` / source / destination
+    blocks are reachable through the unmodelled-stanza source view.
+    """
+
+    name: str
+    full_path: str
+    rules: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallConfigEntityId:
+    """A ``security firewall config-entity-id`` object."""
+
+    name: str
+    full_path: str
+    entity_id: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityIpIntelligencePolicy:
+    """A ``security ip-intelligence policy`` object.
+
+    The body is typically empty (the policy is referenced from other
+    contexts); we just surface name and full-path.
+    """
+
+    name: str
+    full_path: str
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityProtocolInspectionComplianceMap:
+    """A ``security protocol-inspection compliance-map`` object."""
+
+    name: str
+    full_path: str
+    insp_id: str = ""
+    key_type: str = ""
+    value_type: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityProtocolInspectionComplianceObject:
+    """A ``security protocol-inspection compliance-objects`` object.
+
+    Note: BIG-IP emits multiple stanzas with the same full-path but
+    different ``insp-id`` values; the dict-keyed model surfaces only
+    the last one encountered.  Use the source view for the full set.
+    """
+
+    name: str
+    full_path: str
+    insp_id: str = ""
+    type_: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityDeviceIdAttribute:
+    """A ``security device-id attribute`` object."""
+
+    name: str
+    full_path: str
+    id_: str = ""
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -505,6 +594,28 @@ class BigipConfig:
     sys_file_ssl_certs: dict[str, BigipSysFileSslCert] = field(default_factory=dict)
     sys_file_ssl_keys: dict[str, BigipSysFileSslKey] = field(default_factory=dict)
     sys_management_routes: dict[str, BigipSysManagementRoute] = field(default_factory=dict)
+    # security.* — AFM / DDoS / inspection / device-id.
+    security_firewall_port_lists: dict[str, BigipSecurityFirewallPortList] = field(
+        default_factory=dict
+    )
+    security_firewall_rule_lists: dict[str, BigipSecurityFirewallRuleList] = field(
+        default_factory=dict
+    )
+    security_firewall_config_entity_ids: dict[str, BigipSecurityFirewallConfigEntityId] = field(
+        default_factory=dict
+    )
+    security_ip_intelligence_policies: dict[str, BigipSecurityIpIntelligencePolicy] = field(
+        default_factory=dict
+    )
+    security_pi_compliance_maps: dict[str, BigipSecurityProtocolInspectionComplianceMap] = field(
+        default_factory=dict
+    )
+    security_pi_compliance_objects: dict[str, BigipSecurityProtocolInspectionComplianceObject] = (
+        field(default_factory=dict)
+    )
+    security_device_id_attributes: dict[str, BigipSecurityDeviceIdAttribute] = field(
+        default_factory=dict
+    )
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

@@ -1222,6 +1222,121 @@ def test_sys_management_route_projects_gateway_and_description():
     assert result.values_per_file["m"] == ["configured-statically"]
 
 
+# ---------------------------------------------------------------------------
+# security.* — typed projection for AFM / inspection / device-id
+# ---------------------------------------------------------------------------
+
+_SECURITY_SCF = (
+    "security firewall port-list /Common/web_ports {\n"
+    "    ports {\n"
+    "        80 { }\n"
+    "        443 { }\n"
+    "        8080 { }\n"
+    "    }\n"
+    "}\n"
+    "security firewall rule-list /Common/rl_web {\n"
+    "    rules {\n"
+    "        allow_http {\n"
+    "            action accept\n"
+    "            ip-protocol tcp\n"
+    "        }\n"
+    "        allow_https {\n"
+    "            action accept\n"
+    "            ip-protocol tcp\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "security firewall config-entity-id /Common/uuid_entity_id {\n"
+    "    entity-id 8903696776153557482\n"
+    "}\n"
+    "security ip-intelligence policy /Common/ip-intelligence { }\n"
+    "security protocol-inspection compliance-map /Common/map_10426 {\n"
+    "    insp-id 10426\n"
+    "    key-type int\n"
+    "    value-type vector-string\n"
+    "}\n"
+    "security protocol-inspection compliance-objects /Common/allowed_ip_addresses {\n"
+    "    insp-id 11800\n"
+    "    type vector-string\n"
+    "}\n"
+    "security device-id attribute /Common/att01 {\n"
+    "    id 1\n"
+    "}\n"
+    "security device-id attribute /Common/att02 {\n"
+    "    id 2\n"
+    "}\n"
+)
+
+
+def test_security_firewall_port_list_projects_ports():
+    """``security firewall port-list`` is a two-word kind; the parser
+    must recognise it so the ``ports`` list comes through.
+    """
+    result = run_query(
+        '.security.firewall-port-list["/Common/web_ports"].ports',
+        {"m": _SECURITY_SCF},
+    )
+    [ports] = result.values_per_file["m"]
+    assert sorted(ports) == ["443", "80", "8080"]
+
+
+def test_security_firewall_rule_list_projects_rule_names():
+    result = run_query(
+        '.security.firewall-rule-list["/Common/rl_web"].rules',
+        {"m": _SECURITY_SCF},
+    )
+    [rules] = result.values_per_file["m"]
+    assert sorted(rules) == ["allow_http", "allow_https"]
+
+
+def test_security_firewall_config_entity_id_projects_entity_id():
+    result = run_query(
+        ".security.firewall-config-entity-id[].entity-id",
+        {"m": _SECURITY_SCF},
+    )
+    assert result.values_per_file["m"] == ["8903696776153557482"]
+
+
+def test_security_ip_intelligence_policy_projects_name():
+    """Empty-body stanza — we still surface name/full-path."""
+    result = run_query(
+        ".security.ip-intelligence-policy[].name",
+        {"m": _SECURITY_SCF},
+    )
+    assert result.values_per_file["m"] == ["ip-intelligence"]
+
+
+def test_security_protocol_inspection_compliance_map_projects_insp_id():
+    result = run_query(
+        ".security.protocol-inspection-compliance-map[].insp-id",
+        {"m": _SECURITY_SCF},
+    )
+    assert result.values_per_file["m"] == ["10426"]
+    result = run_query(
+        ".security.protocol-inspection-compliance-map[].key-type",
+        {"m": _SECURITY_SCF},
+    )
+    assert result.values_per_file["m"] == ["int"]
+
+
+def test_security_protocol_inspection_compliance_objects_projects_type():
+    result = run_query(
+        ".security.protocol-inspection-compliance-objects[].type",
+        {"m": _SECURITY_SCF},
+    )
+    assert result.values_per_file["m"] == ["vector-string"]
+
+
+def test_security_device_id_attribute_projects_id():
+    result = run_query(".security.device-id-attribute[].id", {"m": _SECURITY_SCF})
+    assert sorted(result.values_per_file["m"]) == ["1", "2"]
+    result = run_query(
+        '.security.device-id-attribute["/Common/att01"].id',
+        {"m": _SECURITY_SCF},
+    )
+    assert result.values_per_file["m"] == ["1"]
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"

@@ -50,6 +50,13 @@ from .model import (
     BigipPoolMember,
     BigipProfile,
     BigipRule,
+    BigipSecurityDeviceIdAttribute,
+    BigipSecurityFirewallConfigEntityId,
+    BigipSecurityFirewallPortList,
+    BigipSecurityFirewallRuleList,
+    BigipSecurityIpIntelligencePolicy,
+    BigipSecurityProtocolInspectionComplianceMap,
+    BigipSecurityProtocolInspectionComplianceObject,
     BigipSnatPool,
     BigipSysDns,
     BigipSysFileSslCert,
@@ -429,6 +436,14 @@ _TWO_WORD_TYPES = frozenset(
         # sys.* — multi-word kinds.
         "file ssl-cert",
         "file ssl-key",
+        # security.* — multi-word kinds.
+        "firewall port-list",
+        "firewall rule-list",
+        "firewall config-entity-id",
+        "ip-intelligence policy",
+        "protocol-inspection compliance-map",
+        "protocol-inspection compliance-objects",
+        "device-id attribute",
     }
 )
 
@@ -1343,6 +1358,108 @@ def _parse_sys_management_route(
     )
 
 
+# security.* parsers
+
+
+def _parse_security_firewall_port_list(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallPortList:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    ports: tuple[str, ...] = ()
+    if "ports" in props:
+        ports = tuple(_parse_list_block(props["ports"].value))
+    return BigipSecurityFirewallPortList(
+        name=name,
+        full_path=full_path,
+        ports=ports,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_rule_list(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallRuleList:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    rules: tuple[str, ...] = ()
+    if "rules" in props:
+        rules = tuple(_parse_list_block(props["rules"].value))
+    return BigipSecurityFirewallRuleList(
+        name=name,
+        full_path=full_path,
+        rules=rules,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_config_entity_id(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallConfigEntityId:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityFirewallConfigEntityId(
+        name=name,
+        full_path=full_path,
+        entity_id=props["entity-id"].value if "entity-id" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_ip_intelligence_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityIpIntelligencePolicy:
+    del body  # body is typically empty
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityIpIntelligencePolicy(
+        name=name,
+        full_path=full_path,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_pi_compliance_map(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityProtocolInspectionComplianceMap:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityProtocolInspectionComplianceMap(
+        name=name,
+        full_path=full_path,
+        insp_id=props["insp-id"].value if "insp-id" in props else "",
+        key_type=props["key-type"].value if "key-type" in props else "",
+        value_type=props["value-type"].value if "value-type" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_pi_compliance_object(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityProtocolInspectionComplianceObject:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityProtocolInspectionComplianceObject(
+        name=name,
+        full_path=full_path,
+        insp_id=props["insp-id"].value if "insp-id" in props else "",
+        type_=props["type"].value if "type" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_device_id_attribute(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityDeviceIdAttribute:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityDeviceIdAttribute(
+        name=name,
+        full_path=full_path,
+        id_=props["id"].value if "id" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1455,6 +1572,39 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             elif obj_type == "management-route":
                 config.sys_management_routes[full_path] = _parse_sys_management_route(
                     full_path, block.body, source_map, block
+                )
+            continue
+
+        if module == "security":
+            if obj_type == "firewall port-list":
+                config.security_firewall_port_lists[full_path] = _parse_security_firewall_port_list(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "firewall rule-list":
+                config.security_firewall_rule_lists[full_path] = _parse_security_firewall_rule_list(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "firewall config-entity-id":
+                config.security_firewall_config_entity_ids[full_path] = (
+                    _parse_security_firewall_config_entity_id(
+                        full_path, block.body, source_map, block
+                    )
+                )
+            elif obj_type == "ip-intelligence policy":
+                config.security_ip_intelligence_policies[full_path] = (
+                    _parse_security_ip_intelligence_policy(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "protocol-inspection compliance-map":
+                config.security_pi_compliance_maps[full_path] = _parse_security_pi_compliance_map(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "protocol-inspection compliance-objects":
+                config.security_pi_compliance_objects[full_path] = (
+                    _parse_security_pi_compliance_object(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "device-id attribute":
+                config.security_device_id_attributes[full_path] = (
+                    _parse_security_device_id_attribute(full_path, block.body, source_map, block)
                 )
             continue
 

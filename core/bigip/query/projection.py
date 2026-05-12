@@ -40,6 +40,13 @@ from ..model import (
     BigipPoolMember,
     BigipProfile,
     BigipRule,
+    BigipSecurityDeviceIdAttribute,
+    BigipSecurityFirewallConfigEntityId,
+    BigipSecurityFirewallPortList,
+    BigipSecurityFirewallRuleList,
+    BigipSecurityIpIntelligencePolicy,
+    BigipSecurityProtocolInspectionComplianceMap,
+    BigipSecurityProtocolInspectionComplianceObject,
     BigipSnatPool,
     BigipSysDns,
     BigipSysFileSslCert,
@@ -345,6 +352,50 @@ _SYS_MANAGEMENT_ROUTE_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
 }
 
+_SECURITY_FW_PORT_LIST_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "ports": FieldSpec("ports"),
+}
+
+_SECURITY_FW_RULE_LIST_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "rules": FieldSpec("rules"),
+}
+
+_SECURITY_FW_CONFIG_ENTITY_ID_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "entity-id": FieldSpec("entity_id"),
+}
+
+_SECURITY_IP_INTELLIGENCE_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+}
+
+_SECURITY_PI_COMPLIANCE_MAP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "insp-id": FieldSpec("insp_id"),
+    "key-type": FieldSpec("key_type"),
+    "value-type": FieldSpec("value_type"),
+}
+
+_SECURITY_PI_COMPLIANCE_OBJECT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "insp-id": FieldSpec("insp_id"),
+    "type": FieldSpec("type_"),
+}
+
+_SECURITY_DEVICE_ID_ATTRIBUTE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "id": FieldSpec("id_"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -375,6 +426,34 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "sys file ssl-cert": (BigipSysFileSslCert, _SYS_FILE_SSL_CERT_FIELDS),
     "sys file ssl-key": (BigipSysFileSslKey, _SYS_FILE_SSL_KEY_FIELDS),
     "sys management-route": (BigipSysManagementRoute, _SYS_MANAGEMENT_ROUTE_FIELDS),
+    "security firewall port-list": (
+        BigipSecurityFirewallPortList,
+        _SECURITY_FW_PORT_LIST_FIELDS,
+    ),
+    "security firewall rule-list": (
+        BigipSecurityFirewallRuleList,
+        _SECURITY_FW_RULE_LIST_FIELDS,
+    ),
+    "security firewall config-entity-id": (
+        BigipSecurityFirewallConfigEntityId,
+        _SECURITY_FW_CONFIG_ENTITY_ID_FIELDS,
+    ),
+    "security ip-intelligence policy": (
+        BigipSecurityIpIntelligencePolicy,
+        _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS,
+    ),
+    "security protocol-inspection compliance-map": (
+        BigipSecurityProtocolInspectionComplianceMap,
+        _SECURITY_PI_COMPLIANCE_MAP_FIELDS,
+    ),
+    "security protocol-inspection compliance-objects": (
+        BigipSecurityProtocolInspectionComplianceObject,
+        _SECURITY_PI_COMPLIANCE_OBJECT_FIELDS,
+    ),
+    "security device-id attribute": (
+        BigipSecurityDeviceIdAttribute,
+        _SECURITY_DEVICE_ID_ATTRIBUTE_FIELDS,
+    ),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -416,6 +495,36 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "file-ssl-cert": ("sys_file_ssl_certs", "sys file ssl-cert"),
         "file-ssl-key": ("sys_file_ssl_keys", "sys file ssl-key"),
         "management-route": ("sys_management_routes", "sys management-route"),
+    },
+    "security": {
+        "firewall-port-list": (
+            "security_firewall_port_lists",
+            "security firewall port-list",
+        ),
+        "firewall-rule-list": (
+            "security_firewall_rule_lists",
+            "security firewall rule-list",
+        ),
+        "firewall-config-entity-id": (
+            "security_firewall_config_entity_ids",
+            "security firewall config-entity-id",
+        ),
+        "ip-intelligence-policy": (
+            "security_ip_intelligence_policies",
+            "security ip-intelligence policy",
+        ),
+        "protocol-inspection-compliance-map": (
+            "security_pi_compliance_maps",
+            "security protocol-inspection compliance-map",
+        ),
+        "protocol-inspection-compliance-objects": (
+            "security_pi_compliance_objects",
+            "security protocol-inspection compliance-objects",
+        ),
+        "device-id-attribute": (
+            "security_device_id_attributes",
+            "security device-id attribute",
+        ),
     },
 }
 
