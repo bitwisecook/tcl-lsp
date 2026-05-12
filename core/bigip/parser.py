@@ -113,11 +113,19 @@ def _extract_blocks(source: str) -> list[_Block]:
                         depth += 1
                     elif ch == "}":
                         depth -= 1
+                    elif ch == "\\" and pos + 1 < length:
+                        # Backslash-escaped token outside a string —
+                        # tmsh emits ``\"key\"`` for record keys with
+                        # special characters.  Treat the backslash and
+                        # the following character as opaque so the
+                        # subsequent quote doesn't start a string scan
+                        # that would gobble braces.
+                        pos += 1
                     elif ch == '"':
                         # Skip quoted string
                         pos += 1
                         while pos < length and source[pos] != '"':
-                            if source[pos] == "\\":
+                            if source[pos] == "\\" and pos + 1 < length:
                                 pos += 1  # skip escaped char
                             pos += 1
                     pos += 1
@@ -181,10 +189,16 @@ def _parse_properties_with_spans(body: str) -> dict[str, _Property]:
                     depth += 1
                 elif ch == "}":
                     depth -= 1
+                elif ch == "\\" and pos + 1 < length:
+                    # See `_extract_blocks` for the same handler — tmsh
+                    # writes ``\"...\"`` for keys with special chars,
+                    # and the backslash must protect the following
+                    # quote from being interpreted as a string start.
+                    pos += 1
                 elif ch == '"':
                     pos += 1
                     while pos < length and body[pos] != '"':
-                        if body[pos] == "\\":
+                        if body[pos] == "\\" and pos + 1 < length:
                             pos += 1
                         pos += 1
                 pos += 1
@@ -248,15 +262,22 @@ def _parse_list_block(braced: str) -> list[str]:
     length = len(inner)
 
     while pos < length:
+        loop_start = pos
         # Skip whitespace
         while pos < length and inner[pos] in " \t\n\r":
             pos += 1
         if pos >= length:
             break
 
-        # Read the item name (up to whitespace or brace)
+        # Read the item name (up to whitespace or brace).  Backslash
+        # escapes (``\"key\"``) are folded in as opaque pairs so a
+        # tmsh-emitted escaped quote inside the name doesn't terminate
+        # the token at the trailing ``"``.
         name_start = pos
         while pos < length and inner[pos] not in " \t\n\r{}":
+            if inner[pos] == "\\" and pos + 1 < length:
+                pos += 2
+                continue
             pos += 1
         name = inner[name_start:pos].strip()
 
@@ -264,19 +285,33 @@ def _parse_list_block(braced: str) -> list[str]:
         while pos < length and inner[pos] in " \t":
             pos += 1
 
-        # If followed by a brace, skip the sub-block
+        # If followed by a brace, skip the sub-block.  Honour the
+        # ``\``-escape inside the sub-block too — same reason as
+        # above.
         if pos < length and inner[pos] == "{":
             pos += 1
             depth = 1
             while pos < length and depth > 0:
-                if inner[pos] == "{":
+                ch = inner[pos]
+                if ch == "{":
                     depth += 1
-                elif inner[pos] == "}":
+                elif ch == "}":
                     depth -= 1
+                elif ch == "\\" and pos + 1 < length:
+                    pos += 1
                 pos += 1
 
         if name and name != "{" and name != "}":
             items.append(name)
+
+        # No-progress guard.  An unmatched closing brace at the top
+        # level used to leave ``pos`` unchanged and spin the loop
+        # forever (regression from a tmsh-emitted ``records`` block
+        # whose escaped keys threw the upstream property-extractor
+        # off, leaking a stray ``}`` into the list value).  Treat
+        # that as the end of the list rather than hang.
+        if pos == loop_start:
+            break
 
     return items
 

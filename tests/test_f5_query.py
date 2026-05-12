@@ -850,6 +850,52 @@ def test_bare_rename_builtin_is_unscoped():
     assert "ltm virtual /Common/new" in new_src
 
 
+# Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
+_DG_ESCAPED_KEYS = (
+    "ltm data-group internal /Common/dg_minimal {\n"
+    "    type string\n"
+    "    records {\n"
+    '        \\"/owa\\" {\n'
+    '            data \\"x\\"\n'
+    "        }\n"
+    "    }\n"
+    "}\n"
+)
+
+
+def test_parser_finishes_on_escaped_quote_keys():
+    """Regression for the v1.9.0-14 zipapp hang on ``tmsh``-emitted
+    data-group records whose keys use the ``\\"...\\"`` escape form.
+    The bug confused the property-extractor (the ``\\\\"`` started a
+    runaway string scan that swallowed braces), which leaked a stray
+    ``}`` into the ``records`` list-block, and ``_parse_list_block``
+    sat in an infinite loop because it didn't advance over the
+    unmatched brace.  The fix: treat ``\\\\<x>`` as opaque outside
+    strings, and add a no-progress guard.
+
+    A reasonable upper-bound ensures the test surfaces a regression
+    rather than wedging the suite.
+    """
+    import threading
+
+    finished = threading.Event()
+    error_box: list[BaseException] = []
+
+    def _run():
+        try:
+            run_query(".ltm.data-group[]", {"m": _DG_ESCAPED_KEYS})
+        except BaseException as exc:  # noqa: BLE001
+            error_box.append(exc)
+        finally:
+            finished.set()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=5.0)
+    assert finished.is_set(), "parser hung on escaped-quote data-group keys"
+    assert not error_box, error_box[0]
+
+
 # Issue 4 — ``+=`` materialises a missing compound block.
 _NO_RULES_SCF = (
     "ltm virtual /Common/no_rules_yet {\n"
