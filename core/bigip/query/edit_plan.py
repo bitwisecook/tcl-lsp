@@ -252,9 +252,7 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
 # generic materialiser would flatten into a meaningless token sequence
 # and produce invalid SCF.  Pool-member edits stay out of scope for
 # v1; reach for ``f5 cleanup`` round-trip or hand-edit the stanza.
-_MATERIALISABLE_LIST_FIELDS = frozenset(
-    {"rules", "profiles", "persist", "policies"}
-)
+_MATERIALISABLE_LIST_FIELDS = frozenset({"rules", "profiles", "persist", "policies"})
 
 
 def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
