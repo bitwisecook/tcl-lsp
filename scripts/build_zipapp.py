@@ -140,6 +140,10 @@ def build_f5(version: str, output: Path) -> None:
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "static"),
         )
 
+        # Install argcomplete so `f5 completion <shell>` works (and so the
+        # shell-side completion bootstrap can invoke `f5` for completions).
+        _pip_install_pure(stage, "argcomplete>=3.0")
+
         # Single-file entry point — dispatch into explorer.f5_cli.main().
         main_py = stage / "__main__.py"
         main_py.write_text(
@@ -189,6 +193,10 @@ def build_tcl(version: str, output: Path) -> None:
             stage / "tclpkg",
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
+
+        # Install argcomplete so `tcl completion <shell>` works (and so the
+        # shell-side completion bootstrap can invoke `tcl` for completions).
+        _pip_install_pure(stage, "argcomplete>=3.0")
 
         shutil.copy2(ROOT / "scripts" / "zipapp_tcl_main.py", stage / "__main__.py")
         _create_archive(stage, str(output), "/usr/bin/env python3")

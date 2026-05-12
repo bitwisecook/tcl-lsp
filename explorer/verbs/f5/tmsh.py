@@ -17,8 +17,16 @@ from ._registry import verb
     "tmsh",
     aliases=("scf2tmsh",),
     help="Emit a tmsh script that creates every object in the input config.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
+    p.epilog = (
+        "Examples:\n"
+        "  f5 tmsh bigip.conf -o create.tmsh\n"
+        "  f5 tmsh bigip.conf --modify -o modify.tmsh\n"
+        "  f5 tmsh bigip.conf --include pool --include virtual -o vs-and-pools.tmsh\n"
+        "  f5 grep vs_app bigip.conf | f5 tmsh -\n"
+    )
     p.description = (
         "Render an SCF (or a single object stanza extracted via "
         "`f5 grep --no-recurse`) as a sequence of `tmsh create` commands "

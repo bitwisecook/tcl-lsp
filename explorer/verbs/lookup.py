@@ -103,13 +103,25 @@ _HELP_DIALECT_TERMS: dict[str, tuple[str, ...]] = {
 @verb(
     "command-info",
     aliases=("commandinfo", "cmd-info"),
-    help="Look up command registry metadata.",
-    formatter_class=argparse.HelpFormatter,
+    help="Look up command registry metadata (arity, args, side effects).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_command_info(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
-    p.description = "Look up command registry metadata."
+    p.description = (
+        "Report the registry entry for COMMAND: argument arity, argument\n"
+        "roles (BODY / EXPR / VAR_READ / VAR_WRITE / ...), sub-commands,\n"
+        "side-effect flags, and per-dialect availability.  Useful for\n"
+        "investigating how the analyser models a command, or building\n"
+        "external tooling on top of the registry.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} command-info string\n"
+        f"  {prog_name} command-info HTTP::uri --dialect f5-irules\n"
+        f"  {prog_name} command-info dict --json -o dict.json\n"
+    )
     p.add_argument(
         "command",
         help="Command name to query (for example: HTTP::uri or string).",
@@ -142,12 +154,19 @@ def _configure_command_info(
 )
 def _configure_help(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
     help_default_dialect = "f5-irules" if default_dialect == "f5-irules" else "all"
-    p.description = "Search KCS help docs from the bundled SQLite index."
+    p.description = (
+        "Full-text search the bundled KCS (knowledge-centred support)\n"
+        "documentation index for *query*, scoped to a dialect when one is\n"
+        "given.  Lists matching pages with a short snippet and the\n"
+        "filesystem path inside the zipapp.  Omit the query to list every\n"
+        "available section for the chosen dialect.\n"
+    )
     p.epilog = (
         "Examples:\n"
         f"  {prog_name} help taint\n"
         f"  {prog_name} help event --dialect f5-irules\n"
         f"  {prog_name} help --dialect tcl8.6 --json\n"
+        f"  {prog_name} help cfg construction --limit 5\n"
     )
     p.add_argument(
         "query",

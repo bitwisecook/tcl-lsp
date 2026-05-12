@@ -59,11 +59,20 @@ def _add_irule_input_arguments(
     archives, and ``-`` for stdin.  ``--source`` adds inline iRule
     snippets (repeatable).
     """
-    parser.add_argument(
+    paths = parser.add_argument(
         "paths",
         nargs="*",
         help=("Input files: .tcl/.irul/.irule, bigip.conf/SCF, or .ucs.  Pass `-` to read stdin."),
     )
+    try:
+        from argcomplete.completers import FilesCompleter
+
+        paths.completer = FilesCompleter(  # type: ignore[attr-defined]
+            allowednames=("tcl", "irul", "irule", "conf", "scf", "ucs"),
+            directories=True,
+        )
+    except ImportError:
+        pass
     parser.add_argument(
         "--source",
         action="append",

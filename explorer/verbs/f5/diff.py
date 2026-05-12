@@ -18,14 +18,21 @@ from ._registry import verb
     "diff",
     aliases=("changes",),
     help="Object-aware diff between two bigip.conf / SCF files.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Compare two parsed BIG-IP configurations and report objects "
-        "added, removed, or modified.  Property ordering and whitespace "
-        "are ignored; iRule bodies are compared after stripping comments "
-        "and collapsing whitespace.  Exits 1 when the two configs differ "
-        "(makes the verb easy to use in scripts)."
+        "Compare two parsed BIG-IP configurations and report objects\n"
+        "added, removed, or modified.  Property ordering and whitespace\n"
+        "are ignored; iRule bodies are compared after stripping comments\n"
+        "and collapsing whitespace.  Exits 1 when the two configs differ\n"
+        "(makes the verb easy to use in CI gates and pre-flight checks)."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 diff old.conf new.conf\n"
+        "  f5 diff old.conf new.conf --json -o changes.json\n"
+        "  f5 diff prev.scf current.scf && echo no changes\n"
     )
     p.add_argument("before", help="Old config (bigip.conf / SCF, or `-` for stdin).")
     p.add_argument("after", help="New config (bigip.conf / SCF, or `-` for stdin).")

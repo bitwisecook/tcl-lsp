@@ -17,8 +17,16 @@ from ._registry import verb
     "pcap-remap",
     aliases=("pcapmap",),
     help="Apply a `f5 redact` map to a PCAP capture (rewrites IP layer + parsed F5 trailer).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
+    p.epilog = (
+        "Examples:\n"
+        "  f5 pcap-remap redact.map.toml capture.pcap remapped.pcap\n"
+        "  f5 pcap-remap redact.map.toml redacted.pcap original.pcap --reverse\n"
+        "  f5 pcap-remap redact.map.toml in.pcap out.pcap --on-unknown sweep\n"
+        "  f5 pcap-remap --list-schemas\n"
+    )
     p.description = (
         "Rewrite every IPv4 / IPv6 source and destination address in a "
         "PCAP capture using the same TOML map produced by `f5 redact`. "

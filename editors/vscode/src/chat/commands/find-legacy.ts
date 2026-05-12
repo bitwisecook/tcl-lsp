@@ -27,7 +27,7 @@ function diagnosticCode(d: vscode.Diagnostic): string {
   return String(d.code ?? "");
 }
 
-export async function handleConvert(ctx: CommandContext): Promise<vscode.ChatResult> {
+export async function handleFindLegacy(ctx: CommandContext): Promise<vscode.ChatResult> {
   // Try active editor first, then resolve from references
   let doc: vscode.TextDocument | undefined;
   let code: string | undefined;
@@ -66,7 +66,7 @@ export async function handleConvert(ctx: CommandContext): Promise<vscode.ChatRes
       ctx.response.markdown(
         "No legacy patterns detected. The iRule already follows current best practices.",
       );
-      return { metadata: { command: "convert", count: 0 } };
+      return { metadata: { command: "find-legacy", count: 0 } };
     }
 
     ctx.response.progress(`Found ${convertible.length} legacy pattern(s). Modernising...`);
@@ -129,7 +129,9 @@ export async function handleConvert(ctx: CommandContext): Promise<vscode.ChatRes
       arguments: [result.finalCode, doc.uri.toString()],
     });
 
-    return { metadata: { command: "convert", count: convertible.length, clean: result.clean } };
+    return {
+      metadata: { command: "find-legacy", count: convertible.length, clean: result.clean },
+    };
   } finally {
     if (previousDialect !== "f5-irules") {
       await setServerDialect(previousDialect);
