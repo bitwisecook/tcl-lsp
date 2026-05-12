@@ -263,38 +263,40 @@ def _resolve_pathref(ref: PathRef, ctx: EvalContext) -> ObjectRef | None:
         cached = root._object_cache.get((ref.expected_kind, ref.full_path))
         if cached is not None:
             return cached
-    container = root_container(root)
-    try:
-        ltm = container.lookup("ltm")
-    except EvalError:
-        return None
-    # Targeted scope: if we know the kind we're looking for, only build
-    # that container's entries.  This is the common case and keeps the
-    # ``lazy projection`` cost proportional to the kinds the query
-    # actually touches.
-    if ref.expected_kind:
-        from .projection import LTM_KINDS
+    from .projection import MODULE_KINDS
 
-        for label, (_, kind) in LTM_KINDS.items():
-            if kind != ref.expected_kind:
-                continue
-            try:
-                ltm.entries()[label].entries()
-            except (KeyError, EvalError):
-                return None
-            return root._object_cache.get((ref.expected_kind, ref.full_path))
+    container = root_container(root)
+    # Targeted scope: if we know the kind we're looking for, only
+    # build that one container's entries.  Keeps lazy projection cost
+    # proportional to the kinds the query actually touches.
+    if ref.expected_kind:
+        for module, kinds in MODULE_KINDS.items():
+            for label, (_, kind) in kinds.items():
+                if kind != ref.expected_kind:
+                    continue
+                try:
+                    mod_container = container.lookup(module)
+                    mod_container.entries()[label].entries()
+                except (KeyError, EvalError):
+                    return None
+                return root._object_cache.get((ref.expected_kind, ref.full_path))
         return None
-    # Fallback: when we have no expected kind, walk every container
-    # until we find a match.  Only reached for hand-built PathRefs
-    # without an expected_kind.
-    for label in ltm.entries():
+    # Fallback: no expected kind — walk every container under every
+    # module until a cache entry surfaces.  Only reached for
+    # hand-built PathRefs without an ``expected_kind``.
+    for module in MODULE_KINDS:
         try:
-            ltm.entries()[label].entries()
+            mod_container = container.lookup(module)
         except EvalError:
             continue
-        for cache_key, cached in root._object_cache.items():
-            if cache_key[1] == ref.full_path:
-                return cached
+        for label in mod_container.entries():
+            try:
+                mod_container.entries()[label].entries()
+            except EvalError:
+                continue
+            for cache_key, cached in root._object_cache.items():
+                if cache_key[1] == ref.full_path:
+                    return cached
     return None
 
 

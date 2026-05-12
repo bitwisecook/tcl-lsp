@@ -850,6 +850,120 @@ def test_bare_rename_builtin_is_unscoped():
     assert "ltm virtual /Common/new" in new_src
 
 
+# ---------------------------------------------------------------------------
+# net.* — typed projection for the network module
+# ---------------------------------------------------------------------------
+
+
+_NET_SCF = (
+    "net vlan /Common/external {\n"
+    "    interfaces {\n"
+    "        1.1 { }\n"
+    "    }\n"
+    "    tag 4093\n"
+    "}\n"
+    "net vlan /Common/internal {\n"
+    "    interfaces {\n"
+    "        1.2 { }\n"
+    "    }\n"
+    "    tag 4094\n"
+    "}\n"
+    "net self /Common/198.51.100.5 {\n"
+    "    address 198.51.100.5/24\n"
+    "    allow-service {\n"
+    "        default\n"
+    "    }\n"
+    "    traffic-group /Common/traffic-group-local-only\n"
+    "    vlan /Common/external\n"
+    "}\n"
+    "net self /Common/203.0.113.5 {\n"
+    "    address 203.0.113.5/24\n"
+    "    traffic-group /Common/traffic-group-1\n"
+    "    vlan /Common/internal\n"
+    "}\n"
+    "net route /Common/default_gw {\n"
+    "    gw 198.51.100.1\n"
+    "    network default\n"
+    "}\n"
+    "net route-domain /Common/0 {\n"
+    "    id 0\n"
+    "    vlans {\n"
+    "        /Common/external\n"
+    "        /Common/internal\n"
+    "    }\n"
+    "}\n"
+    "net port-list /Common/web_ports {\n"
+    "    ports {\n"
+    "        80 { }\n"
+    "        443 { }\n"
+    "    }\n"
+    "}\n"
+)
+
+
+def test_net_vlan_projects_tag_and_interfaces():
+    result = run_query(".net.vlan[].tag", {"m": _NET_SCF})
+    assert sorted(result.values_per_file["m"]) == [4093, 4094]
+    result = run_query('.net.vlan["/Common/external"].interfaces', {"m": _NET_SCF})
+    [ifaces] = result.values_per_file["m"]
+    assert list(ifaces) == ["1.1"]
+
+
+def test_net_self_projects_address_and_traffic_group():
+    result = run_query(
+        '.net.self[] | select(.traffic-group == "/Common/traffic-group-1") | .address',
+        {"m": _NET_SCF},
+    )
+    assert result.values_per_file["m"] == ["203.0.113.5/24"]
+
+
+def test_net_self_vlan_pathref_auto_dereferences():
+    """The ``.vlan`` field on ``net self`` is a PathRef into ``net vlan``;
+    chaining ``.interfaces`` should follow the ref into the VLAN object
+    and pick up its ``interfaces`` list.
+    """
+    result = run_query(".net.self[].vlan.interfaces", {"m": _NET_SCF})
+    flat = [item for sub in result.values_per_file["m"] for item in sub]
+    # Two selves, each on a one-interface VLAN.
+    assert sorted(flat) == ["1.1", "1.2"]
+
+
+def test_net_route_domain_vlans_is_a_list_of_pathrefs():
+    result = run_query('.net.route-domain["/Common/0"].vlans[].tag', {"m": _NET_SCF})
+    assert sorted(result.values_per_file["m"]) == [4093, 4094]
+
+
+def test_net_route_projects_gw_and_network():
+    result = run_query(".net.route[].gw", {"m": _NET_SCF})
+    assert result.values_per_file["m"] == ["198.51.100.1"]
+    result = run_query(".net.route[].network", {"m": _NET_SCF})
+    assert result.values_per_file["m"] == ["default"]
+
+
+def test_net_port_list_projects_ports():
+    result = run_query('.net.port-list["/Common/web_ports"].ports', {"m": _NET_SCF})
+    [ports] = result.values_per_file["m"]
+    assert sorted(ports) == ["443", "80"]
+
+
+def test_net_identity_rename_is_kind_scoped():
+    """``.net.vlan["X"].name = "Y"`` must not touch references in
+    other modules — same kind-scope correctness as the ltm/virtual
+    pool-collision case (Issue 1)."""
+    result = run_query(
+        '.net.vlan["/Common/external"].name = "/Common/outside"',
+        {"m": _NET_SCF},
+    )
+    new_src = result.edits_per_file["m"].new_source
+    assert "net vlan /Common/outside" in new_src
+    # The ``net self`` references update — they're plain pathref tokens.
+    assert "vlan /Common/outside" in new_src
+    # And the route-domain's list-of-vlans reference moved too.
+    assert "/Common/outside\n" in new_src
+    # No stray /Common/external left.
+    assert "/Common/external" not in new_src
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"

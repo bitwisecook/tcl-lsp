@@ -24,6 +24,11 @@ from typing import Any
 from ..model import (
     BigipDataGroup,
     BigipMonitor,
+    BigipNetPortList,
+    BigipNetRoute,
+    BigipNetRouteDomain,
+    BigipNetSelf,
+    BigipNetVlan,
     BigipNode,
     BigipPersistence,
     BigipPolicy,
@@ -193,6 +198,43 @@ _DATAGROUP_FIELDS: dict[str, FieldSpec] = {
     "records": FieldSpec("records"),
 }
 
+_NET_ROUTE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "network": FieldSpec("network"),
+    "gw": FieldSpec("gw"),
+    "pool": FieldSpec("pool", ref_kind="ltm pool"),
+}
+
+_NET_VLAN_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "tag": FieldSpec("tag"),
+    "interfaces": FieldSpec("interfaces"),
+}
+
+_NET_SELF_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "address": FieldSpec("address"),
+    "vlan": FieldSpec("vlan", ref_kind="net vlan"),
+    "traffic-group": FieldSpec("traffic_group"),
+    "allow-service": FieldSpec("allow_service"),
+}
+
+_NET_ROUTE_DOMAIN_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "id": FieldSpec("id"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+}
+
+_NET_PORT_LIST_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "ports": FieldSpec("ports"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -205,29 +247,50 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm snatpool": (BigipSnatPool, _SNATPOOL_FIELDS),
     "ltm policy": (BigipPolicy, _POLICY_FIELDS),
     "ltm data-group": (BigipDataGroup, _DATAGROUP_FIELDS),
+    "net route": (BigipNetRoute, _NET_ROUTE_FIELDS),
+    "net vlan": (BigipNetVlan, _NET_VLAN_FIELDS),
+    "net self": (BigipNetSelf, _NET_SELF_FIELDS),
+    "net route-domain": (BigipNetRouteDomain, _NET_ROUTE_DOMAIN_FIELDS),
+    "net port-list": (BigipNetPortList, _NET_PORT_LIST_FIELDS),
 }
 
-# Map from "container key" (the name users write between dots) to the
-# underlying BigipConfig dictionary attribute and the TMSH kind.
-_LTM_KINDS: dict[str, tuple[str, str]] = {
-    "virtual": ("virtual_servers", "ltm virtual"),
-    "pool": ("pools", "ltm pool"),
-    "node": ("nodes", "ltm node"),
-    "rule": ("rules", "ltm rule"),
-    "profile": ("profiles", "ltm profile"),
-    "monitor": ("monitors", "ltm monitor"),
-    "persistence": ("persistence", "ltm persistence"),
-    "snatpool": ("snat_pools", "ltm snatpool"),
-    "policy": ("policies", "ltm policy"),
-    "data-group": ("data_groups", "ltm data-group"),
+# Per-module kind tables.  Each entry is a mapping from the **container
+# key** (what users write between dots — ``virtual``, ``route``, …) to
+# ``(BigipConfig attribute, TMSH kind)``.  Adding a new kind: drop a
+# dataclass + field map above, register the parser, add an entry here
+# and the navigable path ``.<module>.<kind>`` lights up.
+_MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
+    "ltm": {
+        "virtual": ("virtual_servers", "ltm virtual"),
+        "pool": ("pools", "ltm pool"),
+        "node": ("nodes", "ltm node"),
+        "rule": ("rules", "ltm rule"),
+        "profile": ("profiles", "ltm profile"),
+        "monitor": ("monitors", "ltm monitor"),
+        "persistence": ("persistence", "ltm persistence"),
+        "snatpool": ("snat_pools", "ltm snatpool"),
+        "policy": ("policies", "ltm policy"),
+        "data-group": ("data_groups", "ltm data-group"),
+    },
+    "net": {
+        "route": ("net_routes", "net route"),
+        "vlan": ("net_vlans", "net vlan"),
+        "self": ("net_selves", "net self"),
+        "route-domain": ("net_route_domains", "net route-domain"),
+        "port-list": ("net_port_lists", "net port-list"),
+    },
 }
 
-_OBJECT_KIND_ALIASES = frozenset(kind for _, kind in _LTM_KINDS.values())
+_OBJECT_KIND_ALIASES = frozenset(kind for mod in _MODULE_KINDS.values() for _, kind in mod.values())
 
 
-# Public alias so ``builtins.rename_partition`` and other consumers can
-# iterate the kinds without reaching into a single-underscore name.
-LTM_KINDS = _LTM_KINDS
+# Public aliases so other consumers (builtins, runner, tests) can
+# enumerate kinds without reaching into single-underscore names.  The
+# ``LTM_KINDS`` alias is kept for backwards compatibility — callers
+# that only care about ``ltm`` use it; everyone else uses
+# ``MODULE_KINDS``.
+LTM_KINDS = _MODULE_KINDS["ltm"]
+MODULE_KINDS = _MODULE_KINDS
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +301,9 @@ LTM_KINDS = _LTM_KINDS
 def root_container(root: Root) -> Container:
     """Return the synthetic top-level container.
 
-    Holds a single ``ltm`` (and, when populated, ``gtm``) child.
+    Holds one child per known module (``ltm``, ``net``, …).  Each
+    module container is lazy — its kind containers and per-object
+    refs only materialise when navigated into.
     """
     return Container(kind="<root>", root=root, _entry_source="")
 
@@ -246,22 +311,24 @@ def root_container(root: Root) -> Container:
 def _build_entries(container: Container) -> dict[str, Any]:
     root = container.root
     if container.kind == "<root>":
-        out: dict[str, Any] = {
-            "ltm": Container(kind="ltm", root=root, _entry_source="ltm"),
+        return {
+            module: Container(kind=module, root=root, _entry_source=module)
+            for module in _MODULE_KINDS
         }
-        return out
 
-    if container.kind == "ltm":
-        out = {}
-        for label in _LTM_KINDS:
-            out[label] = Container(
-                kind=_LTM_KINDS[label][1],
+    # Module-level container (``.ltm``, ``.net``, …).
+    if container.kind in _MODULE_KINDS:
+        module = container.kind
+        return {
+            label: Container(
+                kind=tmsh_kind,
                 root=root,
-                _entry_source=f"ltm.{label}",
+                _entry_source=f"{module}.{label}",
             )
-        return out
+            for label, (_, tmsh_kind) in _MODULE_KINDS[module].items()
+        }
 
-    # Leaf kind containers: project each object.
+    # Leaf kind container: project each object.
     label = container.kind
     if label in _OBJECT_KIND_ALIASES:
         cls_attr = _kind_to_attr(label)
@@ -275,9 +342,10 @@ def _build_entries(container: Container) -> dict[str, Any]:
 
 
 def _kind_to_attr(kind: str) -> str:
-    for label, (attr, k) in _LTM_KINDS.items():
-        if k == kind:
-            return attr
+    for module in _MODULE_KINDS.values():
+        for label, (attr, k) in module.items():
+            if k == kind:
+                return attr
     raise EvalError(f"unknown object kind: {kind!r}")
 
 

@@ -31,6 +31,11 @@ from .model import (
     BigipDataGroup,
     BigipGenericObject,
     BigipMonitor,
+    BigipNetPortList,
+    BigipNetRoute,
+    BigipNetRouteDomain,
+    BigipNetSelf,
+    BigipNetVlan,
     BigipNode,
     BigipPersistence,
     BigipPolicy,
@@ -997,6 +1002,106 @@ def _parse_policy(
     )
 
 
+# ── net.* parsers ────────────────────────────────────────────────────
+
+
+def _parse_net_route(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetRoute:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipNetRoute(
+        name=name,
+        full_path=full_path,
+        network=props.get("network", ""),
+        gw=props.get("gw", ""),
+        pool=props.get("pool", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_vlan(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetVlan:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    try:
+        tag = int(props["tag"].value) if "tag" in props else 0
+    except ValueError:
+        tag = 0
+    interfaces: tuple[str, ...] = ()
+    if "interfaces" in props:
+        interfaces = tuple(_parse_list_block(props["interfaces"].value))
+    return BigipNetVlan(
+        name=name,
+        full_path=full_path,
+        tag=tag,
+        interfaces=interfaces,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_self(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetSelf:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    allow_service: tuple[str, ...] = ()
+    if "allow-service" in props:
+        value = props["allow-service"].value
+        if value.startswith("{"):
+            allow_service = tuple(_parse_list_block(value))
+        elif value:
+            # ``allow-service none`` / ``allow-service default`` (bare).
+            allow_service = (value,)
+    return BigipNetSelf(
+        name=name,
+        full_path=full_path,
+        address=props["address"].value if "address" in props else "",
+        vlan=props["vlan"].value if "vlan" in props else "",
+        traffic_group=props["traffic-group"].value if "traffic-group" in props else "",
+        allow_service=allow_service,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_route_domain(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetRouteDomain:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    try:
+        id_val = int(props["id"].value) if "id" in props else 0
+    except ValueError:
+        id_val = 0
+    vlans: tuple[str, ...] = ()
+    if "vlans" in props:
+        vlans = tuple(_parse_list_block(props["vlans"].value))
+    return BigipNetRouteDomain(
+        name=name,
+        full_path=full_path,
+        id=id_val,
+        vlans=vlans,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_net_port_list(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipNetPortList:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    ports: tuple[str, ...] = ()
+    if "ports" in props:
+        ports = tuple(_parse_list_block(props["ports"].value))
+    return BigipNetPortList(
+        name=name,
+        full_path=full_path,
+        ports=ports,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1027,6 +1132,32 @@ def parse_bigip_conf(source: str) -> BigipConfig:
         if parsed is None:
             continue
         module, obj_type, full_path = parsed
+
+        if module == "net":
+            # ``net`` module has its own dispatch.  Unknown sub-types
+            # fall through to ``generic_objects`` via the earlier
+            # branch (which ran for every block above).
+            if obj_type == "route":
+                config.net_routes[full_path] = _parse_net_route(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "vlan":
+                config.net_vlans[full_path] = _parse_net_vlan(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "self":
+                config.net_selves[full_path] = _parse_net_self(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "route-domain":
+                config.net_route_domains[full_path] = _parse_net_route_domain(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "port-list":
+                config.net_port_lists[full_path] = _parse_net_port_list(
+                    full_path, block.body, source_map, block
+                )
+            continue
 
         if module not in ("ltm", "gtm"):
             continue

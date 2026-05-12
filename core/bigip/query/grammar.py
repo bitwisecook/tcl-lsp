@@ -86,6 +86,26 @@ PATH ACCESS
                           object: ``.ltm.virtual[].pool.members[]`` walks
                           VS -> pool -> member transparently.
 
+MODULES
+
+  .ltm.<kind>             Local Traffic Manager kinds: ``virtual``,
+                          ``pool``, ``node``, ``rule``, ``profile``,
+                          ``monitor``, ``persistence``, ``snatpool``,
+                          ``policy``, ``data-group``.
+  .net.<kind>             Network module: ``route``, ``vlan``,
+                          ``self``, ``route-domain``, ``port-list``.
+                          PathRefs from ``net self.vlan`` and
+                          ``net route-domain.vlans[]`` auto-deref
+                          into the target ``net vlan`` so chained
+                          access ``.net.self[].vlan.tag`` Just Works.
+
+  Unmodelled kinds (``apm.*``, ``security.*``, ``sys.*``, ``cm.*``,
+  ``pem.*``, …) still parse and are surfaced via
+  ``rename_partition`` / cross-module rewrites, but they are not
+  navigable from the DSL in v1.  Reach into them with
+  ``f5 query --scf`` after a partition cascade, or wait for the
+  follow-on typed-projection rounds.
+
 ASSIGNMENT
 
   path = expr             Set the target field to ``expr`` (evaluated

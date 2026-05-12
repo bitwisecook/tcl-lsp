@@ -166,7 +166,8 @@ value per line versus a single JSON array.
 
 ## Tree shape
 
-The DSL exposes the parsed `BigipConfig` as a nested mapping:
+The DSL exposes the parsed `BigipConfig` as a nested mapping, with one
+top-level child per recognised module:
 
 ```
 .ltm
@@ -190,7 +191,32 @@ The DSL exposes the parsed `BigipConfig` as a nested mapping:
                           .data-groups[]
   .profile     .monitor     .persistence
   .snatpool    .policy      .data-group
+.net
+  .route["/Common/default_gw"].network
+                              .gw
+                              .pool          (path-ref → ltm pool)
+  .vlan["/Common/external"].tag
+                           .interfaces[]
+  .self["/Common/198.51.100.5"].address
+                               .vlan         (path-ref → net vlan)
+                               .traffic-group
+                               .allow-service[]
+  .route-domain["/Common/0"].id
+                            .vlans[]         (path-refs → net vlan)
+  .port-list["/Common/web_ports"].ports[]
 ```
+
+PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
+`net self → net vlan → tag` in one chain, and
+`.ltm.virtual[].pool.members[].address` walks the existing
+`virtual → pool → member → address` chain — same auto-deref engine.
+
+Unmodelled kinds (`apm.*`, `security.*`, `sys.*`, `cm.*`, `pem.*`, …)
+still parse — every stanza lands in `cfg.generic_objects` with full
+byte ranges — and are reached by source-level operations
+(`rename_partition` cascades, `--scf` selection through grep / a real
+SCF concatenation), but they're not navigable from the DSL in v1.
+Follow-on rounds will add typed projection for the high-value modules.
 
 The full per-kind field map lives in `_KIND_FIELD_MAPS` in
 `projection.py`; that table is the single source of truth for which

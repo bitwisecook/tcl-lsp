@@ -238,6 +238,66 @@ class BigipGenericObject:
     range: Range | None = None
 
 
+# ── net.* — typed projection for the network module ─────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetRoute:
+    """A ``net route`` object — a routing-table entry."""
+
+    name: str
+    full_path: str
+    network: str = ""  # e.g. "default", "10.0.0.0/8"
+    gw: str = ""  # gateway address; empty when the route uses ``pool`` instead
+    pool: str = ""  # gateway pool reference; empty when ``gw`` is set
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetVlan:
+    """A ``net vlan`` object."""
+
+    name: str
+    full_path: str
+    tag: int = 0
+    interfaces: tuple[str, ...] = ()  # untagged interface names ("1.1", "1.2")
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetSelf:
+    """A ``net self`` object — a self IP bound to a VLAN."""
+
+    name: str
+    full_path: str
+    address: str = ""  # ``10.0.0.1/24``
+    vlan: str = ""  # full-path of the bound VLAN
+    traffic_group: str = ""
+    allow_service: tuple[str, ...] = ()  # ``default`` / ``all`` / per-service tokens
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetRouteDomain:
+    """A ``net route-domain`` object."""
+
+    name: str
+    full_path: str
+    id: int = 0
+    vlans: tuple[str, ...] = ()  # member VLAN full-paths
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipNetPortList:
+    """A ``net port-list`` object — used by self-allow and policy rules."""
+
+    name: str
+    full_path: str
+    ports: tuple[str, ...] = ()  # raw port specs (e.g. ``80``, ``1029-1043``)
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -255,6 +315,12 @@ class BigipConfig:
     persistence: dict[str, BigipPersistence] = field(default_factory=dict)
     rules: dict[str, BigipRule] = field(default_factory=dict)
     policies: dict[str, BigipPolicy] = field(default_factory=dict)
+    # net.* — typed projection for the network module.
+    net_routes: dict[str, BigipNetRoute] = field(default_factory=dict)
+    net_vlans: dict[str, BigipNetVlan] = field(default_factory=dict)
+    net_selves: dict[str, BigipNetSelf] = field(default_factory=dict)
+    net_route_domains: dict[str, BigipNetRouteDomain] = field(default_factory=dict)
+    net_port_lists: dict[str, BigipNetPortList] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:
