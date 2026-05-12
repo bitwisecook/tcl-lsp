@@ -16,12 +16,21 @@ from ._registry import verb
     "pull",
     aliases=(),
     help="Fetch a single object (virtual/pool/node/rule) from a live BIG-IP.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "GET one object via iControl REST and emit its SCF stanza on "
-        "stdout.  Useful for surgical edits: pull, edit locally, push "
-        "back.  Pass --json to get the raw iControl JSON instead."
+        "GET one object via iControl REST and emit its SCF stanza on\n"
+        "stdout.  Useful for surgical edits: pull, edit locally, push\n"
+        "back with `f5 push`.  Pass --json to get the raw iControl JSON\n"
+        "instead of the SCF rendering."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 pull virtual /Common/vs_app --host bigip\n"
+        "  f5 pull pool /Common/web_pool --host bigip > web_pool.scf\n"
+        "  f5 pull rule /Common/my_irule --host bigip --json\n"
+        "  f5 pull node /Common/web1 --host bigip --no-prompt --user admin\n"
     )
     p.add_argument(
         "kind",

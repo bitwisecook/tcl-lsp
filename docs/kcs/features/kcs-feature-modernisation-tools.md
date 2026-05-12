@@ -17,9 +17,11 @@ How do I modernise an old iRule, or convert a reverse-proxy configuration into a
 
 ## How to use
 
-### Convert (legacy pattern detection)
+### Find legacy patterns (detection only)
 
-Scans an iRule for legacy patterns and suggests modern replacements:
+Scans an iRule for legacy patterns and reports modern replacements.  The verb
+only *reports* — it does not rewrite source.  Run `tcl opt` to actually apply
+the transforms.
 
 | Legacy pattern | Modern replacement |
 |---|---|
@@ -36,7 +38,7 @@ Scans an iRule for legacy patterns and suggests modern replacements:
 ### tcl-lsp CLI
 
 ```
-tcl convert my_irule.irul
+tcl find-legacy my_irule.irul
 ```
 
 ### Claude Code
@@ -57,7 +59,7 @@ Reads an nginx `location` block, Apache `RewriteRule`, or HAProxy `acl`/`use_bac
 ## Example
 
 ```
-$ tcl convert old_irule.irul
+$ tcl find-legacy old_irule.irul
 === Modernisation Suggestions ===
 
   W100 (line 3): Unbraced expression — use expr {$x + 1} instead of expr $x + 1.

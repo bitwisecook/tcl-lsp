@@ -26,50 +26,115 @@ from ._utils import (
 _WHEN_EVENT_PATTERN = re.compile(r"\bwhen\s+([A-Z_][A-Z0-9_]*)")
 
 
-@verb("symbols", aliases=("syms",), help="Emit symbol definitions for the resolved input.")
+@verb(
+    "symbols",
+    aliases=("syms",),
+    help="Emit symbol definitions (procs, namespaces, variables, events).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_symbols(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "List every symbol declared by the resolved input: procs (with\n"
+        "parameter lists), namespaces, global/namespace-scope variables,\n"
+        "and (for iRules dialects) `when` events.  Output is indented to\n"
+        "reflect lexical scope.  Use --json for a machine-readable form\n"
+        "that includes line numbers and reference counts.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} symbols script.tcl\n"
+        f"  {prog_name} symbols src/ --json -o symbols.json\n"
+        f"  {prog_name} symbols irule.irul --dialect f5-irules\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
         action="store_true",
-        help="Emit symbol data as JSON.",
+        help="Emit symbol data as JSON (procs/variables/namespaces/events with line numbers).",
     )
     p.set_defaults(handler=_run_symbols)
 
 
-@verb("diagram", help="Extract control-flow diagram data from compiler IR.")
+@verb(
+    "diagram",
+    help="Extract control-flow diagram data from compiler IR.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_diagram(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "Walk the compiler IR and emit one control-flow diagram entry per\n"
+        "event (iRules) or proc, listing branches, loops, and call sites in\n"
+        "execution order.  Designed as input for graphical viewers and the\n"
+        "VS Code 'diagram' panel; --json is usually what consumers want.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} diagram script.tcl\n"
+        f"  {prog_name} diagram irule.irul --dialect f5-irules --json\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
         action="store_true",
-        help="Emit diagram data as JSON.",
+        help="Emit diagram data as JSON (events/procedures with flow nodes).",
     )
     p.set_defaults(handler=_run_diagram)
 
 
-@verb("callgraph", aliases=("call-graph",), help="Build call graph data for resolved source.")
+@verb(
+    "callgraph",
+    aliases=("call-graph",),
+    help="Build the procedure call graph.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_callgraph(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
+    p.description = (
+        "Build a caller -> callee graph across every proc in the resolved\n"
+        "input.  Reports root procs (no incoming calls), leaf procs (no\n"
+        "outgoing calls), and edges with their call sites.  Marks pure\n"
+        "procs (no observable side effects) for downstream optimiser use.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} callgraph script.tcl\n"
+        f"  {prog_name} callgraph src/ --json -o callgraph.json\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
         action="store_true",
-        help="Emit call graph data as JSON.",
+        help="Emit call graph as JSON (nodes/edges/roots/leaves).",
     )
     p.set_defaults(handler=_run_callgraph)
 
 
-@verb("symbolgraph", aliases=("symbol-graph",), help="Build symbol relationship graph data.")
+@verb(
+    "symbolgraph",
+    aliases=("symbol-graph",),
+    help="Build the symbol relationship graph (proc/variable references).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_symbolgraph(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
+    p.description = (
+        "Build a graph of symbol definitions and references — procs that\n"
+        "read/write each variable, variables read inside each proc, and\n"
+        "namespace nesting.  Strictly broader than `callgraph`: it covers\n"
+        "data flow between symbols, not just call edges.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} symbolgraph script.tcl\n"
+        f"  {prog_name} symbolgraph src/ --json\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
         action="store_true",
-        help="Emit symbol graph data as JSON.",
+        help="Emit symbol graph as JSON (scopes/procs/variables with ref counts).",
     )
     p.set_defaults(handler=_run_symbolgraph)
 
@@ -77,16 +142,28 @@ def _configure_symbolgraph(
 @verb(
     "dataflow",
     aliases=("dataflow-graph",),
-    help="Build taint/effect data-flow graph data.",
+    help="Build the taint / effect data-flow graph.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_dataflow(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
+    p.description = (
+        "Run the taint and side-effect analyser, then report which procs\n"
+        "are pure vs impure, which variables are tainted by untrusted\n"
+        "input, and every taint warning the analyser raised.  Used to\n"
+        "drive security diagnostics and the optimiser's purity model.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} dataflow script.tcl\n"
+        f"  {prog_name} dataflow irule.irul --dialect f5-irules --json\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
         action="store_true",
-        help="Emit data-flow graph data as JSON.",
+        help="Emit data-flow data as JSON (summary + taint warnings).",
     )
     p.set_defaults(handler=_run_dataflow)
 

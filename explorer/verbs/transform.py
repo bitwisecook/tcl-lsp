@@ -30,9 +30,27 @@ from ._utils import (
 @verb(
     "opt",
     aliases=("optimise", "optimize"),
-    help="Optimise source and output rewritten Tcl.",
+    help="Optimise source and emit rewritten Tcl.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_opt(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "Run the optimiser over each input and write the rewritten source.\n"
+        "Applies the codes selected by --profile (default: full): constant\n"
+        "folding, dead-code elimination, redundant-load removal, switch\n"
+        "lowering, etc.  Each rewrite is a known, locally-verifiable\n"
+        "transform — see the O100-O126 catalogue.  Use --disable to drop\n"
+        "specific codes, --enable to bring back ones disabled in config.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} opt script.tcl\n"
+        f"  {prog_name} opt script.tcl --profile standard -o opt.tcl\n"
+        f"  {prog_name} opt src/ --dialect f5-irules --disable O108,O115\n"
+        f"  {prog_name} opt script.tcl --profile aggressive\n"
+        "\n"
+        "Profiles: off, readability, standard, full (default), aggressive\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     _add_colour_arguments(p)
     p.add_argument(
@@ -48,15 +66,23 @@ def _configure_opt(p: argparse.ArgumentParser, *, prog_name: str, default_dialec
 @verb(
     "format",
     aliases=("fmt",),
-    help="Format source and emit rewritten Tcl.",
+    help="Format source and emit canonical rewritten Tcl.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_format(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
-    p.description = "Format source and emit rewritten Tcl."
+    p.description = (
+        "Pretty-print each input with the canonical style rules: consistent\n"
+        "indent, balanced brace placement, optional brace-body expansion,\n"
+        "and configurable line-length goal / hard limit.  Style knobs are\n"
+        "overridable per-invocation (--indent-size, --indent-style, ...) or\n"
+        "via the [formatter] section in `~/.config/tcl.ini`.\n"
+    )
     p.epilog = (
         "Examples:\n"
         f"  {prog_name} format script.tcl\n"
         f"  {prog_name} format src/ --dialect f5-irules -o formatted.tcl\n"
+        f"  {prog_name} format script.tcl --indent-size 2 --indent-style spaces\n"
+        f"  {prog_name} format script.tcl --max-line-length 100 --expand-bodies\n"
     )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     _add_colour_arguments(p)

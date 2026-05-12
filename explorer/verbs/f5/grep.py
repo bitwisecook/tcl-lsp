@@ -17,18 +17,28 @@ from ._registry import verb
     "grep",
     aliases=("related",),
     help="List every BIG-IP object related to a given object path or regex.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Find every BIG-IP object reachable through reference edges from "
-        "the search-match objects whose full path matches PATTERN.  "
-        "PATTERN is a substring match by default; pass --regex to treat "
-        "it as a Python regular expression, or --cidr to match IP "
-        "addresses and CIDR ranges anywhere in an object — including "
-        "deep inside iRule script bodies.  The reference graph is the "
-        "same one `f5 cleanup` walks — both configuration-property "
-        "references and iRule body references (`pool`, `persist`, "
+        "Find every BIG-IP object reachable through reference edges from\n"
+        "the search-match objects whose full path matches PATTERN.\n"
+        "PATTERN is a substring match by default; pass --regex to treat\n"
+        "it as a Python regular expression, or --cidr to match IP\n"
+        "addresses and CIDR ranges anywhere in an object — including\n"
+        "deep inside iRule script bodies.  The reference graph is the\n"
+        "same one `f5 cleanup` walks — both configuration-property\n"
+        "references and iRule body references (`pool`, `persist`,\n"
         "`class match ... <data-group>`) are tracked."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 grep vs_app bigip.conf                  # substring\n"
+        "  f5 grep -e '/Common/vs_.*' bigip.conf      # regex\n"
+        "  f5 grep --cidr 10.0.0.0/8 bigip.conf       # IP / CIDR\n"
+        "  f5 grep vs_app bigip.conf --direction reverse\n"
+        "  f5 grep vs_app bigip.conf --max-depth 2 --full\n"
+        "  f5 grep vs_app bigip.conf --json -o related.json\n"
     )
     p.add_argument(
         "pattern",

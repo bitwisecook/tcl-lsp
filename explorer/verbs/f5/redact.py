@@ -17,8 +17,17 @@ from ._registry import verb
     "redact",
     aliases=("sanitize",),
     help="Strip passwords/PEM blocks and remap public IPs into a configurable CIDR pool.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
+    p.epilog = (
+        "Examples:\n"
+        "  f5 redact bigip.conf -o sanitised.conf --map-file map.toml\n"
+        "  f5 redact bigip.conf --keep-ips -o secrets-only.conf\n"
+        "  f5 redact bigip.conf --target-cidr 10.0.0.0/8 --target-cidr fd00::/8\n"
+        "  f5 redact bigip.conf --source-cidr 1.2.3.0/24 --remap-private\n"
+        "  f5 redact bigip.conf --shuffle --seed 42 --map-file map.toml\n"
+    )
     p.description = (
         "Produce a copy of the bigip.conf / SCF safe to share externally: "
         "strip values from secret-bearing keys (passphrase, password, "

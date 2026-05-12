@@ -1,4 +1,4 @@
-"""Miscellaneous verbs: explore, convert."""
+"""Miscellaneous verbs: explore, find-legacy."""
 
 from __future__ import annotations
 
@@ -37,8 +37,31 @@ _CONVERSION_MAP: dict[str, str] = {
 }
 
 
-@verb("explore", help="Run compiler-explorer views on aggregated input.")
+@verb(
+    "explore",
+    help="Run compiler-explorer views on aggregated input.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 def _configure_explore(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "Render compiler-explorer views (IR, CFG, SSA, interprocedural\n"
+        "summaries, optimiser rewrites, type inference, taint analysis,\n"
+        "GVN, shimmer, codegen, WASM, ...) for the resolved input.  Useful\n"
+        "for inspecting what the compiler sees and why a particular\n"
+        "optimisation fired (or didn't).  Run `tcl explore --show all` for\n"
+        "every view, or pick specific ones (e.g. --show 'cfg,opt,asm').\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} explore script.tcl\n"
+        f"  {prog_name} explore script.tcl --show cfg,ssa,opt\n"
+        f"  {prog_name} explore src/ --show all --show-optimised-source\n"
+        f"  {prog_name} explore script.tcl --show asm,wasm --no-colour\n"
+        f"  {prog_name} explore script.tcl --max-annotations 200\n"
+        "\n"
+        "Views: ir, cfg, ssa, interproc, types, opt, gvn, shimmer, taint,\n"
+        "       irules, callouts, asm, wasm, all, compiler, optimiser\n"
+    )
     _add_input_arguments(p, default_dialect=default_dialect)
     p.add_argument(
         "--show",
@@ -71,15 +94,40 @@ def _configure_explore(p: argparse.ArgumentParser, *, prog_name: str, default_di
     p.set_defaults(handler=_run_explore)
 
 
-@verb("convert", help="Detect legacy patterns eligible for modernisation.")
-def _configure_convert(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+@verb(
+    "find-legacy",
+    help="Report legacy patterns eligible for modernisation (detection only).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
+def _configure_find_legacy(
+    p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
+) -> None:
+    p.description = (
+        "Scan source for legacy patterns that have a known mechanical\n"
+        "modernisation.  This verb only *reports* the findings — it does\n"
+        "not modify source.  Use `tcl opt` to actually rewrite.\n"
+        "\n"
+        "Detected patterns:\n"
+        "  W100        Unbraced expr            -> braced expr\n"
+        "  W104        String concat for lists  -> lappend\n"
+        "  W110        == / != for strings      -> eq / ne\n"
+        "  W304        Missing -- terminator    -> add --\n"
+        "  IRULE2001   Deprecated matchclass    -> class match\n"
+        "  IRULE5001   Ungated log in hot event -> guard with [log level ...]\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} find-legacy old_irule.irul\n"
+        f"  {prog_name} find-legacy src/ --dialect f5-irules\n"
+        f"  {prog_name} find-legacy script.tcl --json -o report.json\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--json",
         action="store_true",
-        help="Emit convert findings as JSON.",
+        help="Emit findings as JSON (count, dialect, issues[]).",
     )
-    p.set_defaults(handler=_run_convert)
+    p.set_defaults(handler=_run_find_legacy)
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +164,7 @@ def _run_explore(args: argparse.Namespace) -> int:
     return explorer_main(explorer_args)
 
 
-def _run_convert(args: argparse.Namespace) -> int:
+def _run_find_legacy(args: argparse.Namespace) -> int:
     documents = _read_input_documents(
         args.inputs,
         inline_sources=args.source,

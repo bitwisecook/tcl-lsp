@@ -16,13 +16,21 @@ from ._registry import verb
     "split",
     aliases=(),
     help="Split an SCF into per-partition files under a directory (suitable for git).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Write one file per partition: e.g. /Common/, /Common2/, ... "
-        "Stanzas without an identifier-style partition are gathered "
-        "under '_no_partition.conf'.  Source ordering and whitespace "
-        "are preserved within each chunk."
+        "Write one file per partition: e.g. /Common/, /Common2/, ...\n"
+        "Stanzas without an identifier-style partition are gathered\n"
+        "under '_no_partition.conf'.  Source ordering and whitespace\n"
+        "are preserved within each chunk, which makes the resulting\n"
+        "tree well-suited to version control (per-partition diffs)."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 split bigip.conf partitions/\n"
+        "  f5 split prod.scf out/   # creates out/Common.conf, out/Prod.conf, ...\n"
+        "  f5 split - partitions/ < bigip.conf\n"
     )
     p.add_argument("path", help="bigip.conf / SCF file (`-` for stdin).")
     p.add_argument("output", help="Output directory (created if needed).")
