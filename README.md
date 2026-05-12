@@ -798,7 +798,10 @@ Highlights of the newer verbs:
   one object: the operator's "what actually happens to this VIP?"
   question, answered in one command.
 - **`f5 diff old.scf new.scf`** — semantic, object-aware diff that
-  ignores property ordering and iRule whitespace.
+  ignores property ordering and iRule whitespace.  Each side may be an
+  SCF / `bigip.conf` stanza dump *or* a tmsh command script
+  (`tmsh create` / `tmsh modify` lines, as emitted by `f5 tmsh` or
+  pasted from a BIG-IP shell), and the two formats may be mixed.
 - **`f5 redact` + `f5 unredact`** — strip secrets and remap public IPs
   while preserving CIDR relationships (a /24 of real IPs lands in a /24
   of redacted IPs).  A sidecar map file makes the redaction reversible

@@ -52,7 +52,7 @@ stdout.  `--format ucs|both` keeps the UCS bytes too.
 | `f5 stats` (alias `summary`) | Counts per object kind, partition breakdown, top-references, orphan count. |
 | `f5 graph` (alias `deps`) | Emit the reference graph as DOT / JSON / Mermaid (with `--seed PATH` for subgraphs). |
 | `f5 explain {virtual\|pool\|auto} <name>` | Resolve the profile chain, iRule chain, persistence, SNAT, and pool members for one object. |
-| `f5 diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). |
+| `f5 diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). Accepts SCF or `tmsh create` / `tmsh modify` scripts (as emitted by `f5 tmsh` or pasted from a real BIG-IP shell) on either side. |
 | `f5 grep` | Find every object related to a name, regex, or CIDR. |
 | `f5 cleanup` | Generate `tmsh delete` commands for objects no virtual references. |
 | `f5 validate` (alias `lint`) | Best-practice / structural checks (orphan monitors, empty pools, deprecated iRule commands, unknown events, …). |
