@@ -41,10 +41,17 @@ In dev, before the zipapp ships the bare `f5` script, invoke the same module dir
 The DSL itself has three companion help screens, all served from the verb's own argparse so they work offline:
 
 - `f5 query --help-dsl` — full grammar reference (operators, precedence, divergences from jq).
-- `f5 query --help-builtins` — every function exposed to the DSL, with signature, summary, and example.  Pass a name (`--help-builtins ip`) to drill down to one entry.
+- `f5 query --help-builtins` — every function exposed to the DSL, with signature and summary.  Pass a name (`--help-builtins ip`) to drill down to the full per-function reference (signature, semantics, worked examples, return types, error cases).
 - `f5 query --help-examples` — a cookbook of common one-liners covering filter, projection, mutation, rename, and iRule rewrites.
 
-The companion design doc at [`docs/design/f5-query-dsl.md`](../../design/f5-query-dsl.md) covers the value model, edit pipeline, and how to add new builtins.
+The same per-function reference is available as a rendered document at [`docs/design/f5-query-dsl-builtins.md`](../../design/f5-query-dsl-builtins.md) — the canonical builtin reference, generated from the registry so it can't drift from the runtime.  For grammar and architectural background see [`docs/design/f5-query-dsl.md`](../../design/f5-query-dsl.md).
+
+Complex worked examples live in KCS How-Tos:
+
+- [Composing query streams](../kcs-howto-compose-query-streams.md) — `select` / `map` / `any` / `all` / `sort` patterns.
+- [Auditing a config](../kcs-howto-audit-config-with-query.md) — orphans, naming, ports, partition leaks.
+- [Multi-step transformations](../kcs-howto-cross-config-transforms-with-query.md) — rename + readdress + policy edits in one query.
+- [Bulk readdressing](../kcs-howto-readdress-virtuals-with-query.md), [partition migration](../kcs-howto-migrate-partition-with-query.md), [iRule reference rewriting](../kcs-howto-rewrite-pool-refs-in-irules.md), [finding objects by predicate](../kcs-howto-find-objects-by-query.md).
 
 ## Options
 

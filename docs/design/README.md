@@ -35,6 +35,12 @@ rules for the KCS/documentation split live in
   the recipe for adding a new verb.
 - [f5-query-dsl.md](f5-query-dsl.md) — grammar, value model, builtin
   registry, and edit-application pipeline for the `f5 query` verb.
+- [f5-query-dsl-builtins.md](f5-query-dsl-builtins.md) — generated
+  per-function reference for every `f5 query` builtin (signature,
+  semantics, worked examples, return types, error cases).  Generated
+  from the registry by
+  [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py);
+  do not edit by hand.
 
 ## tclpkg package manager
 

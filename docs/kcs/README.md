@@ -83,6 +83,15 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-migrate-partition-with-query.md](kcs-howto-migrate-partition-with-query.md)
   — move every object from one partition into another, including
   route-domain transforms.
+- [kcs-howto-compose-query-streams.md](kcs-howto-compose-query-streams.md)
+  — filter and transform streams of BIG-IP objects with `select`,
+  `map`, `any`, `all`, `sort`, `unique`, and friends.
+- [kcs-howto-audit-config-with-query.md](kcs-howto-audit-config-with-query.md)
+  — audit a config for orphans, naming-convention violations, port
+  policy, partition leaks, and pool-member sanity using `f5 query`.
+- [kcs-howto-cross-config-transforms-with-query.md](kcs-howto-cross-config-transforms-with-query.md)
+  — compose multi-step transformations (rename + readdress + policy
+  edit) across the config in one `;`-separated query.
 - [kcs-howto-rewrite-pool-refs-in-irules.md](kcs-howto-rewrite-pool-refs-in-irules.md)
   — rename a pool everywhere, including inside iRule bodies.
 - [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)

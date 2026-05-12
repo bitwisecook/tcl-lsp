@@ -607,6 +607,36 @@ def test_cli_help_builtins_by_name(capsys):
     assert "ip(addr: string)" in out
 
 
+def test_every_builtin_has_a_details_block():
+    """Catch regressions where a new builtin is added without prose docs."""
+    for spec in list_builtins():
+        assert spec.details, f"{spec.name}: missing details block"
+
+
+def test_generated_builtins_doc_is_up_to_date():
+    """The generated reference must match the registry on disk.
+
+    Run ``python scripts/dev/gen_query_builtins_doc.py`` after changing
+    any builtin's spec.  The generator is deterministic (no timestamps),
+    so a diff here means the on-disk doc has drifted from the registry.
+    """
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(repo_root / "scripts" / "dev"))
+    import gen_query_builtins_doc  # type: ignore[import-not-found]
+
+    expected = gen_query_builtins_doc.render(list_builtins())
+    on_disk = (repo_root / "docs" / "design" / "f5-query-dsl-builtins.md").read_text(
+        encoding="utf-8"
+    )
+    assert on_disk == expected, (
+        "docs/design/f5-query-dsl-builtins.md is out of date; run "
+        "`python scripts/dev/gen_query_builtins_doc.py` to regenerate."
+    )
+
+
 def test_cli_help_examples_includes_every_cookbook_entry(capsys):
     with pytest.raises(SystemExit):
         main(["query", "--help-examples"])

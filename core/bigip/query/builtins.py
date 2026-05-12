@@ -44,6 +44,13 @@ class BuiltinSpec:
     examples: tuple[str, ...]
     category: str
     impl: Callable[..., Any]
+    # Multi-paragraph reference prose — semantics, return type, error
+    # cases, related builtins.  Surfaced verbatim by
+    # ``--help-builtins NAME`` and by the generated builtin reference
+    # under ``docs/design/f5-query-dsl-builtins.md``.  Markdown is
+    # tolerated but the help-text path is a terminal, so keep
+    # decoration light (paragraphs, bullets, inline ``code``).
+    details: str = ""
     special_form: bool = False
     # ``with_ctx`` builtins receive the evaluator's :class:`EvalContext`
     # as a keyword argument so they can register edits or look up the
@@ -76,6 +83,7 @@ def _register(
     category: str,
     min_args: int,
     max_args: int | None,
+    details: str = "",
     special_form: bool = False,
     with_ctx: bool = False,
 ) -> Callable[[Callable], Callable]:
@@ -89,6 +97,7 @@ def _register(
             examples=examples,
             category=category,
             impl=fn,
+            details=_dedent_details(details),
             special_form=special_form,
             with_ctx=with_ctx,
             min_args=min_args,
@@ -97,6 +106,18 @@ def _register(
         return fn
 
     return decorator
+
+
+def _dedent_details(text: str) -> str:
+    """Strip the leading-whitespace common to every line of a details block.
+
+    Lets us write the per-function reference prose as indented
+    triple-quoted strings without dragging the indentation into the
+    rendered output.
+    """
+    import textwrap
+
+    return textwrap.dedent(text).strip()
 
 
 def lookup(name: str) -> BuiltinSpec | None:
@@ -124,15 +145,17 @@ def list_builtins() -> list[BuiltinSpec]:
 def format_builtins(name: str | None = None) -> str:
     """Render the builtin reference for ``f5 query --help-builtins``.
 
-    When *name* is given, render only that builtin's entry (so users can
-    drill down with ``--help-builtins ip``).  Otherwise render every
-    builtin grouped by category.
+    When *name* is given, render only that builtin's entry, including
+    the deep ``details`` block (so users can drill down with
+    ``--help-builtins ip``).  Otherwise render every builtin grouped
+    by category, with the summary and examples only — the full
+    catalogue is large and the details are one keystroke away.
     """
     if name is not None:
         spec = lookup(name)
         if spec is None:
             return f"no such builtin: {name}\n"
-        return _render_one(spec) + "\n"
+        return _render_one(spec, with_details=True) + "\n"
 
     out: list[str] = ["BUILTIN FUNCTIONS", ""]
     last_cat: str | None = None
@@ -140,15 +163,30 @@ def format_builtins(name: str | None = None) -> str:
         if spec.category != last_cat:
             out.append(f"  [{spec.category}]")
             last_cat = spec.category
-        out.append(_render_one(spec, indent="    "))
+        out.append(_render_one(spec, indent="    ", with_details=False))
+    out.append("")
+    out.append("  Use --help-builtins <name> for the full reference of one builtin.")
     return "\n".join(out) + "\n"
 
 
-def _render_one(spec: BuiltinSpec, indent: str = "") -> str:
+def _render_one(spec: BuiltinSpec, indent: str = "", *, with_details: bool = True) -> str:
+    """Render one builtin's reference block.
+
+    Brief output (used by ``--help-builtins`` without a name) drops the
+    multi-paragraph ``details`` so the catalogue stays scannable.  The
+    per-name form (``--help-builtins ip``) and the generated reference
+    doc both pass ``with_details=True`` so users get the full deep
+    explanation.
+    """
     lines = [f"{indent}{spec.name}"]
     for sig in spec.signatures:
         lines.append(f"{indent}    {sig}")
     lines.append(f"{indent}    {spec.summary}")
+    if with_details and spec.details:
+        lines.append("")
+        for para in spec.details.split("\n"):
+            lines.append(f"{indent}    {para}" if para else "")
+        lines.append("")
     for ex in spec.examples:
         lines.append(f"{indent}    e.g. {ex}")
     return "\n".join(lines)
@@ -263,9 +301,41 @@ def _rebuild_destination(partition: str, address: str, route_domain: str, port: 
         "ip(addr: string) -> string",
         "ip(network: string, source: string) -> string",
     ),
+    details="""
+    The one-argument form normalises a destination string to its bare
+    address: ``ip("/Common/192.168.1.1:80")`` returns ``"192.168.1.1"``,
+    stripping the partition prefix, the route domain, and the port.
+    Use the dedicated helpers (``partition``, ``port``,
+    ``route_domain``) to recover those parts.
+
+    The two-argument form is the **readdressing helper** and is what
+    most query-driven migrations use.  It takes the host bits of
+    *source* and joins them to *network*'s prefix, producing a new
+    address in *network* that occupies the same host position as the
+    original.  Crucially, the partition prefix, route domain, and
+    port on *source* are **preserved**:
+
+    - ``ip("192.168.9.0/24", "/Common/10.10.0.5%5:443")`` returns
+      ``"/Common/192.168.9.5%5:443"``.
+    - The host portion of ``10.10.0.5`` in ``/24`` is ``.5``; the
+      result lands ``.5`` into the new network.
+
+    Address-family mismatch raises ``BuiltinError`` (an IPv4 host
+    cannot land in an IPv6 network).  An unparseable network or
+    source address likewise raises with the offending token in the
+    message.
+
+    Pair with ``|=`` to readdress every VS in one statement:
+    ``.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)``.
+
+    Related: ``net``, ``host``, ``port``, ``route_domain``,
+    ``with_route_domain``, ``in_cidr``.
+    """,
     examples=(
         'ip("10.0.0.1")',
-        'ip("192.168.9.0/24", .destination)   # rebase keeping host bits',
+        'ip("/Common/10.10.0.5%5:443")           # -> "10.10.0.5"',
+        'ip("192.168.9.0/24", .destination)      # rebase, keep host bits',
+        'ip("192.168.9.0/24", "10.10.0.5%5:443") # -> "192.168.9.5%5:443"',
     ),
     category="net",
     min_args=1,
@@ -310,9 +380,24 @@ def _builtin_ip(*args: Any) -> str:
     "net",
     summary="Return the network portion of an IP/CIDR string as ``addr/prefix``.",
     signatures=("net(value: string) -> string",),
+    details="""
+    Parses *value* as a network (``addr/prefix``) and returns its
+    canonical form.  Host bits in the input are masked off, so
+    ``net("192.168.9.42/24")`` returns ``"192.168.9.0/24"``.
+
+    Useful as a normaliser when you want every VS in the same /24 to
+    report the same network string: ``.ltm.virtual[] | .destination
+    | host(.) + "/24" | net(.)``.
+
+    Unparseable input raises ``BuiltinError``.  IPv4 and IPv6 networks
+    are both accepted; the prefix is required.
+
+    Related: ``ip``, ``in_cidr``, ``host``.
+    """,
     examples=(
-        'net("192.168.9.0/24")',
-        'net("192.168.9.42/24")   # -> "192.168.9.0/24"',
+        'net("192.168.9.0/24")           # -> "192.168.9.0/24"',
+        'net("192.168.9.42/24")          # -> "192.168.9.0/24"',
+        'net("2001:db8::42/64")          # -> "2001:db8::/64"',
     ),
     category="net",
     min_args=1,
@@ -331,12 +416,30 @@ def _builtin_net(value: Any) -> str:
     "host",
     summary=(
         "Return just the address half of a BIG-IP destination, stripping "
-        "any partition prefix and ``:port`` suffix."
+        "any partition prefix, route domain, and ``:port`` suffix."
     ),
     signatures=("host(value: string) -> string",),
+    details="""
+    BIG-IP destinations are spelt
+    ``[/Partition/]address[%route-domain][:port]``.  ``host`` extracts
+    just the address — the partition prefix, route-domain suffix,
+    and port are all dropped:
+
+    - ``host("/Common/10.0.0.1%5:80")`` returns ``"10.0.0.1"``.
+    - Use ``route_domain``, ``port``, and ``partition`` to recover
+      the parts ``host`` strips.
+
+    Falls back to returning the input verbatim when the string does
+    not parse as a destination, so it's safe to apply to fields that
+    might already be bare addresses.
+
+    Related: ``ip`` (one-arg form does the same normalisation),
+    ``port``, ``route_domain``, ``partition``.
+    """,
     examples=(
         "host(.destination)",
-        'host("/Common/192.168.1.1:80")   # -> "192.168.1.1"',
+        'host("/Common/192.168.1.1:80")           # -> "192.168.1.1"',
+        'host("/Common/10.0.0.1%5:443")           # -> "10.0.0.1"',
     ),
     category="net",
     min_args=1,
@@ -355,7 +458,25 @@ def _builtin_host(value: Any) -> str:
         "``null`` if no port is present."
     ),
     signatures=("port(value: string) -> integer | null",),
-    examples=("port(.destination)", 'port("192.168.1.1:80")   # -> 80'),
+    details="""
+    Extracts the ``:port`` suffix from a destination string and
+    returns it as an integer.  Returns ``null`` (not ``0``) when no
+    port is present, so ``port(.destination) | defined(.)`` is the
+    natural way to filter VSes that explicitly target a port.
+
+    Partition prefix and route domain on the input are ignored.  A
+    malformed port (non-numeric) returns ``null`` rather than
+    raising — the destination simply doesn't have a recognisable
+    port.
+
+    Related: ``host``, ``ip``, ``route_domain``.
+    """,
+    examples=(
+        "port(.destination)",
+        'port("192.168.1.1:80")                   # -> 80',
+        'port("/Common/10.0.0.1%5:443")           # -> 443',
+        'port("/Common/10.0.0.1")                 # -> null',
+    ),
     category="net",
     min_args=1,
     max_args=1,
@@ -370,7 +491,25 @@ def _builtin_port(value: Any) -> int | None:
     "partition",
     summary="Return the partition name of a full-path (``/Common/foo`` → ``Common``).",
     signatures=("partition(path: string) -> string",),
-    examples=('partition("/Common/web_pool")   # -> "Common"',),
+    details="""
+    Extracts the partition segment of a BIG-IP full-path — the bit
+    between the first and second ``/``.  An input that does not begin
+    with ``/`` (a relative reference, or a bare name) returns the
+    empty string.
+
+    Useful for group-by aggregates: ``.ltm.virtual[].name |
+    map(partition(.)) | sort | unique`` enumerates every partition
+    that owns at least one virtual server.
+
+    Related: ``basename`` (the inverse — last segment),
+    ``with_partition`` (replace the partition), ``rename_partition``
+    (move every object in a partition).
+    """,
+    examples=(
+        'partition("/Common/web_pool")            # -> "Common"',
+        'partition("/Tenant_A/web_pool")          # -> "Tenant_A"',
+        'partition("relative_name")               # -> ""',
+    ),
     category="path",
     min_args=1,
     max_args=1,
@@ -387,7 +526,22 @@ def _builtin_partition(value: Any) -> str:
     "basename",
     summary="Return the last segment of a full-path (``/Common/foo`` → ``foo``).",
     signatures=("basename(path: string) -> string",),
-    examples=('basename("/Common/web_pool")   # -> "web_pool"',),
+    details="""
+    Returns everything after the last ``/`` in a path string.  For a
+    bare name (no slashes) the input is returned unchanged.
+
+    Pairs naturally with ``|=`` to strip the partition prefix from
+    every reference in one statement:
+    ``.ltm.virtual[].pool |= basename(.)``.
+
+    Related: ``partition`` (the inverse — partition segment),
+    ``with_partition`` (replace partition, preserve basename).
+    """,
+    examples=(
+        'basename("/Common/web_pool")             # -> "web_pool"',
+        'basename("/Tenant_A/api_pool")           # -> "api_pool"',
+        'basename("relative_name")                # -> "relative_name"',
+    ),
     category="path",
     min_args=1,
     max_args=1,
@@ -401,7 +555,29 @@ def _builtin_basename(value: Any) -> str:
     "with_partition",
     summary="Replace the partition of a full-path, preserving the basename.",
     signatures=("with_partition(path: string, partition: string) -> string",),
-    examples=('with_partition("/Common/web_pool", "Tenant_A")',),
+    details="""
+    Returns ``/<partition>/<basename(path)>``.  This is a *string*
+    transform — by itself it just builds a new path string, it does
+    NOT move the underlying object.  Pair it with ``|=`` on an
+    identity field to actually move objects (the ``|=`` routes
+    through ``rename_object``):
+    ``.ltm.pool["~^/Common/"] | .name |= with_partition(., "Tenant_A")``.
+
+    For a whole-partition migration (every object, not just pools),
+    reach for ``rename_partition`` — the cascade rewrites compound
+    values like destination addresses and pool-member names too,
+    which ``with_partition`` alone can't reach because they aren't
+    standalone object identifiers.
+
+    Raises ``BuiltinError`` when the new partition is empty.
+
+    Related: ``partition``, ``basename``, ``rename``,
+    ``rename_partition``.
+    """,
+    examples=(
+        'with_partition("/Common/web_pool", "Tenant_A")  # -> "/Tenant_A/web_pool"',
+        '.ltm.pool["~^/Common/"] | .name |= with_partition(., "Tenant_A")',
+    ),
     category="path",
     min_args=2,
     max_args=2,
@@ -422,9 +598,27 @@ def _builtin_with_partition(path: Any, partition: Any) -> str:
         "Partition prefixes and ``:port`` suffixes on the address are ignored."
     ),
     signatures=("in_cidr(addr: string, network: string) -> boolean",),
+    details="""
+    Strips any partition prefix and ``:port`` suffix from *addr*,
+    parses what's left as an IP, and tests for membership in
+    *network*.  An unparseable address returns ``false`` (not an
+    error) so the helper is safe to use as a stream filter without
+    pre-validation.  An unparseable *network* raises
+    ``BuiltinError`` — the network is supplied by the query author,
+    so a typo there should fail loudly.
+
+    Address-family mismatches return ``false``: an IPv4 host in an
+    IPv6 network is just "not in the network", not an error.
+
+    The route-domain portion of *addr* (``%5``) is ignored for the
+    membership test — RDs don't take part in the prefix arithmetic.
+
+    Related: ``ip``, ``net``, ``host``, ``route_domain``.
+    """,
     examples=(
-        'in_cidr("10.0.0.5", "10.0.0.0/8")',
-        'select(.destination | in_cidr("10.0.0.0/8"))',
+        'in_cidr("10.0.0.5", "10.0.0.0/8")              # -> true',
+        'in_cidr("/Common/10.0.0.5:80", "10.0.0.0/8")   # -> true',
+        '.ltm.virtual[] | select(in_cidr(.destination, "10.0.0.0/8")) | .name',
     ),
     category="net",
     min_args=2,
@@ -456,9 +650,23 @@ def _builtin_in_cidr(addr: Any, network: Any) -> bool:
         "(``10.0.0.1%5:80`` -> ``5``), or null when none is present."
     ),
     signatures=("route_domain(value: string) -> string | null",),
+    details="""
+    Extracts the ``%<rd>`` portion of a BIG-IP destination.  Returns
+    the route domain as a string (not an integer) because RDs may be
+    spelled with leading zeros or non-numeric tokens in some
+    configs; cast to int when you need to compare numerically.
+
+    Returns ``null`` when no route domain is present, so ``select(
+    route_domain(.destination) | defined(.))`` filters VSes that
+    explicitly bind to a non-default route domain.
+
+    Related: ``with_route_domain`` (set / replace / strip),
+    ``host``, ``port``.
+    """,
     examples=(
         "route_domain(.destination)",
-        'route_domain("10.0.0.1%5:80")   # -> "5"',
+        'route_domain("10.0.0.1%5:80")            # -> "5"',
+        'route_domain("/Common/10.0.0.1:80")      # -> null',
     ),
     category="net",
     min_args=1,
@@ -478,9 +686,30 @@ def _builtin_route_domain(value: Any) -> str | None:
         "route-domain entirely.  Partition prefix and port are preserved."
     ),
     signatures=("with_route_domain(value: string, rd: string | integer | null) -> string",),
+    details="""
+    Edits the route-domain portion of a destination string in place.
+    Accepts an integer (``with_route_domain(.dest, 7)``), a string
+    (``with_route_domain(.dest, "7")``), or null/empty-string to
+    strip the route domain entirely.
+
+    Partition prefix and port survive the edit unchanged — this
+    helper only touches the ``%<rd>`` segment.
+
+    Booleans are rejected (``with_route_domain(.dest, true)`` raises
+    ``BuiltinError``) so accidental coercions don't produce
+    nonsense addresses.
+
+    Common pattern: ``.ltm.virtual[] | .destination |=
+    with_route_domain(., 7)`` rebinds every VS to RD 7 in one
+    statement.
+
+    Related: ``route_domain`` (read), ``ip`` (rebase, preserves RD),
+    ``host``, ``port``.
+    """,
     examples=(
         "with_route_domain(.destination, 5)",
-        'with_route_domain("/Common/10.0.0.1%5:80", "")   # strip rd',
+        'with_route_domain("/Common/10.0.0.1:80", 7)        # -> "/Common/10.0.0.1%7:80"',
+        'with_route_domain("/Common/10.0.0.1%5:80", "")     # -> "/Common/10.0.0.1:80"',
         ".ltm.virtual[] | .destination |= with_route_domain(., 7)",
     ),
     category="net",
@@ -516,17 +745,53 @@ def _builtin_with_route_domain(value: Any, rd: Any) -> str:
         "Rename a BIG-IP object full-path and update every reference to it.  "
         "Routes through the same engine ``f5 rename`` uses (token-bounded "
         "regex substitution across the whole source, covering iRule body "
-        "references and pool-member identifiers).  Unlike ``.<kind>[old].name "
-        "= new``, the kind is not specified — useful when ``old`` is "
-        "user-supplied and the caller doesn't know which kind owns it.  A "
-        "zero-occurrence outcome returns 0 rather than raising, so the CLI "
-        "verb can surface ``warning: no occurrences of <old> found`` with "
-        "exit code 1 instead of treating it as an error."
+        "references and pool-member identifiers)."
     ),
     signatures=("rename(old: string, new: string) -> integer",),
+    details="""
+    Schedules a token-bounded source rewrite that replaces every
+    occurrence of *old* with *new*.  The substitution is the same one
+    ``rename_object`` performs:
+
+    - The match is **token-bounded**, so renaming ``/Common/foo`` does
+      not touch ``/Common/foobar`` or ``/Common/foo_extra``.
+    - **References inside iRule bodies** are rewritten too —
+      ``pool /Common/foo``, ``persist add ... /Common/foo``,
+      ``class match ... /Common/foo``, and so on.  Short-name
+      references (``foo`` instead of ``/Common/foo``) are *not*
+      rewritten; they're unsafe to handle by regex.
+    - **Pool-member identifiers** that embed the renamed name are
+      rewritten (``/Common/foo:80`` → ``/Common/new:80``).
+
+    Unlike the DSL form ``.<kind>["/Common/old"].name = "/Common/new"``
+    (which raises when the LHS resolves to nothing), ``rename()`` is
+    **tolerant**: a zero-occurrence outcome yields a no-op
+    ``AppliedSource`` with no rename report.  The ``f5 rename`` CLI
+    detects the no-op and surfaces it as ``warning: no occurrences
+    of <old> found`` with exit code 1 — matching its historical
+    behaviour.
+
+    Pre-flight checks: empty old/new names raise ``BuiltinError``;
+    ``old == new`` is a no-op that returns 0 without scheduling an
+    edit.
+
+    Common patterns:
+
+    - ``f5 rename /Common/old /Common/new bigip.conf`` is exactly
+      ``f5 query 'rename("/Common/old", "/Common/new")' bigip.conf``.
+    - Chain with a property edit using ``;`` so the second statement
+      sees the renamed object:
+      ``rename("/Common/old", "/Common/new") ;
+      .ltm.pool["/Common/new"].monitor = "/Common/tcp"``.
+
+    Related: ``rename_partition`` (whole-partition cascade), the DSL
+    form ``.<kind>[X].name = Y`` (strict variant — errors when X
+    doesn't exist).
+    """,
     examples=(
         'rename("/Common/old_pool", "/Common/new_pool")',
         'rename("/Common/log_rule", "/Common/audit_rule")',
+        'rename("/Common/old", "/Common/new") ; .ltm.pool["/Common/new"].monitor = "/Common/tcp"',
     ),
     category="rename",
     min_args=2,
@@ -565,15 +830,57 @@ def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
     "rename_partition",
     summary=(
         "Rename a BIG-IP partition by rewriting every textual occurrence "
-        "of the ``/<old>/`` prefix across the whole source.  The match "
-        "is token-bounded — neighbouring identifiers (``/<old>Ext/...``) "
-        "are not touched — and applies to object headers, references in "
-        "config properties, destination address prefixes, pool-member "
-        "identifiers, and iRule body literals.  The bare "
-        "``auth partition <old>`` stanza header is renamed too.  Pair "
-        "with --in-place to persist or with the default dry-run diff to "
-        "preview.  Returns the textual-match count."
+        "of the ``/<old>/`` prefix across the whole source.  Token-bounded "
+        "and covers object headers, references in config properties, "
+        "destination address prefixes, pool-member identifiers, iRule "
+        "body literals, and the ``auth partition`` stanza header."
     ),
+    details="""
+    A whole-partition migration: every textual ``/<old>/`` occurrence
+    in the source becomes ``/<new>/`` in one atomic rewrite.  The
+    pattern is token-bounded the same way ``rename`` is, so:
+
+    - Neighbouring identifiers like ``/<old>Ext/...`` are not touched.
+    - The trailing lookahead requires the next character to be the
+      start of an identifier or address, so bare standalone
+      occurrences of the partition name (which appear as property
+      values in some kinds of objects) are not rewritten.
+
+    Crucially, this covers **compound values** that ``rename`` cannot:
+
+    - Destination addresses: ``destination /Common/10.10.0.5%5:443``
+      — the prefix part of an address isn't a standalone object
+      identifier, so ``rename`` won't touch it.  ``rename_partition``
+      will.
+    - Pool-member identifiers: ``/Common/n1%5:80``.
+    - Bare ``/Common/`` mentions inside iRule body literals.
+
+    The ``auth partition Common { ... }`` stanza header is also
+    renamed when present — both halves of the migration land in one
+    statement.
+
+    Route domains, ports, and the bits inside compound values that
+    don't reference the partition (the host address, the port
+    number) are preserved exactly.
+
+    Pre-flight checks: empty names raise ``BuiltinError``; old
+    names containing ``/`` raise ``BuiltinError`` (pass bare
+    partition names, not paths); names not matching
+    ``[A-Za-z0-9_.-]+`` raise.  ``old == new`` is a no-op.
+
+    The applier rejects mixing ``rename_partition`` with field edits
+    in the *same* statement — the prefix rewrite shifts byte offsets
+    and field-slot ranges captured at projection time would target
+    the wrong span.  Split them with ``;`` and the runner applies
+    each statement against the post-rewrite source.
+
+    Returns the count of textual matches the cascade will land on
+    (computed against the source as the builtin runs, before any
+    edits apply).
+
+    Related: ``rename`` (single-object), ``with_partition`` (string
+    transform, doesn't migrate references).
+    """,
     signatures=("rename_partition(old: string, new: string) -> integer",),
     examples=(
         'rename_partition("Common", "Tenant_A")',
@@ -643,7 +950,28 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
     "length",
     summary="Length of a string, list, stream, or object's field map.",
     signatures=("length(value: any) -> integer",),
-    examples=("length(.rules)", ".rules | length"),
+    details="""
+    Returns the size of *value*:
+
+    - **string** / :class:`PathRef`: character count of the string.
+    - **list** / **stream**: number of items.
+    - **object**: number of TMSH fields (uncommonly used; mostly for
+      introspection of unknown kinds).
+    - **null**: returns 0.
+
+    Raises ``BuiltinError`` for any other type (numbers, booleans).
+
+    Pairs naturally with comparisons for predicates: ``select(.rules
+    | length > 0)`` keeps every VS that has at least one attached
+    iRule.
+
+    Related: ``count`` (alias for list/stream only).
+    """,
+    examples=(
+        "length(.rules)",
+        ".rules | length",
+        ".ltm.virtual[] | select(.rules | length > 0) | .name",
+    ),
     category="value",
     min_args=1,
     max_args=1,
@@ -666,7 +994,20 @@ def _builtin_length(value: Any) -> int:
     "startswith",
     summary="Test whether a string starts with a prefix.",
     signatures=("startswith(value: string, prefix: string) -> boolean",),
-    examples=('startswith(.name, "vs_prod_")',),
+    details="""
+    Returns ``true`` when *value* begins with *prefix*.  Accepts
+    :class:`PathRef` for either argument (compared via the
+    ``full_path``), so ``startswith(.pool, "/Common/")`` works even
+    though ``.pool`` is a path-ref, not a plain string.
+
+    Use ``match`` when you need pattern-based matching.
+
+    Related: ``endswith``, ``contains``, ``match``.
+    """,
+    examples=(
+        'startswith(.name, "vs_prod_")',
+        '.ltm.virtual[] | select(startswith(.name, "vs_dev_")) | .name',
+    ),
     category="string",
     min_args=2,
     max_args=2,
@@ -681,7 +1022,16 @@ def _builtin_startswith(value: Any, prefix: Any) -> bool:
     "endswith",
     summary="Test whether a string ends with a suffix.",
     signatures=("endswith(value: string, suffix: string) -> boolean",),
-    examples=('endswith(.name, "_pool")',),
+    details="""
+    Returns ``true`` when *value* ends with *suffix*.  Accepts
+    :class:`PathRef` for either argument; compared via ``full_path``.
+
+    Related: ``startswith``, ``contains``, ``match``.
+    """,
+    examples=(
+        'endswith(.name, "_pool")',
+        '.ltm.virtual[] | select(endswith(.destination, ":443"))',
+    ),
     category="string",
     min_args=2,
     max_args=2,
@@ -697,7 +1047,29 @@ def _builtin_endswith(value: Any, suffix: Any) -> bool:
         "contains(value: string, needle: string) -> boolean",
         "contains(value: list, needle: any) -> boolean",
     ),
-    examples=('contains(.destination, ":443")', 'contains(.rules, "/Common/log")'),
+    details="""
+    Overloaded by the type of *value*:
+
+    - When *value* is a **string** (or :class:`PathRef`), tests
+      substring membership: ``contains(.destination, ":443")``.
+    - When *value* is a **list / stream** (such as ``.rules`` —
+      a list of :class:`PathRef`), tests element membership.
+      :class:`PathRef` items and string needles are compared on
+      their ``full_path`` so ``contains(.rules,
+      "/Common/log_rule")`` works against the streamed list of
+      path-refs.
+
+    Raises ``BuiltinError`` if *value* is neither a string nor a
+    list-like value.
+
+    Related: ``startswith``, ``endswith``, ``match``, ``any`` /
+    ``all`` (for more general predicates over a stream).
+    """,
+    examples=(
+        'contains(.destination, ":443")',
+        'contains(.rules, "/Common/log_rule")',
+        '.ltm.virtual[] | select(contains(.rules, "/Common/log_rule")) | .name',
+    ),
     category="string",
     min_args=2,
     max_args=2,
@@ -722,7 +1094,31 @@ def _builtin_contains(value: Any, needle: Any) -> bool:
     "match",
     summary="Regex-match a string; returns true when the pattern matches anywhere.",
     signatures=("match(value: string, pattern: string) -> boolean",),
-    examples=('match(.name, "^vs_prod_.*")',),
+    details="""
+    Tests whether *pattern* (a Python regex) matches anywhere in
+    *value* (semantically ``re.search``, not ``re.match``).  Use
+    ``^`` / ``$`` to anchor.
+
+    An invalid regex raises ``BuiltinError`` with the underlying
+    ``re.error`` reason — the pattern comes from the query author,
+    so a typo should fail loudly.
+
+    For pure prefix/suffix or substring tests, prefer ``startswith``
+    / ``endswith`` / ``contains`` — they're cheaper and read better.
+
+    Note: the **regex subscript** form ``.ltm.virtual["~pattern"]``
+    is a separate, more efficient mechanism for filtering keys
+    inside a container — reach for ``match`` when you need to test
+    a *value* against a pattern, and for the subscript when you're
+    selecting *keys*.
+
+    Related: ``sub``, ``gsub``, ``startswith``, ``endswith``,
+    ``contains``.
+    """,
+    examples=(
+        'match(.name, "^vs_prod_.*")',
+        '.ltm.virtual[] | select(match(.destination, ":(80|443)$")) | .name',
+    ),
     category="string",
     min_args=2,
     max_args=2,
@@ -740,7 +1136,27 @@ def _builtin_match(value: Any, pattern: Any) -> bool:
     "sub",
     summary="Replace the first regex match in a string.",
     signatures=("sub(value: string, pattern: string, replacement: string) -> string",),
-    examples=('sub(.name, "^vs_dev_", "vs_qa_")',),
+    details="""
+    Replaces the **first** occurrence of *pattern* in *value* with
+    *replacement* and returns the new string.  *pattern* is a Python
+    regex; *replacement* may use ``\\1`` / ``\\g<name>`` backrefs.
+
+    Use ``gsub`` to replace every match instead.  An invalid pattern
+    raises ``BuiltinError``.
+
+    Pairs naturally with ``|=`` to rewrite a property in place:
+    ``.ltm.virtual[].name |= sub(., "^vs_dev_", "vs_qa_")``.  When
+    the LHS is a stream of identity-field paths, each match is
+    rewritten through ``rename_object`` — references update along
+    with the headers.
+
+    Related: ``gsub``, ``match``, ``rename`` (for full-path
+    identity renames the engine already understands).
+    """,
+    examples=(
+        'sub(.name, "^vs_dev_", "vs_qa_")',
+        '.ltm.virtual[].destination |= sub(., ":443$", ":8443")',
+    ),
     category="string",
     min_args=3,
     max_args=3,
@@ -759,7 +1175,22 @@ def _builtin_sub(value: Any, pattern: Any, repl: Any) -> str:
     "gsub",
     summary="Replace every regex match in a string.",
     signatures=("gsub(value: string, pattern: string, replacement: string) -> string",),
-    examples=('gsub(.body, "/Common/old_", "/Common/new_")',),
+    details="""
+    Like ``sub`` but replaces **every** occurrence of *pattern* in
+    *value*.  Useful for blanket string rewrites inside iRule bodies
+    or data-group values.
+
+    For object full-path renames, prefer ``rename`` or
+    ``rename_partition`` over a raw ``gsub`` — those route through a
+    token-bounded engine that won't touch substring collisions or
+    short-name references in unsafe contexts.
+
+    Related: ``sub``, ``match``, ``rename``, ``rename_partition``.
+    """,
+    examples=(
+        'gsub(.body, "/Common/old_", "/Common/new_")',
+        '.ltm.virtual[].destination |= gsub(., "%5", "%7")  # bulk RD change',
+    ),
     category="string",
     min_args=3,
     max_args=3,
@@ -778,7 +1209,22 @@ def _builtin_gsub(value: Any, pattern: Any, repl: Any) -> str:
     "split",
     summary="Split a string on a separator.  Returns a list.",
     signatures=("split(value: string, separator: string) -> list[string]",),
-    examples=('split(.destination, ":")',),
+    details="""
+    Splits *value* on every occurrence of *separator*, returning a
+    Python list of substrings.  The separator is not a regex — use
+    a literal string.
+
+    Common pattern: project a single string field, split it, and
+    extract a component.  ``.ltm.virtual[].destination | split(., ":")
+    | last(.)`` projects the port part of every destination.
+
+    Related: ``join`` (the inverse), ``sub`` / ``gsub`` (for regex
+    rewrites).
+    """,
+    examples=(
+        'split(.destination, ":")',
+        'split(.destination, ":") | last(.)        # port portion',
+    ),
     category="string",
     min_args=2,
     max_args=2,
@@ -791,7 +1237,23 @@ def _builtin_split(value: Any, sep: Any) -> list[str]:
     "join",
     summary="Join a list of strings with a separator.",
     signatures=("join(values: list, separator: string) -> string",),
-    examples=('join(.rules, ", ")',),
+    details="""
+    Joins a list (or stream) of strings into one string, separated
+    by *separator*.  :class:`PathRef` items are coerced to their
+    ``full_path``, so ``join(.rules, ", ")`` works on the streamed
+    list of attached iRule references.
+
+    Useful for ad-hoc reports: ``.ltm.virtual[] | "\\(.name): \\(join
+    (.rules, ", "))"`` (when string interpolation lands) or
+    ``join(map(.name, .ltm.virtual[]), "\\n")`` to flatten a stream
+    of names.
+
+    Related: ``split``, ``map``, ``sort``.
+    """,
+    examples=(
+        'join(.rules, ", ")',
+        '.ltm.virtual[].name | sort | join(.., ", ")',
+    ),
     category="string",
     min_args=2,
     max_args=2,
@@ -806,7 +1268,18 @@ def _builtin_join(values: Any, sep: Any) -> str:
     "upcase",
     summary="Uppercase a string.",
     signatures=("upcase(value: string) -> string",),
-    examples=("upcase(.name)",),
+    details="""
+    Returns *value* with every ASCII letter converted to uppercase.
+    Accepts :class:`PathRef`; the result is a plain string (the path
+    is normalised).  Use locale-aware casing helpers in Python if
+    you need them — this wrapper just calls ``str.upper``.
+
+    Related: ``downcase``.
+    """,
+    examples=(
+        "upcase(.name)",
+        'upcase("vs_prod_web")                    # -> "VS_PROD_WEB"',
+    ),
     category="string",
     min_args=1,
     max_args=1,
@@ -819,7 +1292,16 @@ def _builtin_upcase(value: Any) -> str:
     "downcase",
     summary="Lowercase a string.",
     signatures=("downcase(value: string) -> string",),
-    examples=("downcase(.name)",),
+    details="""
+    Returns *value* with every ASCII letter converted to lowercase.
+    Accepts :class:`PathRef`.
+
+    Related: ``upcase``.
+    """,
+    examples=(
+        "downcase(.name)",
+        'downcase("VS_PROD_WEB")                  # -> "vs_prod_web"',
+    ),
     category="string",
     min_args=1,
     max_args=1,
@@ -837,7 +1319,23 @@ def _builtin_downcase(value: Any) -> str:
     "keys",
     summary="Return the field names of an object as a sorted list.",
     signatures=("keys(value: object) -> list[string]",),
-    examples=("keys(.ltm.virtual)",),
+    details="""
+    Returns the field-name keys of an :class:`ObjectRef` (or a plain
+    ``dict``) as a sorted list.  Useful for introspecting unfamiliar
+    object kinds or for projecting "which fields does each kind
+    expose?".
+
+    Returns the keys, not the values — pair with ``values`` (or just
+    index back through the object) to fetch the values too.
+
+    Raises ``BuiltinError`` for non-object inputs.
+
+    Related: ``values``, ``length``, ``type``.
+    """,
+    examples=(
+        "keys(.ltm.virtual.web_vs)              # all field names of one VS",
+        ".ltm.virtual[] | first(.) | keys(.)    # discover the VS field set",
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -854,7 +1352,23 @@ def _builtin_keys(value: Any) -> list[str]:
     "values",
     summary="Return the field values of an object as a list.",
     signatures=("values(value: object) -> list",),
-    examples=("values(.ltm.virtual.web_vs)",),
+    details="""
+    Returns the values of an :class:`ObjectRef`'s fields, ordered by
+    sorted field name.  Pairs with ``keys`` for matched
+    ``(name, value)`` traversal.
+
+    The returned list mixes types — most BIG-IP objects carry a mix
+    of strings, path-refs, and nested lists — so subsequent
+    operations should be type-aware (``select(. != "")`` etc.).
+
+    Raises ``BuiltinError`` for non-object inputs.
+
+    Related: ``keys``, ``length``.
+    """,
+    examples=(
+        "values(.ltm.virtual.web_vs)",
+        ".ltm.virtual.web_vs | values | map(type)   # type signature of one VS",
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -871,7 +1385,21 @@ def _builtin_values(value: Any) -> list[Any]:
     "first",
     summary="Return the first item of a list or stream, or null when empty.",
     signatures=("first(value: list | stream) -> any",),
-    examples=("first(.rules)",),
+    details="""
+    Returns the first element of a list or stream.  Returns ``null``
+    (not an error) when the input is empty, so it's safe to apply to
+    fields that may have no entries (``first(.rules)`` on a VS with
+    no attached iRules returns null).
+
+    Useful in combination with sorting / unique-ing to pick the
+    "smallest" or "first by name" entry.
+
+    Related: ``last``, ``count``, ``length``, ``sort``.
+    """,
+    examples=(
+        "first(.rules)",
+        ".ltm.virtual[].name | sort | first       # alphabetical first VS",
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -885,7 +1413,17 @@ def _builtin_first(value: Any) -> Any:
     "last",
     summary="Return the last item of a list or stream, or null when empty.",
     signatures=("last(value: list | stream) -> any",),
-    examples=("last(.rules)",),
+    details="""
+    Returns the last element of a list or stream.  Returns ``null``
+    when the input is empty.  Idiomatic for splitting "address:port"
+    style destinations: ``split(.destination, ":") | last``.
+
+    Related: ``first``, ``count``, ``sort``.
+    """,
+    examples=(
+        "last(.rules)",
+        'split(.destination, ":") | last(.)        # port portion',
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -899,7 +1437,16 @@ def _builtin_last(value: Any) -> Any:
     "count",
     summary="Count the items in a list or stream.",
     signatures=("count(value: list | stream) -> integer",),
-    examples=(".ltm.virtual[] | count",),
+    details="""
+    Alias for ``length`` restricted to lists and streams.  Reads
+    naturally in filter prose: ``select(.rules | count > 0)``.
+
+    Related: ``length``.
+    """,
+    examples=(
+        ".ltm.virtual[] | count                  # number of VSes",
+        ".ltm.virtual[] | select(.rules | count > 0) | .name",
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -912,7 +1459,25 @@ def _builtin_count(value: Any) -> int:
     "unique",
     summary="Return the unique items of a list, preserving first-seen order.",
     signatures=("unique(value: list | stream) -> list",),
-    examples=(".ltm.virtual[].pool | unique",),
+    details="""
+    De-duplicates a list or stream while preserving the original
+    order of first occurrence.  :class:`PathRef` items are compared
+    on their ``full_path``, so a stream that pulls the same pool
+    reference from many VSes collapses to one entry.
+
+    Unhashable items (rare — usually nested lists) fall back to a
+    linear scan, so worst-case is O(n^2); for the typical case of
+    strings, integers, and path-refs it's O(n).
+
+    Pairs nicely with ``sort`` for stable de-duplicated output:
+    ``.ltm.virtual[].pool | unique | sort``.
+
+    Related: ``sort``, ``count``, ``map``.
+    """,
+    examples=(
+        ".ltm.virtual[].pool | unique             # every distinct default pool",
+        ".ltm.virtual[].name | map(partition(.)) | unique  # used partitions",
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -941,7 +1506,23 @@ def _builtin_unique(value: Any) -> list[Any]:
     "sort",
     summary="Return a sorted list.  Strings sort lexicographically; numbers numerically.",
     signatures=("sort(value: list | stream) -> list",),
-    examples=(".ltm.virtual[].name | sort",),
+    details="""
+    Sorts the items of a list or stream and returns a list.
+    :class:`PathRef` items sort on their ``full_path``.  Heterogeneous
+    types in the same list raise — sort what comes back from a
+    projection (always one type) rather than mixed object/scalar
+    streams.
+
+    Stable (Python's ``sorted`` is); for custom key ordering, sort by
+    a projected key first then sort by that:
+    ``.ltm.virtual[].name | sort``.
+
+    Related: ``unique``, ``first``, ``last``.
+    """,
+    examples=(
+        ".ltm.virtual[].name | sort",
+        ".ltm.virtual[].pool | unique | sort     # sorted distinct pools",
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -958,7 +1539,23 @@ def _builtin_sort(value: Any) -> list[Any]:
     "any",
     summary="True when at least one item of a list or stream is truthy.",
     signatures=("any(value: list | stream) -> boolean",),
-    examples=('any(.rules | map(. == "/Common/log"))',),
+    details="""
+    Tests whether **any** item in a list or stream is truthy.
+    Truthy means non-null, non-empty-string, non-empty-collection,
+    and non-zero — same conventions as ``select``.
+
+    Used most often after ``map`` to apply a per-item predicate:
+    ``any(.pool.members[].address | map(in_cidr(., "10.0.0.0/8")))``
+    is "does any member's address lie in 10/8?".
+
+    Short-circuits — stops at the first truthy item.
+
+    Related: ``all``, ``select``, ``map``.
+    """,
+    examples=(
+        'any(.rules | map(. == "/Common/log"))',
+        '.ltm.virtual[] | select(any(.pool.members[].address | map(in_cidr(., "10.0.0.0/8")))) | .name',
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -971,7 +1568,21 @@ def _builtin_any(value: Any) -> bool:
     "all",
     summary="True when every item of a list or stream is truthy.",
     signatures=("all(value: list | stream) -> boolean",),
-    examples=('all(.rules | map(startswith(., "/Common/")))',),
+    details="""
+    Tests whether **every** item in a list or stream is truthy.
+    Short-circuits on the first falsy item.  An empty input returns
+    ``true`` (vacuous truth — there's no falsy item to find).
+
+    Common pattern: validate an invariant across the config —
+    ``all(.ltm.virtual[].pool | map(startswith(., "/Common/")))``
+    is "are all default pools in Common?".
+
+    Related: ``any``, ``select``, ``map``.
+    """,
+    examples=(
+        'all(.rules | map(startswith(., "/Common/")))',
+        'all(.ltm.virtual[].pool | map(. != ""))     # every VS has a default pool?',
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -990,9 +1601,33 @@ def _builtin_all(value: Any) -> bool:
     "select",
     summary="Drop the current value unless the body evaluates to a truthy result.",
     signatures=("select(body) -> any | drop",),
+    details="""
+    **Special form.**  ``select`` is the filter primitive — for each
+    input value, it evaluates *body* against that value (with ``.``
+    re-bound to the current item) and emits the current value
+    unchanged when the result is truthy, dropping it otherwise.
+
+    Truthy values: non-null, non-empty-string, non-empty-list /
+    -stream, non-zero numbers, true booleans, non-empty path-refs.
+
+    Typical use is inside a pipeline that streams objects:
+    ``.ltm.virtual[] | select(.pool != "")`` keeps only VSes with a
+    default pool.  Chain multiple ``select(...)`` to AND predicates
+    together; use ``or`` inside one body to OR.
+
+    Unlike most builtins, *body* may be any expression (not just a
+    value) — it's the unevaluated AST and is re-evaluated per item.
+    That makes ``select`` the source of every conditional flow in
+    the DSL: filter, partition, branch.
+
+    Related: ``map`` (transform every item instead of filtering),
+    ``any``, ``all``, ``not``.
+    """,
     examples=(
-        '.ltm.virtual[] | select(.pool != "")',
+        '.ltm.virtual[] | select(.pool != "") | .name',
         '.ltm.virtual[] | select(startswith(.name, "vs_prod_"))',
+        '.ltm.virtual[] | select(in_cidr(.destination, "10.0.0.0/8"))',
+        ".ltm.virtual[] | select(.rules | count > 0 and .rules | count < 5)",
     ),
     category="stream",
     min_args=1,
@@ -1007,7 +1642,37 @@ def _builtin_select(*_args):  # pragma: no cover - dispatched specially
     "map",
     summary="Apply the body to every item, returning the list of results.",
     signatures=("map(body) -> list",),
-    examples=(".rules | map(basename(.))",),
+    details="""
+    **Special form.**  ``map`` is the transform primitive — for each
+    item of the *input* (which must be a list / stream), it
+    evaluates *body* with ``.`` re-bound to that item and collects
+    the results into a list.  Unlike ``select``, ``map`` always
+    produces an output element per input.
+
+    The body can be any expression: a field projection, a builtin
+    call, a multi-stage pipeline, an arithmetic expression — `.` is
+    the current item throughout.
+
+    Common patterns:
+
+    - **Project a field**: ``.rules | map(basename(.))`` — list of
+      basenames.
+    - **Predicate→boolean list** (for use with ``any`` / ``all``):
+      ``.pool.members[].address | map(in_cidr(., "10.0.0.0/8"))``.
+    - **Compose with sort + unique**: ``.ltm.virtual[].name |
+      map(partition(.)) | unique | sort``.
+
+    For *filtering* without transforming, use ``select`` inside the
+    pipeline rather than inside ``map`` (so dropped items don't
+    leave ``null`` slots).
+
+    Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
+    """,
+    examples=(
+        ".rules | map(basename(.))",
+        ".ltm.virtual[].name | map(partition(.)) | unique | sort",
+        '.pool.members[].address | map(in_cidr(., "10.0.0.0/8")) | any',
+    ),
     category="stream",
     min_args=1,
     max_args=1,
@@ -1026,7 +1691,23 @@ def _builtin_map(*_args):  # pragma: no cover - dispatched specially
     "kind",
     summary="Return the TMSH kind of an object (``ltm virtual``, ``ltm pool``, …).",
     signatures=("kind(value: object) -> string",),
-    examples=("kind(.ltm.virtual.web_vs)",),
+    details="""
+    Returns the TMSH module+type string an :class:`ObjectRef` belongs
+    to.  For a :class:`PathRef` returns the ``expected_kind`` (which
+    is the kind the surrounding field declared, e.g. ``"ltm pool"``
+    for ``.ltm.virtual[].pool``).
+
+    Useful for grouping or for filtering across kinds: ``.ltm.pool[]
+    | kind(.) | unique`` returns the single string ``"ltm pool"``,
+    while ``.ltm.virtual[] | refs(.) | …`` mixes kinds and
+    ``kind(...)`` distinguishes them downstream.
+
+    Related: ``path``, ``type``, ``refs``.
+    """,
+    examples=(
+        "kind(.ltm.virtual.web_vs)               # -> 'ltm virtual'",
+        ".ltm.virtual[] | refs(.) | unique",
+    ),
     category="value",
     min_args=1,
     max_args=1,
@@ -1043,7 +1724,25 @@ def _builtin_kind(value: Any) -> str:
     "path",
     summary="Return the BIG-IP full-path of an object or path-ref.",
     signatures=("path(value: object | path-ref) -> string",),
-    examples=("path(.ltm.virtual.web_vs)",),
+    details="""
+    Returns the ``full_path`` of an :class:`ObjectRef` or
+    :class:`PathRef` as a plain string.  This is the same as reading
+    ``."full-path"`` from an ObjectRef but reads more naturally in
+    pipelines.
+
+    Useful when you have a stream of mixed objects and want to print
+    a flat list of paths:
+    ``.ltm.virtual.web_vs | refs(.) | map(path(.))``.
+
+    Raises ``BuiltinError`` for scalars (use the value directly when
+    it's already a string).
+
+    Related: ``kind``, ``partition``, ``basename``.
+    """,
+    examples=(
+        "path(.ltm.virtual.web_vs)               # -> '/Common/web_vs'",
+        ".ltm.virtual[] | map(path(.))",
+    ),
     category="value",
     min_args=1,
     max_args=1,
@@ -1060,7 +1759,23 @@ def _builtin_path(value: Any) -> str:
     "defined",
     summary="True when the argument is not null and not the empty string.",
     signatures=("defined(value: any) -> boolean",),
-    examples=("select(defined(.pool))",),
+    details="""
+    Returns ``true`` for values that are "set" — anything that is
+    not ``null``, not the empty string ``""``, and not an empty
+    :class:`PathRef`.
+
+    Distinct from a general truthiness check: ``defined`` returns
+    ``true`` for ``false``, ``0``, and an empty list — those are
+    *defined* but falsy.  Pair with ``select`` to keep only objects
+    that have a particular field populated:
+    ``.ltm.virtual[] | select(defined(.snatpool))``.
+
+    Related: ``not``, ``select``.
+    """,
+    examples=(
+        "select(defined(.pool))",
+        ".ltm.virtual[] | select(defined(.snatpool)) | .name",
+    ),
     category="value",
     min_args=1,
     max_args=1,
@@ -1079,7 +1794,24 @@ def _builtin_defined(value: Any) -> bool:
     "type",
     summary="Name of the value's runtime type (``string``, ``object``, ``stream``, ...).",
     signatures=("type(value: any) -> string",),
-    examples=("type(.pool)",),
+    details="""
+    Returns the DSL-level type name for *value*.  Possible values:
+
+    - ``"null"``, ``"bool"``, ``"int"``, ``"float"``, ``"string"``
+    - ``"path-ref"``, ``"object"``, ``"stream"``, ``"list"``
+
+    Useful for introspection and for writing queries that branch on
+    type (rare — most queries know the type from context).  Mainly
+    surfaces in debugging.
+
+    Related: ``kind`` (TMSH kind, more useful for BIG-IP objects),
+    ``defined``.
+    """,
+    examples=(
+        "type(.pool)                            # -> 'path-ref'",
+        "type(.destination)                     # -> 'string'",
+        "type(.rules)                           # -> 'list'",
+    ),
     category="value",
     min_args=1,
     max_args=1,
@@ -1100,7 +1832,31 @@ def _builtin_type(value: Any) -> str:
         "(forward edges in the same graph ``f5 grep`` walks)."
     ),
     signatures=("refs(value: object) -> list[string]",),
-    examples=("refs(.ltm.virtual.web_vs)",),
+    details="""
+    Walks the same reference graph the ``f5 grep`` verb uses, one
+    hop forward from the given object.  Returns a list of full-path
+    strings, deduplicated and excluding the seed itself.
+
+    Forward edges include every kind of reference ``grep`` knows
+    about: a VS's pool / iRules / profiles / persist / SNAT-pool,
+    a pool's monitor and member nodes, a rule's pool / persist /
+    data-group references extracted from its body, and so on.
+
+    Requires the object to have been loaded from a real config —
+    hand-built :class:`ObjectRef` values without a ``config_uri``
+    raise.
+
+    Currently always one hop deep; multi-hop walks belong in
+    ``f5 grep`` (which produces a structured report) until the DSL
+    grows a ``depth`` argument.
+
+    Related: ``referenced_by`` (reverse direction), ``kind``,
+    ``path``.
+    """,
+    examples=(
+        "refs(.ltm.virtual.web_vs)",
+        ".ltm.virtual[] | { name: .name, deps: refs(.) }",
+    ),
     category="graph",
     min_args=1,
     max_args=1,
@@ -1120,7 +1876,25 @@ def _builtin_refs(value: Any) -> list[str]:
         "object (reverse edges in the ``f5 grep`` graph)."
     ),
     signatures=("referenced_by(value: object) -> list[string]",),
-    examples=("referenced_by(.ltm.pool.web_pool)",),
+    details="""
+    The inverse of ``refs`` — walks one hop backwards in the
+    reference graph and lists the objects that depend on the seed.
+    Empty list means the object is an orphan (nothing in the config
+    references it).
+
+    Useful for orphan / cleanup queries:
+    ``.ltm.pool[] | select(referenced_by(.) | count == 0) | .name``
+    lists every pool that no virtual / iRule / data-group attaches to.
+
+    Like ``refs``, the object must have been loaded from a real
+    config (has a ``config_uri``).
+
+    Related: ``refs`` (forward direction), ``count``, ``select``.
+    """,
+    examples=(
+        "referenced_by(.ltm.pool.web_pool)",
+        ".ltm.pool[] | select(referenced_by(.) | count == 0) | .name  # orphan pools",
+    ),
     category="graph",
     min_args=1,
     max_args=1,
