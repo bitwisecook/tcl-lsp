@@ -24,12 +24,10 @@ _tcl_complete() {
         cword=$COMP_CWORD
     fi
 
-    local verbs="opt optimise optimize diag diagnostics lint validate \
-        format fmt minify min unminify-error umerr \
-        symbols syms diagram callgraph call-graph symbolgraph symbol-graph \
-        dataflow command-info commandinfo cmd-info convert \
-        dis asm disassemble compwasm wasm highlight hl diff explore \
-        help docs completion pkg venv docker"
+    local verbs="opt diag lint validate format minify unminify-error \
+        symbols diagram callgraph symbolgraph dataflow command-info \
+        convert dis compwasm highlight diff explore \
+        help completion pkg venv docker"
     local global_opts="-h --help --help-all --version"
 
     local common_opts="--source --package-path --no-recursive --dialect \
