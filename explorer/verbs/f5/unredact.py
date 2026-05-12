@@ -13,6 +13,7 @@ from pathlib import Path
 
 from core.bigip.redact_map import RedactionMap, apply_map
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -47,6 +48,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.add_argument(
         "-o", "--output", metavar="FILE", help="Write recovered text here (default: stdout)."
     )
+    add_format_arg(p, tmsh_default_verb="modify")
     p.set_defaults(handler=_run_unredact)
 
 
@@ -68,6 +70,7 @@ def _run_unredact(args: argparse.Namespace) -> int:
         return 2
 
     out, count = apply_map(rm, source, reverse=True)
+    out = render_config(out, fmt=args.output_format, tmsh_verb="modify")
 
     if args.output:
         Path(args.output).write_text(out, encoding="utf-8")

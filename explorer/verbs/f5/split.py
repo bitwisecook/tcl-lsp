@@ -8,6 +8,7 @@ from pathlib import Path
 
 from core.bigip.emit import emit_split_by_partition
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -22,7 +23,8 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.description = (
         "Write one file per partition: e.g. /Common/, /Common2/, ...\n"
         "Stanzas without an identifier-style partition are gathered\n"
-        "under '_no_partition.conf'.  Source ordering and whitespace\n"
+        "under '_no_partition' (suffix `.conf` for `--format scf`,\n"
+        "`.tmsh` for `--format tmsh`).  Source ordering and whitespace\n"
         "are preserved within each chunk, which makes the resulting\n"
         "tree well-suited to version control (per-partition diffs)."
     )
@@ -30,10 +32,12 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "Examples:\n"
         "  f5 split bigip.conf partitions/\n"
         "  f5 split prod.scf out/   # creates out/Common.conf, out/Prod.conf, ...\n"
+        "  f5 split prod.scf out/ --format tmsh   # writes .tmsh scripts instead\n"
         "  f5 split - partitions/ < bigip.conf\n"
     )
     p.add_argument("path", help="bigip.conf / SCF file (`-` for stdin).")
     p.add_argument("output", help="Output directory (created if needed).")
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_split)
 
 
@@ -48,8 +52,10 @@ def _run_split(args: argparse.Namespace) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     parts = emit_split_by_partition(source)
+    suffix = "tmsh" if args.output_format == "tmsh" else "conf"
     for partition, text in parts.items():
-        (out_dir / f"{partition}.conf").write_text(text, encoding="utf-8")
+        out_text = render_config(text, fmt=args.output_format, tmsh_verb="create")
+        (out_dir / f"{partition}.{suffix}").write_text(out_text, encoding="utf-8")
 
     print(
         f"split into {len(parts)} partition file(s) under {out_dir}",
