@@ -35,7 +35,7 @@ def autocomplete(parser: argparse.ArgumentParser) -> None:
     class _AliasHidingFinder(CompletionFinder):
         """Filter out alias names from subverb completion."""
 
-        def _get_subparser_completions(self, parser, cword_prefix):  # type: ignore[override]
+        def _get_subparser_completions(self, parser, cword_prefix):
             # Build the set of primary names from _choices_actions (one
             # entry per `add_parser` call — aliases never show up here).
             primary = {action.dest for action in parser._get_subactions()}  # noqa: SLF001

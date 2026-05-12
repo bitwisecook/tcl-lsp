@@ -126,9 +126,7 @@ def _configure_symbolgraph(
         "data flow between symbols, not just call edges.\n"
     )
     p.epilog = (
-        "Examples:\n"
-        f"  {prog_name} symbolgraph script.tcl\n"
-        f"  {prog_name} symbolgraph src/ --json\n"
+        f"Examples:\n  {prog_name} symbolgraph script.tcl\n  {prog_name} symbolgraph src/ --json\n"
     )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
