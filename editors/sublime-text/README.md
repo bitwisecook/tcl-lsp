@@ -45,7 +45,7 @@ Sublime Text cache on first load.
 To use a specific Python interpreter, set `python_path` in
 **Preferences > Package Settings > LSP-Tcl > Settings**.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 ### Development install (from source)
