@@ -780,6 +780,44 @@ def test_sort_bare_after_stream_errors_clearly():
         run_query(".ltm.virtual[].name | sort", {"m": _SORT_SCF})
 
 
+# Issue 5 — ``--json`` of scalar / path-ref projections.
+_JSON_SCALAR_SCF = (
+    "ltm pool /Common/web_pool {\n"
+    "    members { /Common/n1:80 { address 192.0.2.10 } }\n"
+    "    monitor /Common/http\n"
+    "}\n"
+    "ltm pool /Common/api_pool {\n"
+    "    members { /Common/n2:80 { address 192.0.2.11 } }\n"
+    "    monitor /Common/http\n"
+    "}\n"
+)
+
+
+def test_json_emits_scalar_projection_as_array():
+    """``--json`` of a scalar projection must surface every value, not
+    drop them to ``[]``.  Regression for the v1.9.0-14 zipapp bug
+    where the JSON serialiser filtered on object/PathRef kinds and
+    dropped plain strings.
+    """
+    result = run_query(".ltm.pool[].name", {"m": _JSON_SCALAR_SCF})
+    rendered = render(result.values_per_file["m"], mode="json")
+    assert json.loads(rendered) == ["web_pool", "api_pool"]
+
+
+def test_json_emits_pathref_projection_as_array():
+    """PathRefs serialise to their ``full_path`` strings in JSON output."""
+    result = run_query(".ltm.pool[].monitor", {"m": _JSON_SCALAR_SCF})
+    rendered = render(result.values_per_file["m"], mode="json")
+    assert json.loads(rendered) == ["/Common/http", "/Common/http"]
+
+
+def test_json_emits_integer_aggregate_as_array():
+    """``[.X[]] | length`` produces one integer; JSON wraps it as ``[N]``."""
+    result = run_query("[.ltm.pool[]] | length", {"m": _JSON_SCALAR_SCF})
+    rendered = render(result.values_per_file["m"], mode="json")
+    assert json.loads(rendered) == [2]
+
+
 def test_generated_builtins_doc_is_up_to_date():
     """The generated reference must match the registry on disk.
 
