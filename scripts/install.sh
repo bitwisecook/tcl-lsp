@@ -69,8 +69,9 @@ set -eu
 IFS='
 '
 
-# Stamped at release time by the publish-checksums CI job. Unstamped
-# copies (e.g. running from main) report as "dev".
+# Stamped at release time by the `create-release` CI job when it
+# uploads install.sh as a release asset. Unstamped copies (e.g.
+# running from main) report as "dev".
 INSTALLER_VERSION_TAG="@@INSTALLER_VERSION_TAG@@"
 INSTALLER_VERSION_SHA="@@INSTALLER_VERSION_SHA@@"
 case "$INSTALLER_VERSION_TAG" in
@@ -296,9 +297,9 @@ set_prefix() {
             die "install location cannot be empty" ;;
         [!/]*)
             die "install location must be an absolute path: $p" ;;
-        *[!A-Za-z0-9._/+~:-]*)
+        *[!A-Za-z0-9._/+~-]*)
             die "install location contains unsupported characters: $p
-Allowed: A-Z a-z 0-9 . _ / + ~ : - (no quotes, spaces, dollars, newlines)" ;;
+Allowed: A-Z a-z 0-9 . _ / + ~ - (no quotes, colons, spaces, dollars, newlines)" ;;
     esac
     PREFIX="$p"
 }
@@ -502,7 +503,7 @@ install_python() {
                 || run_cmd brew install python3
             ;;
         debian)
-            run_as_root apt-get update
+            apt_get_update_once
             run_as_root apt-get install -y python3 ca-certificates curl
             ;;
         rhel)
@@ -554,13 +555,23 @@ install_downloader() {
     [ "$CURL_INSTALL_PLANNED" = 1 ] || return 0
     log "installing curl via package manager"
     case "$OS" in
-        debian)        run_as_root apt-get install -y curl ;;
+        debian)        apt_get_update_once
+                       run_as_root apt-get install -y curl ;;
         rhel|fedora)   if have dnf; then run_as_root dnf install -y curl
                        else run_as_root yum install -y curl; fi ;;
         arch)          run_as_root pacman -Sy --noconfirm curl ;;
         alpine)        run_as_root apk add --no-cache curl ;;
     esac
     have curl || die "curl install failed."
+}
+
+# apt-get install -y on a minimal image fails when /var/lib/apt/lists is
+# empty. Run apt-get update once per session before the first install.
+APT_UPDATED=0
+apt_get_update_once() {
+    [ "$APT_UPDATED" = 1 ] && return 0
+    run_as_root apt-get update
+    APT_UPDATED=1
 }
 
 
@@ -610,6 +621,7 @@ install_pkg() {
             log "installed $cmd via brew"
             ;;
         debian)
+            apt_get_update_once
             run_as_root apt-get install -y "$pkg" \
                 || { warn "apt install $pkg failed"; return 1; }
             log "installed $cmd via apt-get"
@@ -1730,7 +1742,7 @@ choose_mcp_prefix() {
     case "$MCP_PREFIX_OVERRIDE" in
         '')                          die "MCP install location cannot be empty" ;;
         [!/]*)                       die "MCP install location must be absolute: $MCP_PREFIX_OVERRIDE" ;;
-        *[!A-Za-z0-9._/+~:-]*)       die "MCP install location contains unsupported characters: $MCP_PREFIX_OVERRIDE" ;;
+        *[!A-Za-z0-9._/+~-]*)        die "MCP install location contains unsupported characters: $MCP_PREFIX_OVERRIDE" ;;
     esac
     log "MCP install location: $MCP_PREFIX_OVERRIDE"
 }
@@ -1757,8 +1769,16 @@ Re-run with TCL_LSP_PREFIX=/other/dir, or remove $dst first."
 
 write_target() {
     # Atomic install of SRC to DST. Phase 2 already settled writability
-    # and overwrite consent; phase 3 just executes.
+    # and overwrite consent (OVERWRITE_OK lists paths the user explicitly
+    # approved overwriting); phase 3 catches anything that appeared
+    # between phases.
     src="$1"; dst="$2"
+    if [ -e "$dst" ] && ! looks_like_our_zipapp "$dst"; then
+        case " $OVERWRITE_OK " in
+            *" $dst "*) : ;;
+            *) die "internal: $dst exists and was not pre-approved for overwrite (created between phase 2 and 3?)" ;;
+        esac
+    fi
     target_dir="$(dirname "$dst")"
     if dir_writable "$target_dir"; then
         mkdir -p "$target_dir"
@@ -1940,7 +1960,8 @@ ensure_unzip() {
     if have unzip; then return 0; fi
     [ "$UNZIP_INSTALL_PLANNED" = 1 ] || { warn "unzip unavailable — skipping skills install"; return 1; }
     case "$OS" in
-        debian)        run_as_root apt-get install -y unzip ;;
+        debian)        apt_get_update_once
+                       run_as_root apt-get install -y unzip ;;
         rhel|fedora)   if have dnf; then run_as_root dnf install -y unzip
                        else run_as_root yum install -y unzip; fi ;;
         arch)          run_as_root pacman -Sy --noconfirm unzip ;;

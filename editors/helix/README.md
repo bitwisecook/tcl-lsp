@@ -12,7 +12,7 @@ Helix has built-in LSP support. Add the following to your `languages.toml`
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 ## Configuration

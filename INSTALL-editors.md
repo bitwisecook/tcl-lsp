@@ -16,6 +16,22 @@ server; the standalone editors (Neovim/Emacs/Helix) point at
 | [Helix](#helix) | `tcl-lsp-server-<v>.pyz` | `languages.toml` |
 | [Zed](#zed) | extension registry | `zed: extensions` |
 
+## Python
+
+`python3 --version` must report 3.10 or newer:
+
+```sh
+brew install python@3.14            # macOS
+sudo apt install python3            # Debian/Ubuntu 22.04+
+sudo dnf install python3.11         # RHEL/Rocky/Alma 9 (system python3 is 3.9)
+sudo dnf install python3            # Fedora
+sudo pacman -S python               # Arch
+sudo apk add python3                # Alpine
+```
+
+Each editor has a setting for pinning the interpreter when multiple
+are installed — see the per-editor sections below.
+
 ## VS Code
 
 ```sh

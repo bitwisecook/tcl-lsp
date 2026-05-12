@@ -23,12 +23,15 @@ Run `sh install.sh --help` for the full env-var list.
 
 ## Manual install
 
+Asset names use the semver without the `v` prefix — tag `v1.9.0` ships
+`tcl-1.9.0.pyz` and `f5-1.9.0.pyz`. Replace `1.9.0` below with the
+version from the release page.
+
 ```sh
-# Replace <version> with the tag from the release page.
-curl -fLO https://github.com/bitwisecook/tcl-lsp/releases/latest/download/tcl-<version>.pyz
-curl -fLO https://github.com/bitwisecook/tcl-lsp/releases/latest/download/f5-<version>.pyz
-install -m 0755 tcl-<version>.pyz ~/.local/bin/tcl
-install -m 0755 f5-<version>.pyz  ~/.local/bin/f5
+curl -fLO https://github.com/bitwisecook/tcl-lsp/releases/latest/download/tcl-1.9.0.pyz
+curl -fLO https://github.com/bitwisecook/tcl-lsp/releases/latest/download/f5-1.9.0.pyz
+install -m 0755 tcl-1.9.0.pyz ~/.local/bin/tcl
+install -m 0755 f5-1.9.0.pyz  ~/.local/bin/f5
 ```
 
 ## Verify downloads

@@ -11,7 +11,7 @@ tcl-lsp works with Neovim's built-in LSP client. No plugin is required.
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 The server needs to be accessible via one of:

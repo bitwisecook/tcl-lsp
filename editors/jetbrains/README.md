@@ -17,7 +17,7 @@ interpreter on your system.
 To use a specific Python interpreter, set the **Python path** in
 **Settings > Tools > Tcl Language Server**.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 > Starting with IntelliJ IDEA 2025.3, the LSP API will be available to all users,

@@ -1087,12 +1087,16 @@ release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-m
 	@cd $(BUILD_DIR) && \
 	    if command -v sha256sum >/dev/null 2>&1; then h="sha256sum"; \
 	    else h="shasum -a 256"; fi; \
-	    find . -maxdepth 1 -type f \
+	    files=$$(find . -maxdepth 1 -type f \
 	        \( -name '*.pyz' -o -name '*.zip' -o -name '*.vsix' -o -name '*.sublime-package' \) \
 	        ! -name 'SHA256SUMS' ! -name 'SHA256SUMS.*' \
-	        -printf '%f\n' 2>/dev/null \
-	        | LC_ALL=C sort \
-	        | xargs -r $$h > SHA256SUMS
+	        | sed 's|^\./||' \
+	        | LC_ALL=C sort); \
+	    if [ -z "$$files" ]; then \
+	        : > SHA256SUMS; \
+	    else \
+	        printf '%s\n' $$files | xargs $$h > SHA256SUMS; \
+	    fi
 	@echo "Wrote $(BUILD_DIR)/SHA256SUMS"
 
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
