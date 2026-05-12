@@ -1,12 +1,15 @@
 """Render evaluator output for the ``f5 query`` verb.
 
-Four flavours, picked by CLI flag:
+Five flavours, picked by CLI flag:
 
-- ``auto`` (default): SCF stanzas for objects, one-value-per-line for
-  scalars, JSON for the mixed case.
+- ``auto`` (default): SCF stanzas for streams of objects, one value
+  per line for streams or lists of scalars, JSON for the mixed case.
+  Lists of scalars are flattened so ``[.X[].name]`` renders the same
+  one-per-line shape as the equivalent stream form.
 - ``scf``: every object selection emits its stanza verbatim from the
   source; scalars get coerced through ``str``.
-- ``raw``: one value per line, scalars only.
+- ``raw``: one value per line, scalars only (jq's ``--raw-output``
+  conventions — including ``null`` printed as the literal token).
 - ``paths``: print the full-path of every object / path-ref produced.
 - ``json``: a JSON array of values, with objects rendered as keyed
   field maps.
@@ -48,12 +51,16 @@ def render(values: list[Any], *, mode: str = "auto") -> str:
 def _render_auto(values: list[Any]) -> str:
     if not values:
         return ""
-    # All objects → SCF stanzas.
+    # All objects with a stanza_slot → SCF stanzas.
     if all(isinstance(v, ObjectRef) and v.stanza_slot is not None for v in values):
         return _render_scf(values)
-    # All scalars (incl. PathRef) → one per line.
-    if all(_is_scalar(v) for v in values):
-        return _render_raw(values)
+    # All scalars (or lists of scalars) → flatten and render
+    # one-per-line.  A ``[.X[].name]`` query produces a list of names;
+    # treating it like a stream of names is what users want for grep
+    # / xargs piping.
+    flat = _flatten_scalar_lists(values)
+    if flat is not None:
+        return _render_raw(flat)
     return _render_json(values)
 
 
@@ -71,12 +78,12 @@ def _render_scf(values: list[Any]) -> str:
 
 
 def _render_raw(values: list[Any]) -> str:
-    return "".join(_scalar_str(v) + "\n" for v in values)
+    return "".join(_scalar_str(v) + "\n" for v in _flatten_scalars(values))
 
 
 def _render_paths(values: list[Any]) -> str:
     lines: list[str] = []
-    for v in values:
+    for v in _flatten_scalars(values):
         if isinstance(v, ObjectRef):
             lines.append(v.full_path)
         elif isinstance(v, PathRef):
@@ -94,9 +101,48 @@ def _is_scalar(v: Any) -> bool:
     return isinstance(v, (str, int, float, bool, PathRef)) or v is None
 
 
+def _flatten_scalar_lists(values: list[Any]) -> list[Any] | None:
+    """If every value is a scalar or a list of scalars, return the
+    flat list; otherwise ``None``.
+
+    Lets ``auto`` mode treat ``[.X[].name]`` (one list of names) the
+    same as ``.X[].name`` (a stream of names) — both print
+    one-per-line.  Mixed shapes (objects, nested lists) still drop
+    through to JSON.
+    """
+    flat: list[Any] = []
+    for v in values:
+        if _is_scalar(v):
+            flat.append(v)
+            continue
+        if isinstance(v, list):
+            for item in v:
+                if not _is_scalar(item):
+                    return None
+                flat.append(item)
+            continue
+        return None
+    return flat
+
+
+def _flatten_scalars(values: list[Any]) -> list[Any]:
+    """Same as :func:`_flatten_scalar_lists` but never refuses — used
+    by ``--raw`` and ``--paths-only`` where the user has already
+    opted into a flat output."""
+    flat: list[Any] = []
+    for v in values:
+        if isinstance(v, list):
+            flat.extend(v)
+        else:
+            flat.append(v)
+    return flat
+
+
 def _scalar_str(v: Any) -> str:
+    # Matches jq's ``--raw-output`` semantics: ``null`` renders as the
+    # literal token, distinguishable from an empty string.
     if v is None:
-        return ""
+        return "null"
     if isinstance(v, PathRef):
         return v.full_path
     if isinstance(v, bool):

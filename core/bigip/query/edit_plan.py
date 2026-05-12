@@ -64,9 +64,16 @@ class PrefixRewrite:
     """
 
     source_uri: str
-    label: str  # human-readable, for stderr summaries
+    label: str  # human-readable LHS, for stderr summaries
     pattern: re.Pattern[str]
     replacement: str
+    # Human-readable rendering of the *destination* for the stderr
+    # summary.  ``replacement`` may carry regex backrefs (``\g<1>``)
+    # that confuse users when surfaced in a "renamed X -> Y" line;
+    # ``human_new`` lets the scheduler supply the user-visible form
+    # (e.g. ``"auth partition Tenant_A"``) directly.  Defaults to
+    # ``replacement`` when omitted.
+    human_new: str = ""
 
 
 @dataclass
@@ -159,10 +166,14 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
             # full-source copy per prefix rewrite (multi-step queries
             # can otherwise hold O(k * source-size) bytes).  The
             # canonical post-rewrite text is on ``AppliedSource``.
+            # ``human_new`` carries the user-facing target string —
+            # the raw ``replacement`` may contain regex backrefs
+            # (``\g<1>...``) that would otherwise leak into the
+            # "renamed X -> Y" line.
             rename_reports.append(
                 RenameReport(
                     old=pr.label,
-                    new=pr.replacement,
+                    new=pr.human_new or pr.replacement,
                     occurrences=count,
                     new_source="",
                 )

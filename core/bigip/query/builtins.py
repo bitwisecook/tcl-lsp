@@ -924,6 +924,7 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
             label=f"partition /{old_name}/",
             pattern=prefix_pattern,
             replacement=f"/{new_name}/",
+            human_new=f"/{new_name}/",
         )
     )
     ctx.edits.add_prefix(
@@ -932,13 +933,18 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
             label=f"auth partition {old_name}",
             pattern=header_pattern,
             replacement=rf"\g<1>{new_name}",
+            human_new=f"auth partition {new_name}",
         )
     )
 
-    # Return a useful count for the user: the textual matches the
-    # prefix rewrite will land on.  The CLI also surfaces this via the
-    # stderr summary the planner emits after applying.
-    return len(prefix_pattern.findall(ctx.root.source))
+    # Return the total textual-match count across both rewrites — the
+    # ``/Old/`` prefix occurrences (object headers, references,
+    # compound values) plus the ``auth partition <Old>`` stanza
+    # header rewrite when present.  Matches the stderr summary the
+    # CLI prints after the rewrites apply.
+    return len(prefix_pattern.findall(ctx.root.source)) + len(
+        header_pattern.findall(ctx.root.source)
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -134,9 +134,12 @@ JQ COMPATIBILITY
     * No stream-comma operator — use ``;`` between statements (each
       runs against the evolving source) or wrap with a list literal.
     * Identifiers may contain ``-`` so TMSH-spelt keys like
-      ``data-group`` and ``source-address-translation`` are bareword
-      tokens; you still need quotes when a hyphen would otherwise be
-      parsed as subtraction (``."source-address-translation"``).
+      ``data-group`` and ``source-address-translation`` lex as a
+      single bareword token — ``.source-address-translation`` parses
+      as one field access, no quotes needed.  Quoting is only useful
+      when the key would otherwise tokenise into something else
+      (e.g. ``."full-path"`` so the ``.`` after ``full`` is not read
+      as a field-access separator).
     * Regex matching has a dedicated subscript form ``["~pattern"]``
       rather than the ``test`` builtin.
     * No object-literal ``{ ... }`` or string-interpolation ``"\(.x)"``

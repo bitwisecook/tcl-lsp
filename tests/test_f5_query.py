@@ -668,6 +668,79 @@ def test_empty_list_literal():
     assert empty == []
 
 
+# ---------------------------------------------------------------------------
+# Auto-rendering for non-object value kinds
+# ---------------------------------------------------------------------------
+
+
+def test_auto_renders_integer_one_per_line():
+    result = _run("[.ltm.virtual[]] | length")
+    rendered = render(result.values_per_file["mem://1"], mode="auto")
+    assert rendered == "2\n"
+
+
+def test_auto_renders_string_one_per_line():
+    result = _run(".ltm.virtual.web_vs.name")
+    rendered = render(result.values_per_file["mem://1"], mode="auto")
+    assert rendered == "web_vs\n"
+
+
+def test_auto_renders_pathref_one_per_line():
+    result = _run(".ltm.virtual.web_vs.pool")
+    rendered = render(result.values_per_file["mem://1"], mode="auto")
+    assert rendered == "/Common/web_pool\n"
+
+
+def test_auto_flattens_list_of_scalars():
+    # ``[.X[].name]`` produces one list-of-strings.  Auto mode used
+    # to fall through to JSON; now it flattens so the output matches
+    # the equivalent stream form ``.X[].name``.
+    result = _run("[.ltm.virtual[].name]")
+    rendered = render(result.values_per_file["mem://1"], mode="auto")
+    assert rendered == "web_vs\napi_vs\n"
+
+
+def test_null_renders_as_literal_token():
+    # jq's ``--raw-output`` semantics: ``null`` is a literal, not an
+    # empty line.  Lets users distinguish "no port" from "empty port".
+    result = _run('port("/Common/no-port")')
+    rendered = render(result.values_per_file["mem://1"], mode="raw")
+    assert rendered == "null\n"
+
+
+# ---------------------------------------------------------------------------
+# Rename / partition reporting
+# ---------------------------------------------------------------------------
+
+
+def test_rename_partition_count_includes_header():
+    src = (
+        "auth partition Common { description default }\n"
+        "ltm pool /Common/p1 { monitor /Common/http }\n"
+    )
+    result = run_query('rename_partition("Common", "Tenant_A")', {"m": src})
+    [count] = result.values_per_file["m"]
+    # Two ``/Common/`` prefix matches (``/Common/p1`` header,
+    # ``/Common/http`` monitor reference) plus one
+    # ``auth partition Common`` header rewrite.  Before the fix, only
+    # the prefix matches were counted.
+    assert count == 3
+    # And the on-disk rewrite did land on all three.
+    applied = result.edits_per_file["m"]
+    assert "/Common/" not in applied.new_source
+    assert "auth partition Tenant_A" in applied.new_source
+
+
+def test_prefix_rewrite_report_does_not_leak_regex_backrefs():
+    src = "auth partition Common { description default }\n"
+    result = run_query('rename_partition("Common", "Tenant_A")', {"m": src})
+    new_strings = [rep.new for rep in result.edits_per_file["m"].rename_reports]
+    # The header rewrite uses a regex backref (\g<1>) internally;
+    # the report's ``new`` field must show the human-readable form.
+    assert all("\\g<" not in s for s in new_strings)
+    assert any("auth partition Tenant_A" == s for s in new_strings)
+
+
 def test_every_builtin_has_a_details_block():
     """Catch regressions where a new builtin is added without prose docs."""
     for spec in list_builtins():
