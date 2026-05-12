@@ -204,7 +204,16 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
             new_path = _stringify(op.new_value)
             if not new_path:
                 raise EditError(f"rename target for {op.object_path!r} produced an empty value")
-            report = rename_object(current, op.object_path, new_path)
+            # Pass ``object_kind`` as the rename scope so a rename
+            # driven by ``.<kind>[X].name = Y`` doesn't accidentally
+            # rewrite the *header* of a different-kind stanza that
+            # happens to share the same full-path (e.g. a pool and a
+            # virtual server both called ``/Common/shared``).  The
+            # ``rename()`` builtin and ``f5 rename`` CLI leave
+            # ``object_kind`` empty for legacy global behaviour.
+            report = rename_object(
+                current, op.object_path, new_path, kind_scope=op.object_kind
+            )
             if report.occurrences == 0:
                 if op.strict:
                     raise EditError(f"rename of {op.object_path!r} matched no source text")

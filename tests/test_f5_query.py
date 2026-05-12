@@ -780,6 +780,76 @@ def test_sort_bare_after_stream_errors_clearly():
         run_query(".ltm.virtual[].name | sort", {"m": _SORT_SCF})
 
 
+# Issue 1 — Cross-kind rename collision.
+_COLLISION_SCF = (
+    "ltm pool /Common/shared_name {\n"
+    "    members {\n"
+    "        /Common/n1:80 { address 192.0.2.10 }\n"
+    "    }\n"
+    "    monitor /Common/http\n"
+    "}\n"
+    "ltm virtual /Common/shared_name {\n"
+    "    destination /Common/198.51.100.5:443\n"
+    "    ip-protocol tcp\n"
+    "    mask 255.255.255.255\n"
+    "    pool /Common/shared_name\n"
+    "}\n"
+)
+
+
+def test_identity_rename_is_kind_scoped_for_pool():
+    """Pool+VS sharing a full-path: renaming the pool must leave the
+    VS header alone.  Regression for the v1.9.0-14 bug where the
+    bare token-bounded regex rewrote both headers.
+    """
+    result = run_query(
+        '.ltm.pool["/Common/shared_name"].name = "/Common/new_pool"',
+        {"m": _COLLISION_SCF},
+    )
+    applied = result.edits_per_file["m"]
+    new_src = applied.new_source
+    # Pool stanza header moved.
+    assert "ltm pool /Common/new_pool" in new_src
+    # VS header is preserved — the rename was kind-scoped.
+    assert "ltm virtual /Common/shared_name" in new_src
+    # VS's pool reference still updates (it points at the renamed pool).
+    assert "pool /Common/new_pool" in new_src
+    # Count is 2: pool header + pool reference inside VS body.  The
+    # legacy pre-fix value was 3 (header + ref + wrong VS header).
+    assert applied.rename_reports[0].occurrences == 2
+
+
+def test_identity_rename_is_kind_scoped_for_virtual():
+    """Symmetric case: renaming the VS leaves the pool header alone."""
+    result = run_query(
+        '.ltm.virtual["/Common/shared_name"].name = "/Common/new_vs"',
+        {"m": _COLLISION_SCF},
+    )
+    new_src = result.edits_per_file["m"].new_source
+    assert "ltm virtual /Common/new_vs" in new_src
+    assert "ltm pool /Common/shared_name" in new_src
+    # The VS's pool reference matches the pool's name, which has *not*
+    # been renamed — so ``pool /Common/shared_name`` stays.
+    assert "pool /Common/shared_name" in new_src
+
+
+def test_bare_rename_builtin_is_unscoped():
+    """The ``rename()`` builtin / ``f5 rename`` CLI doesn't know which
+    kind the caller meant, so it keeps the legacy global rewrite.
+    Users who need kind-scoping reach for the DSL identity-field
+    form above.
+    """
+    result = run_query(
+        'rename("/Common/shared_name", "/Common/new")',
+        {"m": _COLLISION_SCF},
+    )
+    new_src = result.edits_per_file["m"].new_source
+    # Both stanza headers move under the global rewrite — surprising
+    # but that's the documented behaviour of the bare rename.
+    assert "ltm pool /Common/new" in new_src
+    assert "ltm virtual /Common/new" in new_src
+
+
 # Issue 5 — ``--json`` of scalar / path-ref projections.
 _JSON_SCALAR_SCF = (
     "ltm pool /Common/web_pool {\n"
