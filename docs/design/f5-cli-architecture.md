@@ -16,13 +16,18 @@ layers:
 2. **Core analysis** (`core/bigip/`) — a parser
    (`core/bigip/parser.py`), a typed object model (`core/bigip/model.py`),
    a reference graph (`core/bigip/link_extract.py`), a lint registry
-   (`core/bigip/lint/`), and emitters (`core/bigip/emit.py`,
+   (`core/bigip/lint/`), emitters (`core/bigip/emit.py`,
    `core/bigip/tmsh_emit.py`, `core/bigip/convert/as3.py`,
    `core/bigip/redact_map.py`, `core/bigip/pcap_remap.py`,
    `core/bigip/diff.py`, `core/bigip/explain.py`,
    `core/bigip/graph_export.py`, `core/bigip/stats.py`,
-   `core/bigip/rewrite.py`).  All verbs are thin shells over these
-   modules.
+   `core/bigip/rewrite.py`), and a query DSL
+   (`core/bigip/query/`, see
+   [`f5-query-dsl.md`](f5-query-dsl.md) for grammar, value model,
+   edit pipeline, and jq-compatibility notes, and
+   [`f5-query-dsl-builtins.md`](f5-query-dsl-builtins.md) for the
+   auto-generated per-function reference).  All verbs are thin
+   shells over these modules.
 
 3. **Networking** (`explorer/f5_remote/`) — stdlib-only iControl REST
    client (`rest.py`, using `http.client`), SSH transport
@@ -43,14 +48,63 @@ extract     graph       redact       push
             diff        pcap-remap
             grep        split / merge
             cleanup     convert (UCS↔SCF / SCF→AS3)
-            validate    tmsh (SCF→tmsh script)
+            query       tmsh (SCF→tmsh script)
+            validate    query (DSL-driven property edits)
             irule …
 ```
+
+`query` straddles the analyse + transform columns — it is both a
+read-only filter / projector (replacing some `grep` / `stats`
+patterns when the predicate is property-shaped) and a write-back
+engine that supersedes `rename` for any DSL-expressible identity
+or property edit.  `f5 rename` is now a thin shell that constructs
+a `rename(OLD, NEW)` expression and runs it through the query
+engine, so the two verbs share one rewrite path.
 
 `irule` is a sub-parser group rather than a top-level verb, hosting
 five sub-verbs (`event-order`, `event-info`, `lint`, `trace`,
 `extract`).  See [`explorer/verbs/f5/irule.py`](../../explorer/verbs/f5/irule.py)
 for the registration pattern; new sub-groups follow the same shape.
+
+## Query DSL
+
+`core/bigip/query/` is the largest single core-analysis module.  It
+exposes a small jq-flavoured language that surfaces the parsed
+`BigipConfig` as a navigable tree (`.ltm.virtual[]`,
+`.ltm.pool["/Common/x"]`, …), supports stream / list / scalar
+values, and routes mutating expressions through the same
+token-bounded rewrite engine `f5 rename` uses.  Identity-field
+writes (`.<kind>[X].name = Y`) are kind-scoped so a pool and a
+virtual sharing a full-path don't collide.
+
+Internal layering:
+
+- `lexer.py`, `ast.py`, `parser.py` — recursive-descent parser
+  producing a small AST.
+- `values.py`, `projection.py` — runtime value model (Stream,
+  PathRef, ObjectRef, FieldSlot) and the BigipConfig → tree
+  projection that backs path navigation.
+- `evaluator.py` — walks the AST, collecting `EditOp`s into an
+  `EditPlan` rather than mutating in place.
+- `edit_plan.py` — routes identity writes through
+  `rewrite.rename_object` with kind-scoping, materialises or
+  extends compound list blocks (`rules`, `profiles`, `persist`,
+  `policies`, `members`) on `+=` / `=`, applies field-edit
+  splices bottom-up, and detects overlapping edits.
+- `builtins.py` — the function library (`ip`, `partition`,
+  `rename`, `rename_partition`, …); a registry decorator binds
+  each function's signature, summary, deep-explanation prose, and
+  worked examples so the same source feeds runtime dispatch,
+  `f5 query --help-builtins NAME`, and the generated reference
+  doc at `docs/design/f5-query-dsl-builtins.md`
+  (`scripts/dev/gen_query_builtins_doc.py`).
+- `grammar.py`, `examples.py` — terminal-friendly grammar
+  reference and the worked-example cookbook surfaced by
+  `--help-dsl` / `--help-examples`.
+- `runner.py` — `;`-separated statements evaluate in order
+  against the evolving source, so multi-step migrations
+  (e.g. `rename_partition(...) ; .X[].destination |= ip(...)`)
+  compose naturally.
 
 ## Reference graph
 
