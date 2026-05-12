@@ -22,6 +22,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..model import (
+    BigipApmEphemeralAuthSshSecurityConfig,
+    BigipApmOauthDbInstance,
+    BigipApmPolicyAccessPolicy,
+    BigipApmPolicyAgent,
+    BigipApmPolicyCustomizationSource,
+    BigipApmPolicyItem,
+    BigipApmReportDefaultReport,
     BigipDataGroup,
     BigipMonitor,
     BigipNetDnsResolver,
@@ -396,6 +403,57 @@ _SECURITY_DEVICE_ID_ATTRIBUTE_FIELDS: dict[str, FieldSpec] = {
     "id": FieldSpec("id_"),
 }
 
+_APM_SSH_SECURITY_CONFIG_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "ciphers": FieldSpec("ciphers"),
+    "hmacs": FieldSpec("hmacs"),
+    "kex-methods": FieldSpec("kex_methods"),
+    "compressions": FieldSpec("compressions"),
+}
+
+_APM_OAUTH_DB_INSTANCE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+}
+
+_APM_POLICY_ACCESS_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "start-item": FieldSpec("start_item", ref_kind="apm policy policy-item"),
+    "default-ending": FieldSpec("default_ending", ref_kind="apm policy policy-item"),
+    "items": FieldSpec("items", ref_kind="apm policy policy-item", list_ref=True),
+}
+
+_APM_POLICY_CUSTOMIZATION_SOURCE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+}
+
+_APM_POLICY_ITEM_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "caption": FieldSpec("caption"),
+    "color": FieldSpec("color"),
+    "item-type": FieldSpec("item_type"),
+    "agents": FieldSpec("agents", ref_kind="apm policy agent", list_ref=True),
+}
+
+_APM_POLICY_AGENT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "agent-type": FieldSpec("agent_type"),
+    "customization-group": FieldSpec("customization_group"),
+}
+
+_APM_REPORT_DEFAULT_REPORT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "report-name": FieldSpec("report_name"),
+    "user": FieldSpec("user"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -454,6 +512,25 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipSecurityDeviceIdAttribute,
         _SECURITY_DEVICE_ID_ATTRIBUTE_FIELDS,
     ),
+    "apm ephemeral-auth ssh-security-config": (
+        BigipApmEphemeralAuthSshSecurityConfig,
+        _APM_SSH_SECURITY_CONFIG_FIELDS,
+    ),
+    "apm oauth db-instance": (BigipApmOauthDbInstance, _APM_OAUTH_DB_INSTANCE_FIELDS),
+    "apm policy access-policy": (
+        BigipApmPolicyAccessPolicy,
+        _APM_POLICY_ACCESS_POLICY_FIELDS,
+    ),
+    "apm policy customization-source": (
+        BigipApmPolicyCustomizationSource,
+        _APM_POLICY_CUSTOMIZATION_SOURCE_FIELDS,
+    ),
+    "apm policy policy-item": (BigipApmPolicyItem, _APM_POLICY_ITEM_FIELDS),
+    "apm policy agent": (BigipApmPolicyAgent, _APM_POLICY_AGENT_FIELDS),
+    "apm report default-report": (
+        BigipApmReportDefaultReport,
+        _APM_REPORT_DEFAULT_REPORT_FIELDS,
+    ),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -495,6 +572,27 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "file-ssl-cert": ("sys_file_ssl_certs", "sys file ssl-cert"),
         "file-ssl-key": ("sys_file_ssl_keys", "sys file ssl-key"),
         "management-route": ("sys_management_routes", "sys management-route"),
+    },
+    "apm": {
+        "ssh-security-config": (
+            "apm_ephemeral_auth_ssh_security_configs",
+            "apm ephemeral-auth ssh-security-config",
+        ),
+        "oauth-db-instance": (
+            "apm_oauth_db_instances",
+            "apm oauth db-instance",
+        ),
+        "access-policy": (
+            "apm_policy_access_policies",
+            "apm policy access-policy",
+        ),
+        "customization-source": (
+            "apm_policy_customization_sources",
+            "apm policy customization-source",
+        ),
+        "policy-item": ("apm_policy_items", "apm policy policy-item"),
+        "policy-agent": ("apm_policy_agents", "apm policy agent"),
+        "default-report": ("apm_report_default_report", "apm report default-report"),
     },
     "security": {
         "firewall-port-list": (

@@ -114,8 +114,18 @@ MODULES
                           ``protocol-inspection-compliance-map``,
                           ``protocol-inspection-compliance-objects``,
                           ``device-id-attribute``.
+  .apm.<kind>             Access Policy Manager: ``access-policy``,
+                          ``policy-item``, ``policy-agent``,
+                          ``customization-source``,
+                          ``oauth-db-instance``,
+                          ``ssh-security-config``,
+                          ``default-report`` (singleton).
+                          PathRefs from ``access-policy.items[]``
+                          and ``access-policy.start-item`` auto-deref
+                          into ``policy-item`` so ``.apm.access-policy
+                          [].start-item.caption`` Just Works.
 
-  Unmodelled kinds (``apm.*``, ``cm.*``, ``pem.*``, …) still parse
+  Unmodelled kinds (``cm.*``, ``pem.*``, …) still parse
   and are surfaced via ``rename_partition`` / cross-module rewrites,
   but they are not navigable from the DSL in v1.  Reach into them
   with ``f5 query --scf`` after a partition cascade, or wait for the

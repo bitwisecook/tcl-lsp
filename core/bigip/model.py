@@ -557,6 +557,103 @@ class BigipSecurityDeviceIdAttribute:
     range: Range | None = None
 
 
+# apm.* — typed projection for the Access Policy Manager module.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmEphemeralAuthSshSecurityConfig:
+    """A ``apm ephemeral-auth ssh-security-config`` object.
+
+    The body lists ciphers / hmacs / kex-methods / compressions as
+    numerically-keyed sub-blocks; we surface flattened name lists in
+    v1 and leave the per-entry detail to the source view.
+    """
+
+    name: str
+    full_path: str
+    ciphers: tuple[str, ...] = ()
+    hmacs: tuple[str, ...] = ()
+    kex_methods: tuple[str, ...] = ()
+    compressions: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmOauthDbInstance:
+    """A ``apm oauth db-instance`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmPolicyAccessPolicy:
+    """A ``apm policy access-policy`` object — a per-flow access policy."""
+
+    name: str
+    full_path: str
+    start_item: str = ""  # PathRef → apm policy policy-item
+    default_ending: str = ""  # PathRef → apm policy policy-item
+    items: tuple[str, ...] = ()  # PathRefs → apm policy policy-item
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmPolicyCustomizationSource:
+    """A ``apm policy customization-source`` object."""
+
+    name: str
+    full_path: str
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmPolicyItem:
+    """A ``apm policy policy-item`` object — a node in an access policy.
+
+    ``agents`` holds the full-paths of the agent sub-block keys; the
+    nested ``rules { { … } { … } }`` anonymous sequence is not
+    modelled in v1 (use the source view).
+    """
+
+    name: str
+    full_path: str
+    caption: str = ""
+    color: str = ""
+    item_type: str = ""  # action | ending
+    agents: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmPolicyAgent:
+    """An ``apm policy agent <type>`` object.
+
+    The agent type (``ending-allow``, ``ending-deny``, ``kerberos``,
+    …) is captured in ``agent_type`` so callers can filter without
+    reaching into the kind string.
+    """
+
+    name: str
+    full_path: str
+    agent_type: str = ""
+    customization_group: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmReportDefaultReport:
+    """The ``apm report default-report`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    report_name: str = ""
+    user: str = ""
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -616,6 +713,18 @@ class BigipConfig:
     security_device_id_attributes: dict[str, BigipSecurityDeviceIdAttribute] = field(
         default_factory=dict
     )
+    # apm.* — Access Policy Manager.
+    apm_ephemeral_auth_ssh_security_configs: dict[str, BigipApmEphemeralAuthSshSecurityConfig] = (
+        field(default_factory=dict)
+    )
+    apm_oauth_db_instances: dict[str, BigipApmOauthDbInstance] = field(default_factory=dict)
+    apm_policy_access_policies: dict[str, BigipApmPolicyAccessPolicy] = field(default_factory=dict)
+    apm_policy_customization_sources: dict[str, BigipApmPolicyCustomizationSource] = field(
+        default_factory=dict
+    )
+    apm_policy_items: dict[str, BigipApmPolicyItem] = field(default_factory=dict)
+    apm_policy_agents: dict[str, BigipApmPolicyAgent] = field(default_factory=dict)
+    apm_report_default_report: dict[str, BigipApmReportDefaultReport] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

@@ -245,7 +245,30 @@ the empty-string key, so ``.sys.dns[]`` streams the one entry and
   .protocol-inspection-compliance-objects["/Common/o1"].insp-id
                                                        .type
   .device-id-attribute["/Common/att01"].id
+.apm
+  .access-policy["/Common/p1"].start-item       (path-ref → policy-item)
+                              .default-ending  (path-ref → policy-item)
+                              .items[]         (path-refs → policy-item)
+  .policy-item["/Common/i1"].caption
+                            .color
+                            .item-type
+                            .agents[]          (path-refs → policy-agent)
+  .policy-agent["/Common/a1"].agent-type
+                             .customization-group
+  .customization-source["/Common/cs"].name
+  .oauth-db-instance["/Common/oauthdb"].description
+  .ssh-security-config["/Common/cfg"].ciphers[]
+                                     .hmacs[]
+                                     .kex-methods[]
+  .default-report[].report-name              (singleton; one entry)
+                   .user
 ```
+
+PathRefs auto-deref from ``access-policy`` into the referenced
+``policy-item`` and from ``policy-item.agents[]`` into the matching
+``policy-agent`` — chained queries like
+``.apm.access-policy[].start-item.caption`` walk
+``access-policy → policy-item → caption`` in one step.
 
 PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `net self → net vlan → tag` in one chain, and

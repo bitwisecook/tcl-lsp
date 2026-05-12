@@ -27,6 +27,13 @@ from dataclasses import dataclass
 from ..analysis.semantic_model import Range
 from ..common.document_buffer import DocumentBuffer
 from .model import (
+    BigipApmEphemeralAuthSshSecurityConfig,
+    BigipApmOauthDbInstance,
+    BigipApmPolicyAccessPolicy,
+    BigipApmPolicyAgent,
+    BigipApmPolicyCustomizationSource,
+    BigipApmPolicyItem,
+    BigipApmReportDefaultReport,
     BigipConfig,
     BigipDataGroup,
     BigipGenericObject,
@@ -444,6 +451,25 @@ _TWO_WORD_TYPES = frozenset(
         "protocol-inspection compliance-map",
         "protocol-inspection compliance-objects",
         "device-id attribute",
+        # apm.* — multi-word kinds.
+        "ephemeral-auth ssh-security-config",
+        "oauth db-instance",
+        "policy access-policy",
+        "policy customization-source",
+        "policy policy-item",
+        "report default-report",  # also a singleton (``apm report default-report {``)
+    }
+)
+
+
+# Three-word stanza types (``apm policy agent <type>``, …).  Extracted
+# the same way as two-word: matched against ``parts[1..3]`` and the
+# identifier comes from ``parts[4]``.
+_THREE_WORD_TYPES = frozenset(
+    {
+        "policy agent ending-allow",
+        "policy agent ending-deny",
+        "policy agent kerberos",
     }
 )
 
@@ -457,7 +483,18 @@ def _parse_header(header: str) -> tuple[str, str, str] | None:
     if len(parts) < 3:
         return None
     module = parts[0]
-    # Try two-word type first
+    # Try three-word type first (apm policy agent <type> /Common/X).
+    if len(parts) >= 5:
+        three_word = f"{parts[1]} {parts[2]} {parts[3]}"
+        if three_word in _THREE_WORD_TYPES:
+            return (module, three_word, parts[4])
+    # Two-word singleton (``apm report default-report {``) — 3 tokens
+    # total and parts[1..2] is a known two-word kind.
+    if len(parts) == 3:
+        two_word = f"{parts[1]} {parts[2]}"
+        if two_word in _TWO_WORD_TYPES:
+            return (module, two_word, "")
+    # Two-word type
     if len(parts) >= 4:
         two_word = f"{parts[1]} {parts[2]}"
         if two_word in _TWO_WORD_TYPES:
@@ -1460,6 +1497,158 @@ def _parse_security_device_id_attribute(
     )
 
 
+# apm.* parsers
+
+
+def _strip_outer_braces(braced: str) -> str:
+    inner = braced.strip()
+    if inner.startswith("{"):
+        inner = inner[1:]
+    if inner.endswith("}"):
+        inner = inner[:-1]
+    return inner
+
+
+def _collect_named_property_from_subblocks(braced: str, prop_name: str) -> tuple[str, ...]:
+    """For a block like ``{ 1 { cipher-name aes256-ctr } 2 { ... } }``,
+    return the ``prop_name`` value from every direct sub-block, in
+    document order.
+    """
+    inner = _strip_outer_braces(braced)
+    out: list[str] = []
+    for prop in _parse_properties_with_spans(inner).values():
+        if not prop.value.startswith("{"):
+            continue
+        sub_inner = _strip_outer_braces(prop.value)
+        sub_props = _parse_properties_with_spans(sub_inner)
+        if prop_name in sub_props:
+            out.append(sub_props[prop_name].value)
+    return tuple(out)
+
+
+def _strip_quotes(value: str) -> str:
+    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
+        return value[1:-1]
+    return value
+
+
+def _parse_apm_ssh_security_config(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipApmEphemeralAuthSshSecurityConfig:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipApmEphemeralAuthSshSecurityConfig(
+        name=name,
+        full_path=full_path,
+        ciphers=_collect_named_property_from_subblocks(props["ciphers"].value, "cipher-name")
+        if "ciphers" in props
+        else (),
+        hmacs=_collect_named_property_from_subblocks(props["hmacs"].value, "hmac-name")
+        if "hmacs" in props
+        else (),
+        kex_methods=_collect_named_property_from_subblocks(
+            props["kex-methods"].value, "kex-method-name"
+        )
+        if "kex-methods" in props
+        else (),
+        compressions=_collect_named_property_from_subblocks(
+            props["compressions"].value, "compression-name"
+        )
+        if "compressions" in props
+        else (),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_apm_oauth_db_instance(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipApmOauthDbInstance:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipApmOauthDbInstance(
+        name=name,
+        full_path=full_path,
+        description=_strip_quotes(props["description"].value) if "description" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_apm_policy_access_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipApmPolicyAccessPolicy:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    items: tuple[str, ...] = ()
+    if "items" in props:
+        items = tuple(_parse_list_block(props["items"].value))
+    return BigipApmPolicyAccessPolicy(
+        name=name,
+        full_path=full_path,
+        start_item=props["start-item"].value if "start-item" in props else "",
+        default_ending=props["default-ending"].value if "default-ending" in props else "",
+        items=items,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_apm_policy_customization_source(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipApmPolicyCustomizationSource:
+    del body
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipApmPolicyCustomizationSource(
+        name=name,
+        full_path=full_path,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_apm_policy_item(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipApmPolicyItem:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    agents: tuple[str, ...] = ()
+    if "agents" in props:
+        agents = tuple(_parse_list_block(props["agents"].value))
+    return BigipApmPolicyItem(
+        name=name,
+        full_path=full_path,
+        caption=_strip_quotes(props["caption"].value) if "caption" in props else "",
+        color=props["color"].value if "color" in props else "",
+        item_type=props["item-type"].value if "item-type" in props else "",
+        agents=agents,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_apm_policy_agent(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block, agent_type: str
+) -> BigipApmPolicyAgent:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipApmPolicyAgent(
+        name=name,
+        full_path=full_path,
+        agent_type=agent_type,
+        customization_group=(
+            props["customization-group"].value if "customization-group" in props else ""
+        ),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_apm_report_default_report(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipApmReportDefaultReport:
+    props = _parse_properties_with_spans(body)
+    return BigipApmReportDefaultReport(
+        report_name=props["report-name"].value if "report-name" in props else "",
+        user=props["user"].value if "user" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1605,6 +1794,45 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             elif obj_type == "device-id attribute":
                 config.security_device_id_attributes[full_path] = (
                     _parse_security_device_id_attribute(full_path, block.body, source_map, block)
+                )
+            continue
+
+        if module == "apm":
+            if obj_type == "ephemeral-auth ssh-security-config":
+                config.apm_ephemeral_auth_ssh_security_configs[full_path] = (
+                    _parse_apm_ssh_security_config(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "oauth db-instance":
+                config.apm_oauth_db_instances[full_path] = _parse_apm_oauth_db_instance(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "policy access-policy":
+                config.apm_policy_access_policies[full_path] = _parse_apm_policy_access_policy(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "policy customization-source":
+                config.apm_policy_customization_sources[full_path] = (
+                    _parse_apm_policy_customization_source(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "policy policy-item":
+                config.apm_policy_items[full_path] = _parse_apm_policy_item(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type in (
+                "policy agent ending-allow",
+                "policy agent ending-deny",
+                "policy agent kerberos",
+            ):
+                # ``policy agent <type>`` — surface every variant in the
+                # same container, classified by ``agent_type``.
+                agent_type = obj_type.rsplit(" ", 1)[-1]
+                config.apm_policy_agents[full_path] = _parse_apm_policy_agent(
+                    full_path, block.body, source_map, block, agent_type
+                )
+            elif obj_type == "report default-report":
+                # Singleton — stored under the empty-string key.
+                config.apm_report_default_report[""] = _parse_apm_report_default_report(
+                    block.body, source_map, block
                 )
             continue
 

@@ -1337,6 +1337,212 @@ def test_security_device_id_attribute_projects_id():
     assert result.values_per_file["m"] == ["1"]
 
 
+# ---------------------------------------------------------------------------
+# apm.* — typed projection for Access Policy Manager
+# ---------------------------------------------------------------------------
+
+_APM_SCF = (
+    "apm ephemeral-auth ssh-security-config /Common/ssh-cfg {\n"
+    "    ciphers {\n"
+    "        1 {\n"
+    "            cipher-name aes256-ctr\n"
+    "        }\n"
+    "        2 {\n"
+    "            cipher-name aes192-ctr\n"
+    "        }\n"
+    "    }\n"
+    "    hmacs {\n"
+    "        1 {\n"
+    "            hmac-name hmac-sha2-512\n"
+    "        }\n"
+    "    }\n"
+    "    kex-methods {\n"
+    "        1 {\n"
+    "            kex-method-name ecdh-sha2-nistp256\n"
+    "        }\n"
+    "    }\n"
+    "    compressions {\n"
+    "        1 {\n"
+    "            compression-name none\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "apm oauth db-instance /Common/oauthdb {\n"
+    '    description "Default OAuth DB."\n'
+    "}\n"
+    "apm policy access-policy /Common/policy_default {\n"
+    "    default-ending /Common/policy_default_end_deny\n"
+    "    items {\n"
+    "        /Common/policy_default_act_auth { }\n"
+    "        /Common/policy_default_end_allow { }\n"
+    "        /Common/policy_default_end_deny { }\n"
+    "        /Common/policy_default_ent { }\n"
+    "    }\n"
+    "    start-item /Common/policy_default_ent\n"
+    "}\n"
+    "apm policy customization-source /Common/modern { }\n"
+    "apm policy customization-source /Common/standard { }\n"
+    "apm policy policy-item /Common/policy_default_act_auth {\n"
+    "    agents {\n"
+    "        /Common/policy_default_act_auth_ag {\n"
+    "            type aaa-kerberos\n"
+    "        }\n"
+    "    }\n"
+    '    caption "Kerberos Auth"\n'
+    "    color 1\n"
+    "    item-type action\n"
+    "}\n"
+    "apm policy policy-item /Common/policy_default_end_allow {\n"
+    "    agents {\n"
+    "        /Common/policy_default_end_allow_ag {\n"
+    "            type ending-allow\n"
+    "        }\n"
+    "    }\n"
+    "    caption Allow\n"
+    "    color 1\n"
+    "    item-type ending\n"
+    "}\n"
+    "apm policy policy-item /Common/policy_default_end_deny {\n"
+    "    agents {\n"
+    "        /Common/policy_default_end_deny_ag {\n"
+    "            type ending-deny\n"
+    "        }\n"
+    "    }\n"
+    "    caption Deny\n"
+    "    color 2\n"
+    "    item-type ending\n"
+    "}\n"
+    "apm policy policy-item /Common/policy_default_ent {\n"
+    "    caption Start\n"
+    "    color 1\n"
+    "}\n"
+    "apm policy agent ending-allow /Common/policy_default_end_allow_ag { }\n"
+    "apm policy agent ending-deny /Common/policy_default_end_deny_ag {\n"
+    "    customization-group /Common/policy_default_end_deny_ag\n"
+    "}\n"
+    "apm policy agent kerberos /Common/policy_default_act_auth_ag { }\n"
+    "apm report default-report {\n"
+    "    report-name sessionReports/sessionSummary\n"
+    "    user /Common/admin\n"
+    "}\n"
+)
+
+
+def test_apm_ssh_security_config_projects_ciphers():
+    result = run_query(".apm.ssh-security-config[].ciphers", {"m": _APM_SCF})
+    [ciphers] = result.values_per_file["m"]
+    assert list(ciphers) == ["aes256-ctr", "aes192-ctr"]
+
+
+def test_apm_ssh_security_config_projects_hmacs_kex_compressions():
+    result = run_query(".apm.ssh-security-config[].hmacs", {"m": _APM_SCF})
+    [hmacs] = result.values_per_file["m"]
+    assert list(hmacs) == ["hmac-sha2-512"]
+    result = run_query(".apm.ssh-security-config[].kex-methods", {"m": _APM_SCF})
+    [kex] = result.values_per_file["m"]
+    assert list(kex) == ["ecdh-sha2-nistp256"]
+    result = run_query(".apm.ssh-security-config[].compressions", {"m": _APM_SCF})
+    [comp] = result.values_per_file["m"]
+    assert list(comp) == ["none"]
+
+
+def test_apm_oauth_db_instance_projects_description():
+    """Description is quoted in the source — outer quotes are stripped."""
+    result = run_query(".apm.oauth-db-instance[].description", {"m": _APM_SCF})
+    assert result.values_per_file["m"] == ["Default OAuth DB."]
+
+
+def test_apm_access_policy_projects_items_and_start():
+    result = run_query(".apm.access-policy[].items", {"m": _APM_SCF})
+    [items] = result.values_per_file["m"]
+    assert sorted(p.full_path for p in items) == [
+        "/Common/policy_default_act_auth",
+        "/Common/policy_default_end_allow",
+        "/Common/policy_default_end_deny",
+        "/Common/policy_default_ent",
+    ]
+
+
+def test_apm_access_policy_start_item_pathref_auto_dereferences():
+    """``.start-item`` is a PathRef into ``apm policy policy-item``;
+    chaining ``.caption`` should walk into the target policy-item.
+    """
+    result = run_query(
+        ".apm.access-policy[].start-item.caption",
+        {"m": _APM_SCF},
+    )
+    assert result.values_per_file["m"] == ["Start"]
+
+
+def test_apm_access_policy_items_chain_walks_to_caption():
+    """``.items[].caption`` follows the list-of-PathRefs into the
+    target policy-items and pulls each caption.
+    """
+    result = run_query(
+        ".apm.access-policy[].items[].caption",
+        {"m": _APM_SCF},
+    )
+    assert sorted(result.values_per_file["m"]) == [
+        "Allow",
+        "Deny",
+        "Kerberos Auth",
+        "Start",
+    ]
+
+
+def test_apm_policy_item_projects_caption_and_agents():
+    result = run_query(
+        '.apm.policy-item["/Common/policy_default_act_auth"].caption',
+        {"m": _APM_SCF},
+    )
+    assert result.values_per_file["m"] == ["Kerberos Auth"]
+    result = run_query(
+        '.apm.policy-item["/Common/policy_default_act_auth"].agents',
+        {"m": _APM_SCF},
+    )
+    [agents] = result.values_per_file["m"]
+    assert [a.full_path for a in agents] == ["/Common/policy_default_act_auth_ag"]
+
+
+def test_apm_policy_item_agents_pathref_walks_to_agent_type():
+    """``.agents[]`` are PathRefs into ``apm policy agent``; chaining
+    ``.agent-type`` should pull the agent's classification.
+    """
+    result = run_query(
+        '.apm.policy-item["/Common/policy_default_act_auth"].agents[].agent-type',
+        {"m": _APM_SCF},
+    )
+    assert result.values_per_file["m"] == ["kerberos"]
+
+
+def test_apm_policy_agent_three_word_kinds_are_recognised():
+    """``apm policy agent <type>`` is a THREE-word kind name — the
+    header parser must classify all three variants into the merged
+    ``apm policy agent`` container with their ``agent-type``
+    distinguishing them.
+    """
+    result = run_query(".apm.policy-agent[].agent-type", {"m": _APM_SCF})
+    assert sorted(result.values_per_file["m"]) == [
+        "ending-allow",
+        "ending-deny",
+        "kerberos",
+    ]
+
+
+def test_apm_policy_customization_source_projects_name():
+    result = run_query(".apm.customization-source[].name", {"m": _APM_SCF})
+    assert sorted(result.values_per_file["m"]) == ["modern", "standard"]
+
+
+def test_apm_default_report_singleton_projects_report_name_and_user():
+    """``apm report default-report`` is a two-word singleton — three
+    header tokens with no full-path."""
+    result = run_query(".apm.default-report[].report-name", {"m": _APM_SCF})
+    assert result.values_per_file["m"] == ["sessionReports/sessionSummary"]
+    result = run_query(".apm.default-report[].user", {"m": _APM_SCF})
+    assert result.values_per_file["m"] == ["/Common/admin"]
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"
