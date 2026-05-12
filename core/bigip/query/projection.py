@@ -229,6 +229,11 @@ _OBJECT_KIND_ALIASES = frozenset(
 )
 
 
+# Public alias so ``builtins.rename_partition`` and other consumers can
+# iterate the kinds without reaching into a single-underscore name.
+LTM_KINDS = _LTM_KINDS
+
+
 # ---------------------------------------------------------------------------
 # Building containers and object refs
 # ---------------------------------------------------------------------------

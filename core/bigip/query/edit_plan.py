@@ -13,9 +13,11 @@ stanzas all survive.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..parser import parse_bigip_conf
 from ..rewrite import RenameReport, rename_object
 from .errors import EditError
 from .values import FieldSlot, PathRef
@@ -39,17 +41,43 @@ class EditOp:
     stanza_slot: FieldSlot | None
 
 
+@dataclass(frozen=True, slots=True)
+class PrefixRewrite:
+    """A whole-source regex prefix substitution.
+
+    Used by cascade operations such as ``rename_partition`` that need to
+    rewrite *every* occurrence of a prefix — including ones embedded in
+    compound values (destination addresses, pool-member names, iRule
+    body literals) that are not standalone object identifiers and so
+    fall outside ``rename_object``'s token-bounded match.
+
+    The pattern is compiled with the same token boundaries
+    ``rename_object`` uses, so prefix substitutions are still
+    identifier-safe — they won't rewrite a longer name that happens to
+    share a leading substring.
+    """
+
+    source_uri: str
+    label: str  # human-readable, for stderr summaries
+    pattern: re.Pattern[str]
+    replacement: str
+
+
 @dataclass
 class EditPlan:
     """Collected edits, applied once at the end of a query run."""
 
     ops: list[EditOp] = field(default_factory=list)
+    prefix_rewrites: list[PrefixRewrite] = field(default_factory=list)
 
     def add(self, op: EditOp) -> None:
         self.ops.append(op)
 
+    def add_prefix(self, rewrite: PrefixRewrite) -> None:
+        self.prefix_rewrites.append(rewrite)
+
     def has_edits(self) -> bool:
-        return bool(self.ops)
+        return bool(self.ops) or bool(self.prefix_rewrites)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,36 +94,90 @@ class AppliedSource:
 def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
     """Apply every op in *plan* to *sources*.
 
-    Returns one :class:`AppliedSource` per touched URI.  Edits are
-    grouped by URI, identity writes are routed through ``rename_object``
-    first (so their text replacement is global), then non-identity
-    edits are spliced bottom-up.
+    Returns one :class:`AppliedSource` per touched URI.  The applier
+    runs cascading prefix rewrites first (where present), then routes
+    identity writes through ``rename_object``, and finally splices
+    field edits.
 
-    Overlapping edits raise :class:`EditError`.
+    Mixing prefix rewrites with field edits in the same query is
+    rejected: a prefix rewrite changes byte offsets across the source,
+    so field-slot ranges captured against the original text would
+    target the wrong span after the rewrite.  Run them in separate
+    statements (``;``-separated) and they will be applied in order;
+    inside a single statement, pick one mode.
+
+    Overlapping field edits raise :class:`EditError`.
     """
     by_uri: dict[str, list[EditOp]] = {}
     for op in plan.ops:
         by_uri.setdefault(op.source_uri, []).append(op)
+    prefix_by_uri: dict[str, list[PrefixRewrite]] = {}
+    for pr in plan.prefix_rewrites:
+        prefix_by_uri.setdefault(pr.source_uri, []).append(pr)
 
     out: dict[str, AppliedSource] = {}
-    for uri, ops in by_uri.items():
+    touched = set(by_uri) | set(prefix_by_uri)
+
+    for uri in touched:
+        ops = by_uri.get(uri, [])
+        prefixes = prefix_by_uri.get(uri, [])
+
+        if prefixes and any(
+            op.field_name not in _IDENTITY_FIELDS for op in ops
+        ):
+            raise EditError(
+                "cannot mix prefix-cascade rewrites (e.g. rename_partition) "
+                "with field edits in the same statement; split them with ';' "
+                "to apply them in order"
+            )
+
         source = sources[uri]
         current = source
+        rename_reports: list[RenameReport] = []
+
+        # Apply every prefix rewrite first, building a synthetic
+        # RenameReport per pattern so the CLI can surface the count.
+        for pr in prefixes:
+            new_text, count = pr.pattern.subn(pr.replacement, current)
+            if count == 0:
+                continue
+            try:
+                parse_bigip_conf(new_text)
+            except Exception as exc:  # noqa: BLE001
+                raise EditError(
+                    f"prefix rewrite for {pr.label!r} produced invalid SCF: {exc}"
+                ) from exc
+            current = new_text
+            rename_reports.append(
+                RenameReport(
+                    old=pr.label,
+                    new=pr.replacement,
+                    occurrences=count,
+                    new_source=current,
+                )
+            )
+
+        # Field/identity ops collected from regular assignments.
+
         identity_ops: list[EditOp] = []
         field_ops: list[EditOp] = []
         for op in ops:
-            if op.operator != "=" and op.field_name in _IDENTITY_FIELDS:
-                raise EditError(
-                    f"assignment {op.operator} to identity field "
-                    f"{op.field_name!r} is not supported; use '=' "
-                    "to rename"
-                )
+            # ``|=`` on an identity field is sugar for ``= (rhs evaluated
+            # against the current name)`` and routes through the same
+            # rename machinery — the evaluator has already computed the
+            # new value, we just have to admit it here.  ``+=`` / ``-=``
+            # on identity fields stay rejected: arithmetic on a name is
+            # nonsensical.
             if op.field_name in _IDENTITY_FIELDS:
+                if op.operator in ("+=", "-="):
+                    raise EditError(
+                        f"assignment {op.operator} to identity field "
+                        f"{op.field_name!r} is not supported"
+                    )
                 identity_ops.append(op)
             else:
                 field_ops.append(op)
 
-        rename_reports: list[RenameReport] = []
         for op in identity_ops:
             new_path = _stringify(op.new_value)
             if not new_path:
@@ -110,11 +192,6 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
             current = report.new_source
             rename_reports.append(report)
 
-        field_edit_count = _apply_field_edits(field_ops, current_holder=lambda v=current: v)
-        # ``_apply_field_edits`` doesn't actually mutate state; we re-run
-        # against the post-rename source here so the planner stays
-        # deterministic in the face of intermixed identity + field
-        # writes.
         if field_ops:
             current = _splice_edits(current, field_ops, uri)
             field_edit_count = len(field_ops)
@@ -129,11 +206,6 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
             field_edits=field_edit_count,
         )
     return out
-
-
-def _apply_field_edits(_ops: list[EditOp], *, current_holder) -> int:
-    """Stub kept for symmetry with previous spelling — see :func:`_splice_edits`."""
-    return 0
 
 
 def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:

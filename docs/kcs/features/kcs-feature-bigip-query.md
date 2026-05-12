@@ -115,6 +115,50 @@ $ f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
  }
 ```
 
+### Migrate every object in a partition
+
+```
+$ f5 query 'rename_partition("Common", "Tenant_A")' bigip.conf
+--- bigip.conf
++++ bigip.conf (modified)
+@@ -1,4 +1,4 @@
+-auth partition Common { description default }
++auth partition Tenant_A { description default }
+-ltm pool /Common/web_pool {
+-    members { /Common/n1%5:80 { address 10.0.0.1%5 } }
++ltm pool /Tenant_A/web_pool {
++    members { /Tenant_A/n1%5:80 { address 10.0.0.1%5 } }
+     monitor /Common/http
+ }
+-ltm virtual /Common/web_vs {
+-    destination /Common/10.10.0.5%5:443
+-    pool /Common/web_pool
++ltm virtual /Tenant_A/web_vs {
++    destination /Tenant_A/10.10.0.5%5:443
++    pool /Tenant_A/web_pool
+ }
+```
+
+`rename_partition` cascades through every reference, including
+partition prefixes embedded in compound values (destination
+addresses, pool-member names, iRule body literals) and the
+`auth partition` stanza itself.  Route domains and ports are
+preserved through the move.
+
+### Set a route domain on every destination
+
+```
+$ f5 query --write '.ltm.virtual[] | .destination |= with_route_domain(., 7)' bigip.conf
+ltm virtual /Common/web_vs {
+    destination /Common/10.10.0.5%7:443
+    pool /Common/web_pool
+}
+```
+
+`with_route_domain` sets, replaces, or strips (pass `""` or `null`)
+the route domain on an address.  `ip(network, source)` preserves the
+route domain when readdressing — `%5` survives the subnet rebase.
+
 ### Rename a pool everywhere
 
 ```

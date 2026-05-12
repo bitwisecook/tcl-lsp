@@ -80,6 +80,9 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   file-wide, per-project, per-editor, or globally.
 - [kcs-howto-readdress-virtuals-with-query.md](kcs-howto-readdress-virtuals-with-query.md)
   — bulk-readdress virtual servers into a new subnet with `f5 query`.
+- [kcs-howto-migrate-partition-with-query.md](kcs-howto-migrate-partition-with-query.md)
+  — move every object from one partition into another, including
+  route-domain transforms.
 - [kcs-howto-rewrite-pool-refs-in-irules.md](kcs-howto-rewrite-pool-refs-in-irules.md)
   — rename a pool everywhere, including inside iRule bodies.
 - [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)

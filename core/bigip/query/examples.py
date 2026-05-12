@@ -91,6 +91,43 @@ _EXAMPLES: tuple[Example, ...] = (
         comment="One-line projection-then-rewrite using `|=` plus the path helper.",
     ),
     Example(
+        title="Migrate every object from /Common/ into /Tenant_A/",
+        query='rename_partition("Common", "Tenant_A")',
+        comment=(
+            "Token-bounded prefix rewrite — every object header and "
+            "every reference (including destination addresses, pool "
+            "members, and iRule body literals) moves together.  "
+            "Renames the `auth partition Common` stanza too."
+        ),
+    ),
+    Example(
+        title="Move every pool out of /Common/ but leave other kinds alone",
+        query='.ltm.pool["~^/Common/"] | .name |= with_partition(., "Tenant_A")',
+        comment=(
+            "Identity-field `|=` routes through the rename engine; only "
+            "the pools (and references *to* them) move, virtuals and "
+            "iRules keep their partition."
+        ),
+    ),
+    Example(
+        title="Set the route domain on every destination",
+        query='.ltm.virtual[] | .destination |= with_route_domain(., 7)',
+        comment=(
+            "Route domain is part of the routable identity; "
+            "`with_route_domain` sets, replaces, or strips it while "
+            "preserving partition prefix and port."
+        ),
+    ),
+    Example(
+        title="Readdress with a route domain preserved through the rebase",
+        query='.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)',
+        comment=(
+            "`ip(net, src)` keeps the route domain and port from `src` "
+            "and only rebases the address bits — `%5` survives the "
+            "subnet move."
+        ),
+    ),
+    Example(
         title="Count VSes grouped by partition",
         query=".ltm.virtual[].name | map(partition(.)) | sort",
         comment=(

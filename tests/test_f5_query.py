@@ -229,6 +229,102 @@ def test_identity_rename_rewrites_every_reference():
     assert applied.rename_reports[0].occurrences >= 3
 
 
+def test_update_assignment_on_identity_field_routes_to_rename():
+    result = _run('.ltm.pool["/Common/web_pool"].name |= with_partition(., "Tenant_A")')
+    applied = result.edits_per_file["mem://1"]
+    assert any(rep.old == "/Common/web_pool" for rep in applied.rename_reports)
+    new_src = applied.new_source
+    assert "ltm pool /Tenant_A/web_pool" in new_src
+    # The VS's `pool` reference moved along with the pool.
+    assert "pool /Tenant_A/web_pool" in new_src
+
+
+# ---------------------------------------------------------------------------
+# Partition cascade and route domains
+# ---------------------------------------------------------------------------
+
+
+PARTITION_CONF = """auth partition Common { description default }
+ltm pool /Common/web_pool {
+    members { /Common/n1%5:80 { address 10.0.0.1%5 } }
+    monitor /Common/http
+}
+ltm virtual /Common/web_vs {
+    destination /Common/10.10.0.5%5:443
+    pool /Common/web_pool
+}
+ltm rule /Common/log_rule {
+when HTTP_REQUEST {
+    pool /Common/web_pool
+}
+}
+"""
+
+
+def test_rename_partition_cascades_through_compound_values():
+    result = run_query(
+        'rename_partition("Common", "Tenant_A")', {"mem://1": PARTITION_CONF}
+    )
+    new_src = result.edits_per_file["mem://1"].new_source
+    # Every /Common/ occurrence — including the destination address
+    # prefix and the pool-member identifier — has moved.
+    assert "/Common/" not in new_src
+    assert "ltm pool /Tenant_A/web_pool" in new_src
+    assert "destination /Tenant_A/10.10.0.5%5:443" in new_src  # RD preserved
+    assert "/Tenant_A/n1%5:80" in new_src
+    # The auth partition stanza header was renamed too.
+    assert "auth partition Tenant_A" in new_src
+    # iRule body reference picked up the rename.
+    assert "pool /Tenant_A/web_pool" in new_src
+
+
+def test_rename_partition_does_not_rewrite_address_octets():
+    # The third octet of every address is 10, which matches "10" as a
+    # bare number — we must not rewrite it when renaming "/Common/".
+    src = "ltm node /Common/n1 { address 10.10.10.10 }\n"
+    result = run_query('rename_partition("Common", "Tenant_A")', {"mem://1": src})
+    new_src = result.edits_per_file["mem://1"].new_source
+    assert "address 10.10.10.10" in new_src
+
+
+def test_rename_partition_rejects_empty_or_invalid_names():
+    with pytest.raises(Exception):
+        run_query('rename_partition("", "X")', {"mem://1": SAMPLE_CONF})
+    with pytest.raises(Exception):
+        run_query('rename_partition("/Common", "X")', {"mem://1": SAMPLE_CONF})
+
+
+def test_route_domain_round_trip():
+    result = run_query(
+        'with_route_domain("/Common/10.0.0.1%5:80", 7) ; '
+        'with_route_domain("/Common/10.0.0.1%5:80", "") ; '
+        'route_domain("/Common/10.0.0.1%5:80")',
+        {"mem://1": SAMPLE_CONF},
+    )
+    # Only the last statement's values are returned by the runner.
+    [rd] = result.values_per_file["mem://1"]
+    assert rd == "5"
+
+
+def test_ip_rebase_preserves_route_domain():
+    result = run_query(
+        '.ltm.virtual[].destination | ip("192.168.9.0/24", .)',
+        {"mem://1": PARTITION_CONF},
+    )
+    [destination] = result.values_per_file["mem://1"]
+    assert destination == "/Common/192.168.9.5%5:443"
+
+
+def test_with_route_domain_strips_when_passed_empty():
+    result = run_query(
+        '.ltm.virtual[].destination |= with_route_domain(., "")',
+        {"mem://1": PARTITION_CONF},
+    )
+    new_src = result.edits_per_file["mem://1"].new_source
+    assert "destination /Common/10.10.0.5:443" in new_src
+    assert "%5:443" not in new_src
+
+
 def test_overlapping_edits_raise_conflict():
     # Two statements writing to the same destination field.
     with pytest.raises(EditError):

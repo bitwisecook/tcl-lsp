@@ -283,6 +283,8 @@ def _eval_call(node: Call, current: Any, ctx: EvalContext) -> Any:
         return _eval_special_form(node, current, ctx)
 
     args = [_eval(a, current, ctx) for a in node.args]
+    if spec.with_ctx:
+        return spec.impl(*args, ctx=ctx)
     return spec.impl(*args)
 
 

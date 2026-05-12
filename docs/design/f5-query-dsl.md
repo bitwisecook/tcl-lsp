@@ -210,19 +210,31 @@ full impact before `--write` / `--in-place` is added.
 The evaluator collects every `Assignment` node's resolved target into
 an `EditPlan`.  When evaluation finishes, the planner:
 
-1. Splits ops into identity writes and field writes.
-2. Routes identity writes through `rename_object`, threading the
-   evolving source between successive renames.
-3. Slots field writes by byte range; rejects edits without a
+1. Applies any **prefix-cascade rewrites** queued by builtins like
+   `rename_partition` (token-bounded regex prefix substitution against
+   the whole source).  Verifies the result still parses.
+2. Splits the remaining ops into identity writes and field writes.
+3. Routes identity writes through `rename_object`, threading the
+   evolving source between successive renames.  `|=` on an identity
+   field is admitted — the evaluator has already computed the new
+   value, the planner just hands it to `rename_object` like any
+   other rename.
+4. Slots field writes by byte range; rejects edits without a
    `field_slot` (compound sub-block values are not writable in v1).
-4. Sorts field-write slots by offset, checks for overlaps, raises
+5. Sorts field-write slots by offset, checks for overlaps, raises
    `EditError` on conflict.
-5. Splices the new text in a single forward pass.
+6. Splices the new text in a single forward pass.
+
+Mixing prefix-cascade rewrites and field edits inside a *single*
+statement is rejected — a prefix rewrite shifts byte offsets, and
+the field-slot ranges captured at projection time would target the
+wrong span after the rewrite.  Split them with `;` and the planner
+will apply each statement against the post-rewrite source.
 
 The output is one `AppliedSource` per touched URI, surfacing the new
-text, the `RenameReport` list, and the field-edit count.  The CLI
-verb chooses between unified diff, stdout, and in-place write based on
-flags.
+text, the `RenameReport` list (including synthetic reports for
+cascade rewrites), and the field-edit count.  The CLI verb chooses
+between unified diff, stdout, and in-place write based on flags.
 
 ## Builtins
 
@@ -244,14 +256,63 @@ text and dispatch table both pick it up automatically.
 
 ### Categories
 
-- **net** — `ip`, `net`, `host`, `port`, `in_cidr`
+- **net** — `ip`, `net`, `host`, `port`, `in_cidr`, `route_domain`,
+  `with_route_domain`
 - **path** — `partition`, `basename`, `with_partition`
+- **partition** — `rename_partition` (cascading prefix rewrite that
+  moves every object in a partition, including references in
+  compound values like destination addresses, pool-member names, and
+  iRule body literals; also renames the `auth partition` stanza
+  itself when present)
 - **string** — `startswith`, `endswith`, `contains`, `match`, `sub`,
   `gsub`, `split`, `join`, `upcase`, `downcase`
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`
 - **graph** — `refs`, `referenced_by` (forwards to `core.bigip.grep`)
+
+### Partition and route-domain transforms
+
+Two flavours of partition operation cover the common workflows:
+
+1. **Whole-partition migration** — `rename_partition("Common",
+   "Tenant_A")`.  Emits a `PrefixRewrite` op that the planner applies
+   as a token-bounded regex substitution on the entire source.
+   This catches every occurrence of `/Common/`, including the
+   structural prefix on destination addresses
+   (`destination /Common/10.10.0.5:443`) and pool-member identifiers
+   (`/Common/n1:80`).  It also rewrites the bare `auth partition
+   Common` header.
+
+2. **Selective rename** — `.ltm.pool["~^/Common/"] | .name |=
+   with_partition(., "Tenant_A")`.  Routes each match through
+   `rename_object` (token-bounded full-path replacement).  Moves
+   only the chosen kind; other objects in `/Common/` stay put, and
+   the rename is restricted to standalone object identifiers — it
+   does **not** touch compound values that happen to share the
+   `/Common/` prefix.
+
+Pick whole-partition migration when the partition itself is moving;
+pick selective rename when you want one kind to move and the others
+to stay.
+
+Route domains attach to addresses with a `%<n>` suffix.  Three
+builtins cover them:
+
+- `route_domain(value)` — returns the route-domain part of a
+  destination string, or `null` when none is present.
+- `with_route_domain(value, rd)` — sets, replaces, or strips
+  (`""`/`null`) the route domain on a destination string.
+- `ip(network, source)` — when rebasing into a new network, the
+  route domain on `source` is preserved by default along with the
+  partition prefix and port.  Use `with_route_domain` afterwards to
+  change it.
+
+All address builtins share a single tokeniser
+(`_split_destination` in `builtins.py`) that returns
+`(partition, address, route_domain, port)`.  Adding new partition or
+RD-aware operations means dispatching that tuple and re-joining via
+`_rebuild_destination` — no ad-hoc string slicing.
 
 ## iRule sub-tree (v1)
 

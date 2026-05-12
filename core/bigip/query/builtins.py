@@ -46,6 +46,11 @@ class BuiltinSpec:
     category: str
     impl: Callable[..., Any]
     special_form: bool = False
+    # ``with_ctx`` builtins receive the evaluator's :class:`EvalContext`
+    # as a keyword argument so they can register edits or look up the
+    # active :class:`Root`.  Used by cascading operations like
+    # ``rename_partition``.
+    with_ctx: bool = False
     min_args: int = 0
     max_args: int | None = 0
 
@@ -56,6 +61,7 @@ _CATEGORY_ORDER = (
     "stream",
     "string",
     "path",
+    "partition",
     "net",
     "graph",
     "value",
@@ -72,6 +78,7 @@ def _register(
     min_args: int,
     max_args: int | None,
     special_form: bool = False,
+    with_ctx: bool = False,
 ) -> Callable[[Callable], Callable]:
     def decorator(fn: Callable) -> Callable:
         if name in _REGISTRY:
@@ -84,6 +91,7 @@ def _register(
             category=category,
             impl=fn,
             special_form=special_form,
+            with_ctx=with_ctx,
             min_args=min_args,
             max_args=max_args,
         )
@@ -207,20 +215,46 @@ def _type_name(value: object) -> str:
 # Network / address helpers
 # ---------------------------------------------------------------------------
 
-# A BIG-IP "destination" is ``[/Partition/]address[:port]`` (IPv4) or
-# ``[/Partition/]address.port`` (IPv6 alt-syntax) — we accept the
-# common case here and leave the rarer Layer-4 spelling for v2.
+# A BIG-IP "destination" is ``[/Partition/]address[%route-domain][:port]``.
+# Route domains attach to an address with a ``%<n>`` suffix and stay
+# with the address through every transform — they are part of the
+# routable identity, not part of the port.
 _DEST_RE = re.compile(
-    r"^(?P<partition>(?:/[^/]+/)?)(?P<addr>[^:/\s]+)(?::(?P<port>\d+))?$"
+    r"^(?P<partition>(?:/[^/]+/)?)"
+    r"(?P<addr>[^%:/\s]+)"
+    r"(?:%(?P<rd>[A-Za-z0-9_-]+))?"
+    r"(?::(?P<port>\d+))?$"
 )
 
 
-def _split_destination(value: str) -> tuple[str, str, str]:
-    """Return ``(partition_prefix, address, port)`` for a destination string."""
+def _split_destination(value: str) -> tuple[str, str, str, str]:
+    """Return ``(partition_prefix, address, route_domain, port)``.
+
+    ``partition_prefix`` includes the surrounding slashes (``"/Common/"``)
+    or is empty.  Each of the other parts is the bare value (no ``%``,
+    no ``:``) or empty when absent.
+    """
     m = _DEST_RE.match(value)
     if not m:
-        return "", value, ""
-    return m.group("partition") or "", m.group("addr"), m.group("port") or ""
+        return "", value, "", ""
+    return (
+        m.group("partition") or "",
+        m.group("addr"),
+        m.group("rd") or "",
+        m.group("port") or "",
+    )
+
+
+def _rebuild_destination(
+    partition: str, address: str, route_domain: str, port: str
+) -> str:
+    """Inverse of :func:`_split_destination`."""
+    out = f"{partition}{address}"
+    if route_domain:
+        out = f"{out}%{route_domain}"
+    if port:
+        out = f"{out}:{port}"
+    return out
 
 
 @_register(
@@ -245,22 +279,24 @@ def _split_destination(value: str) -> tuple[str, str, str]:
 def _builtin_ip(*args: Any) -> str:
     if len(args) == 1:
         s = _as_str(args[0], name="ip", arg=1)
-        partition, addr, port = _split_destination(s)
+        _, addr, _, _ = _split_destination(s)
         try:
             ipaddress.ip_address(addr)
         except ValueError as exc:
             raise BuiltinError(f"ip: invalid address {addr!r}: {exc}") from exc
-        # Strip the partition / port — ``ip(x)`` normalises to the bare
-        # address.  Use ``host`` and ``port`` to recover the parts.
+        # ``ip(x)`` normalises to the bare address — partition, route
+        # domain, and port are stripped.  Use ``host`` / ``port`` /
+        # ``route_domain`` to recover them.
         return addr
-    # Two-arg form: rebase ``source``'s host bits into ``network``.
+    # Two-arg form: rebase ``source``'s host bits into ``network``,
+    # preserving partition prefix, route domain, and port from the source.
     net_str = _as_str(args[0], name="ip", arg=1)
     src_str = _as_str(args[1], name="ip", arg=2)
     try:
         network = ipaddress.ip_network(net_str, strict=False)
     except ValueError as exc:
         raise BuiltinError(f"ip: invalid network {net_str!r}: {exc}") from exc
-    partition, src_addr, port = _split_destination(src_str)
+    partition, src_addr, rd, port = _split_destination(src_str)
     try:
         src_ip = ipaddress.ip_address(src_addr)
     except ValueError as exc:
@@ -273,14 +309,10 @@ def _builtin_ip(*args: Any) -> str:
         src_ip, ipaddress.IPv6Address
     ):
         raise BuiltinError("ip: cannot rebase an IPv4 address into an IPv6 network")
-    # Host bits = src & inverted_mask.  Network bits = net.network_address.
     host_bits = int(src_ip) & (~int(network.netmask))
     new_int = int(network.network_address) | host_bits
     new_addr = type(src_ip)(new_int)
-    rebuilt = f"{partition}{new_addr}"
-    if port:
-        rebuilt = f"{rebuilt}:{port}"
-    return rebuilt
+    return _rebuild_destination(partition, str(new_addr), rd, port)
 
 
 @_register(
@@ -321,7 +353,7 @@ def _builtin_net(value: Any) -> str:
 )
 def _builtin_host(value: Any) -> str:
     s = _as_str(value, name="host", arg=1)
-    _, addr, _ = _split_destination(s)
+    _, addr, _, _ = _split_destination(s)
     return addr
 
 
@@ -339,7 +371,7 @@ def _builtin_host(value: Any) -> str:
 )
 def _builtin_port(value: Any) -> int | None:
     s = _as_str(value, name="port", arg=1)
-    _, _, port = _split_destination(s)
+    _, _, _, port = _split_destination(s)
     return int(port) if port else None
 
 
@@ -410,7 +442,7 @@ def _builtin_with_partition(path: Any, partition: Any) -> str:
 def _builtin_in_cidr(addr: Any, network: Any) -> bool:
     addr_s = _as_str(addr, name="in_cidr", arg=1)
     net_s = _as_str(network, name="in_cidr", arg=2)
-    _, host, _ = _split_destination(addr_s)
+    _, host, _, _ = _split_destination(addr_s)
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
@@ -424,6 +456,144 @@ def _builtin_in_cidr(addr: Any, network: Any) -> bool:
     if isinstance(ip, ipaddress.IPv6Address) and not isinstance(net, ipaddress.IPv6Network):
         return False
     return ip in net
+
+
+@_register(
+    "route_domain",
+    summary=(
+        "Return the route-domain number of a destination / address string "
+        "(``10.0.0.1%5:80`` -> ``5``), or null when none is present."
+    ),
+    signatures=("route_domain(value: string) -> string | null",),
+    examples=(
+        'route_domain(.destination)',
+        'route_domain("10.0.0.1%5:80")   # -> "5"',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_route_domain(value: Any) -> str | None:
+    s = _as_str(value, name="route_domain", arg=1)
+    _, _, rd, _ = _split_destination(s)
+    return rd or None
+
+
+@_register(
+    "with_route_domain",
+    summary=(
+        "Set, replace, or strip the route-domain on a destination / address.  "
+        "Pass an empty string (or null) as the second argument to strip the "
+        "route-domain entirely.  Partition prefix and port are preserved."
+    ),
+    signatures=("with_route_domain(value: string, rd: string | integer | null) -> string",),
+    examples=(
+        'with_route_domain(.destination, 5)',
+        'with_route_domain("/Common/10.0.0.1%5:80", "")   # strip rd',
+        '.ltm.virtual[] | .destination |= with_route_domain(., 7)',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_with_route_domain(value: Any, rd: Any) -> str:
+    s = _as_str(value, name="with_route_domain", arg=1)
+    partition, addr, _, port = _split_destination(s)
+    if rd is None or rd == "":
+        new_rd = ""
+    elif isinstance(rd, bool):
+        raise BuiltinError("with_route_domain: rd cannot be a boolean")
+    elif isinstance(rd, int):
+        new_rd = str(rd)
+    elif isinstance(rd, str):
+        new_rd = rd
+    else:
+        raise BuiltinError(
+            f"with_route_domain: rd must be a string, integer, or null, "
+            f"got {_type_name(rd)}"
+        )
+    return _rebuild_destination(partition, addr, new_rd, port)
+
+
+# ---------------------------------------------------------------------------
+# Partition cascade
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "rename_partition",
+    summary=(
+        "Rename a BIG-IP partition and every object that lives inside it.  "
+        "Schedules an identity rename for each object whose full-path "
+        "starts with ``/<old>/``, so a single statement migrates virtuals, "
+        "pools, nodes, profiles, monitors, persistence, snatpools, "
+        "policies, data-groups, and iRules together — and every reference "
+        "(in config properties and iRule bodies) is rewritten along with "
+        "them.  Pair with --in-place to persist or with the default dry-run "
+        "diff to preview."
+    ),
+    signatures=("rename_partition(old: string, new: string) -> integer",),
+    examples=(
+        'rename_partition("Common", "Tenant_A")',
+        'rename_partition("staging", "prod")',
+    ),
+    category="partition",
+    min_args=2,
+    max_args=2,
+    with_ctx=True,
+)
+def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
+    from .edit_plan import PrefixRewrite
+
+    old_name = _as_str(old, name="rename_partition", arg=1).strip()
+    new_name = _as_str(new, name="rename_partition", arg=2).strip()
+    if not old_name or not new_name:
+        raise BuiltinError("rename_partition: partition names must not be empty")
+    if "/" in old_name or "/" in new_name:
+        raise BuiltinError("rename_partition: pass bare partition names, not paths")
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]+", old_name) or not re.fullmatch(
+        r"[A-Za-z0-9_.\-]+", new_name
+    ):
+        raise BuiltinError(
+            "rename_partition: partition names must match [A-Za-z0-9_.-]+"
+        )
+    if old_name == new_name:
+        return 0
+
+    # ``/Old/...`` -> ``/New/...``: token-bounded so a longer name
+    # ("/OldExt/...") isn't matched.  The trailing lookahead requires
+    # an identifier or address character after the prefix, so bare
+    # occurrences of the partition name on their own do not match.
+    prefix_pattern = re.compile(
+        rf"(?<![A-Za-z0-9_/.\-])/{re.escape(old_name)}/(?=[A-Za-z0-9_])"
+    )
+    # ``auth partition Old { ... }`` — the standalone partition stanza.
+    header_pattern = re.compile(
+        rf"(?<![A-Za-z0-9_/.\-])(auth\s+partition\s+){re.escape(old_name)}"
+        rf"(?![A-Za-z0-9_/.\-])"
+    )
+
+    ctx.edits.add_prefix(
+        PrefixRewrite(
+            source_uri=ctx.root.uri,
+            label=f"partition /{old_name}/",
+            pattern=prefix_pattern,
+            replacement=f"/{new_name}/",
+        )
+    )
+    ctx.edits.add_prefix(
+        PrefixRewrite(
+            source_uri=ctx.root.uri,
+            label=f"auth partition {old_name}",
+            pattern=header_pattern,
+            replacement=rf"\g<1>{new_name}",
+        )
+    )
+
+    # Return a useful count for the user: the textual matches the
+    # prefix rewrite will land on.  The CLI also surfaces this via the
+    # stderr summary the planner emits after applying.
+    return len(prefix_pattern.findall(ctx.root.source))
 
 
 # ---------------------------------------------------------------------------
