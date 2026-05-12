@@ -352,6 +352,122 @@ class BigipNetStp:
     range: Range | None = None
 
 
+# sys.* — typed projection for the system module.
+#
+# Singletons (``sys dns``, ``sys ntp``, ``sys snmp``, ``sys
+# global-settings``) have no full-path; they're stored with the empty
+# string as the dict key so ``.sys.<kind>[]`` streams the one entry.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysDns:
+    """The ``sys dns`` singleton — DNS resolver settings."""
+
+    name: str = ""
+    full_path: str = ""
+    name_servers: tuple[str, ...] = ()
+    search: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysNtp:
+    """The ``sys ntp`` singleton — NTP server settings."""
+
+    name: str = ""
+    full_path: str = ""
+    servers: tuple[str, ...] = ()
+    timezone: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysSnmp:
+    """The ``sys snmp`` singleton — SNMP agent settings."""
+
+    name: str = ""
+    full_path: str = ""
+    agent_addresses: tuple[str, ...] = ()
+    communities: tuple[str, ...] = ()  # full-paths of community sub-objects
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysGlobalSettings:
+    """The ``sys global-settings`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    hostname: str = ""
+    gui_setup: str = ""
+    mgmt_dhcp: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysProvision:
+    """A ``sys provision <module>`` object — module provisioning level.
+
+    ``name`` is the bare module token (``ltm``, ``sslo``, ``urldb``);
+    ``full_path`` mirrors it.
+    """
+
+    name: str
+    full_path: str
+    level: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysFolder:
+    """A ``sys folder`` object — partition / folder metadata."""
+
+    name: str
+    full_path: str
+    device_group: str = ""
+    traffic_group: str = ""
+    hidden: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysFileSslCert:
+    """A ``sys file ssl-cert`` object."""
+
+    name: str
+    full_path: str
+    source_path: str = ""
+    cache_path: str = ""
+    revision: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysFileSslKey:
+    """A ``sys file ssl-key`` object."""
+
+    name: str
+    full_path: str
+    source_path: str = ""
+    cache_path: str = ""
+    revision: str = ""
+    passphrase: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysManagementRoute:
+    """A ``sys management-route`` object."""
+
+    name: str
+    full_path: str
+    gateway: str = ""
+    network: str = ""
+    mtu: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -379,6 +495,16 @@ class BigipConfig:
     net_dns_resolvers: dict[str, BigipNetDnsResolver] = field(default_factory=dict)
     net_tunnels: dict[str, BigipNetTunnel] = field(default_factory=dict)
     net_stps: dict[str, BigipNetStp] = field(default_factory=dict)
+    # sys.* — singletons live under the empty-string key.
+    sys_dns: dict[str, BigipSysDns] = field(default_factory=dict)
+    sys_ntp: dict[str, BigipSysNtp] = field(default_factory=dict)
+    sys_snmp: dict[str, BigipSysSnmp] = field(default_factory=dict)
+    sys_global_settings: dict[str, BigipSysGlobalSettings] = field(default_factory=dict)
+    sys_provisions: dict[str, BigipSysProvision] = field(default_factory=dict)
+    sys_folders: dict[str, BigipSysFolder] = field(default_factory=dict)
+    sys_file_ssl_certs: dict[str, BigipSysFileSslCert] = field(default_factory=dict)
+    sys_file_ssl_keys: dict[str, BigipSysFileSslKey] = field(default_factory=dict)
+    sys_management_routes: dict[str, BigipSysManagementRoute] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

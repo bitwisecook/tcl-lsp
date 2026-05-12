@@ -1075,6 +1075,153 @@ def test_net_stp_projects_interfaces():
     assert sorted(ifaces) == ["1.1", "1.2"]
 
 
+# ---------------------------------------------------------------------------
+# sys.* — typed projection for the system module
+# ---------------------------------------------------------------------------
+
+_SYS_SCF = (
+    "sys dns {\n"
+    "    name-servers { 192.0.2.53 198.51.100.53 }\n"
+    "    search { example.test internal.test }\n"
+    "}\n"
+    "sys ntp {\n"
+    "    servers { 192.0.2.123 }\n"
+    "    timezone UTC\n"
+    "}\n"
+    "sys snmp {\n"
+    "    agent-addresses { tcp6:161 udp6:161 }\n"
+    "    communities {\n"
+    "        /Common/comm-public {\n"
+    "            community-name public\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "sys global-settings {\n"
+    "    gui-setup disabled\n"
+    "    hostname host1.example.test\n"
+    "    mgmt-dhcp disabled\n"
+    "}\n"
+    "sys provision ltm {\n"
+    "    level nominal\n"
+    "}\n"
+    "sys provision sslo {\n"
+    "    level minimum\n"
+    "}\n"
+    "sys folder / {\n"
+    "    device-group none\n"
+    "    hidden false\n"
+    "    traffic-group /Common/traffic-group-1\n"
+    "}\n"
+    "sys folder /Common {\n"
+    "    device-group none\n"
+    "    hidden false\n"
+    "    traffic-group /Common/traffic-group-1\n"
+    "}\n"
+    "sys file ssl-cert /Common/host1.crt {\n"
+    "    cache-path /config/filestore/files_d/Common_d/certificate_d/host1.crt_1\n"
+    "    revision 1\n"
+    "    source-path file:///config/ssl/ssl.crt/host1.crt\n"
+    "}\n"
+    "sys file ssl-key /Common/host1.key {\n"
+    "    cache-path /config/filestore/files_d/Common_d/certificate_key_d/host1.key_1\n"
+    "    passphrase $M$placeholder\n"
+    "    revision 1\n"
+    "    source-path file:///config/ssl/ssl.key/host1.key\n"
+    "}\n"
+    "sys management-route /Common/default {\n"
+    "    description configured-statically\n"
+    "    gateway 192.0.2.1\n"
+    "    mtu 1500\n"
+    "    network default\n"
+    "}\n"
+)
+
+
+def test_sys_dns_singleton_projects_name_servers():
+    """``sys dns`` has no full-path; it's a singleton streamed via ``[]``."""
+    result = run_query(".sys.dns[].name-servers", {"m": _SYS_SCF})
+    [servers] = result.values_per_file["m"]
+    assert sorted(servers) == ["192.0.2.53", "198.51.100.53"]
+
+
+def test_sys_dns_singleton_lookup_by_empty_key():
+    """The singleton lives at the empty-string key."""
+    result = run_query('.sys.dns[""].search', {"m": _SYS_SCF})
+    [search] = result.values_per_file["m"]
+    assert sorted(search) == ["example.test", "internal.test"]
+
+
+def test_sys_ntp_singleton_projects_servers():
+    result = run_query(".sys.ntp[].servers", {"m": _SYS_SCF})
+    [servers] = result.values_per_file["m"]
+    assert list(servers) == ["192.0.2.123"]
+    result = run_query(".sys.ntp[].timezone", {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["UTC"]
+
+
+def test_sys_snmp_singleton_projects_agent_and_communities():
+    result = run_query(".sys.snmp[].agent-addresses", {"m": _SYS_SCF})
+    [addrs] = result.values_per_file["m"]
+    assert sorted(addrs) == ["tcp6:161", "udp6:161"]
+    # Communities is a sub-block; we surface the keys as a list.
+    result = run_query(".sys.snmp[].communities", {"m": _SYS_SCF})
+    [comms] = result.values_per_file["m"]
+    assert list(comms) == ["/Common/comm-public"]
+
+
+def test_sys_global_settings_singleton_projects_hostname():
+    result = run_query(".sys.global-settings[].hostname", {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["host1.example.test"]
+
+
+def test_sys_provision_projects_level():
+    result = run_query(".sys.provision[].level", {"m": _SYS_SCF})
+    assert sorted(result.values_per_file["m"]) == ["minimum", "nominal"]
+    result = run_query('.sys.provision["ltm"].level', {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["nominal"]
+
+
+def test_sys_folder_projects_traffic_group():
+    """``sys folder /`` uses ``/`` as its full-path key — make sure
+    indexing works for both the root folder and named partitions.
+    """
+    result = run_query('.sys.folder["/"].traffic-group', {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["/Common/traffic-group-1"]
+    result = run_query('.sys.folder["/Common"].name', {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["Common"]
+
+
+def test_sys_file_ssl_cert_projects_source_path():
+    """``sys file ssl-cert`` is a two-word kind; the parser must
+    recognise it so the source-path field comes through populated.
+    """
+    result = run_query(
+        '.sys.file-ssl-cert["/Common/host1.crt"].source-path',
+        {"m": _SYS_SCF},
+    )
+    assert result.values_per_file["m"] == ["file:///config/ssl/ssl.crt/host1.crt"]
+
+
+def test_sys_file_ssl_key_projects_source_path_and_passphrase():
+    result = run_query(
+        '.sys.file-ssl-key["/Common/host1.key"].source-path',
+        {"m": _SYS_SCF},
+    )
+    assert result.values_per_file["m"] == ["file:///config/ssl/ssl.key/host1.key"]
+    result = run_query(
+        '.sys.file-ssl-key["/Common/host1.key"].passphrase',
+        {"m": _SYS_SCF},
+    )
+    assert result.values_per_file["m"] == ["$M$placeholder"]
+
+
+def test_sys_management_route_projects_gateway_and_description():
+    result = run_query(".sys.management-route[].gateway", {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["192.0.2.1"]
+    result = run_query(".sys.management-route[].description", {"m": _SYS_SCF})
+    assert result.values_per_file["m"] == ["configured-statically"]
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"

@@ -51,6 +51,15 @@ from .model import (
     BigipProfile,
     BigipRule,
     BigipSnatPool,
+    BigipSysDns,
+    BigipSysFileSslCert,
+    BigipSysFileSslKey,
+    BigipSysFolder,
+    BigipSysGlobalSettings,
+    BigipSysManagementRoute,
+    BigipSysNtp,
+    BigipSysProvision,
+    BigipSysSnmp,
     BigipVirtualServer,
     DataGroupType,
     ProfileType,
@@ -417,6 +426,9 @@ _TWO_WORD_TYPES = frozenset(
         "monitor external",
         # net.* — multi-word kinds.
         "tunnels tunnel",
+        # sys.* — multi-word kinds.
+        "file ssl-cert",
+        "file ssl-key",
     }
 )
 
@@ -1185,6 +1197,152 @@ def _parse_net_stp(
     )
 
 
+# sys.* parsers — singletons (``sys dns``, ``sys ntp``, ``sys snmp``,
+# ``sys global-settings``) have an empty full-path; everything else
+# uses the identifier from the header.
+
+
+def _parse_sys_dns(body: str, source_map: DocumentBuffer, block: _Block) -> BigipSysDns:
+    props = _parse_properties_with_spans(body)
+    name_servers: tuple[str, ...] = ()
+    if "name-servers" in props:
+        name_servers = tuple(_parse_list_block(props["name-servers"].value))
+    search: tuple[str, ...] = ()
+    if "search" in props:
+        search = tuple(_parse_list_block(props["search"].value))
+    return BigipSysDns(
+        name_servers=name_servers,
+        search=search,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_ntp(body: str, source_map: DocumentBuffer, block: _Block) -> BigipSysNtp:
+    props = _parse_properties_with_spans(body)
+    servers: tuple[str, ...] = ()
+    if "servers" in props:
+        servers = tuple(_parse_list_block(props["servers"].value))
+    return BigipSysNtp(
+        servers=servers,
+        timezone=props["timezone"].value if "timezone" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_snmp(body: str, source_map: DocumentBuffer, block: _Block) -> BigipSysSnmp:
+    props = _parse_properties_with_spans(body)
+    agent_addresses: tuple[str, ...] = ()
+    if "agent-addresses" in props:
+        agent_addresses = tuple(_parse_list_block(props["agent-addresses"].value))
+    communities: tuple[str, ...] = ()
+    if "communities" in props:
+        # ``communities`` is a block of named sub-objects; the top-level
+        # keys are the community full-paths.
+        communities = tuple(_parse_list_block(props["communities"].value))
+    return BigipSysSnmp(
+        agent_addresses=agent_addresses,
+        communities=communities,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_global_settings(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSysGlobalSettings:
+    props = _parse_properties_with_spans(body)
+    return BigipSysGlobalSettings(
+        hostname=props["hostname"].value if "hostname" in props else "",
+        gui_setup=props["gui-setup"].value if "gui-setup" in props else "",
+        mgmt_dhcp=props["mgmt-dhcp"].value if "mgmt-dhcp" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_provision(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSysProvision:
+    # ``sys provision <module>`` uses the bare module name as identifier
+    # (e.g. ``ltm``, ``sslo``).  No partition prefix.
+    props = _parse_properties_with_spans(body)
+    return BigipSysProvision(
+        name=full_path,
+        full_path=full_path,
+        level=props["level"].value if "level" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_folder(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSysFolder:
+    props = _parse_properties_with_spans(body)
+    # ``sys folder /`` uses ``/`` as the identifier; rsplit would leave
+    # ``name`` empty, so fall back to the full-path itself.
+    name = full_path.rsplit("/", 1)[-1] or full_path
+    return BigipSysFolder(
+        name=name,
+        full_path=full_path,
+        device_group=props["device-group"].value if "device-group" in props else "",
+        traffic_group=props["traffic-group"].value if "traffic-group" in props else "",
+        hidden=props["hidden"].value if "hidden" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_file_ssl_cert(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSysFileSslCert:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSysFileSslCert(
+        name=name,
+        full_path=full_path,
+        source_path=props["source-path"].value if "source-path" in props else "",
+        cache_path=props["cache-path"].value if "cache-path" in props else "",
+        revision=props["revision"].value if "revision" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_file_ssl_key(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSysFileSslKey:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSysFileSslKey(
+        name=name,
+        full_path=full_path,
+        source_path=props["source-path"].value if "source-path" in props else "",
+        cache_path=props["cache-path"].value if "cache-path" in props else "",
+        revision=props["revision"].value if "revision" in props else "",
+        passphrase=props["passphrase"].value if "passphrase" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_sys_management_route(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSysManagementRoute:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    description = ""
+    if "description" in props:
+        desc = props["description"].value
+        if desc.startswith('"') and desc.endswith('"'):
+            description = desc[1:-1]
+        else:
+            description = desc
+    return BigipSysManagementRoute(
+        name=name,
+        full_path=full_path,
+        gateway=props["gateway"].value if "gateway" in props else "",
+        network=props["network"].value if "network" in props else "",
+        mtu=props["mtu"].value if "mtu" in props else "",
+        description=description,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1213,6 +1371,23 @@ def parse_bigip_conf(source: str) -> BigipConfig:
 
         parsed = _parse_header(block.header)
         if parsed is None:
+            # Singleton stanzas (``sys dns {``, ``sys ntp {``,
+            # ``sys snmp {``, ``sys global-settings {``) have a
+            # two-token header that the standard header parser
+            # rejects.  Dispatch them off ``generic`` and continue.
+            if generic is not None:
+                module_g, obj_type_g, identifier_g = generic
+                if module_g == "sys" and identifier_g == "":
+                    if obj_type_g == "dns":
+                        config.sys_dns[""] = _parse_sys_dns(block.body, source_map, block)
+                    elif obj_type_g == "ntp":
+                        config.sys_ntp[""] = _parse_sys_ntp(block.body, source_map, block)
+                    elif obj_type_g == "snmp":
+                        config.sys_snmp[""] = _parse_sys_snmp(block.body, source_map, block)
+                    elif obj_type_g == "global-settings":
+                        config.sys_global_settings[""] = _parse_sys_global_settings(
+                            block.body, source_map, block
+                        )
             continue
         module, obj_type, full_path = parsed
 
@@ -1254,6 +1429,31 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 )
             elif obj_type == "stp":
                 config.net_stps[full_path] = _parse_net_stp(
+                    full_path, block.body, source_map, block
+                )
+            continue
+
+        if module == "sys":
+            # ``sys`` module dispatch.  Singletons are handled above
+            # via the ``parsed is None`` branch.
+            if obj_type == "provision":
+                config.sys_provisions[full_path] = _parse_sys_provision(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "folder":
+                config.sys_folders[full_path] = _parse_sys_folder(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "file ssl-cert":
+                config.sys_file_ssl_certs[full_path] = _parse_sys_file_ssl_cert(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "file ssl-key":
+                config.sys_file_ssl_keys[full_path] = _parse_sys_file_ssl_key(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "management-route":
+                config.sys_management_routes[full_path] = _parse_sys_management_route(
                     full_path, block.body, source_map, block
                 )
             continue

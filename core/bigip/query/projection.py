@@ -41,6 +41,15 @@ from ..model import (
     BigipProfile,
     BigipRule,
     BigipSnatPool,
+    BigipSysDns,
+    BigipSysFileSslCert,
+    BigipSysFileSslKey,
+    BigipSysFolder,
+    BigipSysGlobalSettings,
+    BigipSysManagementRoute,
+    BigipSysNtp,
+    BigipSysProvision,
+    BigipSysSnmp,
     BigipVirtualServer,
 )
 from .errors import EvalError
@@ -267,6 +276,75 @@ _NET_STP_FIELDS: dict[str, FieldSpec] = {
     "interfaces": FieldSpec("interfaces"),
 }
 
+_SYS_DNS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "name-servers": FieldSpec("name_servers"),
+    "search": FieldSpec("search"),
+}
+
+_SYS_NTP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "servers": FieldSpec("servers"),
+    "timezone": FieldSpec("timezone"),
+}
+
+_SYS_SNMP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "agent-addresses": FieldSpec("agent_addresses"),
+    "communities": FieldSpec("communities"),
+}
+
+_SYS_GLOBAL_SETTINGS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "hostname": FieldSpec("hostname"),
+    "gui-setup": FieldSpec("gui_setup"),
+    "mgmt-dhcp": FieldSpec("mgmt_dhcp"),
+}
+
+_SYS_PROVISION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "level": FieldSpec("level"),
+}
+
+_SYS_FOLDER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "device-group": FieldSpec("device_group"),
+    "traffic-group": FieldSpec("traffic_group"),
+    "hidden": FieldSpec("hidden"),
+}
+
+_SYS_FILE_SSL_CERT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "source-path": FieldSpec("source_path"),
+    "cache-path": FieldSpec("cache_path"),
+    "revision": FieldSpec("revision"),
+}
+
+_SYS_FILE_SSL_KEY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "source-path": FieldSpec("source_path"),
+    "cache-path": FieldSpec("cache_path"),
+    "revision": FieldSpec("revision"),
+    "passphrase": FieldSpec("passphrase"),
+}
+
+_SYS_MANAGEMENT_ROUTE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "gateway": FieldSpec("gateway"),
+    "network": FieldSpec("network"),
+    "mtu": FieldSpec("mtu"),
+    "description": FieldSpec("description"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -288,6 +366,15 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "net dns-resolver": (BigipNetDnsResolver, _NET_DNS_RESOLVER_FIELDS),
     "net tunnels tunnel": (BigipNetTunnel, _NET_TUNNEL_FIELDS),
     "net stp": (BigipNetStp, _NET_STP_FIELDS),
+    "sys dns": (BigipSysDns, _SYS_DNS_FIELDS),
+    "sys ntp": (BigipSysNtp, _SYS_NTP_FIELDS),
+    "sys snmp": (BigipSysSnmp, _SYS_SNMP_FIELDS),
+    "sys global-settings": (BigipSysGlobalSettings, _SYS_GLOBAL_SETTINGS_FIELDS),
+    "sys provision": (BigipSysProvision, _SYS_PROVISION_FIELDS),
+    "sys folder": (BigipSysFolder, _SYS_FOLDER_FIELDS),
+    "sys file ssl-cert": (BigipSysFileSslCert, _SYS_FILE_SSL_CERT_FIELDS),
+    "sys file ssl-key": (BigipSysFileSslKey, _SYS_FILE_SSL_KEY_FIELDS),
+    "sys management-route": (BigipSysManagementRoute, _SYS_MANAGEMENT_ROUTE_FIELDS),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -318,6 +405,17 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "dns-resolver": ("net_dns_resolvers", "net dns-resolver"),
         "tunnels-tunnel": ("net_tunnels", "net tunnels tunnel"),
         "stp": ("net_stps", "net stp"),
+    },
+    "sys": {
+        "dns": ("sys_dns", "sys dns"),
+        "ntp": ("sys_ntp", "sys ntp"),
+        "snmp": ("sys_snmp", "sys snmp"),
+        "global-settings": ("sys_global_settings", "sys global-settings"),
+        "provision": ("sys_provisions", "sys provision"),
+        "folder": ("sys_folders", "sys folder"),
+        "file-ssl-cert": ("sys_file_ssl_certs", "sys file ssl-cert"),
+        "file-ssl-key": ("sys_file_ssl_keys", "sys file ssl-key"),
+        "management-route": ("sys_management_routes", "sys management-route"),
     },
 }
 

@@ -212,7 +212,26 @@ top-level child per recognised module:
                                .remote-address
                                .description
   .stp["/Common/cist"].interfaces[]
+.sys
+  .dns[].name-servers[]                    (singleton; one entry)
+  .ntp[].servers[]                         (singleton; one entry)
+  .snmp[].agent-addresses[]                (singleton; one entry)
+        .communities[]
+  .global-settings[].hostname              (singleton; one entry)
+  .provision["ltm"].level
+  .folder["/Common"].traffic-group
+  .file-ssl-cert["/Common/f5.crt"].source-path
+                                  .cache-path
+  .file-ssl-key["/Common/f5.key"].source-path
+                                 .passphrase
+  .management-route["/Common/default"].gateway
+                                      .network
 ```
+
+Singletons (``sys.dns``, ``sys.ntp``, ``sys.snmp``,
+``sys.global-settings``) have no full-path — they're stored under
+the empty-string key, so ``.sys.dns[]`` streams the one entry and
+``.sys.dns[""]`` is an exact lookup.
 
 PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `net self → net vlan → tag` in one chain, and

@@ -101,12 +101,17 @@ MODULES
                           into the target ``net vlan`` so chained
                           access ``.net.self[].vlan.tag`` Just Works.
 
-  Unmodelled kinds (``apm.*``, ``security.*``, ``sys.*``, ``cm.*``,
-  ``pem.*``, …) still parse and are surfaced via
-  ``rename_partition`` / cross-module rewrites, but they are not
-  navigable from the DSL in v1.  Reach into them with
-  ``f5 query --scf`` after a partition cascade, or wait for the
-  follow-on typed-projection rounds.
+  .sys.<kind>             System module: ``dns``, ``ntp``, ``snmp``,
+                          ``global-settings`` (singletons — one entry
+                          each, streamed via ``.sys.dns[]``);
+                          ``provision``, ``folder``, ``file-ssl-cert``,
+                          ``file-ssl-key``, ``management-route``.
+
+  Unmodelled kinds (``apm.*``, ``security.*``, ``cm.*``, ``pem.*``, …)
+  still parse and are surfaced via ``rename_partition`` /
+  cross-module rewrites, but they are not navigable from the DSL in
+  v1.  Reach into them with ``f5 query --scf`` after a partition
+  cascade, or wait for the follow-on typed-projection rounds.
 
 ASSIGNMENT
 
