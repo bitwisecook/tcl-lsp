@@ -14,7 +14,8 @@ Verbs:
   symbolgraph build symbol relationship graph data
   dataflow    build taint/effect data-flow graph data
   command-info lookup command registry metadata
-  convert     detect legacy modernisation patterns
+  completion  emit a bash/fish/zsh completion script
+  find-legacy detect legacy modernisation patterns (detection only)
   dis         emit bytecode disassembly
   compwasm    compile to WASM binary
   highlight   emit syntax-highlighted output
@@ -78,7 +79,8 @@ def main() -> int:
         print("  symbolgraph build symbol relationship graph data")
         print("  dataflow    build taint/effect data-flow graph data")
         print("  command-info lookup command registry metadata")
-        print("  convert     detect legacy modernisation patterns")
+        print("  completion  emit a bash/fish/zsh completion script")
+        print("  find-legacy detect legacy modernisation patterns (detection only)")
         print("  dis         emit bytecode disassembly")
         print("  compwasm    compile to WASM binary")
         print("  highlight   emit syntax-highlighted output")

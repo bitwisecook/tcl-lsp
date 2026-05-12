@@ -29,11 +29,18 @@ from ._utils import (
 def _configure_highlight(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
-    p.description = "Emit syntax-highlighted source output."
+    p.description = (
+        "Emit the source with token-level syntax highlighting applied:\n"
+        "commands, sub-commands, variable refs, command substitutions,\n"
+        "braced strings, comments, and {*}-expansion get distinct colours\n"
+        "or CSS classes.  Choose `ansi` for terminal output (default) or\n"
+        "`html` for a `<pre>`-wrapped HTML fragment with inline styles.\n"
+    )
     p.epilog = (
         "Examples:\n"
         f"  {prog_name} highlight script.tcl --colour\n"
         f"  {prog_name} highlight script.tcl --format html -o out.html\n"
+        f"  {prog_name} highlight irule.irul --dialect f5-irules --format ansi\n"
     )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(

@@ -14,7 +14,7 @@ Detect and convert legacy iRule patterns to modern best practices.
 2. Read the iRule file to modernise
 3. Run the legacy pattern detection:
    ```bash
-   uv run --no-dev python ai/claude/tcl_ai.py convert $FILE
+   uv run --no-dev python ai/claude/tcl_ai.py find-legacy $FILE
    ```
 4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
 5. If no legacy patterns are found, report the iRule already follows best practices

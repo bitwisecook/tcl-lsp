@@ -16,7 +16,7 @@ This module powers the ``tcl`` zipapp and exposes task-focused verbs:
 - ``event-order``: show iRules events in canonical firing order.
 - ``event-info``: look up iRules event metadata and valid commands.
 - ``command-info``: look up command registry metadata.
-- ``convert``: detect legacy patterns eligible for modernisation.
+- ``find-legacy``: detect legacy patterns eligible for modernisation.
 - ``dis``: disassemble compiled bytecode.
 - ``compwasm``: compile to WebAssembly binary output.
 - ``highlight``: emit syntax-highlighted source (ANSI or HTML).
@@ -278,12 +278,17 @@ class _FullHelpAction(argparse.Action):
         parser.exit()
 
 
-def parse_args(
-    argv: list[str],
+def build_parser(
     *,
     prog_name: str = "tcl",
     default_dialect: str = "tcl8.6",
-) -> argparse.Namespace:
+) -> argparse.ArgumentParser:
+    """Build the top-level argparse parser without consuming argv.
+
+    Exposed so that :mod:`argcomplete` (and the ``completion`` verb that
+    drives it) can introspect the verb tree without invoking
+    ``parse_args``.
+    """
     parser = argparse.ArgumentParser(
         prog=prog_name,
         description="Unified Tcl toolchain CLI.",
@@ -328,6 +333,22 @@ def parse_args(
     add_venv_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
     add_docker_subparser(sub, prog_name=prog_name, default_dialect=default_dialect)
 
+    return parser
+
+
+def parse_args(
+    argv: list[str],
+    *,
+    prog_name: str = "tcl",
+    default_dialect: str = "tcl8.6",
+) -> argparse.Namespace:
+    parser = build_parser(prog_name=prog_name, default_dialect=default_dialect)
+    # Hook argcomplete: when the shell invokes us with $_ARGCOMPLETE set,
+    # this short-circuits, writes completions, and exits.  In normal use it
+    # is a no-op.
+    from ._argcomplete_support import autocomplete
+
+    autocomplete(parser)
     return parser.parse_args(argv)
 
 

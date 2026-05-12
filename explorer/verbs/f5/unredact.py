@@ -21,16 +21,23 @@ from ._registry import verb
     "unredact",
     aliases=("unmap",),
     help="Reverse a previous `f5 redact` using its sidecar map file.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Read the TOML map file produced by `f5 redact` and rewrite "
-        "every IPv4 / IPv6 literal in the input back to its original "
-        "value.  The input does not have to be a complete config — "
-        "this works on any text (including support emails, ticket "
-        "comments, log snippets) so long as the IPs in it match the "
-        "map.  Tokens that aren't in the map are passed through "
+        "Read the TOML map file produced by `f5 redact` and rewrite\n"
+        "every IPv4 / IPv6 literal in the input back to its original\n"
+        "value.  The input does not have to be a complete config —\n"
+        "this works on any text (including support emails, ticket\n"
+        "comments, log snippets) so long as the IPs in it match the\n"
+        "map.  Tokens that aren't in the map are passed through\n"
         "unchanged."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 unredact map.toml redacted.conf -o original.conf\n"
+        "  f5 unredact map.toml support-ticket.txt   # works on prose, not just configs\n"
+        "  cat redacted.log | f5 unredact map.toml -\n"
     )
     p.add_argument(
         "map_file",

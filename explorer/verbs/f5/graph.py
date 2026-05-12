@@ -16,13 +16,23 @@ from ._registry import verb
     "graph",
     aliases=("deps",),
     help="Emit the object reference graph as DOT, JSON, or Mermaid.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Walk every reference edge in the configuration (the same graph "
-        "`f5 cleanup` and `f5 grep` use) and serialise it.  Pass --seed "
-        "to limit output to a subgraph reachable from one or more "
-        "objects."
+        "Walk every reference edge in the configuration (the same graph\n"
+        "`f5 cleanup` and `f5 grep` use) and serialise it.  Pass --seed\n"
+        "to limit output to a subgraph reachable from one or more\n"
+        "objects; pair with --reverse to walk incoming references instead\n"
+        "(what depends on each seed)."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 graph bigip.conf -o graph.dot\n"
+        "  f5 graph bigip.conf --format mermaid -o graph.mmd\n"
+        "  f5 graph bigip.conf --seed /Common/vs_app --max-depth 3\n"
+        "  f5 graph bigip.conf --seed /Common/web_pool --reverse\n"
+        "  f5 graph bigip.conf --format json | jq '.nodes | length'\n"
     )
     p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
     p.add_argument(

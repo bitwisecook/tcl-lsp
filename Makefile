@@ -621,7 +621,7 @@ _smoke-zipapp-tcl: $(BUILD_INFO) $(KCS_DB)
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz symbols samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz callgraph samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz command-info HTTP::uri --dialect f5-irules --json > /dev/null
-	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz convert samples/for_screenshots/ai-scene.irul --json > /dev/null
+	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz find-legacy samples/for_screenshots/ai-scene.irul --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json > /dev/null
 	$(PYTHON) $(BUILD_DIR)/smoke-tcl.pyz help taint --dialect f5-irules > /dev/null

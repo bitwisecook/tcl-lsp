@@ -17,15 +17,24 @@ from ._registry import verb
     "validate",
     aliases=("lint",),
     help="Run BIG-IP best-practice / structural checks (orphans, empty pools, etc.).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Apply a registry of lint rules to one or more bigip.conf / SCF "
-        "files.  Reports orphan monitors, empty pools, virtuals without "
-        "pools or iRules, deprecated iRule commands, unknown iRule "
-        "events, and similar checks.  Exit code: 0 when there are no "
-        "findings or only info-level findings, 1 if any warning-level "
+        "Apply a registry of lint rules to one or more bigip.conf / SCF\n"
+        "files.  Reports orphan monitors, empty pools, virtuals without\n"
+        "pools or iRules, deprecated iRule commands, unknown iRule\n"
+        "events, and similar checks.  Exit code: 0 when there are no\n"
+        "findings or only info-level findings, 1 if any warning-level\n"
         "findings are emitted, 2 if any error-level findings are emitted."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 validate bigip.conf\n"
+        "  f5 validate bigip.conf --severity error\n"
+        "  f5 validate bigip.conf --category irule\n"
+        "  f5 validate bigip.conf --format sarif -o validate.sarif\n"
+        "  f5 validate bigip.conf --format json | jq '.findings | length'\n"
     )
     p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")
     p.add_argument(

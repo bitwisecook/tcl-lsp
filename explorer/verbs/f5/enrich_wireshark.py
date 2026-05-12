@@ -19,8 +19,15 @@ from .enrich_pcapng import _load_configs
         "Generate a Wireshark profile directory (hosts / subnets / vlans / "
         "dfilters) from one or more bigip.conf / SCF files."
     ),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
+    p.epilog = (
+        "Examples:\n"
+        "  f5 enrich-wireshark -c bigip.conf -o ws-profile/\n"
+        "  f5 enrich-wireshark -c ltm.conf -c gtm.conf -o ./prod-profile/\n"
+        "  f5 enrich-wireshark -c bigip.conf -o existing-profile/ --force\n"
+    )
     p.description = (
         "Walk every BIG-IP object across one or more bigip.conf / SCF "
         "inputs (LTM and GTM tiers can live in separate files; references "

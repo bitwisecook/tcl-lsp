@@ -251,7 +251,23 @@ def add_venv_subparser(
     venv_p = sub.add_parser(
         "venv",
         help="Manage Tcl virtual environments.",
-        description="Create, activate, and manage Tcl virtual environments.",
+        description=(
+            "Create and manage Tcl virtual environments — isolated package\n"
+            "trees scoped to a specific tclsh.  Mirrors Python's `venv` /\n"
+            "`pipx` ergonomics: `create` makes one, `activate` prints the\n"
+            "shell snippet to source, `run` invokes inside one without\n"
+            "needing an interactive shell."
+        ),
+        epilog=(
+            "Examples:\n"
+            f"  {prog_name} venv create               # create .venv/ in CWD\n"
+            f"  {prog_name} venv create .venv --tcl 9.0\n"
+            f"  source <({prog_name} venv activate .venv)\n"
+            f"  {prog_name} venv run -- tclsh script.tcl\n"
+            f"  {prog_name} venv list\n"
+            f"  {prog_name} venv delete .venv\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     venv_sub = venv_p.add_subparsers(dest="venv_action", required=True)
 

@@ -1,10 +1,9 @@
-"""``f5 completion`` — print a shell completion script for bash/fish/zsh."""
+"""``f5 completion`` — emit shell completion bootstrap (argcomplete)."""
 
 from __future__ import annotations
 
 import argparse
 import sys
-from importlib import resources
 
 from ._registry import verb
 
@@ -12,11 +11,10 @@ _SHELLS: tuple[str, ...] = ("bash", "fish", "zsh")
 
 _INSTALL_HINTS: dict[str, str] = {
     "bash": (
-        "Install (user):\n"
-        "  mkdir -p ~/.local/share/bash-completion/completions\n"
-        "  f5 completion bash > ~/.local/share/bash-completion/completions/f5\n"
-        "Or eagerly source it from ~/.bashrc:\n"
-        "  source <(f5 completion bash)"
+        "Install (eager, per-shell):\n"
+        "  echo 'source <(f5 completion bash)' >> ~/.bashrc\n"
+        "Or write to a system completion dir (loaded lazily by bash-completion):\n"
+        "  f5 completion bash | sudo tee /etc/bash_completion.d/f5 >/dev/null\n"
     ),
     "fish": (
         "Install:\n"
@@ -25,12 +23,13 @@ _INSTALL_HINTS: dict[str, str] = {
         "Then start a new fish session."
     ),
     "zsh": (
-        "Install (per-user):\n"
+        "Install (eager, per-shell):\n"
+        "  echo 'source <(f5 completion zsh)' >> ~/.zshrc\n"
+        "Or write to a directory on $fpath (loaded lazily by compinit):\n"
         '  mkdir -p "${ZDOTDIR:-$HOME}/.zsh/completions"\n'
         '  f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"\n'
-        "Then add this to ~/.zshrc before `compinit`:\n"
+        "Then ensure ~/.zshrc has, before `compinit`:\n"
         '  fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)\n'
-        "Or place it in any directory already on $fpath."
     ),
 }
 
@@ -39,17 +38,24 @@ _INSTALL_HINTS: dict[str, str] = {
     "completion",
     aliases=(),
     help="Print a bash / fish / zsh completion script for the f5 CLI.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Print a shell completion script for the f5 CLI.  Pipe the output "
-        "into the appropriate completion directory for your shell so that "
-        "verb names, flags, and `*.conf` / `*.scf` paths complete on Tab."
+        "Print a shell completion bootstrap for the f5 CLI.  The output is\n"
+        "produced by argcomplete from the live argparse definition, so verb\n"
+        "names, flags, and choice lists stay in sync with the CLI without\n"
+        "any per-shell template to maintain.  Pipe the output into your\n"
+        "shell startup (or into the shell's completion directory).\n"
     )
-    p.epilog = "Examples:\n  " + "\n  ".join(
-        f"f5 completion {shell:<4}  # see install hints with --hint" for shell in _SHELLS
+    p.epilog = (
+        "Examples:\n"
+        "  source <(f5 completion bash)             # eager (~/.bashrc)\n"
+        "  f5 completion bash | sudo tee /etc/bash_completion.d/f5\n"
+        "  f5 completion fish > ~/.config/fish/completions/f5.fish\n"
+        "  source <(f5 completion zsh)              # eager (~/.zshrc)\n"
+        "  f5 completion zsh --hint                 # print install help to stderr\n"
     )
-    p.formatter_class = argparse.RawDescriptionHelpFormatter
     p.add_argument(
         "shell",
         choices=_SHELLS,
@@ -65,19 +71,15 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
 
 def _run_completion(args: argparse.Namespace) -> int:
     try:
-        script = (
-            resources.files("explorer.completions")
-            .joinpath(f"f5.{args.shell}")
-            .read_text(encoding="utf-8")
-        )
-    except FileNotFoundError:
+        from argcomplete import shellcode
+    except ImportError:
         print(
-            f"error: completion script for {args.shell} not bundled with this build",
+            "error: argcomplete is not installed — install it with `pip install argcomplete`",
             file=sys.stderr,
         )
         return 2
 
-    sys.stdout.write(script)
+    sys.stdout.write(shellcode(["f5", "f5.pyz"], shell=args.shell))
     if args.hint:
         print(_INSTALL_HINTS[args.shell], file=sys.stderr)
     return 0
