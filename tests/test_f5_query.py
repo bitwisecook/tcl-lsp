@@ -252,6 +252,42 @@ when HTTP_REQUEST {
 """
 
 
+def test_rename_builtin_renames_header_and_references():
+    result = _run('rename("/Common/web_pool", "/Common/app_pool")')
+    applied = result.edits_per_file["mem://1"]
+    new_src = applied.new_source
+    # Header moved.
+    assert "ltm pool /Common/app_pool" in new_src
+    # VS reference moved.
+    assert "pool /Common/app_pool" in new_src
+    # iRule body reference moved.
+    assert "/Common/web_pool" not in new_src
+    # And a rename_report surfaced so the CLI can print the summary.
+    assert any(rep.old == "/Common/web_pool" for rep in applied.rename_reports)
+
+
+def test_rename_builtin_zero_match_is_a_no_op_not_an_error():
+    # Tolerant rename: the CLI surfaces this as a warning + exit 1, the
+    # DSL just returns 0.
+    result = _run('rename("/Common/no_such_thing", "/Common/whatever")')
+    # has_mutation is True because the user attempted a rename, but the
+    # source is unchanged so the CLI's _emit_mutation will exit 1.
+    assert result.has_mutation
+    applied = result.edits_per_file["mem://1"]
+    assert applied.new_source == applied.original
+    assert applied.rename_reports == ()
+
+
+def test_rename_builtin_composes_with_property_edit_across_statements():
+    result = _run(
+        'rename("/Common/web_pool", "/Common/app_pool") ; '
+        '.ltm.pool["/Common/app_pool"].monitor = "/Common/tcp"'
+    )
+    new_src = result.edits_per_file["mem://1"].new_source
+    assert "ltm pool /Common/app_pool" in new_src
+    assert "monitor /Common/tcp" in new_src
+
+
 def test_rename_partition_cascades_through_compound_values():
     result = run_query('rename_partition("Common", "Tenant_A")', {"mem://1": PARTITION_CONF})
     new_src = result.edits_per_file["mem://1"].new_source

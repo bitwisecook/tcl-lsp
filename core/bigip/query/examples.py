@@ -87,6 +87,15 @@ _EXAMPLES: tuple[Example, ...] = (
         comment="One-line projection-then-rewrite using `|=` plus the path helper.",
     ),
     Example(
+        title="Rename a single object everywhere (the engine `f5 rename` uses)",
+        query='rename("/Common/old_pool", "/Common/new_pool")',
+        comment=(
+            "Same token-bounded rewrite the `f5 rename` verb runs; "
+            "tolerant of zero-match (returns 0) so the CLI can surface "
+            "it as a warning rather than an error."
+        ),
+    ),
+    Example(
         title="Migrate every object from /Common/ into /Tenant_A/",
         query='rename_partition("Common", "Tenant_A")',
         comment=(

@@ -159,6 +159,23 @@ ltm virtual /Common/web_vs {
 the route domain on an address.  `ip(network, source)` preserves the
 route domain when readdressing — `%5` survives the subnet rebase.
 
+### Single-object rename (same engine as `f5 rename`)
+
+```
+$ f5 query 'rename("/Common/web_pool", "/Common/app_pool")' bigip.conf
+```
+
+`f5 rename old new file.conf` is a thin shell over this builtin, so reaching for `rename()` from the DSL is the right move when you want to combine a rename with other transforms in one statement — for example, rename and then mutate a property in a single dry-run preview:
+
+```
+$ f5 query '
+  rename("/Common/web_pool", "/Common/app_pool") ;
+  .ltm.pool["/Common/app_pool"].monitor = "/Common/tcp"
+' bigip.conf
+```
+
+The two statements run in order against the evolving source.
+
 ### Rename a pool everywhere
 
 ```

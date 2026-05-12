@@ -60,7 +60,7 @@ _CATEGORY_ORDER = (
     "stream",
     "string",
     "path",
-    "partition",
+    "rename",
     "net",
     "graph",
     "value",
@@ -506,8 +506,59 @@ def _builtin_with_route_domain(value: Any, rd: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Partition cascade
+# Rename — single-object and whole-partition cascade
 # ---------------------------------------------------------------------------
+
+
+@_register(
+    "rename",
+    summary=(
+        "Rename a BIG-IP object full-path and update every reference to it.  "
+        "Routes through the same engine ``f5 rename`` uses (token-bounded "
+        "regex substitution across the whole source, covering iRule body "
+        "references and pool-member identifiers).  Unlike ``.<kind>[old].name "
+        "= new``, the kind is not specified — useful when ``old`` is "
+        "user-supplied and the caller doesn't know which kind owns it.  A "
+        "zero-occurrence outcome returns 0 rather than raising, so the CLI "
+        "verb can surface ``warning: no occurrences of <old> found`` with "
+        "exit code 1 instead of treating it as an error."
+    ),
+    signatures=("rename(old: string, new: string) -> integer",),
+    examples=(
+        'rename("/Common/old_pool", "/Common/new_pool")',
+        'rename("/Common/log_rule", "/Common/audit_rule")',
+    ),
+    category="rename",
+    min_args=2,
+    max_args=2,
+    with_ctx=True,
+)
+def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
+    from .edit_plan import EditOp
+
+    old_s = _as_str(old, name="rename", arg=1).strip()
+    new_s = _as_str(new, name="rename", arg=2).strip()
+    if not old_s:
+        raise BuiltinError("rename: old name must not be empty")
+    if not new_s:
+        raise BuiltinError("rename: new name must not be empty")
+    if old_s == new_s:
+        return 0
+    ctx.edits.add(
+        EditOp(
+            source_uri=ctx.root.uri,
+            object_path=old_s,
+            object_kind="",
+            field_name="name",
+            operator="=",
+            old_value=old_s,
+            new_value=new_s,
+            field_slot=None,
+            stanza_slot=None,
+            strict=False,
+        )
+    )
+    return 1
 
 
 @_register(
@@ -528,7 +579,7 @@ def _builtin_with_route_domain(value: Any, rd: Any) -> str:
         'rename_partition("Common", "Tenant_A")',
         'rename_partition("staging", "prod")',
     ),
-    category="partition",
+    category="rename",
     min_args=2,
     max_args=2,
     with_ctx=True,

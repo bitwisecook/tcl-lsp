@@ -259,17 +259,40 @@ text and dispatch table both pick it up automatically.
 - **net** — `ip`, `net`, `host`, `port`, `in_cidr`, `route_domain`,
   `with_route_domain`
 - **path** — `partition`, `basename`, `with_partition`
-- **partition** — `rename_partition` (cascading prefix rewrite that
-  moves every object in a partition, including references in
-  compound values like destination addresses, pool-member names, and
-  iRule body literals; also renames the `auth partition` stanza
-  itself when present)
+- **rename**
+  - `rename(old, new)` — token-bounded single-object rename across
+    the whole source (header + every reference, including
+    references inside iRule body command arguments).  Same engine
+    the `f5 rename` verb shells out to; tolerant of zero-match.
+  - `rename_partition(old, new)` — cascading prefix rewrite that
+    moves every object in a partition, including references in
+    compound values like destination addresses, pool-member names,
+    and iRule body literals; also renames the `auth partition`
+    stanza header itself when present.
 - **string** — `startswith`, `endswith`, `contains`, `match`, `sub`,
   `gsub`, `split`, `join`, `upcase`, `downcase`
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`
 - **graph** — `refs`, `referenced_by` (forwards to `core.bigip.grep`)
+
+### Rename verb integration
+
+`f5 rename old new file.conf` is a thin shell over the query engine:
+the verb constructs a `rename(OLD, NEW)` expression and runs it
+through `run_query`.  Routing both verbs through one engine keeps the
+rename logic in one place — improvements to `rename_object`, the
+iRule body walk, and the diff renderer are inherited automatically.
+The CLI surface (positional `old new path`, `--write` / `--in-place` /
+unified-diff default, stderr "renamed X -> Y (N occurrence(s))"
+summary, exit 1 on zero-match warning) is preserved exactly.
+
+The `EditOp.strict` flag (default `True`) distinguishes
+DSL-driven identity assignments (`.x["/Common/y"].name = "z"`,
+strict — raises on zero-match because the user named the object
+explicitly) from search-and-replace style renames driven by the
+`rename()` builtin (non-strict — yields a no-op AppliedSource so
+the CLI can surface the no-match with a warning + exit code 1).
 
 ### Partition and route-domain transforms
 

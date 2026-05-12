@@ -1,12 +1,22 @@
-"""``f5 rename`` — rename an object and update every reference."""
+"""``f5 rename`` — rename an object and update every reference.
+
+The implementation is a thin shell over the ``f5 query`` engine: the
+verb constructs a ``rename(OLD, NEW)`` expression and runs it through
+:func:`core.bigip.query.run_query`.  Routing both verbs through the
+same engine keeps the rename logic in one place — improvements to
+``rename_object``, the iRule body walk, and the diff renderer are
+inherited automatically.
+"""
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import sys
 from pathlib import Path
 
-from core.bigip.rewrite import rename_object
+from core.bigip.query import run_query
+from core.bigip.query.errors import QueryError
 
 from ._paths import read_path
 from ._registry import verb
@@ -24,7 +34,12 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "values, iRule bodies (`pool foo`, `class match ... <data-group>`), "
         "and pool member addresses.  Token-bounded so substring "
         "collisions don't fire.  Dry-run by default; pass --write or "
-        "--in-place to persist."
+        "--in-place to persist.\n"
+        "\n"
+        "This verb is a shortcut for ``f5 query 'rename(OLD, NEW)' PATH`` — "
+        "the same rename engine backs both.  Reach for ``f5 query`` when "
+        "you want to combine the rename with a filter or a property edit, "
+        "or for the partition-cascade ``rename_partition()`` builtin."
     )
     p.add_argument("old", help="Old full-path (e.g. /Common/old_pool).")
     p.add_argument("new", help="New full-path (e.g. /Common/new_pool).")
@@ -49,44 +64,56 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.set_defaults(handler=_run_rename)
 
 
+def _dsl_string(value: str) -> str:
+    """Wrap *value* as a DSL string literal, escaping ``\\`` and ``"``."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def _run_rename(args: argparse.Namespace) -> int:
     if args.path == "-" and args.in_place:
         print("error: --in-place requires a path argument, not stdin", file=sys.stderr)
         return 2
+    if not args.old:
+        print("error: old name is empty", file=sys.stderr)
+        return 2
+    if not args.new:
+        print("error: new name is empty", file=sys.stderr)
+        return 2
     try:
-        _, source = read_path(args.path)
+        uri, source = read_path(args.path)
     except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    query = f"rename({_dsl_string(args.old)}, {_dsl_string(args.new)})"
     try:
-        report = rename_object(source, args.old, args.new)
-    except ValueError as exc:
+        result = run_query(query, {uri: source})
+    except QueryError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    if report.occurrences == 0:
+    applied = result.edits_per_file.get(uri)
+    if applied is None or applied.new_source == applied.original:
         print(f"warning: no occurrences of {args.old!r} found", file=sys.stderr)
         return 1
 
-    print(
-        f"renamed {args.old!r} -> {args.new!r} ({report.occurrences} occurrence(s))",
-        file=sys.stderr,
-    )
+    for report in applied.rename_reports:
+        print(
+            f"renamed {report.old!r} -> {report.new!r} ({report.occurrences} occurrence(s))",
+            file=sys.stderr,
+        )
 
     if args.in_place:
-        Path(args.path).write_text(report.new_source, encoding="utf-8")
+        Path(args.path).write_text(applied.new_source, encoding="utf-8")
     elif args.output:
-        Path(args.output).write_text(report.new_source, encoding="utf-8")
+        Path(args.output).write_text(applied.new_source, encoding="utf-8")
     elif args.write:
-        sys.stdout.write(report.new_source)
+        sys.stdout.write(applied.new_source)
     else:
-        # Default: emit a unified diff so the user sees what would change.
-        import difflib
-
         diff = difflib.unified_diff(
             source.splitlines(keepends=True),
-            report.new_source.splitlines(keepends=True),
+            applied.new_source.splitlines(keepends=True),
             fromfile=args.path,
             tofile=f"{args.path} (renamed)",
         )

@@ -38,6 +38,13 @@ class EditOp:
     new_value: Any
     field_slot: FieldSlot | None
     stanza_slot: FieldSlot | None
+    # When ``strict`` is True (the default) a zero-occurrence rename
+    # raises :class:`EditError`.  Builtins that *intend* a tolerant
+    # search-and-replace (e.g. the ``rename()`` builtin that backs
+    # ``f5 rename``) set this to False; the applier then skips the op
+    # silently and the CLI surfaces the no-match with a warning + an
+    # exit-code-1 instead of an error.
+    strict: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,7 +189,12 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
                 raise EditError(f"rename target for {op.object_path!r} produced an empty value")
             report = rename_object(current, op.object_path, new_path)
             if report.occurrences == 0:
-                raise EditError(f"rename of {op.object_path!r} matched no source text")
+                if op.strict:
+                    raise EditError(f"rename of {op.object_path!r} matched no source text")
+                # Tolerant rename (e.g. via the ``rename()`` builtin): leave
+                # the source unchanged and emit no RenameReport.  The CLI
+                # detects the no-op via the post-apply diff and exits 1.
+                continue
             current = report.new_source
             rename_reports.append(report)
 
