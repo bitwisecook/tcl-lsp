@@ -14,6 +14,7 @@ from pathlib import Path
 
 from explorer.f5_remote.ucs import extract_ucs_file
 
+from ._emit import add_format_arg, render_config
 from ._registry import verb
 
 
@@ -56,6 +57,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "canonical bigip_base/bigip/bigip_gtm/bigip_user/bigip_script set."
         ),
     )
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_extract)
 
 
@@ -78,8 +80,9 @@ def _run_extract(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    output = render_config(scf, fmt=args.output_format, tmsh_verb="create")
     if args.output:
-        Path(args.output).write_text(scf, encoding="utf-8")
+        Path(args.output).write_text(output, encoding="utf-8")
     else:
-        sys.stdout.write(scf)
+        sys.stdout.write(output)
     return 0

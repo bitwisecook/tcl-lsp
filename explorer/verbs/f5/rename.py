@@ -8,6 +8,7 @@ from pathlib import Path
 
 from core.bigip.rewrite import rename_object
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -54,6 +55,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         action="store_true",
         help="Print rewritten config to stdout instead of a unified-diff preview.",
     )
+    add_format_arg(p, tmsh_default_verb="modify")
     p.set_defaults(handler=_run_rename)
 
 
@@ -82,14 +84,18 @@ def _run_rename(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
 
+    rewritten = render_config(report.new_source, fmt=args.output_format, tmsh_verb="modify")
+
     if args.in_place:
-        Path(args.path).write_text(report.new_source, encoding="utf-8")
+        Path(args.path).write_text(rewritten, encoding="utf-8")
     elif args.output:
-        Path(args.output).write_text(report.new_source, encoding="utf-8")
+        Path(args.output).write_text(rewritten, encoding="utf-8")
     elif args.write:
-        sys.stdout.write(report.new_source)
+        sys.stdout.write(rewritten)
     else:
         # Default: emit a unified diff so the user sees what would change.
+        # The diff is always SCF↔SCF (no point diffing against a tmsh form
+        # of the same content — the LHS is the source file as-is).
         import difflib
 
         diff = difflib.unified_diff(
