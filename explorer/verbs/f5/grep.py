@@ -10,7 +10,7 @@ from pathlib import Path
 from core.bigip.grep import DIRECTIONS, compute_grep, report_to_dict
 from core.bigip.parser import parse_bigip_conf
 
-from ._emit import add_format_arg, render_config
+from ._emit import add_format_arg
 from ._registry import verb
 
 
@@ -174,12 +174,14 @@ def _run_grep(args: argparse.Namespace) -> int:
     if args.json:
         output = json.dumps(report_to_dict(report, include_body=args.full), indent=2) + "\n"
     elif args.output_format == "tmsh":
-        # tmsh mode strips the report scaffolding and emits only the
-        # matched stanzas (seeds + related) as `tmsh create` commands.
-        # `--full` is implied — without object bodies there's nothing
-        # tmsh-shaped to render.
-        scf = _matched_stanzas_to_scf(report)
-        output = render_config(scf, fmt="tmsh", tmsh_verb="create")
+        # tmsh mode strips the report scaffolding and emits each
+        # matched stanza (seeds + related) as a `tmsh create` command.
+        # We render directly from the GrepObject pair rather than
+        # routing through parse_bigip_conf + emit_tmsh: the parser is
+        # keyed by full path, so the same `/Common/foo` coming from
+        # two different input files would collide there and one copy
+        # would be silently dropped.
+        output = _matched_stanzas_as_tmsh(report)
     else:
         output = report.text_report
         if not output.endswith("\n"):
@@ -195,22 +197,28 @@ def _run_grep(args: argparse.Namespace) -> int:
     return 0 if report.seeds else 1
 
 
-def _matched_stanzas_to_scf(report) -> str:  # noqa: ANN001
-    """Concatenate every matched object's stanza as a synthetic SCF.
+def _matched_stanzas_as_tmsh(report) -> str:  # noqa: ANN001
+    """Render every matched object as a one-line ``tmsh create`` command.
 
     Each :class:`GrepObject` carries its original ``header`` and
-    ``body`` text, so we can reassemble the stanza verbatim and feed
-    it to the standard parser → emit_tmsh pipeline.  Order is seeds
-    first, then related (matching the text report's ordering).
+    ``body`` text, so the conversion is a straightforward textual
+    rewrap: ``tmsh create <header> { <body> }``.  Dedupe is on
+    :attr:`GrepObject.node_id` (which already encodes the source URI),
+    so the same ``/Common/foo`` coming from two different input files
+    survives as two stanzas — collapsing on ``full_path`` alone would
+    silently drop one of them in multi-file runs.
+
+    Order is seeds first, then related, matching the text report.
     """
     parts: list[str] = []
     seen: set[str] = set()
     for obj in tuple(report.seeds) + tuple(report.related):
-        key = obj.full_path or obj.header
-        if key in seen:
+        if obj.node_id in seen:
             continue
-        seen.add(key)
-        header = obj.header.rstrip()
-        body = obj.body.rstrip("\n")
-        parts.append(f"{header} {{\n{body}\n}}\n")
+        seen.add(obj.node_id)
+        header = obj.header.strip()
+        body = " ".join(obj.body.split())
+        parts.append(
+            f"tmsh create {header} {{ {body} }}\n" if body else f"tmsh create {header} {{ }}\n"
+        )
     return "".join(parts)

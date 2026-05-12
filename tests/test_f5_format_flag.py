@@ -244,3 +244,34 @@ def test_grep_tmsh_emits_only_matched_stanzas_as_tmsh(tmp_path, capsys):
     # tmsh create commands.
     assert "tmsh create ltm virtual /Common/vs_app" in out
     assert "tmsh create ltm pool /Common/p1" in out
+
+
+def test_grep_tmsh_does_not_collapse_same_path_across_files(tmp_path, capsys):
+    # Regression for the dedupe bug Copilot flagged on `_matched_stanzas_to_scf`:
+    # an object with the same /Common path in two different input files
+    # must survive in the tmsh output as two stanzas, not one.
+    src_a = (
+        textwrap.dedent(
+            """
+        ltm node /Common/n1 { address 10.0.0.1 }
+        ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+        """
+        ).strip()
+        + "\n"
+    )
+    src_b = (
+        textwrap.dedent(
+            """
+        ltm node /Common/n1 { address 10.0.0.99 }
+        ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.99 } } }
+        """
+        ).strip()
+        + "\n"
+    )
+    a = _write(tmp_path, "a.conf", src_a)
+    b = _write(tmp_path, "b.conf", src_b)
+    code, out, _err = _run(["grep", "/Common/p1", str(a), str(b), "--format", "tmsh"], capsys)
+    assert code == 0
+    # Both copies of /Common/p1 must appear — collapsing on full_path
+    # alone would emit only one `tmsh create ltm pool /Common/p1` line.
+    assert out.count("tmsh create ltm pool /Common/p1") == 2
