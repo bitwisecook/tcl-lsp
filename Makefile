@@ -748,7 +748,11 @@ editors/zed/src/generated/tcl_commands.json editors/zed/src/generated/irule_even
 	@echo "==> Generating editor catalogs"
 	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_catalogs.py
 
-generate: editors/zed/src/generated/tcl_commands.json ## Regenerate editor catalog files from the registry
+core/bigip/_port_names_table.py: scripts/generate_port_names.py core/bigip/data/scf_port_names.csv $(UV_STAMP)
+	@echo "==> Generating BIG-IP port-name table"
+	cd $(ROOT) && $(UV) run --extra dev python scripts/generate_port_names.py
+
+generate: editors/zed/src/generated/tcl_commands.json core/bigip/_port_names_table.py ## Regenerate editor catalog files from the registry
 
 check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	@echo "==> Checking generated catalogs are up to date"
@@ -760,6 +764,8 @@ check-generated: $(UV_STAMP) ## Verify generated catalogs are up to date
 	rm -rf "$$TMPDIR" && \
 	echo "Generated catalogs are up to date." || \
 	(rm -rf "$$TMPDIR" && echo "ERROR: Generated catalogs are stale — run 'make generate'" >&2 && exit 1)
+	@echo "==> Checking generated BIG-IP port-name table is up to date"
+	@cd $(ROOT) && $(UV) run --extra dev python scripts/generate_port_names.py --check
 
 # Generated editor settings from code registry
 #
