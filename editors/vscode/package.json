@@ -441,7 +441,7 @@
         "id": "tcl-lsp.irule",
         "fullName": "iRule Assistant",
         "name": "irule",
-        "description": "Create, explain, fix, validate, review, convert, optimise, scaffold, test, diagram, diff, migrate, and translate F5 BIG-IP iRules to XC",
+        "description": "Create, explain, fix, validate, review, find-legacy, optimise, scaffold, test, diagram, diff, migrate, and translate F5 BIG-IP iRules to XC",
         "isSticky": true,
         "commands": [
           {
@@ -465,8 +465,8 @@
             "description": "Security and safety review of an iRule"
           },
           {
-            "name": "convert",
-            "description": "Modernise legacy iRule patterns to current best practices"
+            "name": "find-legacy",
+            "description": "Find and modernise legacy iRule patterns (matchclass, unbraced expr, ...)"
           },
           {
             "name": "optimise",

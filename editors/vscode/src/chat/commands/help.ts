@@ -188,7 +188,7 @@ function chatCommandsSection(participant: "irule" | "tcl" | "tk"): HelpSection {
 
   const iruleExtra: HelpItem[] = [
     { name: "/review", description: "Security and safety review" },
-    { name: "/convert", description: "Modernise legacy patterns" },
+    { name: "/find-legacy", description: "Find and modernise legacy patterns" },
     { name: "/scaffold", description: "Generate iRule skeleton from events" },
     { name: "/datagroup", description: "Suggest data-group extraction" },
     { name: "/diff", description: "Compare two iRule versions" },

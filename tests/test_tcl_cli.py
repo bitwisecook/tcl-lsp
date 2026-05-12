@@ -222,10 +222,10 @@ def test_command_info_json_known_command(capsys):
     assert err == ""
 
 
-def test_convert_json_reports_convertible_diagnostics(capsys):
+def test_find_legacy_json_reports_convertible_diagnostics(capsys):
     source = "set x [expr $y + 1]\n"
 
-    code, out, err = _run(["convert", "--source", source, "--json"], capsys)
+    code, out, err = _run(["find-legacy", "--source", source, "--json"], capsys)
 
     assert code == 0
     payload = json.loads(out)
@@ -503,7 +503,7 @@ def test_help_subcommand_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Search KCS help docs from the bundled SQLite index." in captured.out
+    assert "Full-text search the bundled KCS" in captured.out
     assert "--dialect" in captured.out
 
 
@@ -549,7 +549,7 @@ def test_diff_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Diff two sources using AST, IR, and CFG representations." in captured.out
+    assert "Compare *left* and *right* sources at the AST, IR, and CFG layers" in captured.out
     assert "--show" in captured.out
 
 
@@ -559,7 +559,7 @@ def test_highlight_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Emit syntax-highlighted source output." in captured.out
+    assert "Emit the source with token-level syntax highlighting" in captured.out
     assert "--format {ansi,html}" in captured.out
     assert "--colour" in captured.out
 
@@ -570,7 +570,7 @@ def test_format_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Format source and emit rewritten Tcl." in captured.out
+    assert "Pretty-print each input with the canonical style rules" in captured.out
     assert "--output OUTPUT" in captured.out
 
 
@@ -580,7 +580,7 @@ def test_command_info_help_supports_help_flag(capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Look up command registry metadata." in captured.out
+    assert "Report the registry entry for COMMAND" in captured.out
     assert "--dialect" in captured.out
 
 

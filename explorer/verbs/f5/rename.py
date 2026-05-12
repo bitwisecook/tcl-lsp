@@ -18,6 +18,7 @@ from pathlib import Path
 from core.bigip.query import run_query
 from core.bigip.query.errors import QueryError
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -26,20 +27,28 @@ from ._registry import verb
     "rename",
     aliases=("mv",),
     help="Rename a BIG-IP object full-path and update every reference.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Replace every occurrence of OLD with NEW in a bigip.conf / SCF "
-        "— both the object's own header and every reference in property "
-        "values, iRule bodies (`pool foo`, `class match ... <data-group>`), "
-        "and pool member addresses.  Token-bounded so substring "
-        "collisions don't fire.  Dry-run by default; pass --write or "
-        "--in-place to persist.\n"
+        "Replace every occurrence of OLD with NEW in a bigip.conf / SCF\n"
+        "— both the object's own header and every reference in property\n"
+        "values, iRule bodies (`pool foo`, `class match ... <data-group>`),\n"
+        "and pool member addresses.  Token-bounded so substring\n"
+        "collisions don't fire.  Dry-run by default (emits a unified\n"
+        "diff); pass --write or --in-place to persist.\n"
         "\n"
-        "This verb is a shortcut for ``f5 query 'rename(OLD, NEW)' PATH`` — "
-        "the same rename engine backs both.  Reach for ``f5 query`` when "
-        "you want to combine the rename with a filter or a property edit, "
+        "This verb is a shortcut for ``f5 query 'rename(OLD, NEW)' PATH``\n"
+        "— the same rename engine backs both.  Reach for ``f5 query`` when\n"
+        "you want to combine the rename with a filter or a property edit,\n"
         "or for the partition-cascade ``rename_partition()`` builtin."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf       # dry-run diff\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf --write > new.conf\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf --in-place\n"
+        "  f5 rename /Common/old_pool /Common/new_pool bigip.conf -o new.conf\n"
     )
     p.add_argument("old", help="Old full-path (e.g. /Common/old_pool).")
     p.add_argument("new", help="New full-path (e.g. /Common/new_pool).")
@@ -61,6 +70,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         action="store_true",
         help="Print rewritten config to stdout instead of a unified-diff preview.",
     )
+    add_format_arg(p, tmsh_default_verb="modify")
     p.set_defaults(handler=_run_rename)
 
 
@@ -104,13 +114,18 @@ def _run_rename(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
+    rewritten = render_config(applied.new_source, fmt=args.output_format, tmsh_verb="modify")
+
     if args.in_place:
-        Path(args.path).write_text(applied.new_source, encoding="utf-8")
+        Path(args.path).write_text(rewritten, encoding="utf-8")
     elif args.output:
-        Path(args.output).write_text(applied.new_source, encoding="utf-8")
+        Path(args.output).write_text(rewritten, encoding="utf-8")
     elif args.write:
-        sys.stdout.write(applied.new_source)
+        sys.stdout.write(rewritten)
     else:
+        # Default: emit a unified diff so the user sees what would change.
+        # The diff is always SCF↔SCF (no point diffing against a tmsh form
+        # of the same content — the LHS is the source file as-is).
         diff = difflib.unified_diff(
             source.splitlines(keepends=True),
             applied.new_source.splitlines(keepends=True),

@@ -10,6 +10,7 @@ from pathlib import Path
 from core.bigip.grep import DIRECTIONS, compute_grep, report_to_dict
 from core.bigip.parser import parse_bigip_conf
 
+from ._emit import add_format_arg
 from ._registry import verb
 
 
@@ -17,18 +18,28 @@ from ._registry import verb
     "grep",
     aliases=("related",),
     help="List every BIG-IP object related to a given object path or regex.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Find every BIG-IP object reachable through reference edges from "
-        "the search-match objects whose full path matches PATTERN.  "
-        "PATTERN is a substring match by default; pass --regex to treat "
-        "it as a Python regular expression, or --cidr to match IP "
-        "addresses and CIDR ranges anywhere in an object — including "
-        "deep inside iRule script bodies.  The reference graph is the "
-        "same one `f5 cleanup` walks — both configuration-property "
-        "references and iRule body references (`pool`, `persist`, "
+        "Find every BIG-IP object reachable through reference edges from\n"
+        "the search-match objects whose full path matches PATTERN.\n"
+        "PATTERN is a substring match by default; pass --regex to treat\n"
+        "it as a Python regular expression, or --cidr to match IP\n"
+        "addresses and CIDR ranges anywhere in an object — including\n"
+        "deep inside iRule script bodies.  The reference graph is the\n"
+        "same one `f5 cleanup` walks — both configuration-property\n"
+        "references and iRule body references (`pool`, `persist`,\n"
         "`class match ... <data-group>`) are tracked."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 grep vs_app bigip.conf                  # substring\n"
+        "  f5 grep -e '/Common/vs_.*' bigip.conf      # regex\n"
+        "  f5 grep --cidr 10.0.0.0/8 bigip.conf       # IP / CIDR\n"
+        "  f5 grep vs_app bigip.conf --direction reverse\n"
+        "  f5 grep vs_app bigip.conf --max-depth 2 --full\n"
+        "  f5 grep vs_app bigip.conf --json -o related.json\n"
     )
     p.add_argument(
         "pattern",
@@ -121,6 +132,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         metavar="FILE",
         help="Write the report here (default: stdout).",
     )
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_grep)
 
 
@@ -161,6 +173,15 @@ def _run_grep(args: argparse.Namespace) -> int:
 
     if args.json:
         output = json.dumps(report_to_dict(report, include_body=args.full), indent=2) + "\n"
+    elif args.output_format == "tmsh":
+        # tmsh mode strips the report scaffolding and emits each
+        # matched stanza (seeds + related) as a `tmsh create` command.
+        # We render directly from the GrepObject pair rather than
+        # routing through parse_bigip_conf + emit_tmsh: the parser is
+        # keyed by full path, so the same `/Common/foo` coming from
+        # two different input files would collide there and one copy
+        # would be silently dropped.
+        output = _matched_stanzas_as_tmsh(report)
     else:
         output = report.text_report
         if not output.endswith("\n"):
@@ -174,3 +195,30 @@ def _run_grep(args: argparse.Namespace) -> int:
     # Exit code: 0 when at least one match was found, 1 otherwise
     # (mirrors `grep` convention: empty match is a non-zero exit).
     return 0 if report.seeds else 1
+
+
+def _matched_stanzas_as_tmsh(report) -> str:  # noqa: ANN001
+    """Render every matched object as a one-line ``tmsh create`` command.
+
+    Each :class:`GrepObject` carries its original ``header`` and
+    ``body`` text, so the conversion is a straightforward textual
+    rewrap: ``tmsh create <header> { <body> }``.  Dedupe is on
+    :attr:`GrepObject.node_id` (which already encodes the source URI),
+    so the same ``/Common/foo`` coming from two different input files
+    survives as two stanzas — collapsing on ``full_path`` alone would
+    silently drop one of them in multi-file runs.
+
+    Order is seeds first, then related, matching the text report.
+    """
+    parts: list[str] = []
+    seen: set[str] = set()
+    for obj in tuple(report.seeds) + tuple(report.related):
+        if obj.node_id in seen:
+            continue
+        seen.add(obj.node_id)
+        header = obj.header.strip()
+        body = " ".join(obj.body.split())
+        parts.append(
+            f"tmsh create {header} {{ {body} }}\n" if body else f"tmsh create {header} {{ }}\n"
+        )
+    return "".join(parts)

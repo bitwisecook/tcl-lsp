@@ -9,6 +9,7 @@ from pathlib import Path
 from core.bigip.redact_map import DEFAULT_TARGET_CIDRS_V4, DEFAULT_TARGET_CIDRS_V6, RedactionMap
 from core.bigip.rewrite import redact_secrets
 
+from ._emit import add_format_arg, render_config
 from ._paths import read_path
 from ._registry import verb
 
@@ -17,8 +18,17 @@ from ._registry import verb
     "redact",
     aliases=("sanitize",),
     help="Strip passwords/PEM blocks and remap public IPs into a configurable CIDR pool.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
+    p.epilog = (
+        "Examples:\n"
+        "  f5 redact bigip.conf -o sanitised.conf --map-file map.toml\n"
+        "  f5 redact bigip.conf --keep-ips -o secrets-only.conf\n"
+        "  f5 redact bigip.conf --target-cidr 10.0.0.0/8 --target-cidr fd00::/8\n"
+        "  f5 redact bigip.conf --source-cidr 1.2.3.0/24 --remap-private\n"
+        "  f5 redact bigip.conf --shuffle --seed 42 --map-file map.toml\n"
+    )
     p.description = (
         "Produce a copy of the bigip.conf / SCF safe to share externally: "
         "strip values from secret-bearing keys (passphrase, password, "
@@ -101,6 +111,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "use this flag to force a coarser or finer grouping."
         ),
     )
+    add_format_arg(p, tmsh_default_verb="modify")
     p.set_defaults(handler=_run_redact)
 
 
@@ -149,10 +160,11 @@ def _run_redact(args: argparse.Namespace) -> int:
         remap_private=args.remap_private,
     )
 
+    rendered = render_config(report.new_source, fmt=args.output_format, tmsh_verb="modify")
     if args.output:
-        Path(args.output).write_text(report.new_source, encoding="utf-8")
+        Path(args.output).write_text(rendered, encoding="utf-8")
     else:
-        sys.stdout.write(report.new_source)
+        sys.stdout.write(rendered)
 
     if not args.keep_ips and map_path is not None:
         map_path.parent.mkdir(parents=True, exist_ok=True)

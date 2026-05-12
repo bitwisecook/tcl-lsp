@@ -257,3 +257,61 @@ def test_diff_irule_whitespace_only_change_is_ignored(tmp_path, capsys):
     b = _write(tmp_path, "b.conf", new_body)
     code, _out, _err = _run(["diff", str(a), str(b)], capsys)
     assert code == 0
+
+
+def _to_tmsh_script(scf: str) -> str:
+    """Re-render *scf* as a tmsh create script by prefixing each stanza."""
+    blocks: list[str] = []
+    pos = 0
+    n = len(scf)
+    while pos < n:
+        while pos < n and scf[pos] in " \t\n\r":
+            pos += 1
+        if pos >= n:
+            break
+        start = pos
+        depth = 0
+        while pos < n:
+            c = scf[pos]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    pos += 1
+                    break
+            pos += 1
+        blocks.append("tmsh create " + scf[start:pos].lstrip())
+    return "\n".join(blocks) + "\n"
+
+
+def test_diff_accepts_tmsh_command_output(tmp_path, capsys):
+    # Same config expressed once as SCF and once as a tmsh script.
+    a = _write(tmp_path, "a.scf", SMALL)
+    b = _write(tmp_path, "b.tmsh", _to_tmsh_script(SMALL))
+    code, out, _err = _run(["diff", str(a), str(b)], capsys)
+    assert code == 0, out
+    assert "+0 added" in out
+    assert "-0 removed" in out
+    assert "~0 modified" in out
+
+
+def test_diff_detects_change_in_tmsh_script(tmp_path, capsys):
+    after_scf = SMALL.replace(
+        "destination /Common/10.0.0.5:80", "destination /Common/10.0.0.99:443"
+    )
+    a = _write(tmp_path, "a.tmsh", _to_tmsh_script(SMALL))
+    b = _write(tmp_path, "b.tmsh", _to_tmsh_script(after_scf))
+    code, out, _err = _run(["diff", str(a), str(b)], capsys)
+    assert code == 1
+    assert "~1 modified" in out
+    assert "10.0.0.99" in out
+
+
+def test_diff_mixed_scf_and_tmsh_inputs(tmp_path, capsys):
+    # SCF on one side, tmsh script on the other — same content.
+    a = _write(tmp_path, "a.scf", SMALL)
+    b = _write(tmp_path, "b.tmsh", _to_tmsh_script(SMALL).replace("tmsh create", "tmsh modify"))
+    code, out, _err = _run(["diff", str(a), str(b)], capsys)
+    assert code == 0, out
+    assert "+0 added" in out

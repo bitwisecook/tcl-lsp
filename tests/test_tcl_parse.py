@@ -458,18 +458,14 @@ class TestExpansion:
         assert any(t.type == TokenType.STR and t.text == "*" for t in tokens)
 
     def test_no_expand_in_84_dialect(self):
-        """{*} should not expand when expand_syntax is disabled (Tcl 8.4 mode)."""
-        from core.parsing.lexer import TclLexer
+        """{*} should not expand under a Tcl 8.4 dialect scope."""
+        from core.common.dialect import dialect_scope
 
-        old = TclLexer.expand_syntax
-        TclLexer.expand_syntax = False
-        try:
+        with dialect_scope("tcl8.4"):
             tokens = lex("cmd {*}$args")
             assert not any(t.type == TokenType.EXPAND for t in tokens)
             # Should be treated as braced string "*" concatenated with $args
             assert any(t.type == TokenType.STR and t.text == "*" for t in tokens)
-        finally:
-            TclLexer.expand_syntax = old
 
     def test_expansion_followed_by_semicolon(self):
         """{*} followed by semicolon is a braced string, not expansion."""

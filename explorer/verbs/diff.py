@@ -30,7 +30,13 @@ _DIFF_LAYERS = ("ast", "ir", "cfg")
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_diff(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
-    p.description = "Diff two sources using AST, IR, and CFG representations."
+    p.description = (
+        "Compare *left* and *right* sources at the AST, IR, and CFG layers\n"
+        "and emit a unified diff.  Distinct from `git diff` / textual diff:\n"
+        "two sources that differ only in whitespace, comments, or variable\n"
+        "names produce no AST-level diff, while two sources that look\n"
+        "identical but optimise differently surface in the CFG diff.\n"
+    )
     p.epilog = (
         "Examples:\n"
         f"  {prog_name} diff old.irule new.irule --show ast,ir,cfg\n"

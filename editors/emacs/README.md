@@ -11,7 +11,7 @@ tcl-lsp works with Emacs via **eglot** (built-in since Emacs 29) or **lsp-mode**
 The `.pyz` zipapp bundles all Python dependencies internally — no
 `pip install` is needed. You only need a Python interpreter on your system.
 
-See the [Installation Guide](../../INSTALL.md#python-prerequisite) for
+See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
 The server needs to be accessible via one of:

@@ -9,6 +9,7 @@ import sys
 from explorer.f5_remote.auth import resolve_credentials
 from explorer.f5_remote.object_io import object_to_scf_stanza, pull_object
 
+from ._emit import add_format_arg, render_config
 from ._registry import verb
 
 
@@ -16,12 +17,21 @@ from ._registry import verb
     "pull",
     aliases=(),
     help="Fetch a single object (virtual/pool/node/rule) from a live BIG-IP.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "GET one object via iControl REST and emit its SCF stanza on "
-        "stdout.  Useful for surgical edits: pull, edit locally, push "
-        "back.  Pass --json to get the raw iControl JSON instead."
+        "GET one object via iControl REST and emit its SCF stanza on\n"
+        "stdout.  Useful for surgical edits: pull, edit locally, push\n"
+        "back with `f5 push`.  Pass --json to get the raw iControl JSON\n"
+        "instead of the SCF rendering."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 pull virtual /Common/vs_app --host bigip\n"
+        "  f5 pull pool /Common/web_pool --host bigip > web_pool.scf\n"
+        "  f5 pull rule /Common/my_irule --host bigip --json\n"
+        "  f5 pull node /Common/web1 --host bigip --no-prompt --user admin\n"
     )
     p.add_argument(
         "kind",
@@ -44,6 +54,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.add_argument(
         "--timeout", type=float, default=60.0, help="Per-request timeout (default: 60s)."
     )
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_pull)
 
 
@@ -75,5 +86,6 @@ def _run_pull(args: argparse.Namespace) -> int:
     if args.json:
         sys.stdout.write(json.dumps(obj, indent=2) + "\n")
     else:
-        sys.stdout.write(object_to_scf_stanza(args.kind, obj))
+        scf = object_to_scf_stanza(args.kind, obj)
+        sys.stdout.write(render_config(scf, fmt=args.output_format, tmsh_verb="create"))
     return 0

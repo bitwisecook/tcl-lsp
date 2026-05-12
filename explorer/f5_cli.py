@@ -134,6 +134,15 @@ def _build_parser(prog_name: str) -> argparse.ArgumentParser:
     return parser
 
 
+def build_parser(prog_name: str = "f5") -> argparse.ArgumentParser:
+    """Build the top-level argparse parser without consuming argv.
+
+    Exposed so that :mod:`argcomplete` (and the ``completion`` verb that
+    drives it) can introspect the verb tree without invoking ``parse_args``.
+    """
+    return _build_parser(prog_name)
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         parsed_argv = sys.argv[1:]
@@ -143,6 +152,9 @@ def main(argv: list[str] | None = None) -> int:
         prog_name = "f5"
 
     parser = _build_parser(prog_name)
+    from ._argcomplete_support import autocomplete
+
+    autocomplete(parser)
     args = parser.parse_args(parsed_argv)
 
     try:

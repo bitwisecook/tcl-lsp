@@ -11,7 +11,8 @@ from pygls.lsp.server import LanguageServer
 
 import lsp.diagnostics_pipeline as _dp
 import lsp.state as _state
-from core.commands.registry.runtime import configure_signatures, is_irules_dialect
+from core.commands.registry.runtime import configure_signatures
+from core.common.dialect import active_dialect
 
 from .features.workspace_file_ops import compute_batch_rename_edits
 from .workspace.scanner import uri_to_path
@@ -44,20 +45,44 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
         analyse=False,
     )
 
-    if not is_irules_dialect() and _dp._is_irules_source(uri):
-        log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
-        configure_signatures(dialect="f5-irules")
-        _server.window_show_message(  # type: ignore[union-attr]
-            types.ShowMessageParams(
-                type=types.MessageType.Info,
-                message="Switched to iRules dialect for F5 iRules support.",
+    folder_cfg = _state.config_for_uri(uri)
+    # Per-folder auto-switch (issue #407): the auto-switch only matters when
+    # *this folder's resolved dialect* is not already iRules.  Gating on
+    # ``is_irules_dialect()`` (the process default) produced spurious
+    # "Auto-switching to f5-irules" notifications for folders that were
+    # already explicitly configured for iRules.
+    folder_effective_dialect = folder_cfg.dialect or active_dialect()
+    if folder_effective_dialect != "f5-irules" and _dp._is_irules_source(uri):
+        # Skip entirely when the folder's dialect was explicitly set —
+        # the user has chosen a non-iRules dialect for this folder, so
+        # auto-switching would override that choice silently and a
+        # "Switched to iRules dialect" notification would be misleading
+        # because we don't actually mutate the folder config in that case.
+        if folder_cfg.dialect_explicitly_set:
+            log.info(
+                "Skipping iRules auto-switch for %s: folder dialect is explicitly %s",
+                uri,
+                folder_cfg.dialect,
             )
-        )
-    elif not _state.feature_config.dialect_explicitly_set:
+        else:
+            log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
+            folder_cfg.dialect = "f5-irules"
+            if folder_cfg is _state.feature_config:
+                configure_signatures(dialect="f5-irules")
+            _server.window_show_message(  # type: ignore[union-attr]
+                types.ShowMessageParams(
+                    type=types.MessageType.Info,
+                    message="Switched to iRules dialect for F5 iRules support.",
+                )
+            )
+    elif not folder_cfg.dialect_explicitly_set:
         from core.common.dialect import detect_dialect_from_source
 
         source_dialect = detect_dialect_from_source(params.text_document.text)
         if source_dialect:
+            # Stash the detected dialect on the folder config so subsequent
+            # requests in this folder honour it without re-running detection.
+            folder_cfg.dialect = source_dialect
             changed = configure_signatures(dialect=source_dialect)
             if changed:
                 log.info(

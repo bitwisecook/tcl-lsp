@@ -501,23 +501,26 @@ def _add_input_arguments(
     include_output: bool = False,
     default_dialect: str,
 ) -> None:
-    parser.add_argument(
+    inputs = parser.add_argument(
         "inputs",
         nargs="*",
         help="Input files, directories, or package names.",
     )
+    _attach_tcl_file_completer(inputs)
+
     parser.add_argument(
         "--source",
         action="append",
         default=[],
         help="Inline Tcl source text (can be repeated).",
     )
-    parser.add_argument(
+    pkg_path = parser.add_argument(
         "--package-path",
         action="append",
         default=[],
         help="Additional directory to scan for pkgIndex.tcl package metadata.",
     )
+    _attach_directory_completer(pkg_path)
     parser.add_argument(
         "--no-recursive",
         action="store_true",
@@ -530,12 +533,48 @@ def _add_input_arguments(
         help=(f"Dialect profile for analysis/compile steps (default: {default_dialect})."),
     )
     if include_output:
-        parser.add_argument(
+        out = parser.add_argument(
             "--output",
             "-o",
             default="-",
             help="Output path ('-' for stdout).",
         )
+        _attach_file_completer(out)
+
+
+def _attach_tcl_file_completer(action: argparse.Action) -> None:
+    """Attach a Tcl/iRule file-pattern completer for argcomplete.
+
+    Picks up ``.tcl`` / ``.tm`` / ``.irul`` / ``.iapp`` / ``.impl`` so the
+    shell narrows positional completion to source files instead of every
+    file in the cwd.
+    """
+    try:
+        from argcomplete.completers import FilesCompleter
+    except ImportError:
+        return
+    action.completer = FilesCompleter(  # type: ignore[attr-defined]
+        allowednames=("tcl", "tm", "tk", "itcl", "irul", "irule", "iapp", "iappimpl", "impl"),
+        directories=True,
+    )
+
+
+def _attach_file_completer(action: argparse.Action) -> None:
+    """Attach a plain file completer (any file)."""
+    try:
+        from argcomplete.completers import FilesCompleter
+    except ImportError:
+        return
+    action.completer = FilesCompleter()  # type: ignore[attr-defined]
+
+
+def _attach_directory_completer(action: argparse.Action) -> None:
+    """Attach a directory-only completer."""
+    try:
+        from argcomplete.completers import DirectoriesCompleter
+    except ImportError:
+        return
+    action.completer = DirectoriesCompleter()  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------

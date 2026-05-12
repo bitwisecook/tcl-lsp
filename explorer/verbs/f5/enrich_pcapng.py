@@ -19,8 +19,16 @@ from ._registry import verb
         "Inject a Name Resolution Block (and optional TLS keylog DSB) into a "
         "PCAPNG so Wireshark labels each BIG-IP IP with its object name."
     ),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
+    p.epilog = (
+        "Examples:\n"
+        "  f5 enrich-pcapng -c bigip.conf capture.pcapng enriched.pcapng\n"
+        "  f5 enrich-pcapng -c ltm.conf -c gtm.conf capture.pcap out.pcapng\n"
+        "  f5 enrich-pcapng -c bigip.conf --all in.pcapng out.pcapng\n"
+        "  f5 enrich-pcapng -c bigip.conf --keylog sslkeys.log in.pcapng out.pcapng\n"
+    )
     p.description = (
         "Read one or more bigip.conf / SCF files (LTM and GTM tiers can "
         "live in separate inputs — wide-IP / pool / server references "

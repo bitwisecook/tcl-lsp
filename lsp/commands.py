@@ -342,9 +342,18 @@ def on_list_subcommands(command_name: str) -> dict:
 
 
 def on_list_known_packages() -> dict:
-    """Return all package names discovered by PackageResolver."""
+    """Return all package names discovered across every PackageResolver.
+
+    With per-folder libraryPaths each workspace folder may have its own
+    resolver (issue #407); ``all_package_resolvers()`` returns the
+    workspace fallback plus every folder-specific instance so the union of
+    discoverable packages is returned.
+    """
+    names: set[str] = set()
+    for resolver in _state.all_package_resolvers():
+        names.update(resolver.all_package_names())
     return {
-        "packages": sorted(_state.package_resolver.all_package_names()),
+        "packages": sorted(names),
     }
 
 
@@ -354,9 +363,13 @@ def on_suggest_packages_for_symbol(symbol: str) -> dict:
     if not query:
         return {"symbol": query, "suggestions": []}
 
+    names: set[str] = set()
+    for resolver in _state.all_package_resolvers():
+        names.update(resolver.all_package_names())
+
     suggestions = rank_package_suggestions(
         query,
-        _state.package_resolver.all_package_names(),
+        sorted(names),
         20,
     )
     return {
@@ -780,6 +793,11 @@ def _switch_dialect(dialect: str) -> dict:
     prev = active_dialect()
     changed = configure_signatures(dialect=dialect or None)
     current = active_dialect()
+    # Persist on the workspace-fallback FeatureConfig so the per-URI
+    # resolver (issue #407) keeps returning the explicit choice for
+    # documents outside every folder; per-folder overrides retain their
+    # own ``cfg.dialect``.
+    _state.feature_config.dialect = current
     _state.feature_config.dialect_explicitly_set = True
     log.info("Dialect set to %s (was %s)", current, prev)
 

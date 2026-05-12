@@ -126,6 +126,58 @@ make release-tag V=X.Y.Z
 This runs `scripts/release.sh` which bumps all version files, commits, creates
 an annotated tag `vX.Y.Z`, and pushes with `--follow-tags`.
 
+### 6.5. Verify published artefacts
+
+After `make release-tag` pushes the tag, CI builds and uploads every
+artefact, then the `publish-checksums` job aggregates them into a
+`SHA256SUMS` file (cosign-signed when keyless OIDC is enabled). The
+installer (`scripts/install.sh`) verifies downloads against this file.
+
+**Wait for CI to finish, then verify locally** before publishing to any
+editor marketplace. A SUMS mismatch means an artefact was modified
+after upload or the build was non-reproducible — either way, **do not
+proceed to step 7**.
+
+```bash
+tag="vX.Y.Z"
+mkdir -p /tmp/release-verify
+cd /tmp/release-verify
+
+# Pull SUMS and every artefact
+gh release download "$tag" --clobber
+
+# Verify all hashes
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c SHA256SUMS
+else
+    shasum -a 256 -c SHA256SUMS
+fi
+
+# (Optional) verify the cosign keyless signature
+if [ -f SHA256SUMS.cosign.bundle ] && command -v cosign >/dev/null 2>&1; then
+    cosign verify-blob \
+        --bundle SHA256SUMS.cosign.bundle \
+        --certificate-identity-regexp "^https://github.com/bitwisecook/tcl-lsp/\.github/workflows/.+@refs/tags/" \
+        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+        SHA256SUMS
+fi
+
+cd - && rm -rf /tmp/release-verify
+```
+
+Also smoke-test the installer one-liner from a clean shell:
+
+```bash
+curl -fsSL "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/install.sh" \
+  | TCL_LSP_PREFIX=/tmp/verify-bin TCL_LSP_ASSUME_NO=1 sh
+ls -la /tmp/verify-bin/
+rm -rf /tmp/verify-bin/
+```
+
+The installer aborts by default when `SHA256SUMS` is missing — this is
+the safety net for a CI regression that drops the `publish-checksums`
+job. If the smoke-test succeeds, integrity is intact.
+
 ### 7. Editor publishing
 
 Ask the user which editors to publish to using `AskUserQuestion`:

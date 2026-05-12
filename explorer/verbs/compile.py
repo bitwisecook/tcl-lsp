@@ -25,14 +25,28 @@ from ._utils import (
 @verb(
     "dis",
     aliases=("asm", "disassemble"),
-    help="Compile and emit bytecode disassembly.",
+    help="Compile source and emit human-readable bytecode disassembly.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_dis(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:
+    p.description = (
+        "Compile each input through the bytecode VM and print the resulting\n"
+        "instruction listing (the same `ByteCode ::top` / `done` shape that\n"
+        "tclsh's `tcl::unsupported::disassemble` produces).  Useful for\n"
+        "verifying codegen, debugging compiler regressions, and comparing\n"
+        "our output against reference tclsh bytecode.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} dis script.tcl\n"
+        f"  {prog_name} dis script.tcl --optimise\n"
+        f"  {prog_name} dis script.tcl -o asm.txt\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--optimise",
         action="store_true",
-        help="Enable optimiser path before disassembly.",
+        help="Run the optimiser before disassembly (shows the post-opt bytecode).",
     )
     p.set_defaults(handler=_run_dis)
 
@@ -40,22 +54,35 @@ def _configure_dis(p: argparse.ArgumentParser, *, prog_name: str, default_dialec
 @verb(
     "compwasm",
     aliases=("wasm",),
-    help="Compile source to WebAssembly binary.",
+    help="Compile source to a WebAssembly binary.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure_compwasm(
     p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str
 ) -> None:
+    p.description = (
+        "Lower source through the IR/CFG/WASM codegen pipeline and write a\n"
+        "stand-alone `.wasm` module that the Zig-based runtime can\n"
+        "interpret under `wasmtime`.  Pair with --wat-output to also emit\n"
+        "the textual WAT representation for inspection.\n"
+    )
+    p.epilog = (
+        "Examples:\n"
+        f"  {prog_name} compwasm script.tcl -o out.wasm\n"
+        f"  {prog_name} compwasm script.tcl --wat-output out.wat\n"
+        f"  {prog_name} compwasm script.tcl -O -o out.wasm\n"
+    )
     _add_input_arguments(p, include_output=True, default_dialect=default_dialect)
     p.add_argument(
         "--optimise",
         "-O",
         action="store_true",
-        help="Enable WebAssembly optimisation passes.",
+        help="Enable WebAssembly-side optimisation passes.",
     )
     p.add_argument(
         "--wat-output",
         default="",
-        help="Optional path for WAT text output.",
+        help="Optional path for the WAT (WebAssembly text) sidecar output.",
     )
     p.set_defaults(handler=_run_compwasm, output="out.wasm")
 

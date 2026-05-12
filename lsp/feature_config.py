@@ -73,6 +73,17 @@ class FeatureConfig:
     # Style: maximum line length for W111.
     line_length: int = 120
 
+    # Style: W108 non-ASCII detection mode (``strict`` / ``confusables`` /
+    # ``common`` / ``off``).  ``None`` inherits the process default set by
+    # ``set_non_ascii_mode`` at server startup.
+    non_ascii_mode: str | None = None
+
+    # Per-folder ``libraryPaths`` for package_require resolution.  Each
+    # entry is a filesystem directory containing Tcl packages (``pkgIndex.tcl``,
+    # tcllib, etc.).  ``None`` means "inherit the workspace fallback list" so
+    # documents outside every folder still see workspace-wide paths.
+    library_paths: tuple[str, ...] | None = None
+
     # IRULE4002: regex patterns matching generic static:: / global variable
     # bare names (after stripping the ``static::`` prefix).  Empty list
     # disables the check.  Patterns are matched case-insensitively against
@@ -85,3 +96,13 @@ class FeatureConfig:
     # When False, the server may auto-detect the dialect from the editor's
     # ``language_id``.
     dialect_explicitly_set: bool = False
+
+    # Resolved dialect for this folder (or workspace fallback).  ``None``
+    # means "inherit the process-default" — historically the only available
+    # mode, but post-#407 each folder may carry its own dialect and the LSP
+    # request handlers wrap their work in ``dialect_scope`` to apply it.
+    dialect: str | None = None
+
+    # Resolved extra command-names for this folder (sorted, deduplicated).
+    # ``None`` means "inherit from the workspace fallback".
+    extra_commands: tuple[str, ...] | None = None

@@ -1705,9 +1705,9 @@ class TestNonAscii:
         assert len(diags) == 0
 
     def test_strict_mode_flags_all_non_ascii(self):
-        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
+        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
-        prev = _non_ascii_mode
+        prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("strict")
         try:
             diags = _diag_with_code("set x \u00a9value", "W108")
@@ -1718,9 +1718,9 @@ class TestNonAscii:
             set_non_ascii_mode(prev)
 
     def test_common_mode_allows_symbols(self):
-        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
+        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
-        prev = _non_ascii_mode
+        prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("common")
         try:
             # Degree symbol (scientific) should be allowed
@@ -1733,9 +1733,9 @@ class TestNonAscii:
             set_non_ascii_mode(prev)
 
     def test_off_mode_disables_w108(self):
-        from core.analysis.checks._style import _non_ascii_mode, set_non_ascii_mode
+        from core.analysis.checks._style import _non_ascii_mode_var, set_non_ascii_mode
 
-        prev = _non_ascii_mode
+        prev = _non_ascii_mode_var.get()
         set_non_ascii_mode("off")
         try:
             diags = _diag_with_code("set x \u201chello\u201d", "W108")

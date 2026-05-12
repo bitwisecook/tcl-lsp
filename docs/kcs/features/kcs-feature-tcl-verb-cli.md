@@ -25,7 +25,7 @@ python tcl.pyz dataflow script.tcl --json
 python f5.pyz irule event-order rule.irule --json
 python f5.pyz irule event-info HTTP_REQUEST --json
 python tcl.pyz command-info HTTP::uri --dialect f5-irules --json
-python tcl.pyz convert rule.irule --json
+python tcl.pyz find-legacy rule.irule --json
 python tcl.pyz dis script.tcl
 python tcl.pyz compwasm script.tcl -o out.wasm --wat-output out.wat
 python tcl.pyz highlight script.tcl --force-colour
@@ -88,7 +88,7 @@ python tcl.pyz venv delete .venv
 - `event-order`: emits events found in source ordered by canonical iRules firing order (`--json` supported).
 - `event-info`: emits iRules event metadata and valid command counts for a named event (`--json` supported).
 - `command-info`: emits command registry metadata for a named command and dialect (`--json` supported).
-- `convert`: emits diagnostics that map to known modernisation rewrites (`--json` supported).
+- `find-legacy`: emits diagnostics that map to known modernisation rewrites (`--json` supported, detection only — use `opt` to apply rewrites).
 - `dis`: compiles resolved source and emits bytecode disassembly.
 - `compwasm`: compiles resolved source to a WASM binary (`--wat-output` optional).
 - `highlight`: emits syntax-highlighted output in ANSI or HTML (`--format`, `--no-colour`, `--force-colour`).

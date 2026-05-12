@@ -156,23 +156,22 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 @pytest.fixture(autouse=True)
 def _reset_signature_profile() -> Generator[None, None, None]:
-    """Keep command-profile global state isolated between tests.
+    """Keep dialect ContextVars isolated between tests.
 
-    We clear ``SIGNATURES`` before calling ``configure_signatures`` so that
-    the early-return optimisation inside ``configure_signatures`` (which
-    short-circuits when the dialect and extra-commands haven't changed) is
-    bypassed.  Without this, in-place mutations to ``SIGNATURES`` by an
-    earlier test would silently persist.
+    Post-#407 the active dialect is held in a ContextVar rather than a
+    process-wide global, and ``SIGNATURES`` is a cached per-(dialect,
+    extras) view.  Each test starts and ends with the default profile
+    (``tcl8.6`` + no extras) so that ad-hoc ``configure_signatures`` calls
+    or escaped ``dialect_scope`` mutations from one test don't leak into
+    the next.
     """
-    from core.commands.registry.runtime import SIGNATURES, configure_signatures
+    from core.commands.registry.runtime import configure_signatures
 
-    SIGNATURES.clear()
     configure_signatures(
         dialect="tcl8.6",
         extra_commands=[],
     )
     yield
-    SIGNATURES.clear()
     configure_signatures(
         dialect="tcl8.6",
         extra_commands=[],

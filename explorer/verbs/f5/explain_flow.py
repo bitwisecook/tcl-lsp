@@ -34,16 +34,25 @@ from ._registry import verb
 @verb(
     "explain-flow",
     help="Trace each flow in a PCAP through the BIG-IP config (VS, profiles, iRules, pool, SNAT, GTM, APM).",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "For every unique flow in PCAP, find the matching virtual "
-        "server (by destination IP:port), and print: ordered profiles, "
-        "attached LTM policies, the iRule event firing order expected "
-        "for the observed traffic (TCP / TLS / HTTP), each `when EVENT "
-        "{ ... }` body that would fire, persistence, SNAT, default pool "
-        "and pool members, plus any GTM wide-IPs and APM profile.  "
+        "For every unique flow in PCAP, find the matching virtual\n"
+        "server (by destination IP:port), and print: ordered profiles,\n"
+        "attached LTM policies, the iRule event firing order expected\n"
+        "for the observed traffic (TCP / TLS / HTTP), each `when EVENT\n"
+        "{ ... }` body that would fire, persistence, SNAT, default pool\n"
+        "and pool members, plus any GTM wide-IPs and APM profile.\n"
         "Optionally calls tshark for richer L7 decoding."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 explain-flow capture.pcap bigip.conf\n"
+        "  f5 explain-flow capture.pcapng bigip.conf --tshark\n"
+        "  f5 explain-flow capture.pcapng bigip.conf --tshark --keylog ssl.log\n"
+        "  f5 explain-flow capture.pcap bigip.conf --simulate -o report.txt\n"
+        "  f5 explain-flow capture.pcap bigip.conf --no-event-bodies --json\n"
     )
     p.add_argument("pcap", help="PCAP file to analyse (libpcap or pcapng).")
     p.add_argument("paths", nargs="+", help="bigip.conf / SCF files (`-` for stdin).")

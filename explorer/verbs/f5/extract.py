@@ -14,6 +14,7 @@ from pathlib import Path
 
 from explorer.f5_remote.ucs import extract_ucs_file
 
+from ._emit import add_format_arg, render_config
 from ._registry import verb
 
 
@@ -21,12 +22,22 @@ from ._registry import verb
     "extract",
     aliases=("ucs2scf",),
     help="Convert a local UCS archive to an SCF text file.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: str) -> None:  # noqa: ARG001
     p.description = (
-        "Read a BIG-IP UCS backup archive (.ucs is gzip+tar of /config) "
-        "and write a concatenated Single Configuration File text suitable "
-        "for the rest of the f5 CLI verbs."
+        "Read a BIG-IP UCS backup archive (.ucs is gzip+tar of /config)\n"
+        "and write a concatenated Single Configuration File text suitable\n"
+        "for the rest of the f5 CLI verbs.  By default only the canonical\n"
+        "bigip_base / bigip / bigip_gtm / bigip_user / bigip_script members\n"
+        "are included; use --include-extras to pull every additional\n"
+        "config/*.conf member found inside the archive."
+    )
+    p.epilog = (
+        "Examples:\n"
+        "  f5 extract prod.ucs > prod.scf\n"
+        "  f5 extract prod.ucs -o prod.scf\n"
+        "  f5 extract prod.ucs --include-extras -o full.scf\n"
     )
     p.add_argument(
         "ucs",
@@ -46,6 +57,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "canonical bigip_base/bigip/bigip_gtm/bigip_user/bigip_script set."
         ),
     )
+    add_format_arg(p, tmsh_default_verb="create")
     p.set_defaults(handler=_run_extract)
 
 
@@ -68,8 +80,9 @@ def _run_extract(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    output = render_config(scf, fmt=args.output_format, tmsh_verb="create")
     if args.output:
-        Path(args.output).write_text(scf, encoding="utf-8")
+        Path(args.output).write_text(output, encoding="utf-8")
     else:
-        sys.stdout.write(scf)
+        sys.stdout.write(output)
     return 0

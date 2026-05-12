@@ -11,9 +11,11 @@ References: F5 AS3 schema reference (well-known F5 documentation).
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass, field
 
 from ..model import BigipConfig, ProfileType
+from ..port_names import resolve_port
 
 
 @dataclass
@@ -28,16 +30,38 @@ def _short_name(full_path: str) -> str:
 
 
 def _split_destination(dest: str) -> tuple[str, int | None]:
-    """Parse ``/Common/10.0.0.5:80`` -> ``("10.0.0.5", 80)``."""
+    """Parse ``/Common/ADDR[:.]PORT`` -> ``(addr, port)``.
+
+    BIG-IP separates address and port with ``:`` for IPv4 and ``.`` for
+    IPv6 (e.g. ``/Common/2001:db8::1.443``).  The port half may be a
+    decimal port number or a BIG-IP service name (``https``,
+    ``f5-iquery``, …) — SCFs rewrite numeric ports to mcpd's name
+    table on save.
+
+    The IPv6 form is checked first and only accepted when the prefix
+    parses as an IPv6 address, since an IPv6 ``::`` would otherwise
+    fool the IPv4 ``:PORT`` matcher into stripping the trailing octet
+    as a "port".  Hostname / wildcard destinations like ``*:443`` are
+    handled by the IPv4 fallback, which doesn't require the host to
+    be a literal IP.
+    """
     if not dest:
         return "", None
     base = dest.rsplit("/", 1)[-1]
+    if "." in base:
+        host, _, port = base.rpartition(".")
+        resolved = resolve_port(port)
+        if host and resolved is not None:
+            try:
+                if isinstance(ipaddress.ip_address(host), ipaddress.IPv6Address):
+                    return host, resolved
+            except ValueError:
+                pass
     if ":" in base:
         host, _, port = base.rpartition(":")
-        try:
-            return host, int(port)
-        except ValueError:
-            return base, None
+        resolved = resolve_port(port)
+        if host and resolved is not None:
+            return host, resolved
     return base, None
 
 

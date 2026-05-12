@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bisect
 import threading
+from contextlib import contextmanager as _contextmanager
 
 from .tokens import SourcePosition, Token, TokenType
 
@@ -28,6 +29,67 @@ def _strict_quoting() -> bool:
     return getattr(_thread_local, "strict_quoting", False)
 
 
+# Set of dialects that support {*} argument expansion (introduced in
+# Tcl 8.5).  Derived once at import time from
+# ``core.commands.registry.dialects.dialects_since`` so any new dialect
+# added there (or any dialect that intentionally opts out of version-based
+# trait inheritance, e.g. f5-bigip) inherits the correct {*} behaviour
+# without a manual list to keep in sync.
+def _build_expand_syntax_dialects() -> frozenset[str]:
+    from ..commands.registry.dialects import dialects_since
+
+    return frozenset(dialects_since("tcl8.5"))
+
+
+_EXPAND_SYNTAX_DIALECTS: frozenset[str] = _build_expand_syntax_dialects()
+
+
+def _expand_syntax_active() -> bool:
+    """Whether {*} word expansion is enabled for the active dialect.
+
+    Reads from the registry's per-request dialect ContextVar so that
+    documents under folders configured for different dialects (e.g. tcl8.4
+    vs tcl9.0) get the right lexer behaviour even when handled within the
+    same process.  See issue #407.
+
+    A thread-local ``expand_syntax_force_off`` flag (set by
+    :func:`expand_syntax_disabled_scope`) overrides the dialect-based
+    decision; this is how the VM's ``subst`` machinery disables {*}
+    expansion during substitution regardless of the active dialect.
+    """
+    if getattr(_thread_local, "expand_syntax_force_off", False):
+        return False
+    from ..commands.registry.runtime import _dialect_var
+
+    return _dialect_var.get() in _EXPAND_SYNTAX_DIALECTS
+
+
+@_contextmanager
+def expand_syntax_disabled_scope():
+    """Force {*} expansion off for the current thread, restoring on exit.
+
+    Used by ``vm.substitution`` to disable {*} during ``subst`` (which
+    treats word expansion as inapplicable inside a word value).  The
+    override is thread-local so concurrent VM workers don't fight over a
+    shared flag.  Save/restore the previous force-off value so nested
+    ``substitute()`` calls compose correctly: an outer scope that has
+    already forced expansion off stays off when an inner scope exits.
+    """
+    previous = getattr(_thread_local, "expand_syntax_force_off", False)
+    _thread_local.expand_syntax_force_off = True
+    try:
+        yield
+    finally:
+        _thread_local.expand_syntax_force_off = previous
+
+
+def _irules_brace_separator_active() -> bool:
+    """Whether the iRules ``}{`` brace-word boundary is enabled."""
+    from ..commands.registry.runtime import _dialect_var
+
+    return _dialect_var.get() == "f5-irules"
+
+
 class TclParseError(Exception):
     """Raised for Tcl syntax errors detected during lexing."""
 
@@ -46,10 +108,11 @@ class TclLexer:
     raises :class:`TclParseError` for "extra characters after close-quote".
     The VM sets this flag during compilation; the LSP leaves it ``False``.
 
-    When :attr:`expand_syntax` is ``True`` (class-level flag), the lexer
-    recognises ``{*}`` at word start as the Tcl 8.5+ expansion prefix and
-    emits a :attr:`TokenType.EXPAND` token.  Disabled for Tcl 8.4 and
-    iRules dialects.
+    ``{*}`` word expansion is decided per-call by :func:`_expand_syntax_active`
+    — it reads the active dialect from the registry ContextVar and respects
+    the thread-local override that :func:`expand_syntax_disabled_scope`
+    sets during ``subst``.  No class attribute controls expansion any
+    more (was a mutable singleton pre-#407).
     """
 
     __slots__ = (
@@ -77,7 +140,6 @@ class TclLexer:
     # Retained as class attribute ONLY for backward-compat reads from non-VM
     # code; the VM always uses _thread_local.strict_quoting via the helper.
     strict_quoting: bool = False
-    expand_syntax: bool = True
     irules_brace_separator: bool = False
 
     def __init__(
@@ -569,7 +631,7 @@ class TclLexer:
                                 and text[pos + 1] in ("\n", "\r")
                             ):
                                 pass  # backslash-newline is a valid line continuation
-                            elif TclLexer.irules_brace_separator and text[pos] == "{":
+                            elif _irules_brace_separator_active() and text[pos] == "{":
                                 sep_pos = self._position()
                                 self._pending_sep = Token(
                                     type=TokenType.SEP,
@@ -644,7 +706,7 @@ class TclLexer:
                             and self.text[self.pos + 1] in ("\n", "\r")
                         ):
                             pass  # backslash-newline is a valid line continuation
-                        elif TclLexer.irules_brace_separator and self._cur() == "{":
+                        elif _irules_brace_separator_active() and self._cur() == "{":
                             # iRules treats }{ as a word boundary — inject a
                             # zero-width SEP so the segmenter sees two words.
                             sep_pos = self._position()
@@ -692,7 +754,7 @@ class TclLexer:
             # Check for {*} expansion prefix (Tcl 8.5+)
             _len = self._len
             if (
-                TclLexer.expand_syntax
+                _expand_syntax_active()
                 and self.pos + 2 < _len
                 and self.text[self.pos + 1] == "*"
                 and self.text[self.pos + 2] == "}"
