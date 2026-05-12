@@ -11,10 +11,10 @@ Run from the repo root::
 
     python scripts/dev/gen_query_builtins_doc.py
 
-A CI check (``tests/test_f5_query.py::test_builtins_doc_is_up_to_date``)
-re-runs the generator with a temp output and asserts the on-disk file
-is byte-identical, so a change to a builtin's spec without
-regenerating the doc fails the gate before review.
+A CI check (``tests/test_f5_query.py::test_generated_builtins_doc_is_up_to_date``)
+re-runs the generator against the live registry and asserts the
+on-disk file is byte-identical, so a change to a builtin's spec
+without regenerating the doc fails the gate before review.
 """
 
 from __future__ import annotations

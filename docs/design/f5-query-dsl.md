@@ -373,8 +373,11 @@ Each input file is its own root.  In `auto` / `scf` / `raw` / `paths`
 output modes the renderer emits a `# === <uri> ===` header before
 each file's values when more than one file was supplied.  Edits are
 applied per file; identity renames do not propagate across files —
-to perform a cross-file rename, run `f5 rename` (which loads the
-files together) or pass them as a single concatenated SCF.
+both `f5 rename` and `f5 query` operate on one source at a time.  To
+perform a rename across a fan-out of partition files, either
+concatenate them first with `f5 merge` (or `cat`) and run the rename
+once over the combined SCF, or run `f5 rename` separately against
+each file (a shell loop is enough).
 
 ## Exit codes
 

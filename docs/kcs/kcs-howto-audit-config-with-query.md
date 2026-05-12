@@ -65,11 +65,18 @@ $ f5 query '.ltm.pool[]
 Some operators enforce that only `:80` / `:443` are allowed.  This catches anything else:
 
 ```
-$ f5 query '.ltm.virtual[]
+# Names of offending VSes:
+$ f5 query --raw '.ltm.virtual[]
   | select(port(.destination) != 80)
   | select(port(.destination) != 443)
   | select(port(.destination) != null)
-  | { name: .name, port: port(.destination) }' bigip.conf
+  | .name' bigip.conf
+
+# Their full SCF stanzas (for review or piping into another verb):
+$ f5 query --scf '.ltm.virtual[]
+  | select(port(.destination) != 80)
+  | select(port(.destination) != 443)
+  | select(port(.destination) != null)' bigip.conf
 ```
 
 The trailing `select(port(...) != null)` keeps VSes that lack an explicit port out of the report — those are usually wildcard VSes.
@@ -79,10 +86,17 @@ The trailing `select(port(...) != null)` keeps VSes that lack an explicit port o
 A pool in `/Tenant_A/` that's attached to a VS in `/Tenant_B/` is a leak — find them:
 
 ```
-$ f5 query '.ltm.virtual[]
+# Offending VS names:
+$ f5 query --raw '.ltm.virtual[]
   | select(partition(.name) != partition(.pool))
-  | { vs: .name, pool: .pool }' bigip.conf
+  | .name' bigip.conf
+
+# Or as JSON with both endpoints of the leak (the VS object + its `.pool` ref):
+$ f5 query --json '.ltm.virtual[]
+  | select(partition(.name) != partition(.pool))' bigip.conf
 ```
+
+`--json` renders each matched VS as a structured record with every projected field, so the offending `name` and `pool` are both in the JSON payload — useful when you want to feed the report to another tool.
 
 ### Pool-member sanity checks
 
@@ -97,10 +111,14 @@ $ f5 query '.ltm.pool[]
   | select(.members | count > 1)
   | .name' bigip.conf
 
-# VSes whose pool has a member outside the destination's network
-$ f5 query '.ltm.virtual[]
+# Names of VSes whose pool has any member outside the chosen range:
+$ f5 query --raw '.ltm.virtual[]
   | select(any(.pool.members[].address | map(in_cidr(., "192.168.0.0/16") | not)))
-  | { name: .name, dst: .destination, members: .pool.members[].address }' bigip.conf
+  | .name' bigip.conf
+
+# Same VSes as JSON — payload includes destination and member addresses:
+$ f5 query --json '.ltm.virtual[]
+  | select(any(.pool.members[].address | map(in_cidr(., "192.168.0.0/16") | not)))' bigip.conf
 ```
 
 ### iRule reference hygiene
@@ -129,7 +147,19 @@ Save the queries you care about in a file and run with `-f`:
 $ f5 query -f audits.fq bigip.conf
 ```
 
-Each statement runs against the same source; the runner emits each statement's output as it goes, so the audit doubles as a categorised report.
+Each statement is evaluated against the evolving source.  In the current runner only the final statement's values are surfaced as output (earlier statements run for their side-effects — edits and the audit information they print to stderr).  For a categorised audit report, run each predicate as its own `f5 query` invocation and prefix the output yourself:
+
+```
+$ for q in \
+    '.ltm.pool[]    | select(referenced_by(.) | count == 0) | .name' \
+    '.ltm.virtual[] | select(.pool == "") | .name' \
+    '.ltm.virtual[] | select(.pool != "" and partition(.name) != partition(.pool)) | .name' \
+    '.ltm.rule[]    | select(referenced_by(.) | count == 0) | .name'
+do
+    echo "=== $q ==="
+    f5 query --raw "$q" bigip.conf
+done
+```
 
 ## Related
 

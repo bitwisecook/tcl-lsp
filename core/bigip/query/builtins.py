@@ -1855,7 +1855,8 @@ def _builtin_type(value: Any) -> str:
     """,
     examples=(
         "refs(.ltm.virtual.web_vs)",
-        ".ltm.virtual[] | { name: .name, deps: refs(.) }",
+        ".ltm.virtual.web_vs | refs(.) | sort   # all dependencies, sorted",
+        ".ltm.virtual.web_vs | refs(.) | count  # dependency count",
     ),
     category="graph",
     min_args=1,

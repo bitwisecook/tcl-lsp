@@ -153,12 +153,18 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
                     f"prefix rewrite for {pr.label!r} produced invalid SCF: {exc}"
                 ) from exc
             current = new_text
+            # Synthetic report for the prefix rewrite.  The CLI only
+            # reads ``old`` / ``new`` / ``occurrences`` for the stderr
+            # summary; leaving ``new_source`` blank avoids retaining a
+            # full-source copy per prefix rewrite (multi-step queries
+            # can otherwise hold O(k * source-size) bytes).  The
+            # canonical post-rewrite text is on ``AppliedSource``.
             rename_reports.append(
                 RenameReport(
                     old=pr.label,
                     new=pr.replacement,
                     occurrences=count,
-                    new_source=current,
+                    new_source="",
                 )
             )
 

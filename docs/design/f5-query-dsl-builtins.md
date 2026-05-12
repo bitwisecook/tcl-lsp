@@ -1201,7 +1201,8 @@ Related: ``referenced_by`` (reverse direction), ``kind``,
 
 ```
 refs(.ltm.virtual.web_vs)
-.ltm.virtual[] | { name: .name, deps: refs(.) }
+.ltm.virtual.web_vs | refs(.) | sort   # all dependencies, sorted
+.ltm.virtual.web_vs | refs(.) | count  # dependency count
 ```
 
 ## value

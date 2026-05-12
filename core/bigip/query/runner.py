@@ -77,10 +77,18 @@ def run_query(query: str, sources: dict[str, str]) -> QueryResult:
     at projection time would otherwise be wrong after the rewrite.
     """
     program = parse_query(query)
+    from ..rewrite import RenameReport
+
     result = QueryResult()
     for uri, source in sources.items():
         current_source = source
-        accumulated_renames: list = []
+        # Each accumulated rename is summary-only — we drop the
+        # ``new_source`` payload from every per-step report so multi-
+        # step queries don't retain k * source-size bytes for the run.
+        # The post-edit text is on ``current_source`` (and ends up on
+        # the final ``AppliedSource``); the CLI uses only the summary
+        # fields for the stderr "renamed X -> Y (N occurrence(s))" line.
+        accumulated_renames: list[RenameReport] = []
         accumulated_field_edits = 0
         last_values: list[Any] = []
 
@@ -96,7 +104,15 @@ def run_query(query: str, sources: dict[str, str]) -> QueryResult:
                 attempted_mutation = True
                 applied = apply(ctx.edits, {uri: current_source})[uri]
                 current_source = applied.new_source
-                accumulated_renames.extend(applied.rename_reports)
+                for rep in applied.rename_reports:
+                    accumulated_renames.append(
+                        RenameReport(
+                            old=rep.old,
+                            new=rep.new,
+                            occurrences=rep.occurrences,
+                            new_source="",
+                        )
+                    )
                 accumulated_field_edits += applied.field_edits
 
         result.values_per_file[uri] = last_values

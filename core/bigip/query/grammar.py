@@ -17,18 +17,17 @@ the current value (``.``) into one or more new values.  Pipelines may
 be chained with ``;`` to evaluate multiple statements against the same
 root.
 
-  program       := statement (';' statement)*
-  statement     := assignment | pipeline
-  assignment    := path ('=' | '|=' | '+=' | '-=') pipeline
-  pipeline      := or_expr ('|' or_expr)*
+  program       := pipeline (';' pipeline)*
+  pipeline      := pipe_stage ('|' pipe_stage)*
+  pipe_stage    := or_expr (ASSIGN_OP pipe_stage)?
+  ASSIGN_OP     := '=' | '|=' | '+=' | '-='
   or_expr       := and_expr ('or' and_expr)*
   and_expr      := not_expr ('and' not_expr)*
   not_expr      := 'not' not_expr | cmp_expr
   cmp_expr      := add_expr (('==' | '!=' | '<' | '<=' | '>' | '>=') add_expr)?
   add_expr      := mul_expr (('+' | '-') mul_expr)*
   mul_expr      := unary    (('*' | '/') unary)*
-  unary         := '-' unary | postfix
-  postfix       := primary
+  unary         := '-' unary | primary
   primary       := literal | call | path | '(' pipeline ')'
   path          := '.'
                  | '.' field path_tail
@@ -38,10 +37,17 @@ root.
   subscript     := /* empty -> stream */
                  | NUMBER
                  | STRING                /* exact subscript by string  */
-                 | REGEX                 /* ["~pattern"] — regex match */
+                                         /* STRING starting with "~"
+                                            inside [ ] is the regex
+                                            subscript form            */
                  | pipeline              /* dynamic subscript          */
   call          := IDENT '(' (pipeline (',' pipeline)*)? ')'
   literal       := NUMBER | STRING | 'true' | 'false' | 'null'
+
+Assignment is a *trailing operator* on a pipe-stage, not a top-level
+statement.  That makes ``.ltm.virtual[] | .destination |= ip(...)``
+parse as ``.ltm.virtual[] | (.destination |= ip(...))`` — for each
+streamed VS, set its destination to ``ip(...)`` of the current value.
 
 PATH ACCESS
 
