@@ -52,6 +52,7 @@ from . import pcapng as _pcapng
 from .model import BigipConfig
 from .parser import _extract_blocks, _parse_list_block, _parse_properties
 from .pcap_remap import _find_ip_offset
+from .port_names import resolve_port
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,16 +208,16 @@ def _split_destination(dest: str) -> str:
     """Extract the address portion of a ``[/Common/]ADDR[:port]`` destination.
 
     BIG-IP separates address and port with ``:`` for IPv4 and ``.`` for
-    IPv6 (e.g. ``/Common/2001:db8::1.443``).  We try to be lenient: the
-    last colon is treated as the port separator only if what follows
-    parses as an integer.
+    IPv6 (e.g. ``/Common/2001:db8::1.443``).  The port half may be a
+    decimal number or a BIG-IP service name (``https``, ``f5-iquery``),
+    so we accept either as a valid port suffix.
     """
     if not dest:
         return ""
     base = dest.rsplit("/", 1)[-1]
     if ":" in base:
         host, _, port = base.rpartition(":")
-        if port.isdigit() and host:
+        if host and resolve_port(port) is not None:
             try:
                 ipaddress.ip_address(host)
                 return host
@@ -225,7 +226,7 @@ def _split_destination(dest: str) -> str:
     if "." in base:
         # BIG-IP uses `.port` rather than `:port` for IPv6 destinations.
         host, _, port = base.rpartition(".")
-        if port.isdigit() and host:
+        if host and resolve_port(port) is not None:
             try:
                 ipaddress.ip_address(host)
                 return host
