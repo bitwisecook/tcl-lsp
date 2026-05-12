@@ -286,7 +286,11 @@ gtm rule /Common/my_gtm_rule {
 }
 """
     config = parse_bigip_conf(source)
-    assert "/Common/my_gtm_rule" in config.rules
+    # ``gtm rule`` is a separate kind from ``ltm rule`` (the typed
+    # projection routes them to distinct containers so a tenant with
+    # the same path in both modules doesn't collide).
+    assert "/Common/my_gtm_rule" in config.gtm_rules
+    assert "/Common/my_gtm_rule" not in config.rules
 
 
 def test_parse_gtm_pool_tracks_module():

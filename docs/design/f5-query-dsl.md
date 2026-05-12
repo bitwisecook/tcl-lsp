@@ -299,6 +299,36 @@ PathRefs from ``cm device.cert`` / ``cm device.key`` and from every
 ``.cm.trust-domain[].trust-group.devices`` walks
 ``trust-domain → device-group → devices[]`` end-to-end.
 
+```
+.gtm
+  .datacenter["/Common/dc1"].contact
+                            .location
+  .server["/Common/s1"].datacenter         (path-ref → gtm datacenter)
+                       .monitor
+                       .product
+                       .addresses[]
+                       .virtual-servers[]
+  .pool["/AS3/app/p1"].record-type         (a / aaaa / cname / mx / …)
+                      .members[]
+                      .monitor
+                      .load-balancing-mode
+                      .ttl
+  .wideip["/AS3/app/w1"].record-type
+                        .pools[]           (path-refs → gtm pool)
+                        .aliases[]
+                        .pool-lb-mode
+                        .last-resort-pool  (path-ref → gtm pool)
+  .prober-pool["/Common/pp"].members[]     (path-refs → gtm server)
+  .region["/Common/r1"].region-members[]
+  .rule["/AS3/app/r1"].body
+```
+
+``gtm pool a|aaaa|cname|mx|srv|naptr`` and ``gtm wideip <type>`` are
+merged into a single container each, with ``record-type`` carrying
+the DNS record kind.  PathRefs from ``wideip.pools[]`` /
+``last-resort-pool`` deref into the unified ``gtm pool`` so
+``.gtm.wideip[].pools[].ttl`` walks the full chain.
+
 PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `net self → net vlan → tag` in one chain, and
 `.ltm.virtual[].pool.members[].address` walks the existing

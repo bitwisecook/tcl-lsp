@@ -748,6 +748,120 @@ class BigipCmTrustDomain:
     range: Range | None = None
 
 
+# gtm.* — typed projection for the Global Traffic Manager module.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmDatacenter:
+    """A ``gtm datacenter`` object."""
+
+    name: str
+    full_path: str
+    contact: str = ""
+    location: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmServer:
+    """A ``gtm server`` object — a logical server attached to a DC.
+
+    ``addresses`` flattens the addresses across every nested
+    ``devices { N { addresses { ... } } }`` sub-block.
+    ``virtual_servers`` surfaces the ``destination`` value of every
+    numerically-keyed ``virtual-servers { N { ... } }`` entry.
+    """
+
+    name: str
+    full_path: str
+    datacenter: str = ""  # PathRef → gtm datacenter
+    monitor: str = ""
+    product: str = ""
+    addresses: tuple[str, ...] = ()
+    virtual_servers: tuple[str, ...] = ()  # destinations of each VS sub-block
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmPool:
+    """A ``gtm pool <record-type>`` object — a record-type-tagged pool.
+
+    ``record_type`` is the DNS record type (``a``, ``aaaa``, ``cname``,
+    ``mx``, ``srv``, ``naptr``) — surface as one ``BigipGtmPool`` per
+    kind rather than 6 near-identical dataclasses.
+    """
+
+    name: str
+    full_path: str
+    record_type: str = ""
+    members: tuple[str, ...] = ()
+    monitor: str = ""
+    alternate_mode: str = ""
+    fallback_mode: str = ""
+    load_balancing_mode: str = ""
+    ttl: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmWideip:
+    """A ``gtm wideip <record-type>`` object.
+
+    ``pools`` is a list of PathRefs into ``gtm pool <record-type>``;
+    record_type carries the DNS record type that disambiguates which
+    pool kind to dereference.
+    """
+
+    name: str
+    full_path: str
+    record_type: str = ""
+    pools: tuple[str, ...] = ()  # PathRefs → gtm pool <record-type>
+    aliases: tuple[str, ...] = ()
+    pool_lb_mode: str = ""
+    last_resort_pool: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmProberPool:
+    """A ``gtm prober-pool`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    load_balancing_mode: str = ""
+    members: tuple[str, ...] = ()  # PathRefs → gtm server
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmRegion:
+    """A ``gtm region`` object — a named topology region.
+
+    ``region_members`` surfaces the top-level keys of the
+    ``region-members { ... }`` block.  The individual member shapes
+    (``continent SA``, ``not country DE``, …) are token sequences
+    rather than full-paths; ``region-members`` is intentionally a
+    plain string tuple, not a PathRef list.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    region_members: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmRule:
+    """A ``gtm rule`` object — a GTM iRule (DNS_REQUEST etc.)."""
+
+    name: str
+    full_path: str
+    source: str = ""
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -826,6 +940,14 @@ class BigipConfig:
     cm_device_groups: dict[str, BigipCmDeviceGroup] = field(default_factory=dict)
     cm_traffic_groups: dict[str, BigipCmTrafficGroup] = field(default_factory=dict)
     cm_trust_domains: dict[str, BigipCmTrustDomain] = field(default_factory=dict)
+    # gtm.* — Global Traffic Manager / DNS load-balancing state.
+    gtm_datacenters: dict[str, BigipGtmDatacenter] = field(default_factory=dict)
+    gtm_servers: dict[str, BigipGtmServer] = field(default_factory=dict)
+    gtm_pools: dict[str, BigipGtmPool] = field(default_factory=dict)
+    gtm_wideips: dict[str, BigipGtmWideip] = field(default_factory=dict)
+    gtm_prober_pools: dict[str, BigipGtmProberPool] = field(default_factory=dict)
+    gtm_regions: dict[str, BigipGtmRegion] = field(default_factory=dict)
+    gtm_rules: dict[str, BigipGtmRule] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

@@ -134,6 +134,20 @@ MODULES
                           ``.cm.trust-domain[].trust-group.devices``
                           walks ``trust-domain → device-group →
                           devices`` in one chain.
+  .gtm.<kind>             Global Traffic Manager (DNS):
+                          ``datacenter``, ``server``, ``pool``,
+                          ``wideip``, ``prober-pool``, ``region``,
+                          ``rule``.  ``pool`` and ``wideip`` merge
+                          all DNS record types (``a / aaaa / cname /
+                          mx / srv / naptr``) into one container; the
+                          DNS record type is exposed as
+                          ``.record-type``.  PathRefs from
+                          ``server.datacenter``,
+                          ``wideip.pools[]`` / ``last-resort-pool``,
+                          and ``prober-pool.members[]`` auto-deref
+                          so chained queries like
+                          ``.gtm.wideip[].pools[].ttl`` walk
+                          ``wideip → pool → ttl`` in one step.
 
   Unmodelled kinds (``pem.*``, ``auth.*``, …) still parse
   and are surfaced via ``rename_partition`` / cross-module rewrites,

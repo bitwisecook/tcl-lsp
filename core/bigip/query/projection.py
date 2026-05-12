@@ -36,6 +36,13 @@ from ..model import (
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
     BigipDataGroup,
+    BigipGtmDatacenter,
+    BigipGtmPool,
+    BigipGtmProberPool,
+    BigipGtmRegion,
+    BigipGtmRule,
+    BigipGtmServer,
+    BigipGtmWideip,
     BigipMonitor,
     BigipNetDnsResolver,
     BigipNetInterface,
@@ -522,6 +529,70 @@ _CM_TRUST_DOMAIN_FIELDS: dict[str, FieldSpec] = {
     "trust-group": FieldSpec("trust_group", ref_kind="cm device-group"),
 }
 
+_GTM_DATACENTER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "contact": FieldSpec("contact"),
+    "location": FieldSpec("location"),
+}
+
+_GTM_SERVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "datacenter": FieldSpec("datacenter", ref_kind="gtm datacenter"),
+    "monitor": FieldSpec("monitor"),
+    "product": FieldSpec("product"),
+    "addresses": FieldSpec("addresses"),
+    "virtual-servers": FieldSpec("virtual_servers"),
+}
+
+_GTM_POOL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "record-type": FieldSpec("record_type"),
+    "members": FieldSpec("members"),
+    "monitor": FieldSpec("monitor"),
+    "alternate-mode": FieldSpec("alternate_mode"),
+    "fallback-mode": FieldSpec("fallback_mode"),
+    "load-balancing-mode": FieldSpec("load_balancing_mode"),
+    "ttl": FieldSpec("ttl"),
+}
+
+# Wideip ``pools[]`` is a list of paths into ``gtm pool <record-type>``
+# — because pools are merged into one container keyed by full-path,
+# the deref target is the unified ``gtm pool`` kind, and the
+# record-type carried on each side is just metadata.
+_GTM_WIDEIP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "record-type": FieldSpec("record_type"),
+    "pools": FieldSpec("pools", ref_kind="gtm pool", list_ref=True),
+    "aliases": FieldSpec("aliases"),
+    "pool-lb-mode": FieldSpec("pool_lb_mode"),
+    "last-resort-pool": FieldSpec("last_resort_pool", ref_kind="gtm pool"),
+}
+
+_GTM_PROBER_POOL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "load-balancing-mode": FieldSpec("load_balancing_mode"),
+    "members": FieldSpec("members", ref_kind="gtm server", list_ref=True),
+}
+
+_GTM_REGION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "region-members": FieldSpec("region_members"),
+}
+
+_GTM_RULE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "body": FieldSpec("source"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -605,6 +676,13 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "cm device-group": (BigipCmDeviceGroup, _CM_DEVICE_GROUP_FIELDS),
     "cm traffic-group": (BigipCmTrafficGroup, _CM_TRAFFIC_GROUP_FIELDS),
     "cm trust-domain": (BigipCmTrustDomain, _CM_TRUST_DOMAIN_FIELDS),
+    "gtm datacenter": (BigipGtmDatacenter, _GTM_DATACENTER_FIELDS),
+    "gtm server": (BigipGtmServer, _GTM_SERVER_FIELDS),
+    "gtm pool": (BigipGtmPool, _GTM_POOL_FIELDS),
+    "gtm wideip": (BigipGtmWideip, _GTM_WIDEIP_FIELDS),
+    "gtm prober-pool": (BigipGtmProberPool, _GTM_PROBER_POOL_FIELDS),
+    "gtm region": (BigipGtmRegion, _GTM_REGION_FIELDS),
+    "gtm rule": (BigipGtmRule, _GTM_RULE_FIELDS),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -654,6 +732,15 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "device-group": ("cm_device_groups", "cm device-group"),
         "traffic-group": ("cm_traffic_groups", "cm traffic-group"),
         "trust-domain": ("cm_trust_domains", "cm trust-domain"),
+    },
+    "gtm": {
+        "datacenter": ("gtm_datacenters", "gtm datacenter"),
+        "server": ("gtm_servers", "gtm server"),
+        "pool": ("gtm_pools", "gtm pool"),
+        "wideip": ("gtm_wideips", "gtm wideip"),
+        "prober-pool": ("gtm_prober_pools", "gtm prober-pool"),
+        "region": ("gtm_regions", "gtm region"),
+        "rule": ("gtm_rules", "gtm rule"),
     },
     "apm": {
         "ssh-security-config": (

@@ -1693,6 +1693,207 @@ def test_cm_trust_domain_trust_group_chain_walks_to_devices():
     assert result.values_per_file["m"] == ["host1.example.test"]
 
 
+# ---------------------------------------------------------------------------
+# gtm.* — typed projection for Global Traffic Manager
+# ---------------------------------------------------------------------------
+
+_GTM_SCF = (
+    "gtm datacenter /Common/dc_east {\n"
+    '    contact "noc@example.test"\n'
+    "    location east\n"
+    "}\n"
+    "gtm datacenter /Common/dc_west {\n"
+    "    location west\n"
+    "}\n"
+    "gtm server /Common/srv_east {\n"
+    "    datacenter /Common/dc_east\n"
+    "    devices {\n"
+    "        0 {\n"
+    "            addresses {\n"
+    "                192.0.2.7 { }\n"
+    "            }\n"
+    "        }\n"
+    "    }\n"
+    "    monitor /Common/bigip\n"
+    "    product bigip\n"
+    "    virtual-servers {\n"
+    "        0 {\n"
+    "            destination 192.0.2.8:5050\n"
+    "        }\n"
+    "        1 {\n"
+    "            destination 192.0.2.9:80\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "gtm server /Common/srv_west {\n"
+    "    datacenter /Common/dc_west\n"
+    "    devices {\n"
+    "        0 {\n"
+    "            addresses {\n"
+    "                198.51.100.7 { }\n"
+    "            }\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "gtm pool a /AS3/app/p_a1 {\n"
+    "    alternate-mode ratio\n"
+    "    load-balancing-mode global-availability\n"
+    "    members {\n"
+    "        /Common/srv_east:0 { }\n"
+    "    }\n"
+    "    ttl 180\n"
+    "}\n"
+    "gtm pool a /AS3/app/p_a2 {\n"
+    "    load-balancing-mode round-robin\n"
+    "    ttl 60\n"
+    "}\n"
+    "gtm pool mx /AS3/app/p_mx1 {\n"
+    "    load-balancing-mode global-availability\n"
+    "    ttl 300\n"
+    "}\n"
+    "gtm wideip a /AS3/app/example.test {\n"
+    "    pool-lb-mode global-availability\n"
+    "    pools {\n"
+    "        /AS3/app/p_a1 {\n"
+    "            order 0\n"
+    "        }\n"
+    "        /AS3/app/p_a2 {\n"
+    "            order 1\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "gtm wideip mx /AS3/app/mx.example.test {\n"
+    "    aliases {\n"
+    "        \\?.mx.example.test\n"
+    "    }\n"
+    "    last-resort-pool mx /AS3/app/p_mx1\n"
+    "    pool-lb-mode ratio\n"
+    "}\n"
+    "gtm prober-pool /Common/pp_default {\n"
+    '    description "Default prober pool"\n'
+    "    load-balancing-mode round-robin\n"
+    "    members {\n"
+    "        /Common/srv_east { }\n"
+    "        /Common/srv_west { }\n"
+    "    }\n"
+    "}\n"
+    "gtm region /Common/region_sa {\n"
+    '    description "South America"\n'
+    "    region-members {\n"
+    "        continent SA { }\n"
+    "        subnet 192.0.2.0/24 { }\n"
+    "    }\n"
+    "}\n"
+    "gtm rule /AS3/app/gtm_rule_log {\n"
+    "    when DNS_REQUEST {\n"
+    '        log local2. "DNS query received"\n'
+    "    }\n"
+    "}\n"
+)
+
+
+def test_gtm_datacenter_projects_contact_and_location():
+    """Quoted contact value has its outer quotes stripped during parse."""
+    result = run_query('.gtm.datacenter["/Common/dc_east"].contact', {"m": _GTM_SCF})
+    assert result.values_per_file["m"] == ["noc@example.test"]
+    result = run_query(".gtm.datacenter[].location", {"m": _GTM_SCF})
+    assert sorted(result.values_per_file["m"]) == ["east", "west"]
+
+
+def test_gtm_server_flattens_addresses_across_devices():
+    """``devices { 0 { addresses { ... } } }`` is flattened into a
+    single addresses tuple on the server object.
+    """
+    result = run_query('.gtm.server["/Common/srv_east"].addresses', {"m": _GTM_SCF})
+    [addrs] = result.values_per_file["m"]
+    assert list(addrs) == ["192.0.2.7"]
+
+
+def test_gtm_server_surfaces_virtual_server_destinations():
+    """``virtual-servers { 0 { destination ... } 1 { ... } }`` becomes
+    a list of destination strings.
+    """
+    result = run_query('.gtm.server["/Common/srv_east"].virtual-servers', {"m": _GTM_SCF})
+    [dests] = result.values_per_file["m"]
+    assert list(dests) == ["192.0.2.8:5050", "192.0.2.9:80"]
+
+
+def test_gtm_server_datacenter_pathref_auto_dereferences():
+    """``server.datacenter`` is a PathRef into ``gtm datacenter``."""
+    result = run_query(
+        '.gtm.server["/Common/srv_east"].datacenter.location',
+        {"m": _GTM_SCF},
+    )
+    assert result.values_per_file["m"] == ["east"]
+
+
+def test_gtm_pool_record_type_distinguishes_dns_kinds():
+    """``gtm pool a|aaaa|cname|mx|...`` is merged into one container;
+    ``record-type`` distinguishes them.
+    """
+    result = run_query(".gtm.pool[].record-type", {"m": _GTM_SCF})
+    assert sorted(result.values_per_file["m"]) == ["a", "a", "mx"]
+
+
+def test_gtm_pool_projects_load_balancing_and_ttl():
+    result = run_query(
+        '.gtm.pool["/AS3/app/p_a1"].load-balancing-mode',
+        {"m": _GTM_SCF},
+    )
+    assert result.values_per_file["m"] == ["global-availability"]
+    result = run_query('.gtm.pool["/AS3/app/p_a1"].ttl', {"m": _GTM_SCF})
+    assert result.values_per_file["m"] == ["180"]
+
+
+def test_gtm_wideip_pools_are_pathrefs_into_pool():
+    """``wideip.pools[]`` walks into ``gtm pool``; chaining ``.ttl``
+    pulls the TTL of each referenced pool.
+    """
+    result = run_query(
+        '.gtm.wideip["/AS3/app/example.test"].pools[].ttl',
+        {"m": _GTM_SCF},
+    )
+    assert sorted(result.values_per_file["m"]) == ["180", "60"]
+
+
+def test_gtm_wideip_last_resort_pool_pathref_strips_record_type():
+    """``last-resort-pool mx /AS3/app/p_mx1`` carries the record-type
+    prefix in the source; the parser strips it so the field holds a
+    clean PathRef.
+    """
+    result = run_query(
+        '.gtm.wideip["/AS3/app/mx.example.test"].last-resort-pool.ttl',
+        {"m": _GTM_SCF},
+    )
+    assert result.values_per_file["m"] == ["300"]
+
+
+def test_gtm_prober_pool_members_walk_to_server_addresses():
+    """``prober-pool.members[]`` → ``gtm server`` PathRef chain — two
+    server addresses on either side of the prober pool.
+    """
+    result = run_query(
+        ".gtm.prober-pool[].members[].addresses",
+        {"m": _GTM_SCF},
+    )
+    flat = [a for sub in result.values_per_file["m"] for a in sub]
+    assert sorted(flat) == ["192.0.2.7", "198.51.100.7"]
+
+
+def test_gtm_region_projects_region_members():
+    result = run_query('.gtm.region["/Common/region_sa"].region-members', {"m": _GTM_SCF})
+    [members] = result.values_per_file["m"]
+    # ``region-members`` are token sequences, not full-paths.
+    assert sorted(members) == ["continent SA", "subnet 192.0.2.0/24"]
+
+
+def test_gtm_rule_projects_body_with_dns_request_handler():
+    result = run_query('.gtm.rule["/AS3/app/gtm_rule_log"].body', {"m": _GTM_SCF})
+    [body] = result.values_per_file["m"]
+    assert "DNS_REQUEST" in body
+    assert "DNS query received" in body
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"

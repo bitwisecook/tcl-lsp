@@ -43,6 +43,13 @@ from .model import (
     BigipConfig,
     BigipDataGroup,
     BigipGenericObject,
+    BigipGtmDatacenter,
+    BigipGtmPool,
+    BigipGtmProberPool,
+    BigipGtmRegion,
+    BigipGtmRule,
+    BigipGtmServer,
+    BigipGtmWideip,
     BigipMonitor,
     BigipNetDnsResolver,
     BigipNetInterface,
@@ -464,6 +471,19 @@ _TWO_WORD_TYPES = frozenset(
         "policy customization-source",
         "policy policy-item",
         "report default-report",  # also a singleton (``apm report default-report {``)
+        # gtm.* — record-type-tagged kinds.
+        "pool a",
+        "pool aaaa",
+        "pool cname",
+        "pool mx",
+        "pool srv",
+        "pool naptr",
+        "wideip a",
+        "wideip aaaa",
+        "wideip cname",
+        "wideip mx",
+        "wideip srv",
+        "wideip naptr",
     }
 )
 
@@ -1772,6 +1792,221 @@ def _parse_cm_trust_domain(
     )
 
 
+# gtm.* parsers
+
+
+def _parse_gtm_datacenter(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmDatacenter:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmDatacenter(
+        name=name,
+        full_path=full_path,
+        contact=_strip_quotes(props["contact"].value) if "contact" in props else "",
+        location=_strip_quotes(props["location"].value) if "location" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_server(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmServer:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    # ``devices { 0 { addresses { 10.2.3.7 { } } } 1 { ... } }`` —
+    # flatten every address across every numbered device sub-block.
+    addresses: list[str] = []
+    if "devices" in props:
+        inner = _strip_outer_braces(props["devices"].value)
+        for dev_prop in _parse_properties_with_spans(inner).values():
+            if not dev_prop.value.startswith("{"):
+                continue
+            dev_inner = _strip_outer_braces(dev_prop.value)
+            dev_props = _parse_properties_with_spans(dev_inner)
+            if "addresses" in dev_props:
+                addresses.extend(_parse_list_block(dev_props["addresses"].value))
+    # ``virtual-servers { 0 { destination 10.2.3.8:5050 } 1 { ... } }`` —
+    # surface the destination of each numbered entry.
+    virtual_servers: list[str] = []
+    if "virtual-servers" in props:
+        inner = _strip_outer_braces(props["virtual-servers"].value)
+        for vs_prop in _parse_properties_with_spans(inner).values():
+            if not vs_prop.value.startswith("{"):
+                continue
+            vs_inner = _strip_outer_braces(vs_prop.value)
+            vs_props = _parse_properties_with_spans(vs_inner)
+            if "destination" in vs_props:
+                virtual_servers.append(vs_props["destination"].value)
+    return BigipGtmServer(
+        name=name,
+        full_path=full_path,
+        datacenter=props["datacenter"].value if "datacenter" in props else "",
+        monitor=props["monitor"].value if "monitor" in props else "",
+        product=props["product"].value if "product" in props else "",
+        addresses=tuple(addresses),
+        virtual_servers=tuple(virtual_servers),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_pool(
+    full_path: str,
+    body: str,
+    record_type: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipGtmPool:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    members: tuple[str, ...] = ()
+    if "members" in props:
+        members = tuple(_parse_list_block(props["members"].value))
+    return BigipGtmPool(
+        name=name,
+        full_path=full_path,
+        record_type=record_type,
+        members=members,
+        monitor=props["monitor"].value if "monitor" in props else "",
+        alternate_mode=props["alternate-mode"].value if "alternate-mode" in props else "",
+        fallback_mode=props["fallback-mode"].value if "fallback-mode" in props else "",
+        load_balancing_mode=(
+            props["load-balancing-mode"].value if "load-balancing-mode" in props else ""
+        ),
+        ttl=props["ttl"].value if "ttl" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_wideip(
+    full_path: str,
+    body: str,
+    record_type: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipGtmWideip:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    pools: tuple[str, ...] = ()
+    if "pools" in props:
+        pools = tuple(_parse_list_block(props["pools"].value))
+    aliases: tuple[str, ...] = ()
+    if "aliases" in props:
+        aliases = tuple(_parse_list_block(props["aliases"].value))
+    # ``last-resort-pool`` is emitted with the record-type prefix,
+    # e.g. ``last-resort-pool mx /AS3_Tenant/.../pool2``.  Strip the
+    # leading ``<record-type> `` so the field holds a clean path.
+    last_resort = ""
+    if "last-resort-pool" in props:
+        raw = props["last-resort-pool"].value
+        parts = raw.split(None, 1)
+        last_resort = parts[1] if len(parts) == 2 else raw
+    return BigipGtmWideip(
+        name=name,
+        full_path=full_path,
+        record_type=record_type,
+        pools=pools,
+        aliases=aliases,
+        pool_lb_mode=props["pool-lb-mode"].value if "pool-lb-mode" in props else "",
+        last_resort_pool=last_resort,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_prober_pool(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmProberPool:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    members: tuple[str, ...] = ()
+    if "members" in props:
+        members = tuple(_parse_list_block(props["members"].value))
+    return BigipGtmProberPool(
+        name=name,
+        full_path=full_path,
+        description=_strip_quotes(props["description"].value) if "description" in props else "",
+        load_balancing_mode=(
+            props["load-balancing-mode"].value if "load-balancing-mode" in props else ""
+        ),
+        members=members,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_multitoken_keyed_entries(braced: str) -> list[str]:
+    """For a block like ``{ continent SA { } subnet 192.0.2.0/24 { } }``,
+    return each entry's full pre-brace key as a normalised string —
+    ``["continent SA", "subnet 192.0.2.0/24"]``.
+
+    Unlike ``_parse_list_block``, this keeps multi-token names
+    together by scanning to the next ``{`` to capture the entry key.
+    """
+    inner = _strip_outer_braces(braced)
+    entries: list[str] = []
+    pos = 0
+    length = len(inner)
+    while pos < length:
+        # Skip whitespace.
+        while pos < length and inner[pos] in " \t\n\r":
+            pos += 1
+        if pos >= length:
+            break
+        # Accumulate the key tokens up to the next ``{``.
+        key_start = pos
+        while pos < length and inner[pos] != "{":
+            pos += 1
+        key = " ".join(inner[key_start:pos].split())
+        if not key:
+            break
+        entries.append(key)
+        if pos >= length:
+            break
+        # Skip the sub-block, respecting nested braces.
+        depth = 1
+        pos += 1
+        while pos < length and depth > 0:
+            ch = inner[pos]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            pos += 1
+    return entries
+
+
+def _parse_gtm_region(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmRegion:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    region_members: tuple[str, ...] = ()
+    if "region-members" in props:
+        # Region-member keys are multi-token (``continent SA``,
+        # ``not country DE``, ``subnet 192.0.2.0/24``) — the plain
+        # list-block parser would split them on whitespace.
+        region_members = tuple(_parse_multitoken_keyed_entries(props["region-members"].value))
+    return BigipGtmRegion(
+        name=name,
+        full_path=full_path,
+        description=_strip_quotes(props["description"].value) if "description" in props else "",
+        region_members=region_members,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_rule(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmRule:
+    # The body of a GTM iRule is Tcl, not properties — store verbatim.
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmRule(
+        name=name,
+        full_path=full_path,
+        source=body.strip(),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1983,6 +2218,51 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     full_path, block.body, source_map, block
                 )
             continue
+
+        if module == "gtm":
+            # gtm.* dispatch.  ``pool a|aaaa|cname|mx|srv|naptr`` and
+            # ``wideip <record-type>`` are two-word kinds; the record
+            # type tags the dataclass so all six DNS variants share
+            # one container.  Fall through to the shared ``ltm/gtm``
+            # match below for unmodelled gtm kinds (``monitor``,
+            # ``rule``) so existing behaviour is preserved.
+            if obj_type == "datacenter":
+                config.gtm_datacenters[full_path] = _parse_gtm_datacenter(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "server":
+                config.gtm_servers[full_path] = _parse_gtm_server(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type.startswith("pool "):
+                record_type = obj_type.split(" ", 1)[1]
+                config.gtm_pools[full_path] = _parse_gtm_pool(
+                    full_path, block.body, record_type, source_map, block
+                )
+                continue
+            if obj_type.startswith("wideip "):
+                record_type = obj_type.split(" ", 1)[1]
+                config.gtm_wideips[full_path] = _parse_gtm_wideip(
+                    full_path, block.body, record_type, source_map, block
+                )
+                continue
+            if obj_type == "prober-pool":
+                config.gtm_prober_pools[full_path] = _parse_gtm_prober_pool(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "region":
+                config.gtm_regions[full_path] = _parse_gtm_region(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "rule":
+                config.gtm_rules[full_path] = _parse_gtm_rule(
+                    full_path, block.body, source_map, block
+                )
+                continue
 
         if module not in ("ltm", "gtm"):
             continue
