@@ -497,8 +497,8 @@ def _builtin_port(value: Any) -> int | None:
     with ``/`` (a relative reference, or a bare name) returns the
     empty string.
 
-    Useful for group-by aggregates: ``.ltm.virtual[].name |
-    map(partition(.)) | sort | unique`` enumerates every partition
+    Useful for group-by aggregates: ``[.ltm.virtual[].name |
+    partition(.)] | unique | sort`` enumerates every partition
     that owns at least one virtual server.
 
     Related: ``basename`` (the inverse — last segment),

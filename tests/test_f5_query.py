@@ -747,6 +747,39 @@ def test_every_builtin_has_a_details_block():
         assert spec.details, f"{spec.name}: missing details block"
 
 
+# ---------------------------------------------------------------------------
+# Reported issues — minimal-SCF regression tests
+# ---------------------------------------------------------------------------
+
+
+# Issue 3 — `sort` in the documented array-collection form.
+_SORT_SCF = (
+    "ltm virtual /Common/zeta { destination /Common/192.0.2.4:80 pool /Common/p }\n"
+    "ltm virtual /Common/alpha { destination /Common/192.0.2.5:80 pool /Common/p }\n"
+    "ltm virtual /Common/mu    { destination /Common/192.0.2.6:80 pool /Common/p }\n"
+    "ltm pool /Common/p {}\n"
+)
+
+
+def test_sort_array_construct_form_works():
+    """The jq-canonical ``[ .X[].name ] | sort`` form returns a sorted list."""
+    result = run_query("[ .ltm.virtual[].name ] | sort", {"m": _SORT_SCF})
+    [names] = result.values_per_file["m"]
+    assert names == ["alpha", "mu", "zeta"]
+
+
+def test_sort_bare_after_stream_errors_clearly():
+    """``.X[].name | sort`` runs ``sort`` per name (each a single string),
+    not over the stream.  The current behaviour is a clear ``BuiltinError``
+    — better than silently producing one-element lists per item — and the
+    docs steer users to the ``[...] | sort`` form above.
+    """
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query(".ltm.virtual[].name | sort", {"m": _SORT_SCF})
+
+
 def test_generated_builtins_doc_is_up_to_date():
     """The generated reference must match the registry on disk.
 
