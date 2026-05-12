@@ -10,18 +10,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.bigip.convert.as3 import _split_destination as _as3_split_destination
 from core.bigip.pcap_enrich import _split_destination as _pcap_split_destination
 from core.bigip.port_names import (
-    _name_to_port,
+    NAME_TO_PORT,
+    PORT_TO_NAME,
     port_name_to_number,
+    port_number_to_name,
     resolve_port,
 )
 from core.bigip.wireshark_profile import _vs_port_proto
 
 
 def test_table_loads_with_expected_size():
-    table = _name_to_port()
     # The vendored mcpd table has ~4.5k rows; assert a lower bound so a
-    # silently-truncated CSV trips the test rather than the consumers.
-    assert len(table) > 4000
+    # silently-truncated table trips the test rather than the consumers.
+    assert len(NAME_TO_PORT) > 4000
+
+
+def test_reverse_table_is_complete():
+    # The CSV has no duplicate ports, so the reverse dict must be a
+    # full inverse of the forward dict.
+    assert len(PORT_TO_NAME) == len(NAME_TO_PORT)
 
 
 def test_well_known_names_resolve():
@@ -48,6 +55,13 @@ def test_lookup_is_case_insensitive():
 def test_unknown_name_returns_none():
     assert port_name_to_number("definitely-not-a-service") is None
     assert port_name_to_number("") is None
+
+
+def test_reverse_lookup_returns_canonical_name():
+    assert port_number_to_name(443) == "https"
+    assert port_number_to_name(4353) == "f5-iquery"
+    # Port 80 has no mcpd name — see module docstring.
+    assert port_number_to_name(80) is None
 
 
 def test_resolve_port_accepts_numeric_string():
