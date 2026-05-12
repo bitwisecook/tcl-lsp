@@ -1543,6 +1543,156 @@ def test_apm_default_report_singleton_projects_report_name_and_user():
     assert result.values_per_file["m"] == ["/Common/admin"]
 
 
+# ---------------------------------------------------------------------------
+# cm.* — typed projection for Cluster Manager (trust + device-group)
+# ---------------------------------------------------------------------------
+
+_CM_SCF = (
+    "cm cert /Common/dtca.crt {\n"
+    "    cache-path /config/filestore/files_d/Common_d/trust_certificate_d/dtca.crt_1\n"
+    "    checksum SHA1:1289:b1474cd08e35af965335d20b45993636ea86c627\n"
+    "    revision 1\n"
+    "}\n"
+    "cm cert /Common/dtca-bundle.crt {\n"
+    "    cache-path /config/filestore/files_d/Common_d/trust_certificate_d/bundle_1\n"
+    "    checksum SHA1:1289:b1474cd08e35af965335d20b45993636ea86c628\n"
+    "    revision 1\n"
+    "}\n"
+    "cm cert /Common/dtdi.crt {\n"
+    "    cache-path /config/filestore/files_d/Common_d/trust_certificate_d/dtdi.crt_1\n"
+    "    checksum SHA1:1220:b134fef5c52870c01f950a488ead241f25c12ff4\n"
+    "    revision 1\n"
+    "}\n"
+    "cm key /Common/dtca.key {\n"
+    "    cache-path /config/filestore/files_d/Common_d/trust_certificate_key_d/dtca.key_1\n"
+    "    checksum SHA1:1704:87393ebbae46ef2263ca3812e45cb40960289bca\n"
+    "    revision 1\n"
+    "}\n"
+    "cm key /Common/dtdi.key {\n"
+    "    cache-path /config/filestore/files_d/Common_d/trust_certificate_key_d/dtdi.key_1\n"
+    "    checksum SHA1:1704:58cf2487d09857a3e15f5940f45dccc4660c8925\n"
+    "    revision 1\n"
+    "}\n"
+    "cm device /Common/host1 {\n"
+    "    base-mac 00:50:56:2a:20:8d\n"
+    "    build 0.0.6\n"
+    "    cert /Common/dtdi.crt\n"
+    "    edition Final\n"
+    "    hostname host1.example.test\n"
+    "    key /Common/dtdi.key\n"
+    "    management-ip 192.0.2.31\n"
+    '    marketing-name "BIG-IP Virtual Edition"\n'
+    "    platform-id Z100\n"
+    "    product BIG-IP\n"
+    "    self-device true\n"
+    "    time-zone UTC\n"
+    "    version 17.1.1\n"
+    "}\n"
+    "cm device-group /Common/device_trust_group {\n"
+    "    auto-sync enabled\n"
+    "    devices {\n"
+    "        /Common/host1 { }\n"
+    "    }\n"
+    "    hidden true\n"
+    "    network-failover disabled\n"
+    "}\n"
+    "cm traffic-group /Common/traffic-group-1 {\n"
+    "    unit-id 1\n"
+    "}\n"
+    "cm traffic-group /Common/traffic-group-local-only { }\n"
+    "cm trust-domain /Common/Root {\n"
+    "    ca-cert /Common/dtca.crt\n"
+    "    ca-cert-bundle /Common/dtca-bundle.crt\n"
+    "    ca-devices { /Common/host1 }\n"
+    "    ca-key /Common/dtca.key\n"
+    "    guid 89af513f-b16f-4c2c-9e740050562a208d\n"
+    "    status standalone\n"
+    "    trust-group /Common/device_trust_group\n"
+    "}\n"
+)
+
+
+def test_cm_cert_projects_checksum_and_revision():
+    result = run_query(
+        '.cm.cert["/Common/dtca.crt"].checksum',
+        {"m": _CM_SCF},
+    )
+    assert result.values_per_file["m"] == ["SHA1:1289:b1474cd08e35af965335d20b45993636ea86c627"]
+    result = run_query(".cm.cert[].revision", {"m": _CM_SCF})
+    assert sorted(result.values_per_file["m"]) == ["1", "1", "1"]
+
+
+def test_cm_key_projects_cache_path():
+    result = run_query(
+        '.cm.key["/Common/dtca.key"].cache-path',
+        {"m": _CM_SCF},
+    )
+    assert result.values_per_file["m"] == [
+        "/config/filestore/files_d/Common_d/trust_certificate_key_d/dtca.key_1"
+    ]
+
+
+def test_cm_device_projects_core_scalars():
+    """The bulky ``active-modules`` etc. lists are intentionally not
+    projected; the core identity / placement scalars are what we
+    surface."""
+    result = run_query(".cm.device[].hostname", {"m": _CM_SCF})
+    assert result.values_per_file["m"] == ["host1.example.test"]
+    result = run_query(".cm.device[].management-ip", {"m": _CM_SCF})
+    assert result.values_per_file["m"] == ["192.0.2.31"]
+    result = run_query(".cm.device[].version", {"m": _CM_SCF})
+    assert result.values_per_file["m"] == ["17.1.1"]
+    # marketing-name strips outer quotes during parse.
+    result = run_query(".cm.device[].marketing-name", {"m": _CM_SCF})
+    assert result.values_per_file["m"] == ["BIG-IP Virtual Edition"]
+
+
+def test_cm_device_cert_pathref_auto_dereferences():
+    """``.cert`` is a PathRef into ``cm cert``; chaining ``.checksum``
+    walks into the cert object.
+    """
+    result = run_query(".cm.device[].cert.checksum", {"m": _CM_SCF})
+    assert result.values_per_file["m"] == ["SHA1:1220:b134fef5c52870c01f950a488ead241f25c12ff4"]
+
+
+def test_cm_device_group_devices_is_a_list_of_pathrefs():
+    """``.devices[]`` walks into ``cm device`` so chaining ``.hostname``
+    pulls the device's hostname.
+    """
+    result = run_query(
+        ".cm.device-group[].devices[].hostname",
+        {"m": _CM_SCF},
+    )
+    assert result.values_per_file["m"] == ["host1.example.test"]
+
+
+def test_cm_traffic_group_projects_unit_id():
+    result = run_query(
+        '.cm.traffic-group["/Common/traffic-group-1"].unit-id',
+        {"m": _CM_SCF},
+    )
+    assert result.values_per_file["m"] == ["1"]
+
+
+def test_cm_trust_domain_projects_ca_cert_and_ca_devices():
+    result = run_query(".cm.trust-domain[].ca-cert.revision", {"m": _CM_SCF})
+    assert result.values_per_file["m"] == ["1"]
+    result = run_query(
+        ".cm.trust-domain[].ca-devices[].hostname",
+        {"m": _CM_SCF},
+    )
+    assert result.values_per_file["m"] == ["host1.example.test"]
+
+
+def test_cm_trust_domain_trust_group_chain_walks_to_devices():
+    """Two-hop PathRef chain: ``trust-domain → device-group → devices[]``."""
+    result = run_query(
+        ".cm.trust-domain[].trust-group.devices[].hostname",
+        {"m": _CM_SCF},
+    )
+    assert result.values_per_file["m"] == ["host1.example.test"]
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"

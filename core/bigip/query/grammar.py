@@ -124,8 +124,18 @@ MODULES
                           and ``access-policy.start-item`` auto-deref
                           into ``policy-item`` so ``.apm.access-policy
                           [].start-item.caption`` Just Works.
+  .cm.<kind>              Cluster Manager: ``cert``, ``key``,
+                          ``device``, ``device-group``,
+                          ``traffic-group``, ``trust-domain``.
+                          PathRefs from ``device.cert`` /
+                          ``device.key`` and ``trust-domain.ca-cert``
+                          / ``ca-key`` / ``ca-devices[]`` /
+                          ``trust-group`` auto-deref so
+                          ``.cm.trust-domain[].trust-group.devices``
+                          walks ``trust-domain → device-group →
+                          devices`` in one chain.
 
-  Unmodelled kinds (``cm.*``, ``pem.*``, …) still parse
+  Unmodelled kinds (``pem.*``, ``auth.*``, …) still parse
   and are surfaced via ``rename_partition`` / cross-module rewrites,
   but they are not navigable from the DSL in v1.  Reach into them
   with ``f5 query --scf`` after a partition cascade, or wait for the

@@ -29,6 +29,12 @@ from ..model import (
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
+    BigipCmCert,
+    BigipCmDevice,
+    BigipCmDeviceGroup,
+    BigipCmKey,
+    BigipCmTrafficGroup,
+    BigipCmTrustDomain,
     BigipDataGroup,
     BigipMonitor,
     BigipNetDnsResolver,
@@ -454,6 +460,68 @@ _APM_REPORT_DEFAULT_REPORT_FIELDS: dict[str, FieldSpec] = {
     "user": FieldSpec("user"),
 }
 
+_CM_CERT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "cache-path": FieldSpec("cache_path"),
+    "checksum": FieldSpec("checksum"),
+    "revision": FieldSpec("revision"),
+}
+
+_CM_KEY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "cache-path": FieldSpec("cache_path"),
+    "checksum": FieldSpec("checksum"),
+    "revision": FieldSpec("revision"),
+}
+
+_CM_DEVICE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "hostname": FieldSpec("hostname"),
+    "management-ip": FieldSpec("management_ip"),
+    "base-mac": FieldSpec("base_mac"),
+    "build": FieldSpec("build"),
+    "edition": FieldSpec("edition"),
+    "version": FieldSpec("version"),
+    "product": FieldSpec("product"),
+    "platform-id": FieldSpec("platform_id"),
+    "chassis-id": FieldSpec("chassis_id"),
+    "marketing-name": FieldSpec("marketing_name"),
+    "self-device": FieldSpec("self_device"),
+    "time-zone": FieldSpec("time_zone"),
+    "cert": FieldSpec("cert", ref_kind="cm cert"),
+    "key": FieldSpec("key", ref_kind="cm key"),
+}
+
+_CM_DEVICE_GROUP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "auto-sync": FieldSpec("auto_sync"),
+    "network-failover": FieldSpec("network_failover"),
+    "hidden": FieldSpec("hidden"),
+    "devices": FieldSpec("devices", ref_kind="cm device", list_ref=True),
+}
+
+_CM_TRAFFIC_GROUP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "unit-id": FieldSpec("unit_id"),
+}
+
+_CM_TRUST_DOMAIN_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "ca-cert": FieldSpec("ca_cert", ref_kind="cm cert"),
+    "ca-cert-bundle": FieldSpec("ca_cert_bundle", ref_kind="cm cert"),
+    "ca-key": FieldSpec("ca_key", ref_kind="cm key"),
+    "ca-devices": FieldSpec("ca_devices", ref_kind="cm device", list_ref=True),
+    "guid": FieldSpec("guid"),
+    "status": FieldSpec("status"),
+    "trust-group": FieldSpec("trust_group", ref_kind="cm device-group"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -531,6 +599,12 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipApmReportDefaultReport,
         _APM_REPORT_DEFAULT_REPORT_FIELDS,
     ),
+    "cm cert": (BigipCmCert, _CM_CERT_FIELDS),
+    "cm key": (BigipCmKey, _CM_KEY_FIELDS),
+    "cm device": (BigipCmDevice, _CM_DEVICE_FIELDS),
+    "cm device-group": (BigipCmDeviceGroup, _CM_DEVICE_GROUP_FIELDS),
+    "cm traffic-group": (BigipCmTrafficGroup, _CM_TRAFFIC_GROUP_FIELDS),
+    "cm trust-domain": (BigipCmTrustDomain, _CM_TRUST_DOMAIN_FIELDS),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -572,6 +646,14 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "file-ssl-cert": ("sys_file_ssl_certs", "sys file ssl-cert"),
         "file-ssl-key": ("sys_file_ssl_keys", "sys file ssl-key"),
         "management-route": ("sys_management_routes", "sys management-route"),
+    },
+    "cm": {
+        "cert": ("cm_certs", "cm cert"),
+        "key": ("cm_keys", "cm key"),
+        "device": ("cm_devices", "cm device"),
+        "device-group": ("cm_device_groups", "cm device-group"),
+        "traffic-group": ("cm_traffic_groups", "cm traffic-group"),
+        "trust-domain": ("cm_trust_domains", "cm trust-domain"),
     },
     "apm": {
         "ssh-security-config": (

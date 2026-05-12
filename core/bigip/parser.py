@@ -34,6 +34,12 @@ from .model import (
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
+    BigipCmCert,
+    BigipCmDevice,
+    BigipCmDeviceGroup,
+    BigipCmKey,
+    BigipCmTrafficGroup,
+    BigipCmTrustDomain,
     BigipConfig,
     BigipDataGroup,
     BigipGenericObject,
@@ -1649,6 +1655,123 @@ def _parse_apm_report_default_report(
     )
 
 
+# cm.* parsers
+
+
+def _parse_cm_cert(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmCert:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipCmCert(
+        name=name,
+        full_path=full_path,
+        cache_path=props["cache-path"].value if "cache-path" in props else "",
+        checksum=props["checksum"].value if "checksum" in props else "",
+        revision=props["revision"].value if "revision" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_cm_key(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmKey:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipCmKey(
+        name=name,
+        full_path=full_path,
+        cache_path=props["cache-path"].value if "cache-path" in props else "",
+        checksum=props["checksum"].value if "checksum" in props else "",
+        revision=props["revision"].value if "revision" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_cm_device(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmDevice:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+
+    def get(key: str) -> str:
+        return props[key].value if key in props else ""
+
+    return BigipCmDevice(
+        name=name,
+        full_path=full_path,
+        hostname=get("hostname"),
+        management_ip=get("management-ip"),
+        base_mac=get("base-mac"),
+        build=get("build"),
+        edition=get("edition"),
+        version=get("version"),
+        product=get("product"),
+        platform_id=get("platform-id"),
+        chassis_id=get("chassis-id"),
+        marketing_name=_strip_quotes(get("marketing-name")),
+        self_device=get("self-device"),
+        time_zone=get("time-zone"),
+        cert=get("cert"),
+        key=get("key"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_cm_device_group(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmDeviceGroup:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    devices: tuple[str, ...] = ()
+    if "devices" in props:
+        devices = tuple(_parse_list_block(props["devices"].value))
+    return BigipCmDeviceGroup(
+        name=name,
+        full_path=full_path,
+        auto_sync=props["auto-sync"].value if "auto-sync" in props else "",
+        network_failover=(props["network-failover"].value if "network-failover" in props else ""),
+        hidden=props["hidden"].value if "hidden" in props else "",
+        devices=devices,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_cm_traffic_group(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmTrafficGroup:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipCmTrafficGroup(
+        name=name,
+        full_path=full_path,
+        unit_id=props["unit-id"].value if "unit-id" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_cm_trust_domain(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmTrustDomain:
+    props = _parse_properties_with_spans(body)
+    name = full_path.rsplit("/", 1)[-1]
+    ca_devices: tuple[str, ...] = ()
+    if "ca-devices" in props:
+        ca_devices = tuple(_parse_list_block(props["ca-devices"].value))
+    return BigipCmTrustDomain(
+        name=name,
+        full_path=full_path,
+        ca_cert=props["ca-cert"].value if "ca-cert" in props else "",
+        ca_cert_bundle=(props["ca-cert-bundle"].value if "ca-cert-bundle" in props else ""),
+        ca_key=props["ca-key"].value if "ca-key" in props else "",
+        ca_devices=ca_devices,
+        guid=props["guid"].value if "guid" in props else "",
+        status=props["status"].value if "status" in props else "",
+        trust_group=props["trust-group"].value if "trust-group" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -1833,6 +1956,31 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 # Singleton — stored under the empty-string key.
                 config.apm_report_default_report[""] = _parse_apm_report_default_report(
                     block.body, source_map, block
+                )
+            continue
+
+        if module == "cm":
+            if obj_type == "cert":
+                config.cm_certs[full_path] = _parse_cm_cert(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "key":
+                config.cm_keys[full_path] = _parse_cm_key(full_path, block.body, source_map, block)
+            elif obj_type == "device":
+                config.cm_devices[full_path] = _parse_cm_device(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "device-group":
+                config.cm_device_groups[full_path] = _parse_cm_device_group(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "traffic-group":
+                config.cm_traffic_groups[full_path] = _parse_cm_traffic_group(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "trust-domain":
+                config.cm_trust_domains[full_path] = _parse_cm_trust_domain(
+                    full_path, block.body, source_map, block
                 )
             continue
 

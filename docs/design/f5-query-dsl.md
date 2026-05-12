@@ -270,6 +270,35 @@ PathRefs auto-deref from ``access-policy`` into the referenced
 ``.apm.access-policy[].start-item.caption`` walk
 ``access-policy → policy-item → caption`` in one step.
 
+```
+.cm
+  .cert["/Common/dtca.crt"].cache-path
+                           .checksum
+                           .revision
+  .key["/Common/dtca.key"].cache-path
+                          .checksum
+  .device["/Common/host1"].hostname
+                          .management-ip
+                          .version
+                          .cert            (path-ref → cm cert)
+                          .key             (path-ref → cm key)
+  .device-group["/Common/dg1"].auto-sync
+                              .devices[]   (path-refs → cm device)
+  .traffic-group["/Common/tg1"].unit-id
+  .trust-domain["/Common/Root"].ca-cert    (path-ref → cm cert)
+                               .ca-cert-bundle
+                               .ca-key     (path-ref → cm key)
+                               .ca-devices[] (path-refs → cm device)
+                               .trust-group (path-ref → cm device-group)
+                               .guid
+                               .status
+```
+
+PathRefs from ``cm device.cert`` / ``cm device.key`` and from every
+``cm trust-domain`` reference auto-deref into the target object —
+``.cm.trust-domain[].trust-group.devices`` walks
+``trust-domain → device-group → devices[]`` end-to-end.
+
 PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `net self → net vlan → tag` in one chain, and
 `.ltm.virtual[].pool.members[].address` walks the existing

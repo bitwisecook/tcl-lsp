@@ -654,6 +654,100 @@ class BigipApmReportDefaultReport:
     range: Range | None = None
 
 
+# cm.* — typed projection for the Cluster Manager module.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmCert:
+    """A ``cm cert`` object — a device-trust certificate."""
+
+    name: str
+    full_path: str
+    cache_path: str = ""
+    checksum: str = ""
+    revision: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmKey:
+    """A ``cm key`` object — the private key paired with a ``cm cert``."""
+
+    name: str
+    full_path: str
+    cache_path: str = ""
+    checksum: str = ""
+    revision: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmDevice:
+    """A ``cm device`` object.
+
+    Only the core scalar identity / placement fields are surfaced; the
+    bulky ``active-modules`` / ``optional-modules`` / ``time-limited-modules``
+    lists (quoted multi-line bundles) are left to the source view.
+    """
+
+    name: str
+    full_path: str
+    hostname: str = ""
+    management_ip: str = ""
+    base_mac: str = ""
+    build: str = ""
+    edition: str = ""
+    version: str = ""
+    product: str = ""
+    platform_id: str = ""
+    chassis_id: str = ""
+    marketing_name: str = ""
+    self_device: str = ""  # "true" / "false" (text, not coerced)
+    time_zone: str = ""
+    cert: str = ""  # PathRef → cm cert
+    key: str = ""  # PathRef → cm key
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmDeviceGroup:
+    """A ``cm device-group`` object."""
+
+    name: str
+    full_path: str
+    auto_sync: str = ""
+    network_failover: str = ""
+    hidden: str = ""
+    devices: tuple[str, ...] = ()  # PathRefs → cm device
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmTrafficGroup:
+    """A ``cm traffic-group`` object."""
+
+    name: str
+    full_path: str
+    unit_id: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmTrustDomain:
+    """A ``cm trust-domain`` object."""
+
+    name: str
+    full_path: str
+    ca_cert: str = ""  # PathRef → cm cert
+    ca_cert_bundle: str = ""  # PathRef → cm cert
+    ca_key: str = ""  # PathRef → cm key
+    ca_devices: tuple[str, ...] = ()  # PathRefs → cm device
+    guid: str = ""
+    status: str = ""
+    trust_group: str = ""  # PathRef → cm device-group
+    range: Range | None = None
+
+
 # Aggregate config inventory
 
 
@@ -725,6 +819,13 @@ class BigipConfig:
     apm_policy_items: dict[str, BigipApmPolicyItem] = field(default_factory=dict)
     apm_policy_agents: dict[str, BigipApmPolicyAgent] = field(default_factory=dict)
     apm_report_default_report: dict[str, BigipApmReportDefaultReport] = field(default_factory=dict)
+    # cm.* — cluster / trust / traffic-group state.
+    cm_certs: dict[str, BigipCmCert] = field(default_factory=dict)
+    cm_keys: dict[str, BigipCmKey] = field(default_factory=dict)
+    cm_devices: dict[str, BigipCmDevice] = field(default_factory=dict)
+    cm_device_groups: dict[str, BigipCmDeviceGroup] = field(default_factory=dict)
+    cm_traffic_groups: dict[str, BigipCmTrafficGroup] = field(default_factory=dict)
+    cm_trust_domains: dict[str, BigipCmTrustDomain] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:
