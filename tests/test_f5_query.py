@@ -2245,3 +2245,531 @@ def test_cli_help_examples_includes_every_cookbook_entry(capsys):
     out = capsys.readouterr().out
     for example in list_examples():
         assert example.title in out
+
+
+# ---------------------------------------------------------------------------
+# Field enrichment — surfacing parsed-but-previously-unexposed attributes
+# ---------------------------------------------------------------------------
+
+_ENRICH_LTM_CONF = """ltm pool /Common/web_pool {
+    description "primary web pool"
+    members {
+        /Common/n1:80 {
+            address 10.0.0.1
+            description "node 1"
+            disabled
+            ratio 3
+            priority-group 5
+            monitor /Common/http
+        }
+    }
+    monitor /Common/http
+    min-active-members 2
+    service-down-action reset
+    slow-ramp-time 30
+    allow-snat yes
+    allow-nat no
+    reselect-tries 4
+}
+ltm node /Common/n1 {
+    address 10.0.0.1
+    description "first node"
+    monitor /Common/http
+    disabled
+    connection-limit 1000
+    ratio 1
+}
+ltm monitor http /Common/http_base { }
+ltm monitor http /Common/http {
+    defaults-from /Common/http_base
+    description "http GET probe"
+    interval 5
+    timeout 16
+    destination "*:80"
+    send "GET / HTTP/1.0\\r\\n\\r\\n"
+    recv "200 OK"
+}
+ltm persistence cookie /Common/cookie_pers {
+    defaults-from /Common/cookie
+    description "session cookie"
+    timeout 1800
+}
+ltm profile http /Common/parent_http { }
+ltm profile http /Common/http_profile {
+    defaults-from /Common/parent_http
+    description "tuned http"
+}
+ltm virtual /Common/web_vs {
+    destination /Common/10.10.0.5:443
+    pool /Common/web_pool
+    description "front-door VIP"
+    mask 255.255.255.255
+    source 0.0.0.0/0
+    ip-protocol tcp
+    connection-limit 10000
+    rate-limit 500
+    translate-address enabled
+    translate-port enabled
+    disabled
+    vlans { /Common/external /Common/internal }
+    vlans-disabled
+    fallback-persistence /Common/cookie_pers
+    last-hop-pool /Common/web_pool
+    fw-enforced-policy /Common/fw_pol
+    auth { /Common/radius_auth }
+}
+ltm policy /Common/pol1 {
+    strategy /Common/first-match
+    description "main policy"
+    status published
+    last-modified "2024-01-02T03:04:05Z"
+    rules { }
+}
+ltm data-group internal /Common/dg1 {
+    type string
+    description "lookup table"
+    records {
+        red { data crimson }
+    }
+}
+net vlan /Common/external {
+    tag 10
+}
+net vlan /Common/internal {
+    tag 20
+}
+ltm persistence cookie /Common/cookie { }
+ltm pool /Common/fw_pol { }
+"""
+
+
+def test_pool_surfaces_description_and_governance():
+    result = _run(".ltm.pool.web_pool.description", _ENRICH_LTM_CONF)
+    [desc] = result.values_per_file["mem://1"]
+    assert desc == "primary web pool"
+
+
+def test_pool_surfaces_service_down_action_and_slow_ramp():
+    result = _run(".ltm.pool.web_pool.service-down-action", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["reset"]
+    result = _run(".ltm.pool.web_pool.slow-ramp-time", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["30"]
+
+
+def test_pool_member_state_and_ratio_are_projected():
+    result = _run(".ltm.pool.web_pool.members[0].state", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["disabled"]
+    result = _run(".ltm.pool.web_pool.members[0].ratio", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["3"]
+
+
+def test_pool_member_monitor_chains_through_pathref():
+    result = _run(".ltm.pool.web_pool.members[0].monitor.full-path", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/http"]
+
+
+def test_node_state_and_monitor_are_projected():
+    result = _run(".ltm.node.n1.state", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["disabled"]
+    result = _run(".ltm.node.n1.monitor.full-path", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/http"]
+
+
+def test_monitor_defaults_from_chains_through_pathref():
+    result = _run(".ltm.monitor.http.defaults-from.full-path", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/http_base"]
+
+
+def test_monitor_send_and_recv_are_unquoted():
+    result = _run(".ltm.monitor.http.send", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"][0].startswith("GET /")
+    result = _run(".ltm.monitor.http.recv", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["200 OK"]
+
+
+def test_persistence_defaults_from_chain():
+    result = _run(".ltm.persistence.cookie_pers.defaults-from.full-path", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/cookie"]
+
+
+def test_profile_defaults_from_is_a_path_ref():
+    result = _run(".ltm.profile.http_profile.defaults-from.full-path", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/parent_http"]
+
+
+def test_virtual_state_description_and_protocol():
+    desc = _run(".ltm.virtual.web_vs.description", _ENRICH_LTM_CONF)
+    assert desc.values_per_file["mem://1"] == ["front-door VIP"]
+    state = _run(".ltm.virtual.web_vs.state", _ENRICH_LTM_CONF)
+    assert state.values_per_file["mem://1"] == ["disabled"]
+    proto = _run(".ltm.virtual.web_vs.ip-protocol", _ENRICH_LTM_CONF)
+    assert proto.values_per_file["mem://1"] == ["tcp"]
+
+
+def test_virtual_vlans_resolve_through_path_ref():
+    result = _run(".ltm.virtual.web_vs.vlans[].tag", _ENRICH_LTM_CONF)
+    assert sorted(result.values_per_file["mem://1"]) == [10, 20]
+
+
+def test_virtual_vlans_disabled_flag_is_visible():
+    result = _run(".ltm.virtual.web_vs.vlans-disabled", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == [True]
+
+
+def test_virtual_fallback_persistence_walks_to_persistence_type():
+    result = _run(
+        ".ltm.virtual.web_vs.fallback-persistence.type",
+        _ENRICH_LTM_CONF,
+    )
+    assert result.values_per_file["mem://1"] == ["cookie"]
+
+
+def test_policy_description_status_and_last_modified():
+    desc = _run(".ltm.policy.pol1.description", _ENRICH_LTM_CONF)
+    assert desc.values_per_file["mem://1"] == ["main policy"]
+    status = _run(".ltm.policy.pol1.status", _ENRICH_LTM_CONF)
+    assert status.values_per_file["mem://1"] == ["published"]
+    mod = _run(".ltm.policy.pol1.last-modified", _ENRICH_LTM_CONF)
+    assert mod.values_per_file["mem://1"] == ["2024-01-02T03:04:05Z"]
+
+
+def test_data_group_description_is_projected():
+    result = _run(".ltm.data-group.dg1.description", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["lookup table"]
+
+
+_ENRICH_GTM_CONF = """gtm datacenter /Common/dc-east {
+    contact "Pat Ops"
+    location "Boston"
+    description "east coast"
+    prober-pool /Common/east-probers
+    enabled
+}
+gtm server /Common/gtm-a {
+    datacenter /Common/dc-east
+    monitor /Common/bigip
+    product bigip
+    description "primary BIG-IP"
+    enabled
+    prober-pool /Common/east-probers
+    prober-preference inherit
+    limit-max-bps 1000000
+    devices { 0 { addresses { 10.1.1.1 { } } } }
+    virtual-servers { 0 { destination 10.1.1.2:80 } }
+}
+gtm pool a /Common/pool-a {
+    description "A-record pool"
+    enabled
+    load-balancing-mode global-availability
+    ttl 60
+    verify-member-availability enabled
+    qos-rtt 50
+    qos-hops 4
+}
+gtm wideip a /Common/www.example.com {
+    description "production"
+    enabled
+    pools { /Common/pool-a }
+    pool-lb-mode topology
+    failure-rcode noerror
+    minimal-response disabled
+}
+gtm prober-pool /Common/east-probers {
+    description "east DC probers"
+    load-balancing-mode round-robin
+    members { /Common/gtm-a { } }
+    enabled
+}
+"""
+
+
+def test_gtm_datacenter_state_and_prober_pool():
+    state = _run(".gtm.datacenter.dc-east.state", _ENRICH_GTM_CONF)
+    assert state.values_per_file["mem://1"] == ["enabled"]
+    prober_path = _run(".gtm.datacenter.dc-east.prober-pool.full-path", _ENRICH_GTM_CONF)
+    assert prober_path.values_per_file["mem://1"] == ["/Common/east-probers"]
+
+
+def test_gtm_server_state_and_limits():
+    state = _run(".gtm.server.gtm-a.state", _ENRICH_GTM_CONF)
+    assert state.values_per_file["mem://1"] == ["enabled"]
+    bps = _run(".gtm.server.gtm-a.limit-max-bps", _ENRICH_GTM_CONF)
+    assert bps.values_per_file["mem://1"] == ["1000000"]
+
+
+def test_gtm_pool_state_and_qos():
+    state = _run(".gtm.pool.pool-a.state", _ENRICH_GTM_CONF)
+    assert state.values_per_file["mem://1"] == ["enabled"]
+    rtt = _run(".gtm.pool.pool-a.qos-rtt", _ENRICH_GTM_CONF)
+    assert rtt.values_per_file["mem://1"] == ["50"]
+
+
+def test_gtm_wideip_failure_rcode():
+    rcode = _run('.gtm.wideip["/Common/www.example.com"].failure-rcode', _ENRICH_GTM_CONF)
+    assert rcode.values_per_file["mem://1"] == ["noerror"]
+
+
+def test_gtm_prober_pool_state_and_description():
+    state = _run(".gtm.prober-pool.east-probers.state", _ENRICH_GTM_CONF)
+    assert state.values_per_file["mem://1"] == ["enabled"]
+    desc = _run(".gtm.prober-pool.east-probers.description", _ENRICH_GTM_CONF)
+    assert desc.values_per_file["mem://1"] == ["east DC probers"]
+
+
+_ENRICH_NET_CONF = """net vlan /Common/v10 {
+    tag 10
+    description "client vlan"
+    mtu 1500
+    cmp-hash src-ip
+    failsafe disabled
+}
+net self /Common/self-v10 {
+    address 10.0.10.1/24
+    vlan /Common/v10
+    floating enabled
+    unit 1
+    description "self IP on v10"
+}
+net route /Common/default-route {
+    network default
+    gw 10.0.10.254
+    description "default gateway"
+    mtu 9000
+}
+net route-domain /Common/rd1 {
+    id 1
+    vlans { /Common/v10 }
+    description "tenant rd"
+    parent /Common/rd0
+    strict enabled
+    fw-enforced-policy /Common/fw_pol
+}
+net route-domain /Common/rd0 {
+    id 0
+}
+net port-list /Common/web_ports {
+    ports { 80 443 }
+    description "web ports"
+}
+net dns-resolver /Common/dnsr1 {
+    description "tenant resolver"
+    cache-size 1048576
+    use-tcp yes
+    use-udp yes
+}
+net stp /Common/cist {
+    interfaces { 1.1 1.2 }
+    description "spanning tree"
+    mode rstp
+}
+"""
+
+
+def test_net_vlan_description_and_mtu():
+    desc = _run(".net.vlan.v10.description", _ENRICH_NET_CONF)
+    assert desc.values_per_file["mem://1"] == ["client vlan"]
+    mtu = _run(".net.vlan.v10.mtu", _ENRICH_NET_CONF)
+    assert mtu.values_per_file["mem://1"] == ["1500"]
+
+
+def test_net_self_floating_and_unit():
+    floating = _run(".net.self.self-v10.floating", _ENRICH_NET_CONF)
+    assert floating.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_net_route_mtu_and_description():
+    mtu = _run(".net.route.default-route.mtu", _ENRICH_NET_CONF)
+    assert mtu.values_per_file["mem://1"] == ["9000"]
+
+
+def test_net_route_domain_parent_walks_to_id():
+    result = _run(".net.route-domain.rd1.parent.id", _ENRICH_NET_CONF)
+    assert result.values_per_file["mem://1"] == [0]
+
+
+def test_net_port_list_description():
+    desc = _run(".net.port-list.web_ports.description", _ENRICH_NET_CONF)
+    assert desc.values_per_file["mem://1"] == ["web ports"]
+
+
+def test_net_dns_resolver_cache_size_and_protocol_flags():
+    cache = _run(".net.dns-resolver.dnsr1.cache-size", _ENRICH_NET_CONF)
+    assert cache.values_per_file["mem://1"] == ["1048576"]
+
+
+_ENRICH_CM_CONF = """cm device /Common/bigip-1 {
+    hostname bigip-1.example.com
+    management-ip 10.0.0.10
+    base-mac 00:11:22:33:44:55
+    description "primary unit"
+    contact "Pat Ops"
+    location "Boston"
+    mirror-ip 10.0.99.1
+    multicast-ip 224.0.0.245
+    unicast-address {
+        { ip 10.0.99.1 }
+        { ip 10.0.99.2 }
+    }
+}
+cm device-group /Common/sync-failover {
+    type sync-failover
+    auto-sync enabled
+    description "two-unit cluster"
+    save-on-auto-sync true
+    devices { /Common/bigip-1 }
+}
+cm traffic-group /Common/traffic-group-1 {
+    unit-id 1
+    description "default TG"
+    default-device /Common/bigip-1
+    ha-load-factor 1
+    ha-order { /Common/bigip-1 }
+    auto-failback-enabled false
+}
+"""
+
+
+def test_cm_device_description_and_contact():
+    desc = _run(".cm.device.bigip-1.description", _ENRICH_CM_CONF)
+    assert desc.values_per_file["mem://1"] == ["primary unit"]
+    contact = _run(".cm.device.bigip-1.contact", _ENRICH_CM_CONF)
+    assert contact.values_per_file["mem://1"] == ["Pat Ops"]
+
+
+def test_cm_device_unicast_addresses_are_flattened():
+    addrs = _run(".cm.device.bigip-1.unicast-address", _ENRICH_CM_CONF)
+    [pair] = addrs.values_per_file["mem://1"]
+    assert sorted(pair) == ["10.0.99.1", "10.0.99.2"]
+
+
+def test_cm_device_group_type_and_save_on_auto_sync():
+    typ = _run(".cm.device-group.sync-failover.type", _ENRICH_CM_CONF)
+    assert typ.values_per_file["mem://1"] == ["sync-failover"]
+    save = _run(".cm.device-group.sync-failover.save-on-auto-sync", _ENRICH_CM_CONF)
+    assert save.values_per_file["mem://1"] == ["true"]
+
+
+def test_cm_traffic_group_default_device_walks_to_hostname():
+    host = _run(
+        ".cm.traffic-group.traffic-group-1.default-device.hostname",
+        _ENRICH_CM_CONF,
+    )
+    assert host.values_per_file["mem://1"] == ["bigip-1.example.com"]
+
+
+def test_cm_traffic_group_ha_order_resolves_to_devices():
+    result = _run(".cm.traffic-group.traffic-group-1.ha-order[].full-path", _ENRICH_CM_CONF)
+    assert result.values_per_file["mem://1"] == ["/Common/bigip-1"]
+
+
+_ENRICH_SYS_CONF = """sys folder /Common {
+    device-group /Common/sync-failover
+    description "shared partition"
+}
+sys file ssl-cert /Common/example.crt {
+    source-path "file:///config/ssl/ssl.crt/example.crt"
+    revision 1
+    description "example cert"
+    issuer "CN=Example CA"
+    subject "CN=www.example.com"
+    key-size 2048
+}
+sys file ssl-key /Common/example.key {
+    source-path "file:///config/ssl/ssl.key/example.key"
+    revision 1
+    description "example key"
+    key-size 2048
+    key-type rsa-private
+}
+sys provision /Common/ltm {
+    level nominal
+    cpu-ratio 5
+    memory-ratio 50
+}
+cm device-group /Common/sync-failover { }
+"""
+
+
+def test_sys_folder_description():
+    desc = _run(".sys.folder.Common.description", _ENRICH_SYS_CONF)
+    assert desc.values_per_file["mem://1"] == ["shared partition"]
+
+
+def test_sys_file_ssl_cert_issuer_subject_and_key_size():
+    issuer = _run('.sys.file-ssl-cert["/Common/example.crt"].issuer', _ENRICH_SYS_CONF)
+    assert issuer.values_per_file["mem://1"] == ["CN=Example CA"]
+    key_size = _run('.sys.file-ssl-cert["/Common/example.crt"].key-size', _ENRICH_SYS_CONF)
+    assert key_size.values_per_file["mem://1"] == ["2048"]
+
+
+def test_sys_file_ssl_key_key_type_is_projected():
+    typ = _run('.sys.file-ssl-key["/Common/example.key"].key-type', _ENRICH_SYS_CONF)
+    assert typ.values_per_file["mem://1"] == ["rsa-private"]
+
+
+def test_sys_provision_cpu_and_memory_ratio():
+    cpu = _run(".sys.provision.ltm.cpu-ratio", _ENRICH_SYS_CONF)
+    assert cpu.values_per_file["mem://1"] == ["5"]
+    mem = _run(".sys.provision.ltm.memory-ratio", _ENRICH_SYS_CONF)
+    assert mem.values_per_file["mem://1"] == ["50"]
+
+
+_ENRICH_SEC_CONF = """security firewall port-list /Common/web-ports {
+    ports { 80 443 }
+    description "web traffic"
+}
+security firewall rule-list /Common/rl1 {
+    rules { }
+    description "edge rules"
+}
+security ip-intelligence policy /Common/ip-int {
+    description "block scanners"
+    default-action drop
+}
+"""
+
+
+def test_security_firewall_port_list_description():
+    desc = _run(".security.firewall-port-list.web-ports.description", _ENRICH_SEC_CONF)
+    assert desc.values_per_file["mem://1"] == ["web traffic"]
+
+
+def test_security_ip_intelligence_default_action():
+    action = _run(".security.ip-intelligence-policy.ip-int.default-action", _ENRICH_SEC_CONF)
+    assert action.values_per_file["mem://1"] == ["drop"]
+
+
+_ENRICH_APM_CONF = """apm policy access-policy /Common/ap1 {
+    start-item /Common/ap1-start
+    default-ending /Common/ap1-deny
+    items { /Common/ap1-start /Common/ap1-deny }
+    description "main policy"
+}
+apm policy policy-item /Common/ap1-start {
+    caption Start
+    item-type action
+    description "entry"
+}
+apm policy policy-item /Common/ap1-deny {
+    caption Deny
+    item-type ending
+}
+apm policy customization-source /Common/cust1 {
+    description "branded"
+}
+"""
+
+
+def test_apm_access_policy_description():
+    desc = _run(".apm.access-policy.ap1.description", _ENRICH_APM_CONF)
+    assert desc.values_per_file["mem://1"] == ["main policy"]
+
+
+def test_apm_policy_item_description():
+    desc = _run(".apm.policy-item.ap1-start.description", _ENRICH_APM_CONF)
+    assert desc.values_per_file["mem://1"] == ["entry"]
+
+
+def test_apm_customization_source_description():
+    desc = _run(".apm.customization-source.cust1.description", _ENRICH_APM_CONF)
+    assert desc.values_per_file["mem://1"] == ["branded"]

@@ -178,26 +178,68 @@ _VS_FIELDS: dict[str, FieldSpec] = {
     "policies": FieldSpec("policies", ref_kind="ltm policy", list_ref=True),
     "snatpool": FieldSpec("snatpool", ref_kind="ltm snatpool"),
     "source-address-translation": FieldSpec("source_address_translation"),
+    "description": FieldSpec("description"),
+    "mask": FieldSpec("mask"),
+    "source": FieldSpec("source"),
+    "ip-protocol": FieldSpec("ip_protocol"),
+    "connection-limit": FieldSpec("connection_limit"),
+    "rate-limit": FieldSpec("rate_limit"),
+    "rate-limit-mode": FieldSpec("rate_limit_mode"),
+    "auto-lasthop": FieldSpec("auto_lasthop"),
+    "translate-address": FieldSpec("translate_address"),
+    "translate-port": FieldSpec("translate_port"),
+    "state": FieldSpec("state"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+    "vlans-disabled": FieldSpec("vlans_disabled"),
+    "vlans-enabled": FieldSpec("vlans_enabled"),
+    "fallback-persistence": FieldSpec("fallback_persistence", ref_kind="ltm persistence"),
+    "last-hop-pool": FieldSpec("last_hop_pool", ref_kind="ltm pool"),
+    "fw-enforced-policy": FieldSpec("fw_enforced_policy"),
+    "fw-staged-policy": FieldSpec("fw_staged_policy"),
+    "flow-eviction-policy": FieldSpec("flow_eviction_policy"),
+    "service-policy": FieldSpec("service_policy"),
+    "auth": FieldSpec("auth_profiles", ref_kind="ltm profile", list_ref=True),
+    "traffic-classes": FieldSpec("traffic_classes"),
+    "clone-pools": FieldSpec("clone_pools", ref_kind="ltm pool", list_ref=True),
 }
 
 _POOL_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
+    "module": FieldSpec("module"),
     "monitor": FieldSpec("monitor", ref_kind="ltm monitor"),
     "load-balancing-mode": FieldSpec("load_balancing_mode"),
     "members": FieldSpec("members"),  # special-cased: list of member objects
+    "description": FieldSpec("description"),
+    "min-active-members": FieldSpec("min_active_members"),
+    "min-up-members": FieldSpec("min_up_members"),
+    "service-down-action": FieldSpec("service_down_action"),
+    "slow-ramp-time": FieldSpec("slow_ramp_time"),
+    "allow-snat": FieldSpec("allow_snat"),
+    "allow-nat": FieldSpec("allow_nat"),
+    "reselect-tries": FieldSpec("reselect_tries"),
+    "queue-depth-limit": FieldSpec("queue_depth_limit"),
+    "queue-time-limit": FieldSpec("queue_time_limit"),
 }
 
 _NODE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "address": FieldSpec("address"),
+    "description": FieldSpec("description"),
+    "monitor": FieldSpec("monitor", ref_kind="ltm monitor"),
+    "state": FieldSpec("state"),
+    "connection-limit": FieldSpec("connection_limit"),
+    "rate-limit": FieldSpec("rate_limit"),
+    "ratio": FieldSpec("ratio"),
+    "fqdn": FieldSpec("fqdn"),
 }
 
 _RULE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "body": FieldSpec("source"),
+    "description": FieldSpec("description"),
     "refs": FieldSpec("__refs__"),  # synthesised — see ``_rule_refs_value``
 }
 
@@ -205,24 +247,37 @@ _PROFILE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "type": FieldSpec("profile_type"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="ltm profile"),
+    "description": FieldSpec("description"),
 }
 
 _MONITOR_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "type": FieldSpec("monitor_type"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="ltm monitor"),
+    "description": FieldSpec("description"),
+    "interval": FieldSpec("interval"),
+    "timeout": FieldSpec("timeout"),
+    "destination": FieldSpec("destination"),
+    "send": FieldSpec("send"),
+    "recv": FieldSpec("recv"),
 }
 
 _PERSIST_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "type": FieldSpec("persistence_type"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="ltm persistence"),
+    "description": FieldSpec("description"),
+    "timeout": FieldSpec("timeout"),
 }
 
 _SNATPOOL_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "members": FieldSpec("members"),
+    "description": FieldSpec("description"),
 }
 
 _POLICY_FIELDS: dict[str, FieldSpec] = {
@@ -235,6 +290,9 @@ _POLICY_FIELDS: dict[str, FieldSpec] = {
     # surfaces as an ``ltm policy-rule`` ObjectRef with nested
     # ``conditions`` / ``actions`` sub-objects.
     "rules": FieldSpec("rules"),
+    "description": FieldSpec("description"),
+    "status": FieldSpec("status"),
+    "last-modified": FieldSpec("last_modified"),
 }
 
 _DATAGROUP_FIELDS: dict[str, FieldSpec] = {
@@ -243,6 +301,7 @@ _DATAGROUP_FIELDS: dict[str, FieldSpec] = {
     "type": FieldSpec("value_type"),
     "kind": FieldSpec("kind"),
     "records": FieldSpec("records"),
+    "description": FieldSpec("description"),
 }
 
 _NET_ROUTE_FIELDS: dict[str, FieldSpec] = {
@@ -251,6 +310,10 @@ _NET_ROUTE_FIELDS: dict[str, FieldSpec] = {
     "network": FieldSpec("network"),
     "gw": FieldSpec("gw"),
     "pool": FieldSpec("pool", ref_kind="ltm pool"),
+    "description": FieldSpec("description"),
+    "mtu": FieldSpec("mtu"),
+    "blackhole": FieldSpec("blackhole"),
+    "interface": FieldSpec("interface", ref_kind="net vlan"),
 }
 
 _NET_VLAN_FIELDS: dict[str, FieldSpec] = {
@@ -258,6 +321,12 @@ _NET_VLAN_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "tag": FieldSpec("tag"),
     "interfaces": FieldSpec("interfaces"),
+    "description": FieldSpec("description"),
+    "mtu": FieldSpec("mtu"),
+    "cmp-hash": FieldSpec("cmp_hash"),
+    "failsafe": FieldSpec("failsafe"),
+    "auto-lasthop": FieldSpec("auto_lasthop"),
+    "source-check": FieldSpec("source_check"),
 }
 
 _NET_SELF_FIELDS: dict[str, FieldSpec] = {
@@ -267,6 +336,9 @@ _NET_SELF_FIELDS: dict[str, FieldSpec] = {
     "vlan": FieldSpec("vlan", ref_kind="net vlan"),
     "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
     "allow-service": FieldSpec("allow_service"),
+    "description": FieldSpec("description"),
+    "floating": FieldSpec("floating"),
+    "unit": FieldSpec("unit"),
 }
 
 _NET_ROUTE_DOMAIN_FIELDS: dict[str, FieldSpec] = {
@@ -274,18 +346,30 @@ _NET_ROUTE_DOMAIN_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "id": FieldSpec("id"),
     "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+    "description": FieldSpec("description"),
+    "parent": FieldSpec("parent", ref_kind="net route-domain"),
+    "strict": FieldSpec("strict"),
+    "fw-enforced-policy": FieldSpec("fw_enforced_policy"),
+    "fw-staged-policy": FieldSpec("fw_staged_policy"),
 }
 
 _NET_PORT_LIST_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "ports": FieldSpec("ports"),
+    "description": FieldSpec("description"),
 }
 
 _NET_INTERFACE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "media-fixed": FieldSpec("media_fixed"),
+    "description": FieldSpec("description"),
+    "enabled": FieldSpec("enabled"),
+    "disabled": FieldSpec("disabled"),
+    "bundle": FieldSpec("bundle"),
+    "bundle-speed": FieldSpec("bundle_speed"),
+    "lldp-admin": FieldSpec("lldp_admin"),
 }
 
 _NET_DNS_RESOLVER_FIELDS: dict[str, FieldSpec] = {
@@ -293,6 +377,13 @@ _NET_DNS_RESOLVER_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "route-domain": FieldSpec("route_domain", ref_kind="net route-domain"),
     "forward-zones": FieldSpec("forward_zones"),
+    "description": FieldSpec("description"),
+    "cache-size": FieldSpec("cache_size"),
+    "randomize-query-name-case": FieldSpec("randomize_query_name_case"),
+    "use-ipv4": FieldSpec("use_ipv4"),
+    "use-ipv6": FieldSpec("use_ipv6"),
+    "use-tcp": FieldSpec("use_tcp"),
+    "use-udp": FieldSpec("use_udp"),
 }
 
 _NET_TUNNEL_FIELDS: dict[str, FieldSpec] = {
@@ -308,6 +399,8 @@ _NET_STP_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "interfaces": FieldSpec("interfaces"),
+    "description": FieldSpec("description"),
+    "mode": FieldSpec("mode"),
 }
 
 _SYS_DNS_FIELDS: dict[str, FieldSpec] = {
@@ -343,6 +436,9 @@ _SYS_PROVISION_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "level": FieldSpec("level"),
+    "cpu-ratio": FieldSpec("cpu_ratio"),
+    "memory-ratio": FieldSpec("memory_ratio"),
+    "disk-ratio": FieldSpec("disk_ratio"),
 }
 
 _SYS_FOLDER_FIELDS: dict[str, FieldSpec] = {
@@ -351,6 +447,9 @@ _SYS_FOLDER_FIELDS: dict[str, FieldSpec] = {
     "device-group": FieldSpec("device_group", ref_kind="cm device-group"),
     "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
     "hidden": FieldSpec("hidden"),
+    "description": FieldSpec("description"),
+    "inherited-device-group": FieldSpec("inherited_device_group"),
+    "inherited-traffic-group": FieldSpec("inherited_traffic_group"),
 }
 
 _SYS_FILE_SSL_CERT_FIELDS: dict[str, FieldSpec] = {
@@ -359,6 +458,12 @@ _SYS_FILE_SSL_CERT_FIELDS: dict[str, FieldSpec] = {
     "source-path": FieldSpec("source_path"),
     "cache-path": FieldSpec("cache_path"),
     "revision": FieldSpec("revision"),
+    "description": FieldSpec("description"),
+    "issuer": FieldSpec("issuer"),
+    "subject": FieldSpec("subject"),
+    "expiration-string": FieldSpec("expiration_string"),
+    "fingerprint": FieldSpec("fingerprint"),
+    "key-size": FieldSpec("key_size"),
 }
 
 _SYS_FILE_SSL_KEY_FIELDS: dict[str, FieldSpec] = {
@@ -368,6 +473,10 @@ _SYS_FILE_SSL_KEY_FIELDS: dict[str, FieldSpec] = {
     "cache-path": FieldSpec("cache_path"),
     "revision": FieldSpec("revision"),
     "passphrase": FieldSpec("passphrase"),
+    "description": FieldSpec("description"),
+    "key-size": FieldSpec("key_size"),
+    "key-type": FieldSpec("key_type"),
+    "security-type": FieldSpec("security_type"),
 }
 
 _SYS_MANAGEMENT_ROUTE_FIELDS: dict[str, FieldSpec] = {
@@ -383,23 +492,30 @@ _SECURITY_FW_PORT_LIST_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "ports": FieldSpec("ports"),
+    "description": FieldSpec("description"),
 }
 
 _SECURITY_FW_RULE_LIST_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "rules": FieldSpec("rules"),
+    "description": FieldSpec("description"),
 }
 
 _SECURITY_FW_CONFIG_ENTITY_ID_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "entity-id": FieldSpec("entity_id"),
+    "description": FieldSpec("description"),
 }
 
 _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "default-action": FieldSpec("default_action"),
+    "default-log-blacklist-hit-only": FieldSpec("default_log_blacklist_hit_only"),
+    "default-log-blacklist-category": FieldSpec("default_log_blacklist_category"),
 }
 
 _SECURITY_PI_COMPLIANCE_MAP_FIELDS: dict[str, FieldSpec] = {
@@ -408,6 +524,7 @@ _SECURITY_PI_COMPLIANCE_MAP_FIELDS: dict[str, FieldSpec] = {
     "insp-id": FieldSpec("insp_id"),
     "key-type": FieldSpec("key_type"),
     "value-type": FieldSpec("value_type"),
+    "description": FieldSpec("description"),
 }
 
 _SECURITY_PI_COMPLIANCE_OBJECT_FIELDS: dict[str, FieldSpec] = {
@@ -415,12 +532,14 @@ _SECURITY_PI_COMPLIANCE_OBJECT_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "insp-id": FieldSpec("insp_id"),
     "type": FieldSpec("type_"),
+    "description": FieldSpec("description"),
 }
 
 _SECURITY_DEVICE_ID_ATTRIBUTE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "id": FieldSpec("id_"),
+    "description": FieldSpec("description"),
 }
 
 _APM_SSH_SECURITY_CONFIG_FIELDS: dict[str, FieldSpec] = {
@@ -430,6 +549,7 @@ _APM_SSH_SECURITY_CONFIG_FIELDS: dict[str, FieldSpec] = {
     "hmacs": FieldSpec("hmacs"),
     "kex-methods": FieldSpec("kex_methods"),
     "compressions": FieldSpec("compressions"),
+    "description": FieldSpec("description"),
 }
 
 _APM_OAUTH_DB_INSTANCE_FIELDS: dict[str, FieldSpec] = {
@@ -444,11 +564,13 @@ _APM_POLICY_ACCESS_POLICY_FIELDS: dict[str, FieldSpec] = {
     "start-item": FieldSpec("start_item", ref_kind="apm policy policy-item"),
     "default-ending": FieldSpec("default_ending", ref_kind="apm policy policy-item"),
     "items": FieldSpec("items", ref_kind="apm policy policy-item", list_ref=True),
+    "description": FieldSpec("description"),
 }
 
 _APM_POLICY_CUSTOMIZATION_SOURCE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
 }
 
 _APM_POLICY_ITEM_FIELDS: dict[str, FieldSpec] = {
@@ -458,6 +580,7 @@ _APM_POLICY_ITEM_FIELDS: dict[str, FieldSpec] = {
     "color": FieldSpec("color"),
     "item-type": FieldSpec("item_type"),
     "agents": FieldSpec("agents", ref_kind="apm policy agent", list_ref=True),
+    "description": FieldSpec("description"),
 }
 
 _APM_POLICY_AGENT_FIELDS: dict[str, FieldSpec] = {
@@ -507,6 +630,16 @@ _CM_DEVICE_FIELDS: dict[str, FieldSpec] = {
     "time-zone": FieldSpec("time_zone"),
     "cert": FieldSpec("cert", ref_kind="cm cert"),
     "key": FieldSpec("key", ref_kind="cm key"),
+    "description": FieldSpec("description"),
+    "comment": FieldSpec("comment"),
+    "contact": FieldSpec("contact"),
+    "location": FieldSpec("location"),
+    "mirror-ip": FieldSpec("mirror_ip"),
+    "mirror-secondary-ip": FieldSpec("mirror_secondary_ip"),
+    "multicast-interface": FieldSpec("multicast_interface"),
+    "multicast-ip": FieldSpec("multicast_ip"),
+    "multicast-port": FieldSpec("multicast_port"),
+    "unicast-address": FieldSpec("unicast_address"),
 }
 
 _CM_DEVICE_GROUP_FIELDS: dict[str, FieldSpec] = {
@@ -516,12 +649,25 @@ _CM_DEVICE_GROUP_FIELDS: dict[str, FieldSpec] = {
     "network-failover": FieldSpec("network_failover"),
     "hidden": FieldSpec("hidden"),
     "devices": FieldSpec("devices", ref_kind="cm device", list_ref=True),
+    "description": FieldSpec("description"),
+    "type": FieldSpec("type_"),
+    "save-on-auto-sync": FieldSpec("save_on_auto_sync"),
+    "full-load-on-sync": FieldSpec("full_load_on_sync"),
+    "asm-sync": FieldSpec("asm_sync"),
+    "incremental-config-sync-size-max": FieldSpec("incremental_config_sync_size_max"),
 }
 
 _CM_TRAFFIC_GROUP_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "unit-id": FieldSpec("unit_id"),
+    "description": FieldSpec("description"),
+    "default-device": FieldSpec("default_device", ref_kind="cm device"),
+    "ha-load-factor": FieldSpec("ha_load_factor"),
+    "ha-order": FieldSpec("ha_order", ref_kind="cm device", list_ref=True),
+    "auto-failback-enabled": FieldSpec("auto_failback_enabled"),
+    "auto-failback-time": FieldSpec("auto_failback_time"),
+    "mac": FieldSpec("mac"),
 }
 
 _CM_TRUST_DOMAIN_FIELDS: dict[str, FieldSpec] = {
@@ -541,6 +687,11 @@ _GTM_DATACENTER_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "contact": FieldSpec("contact"),
     "location": FieldSpec("location"),
+    "description": FieldSpec("description"),
+    "prober-pool": FieldSpec("prober_pool", ref_kind="gtm prober-pool"),
+    "prober-preference": FieldSpec("prober_preference"),
+    "prober-fallback": FieldSpec("prober_fallback"),
+    "state": FieldSpec("state"),
 }
 
 _GTM_SERVER_FIELDS: dict[str, FieldSpec] = {
@@ -551,6 +702,19 @@ _GTM_SERVER_FIELDS: dict[str, FieldSpec] = {
     "product": FieldSpec("product"),
     "addresses": FieldSpec("addresses"),
     "virtual-servers": FieldSpec("virtual_servers"),
+    "description": FieldSpec("description"),
+    "state": FieldSpec("state"),
+    "prober-pool": FieldSpec("prober_pool", ref_kind="gtm prober-pool"),
+    "prober-preference": FieldSpec("prober_preference"),
+    "prober-fallback": FieldSpec("prober_fallback"),
+    "virtual-server-discovery": FieldSpec("virtual_server_discovery"),
+    "expose-route-domains": FieldSpec("expose_route_domains"),
+    "iq-allow-path": FieldSpec("iq_allow_path"),
+    "iq-allow-service-check": FieldSpec("iq_allow_service_check"),
+    "iq-allow-snmp": FieldSpec("iq_allow_snmp"),
+    "limit-max-bps": FieldSpec("limit_max_bps"),
+    "limit-max-connections": FieldSpec("limit_max_connections"),
+    "limit-max-pps": FieldSpec("limit_max_pps"),
 }
 
 _GTM_POOL_FIELDS: dict[str, FieldSpec] = {
@@ -563,6 +727,20 @@ _GTM_POOL_FIELDS: dict[str, FieldSpec] = {
     "fallback-mode": FieldSpec("fallback_mode"),
     "load-balancing-mode": FieldSpec("load_balancing_mode"),
     "ttl": FieldSpec("ttl"),
+    "description": FieldSpec("description"),
+    "state": FieldSpec("state"),
+    "verify-member-availability": FieldSpec("verify_member_availability"),
+    "fallback-ip": FieldSpec("fallback_ip"),
+    "max-answers-returned": FieldSpec("max_answers_returned"),
+    "qos-hit-ratio": FieldSpec("qos_hit_ratio"),
+    "qos-hops": FieldSpec("qos_hops"),
+    "qos-kbps": FieldSpec("qos_kbps"),
+    "qos-lcs": FieldSpec("qos_lcs"),
+    "qos-packet-rate": FieldSpec("qos_packet_rate"),
+    "qos-rtt": FieldSpec("qos_rtt"),
+    "qos-topology": FieldSpec("qos_topology"),
+    "qos-vs-capacity": FieldSpec("qos_vs_capacity"),
+    "qos-vs-score": FieldSpec("qos_vs_score"),
 }
 
 # Wideip ``pools[]`` is a list of paths into ``gtm pool <record-type>``
@@ -577,6 +755,17 @@ _GTM_WIDEIP_FIELDS: dict[str, FieldSpec] = {
     "aliases": FieldSpec("aliases"),
     "pool-lb-mode": FieldSpec("pool_lb_mode"),
     "last-resort-pool": FieldSpec("last_resort_pool", ref_kind="gtm pool"),
+    "description": FieldSpec("description"),
+    "state": FieldSpec("state"),
+    "failure-rcode": FieldSpec("failure_rcode"),
+    "failure-rcode-response": FieldSpec("failure_rcode_response"),
+    "failure-rcode-ttl": FieldSpec("failure_rcode_ttl"),
+    "minimal-response": FieldSpec("minimal_response"),
+    "persistence": FieldSpec("persistence"),
+    "persist-cidr-ipv4": FieldSpec("persist_cidr_ipv4"),
+    "persist-cidr-ipv6": FieldSpec("persist_cidr_ipv6"),
+    "topology-prefer-edns0-client-subnet": FieldSpec("topology_prefer_edns0_client_subnet"),
+    "ttl-persistence": FieldSpec("ttl_persistence"),
 }
 
 _GTM_PROBER_POOL_FIELDS: dict[str, FieldSpec] = {
@@ -585,6 +774,7 @@ _GTM_PROBER_POOL_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
     "load-balancing-mode": FieldSpec("load_balancing_mode"),
     "members": FieldSpec("members", ref_kind="gtm server", list_ref=True),
+    "state": FieldSpec("state"),
 }
 
 _GTM_REGION_FIELDS: dict[str, FieldSpec] = {
@@ -598,6 +788,7 @@ _GTM_RULE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "body": FieldSpec("source"),
+    "description": FieldSpec("description"),
 }
 
 
@@ -940,7 +1131,7 @@ def _project_field(
     if spec.ref_kind:
         return PathRef(full_path=raw or "", root=root, expected_kind=spec.ref_kind)
     if kind == "ltm pool" and spec.attr == "members":
-        return [_member_object_ref(m) for m in raw or ()]
+        return [_member_object_ref(m, root) for m in raw or ()]
     if kind == "ltm policy" and spec.attr == "rules":
         return [_policy_rule_object_ref(r, root) for r in raw or ()]
     if isinstance(raw, tuple):
@@ -948,7 +1139,7 @@ def _project_field(
     return raw
 
 
-def _member_object_ref(member: BigipPoolMember) -> ObjectRef:
+def _member_object_ref(member: BigipPoolMember, root: Root) -> ObjectRef:
     return ObjectRef(
         kind="ltm pool-member",
         full_path=member.name,
@@ -956,7 +1147,15 @@ def _member_object_ref(member: BigipPoolMember) -> ObjectRef:
             "name": member.name,
             "address": member.address,
             "port": member.port,
-            "monitor": member.monitor,
+            "monitor": PathRef(full_path=member.monitor, root=root, expected_kind="ltm monitor")
+            if member.monitor
+            else "",
+            "description": member.description,
+            "state": member.state,
+            "ratio": member.ratio,
+            "priority-group": member.priority_group,
+            "connection-limit": member.connection_limit,
+            "rate-limit": member.rate_limit,
         },
     )
 

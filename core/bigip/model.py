@@ -61,6 +61,7 @@ class BigipDataGroup:
     kind: DataGroupType = DataGroupType.INTERNAL
     value_type: str = ""  # "string", "ip", "integer"
     records: tuple[str, ...] = ()  # record names/keys
+    description: str = ""
     range: Range | None = None
 
 
@@ -72,6 +73,12 @@ class BigipPoolMember:
     address: str = ""
     port: int = 0
     monitor: str = ""
+    description: str = ""
+    state: str = ""  # ``enabled`` / ``disabled`` flag from the member body
+    ratio: str = ""
+    priority_group: str = ""
+    connection_limit: str = ""
+    rate_limit: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +91,16 @@ class BigipPool:
     members: tuple[BigipPoolMember, ...] = ()
     monitor: str = ""
     load_balancing_mode: str = ""
+    description: str = ""
+    min_active_members: str = ""
+    min_up_members: str = ""
+    service_down_action: str = ""
+    slow_ramp_time: str = ""
+    allow_snat: str = ""
+    allow_nat: str = ""
+    reselect_tries: str = ""
+    queue_depth_limit: str = ""
+    queue_time_limit: str = ""
     range: Range | None = None
 
 
@@ -94,6 +111,13 @@ class BigipNode:
     name: str
     full_path: str
     address: str = ""
+    description: str = ""
+    monitor: str = ""
+    state: str = ""  # ``enabled`` / ``disabled`` flag from the node body
+    connection_limit: str = ""
+    rate_limit: str = ""
+    ratio: str = ""
+    fqdn: str = ""  # FQDN sub-block ``name`` value, when present
     range: Range | None = None
 
 
@@ -104,6 +128,8 @@ class BigipProfile:
     name: str
     full_path: str
     profile_type: ProfileType = ProfileType.OTHER
+    defaults_from: str = ""  # PathRef → ltm profile
+    description: str = ""
     range: Range | None = None
 
 
@@ -114,6 +140,13 @@ class BigipMonitor:
     name: str
     full_path: str
     monitor_type: str = ""  # "http", "tcp", "https", etc.
+    defaults_from: str = ""  # PathRef → ltm monitor
+    description: str = ""
+    interval: str = ""
+    timeout: str = ""
+    destination: str = ""
+    send: str = ""
+    recv: str = ""
     range: Range | None = None
 
 
@@ -124,6 +157,7 @@ class BigipSnatPool:
     name: str
     full_path: str
     members: tuple[str, ...] = ()
+    description: str = ""
     range: Range | None = None
 
 
@@ -134,6 +168,9 @@ class BigipPersistence:
     name: str
     full_path: str
     persistence_type: str = ""  # "cookie", "source-addr", "ssl", etc.
+    defaults_from: str = ""  # PathRef → ltm persistence
+    description: str = ""
+    timeout: str = ""
     range: Range | None = None
 
 
@@ -144,6 +181,7 @@ class BigipRule:
     name: str
     full_path: str
     source: str = ""  # the raw Tcl body
+    description: str = ""
     range: Range | None = None
 
 
@@ -161,6 +199,29 @@ class BigipVirtualServer:
     policies: tuple[str, ...] = ()  # ltm policy paths attached to this VS
     snatpool: str = ""
     source_address_translation: str = ""
+    description: str = ""
+    mask: str = ""
+    source: str = ""
+    ip_protocol: str = ""
+    connection_limit: str = ""
+    rate_limit: str = ""
+    rate_limit_mode: str = ""
+    auto_lasthop: str = ""
+    translate_address: str = ""
+    translate_port: str = ""
+    state: str = ""  # ``enabled`` / ``disabled`` flag from the virtual body
+    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
+    vlans_disabled: bool = False  # ``vlans-disabled`` flag was present
+    vlans_enabled: bool = False  # ``vlans-enabled`` flag was present
+    fallback_persistence: str = ""  # PathRef → ltm persistence
+    last_hop_pool: str = ""  # PathRef → ltm pool
+    fw_enforced_policy: str = ""
+    fw_staged_policy: str = ""
+    flow_eviction_policy: str = ""
+    service_policy: str = ""
+    auth_profiles: tuple[str, ...] = ()
+    traffic_classes: tuple[str, ...] = ()
+    clone_pools: tuple[str, ...] = ()  # cloned PathRefs → ltm pool
     pool_range: Range | None = None
     range: Range | None = None
 
@@ -224,6 +285,9 @@ class BigipPolicy:
     requires: tuple[str, ...] = ()
     controls: tuple[str, ...] = ()
     rules: tuple[BigipPolicyRule, ...] = ()
+    description: str = ""
+    status: str = ""  # ``published`` / ``draft`` / ``legacy``
+    last_modified: str = ""
     range: Range | None = None
 
 
@@ -250,6 +314,10 @@ class BigipNetRoute:
     network: str = ""  # e.g. "default", "10.0.0.0/8"
     gw: str = ""  # gateway address; empty when the route uses ``pool`` instead
     pool: str = ""  # gateway pool reference; empty when ``gw`` is set
+    description: str = ""
+    mtu: str = ""
+    blackhole: bool = False  # ``blackhole`` flag present
+    interface: str = ""  # PathRef → net vlan when set
     range: Range | None = None
 
 
@@ -261,6 +329,12 @@ class BigipNetVlan:
     full_path: str
     tag: int = 0
     interfaces: tuple[str, ...] = ()  # untagged interface names ("1.1", "1.2")
+    description: str = ""
+    mtu: str = ""
+    cmp_hash: str = ""
+    failsafe: str = ""
+    auto_lasthop: str = ""
+    source_check: str = ""
     range: Range | None = None
 
 
@@ -274,6 +348,9 @@ class BigipNetSelf:
     vlan: str = ""  # full-path of the bound VLAN
     traffic_group: str = ""
     allow_service: tuple[str, ...] = ()  # ``default`` / ``all`` / per-service tokens
+    description: str = ""
+    floating: str = ""  # ``enabled`` / ``disabled``
+    unit: str = ""
     range: Range | None = None
 
 
@@ -285,6 +362,11 @@ class BigipNetRouteDomain:
     full_path: str
     id: int = 0
     vlans: tuple[str, ...] = ()  # member VLAN full-paths
+    description: str = ""
+    parent: str = ""  # PathRef → net route-domain
+    strict: str = ""
+    fw_enforced_policy: str = ""
+    fw_staged_policy: str = ""
     range: Range | None = None
 
 
@@ -295,6 +377,7 @@ class BigipNetPortList:
     name: str
     full_path: str
     ports: tuple[str, ...] = ()  # raw port specs (e.g. ``80``, ``1029-1043``)
+    description: str = ""
     range: Range | None = None
 
 
@@ -310,6 +393,12 @@ class BigipNetInterface:
     name: str
     full_path: str
     media_fixed: str = ""  # e.g. "10000T-FD"
+    description: str = ""
+    enabled: bool = False  # ``enabled`` flag present
+    disabled: bool = False  # ``disabled`` flag present
+    bundle: str = ""
+    bundle_speed: str = ""
+    lldp_admin: str = ""
     range: Range | None = None
 
 
@@ -321,6 +410,13 @@ class BigipNetDnsResolver:
     full_path: str
     route_domain: str = ""  # full-path of bound route-domain
     forward_zones: tuple[str, ...] = ()  # top-level zone names only
+    description: str = ""
+    cache_size: str = ""
+    randomize_query_name_case: str = ""
+    use_ipv4: str = ""
+    use_ipv6: str = ""
+    use_tcp: str = ""
+    use_udp: str = ""
     range: Range | None = None
 
 
@@ -349,6 +445,8 @@ class BigipNetStp:
     name: str
     full_path: str
     interfaces: tuple[str, ...] = ()
+    description: str = ""
+    mode: str = ""
     range: Range | None = None
 
 
@@ -415,6 +513,9 @@ class BigipSysProvision:
     name: str
     full_path: str
     level: str = ""
+    cpu_ratio: str = ""
+    memory_ratio: str = ""
+    disk_ratio: str = ""
     range: Range | None = None
 
 
@@ -427,6 +528,9 @@ class BigipSysFolder:
     device_group: str = ""
     traffic_group: str = ""
     hidden: str = ""
+    description: str = ""
+    inherited_device_group: str = ""
+    inherited_traffic_group: str = ""
     range: Range | None = None
 
 
@@ -439,6 +543,12 @@ class BigipSysFileSslCert:
     source_path: str = ""
     cache_path: str = ""
     revision: str = ""
+    description: str = ""
+    issuer: str = ""
+    subject: str = ""
+    expiration_string: str = ""
+    fingerprint: str = ""
+    key_size: str = ""
     range: Range | None = None
 
 
@@ -452,6 +562,10 @@ class BigipSysFileSslKey:
     cache_path: str = ""
     revision: str = ""
     passphrase: str = ""
+    description: str = ""
+    key_size: str = ""
+    key_type: str = ""
+    security_type: str = ""
     range: Range | None = None
 
 
@@ -478,6 +592,7 @@ class BigipSecurityFirewallPortList:
     name: str
     full_path: str
     ports: tuple[str, ...] = ()
+    description: str = ""
     range: Range | None = None
 
 
@@ -493,6 +608,7 @@ class BigipSecurityFirewallRuleList:
     name: str
     full_path: str
     rules: tuple[str, ...] = ()
+    description: str = ""
     range: Range | None = None
 
 
@@ -503,6 +619,7 @@ class BigipSecurityFirewallConfigEntityId:
     name: str
     full_path: str
     entity_id: str = ""
+    description: str = ""
     range: Range | None = None
 
 
@@ -516,6 +633,10 @@ class BigipSecurityIpIntelligencePolicy:
 
     name: str
     full_path: str
+    description: str = ""
+    default_action: str = ""
+    default_log_blacklist_hit_only: str = ""
+    default_log_blacklist_category: str = ""
     range: Range | None = None
 
 
@@ -528,6 +649,7 @@ class BigipSecurityProtocolInspectionComplianceMap:
     insp_id: str = ""
     key_type: str = ""
     value_type: str = ""
+    description: str = ""
     range: Range | None = None
 
 
@@ -544,6 +666,7 @@ class BigipSecurityProtocolInspectionComplianceObject:
     full_path: str
     insp_id: str = ""
     type_: str = ""
+    description: str = ""
     range: Range | None = None
 
 
@@ -554,6 +677,7 @@ class BigipSecurityDeviceIdAttribute:
     name: str
     full_path: str
     id_: str = ""
+    description: str = ""
     range: Range | None = None
 
 
@@ -575,6 +699,7 @@ class BigipApmEphemeralAuthSshSecurityConfig:
     hmacs: tuple[str, ...] = ()
     kex_methods: tuple[str, ...] = ()
     compressions: tuple[str, ...] = ()
+    description: str = ""
     range: Range | None = None
 
 
@@ -597,6 +722,7 @@ class BigipApmPolicyAccessPolicy:
     start_item: str = ""  # PathRef → apm policy policy-item
     default_ending: str = ""  # PathRef → apm policy policy-item
     items: tuple[str, ...] = ()  # PathRefs → apm policy policy-item
+    description: str = ""
     range: Range | None = None
 
 
@@ -606,6 +732,7 @@ class BigipApmPolicyCustomizationSource:
 
     name: str
     full_path: str
+    description: str = ""
     range: Range | None = None
 
 
@@ -624,6 +751,7 @@ class BigipApmPolicyItem:
     color: str = ""
     item_type: str = ""  # action | ending
     agents: tuple[str, ...] = ()
+    description: str = ""
     range: Range | None = None
 
 
@@ -706,6 +834,16 @@ class BigipCmDevice:
     time_zone: str = ""
     cert: str = ""  # PathRef → cm cert
     key: str = ""  # PathRef → cm key
+    description: str = ""
+    comment: str = ""
+    contact: str = ""
+    location: str = ""
+    mirror_ip: str = ""
+    mirror_secondary_ip: str = ""
+    multicast_interface: str = ""
+    multicast_ip: str = ""
+    multicast_port: str = ""
+    unicast_address: tuple[str, ...] = ()
     range: Range | None = None
 
 
@@ -719,6 +857,12 @@ class BigipCmDeviceGroup:
     network_failover: str = ""
     hidden: str = ""
     devices: tuple[str, ...] = ()  # PathRefs → cm device
+    description: str = ""
+    type_: str = ""  # ``sync-failover`` / ``sync-only``
+    save_on_auto_sync: str = ""
+    full_load_on_sync: str = ""
+    asm_sync: str = ""
+    incremental_config_sync_size_max: str = ""
     range: Range | None = None
 
 
@@ -729,6 +873,13 @@ class BigipCmTrafficGroup:
     name: str
     full_path: str
     unit_id: str = ""
+    description: str = ""
+    default_device: str = ""  # PathRef → cm device
+    ha_load_factor: str = ""
+    ha_order: tuple[str, ...] = ()  # PathRefs → cm device
+    auto_failback_enabled: str = ""
+    auto_failback_time: str = ""
+    mac: str = ""
     range: Range | None = None
 
 
@@ -759,6 +910,11 @@ class BigipGtmDatacenter:
     full_path: str
     contact: str = ""
     location: str = ""
+    description: str = ""
+    prober_pool: str = ""  # PathRef → gtm prober-pool
+    prober_preference: str = ""
+    prober_fallback: str = ""
+    state: str = ""  # ``enabled`` / ``disabled``
     range: Range | None = None
 
 
@@ -779,6 +935,19 @@ class BigipGtmServer:
     product: str = ""
     addresses: tuple[str, ...] = ()
     virtual_servers: tuple[str, ...] = ()  # destinations of each VS sub-block
+    description: str = ""
+    state: str = ""  # ``enabled`` / ``disabled``
+    prober_pool: str = ""  # PathRef → gtm prober-pool
+    prober_preference: str = ""
+    prober_fallback: str = ""
+    virtual_server_discovery: str = ""
+    expose_route_domains: str = ""
+    iq_allow_path: str = ""
+    iq_allow_service_check: str = ""
+    iq_allow_snmp: str = ""
+    limit_max_bps: str = ""
+    limit_max_connections: str = ""
+    limit_max_pps: str = ""
     range: Range | None = None
 
 
@@ -800,6 +969,20 @@ class BigipGtmPool:
     fallback_mode: str = ""
     load_balancing_mode: str = ""
     ttl: str = ""
+    description: str = ""
+    state: str = ""  # ``enabled`` / ``disabled``
+    verify_member_availability: str = ""
+    fallback_ip: str = ""
+    max_answers_returned: str = ""
+    qos_hit_ratio: str = ""
+    qos_hops: str = ""
+    qos_kbps: str = ""
+    qos_lcs: str = ""
+    qos_packet_rate: str = ""
+    qos_rtt: str = ""
+    qos_topology: str = ""
+    qos_vs_capacity: str = ""
+    qos_vs_score: str = ""
     range: Range | None = None
 
 
@@ -819,6 +1002,17 @@ class BigipGtmWideip:
     aliases: tuple[str, ...] = ()
     pool_lb_mode: str = ""
     last_resort_pool: str = ""
+    description: str = ""
+    state: str = ""  # ``enabled`` / ``disabled``
+    failure_rcode: str = ""
+    failure_rcode_response: str = ""
+    failure_rcode_ttl: str = ""
+    minimal_response: str = ""
+    persistence: str = ""
+    persist_cidr_ipv4: str = ""
+    persist_cidr_ipv6: str = ""
+    topology_prefer_edns0_client_subnet: str = ""
+    ttl_persistence: str = ""
     range: Range | None = None
 
 
@@ -831,6 +1025,7 @@ class BigipGtmProberPool:
     description: str = ""
     load_balancing_mode: str = ""
     members: tuple[str, ...] = ()  # PathRefs → gtm server
+    state: str = ""  # ``enabled`` / ``disabled``
     range: Range | None = None
 
 
@@ -859,6 +1054,7 @@ class BigipGtmRule:
     name: str
     full_path: str
     source: str = ""
+    description: str = ""
     range: Range | None = None
 
 

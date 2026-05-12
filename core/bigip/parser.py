@@ -275,6 +275,31 @@ def _parse_properties(body: str) -> dict[str, str]:
     return {key: prop.value for key, prop in _parse_properties_with_spans(body).items()}
 
 
+def _unquote(value: str) -> str:
+    """Strip a single layer of surrounding double quotes, when present."""
+    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+        return value[1:-1]
+    return value
+
+
+def _state_flag(props: dict[str, str]) -> str:
+    """Return ``"enabled"`` / ``"disabled"`` for bare state flags in *props*.
+
+    BIG-IP emits ``enabled`` / ``disabled`` as bare tokens (no value),
+    which the property parser surfaces as a key with an empty value.
+    """
+    if "enabled" in props:
+        return "enabled"
+    if "disabled" in props:
+        return "disabled"
+    return ""
+
+
+def _description(props: dict[str, str]) -> str:
+    """Return the unquoted ``description`` value from *props*, if any."""
+    return _unquote(props.get("description", ""))
+
+
 def _range_from_token_offsets(source_map: DocumentBuffer, start: int, end_exclusive: int) -> Range:
     """Create an inclusive range from token offsets."""
     end = max(start, end_exclusive - 1)
@@ -569,8 +594,95 @@ def _parse_data_group(
         kind=kind,
         value_type=value_type,
         records=tuple(records),
+        description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
+
+
+def _parse_pool_member_body(braced_body: str) -> dict[str, str]:
+    """Parse the per-member ``{ ... }`` body of a pool members entry."""
+    inner = braced_body.strip()
+    if inner.startswith("{"):
+        inner = inner[1:]
+    if inner.endswith("}"):
+        inner = inner[:-1]
+    return _parse_properties(inner)
+
+
+def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
+    """Extract pool members from a ``members { ... }`` block.
+
+    Each member entry may carry an inline body — ``/Common/n:80 { address ... }``
+    — and the per-member properties are surfaced on
+    :class:`BigipPoolMember` so projections (and the query DSL) can
+    interrogate state, ratio, and monitor without reaching back into
+    the source.
+    """
+    members: list[BigipPoolMember] = []
+    inner = braced.strip()
+    if inner.startswith("{"):
+        inner = inner[1:]
+    if inner.endswith("}"):
+        inner = inner[:-1]
+
+    pos = 0
+    length = len(inner)
+    while pos < length:
+        while pos < length and inner[pos] in " \t\n\r":
+            pos += 1
+        if pos >= length:
+            break
+        name_start = pos
+        while pos < length and inner[pos] not in " \t\n\r{":
+            pos += 1
+        name = inner[name_start:pos]
+        if not name:
+            pos += 1
+            continue
+        while pos < length and inner[pos] in " \t":
+            pos += 1
+        body_text = ""
+        if pos < length and inner[pos] == "{":
+            body_start = pos
+            pos += 1
+            depth = 1
+            while pos < length and depth > 0:
+                ch = inner[pos]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                pos += 1
+            body_text = inner[body_start:pos]
+        props = _parse_pool_member_body(body_text) if body_text else {}
+        addr = props.get("address", "")
+        port = 0
+        if ":" in name and not addr:
+            tail = name.rsplit(":", 1)[-1]
+            try:
+                port = int(tail)
+            except ValueError:
+                port = 0
+        if not port:
+            try:
+                port = int(props.get("port", "0"))
+            except ValueError:
+                port = 0
+        members.append(
+            BigipPoolMember(
+                name=name,
+                address=addr,
+                port=port,
+                monitor=props.get("monitor", ""),
+                description=_unquote(props.get("description", "")),
+                state=_state_flag(props),
+                ratio=props.get("ratio", ""),
+                priority_group=props.get("priority-group", ""),
+                connection_limit=props.get("connection-limit", ""),
+                rate_limit=props.get("rate-limit", ""),
+            )
+        )
+    return members
 
 
 def _parse_pool(
@@ -588,8 +700,7 @@ def _parse_pool(
     members: list[BigipPoolMember] = []
     members_block = props.get("members")
     if members_block:
-        for member_name in _parse_list_block(members_block):
-            members.append(BigipPoolMember(name=member_name))
+        members = _parse_pool_members(members_block)
     return BigipPool(
         name=name,
         full_path=full_path,
@@ -597,6 +708,16 @@ def _parse_pool(
         members=tuple(members),
         monitor=monitor,
         load_balancing_mode=lb_mode,
+        description=_description(props),
+        min_active_members=props.get("min-active-members", ""),
+        min_up_members=props.get("min-up-members", ""),
+        service_down_action=props.get("service-down-action", ""),
+        slow_ramp_time=props.get("slow-ramp-time", ""),
+        allow_snat=props.get("allow-snat", ""),
+        allow_nat=props.get("allow-nat", ""),
+        reselect_tries=props.get("reselect-tries", ""),
+        queue_depth_limit=props.get("queue-depth-limit", ""),
+        queue_time_limit=props.get("queue-time-limit", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -655,6 +776,26 @@ def _parse_virtual(
         if not snatpool:
             snatpool = sat_props.get("pool", "")
 
+    vlans: tuple[str, ...] = ()
+    vlans_block = props.get("vlans")
+    if vlans_block:
+        vlans = tuple(_parse_list_block(vlans_block))
+
+    auth_profiles: tuple[str, ...] = ()
+    auth_block = props.get("auth")
+    if auth_block:
+        auth_profiles = tuple(_parse_list_block(auth_block))
+
+    traffic_classes: tuple[str, ...] = ()
+    tc_block = props.get("traffic-classes")
+    if tc_block:
+        traffic_classes = tuple(_parse_list_block(tc_block))
+
+    clone_pools: tuple[str, ...] = ()
+    cp_block = props.get("clone-pools")
+    if cp_block:
+        clone_pools = tuple(_parse_list_block(cp_block))
+
     return BigipVirtualServer(
         name=name,
         full_path=full_path,
@@ -666,6 +807,29 @@ def _parse_virtual(
         policies=tuple(policies),
         snatpool=snatpool,
         source_address_translation=source_addr_translation,
+        description=_description(props),
+        mask=props.get("mask", ""),
+        source=props.get("source", ""),
+        ip_protocol=props.get("ip-protocol", ""),
+        connection_limit=props.get("connection-limit", ""),
+        rate_limit=props.get("rate-limit", ""),
+        rate_limit_mode=props.get("rate-limit-mode", ""),
+        auto_lasthop=props.get("auto-lasthop", ""),
+        translate_address=props.get("translate-address", ""),
+        translate_port=props.get("translate-port", ""),
+        state=_state_flag(props),
+        vlans=vlans,
+        vlans_disabled="vlans-disabled" in props,
+        vlans_enabled="vlans-enabled" in props,
+        fallback_persistence=props.get("fallback-persistence", ""),
+        last_hop_pool=props.get("last-hop-pool", ""),
+        fw_enforced_policy=props.get("fw-enforced-policy", ""),
+        fw_staged_policy=props.get("fw-staged-policy", ""),
+        flow_eviction_policy=props.get("flow-eviction-policy", ""),
+        service_policy=props.get("service-policy", ""),
+        auth_profiles=auth_profiles,
+        traffic_classes=traffic_classes,
+        clone_pools=clone_pools,
         pool_range=pool_range,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
@@ -674,34 +838,65 @@ def _parse_virtual(
 def _parse_node(full_path: str, body: str, source_map: DocumentBuffer, block: _Block) -> BigipNode:
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
+    fqdn = ""
+    fqdn_block = props.get("fqdn", "")
+    if fqdn_block.startswith("{"):
+        fqdn_props = _parse_properties(fqdn_block.strip("{}"))
+        fqdn = fqdn_props.get("name", "")
     return BigipNode(
         name=name,
         full_path=full_path,
         address=props.get("address", ""),
+        description=_description(props),
+        monitor=props.get("monitor", ""),
+        state=_state_flag(props),
+        connection_limit=props.get("connection-limit", ""),
+        rate_limit=props.get("rate-limit", ""),
+        ratio=props.get("ratio", ""),
+        fqdn=fqdn,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
 
 def _parse_profile(
-    full_path: str, profile_type_str: str, source_map: DocumentBuffer, block: _Block
+    full_path: str,
+    profile_type_str: str,
+    body: str,
+    source_map: DocumentBuffer,
+    block: _Block,
 ) -> BigipProfile:
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipProfile(
         name=name,
         full_path=full_path,
         profile_type=_classify_profile(profile_type_str),
+        defaults_from=props.get("defaults-from", ""),
+        description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
 
 def _parse_monitor(
-    full_path: str, monitor_type: str, source_map: DocumentBuffer, block: _Block
+    full_path: str,
+    monitor_type: str,
+    body: str,
+    source_map: DocumentBuffer,
+    block: _Block,
 ) -> BigipMonitor:
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipMonitor(
         name=name,
         full_path=full_path,
         monitor_type=monitor_type,
+        defaults_from=props.get("defaults-from", ""),
+        description=_description(props),
+        interval=props.get("interval", ""),
+        timeout=props.get("timeout", ""),
+        destination=props.get("destination", ""),
+        send=_unquote(props.get("send", "")),
+        recv=_unquote(props.get("recv", "")),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -719,18 +914,27 @@ def _parse_snatpool(
         name=name,
         full_path=full_path,
         members=tuple(members),
+        description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
 
 def _parse_persistence(
-    full_path: str, persistence_type: str, source_map: DocumentBuffer, block: _Block
+    full_path: str,
+    persistence_type: str,
+    body: str,
+    source_map: DocumentBuffer,
+    block: _Block,
 ) -> BigipPersistence:
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipPersistence(
         name=name,
         full_path=full_path,
         persistence_type=persistence_type,
+        defaults_from=props.get("defaults-from", ""),
+        description=_description(props),
+        timeout=props.get("timeout", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1094,6 +1298,9 @@ def _parse_policy(
         requires=tuple(requires),
         controls=tuple(controls),
         rules=tuple(rules),
+        description=_description(props),
+        status=props.get("status", ""),
+        last_modified=_unquote(props.get("last-modified", "")),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1112,6 +1319,10 @@ def _parse_net_route(
         network=props.get("network", ""),
         gw=props.get("gw", ""),
         pool=props.get("pool", ""),
+        description=_description(props),
+        mtu=props.get("mtu", ""),
+        blackhole="blackhole" in props,
+        interface=props.get("interface", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1120,6 +1331,7 @@ def _parse_net_vlan(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetVlan:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     try:
         tag = int(props["tag"].value) if "tag" in props else 0
@@ -1133,6 +1345,12 @@ def _parse_net_vlan(
         full_path=full_path,
         tag=tag,
         interfaces=interfaces,
+        description=_description(plain),
+        mtu=plain.get("mtu", ""),
+        cmp_hash=plain.get("cmp-hash", ""),
+        failsafe=plain.get("failsafe", ""),
+        auto_lasthop=plain.get("auto-lasthop", ""),
+        source_check=plain.get("source-check", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1141,6 +1359,7 @@ def _parse_net_self(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetSelf:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     allow_service: tuple[str, ...] = ()
     if "allow-service" in props:
@@ -1153,10 +1372,13 @@ def _parse_net_self(
     return BigipNetSelf(
         name=name,
         full_path=full_path,
-        address=props["address"].value if "address" in props else "",
-        vlan=props["vlan"].value if "vlan" in props else "",
-        traffic_group=props["traffic-group"].value if "traffic-group" in props else "",
+        address=plain.get("address", ""),
+        vlan=plain.get("vlan", ""),
+        traffic_group=plain.get("traffic-group", ""),
         allow_service=allow_service,
+        description=_description(plain),
+        floating=plain.get("floating", ""),
+        unit=plain.get("unit", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1165,6 +1387,7 @@ def _parse_net_route_domain(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetRouteDomain:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     try:
         id_val = int(props["id"].value) if "id" in props else 0
@@ -1178,6 +1401,11 @@ def _parse_net_route_domain(
         full_path=full_path,
         id=id_val,
         vlans=vlans,
+        description=_description(plain),
+        parent=plain.get("parent", ""),
+        strict=plain.get("strict", ""),
+        fw_enforced_policy=plain.get("fw-enforced-policy", ""),
+        fw_staged_policy=plain.get("fw-staged-policy", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1186,6 +1414,7 @@ def _parse_net_port_list(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetPortList:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     ports: tuple[str, ...] = ()
     if "ports" in props:
@@ -1194,6 +1423,7 @@ def _parse_net_port_list(
         name=name,
         full_path=full_path,
         ports=ports,
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1210,6 +1440,12 @@ def _parse_net_interface(
         name=full_path,
         full_path=full_path,
         media_fixed=props.get("media-fixed", ""),
+        description=_description(props),
+        enabled="enabled" in props,
+        disabled="disabled" in props,
+        bundle=props.get("bundle", ""),
+        bundle_speed=props.get("bundle-speed", ""),
+        lldp_admin=props.get("lldp-admin", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1218,6 +1454,7 @@ def _parse_net_dns_resolver(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetDnsResolver:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     forward_zones: tuple[str, ...] = ()
     if "forward-zones" in props:
@@ -1228,8 +1465,15 @@ def _parse_net_dns_resolver(
     return BigipNetDnsResolver(
         name=name,
         full_path=full_path,
-        route_domain=props["route-domain"].value if "route-domain" in props else "",
+        route_domain=plain.get("route-domain", ""),
         forward_zones=forward_zones,
+        description=_description(plain),
+        cache_size=plain.get("cache-size", ""),
+        randomize_query_name_case=plain.get("randomize-query-name-case", ""),
+        use_ipv4=plain.get("use-ipv4", ""),
+        use_ipv6=plain.get("use-ipv6", ""),
+        use_tcp=plain.get("use-tcp", ""),
+        use_udp=plain.get("use-udp", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1255,6 +1499,7 @@ def _parse_net_stp(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetStp:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     interfaces: tuple[str, ...] = ()
     if "interfaces" in props:
@@ -1263,6 +1508,8 @@ def _parse_net_stp(
         name=name,
         full_path=full_path,
         interfaces=interfaces,
+        description=_description(plain),
+        mode=plain.get("mode", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1333,11 +1580,14 @@ def _parse_sys_provision(
 ) -> BigipSysProvision:
     # ``sys provision <module>`` uses the bare module name as identifier
     # (e.g. ``ltm``, ``sslo``).  No partition prefix.
-    props = _parse_properties_with_spans(body)
+    props = _parse_properties(body)
     return BigipSysProvision(
         name=full_path,
         full_path=full_path,
-        level=props["level"].value if "level" in props else "",
+        level=props.get("level", ""),
+        cpu_ratio=props.get("cpu-ratio", ""),
+        memory_ratio=props.get("memory-ratio", ""),
+        disk_ratio=props.get("disk-ratio", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1345,16 +1595,20 @@ def _parse_sys_provision(
 def _parse_sys_folder(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSysFolder:
-    props = _parse_properties_with_spans(body)
+    props = _parse_properties(body)
     # ``sys folder /`` uses ``/`` as the identifier; rsplit would leave
     # ``name`` empty, so fall back to the full-path itself.
     name = full_path.rsplit("/", 1)[-1] or full_path
     return BigipSysFolder(
         name=name,
         full_path=full_path,
-        device_group=props["device-group"].value if "device-group" in props else "",
-        traffic_group=props["traffic-group"].value if "traffic-group" in props else "",
-        hidden=props["hidden"].value if "hidden" in props else "",
+        device_group=props.get("device-group", ""),
+        traffic_group=props.get("traffic-group", ""),
+        hidden=props.get("hidden", ""),
+        description=_description(props),
+        inherited_device_group=props.get("inherited-devicegroup", "")
+        or props.get("inherited-device-group", ""),
+        inherited_traffic_group=props.get("inherited-traffic-group", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1362,14 +1616,20 @@ def _parse_sys_folder(
 def _parse_sys_file_ssl_cert(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSysFileSslCert:
-    props = _parse_properties_with_spans(body)
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipSysFileSslCert(
         name=name,
         full_path=full_path,
-        source_path=props["source-path"].value if "source-path" in props else "",
-        cache_path=props["cache-path"].value if "cache-path" in props else "",
-        revision=props["revision"].value if "revision" in props else "",
+        source_path=props.get("source-path", ""),
+        cache_path=props.get("cache-path", ""),
+        revision=props.get("revision", ""),
+        description=_description(props),
+        issuer=_unquote(props.get("issuer", "")),
+        subject=_unquote(props.get("subject", "")),
+        expiration_string=_unquote(props.get("expiration-string", "")),
+        fingerprint=props.get("fingerprint", ""),
+        key_size=props.get("key-size", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1377,15 +1637,19 @@ def _parse_sys_file_ssl_cert(
 def _parse_sys_file_ssl_key(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSysFileSslKey:
-    props = _parse_properties_with_spans(body)
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipSysFileSslKey(
         name=name,
         full_path=full_path,
-        source_path=props["source-path"].value if "source-path" in props else "",
-        cache_path=props["cache-path"].value if "cache-path" in props else "",
-        revision=props["revision"].value if "revision" in props else "",
-        passphrase=props["passphrase"].value if "passphrase" in props else "",
+        source_path=props.get("source-path", ""),
+        cache_path=props.get("cache-path", ""),
+        revision=props.get("revision", ""),
+        passphrase=props.get("passphrase", ""),
+        description=_description(props),
+        key_size=props.get("key-size", ""),
+        key_type=props.get("key-type", ""),
+        security_type=props.get("security-type", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1414,6 +1678,7 @@ def _parse_security_firewall_port_list(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityFirewallPortList:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     ports: tuple[str, ...] = ()
     if "ports" in props:
@@ -1422,6 +1687,7 @@ def _parse_security_firewall_port_list(
         name=name,
         full_path=full_path,
         ports=ports,
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1430,6 +1696,7 @@ def _parse_security_firewall_rule_list(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityFirewallRuleList:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     rules: tuple[str, ...] = ()
     if "rules" in props:
@@ -1438,6 +1705,7 @@ def _parse_security_firewall_rule_list(
         name=name,
         full_path=full_path,
         rules=rules,
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1446,11 +1714,13 @@ def _parse_security_firewall_config_entity_id(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityFirewallConfigEntityId:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipSecurityFirewallConfigEntityId(
         name=name,
         full_path=full_path,
-        entity_id=props["entity-id"].value if "entity-id" in props else "",
+        entity_id=plain.get("entity-id", ""),
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1458,11 +1728,15 @@ def _parse_security_firewall_config_entity_id(
 def _parse_security_ip_intelligence_policy(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityIpIntelligencePolicy:
-    del body  # body is typically empty
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipSecurityIpIntelligencePolicy(
         name=name,
         full_path=full_path,
+        description=_description(props),
+        default_action=props.get("default-action", ""),
+        default_log_blacklist_hit_only=props.get("default-log-blacklist-hit-only", ""),
+        default_log_blacklist_category=props.get("default-log-blacklist-category", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1471,13 +1745,15 @@ def _parse_security_pi_compliance_map(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityProtocolInspectionComplianceMap:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipSecurityProtocolInspectionComplianceMap(
         name=name,
         full_path=full_path,
-        insp_id=props["insp-id"].value if "insp-id" in props else "",
-        key_type=props["key-type"].value if "key-type" in props else "",
-        value_type=props["value-type"].value if "value-type" in props else "",
+        insp_id=plain.get("insp-id", ""),
+        key_type=plain.get("key-type", ""),
+        value_type=plain.get("value-type", ""),
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1486,12 +1762,14 @@ def _parse_security_pi_compliance_object(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityProtocolInspectionComplianceObject:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipSecurityProtocolInspectionComplianceObject(
         name=name,
         full_path=full_path,
-        insp_id=props["insp-id"].value if "insp-id" in props else "",
-        type_=props["type"].value if "type" in props else "",
+        insp_id=plain.get("insp-id", ""),
+        type_=plain.get("type", ""),
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1505,6 +1783,7 @@ def _parse_security_device_id_attribute(
         name=name,
         full_path=full_path,
         id_=props["id"].value if "id" in props else "",
+        description=_description({k: v.value for k, v in props.items()}),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1529,10 +1808,45 @@ def _collect_named_property_from_subblocks(braced: str, prop_name: str) -> tuple
     return tuple(out)
 
 
+def _collect_named_property_from_anon_subblocks(braced: str, prop_name: str) -> tuple[str, ...]:
+    """For a block of anonymous sub-blocks like ``{ { ip 10.0.0.1 } { ip 10.0.0.2 } }``,
+    extract *prop_name* from every direct sub-block in document order.
+
+    Distinct from :func:`_collect_named_property_from_subblocks` which
+    expects each sub-block to carry an identifier key (``0 { ... }``).
+    """
+    inner = _strip_outer_braces(braced)
+    out: list[str] = []
+    pos = 0
+    length = len(inner)
+    while pos < length:
+        while pos < length and inner[pos] in " \t\n\r":
+            pos += 1
+        if pos >= length or inner[pos] != "{":
+            break
+        block_start = pos
+        pos += 1
+        depth = 1
+        while pos < length and depth > 0:
+            ch = inner[pos]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            pos += 1
+        block_text = inner[block_start:pos]
+        sub_inner = _strip_outer_braces(block_text)
+        sub_props = _parse_properties_with_spans(sub_inner)
+        if prop_name in sub_props:
+            out.append(sub_props[prop_name].value)
+    return tuple(out)
+
+
 def _parse_apm_ssh_security_config(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipApmEphemeralAuthSshSecurityConfig:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipApmEphemeralAuthSshSecurityConfig(
         name=name,
@@ -1553,6 +1867,7 @@ def _parse_apm_ssh_security_config(
         )
         if "compressions" in props
         else (),
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1574,6 +1889,7 @@ def _parse_apm_policy_access_policy(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipApmPolicyAccessPolicy:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     items: tuple[str, ...] = ()
     if "items" in props:
@@ -1581,9 +1897,10 @@ def _parse_apm_policy_access_policy(
     return BigipApmPolicyAccessPolicy(
         name=name,
         full_path=full_path,
-        start_item=props["start-item"].value if "start-item" in props else "",
-        default_ending=props["default-ending"].value if "default-ending" in props else "",
+        start_item=plain.get("start-item", ""),
+        default_ending=plain.get("default-ending", ""),
         items=items,
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1591,11 +1908,12 @@ def _parse_apm_policy_access_policy(
 def _parse_apm_policy_customization_source(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipApmPolicyCustomizationSource:
-    del body
+    props = _parse_properties(body) if body else {}
     name = full_path.rsplit("/", 1)[-1]
     return BigipApmPolicyCustomizationSource(
         name=name,
         full_path=full_path,
+        description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1604,6 +1922,7 @@ def _parse_apm_policy_item(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipApmPolicyItem:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     agents: tuple[str, ...] = ()
     if "agents" in props:
@@ -1611,10 +1930,11 @@ def _parse_apm_policy_item(
     return BigipApmPolicyItem(
         name=name,
         full_path=full_path,
-        caption=_strip_quotes(props["caption"].value) if "caption" in props else "",
-        color=props["color"].value if "color" in props else "",
-        item_type=props["item-type"].value if "item-type" in props else "",
+        caption=_strip_quotes(plain.get("caption", "")),
+        color=plain.get("color", ""),
+        item_type=plain.get("item-type", ""),
         agents=agents,
+        description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1688,6 +2008,16 @@ def _parse_cm_device(
     def get(key: str) -> str:
         return props[key].value if key in props else ""
 
+    unicast_address: tuple[str, ...] = ()
+    if "unicast-address" in props:
+        # Either anonymous sub-blocks (``{ { ip ... } { ip ... } }``)
+        # or numerically-keyed sub-blocks; try both shapes so we surface
+        # the bare ``ip`` values regardless of which form was emitted.
+        ua_value = props["unicast-address"].value
+        unicast_address = _collect_named_property_from_anon_subblocks(
+            ua_value, "ip"
+        ) or _collect_named_property_from_subblocks(ua_value, "ip")
+
     return BigipCmDevice(
         name=name,
         full_path=full_path,
@@ -1705,6 +2035,16 @@ def _parse_cm_device(
         time_zone=get("time-zone"),
         cert=get("cert"),
         key=get("key"),
+        description=_strip_quotes(get("description")),
+        comment=_strip_quotes(get("comment")),
+        contact=_strip_quotes(get("contact")),
+        location=_strip_quotes(get("location")),
+        mirror_ip=get("mirror-ip"),
+        mirror_secondary_ip=get("mirror-secondary-ip"),
+        multicast_interface=get("multicast-interface"),
+        multicast_ip=get("multicast-ip"),
+        multicast_port=get("multicast-port"),
+        unicast_address=unicast_address,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1713,6 +2053,7 @@ def _parse_cm_device_group(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipCmDeviceGroup:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     devices: tuple[str, ...] = ()
     if "devices" in props:
@@ -1720,10 +2061,16 @@ def _parse_cm_device_group(
     return BigipCmDeviceGroup(
         name=name,
         full_path=full_path,
-        auto_sync=props["auto-sync"].value if "auto-sync" in props else "",
-        network_failover=(props["network-failover"].value if "network-failover" in props else ""),
-        hidden=props["hidden"].value if "hidden" in props else "",
+        auto_sync=plain.get("auto-sync", ""),
+        network_failover=plain.get("network-failover", ""),
+        hidden=plain.get("hidden", ""),
         devices=devices,
+        description=_description(plain),
+        type_=plain.get("type", ""),
+        save_on_auto_sync=plain.get("save-on-auto-sync", ""),
+        full_load_on_sync=plain.get("full-load-on-sync", ""),
+        asm_sync=plain.get("asm-sync", ""),
+        incremental_config_sync_size_max=plain.get("incremental-config-sync-size-max", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1732,11 +2079,22 @@ def _parse_cm_traffic_group(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipCmTrafficGroup:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
+    ha_order: tuple[str, ...] = ()
+    if "ha-order" in props:
+        ha_order = tuple(_parse_list_block(props["ha-order"].value))
     return BigipCmTrafficGroup(
         name=name,
         full_path=full_path,
-        unit_id=props["unit-id"].value if "unit-id" in props else "",
+        unit_id=plain.get("unit-id", ""),
+        description=_description(plain),
+        default_device=plain.get("default-device", ""),
+        ha_load_factor=plain.get("ha-load-factor", ""),
+        ha_order=ha_order,
+        auto_failback_enabled=plain.get("auto-failback-enabled", ""),
+        auto_failback_time=plain.get("auto-failback-time", ""),
+        mac=plain.get("mac", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1770,12 +2128,18 @@ def _parse_gtm_datacenter(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipGtmDatacenter:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipGtmDatacenter(
         name=name,
         full_path=full_path,
-        contact=_strip_quotes(props["contact"].value) if "contact" in props else "",
-        location=_strip_quotes(props["location"].value) if "location" in props else "",
+        contact=_strip_quotes(plain.get("contact", "")),
+        location=_strip_quotes(plain.get("location", "")),
+        description=_description(plain),
+        prober_pool=plain.get("prober-pool", ""),
+        prober_preference=plain.get("prober-preference", ""),
+        prober_fallback=plain.get("prober-fallback", ""),
+        state=_state_flag(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1784,6 +2148,7 @@ def _parse_gtm_server(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipGtmServer:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     # ``devices { 0 { addresses { 10.2.3.7 { } } } 1 { ... } }`` —
     # flatten every address across every numbered device sub-block.
@@ -1812,11 +2177,24 @@ def _parse_gtm_server(
     return BigipGtmServer(
         name=name,
         full_path=full_path,
-        datacenter=props["datacenter"].value if "datacenter" in props else "",
-        monitor=props["monitor"].value if "monitor" in props else "",
-        product=props["product"].value if "product" in props else "",
+        datacenter=plain.get("datacenter", ""),
+        monitor=plain.get("monitor", ""),
+        product=plain.get("product", ""),
         addresses=tuple(addresses),
         virtual_servers=tuple(virtual_servers),
+        description=_description(plain),
+        state=_state_flag(plain),
+        prober_pool=plain.get("prober-pool", ""),
+        prober_preference=plain.get("prober-preference", ""),
+        prober_fallback=plain.get("prober-fallback", ""),
+        virtual_server_discovery=plain.get("virtual-server-discovery", ""),
+        expose_route_domains=plain.get("expose-route-domains", ""),
+        iq_allow_path=plain.get("iq-allow-path", ""),
+        iq_allow_service_check=plain.get("iq-allow-service-check", ""),
+        iq_allow_snmp=plain.get("iq-allow-snmp", ""),
+        limit_max_bps=plain.get("limit-max-bps", ""),
+        limit_max_connections=plain.get("limit-max-connections", ""),
+        limit_max_pps=plain.get("limit-max-pps", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1829,6 +2207,7 @@ def _parse_gtm_pool(
     block: _Block,
 ) -> BigipGtmPool:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     members: tuple[str, ...] = ()
     if "members" in props:
@@ -1838,13 +2217,25 @@ def _parse_gtm_pool(
         full_path=full_path,
         record_type=record_type,
         members=members,
-        monitor=props["monitor"].value if "monitor" in props else "",
-        alternate_mode=props["alternate-mode"].value if "alternate-mode" in props else "",
-        fallback_mode=props["fallback-mode"].value if "fallback-mode" in props else "",
-        load_balancing_mode=(
-            props["load-balancing-mode"].value if "load-balancing-mode" in props else ""
-        ),
-        ttl=props["ttl"].value if "ttl" in props else "",
+        monitor=plain.get("monitor", ""),
+        alternate_mode=plain.get("alternate-mode", ""),
+        fallback_mode=plain.get("fallback-mode", ""),
+        load_balancing_mode=plain.get("load-balancing-mode", ""),
+        ttl=plain.get("ttl", ""),
+        description=_description(plain),
+        state=_state_flag(plain),
+        verify_member_availability=plain.get("verify-member-availability", ""),
+        fallback_ip=plain.get("fallback-ip", ""),
+        max_answers_returned=plain.get("max-answers-returned", ""),
+        qos_hit_ratio=plain.get("qos-hit-ratio", ""),
+        qos_hops=plain.get("qos-hops", ""),
+        qos_kbps=plain.get("qos-kilobytes-second", "") or plain.get("qos-kbps", ""),
+        qos_lcs=plain.get("qos-lcs", ""),
+        qos_packet_rate=plain.get("qos-packet-rate", ""),
+        qos_rtt=plain.get("qos-rtt", ""),
+        qos_topology=plain.get("qos-topology", ""),
+        qos_vs_capacity=plain.get("qos-vs-capacity", ""),
+        qos_vs_score=plain.get("qos-vs-score", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1857,6 +2248,7 @@ def _parse_gtm_wideip(
     block: _Block,
 ) -> BigipGtmWideip:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     pools: tuple[str, ...] = ()
     if "pools" in props:
@@ -1878,8 +2270,19 @@ def _parse_gtm_wideip(
         record_type=record_type,
         pools=pools,
         aliases=aliases,
-        pool_lb_mode=props["pool-lb-mode"].value if "pool-lb-mode" in props else "",
+        pool_lb_mode=plain.get("pool-lb-mode", ""),
         last_resort_pool=last_resort,
+        description=_description(plain),
+        state=_state_flag(plain),
+        failure_rcode=plain.get("failure-rcode", ""),
+        failure_rcode_response=plain.get("failure-rcode-response", ""),
+        failure_rcode_ttl=plain.get("failure-rcode-ttl", ""),
+        minimal_response=plain.get("minimal-response", ""),
+        persistence=plain.get("persistence", ""),
+        persist_cidr_ipv4=plain.get("persist-cidr-ipv4", ""),
+        persist_cidr_ipv6=plain.get("persist-cidr-ipv6", ""),
+        topology_prefer_edns0_client_subnet=plain.get("topology-prefer-edns0-client-subnet", ""),
+        ttl_persistence=plain.get("ttl-persistence", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1888,6 +2291,7 @@ def _parse_gtm_prober_pool(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipGtmProberPool:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     members: tuple[str, ...] = ()
     if "members" in props:
@@ -1895,11 +2299,10 @@ def _parse_gtm_prober_pool(
     return BigipGtmProberPool(
         name=name,
         full_path=full_path,
-        description=_strip_quotes(props["description"].value) if "description" in props else "",
-        load_balancing_mode=(
-            props["load-balancing-mode"].value if "load-balancing-mode" in props else ""
-        ),
+        description=_description(plain),
+        load_balancing_mode=plain.get("load-balancing-mode", ""),
         members=members,
+        state=_state_flag(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -2271,15 +2674,17 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     config.policies[full_path] = policy
             case _ if obj_type.startswith("profile "):
                 profile_type_str = obj_type.split(" ", 1)[1]
-                profile = _parse_profile(full_path, profile_type_str, source_map, block)
+                profile = _parse_profile(full_path, profile_type_str, block.body, source_map, block)
                 config.profiles[full_path] = profile
             case _ if obj_type.startswith("persistence "):
                 persistence_type = obj_type.split(" ", 1)[1]
-                persist = _parse_persistence(full_path, persistence_type, source_map, block)
+                persist = _parse_persistence(
+                    full_path, persistence_type, block.body, source_map, block
+                )
                 config.persistence[full_path] = persist
             case _ if obj_type.startswith("monitor "):
                 monitor_type = obj_type.split(" ", 1)[1]
-                monitor = _parse_monitor(full_path, monitor_type, source_map, block)
+                monitor = _parse_monitor(full_path, monitor_type, block.body, source_map, block)
                 config.monitors[full_path] = monitor
 
     return config
