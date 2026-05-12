@@ -33,7 +33,7 @@ the transforms.
 
 ### VS Code Copilot Chat
 
-`@irule /convert` — runs the detection and explains each suggestion.
+`@irule /find-legacy` — runs the detection and rewrites the iRule with the modern replacements.
 
 ### tcl-lsp CLI
 
@@ -71,6 +71,6 @@ $ tcl find-legacy old_irule.irul
 ## Related
 
 - [KCS feature index](README.md)
-- [Chat Slash Commands](kcs-feature-chat-slash-commands.md) — the `/convert` and `/migrate` commands
+- [Chat Slash Commands](kcs-feature-chat-slash-commands.md) — the `/find-legacy` and `/migrate` commands
 - [Diagnostics](kcs-feature-diagnostics.md) — the analyser codes the converter detects
 - [XC Translation](kcs-feature-xc-translation.md) — translates iRules to F5 Distributed Cloud (different target)

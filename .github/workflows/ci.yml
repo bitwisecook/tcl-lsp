@@ -412,7 +412,7 @@ jobs:
           python3 build/tcl-*.pyz symbols samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz callgraph samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz command-info HTTP::uri --dialect f5-irules --json
-          python3 build/tcl-*.pyz convert samples/for_screenshots/ai-scene.irul --json
+          python3 build/tcl-*.pyz find-legacy samples/for_screenshots/ai-scene.irul --json
           python3 build/tcl-*.pyz highlight samples/for_screenshots/ai-scene.irul --no-colour
           python3 build/tcl-*.pyz diff samples/for_screenshots/ai-scene.irul samples/for_screenshots/ai-scene.irul --show ast --json
           python3 build/tcl-*.pyz help taint --dialect f5-irules

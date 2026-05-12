@@ -9,7 +9,7 @@ Subcommands:
     diagnostics <file>          Show diagnostics from the analyzer
     validate <file>             Categorized validation report (errors, security, taint, etc.)
     review <file>               Security-focused diagnostic report
-    convert <file>              Detect legacy patterns eligible for modernisation
+    find-legacy <file>          Detect legacy patterns eligible for modernisation
     symbols <file>              Show document symbol hierarchy
     diagram <file>              Extract control flow from compiler IR
     optimize <file>             Show optimization suggestions and rewritten source
@@ -396,10 +396,10 @@ def cmd_review(source: str, file_path: str) -> None:
     print(f"\n  Total security-related issues: {len(security_diags)}")
 
 
-# Subcommand: convert (legacy pattern detection)
+# Subcommand: find-legacy (legacy pattern detection)
 
 
-def cmd_convert(source: str, file_path: str) -> None:
+def cmd_find_legacy(source: str, file_path: str) -> None:
     from core.analysis import analyse
 
     result = analyse(source)
@@ -2045,7 +2045,7 @@ examples:
   %(prog)s diagnostics samples/for_screenshots/ai-scene.irul
   %(prog)s validate samples/for_screenshots/ai-scene.irul
   %(prog)s review samples/for_screenshots/ai-scene.irul
-  %(prog)s convert samples/for_screenshots/ai-scene.irul
+  %(prog)s find-legacy samples/for_screenshots/ai-scene.irul
   %(prog)s diagram samples/for_screenshots/ai-scene.irul
   %(prog)s event-order samples/for_screenshots/ai-scene.irul
   %(prog)s event-info HTTP_REQUEST
@@ -2068,7 +2068,10 @@ examples:
     p = sub.add_parser("review", help="Security-focused diagnostic report")
     p.add_argument("file", help="Tcl/iRule file to review")
 
-    p = sub.add_parser("convert", help="Detect legacy patterns eligible for modernisation")
+    p = sub.add_parser(
+        "find-legacy",
+        help="Detect legacy patterns eligible for modernisation (detection only).",
+    )
     p.add_argument("file", help="Tcl/iRule file to scan")
 
     p = sub.add_parser("symbols", help="Show document symbol hierarchy")
@@ -2210,8 +2213,8 @@ examples:
             cmd_validate(source, file_path)
         case "review":
             cmd_review(source, file_path)
-        case "convert":
-            cmd_convert(source, file_path)
+        case "find-legacy":
+            cmd_find_legacy(source, file_path)
         case "symbols":
             cmd_symbols(source, file_path)
         case "diagram":
