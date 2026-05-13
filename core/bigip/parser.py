@@ -1239,15 +1239,7 @@ def _parse_net_tunnel(
 ) -> BigipNetTunnel:
     props = _parse_properties_with_spans(body)
     name = full_path.rsplit("/", 1)[-1]
-    description = ""
-    if "description" in props:
-        desc = props["description"].value
-        # Description values are usually quoted; strip the outermost
-        # double quotes when present so users see the raw text.
-        if desc.startswith('"') and desc.endswith('"'):
-            description = desc[1:-1]
-        else:
-            description = desc
+    description = _strip_quotes(props["description"].value) if "description" in props else ""
     return BigipNetTunnel(
         name=name,
         full_path=full_path,
@@ -1403,13 +1395,7 @@ def _parse_sys_management_route(
 ) -> BigipSysManagementRoute:
     props = _parse_properties_with_spans(body)
     name = full_path.rsplit("/", 1)[-1]
-    description = ""
-    if "description" in props:
-        desc = props["description"].value
-        if desc.startswith('"') and desc.endswith('"'):
-            description = desc[1:-1]
-        else:
-            description = desc
+    description = _strip_quotes(props["description"].value) if "description" in props else ""
     return BigipSysManagementRoute(
         name=name,
         full_path=full_path,
@@ -1526,15 +1512,6 @@ def _parse_security_device_id_attribute(
 # apm.* parsers
 
 
-def _strip_outer_braces(braced: str) -> str:
-    inner = braced.strip()
-    if inner.startswith("{"):
-        inner = inner[1:]
-    if inner.endswith("}"):
-        inner = inner[:-1]
-    return inner
-
-
 def _collect_named_property_from_subblocks(braced: str, prop_name: str) -> tuple[str, ...]:
     """For a block like ``{ 1 { cipher-name aes256-ctr } 2 { ... } }``,
     return the ``prop_name`` value from every direct sub-block, in
@@ -1550,12 +1527,6 @@ def _collect_named_property_from_subblocks(braced: str, prop_name: str) -> tuple
         if prop_name in sub_props:
             out.append(sub_props[prop_name].value)
     return tuple(out)
-
-
-def _strip_quotes(value: str) -> str:
-    if value.startswith('"') and value.endswith('"') and len(value) >= 2:
-        return value[1:-1]
-    return value
 
 
 def _parse_apm_ssh_security_config(

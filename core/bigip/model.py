@@ -877,6 +877,8 @@ class BigipConfig:
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)
     snat_pools: dict[str, BigipSnatPool] = field(default_factory=dict)
     persistence: dict[str, BigipPersistence] = field(default_factory=dict)
+    # LTM iRules only.  GTM iRules live in ``gtm_rules`` so a tenant
+    # with the same partition path in both modules does not collide.
     rules: dict[str, BigipRule] = field(default_factory=dict)
     policies: dict[str, BigipPolicy] = field(default_factory=dict)
     # net.* — typed projection for the network module.
@@ -931,6 +933,11 @@ class BigipConfig:
         default_factory=dict
     )
     apm_policy_items: dict[str, BigipApmPolicyItem] = field(default_factory=dict)
+    # All three ``apm policy agent <type>`` sub-kinds (``ending-allow``,
+    # ``ending-deny``, ``kerberos``) merge into this single container.
+    # TMSH enforces full-path uniqueness across the sub-kinds, so the
+    # dict key is unambiguous; the ``agent_type`` field on each value
+    # distinguishes which sub-kind a row came from.
     apm_policy_agents: dict[str, BigipApmPolicyAgent] = field(default_factory=dict)
     apm_report_default_report: dict[str, BigipApmReportDefaultReport] = field(default_factory=dict)
     # cm.* — cluster / trust / traffic-group state.
@@ -943,6 +950,12 @@ class BigipConfig:
     # gtm.* — Global Traffic Manager / DNS load-balancing state.
     gtm_datacenters: dict[str, BigipGtmDatacenter] = field(default_factory=dict)
     gtm_servers: dict[str, BigipGtmServer] = field(default_factory=dict)
+    # All six ``gtm pool <record-type>`` (a, aaaa, cname, mx, srv,
+    # naptr) variants merge into this single container; same for
+    # ``gtm_wideips`` below.  TMSH enforces full-path uniqueness
+    # across the variants (a config can't carry both ``gtm pool a /X``
+    # and ``gtm pool aaaa /X``), so the dict key is unambiguous; the
+    # ``record_type`` field disambiguates within each row.
     gtm_pools: dict[str, BigipGtmPool] = field(default_factory=dict)
     gtm_wideips: dict[str, BigipGtmWideip] = field(default_factory=dict)
     gtm_prober_pools: dict[str, BigipGtmProberPool] = field(default_factory=dict)
