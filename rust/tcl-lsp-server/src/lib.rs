@@ -63,24 +63,24 @@ use tower_lsp::lsp_types::{
     CallHierarchyServerCapability, CodeAction, CodeActionOrCommand, CodeActionParams,
     CodeActionProviderCapability, CodeLens, CodeLensOptions, CodeLensParams, CompletionItem,
     CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    DeclarationCapability, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentHighlight, DocumentHighlightKind,
-    DocumentHighlightParams, DocumentLink, DocumentLinkOptions, DocumentLinkParams,
-    DocumentRangeFormattingParams, DocumentSymbol, DocumentSymbolParams, DocumentSymbolResponse,
-    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams,
-    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, LinkedEditingRangeParams, LinkedEditingRanges, Location,
-    MarkupContent, MarkupKind, MessageType, OneOf, ParameterInformation, ParameterLabel, Position,
-    Range, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
-    SelectionRangeProviderCapability, SemanticTokens as LspSemanticTokens,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensResult, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
-    SignatureHelp, SignatureHelpOptions, SignatureHelpParams, SignatureInformation,
-    SymbolInformation, SymbolKind, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    TypeDefinitionProviderCapability, Url, WorkDoneProgressOptions, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    DeclarationCapability, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, DocumentLink,
+    DocumentLinkOptions, DocumentLinkParams, DocumentRangeFormattingParams, DocumentSymbol,
+    DocumentSymbolParams, DocumentSymbolResponse, Documentation, FoldingRange, FoldingRangeKind,
+    FoldingRangeParams, FoldingRangeProviderCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, InitializeResult, InitializedParams,
+    InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, LinkedEditingRangeParams,
+    LinkedEditingRanges, Location, MarkupContent, MarkupKind, MessageType, OneOf,
+    ParameterInformation, ParameterLabel, Position, Range, ReferenceParams, RenameParams,
+    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    SemanticTokens as LspSemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelp,
+    SignatureHelpOptions, SignatureHelpParams, SignatureInformation, SymbolInformation, SymbolKind,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TypeDefinitionProviderCapability,
+    Url, WorkDoneProgressOptions, WorkspaceEdit, WorkspaceSymbolParams,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -113,15 +113,18 @@ impl DocumentState {
 pub struct Backend {
     client: Client,
     documents: Mutex<HashMap<Url, DocumentState>>,
-    default_dialect: String,
+    /// Fallback dialect string used when ``did_open`` cannot derive
+    /// one from the ``languageId`` and no per-session
+    /// ``workspace/didChangeConfiguration`` has been received yet.
+    /// Updated by ``did_change_configuration`` so editor reconfigures
+    /// take effect for subsequently-opened documents.
+    default_dialect: Mutex<String>,
     dialect_registries: Mutex<HashMap<String, Arc<CommandRegistry>>>,
 }
 
 impl std::fmt::Debug for Backend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("default_dialect", &self.default_dialect)
-            .finish_non_exhaustive()
+        f.debug_struct("Backend").finish_non_exhaustive()
     }
 }
 
@@ -142,9 +145,60 @@ impl Backend {
         Self {
             client,
             documents: Mutex::new(HashMap::new()),
-            default_dialect: "tcl8.6".to_owned(),
+            default_dialect: Mutex::new("tcl8.6".to_owned()),
             dialect_registries: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Resolve the dialect string a freshly opened document should
+    /// be tagged with.
+    ///
+    /// Prefer a dialect derived from the LSP ``languageId`` field
+    /// (so ``"tcl-irule"``/``"f5-irules"``/``"tcl9.0"``/etc. set the
+    /// per-document dialect without relying on
+    /// ``workspace/didChangeConfiguration``).  Fall back to the
+    /// session-wide ``default_dialect`` when the language id does
+    /// not name a known dialect.
+    async fn dialect_for_open(&self, language_id: &str) -> String {
+        if let Some(d) = Self::dialect_from_language_id(language_id) {
+            return d.to_owned();
+        }
+        self.default_dialect.lock().await.clone()
+    }
+
+    /// Map an LSP ``languageId`` string to a dialect name accepted
+    /// by ``DialectSet::parse`` / the providers' ``dialect`` arg.
+    ///
+    /// Recognises the editor-extension language ids
+    /// (``tcl-irule`` → ``f5-irules``, etc.) plus the canonical
+    /// dialect names used by the MCP bridge / direct callers
+    /// (``f5-irules``, ``tcl9.0``, …).  Returns ``None`` when the
+    /// language id does not name a known dialect — the caller falls
+    /// back to the session default.
+    fn dialect_from_language_id(language_id: &str) -> Option<&'static str> {
+        // Group editor language ids alongside the canonical dialect
+        // name they map to so callers in either world land on the
+        // string the registry / provider trait expects.
+        let mapped = match language_id {
+            "tcl" | "tcl8.6" => "tcl8.6",
+            "tcl8.4" => "tcl8.4",
+            "tcl8.5" => "tcl8.5",
+            "tcl9.0" => "tcl9.0",
+            "tcl-irule" | "f5-irules" => "f5-irules",
+            "tcl-iapp" | "f5-iapps" => "f5-iapps",
+            "tcl-expect" | "expect" => "expect",
+            "tcl-synopsys" | "synopsys-eda-tcl" => "synopsys-eda-tcl",
+            "tcl-cadence" | "cadence-eda-tcl" => "cadence-eda-tcl",
+            "tcl-xilinx" | "xilinx-eda-tcl" => "xilinx-eda-tcl",
+            "tcl-quartus" | "intel-quartus-eda-tcl" => "intel-quartus-eda-tcl",
+            "tcl-mentor" | "mentor-eda-tcl" => "mentor-eda-tcl",
+            "tk" => "tk",
+            _ => return None,
+        };
+        // Sanity-check the mapped string is something the registry
+        // accepts; guards against typos in the table.
+        debug_assert!(DialectSet::parse(mapped).is_some());
+        Some(mapped)
     }
 
     async fn read_document(&self, url: &Url) -> Option<DocumentState> {
@@ -300,10 +354,13 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        let dialect = self
+            .dialect_for_open(&params.text_document.language_id)
+            .await;
         let mut docs = self.documents.lock().await;
         docs.insert(
             params.text_document.uri,
-            DocumentState::new(params.text_document.text, self.default_dialect.clone()),
+            DocumentState::new(params.text_document.text, dialect),
         );
     }
 
@@ -315,12 +372,36 @@ impl LanguageServer for Backend {
         };
         let mut docs = self.documents.lock().await;
         if let Some(doc) = docs.get_mut(&params.text_document.uri) {
+            // Preserve the document's dialect across edits; only the
+            // text content changes here.
             doc.text = change.text;
         } else {
+            // didChange before didOpen — fall back to the session
+            // default dialect; the languageId is not available here.
+            let dialect = self.default_dialect.lock().await.clone();
             docs.insert(
                 params.text_document.uri,
-                DocumentState::new(change.text, self.default_dialect.clone()),
+                DocumentState::new(change.text, dialect),
             );
+        }
+    }
+
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        // Accept ``{"tclLsp": {"dialect": "<name>"}}`` in either the
+        // VS Code-style nested shape or the flat ``{"dialect":
+        // "<name>"}`` shape (used by the MCP bridge). Update the
+        // session default so newly opened documents pick up the
+        // change; existing documents keep the dialect they were
+        // opened with.
+        let dialect = params
+            .settings
+            .get("tclLsp")
+            .and_then(|v| v.get("dialect"))
+            .or_else(|| params.settings.get("dialect"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
+        if let Some(d) = dialect {
+            *self.default_dialect.lock().await = d;
         }
     }
 
@@ -1171,6 +1252,41 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dialect_from_language_id_recognises_editor_ids() {
+        assert_eq!(
+            Backend::dialect_from_language_id("tcl-irule"),
+            Some("f5-irules"),
+        );
+        assert_eq!(
+            Backend::dialect_from_language_id("tcl-iapp"),
+            Some("f5-iapps"),
+        );
+        assert_eq!(Backend::dialect_from_language_id("tcl"), Some("tcl8.6"));
+    }
+
+    #[test]
+    fn dialect_from_language_id_passes_through_canonical_names() {
+        assert_eq!(
+            Backend::dialect_from_language_id("f5-irules"),
+            Some("f5-irules"),
+        );
+        assert_eq!(Backend::dialect_from_language_id("tcl9.0"), Some("tcl9.0"),);
+        assert_eq!(
+            Backend::dialect_from_language_id("synopsys-eda-tcl"),
+            Some("synopsys-eda-tcl"),
+        );
+    }
+
+    #[test]
+    fn dialect_from_language_id_returns_none_for_unknown_ids() {
+        assert!(Backend::dialect_from_language_id("plaintext").is_none());
+        assert!(Backend::dialect_from_language_id("").is_none());
+        // ``tcl-bigip`` is a BIG-IP config language id with no Tcl
+        // dialect counterpart — falls back to the session default.
+        assert!(Backend::dialect_from_language_id("tcl-bigip").is_none());
+    }
 
     /// The folding-range lift maps `FoldKind::Comment` to the LSP
     /// `Comment` kind and `FoldKind::Region` to `Region`. The

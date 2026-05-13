@@ -7,6 +7,13 @@ Implements the MCP protocol (JSON-RPC 2.0 over stdio) directly — no heavy
 SDK, no pydantic, no C extensions.  The entire server is pure Python so it
 runs cleanly from a zipapp.
 
+The LSP-feature tools (hover, completion, goto_definition, find_references,
+symbols, code_actions, rename) drive the Rust ``tcl-lsp-server`` binary
+over JSON-RPC.  The binary is located via ``$TCL_LSP_SERVER_BIN``, then
+``PATH``, then ``target/release/tcl-lsp-server`` / ``target/debug/``
+relative to the repo root.  A single subprocess is reused for the lifetime
+of the MCP session.
+
 Usage:
     python -m ai.mcp.tcl_mcp_server          # dev mode
     python tcl-lsp-mcp-server.pyz              # zipapp mode
@@ -14,9 +21,15 @@ Usage:
 
 from __future__ import annotations
 
+import atexit
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import threading
+from pathlib import Path
 from typing import Any
 
 from ai.shared.diagnostics import (
@@ -187,6 +200,320 @@ def run_stdio() -> None:
             _write_message(_error(msg_id, -32603, str(e)))
 
 
+# Rust LSP client — drives `tcl-lsp-server` over JSON-RPC 2.0
+
+_LSP_TIMEOUT = float(os.environ.get("TCL_MCP_LSP_TIMEOUT", "30"))
+
+
+def _find_rust_lsp_binary() -> str:
+    """Locate the ``tcl-lsp-server`` binary.
+
+    Order: ``$TCL_LSP_SERVER_BIN`` → ``PATH`` → ``target/{release,debug}/``
+    relative to either the cwd or this file's repo root (when running
+    from source — the zipapp case relies on the env var or PATH).
+    """
+    override = os.environ.get("TCL_LSP_SERVER_BIN")
+    if override:
+        if not Path(override).is_file():
+            raise FileNotFoundError(f"TCL_LSP_SERVER_BIN={override!r} not found")
+        return override
+
+    on_path = shutil.which("tcl-lsp-server")
+    if on_path:
+        return on_path
+
+    candidates: list[Path] = []
+    # When running from source we live at ai/mcp/tcl_mcp_server.py
+    here = Path(__file__).resolve()
+    for parent in (here.parent, *here.parents):
+        for variant in ("target/release/tcl-lsp-server", "target/debug/tcl-lsp-server"):
+            candidates.append(parent / variant)
+    # And from the cwd, as a fall-back for unusual layouts.
+    cwd = Path.cwd()
+    for variant in ("target/release/tcl-lsp-server", "target/debug/tcl-lsp-server"):
+        candidates.append(cwd / variant)
+
+    for c in candidates:
+        if c.is_file() and os.access(c, os.X_OK):
+            return str(c)
+
+    raise FileNotFoundError(
+        "tcl-lsp-server binary not found. Set TCL_LSP_SERVER_BIN, add it to "
+        "PATH, or build it with `cargo build --release -p tcl-lsp-server`."
+    )
+
+
+class _RustLspClient:
+    """Minimal JSON-RPC client over the Rust LSP server's stdio.
+
+    One subprocess is reused for the lifetime of the MCP session.  All
+    tool calls go through ``with_document`` which handles didOpen/didClose
+    around a single request, so each MCP call is otherwise stateless.
+    """
+
+    def __init__(self) -> None:
+        self._process: subprocess.Popen | None = None
+        self._lock = threading.Lock()
+        self._send_lock = threading.Lock()
+        self._request_id = 0
+        self._pending: dict[int, dict] = {}
+        self._notifications: list[dict] = []
+        self._reader_thread: threading.Thread | None = None
+        self._running = False
+        self._initialized = False
+        self._doc_version = 0
+        self._open_uris: set[str] = set()
+        self._configured_dialect: str | None = None
+
+    def _send(self, msg: dict) -> None:
+        assert self._process and self._process.stdin
+        body = json.dumps(msg).encode("utf-8")
+        header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+        with self._send_lock:
+            self._process.stdin.write(header + body)
+            self._process.stdin.flush()
+
+    def _read_message(self) -> dict | None:
+        assert self._process and self._process.stdout
+        stdout = self._process.stdout
+        content_length = 0
+        while True:
+            line = stdout.readline()
+            if not line:
+                return None
+            line_str = line.decode("utf-8", errors="replace").rstrip("\r\n")
+            if not line_str:
+                break
+            if line_str.lower().startswith("content-length:"):
+                content_length = int(line_str.split(":", 1)[1].strip())
+        if content_length <= 0:
+            return None
+        body = stdout.read(content_length)
+        if not body:
+            return None
+        return json.loads(body.decode("utf-8"))
+
+    def _reader_loop(self) -> None:
+        while self._running:
+            try:
+                msg = self._read_message()
+            except Exception:
+                break
+            if msg is None:
+                break
+            if "id" in msg and "method" not in msg:
+                with self._lock:
+                    entry = self._pending.get(msg["id"])
+                if entry is not None:
+                    entry["result"] = msg
+                    entry["event"].set()
+            elif "method" in msg and "id" not in msg:
+                with self._lock:
+                    self._notifications.append(msg)
+            # Server-issued requests (e.g. workDoneProgress/create) are
+            # ignored — the Rust server runs without progress reporting
+            # for these single-shot calls.
+
+    def start(self) -> None:
+        if self._process is not None:
+            return
+        binary = _find_rust_lsp_binary()
+        # Drop into a known-safe CWD: the binary may try to canonicalise
+        # the workspace root.  Using "/" keeps things deterministic.
+        self._process = subprocess.Popen(
+            [binary],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            cwd="/",
+        )
+        self._running = True
+        self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
+        self._reader_thread.start()
+
+    def request(self, method: str, params: dict, timeout: float = _LSP_TIMEOUT) -> Any:
+        self.start()
+        if not self._initialized:
+            self._do_initialize()
+        return self._raw_request(method, params, timeout=timeout)
+
+    def _raw_request(self, method: str, params: dict, *, timeout: float) -> Any:
+        with self._lock:
+            self._request_id += 1
+            rid = self._request_id
+            event = threading.Event()
+            self._pending[rid] = {"event": event, "result": None}
+        self._send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+        if not event.wait(timeout):
+            raise TimeoutError(f"Timed out waiting for LSP response to {method!r}")
+        with self._lock:
+            entry = self._pending.pop(rid)
+        result = entry["result"]
+        if result is None:
+            raise RuntimeError(f"LSP server returned no response for {method!r}")
+        if "error" in result:
+            err = result["error"]
+            raise RuntimeError(
+                f"LSP error {err.get('code', '?')}: {err.get('message', '<no message>')}"
+            )
+        return result.get("result")
+
+    def notify(self, method: str, params: dict | None = None) -> None:
+        self.start()
+        msg: dict = {"jsonrpc": "2.0", "method": method}
+        if params is not None:
+            msg["params"] = params
+        self._send(msg)
+
+    def _do_initialize(self) -> None:
+        # Mirror the capability set the Rust server cares about — a
+        # minimal advertisement is enough for the per-tool requests
+        # used here.  ``rootUri`` is null because the MCP tools never
+        # open real workspaces.
+        self._raw_request(
+            "initialize",
+            {
+                "processId": os.getpid(),
+                "rootUri": None,
+                "capabilities": {
+                    "textDocument": {
+                        "hover": {"contentFormat": ["markdown", "plaintext"]},
+                        "completion": {
+                            "completionItem": {
+                                "snippetSupport": False,
+                                "documentationFormat": ["markdown", "plaintext"],
+                            }
+                        },
+                        "definition": {"linkSupport": False},
+                        "references": {},
+                        "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                        "codeAction": {
+                            "codeActionLiteralSupport": {
+                                "codeActionKind": {"valueSet": []},
+                            }
+                        },
+                        "rename": {"prepareSupport": False},
+                        "publishDiagnostics": {"relatedInformation": False},
+                    },
+                    "workspace": {"configuration": False, "workspaceFolders": False},
+                },
+            },
+            timeout=_LSP_TIMEOUT,
+        )
+        self.notify("initialized", {})
+        self._initialized = True
+
+    def configure_dialect(self, dialect: str) -> None:
+        if dialect == self._configured_dialect:
+            return
+        self.start()
+        if not self._initialized:
+            self._do_initialize()
+        self.notify(
+            "workspace/didChangeConfiguration",
+            {"settings": {"tclLsp": {"dialect": dialect}}},
+        )
+        self._configured_dialect = dialect
+
+    def open_source(self, source: str, dialect: str) -> str:
+        """Open *source* as a synthetic in-memory document; returns the URI."""
+        self.configure_dialect(dialect)
+        self._doc_version += 1
+        ext = ".irul" if dialect == "f5-irules" else ".tcl"
+        uri = f"file:///mcp/source-{self._doc_version}{ext}"
+        language_id = "f5-irules" if dialect == "f5-irules" else "tcl"
+        self.notify(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": language_id,
+                    "version": self._doc_version,
+                    "text": source,
+                },
+            },
+        )
+        self._open_uris.add(uri)
+        return uri
+
+    def close(self, uri: str) -> None:
+        if uri in self._open_uris:
+            try:
+                self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
+            except Exception:
+                pass
+            self._open_uris.discard(uri)
+
+    def collect_diagnostics(self, uri: str, *, deadline: float = 1.5) -> list[dict]:
+        """Drain ``publishDiagnostics`` notifications for *uri*."""
+        import time
+
+        end = time.monotonic() + deadline
+        while time.monotonic() < end:
+            with self._lock:
+                hit = any(
+                    n.get("method") == "textDocument/publishDiagnostics"
+                    and n.get("params", {}).get("uri") == uri
+                    for n in self._notifications
+                )
+            if hit:
+                break
+            time.sleep(0.02)
+        with self._lock:
+            diags: list[dict] = []
+            for n in self._notifications:
+                if n.get("method") != "textDocument/publishDiagnostics":
+                    continue
+                params = n.get("params", {})
+                if params.get("uri") != uri:
+                    continue
+                diags.extend(params.get("diagnostics", []) or [])
+            # Drop notifications for this URI now that they've been consumed.
+            self._notifications = [
+                n
+                for n in self._notifications
+                if not (
+                    n.get("method") == "textDocument/publishDiagnostics"
+                    and n.get("params", {}).get("uri") == uri
+                )
+            ]
+        return diags
+
+    def shutdown(self) -> None:
+        if not self._running or self._process is None:
+            return
+        self._running = False
+        try:
+            if self._initialized:
+                try:
+                    self._raw_request("shutdown", {}, timeout=2.0)
+                except Exception:
+                    pass
+                try:
+                    self.notify("exit")
+                except Exception:
+                    pass
+            self._process.wait(timeout=2.0)
+        except Exception:
+            try:
+                self._process.kill()
+            except Exception:
+                pass
+
+
+_lsp_client = _RustLspClient()
+
+
+def _shutdown_lsp_client() -> None:
+    try:
+        _lsp_client.shutdown()
+    except Exception:
+        pass
+
+
+atexit.register(_shutdown_lsp_client)
+
+
 # Session state
 
 _session_dialect: str = "tcl8.6"
@@ -229,14 +556,6 @@ def _range_to_dict(r: Any) -> dict:
     }
 
 
-def _lsp_range_to_dict(r: Any) -> dict:
-    """Convert an lsprotocol.types.Range to a dict."""
-    return {
-        "start": {"line": r.start.line, "character": r.start.character},
-        "end": {"line": r.end.line, "character": r.end.character},
-    }
-
-
 def _diagnostic_to_dict(d: Any) -> dict:
     """Convert a semantic_model.Diagnostic to a dict."""
     result: dict[str, Any] = {
@@ -256,17 +575,6 @@ def _diagnostic_to_dict(d: Any) -> dict:
             for f in d.fixes
         ]
     return result
-
-
-def _lsp_diagnostic_to_dict(d: Any) -> dict:
-    """Convert an lsprotocol.types.Diagnostic to a dict."""
-    code = d.code if d.code else ""
-    return {
-        "code": code,
-        "severity": d.severity.name.lower() if d.severity else "error",
-        "message": d.message,
-        "range": _lsp_range_to_dict(d.range),
-    }
 
 
 def _proc_to_dict(proc_def: Any) -> dict:
@@ -337,76 +645,196 @@ def _detect_events(source: str) -> list[dict]:
     return events
 
 
-def _lsp_location_to_dict(loc: Any) -> dict:
-    """Convert lsprotocol.types.Location to a dict."""
-    return {"uri": loc.uri, "range": _lsp_range_to_dict(loc.range)}
+# LSP JSON-RPC response → MCP dict helpers
+#
+# These take ``dict`` payloads (decoded from the Rust LSP server's JSON-RPC
+# responses) rather than lsprotocol types.  The MCP tool surface kept the
+# original snake_case field names; the LSP wire uses camelCase.
+
+_SYMBOL_KIND_NAMES = {
+    1: "file",
+    2: "module",
+    3: "namespace",
+    4: "package",
+    5: "class",
+    6: "method",
+    7: "property",
+    8: "field",
+    9: "constructor",
+    10: "enum",
+    11: "interface",
+    12: "function",
+    13: "variable",
+    14: "constant",
+    15: "string",
+    16: "number",
+    17: "boolean",
+    18: "array",
+    19: "object",
+    20: "key",
+    21: "null",
+    22: "enum_member",
+    23: "struct",
+    24: "event",
+    25: "operator",
+    26: "type_parameter",
+}
+
+_COMPLETION_KIND_NAMES = {
+    1: "text",
+    2: "method",
+    3: "function",
+    4: "constructor",
+    5: "field",
+    6: "variable",
+    7: "class",
+    8: "interface",
+    9: "module",
+    10: "property",
+    11: "unit",
+    12: "value",
+    13: "enum",
+    14: "keyword",
+    15: "snippet",
+    16: "color",
+    17: "file",
+    18: "reference",
+    19: "folder",
+    20: "enum_member",
+    21: "constant",
+    22: "struct",
+    23: "event",
+    24: "operator",
+    25: "type_parameter",
+}
+
+_DIAGNOSTIC_SEVERITY_NAMES = {1: "error", 2: "warning", 3: "information", 4: "hint"}
 
 
-def _completion_item_to_dict(item: Any) -> dict:
-    """Convert lsprotocol.types.CompletionItem to a dict."""
-    result: dict[str, Any] = {"label": item.label}
-    if item.kind is not None:
-        result["kind"] = item.kind.name.lower()
-    if item.detail:
-        result["detail"] = item.detail
-    if item.documentation:
-        if hasattr(item.documentation, "value"):
-            result["documentation"] = item.documentation.value
+def _normalise_locations(result: Any) -> list[dict]:
+    """Normalise an LSP definition/references response to a list of locations.
+
+    The server may return a ``Location``, ``Location[]``, or
+    ``LocationLink[]``.
+    """
+    if result is None:
+        return []
+    if isinstance(result, dict):
+        # Could be a single Location or a single LocationLink.
+        if "targetUri" in result:
+            return [
+                {
+                    "uri": result.get("targetUri", ""),
+                    "range": result.get("targetSelectionRange") or result.get("targetRange") or {},
+                }
+            ]
+        return [{"uri": result.get("uri", ""), "range": result.get("range") or {}}]
+    out: list[dict] = []
+    for entry in result:
+        if not isinstance(entry, dict):
+            continue
+        if "targetUri" in entry:
+            out.append(
+                {
+                    "uri": entry.get("targetUri", ""),
+                    "range": entry.get("targetSelectionRange") or entry.get("targetRange") or {},
+                }
+            )
         else:
-            result["documentation"] = str(item.documentation)
-    if item.insert_text:
-        result["insert_text"] = item.insert_text
-    if item.sort_text:
-        result["sort_text"] = item.sort_text
-    return result
+            out.append({"uri": entry.get("uri", ""), "range": entry.get("range") or {}})
+    return out
 
 
-def _document_symbol_to_dict(sym: Any) -> dict:
-    """Convert lsprotocol.types.DocumentSymbol to a dict."""
-    result: dict[str, Any] = {
-        "name": sym.name,
-        "kind": sym.kind.name.lower() if sym.kind else "unknown",
-        "range": _lsp_range_to_dict(sym.range),
-        "selection_range": _lsp_range_to_dict(sym.selection_range),
+def _lsp_completion_items(result: Any) -> list[dict]:
+    if result is None:
+        return []
+    if isinstance(result, dict):
+        return list(result.get("items") or [])
+    return list(result)
+
+
+def _completion_item_dict_from_json(item: dict) -> dict:
+    out: dict[str, Any] = {"label": item.get("label", "")}
+    kind = item.get("kind")
+    if isinstance(kind, int):
+        out["kind"] = _COMPLETION_KIND_NAMES.get(kind, str(kind))
+    if item.get("detail"):
+        out["detail"] = item["detail"]
+    doc = item.get("documentation")
+    if isinstance(doc, dict):
+        out["documentation"] = doc.get("value", "")
+    elif isinstance(doc, str):
+        out["documentation"] = doc
+    if item.get("insertText"):
+        out["insert_text"] = item["insertText"]
+    if item.get("sortText"):
+        out["sort_text"] = item["sortText"]
+    return out
+
+
+def _document_symbol_json_to_dict(sym: dict) -> dict:
+    kind = sym.get("kind", 0)
+    out: dict[str, Any] = {
+        "name": sym.get("name", ""),
+        "kind": _SYMBOL_KIND_NAMES.get(kind, "unknown"),
+        "range": sym.get("range") or {},
+        "selection_range": sym.get("selectionRange") or sym.get("range") or {},
     }
-    if sym.detail:
-        result["detail"] = sym.detail
-    if sym.children:
-        result["children"] = [_document_symbol_to_dict(c) for c in sym.children]
-    return result
+    if sym.get("detail"):
+        out["detail"] = sym["detail"]
+    children = sym.get("children")
+    if children:
+        out["children"] = [_document_symbol_json_to_dict(c) for c in children]
+    return out
 
 
-def _code_action_to_dict(action: Any) -> dict:
-    """Convert lsprotocol.types.CodeAction to a dict."""
-    result: dict[str, Any] = {"title": action.title}
-    if action.kind:
-        result["kind"] = action.kind.value if hasattr(action.kind, "value") else str(action.kind)
-    if action.edit and action.edit.changes:
-        edits: list[dict] = []
-        for uri, text_edits in action.edit.changes.items():
-            for te in text_edits:
-                edits.append(
-                    {
-                        "uri": uri,
-                        "range": _lsp_range_to_dict(te.range),
-                        "new_text": te.new_text,
-                    }
-                )
-        result["edits"] = edits
-    if action.diagnostics:
-        result["diagnostics"] = [_lsp_diagnostic_to_dict(d) for d in action.diagnostics]
-    if action.command:
-        result["command"] = {
-            "title": action.command.title,
-            "command": action.command.command,
-            "arguments": action.command.arguments or [],
+def _lsp_diagnostic_json_to_dict(d: dict) -> dict:
+    sev = d.get("severity")
+    return {
+        "code": str(d.get("code", "") or ""),
+        "severity": _DIAGNOSTIC_SEVERITY_NAMES.get(sev, "error") if sev else "error",
+        "message": d.get("message", ""),
+        "range": d.get("range") or {},
+    }
+
+
+def _text_edit_json_to_dict(te: dict, uri: str | None = None) -> dict:
+    out: dict[str, Any] = {
+        "range": te.get("range") or {},
+        "new_text": te.get("newText", ""),
+    }
+    if uri is not None:
+        out["uri"] = uri
+    return out
+
+
+def _code_action_json_to_dict(action: dict) -> dict:
+    out: dict[str, Any] = {"title": action.get("title", "")}
+    if action.get("kind"):
+        out["kind"] = action["kind"]
+    edit = action.get("edit") or {}
+    edits: list[dict] = []
+    for uri, text_edits in (edit.get("changes") or {}).items():
+        for te in text_edits or []:
+            edits.append(_text_edit_json_to_dict(te, uri=uri))
+    for doc in edit.get("documentChanges") or []:
+        if not isinstance(doc, dict):
+            continue
+        doc_uri = (doc.get("textDocument") or {}).get("uri")
+        for te in doc.get("edits", []) or []:
+            edits.append(_text_edit_json_to_dict(te, uri=doc_uri))
+    if edits:
+        out["edits"] = edits
+    if action.get("diagnostics"):
+        out["diagnostics"] = [_lsp_diagnostic_json_to_dict(d) for d in action["diagnostics"]]
+    cmd = action.get("command")
+    if isinstance(cmd, dict):
+        out["command"] = {
+            "title": cmd.get("title", ""),
+            "command": cmd.get("command", ""),
+            "arguments": cmd.get("arguments", []) or [],
         }
-    return result
-
-
-def _text_edit_to_dict(te: Any) -> dict:
-    """Convert lsprotocol.types.TextEdit to a dict."""
-    return {"range": _lsp_range_to_dict(te.range), "new_text": te.new_text}
+    return out
 
 
 # Analysis tools
@@ -631,9 +1059,9 @@ def _tool_optimize(source: str, dialect: str = "", profile: str = "full") -> str
     return json.dumps(result)
 
 
-# LSP-equivalent tools
-
-_SYNTHETIC_URI = "file:///source.tcl"
+# LSP-equivalent tools — these drive the Rust ``tcl-lsp-server`` over
+# JSON-RPC via ``_lsp_client``; each request opens a synthetic
+# ``inmemory://mcp/source-N`` document, runs the request, and closes it.
 
 
 @tool(
@@ -648,14 +1076,29 @@ _SYNTHETIC_URI = "file:///source.tcl"
     required=["source", "line", "character"],
 )
 def _tool_hover(source: str, line: int, character: int, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
-    from lsp.features.hover import get_hover
-
-    result = get_hover(source, line, character)
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        result = _lsp_client.request(
+            "textDocument/hover",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+            },
+        )
+    finally:
+        _lsp_client.close(uri)
     if result is None:
         return json.dumps(None)
-    value = result.contents.value if hasattr(result.contents, "value") else str(result.contents)
+    contents = result.get("contents")
+    if isinstance(contents, dict):
+        value = contents.get("value", "")
+    elif isinstance(contents, list):
+        parts = [c.get("value", "") if isinstance(c, dict) else str(c) for c in contents]
+        value = "\n".join(p for p in parts if p)
+    else:
+        value = "" if contents is None else str(contents)
     return json.dumps({"contents": value})
 
 
@@ -671,12 +1114,23 @@ def _tool_hover(source: str, line: int, character: int, dialect: str = "") -> st
     required=["source", "line", "character"],
 )
 def _tool_complete(source: str, line: int, character: int, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
-    from lsp.features.completion import get_completions
-
-    items = get_completions(source, line, character)
-    return json.dumps({"items": [_completion_item_to_dict(i) for i in items], "total": len(items)})
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        result = _lsp_client.request(
+            "textDocument/completion",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+            },
+        )
+    finally:
+        _lsp_client.close(uri)
+    items = _lsp_completion_items(result)
+    return json.dumps(
+        {"items": [_completion_item_dict_from_json(i) for i in items], "total": len(items)}
+    )
 
 
 @tool(
@@ -691,12 +1145,21 @@ def _tool_complete(source: str, line: int, character: int, dialect: str = "") ->
     required=["source", "line", "character"],
 )
 def _tool_goto_definition(source: str, line: int, character: int, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
-    from lsp.features.definition import get_definition
-
-    locations = get_definition(source, _SYNTHETIC_URI, line, character)
-    return json.dumps({"locations": [_lsp_location_to_dict(loc) for loc in locations]})
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        result = _lsp_client.request(
+            "textDocument/definition",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+            },
+        )
+    finally:
+        _lsp_client.close(uri)
+    locations = _normalise_locations(result)
+    return json.dumps({"locations": locations})
 
 
 @tool(
@@ -711,12 +1174,22 @@ def _tool_goto_definition(source: str, line: int, character: int, dialect: str =
     required=["source", "line", "character"],
 )
 def _tool_find_references(source: str, line: int, character: int, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
-    from lsp.features.references import get_references
-
-    refs = get_references(source, _SYNTHETIC_URI, line, character)
-    return json.dumps({"references": [_lsp_location_to_dict(r) for r in refs], "total": len(refs)})
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        result = _lsp_client.request(
+            "textDocument/references",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": True},
+            },
+        )
+    finally:
+        _lsp_client.close(uri)
+    refs = _normalise_locations(result)
+    return json.dumps({"references": refs, "total": len(refs)})
 
 
 @tool(
@@ -729,12 +1202,19 @@ def _tool_find_references(source: str, line: int, character: int, dialect: str =
     required=["source"],
 )
 def _tool_symbols(source: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
-    from lsp.features.document_symbols import get_document_symbols
-
-    syms = get_document_symbols(source)
-    return json.dumps({"symbols": [_document_symbol_to_dict(s) for s in syms]})
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        result = _lsp_client.request(
+            "textDocument/documentSymbol",
+            {"textDocument": {"uri": uri}},
+        )
+    finally:
+        _lsp_client.close(uri)
+    if result is None:
+        return json.dumps({"symbols": []})
+    return json.dumps({"symbols": [_document_symbol_json_to_dict(s) for s in result]})
 
 
 @tool(
@@ -758,36 +1238,41 @@ def _tool_code_actions(
     end_character: int,
     dialect: str = "",
 ) -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        # Wait briefly for publishDiagnostics so we can feed overlapping
+        # diagnostics into the code-action request context.
+        diags = _lsp_client.collect_diagnostics(uri)
+        overlap = []
+        for d in diags:
+            r = d.get("range") or {}
+            ds = r.get("start") or {}
+            de = r.get("end") or {}
+            if de.get("line", 0) < start_line or ds.get("line", 0) > end_line:
+                continue
+            if de.get("line", 0) == start_line and de.get("character", 0) < start_character:
+                continue
+            if ds.get("line", 0) == end_line and ds.get("character", 0) > end_character:
+                continue
+            overlap.append(d)
 
-    from lsprotocol import types as lsp
-
-    from lsp.features.code_actions import get_code_actions
-    from lsp.features.diagnostics import get_diagnostics
-
-    range_ = lsp.Range(
-        start=lsp.Position(line=start_line, character=start_character),
-        end=lsp.Position(line=end_line, character=end_character),
-    )
-
-    # Get LSP diagnostics to populate the context
-    lsp_diags = get_diagnostics(source)
-
-    # Filter to those overlapping the requested range
-    overlap = []
-    for d in lsp_diags:
-        dr = d.range
-        if dr.end.line < start_line or dr.start.line > end_line:
-            continue
-        if dr.end.line == start_line and dr.end.character < start_character:
-            continue
-        if dr.start.line == end_line and dr.start.character > end_character:
-            continue
-        overlap.append(d)
-
-    context = lsp.CodeActionContext(diagnostics=overlap)
-    actions = get_code_actions(source, range_, context)
-    return json.dumps({"actions": [_code_action_to_dict(a) for a in actions]})
+        result = _lsp_client.request(
+            "textDocument/codeAction",
+            {
+                "textDocument": {"uri": uri},
+                "range": {
+                    "start": {"line": start_line, "character": start_character},
+                    "end": {"line": end_line, "character": end_character},
+                },
+                "context": {"diagnostics": overlap},
+            },
+        )
+    finally:
+        _lsp_client.close(uri)
+    actions = result or []
+    return json.dumps({"actions": [_code_action_json_to_dict(a) for a in actions]})
 
 
 @tool(
@@ -835,18 +1320,30 @@ def _tool_format_source(
     required=["source", "line", "character", "new_name"],
 )
 def _tool_rename(source: str, line: int, character: int, new_name: str, dialect: str = "") -> str:
-    _configure_dialect(dialect or _detect_dialect(source))
-
-    from lsp.features.rename import get_rename_edits
-
-    result = get_rename_edits(source, _SYNTHETIC_URI, line, character, new_name)
+    eff = dialect or _detect_dialect(source)
+    _configure_dialect(eff)
+    uri = _lsp_client.open_source(source, eff)
+    try:
+        result = _lsp_client.request(
+            "textDocument/rename",
+            {
+                "textDocument": {"uri": uri},
+                "position": {"line": line, "character": character},
+                "newName": new_name,
+            },
+        )
+    finally:
+        _lsp_client.close(uri)
     if result is None:
         return json.dumps(None)
     edits: list[dict] = []
-    if result.changes:
-        for uri, text_edits in result.changes.items():
-            for te in text_edits:
-                edits.append(_text_edit_to_dict(te))
+    changes = result.get("changes") or {}
+    for text_edits in changes.values():
+        for te in text_edits:
+            edits.append(_text_edit_json_to_dict(te))
+    for doc in result.get("documentChanges") or []:
+        for te in doc.get("edits", []) or []:
+            edits.append(_text_edit_json_to_dict(te))
     return json.dumps({"edits": edits, "total": len(edits)})
 
 
