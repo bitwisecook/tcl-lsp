@@ -289,6 +289,7 @@ SEMANTIC_TOKENS_LEGEND = types.SemanticTokensLegend(
         document_selector=_TCL_DOCUMENT_SELECTOR,
     ),
 )
+@_state.scoped_to_doc
 def on_semantic_tokens_full(
     params: types.SemanticTokensParams,
 ) -> types.SemanticTokens:
@@ -344,6 +345,7 @@ def on_semantic_tokens_full(
 
 
 @server.feature(types.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL_DELTA)
+@_state.scoped_to_doc
 def on_semantic_tokens_delta(
     params: types.SemanticTokensDeltaParams,
 ) -> types.SemanticTokens | types.SemanticTokensDelta:
@@ -436,6 +438,7 @@ def on_semantic_tokens_delta(
 
 
 @server.feature(types.TEXT_DOCUMENT_COMPLETION)
+@_state.scoped_to_doc
 def on_completion(
     params: types.CompletionParams,
 ) -> list[types.CompletionItem]:
@@ -502,6 +505,7 @@ def _hover_cache_put(key: tuple[str, int | None, int, int], value: types.Hover |
 
 
 @server.feature(types.TEXT_DOCUMENT_HOVER)
+@_state.scoped_to_doc
 async def on_hover(params: types.HoverParams) -> types.Hover | None:
     if not _state.config_for_uri(params.text_document.uri).hover_enabled:
         return None
@@ -609,6 +613,7 @@ def _invalidate_hover_cache(uri: str) -> None:
 
 
 @server.feature(types.TEXT_DOCUMENT_DEFINITION)
+@_state.scoped_to_doc
 def on_definition(
     params: types.DefinitionParams,
 ) -> list[types.Location]:
@@ -682,6 +687,7 @@ def on_definition(
 
 
 @server.feature(types.TEXT_DOCUMENT_TYPE_DEFINITION)
+@_state.scoped_to_doc
 def on_type_definition(
     params: types.TypeDefinitionParams,
 ) -> list[types.Location] | None:
@@ -710,6 +716,7 @@ def on_type_definition(
 
 
 @server.feature(types.TEXT_DOCUMENT_DECLARATION)
+@_state.scoped_to_doc
 def on_declaration(
     params: types.DeclarationParams,
 ) -> list[types.Location] | None:
@@ -734,6 +741,7 @@ def on_declaration(
 
 
 @server.feature(types.TEXT_DOCUMENT_REFERENCES)
+@_state.scoped_to_doc
 def on_references(
     params: types.ReferenceParams,
 ) -> list[types.Location]:
@@ -758,6 +766,7 @@ def on_references(
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
+@_state.scoped_to_doc
 def on_document_highlight(
     params: types.DocumentHighlightParams,
 ) -> list[types.DocumentHighlight] | None:
@@ -782,6 +791,7 @@ def on_document_highlight(
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_SYMBOL)
+@_state.scoped_to_doc
 def on_document_symbol(
     params: types.DocumentSymbolParams,
 ) -> list[types.DocumentSymbol]:
@@ -804,6 +814,7 @@ def on_document_symbol(
 
 
 @server.feature(types.TEXT_DOCUMENT_FOLDING_RANGE)
+@_state.scoped_to_doc
 def on_folding_range(
     params: types.FoldingRangeParams,
 ) -> list[types.FoldingRange]:
@@ -828,6 +839,7 @@ def on_folding_range(
     types.TEXT_DOCUMENT_RENAME,
     types.RenameOptions(prepare_provider=True),
 )
+@_state.scoped_to_doc
 def on_rename(
     params: types.RenameParams,
 ) -> types.WorkspaceEdit | None:
@@ -848,6 +860,7 @@ def on_rename(
 
 
 @server.feature(types.TEXT_DOCUMENT_PREPARE_RENAME)
+@_state.scoped_to_doc
 def on_prepare_rename(
     params: types.PrepareRenameParams,
 ) -> types.PrepareRenamePlaceholder | None:
@@ -873,6 +886,7 @@ def on_prepare_rename(
     types.TEXT_DOCUMENT_SIGNATURE_HELP,
     types.SignatureHelpOptions(trigger_characters=[" "]),
 )
+@_state.scoped_to_doc
 def on_signature_help(
     params: types.SignatureHelpParams,
 ) -> types.SignatureHelp | None:
@@ -894,6 +908,7 @@ def on_signature_help(
 
 
 @server.feature(types.WORKSPACE_SYMBOL)
+@_state.scoped_to_doc
 def on_workspace_symbol(
     params: types.WorkspaceSymbolParams,
 ) -> list[types.WorkspaceSymbol]:
@@ -906,6 +921,7 @@ def on_workspace_symbol(
 
 
 @server.feature(types.TEXT_DOCUMENT_INLAY_HINT)
+@_state.scoped_to_doc
 def on_inlay_hint(
     params: types.InlayHintParams,
 ) -> list[types.InlayHint]:
@@ -926,6 +942,7 @@ def on_inlay_hint(
 
 
 @server.feature(types.TEXT_DOCUMENT_PREPARE_CALL_HIERARCHY)
+@_state.scoped_to_doc
 def on_prepare_call_hierarchy(
     params: types.CallHierarchyPrepareParams,
 ) -> list[types.CallHierarchyItem]:
@@ -945,6 +962,7 @@ def on_prepare_call_hierarchy(
 
 
 @server.feature(types.CALL_HIERARCHY_INCOMING_CALLS)
+@_state.scoped_to_doc
 def on_incoming_calls(
     params: types.CallHierarchyIncomingCallsParams,
 ) -> list[types.CallHierarchyIncomingCall]:
@@ -959,6 +977,7 @@ def on_incoming_calls(
 
 
 @server.feature(types.CALL_HIERARCHY_OUTGOING_CALLS)
+@_state.scoped_to_doc
 def on_outgoing_calls(
     params: types.CallHierarchyOutgoingCallsParams,
 ) -> list[types.CallHierarchyOutgoingCall]:
@@ -976,6 +995,7 @@ def on_outgoing_calls(
 
 
 @server.feature(types.TEXT_DOCUMENT_PREPARE_TYPE_HIERARCHY)
+@_state.scoped_to_doc
 def on_prepare_type_hierarchy(
     params: types.TypeHierarchyPrepareParams,
 ) -> list[types.TypeHierarchyItem]:
@@ -993,6 +1013,7 @@ def on_prepare_type_hierarchy(
 
 
 @server.feature(types.TYPE_HIERARCHY_SUPERTYPES)
+@_state.scoped_to_doc
 def on_supertypes(
     params: types.TypeHierarchySupertypesParams,
 ) -> list[types.TypeHierarchyItem]:
@@ -1005,6 +1026,7 @@ def on_supertypes(
 
 
 @server.feature(types.TYPE_HIERARCHY_SUBTYPES)
+@_state.scoped_to_doc
 def on_subtypes(
     params: types.TypeHierarchySubtypesParams,
 ) -> list[types.TypeHierarchyItem]:
@@ -1020,6 +1042,7 @@ def on_subtypes(
 
 
 @server.feature(types.TEXT_DOCUMENT_IMPLEMENTATION)
+@_state.scoped_to_doc
 def on_implementation(
     params: types.ImplementationParams,
 ) -> list[types.Location] | None:
@@ -1045,6 +1068,7 @@ def on_implementation(
 
 
 @server.feature(types.TEXT_DOCUMENT_DOCUMENT_LINK)
+@_state.scoped_to_doc
 def on_document_link(
     params: types.DocumentLinkParams,
 ) -> list[types.DocumentLink]:
@@ -1065,6 +1089,7 @@ def on_document_link(
 
 
 @server.feature(types.TEXT_DOCUMENT_CODE_LENS)
+@_state.scoped_to_doc
 def on_code_lens(
     params: types.CodeLensParams,
 ) -> list[types.CodeLens] | None:
@@ -1080,6 +1105,7 @@ def on_code_lens(
 
 
 @server.feature(types.CODE_LENS_RESOLVE)
+@_state.scoped_to_doc
 def on_code_lens_resolve(lens: types.CodeLens) -> types.CodeLens:
     def find_refs(uri: str, qname: str) -> list[types.Location]:
         # The lens title comes from ``workspace_index.proc_usage_counts()``
@@ -1118,6 +1144,7 @@ if _state.feature_config.pull_diagnostics_enabled:
 
 
 @server.feature(types.TEXT_DOCUMENT_SELECTION_RANGE)
+@_state.scoped_to_doc
 def on_selection_range(
     params: types.SelectionRangeParams,
 ) -> list[types.SelectionRange] | None:
@@ -1136,6 +1163,7 @@ def on_selection_range(
 
 
 @server.feature(types.TEXT_DOCUMENT_LINKED_EDITING_RANGE)
+@_state.scoped_to_doc
 def on_linked_editing_range(
     params: types.LinkedEditingRangeParams,
 ) -> types.LinkedEditingRanges | None:
@@ -1171,6 +1199,7 @@ def on_linked_editing_range(
         ],
     ),
 )
+@_state.scoped_to_doc
 def on_code_action(
     params: types.CodeActionParams,
 ) -> list[types.CodeAction] | None:
@@ -1189,7 +1218,7 @@ def on_code_action(
         source,
         params.range,
         params.context,
-        package_names=package_resolver.all_package_names(),
+        package_names=_state.package_resolver_for_uri(params.text_document.uri).all_package_names(),
         lines=state.lines if state else None,
     )
     # Fill in the correct document URI for each action's edit
@@ -1214,6 +1243,7 @@ def on_code_action(
         document_selector=_TCL_DOCUMENT_SELECTOR,
     ),
 )
+@_state.scoped_to_doc
 def on_formatting(
     params: types.DocumentFormattingParams,
 ) -> list[types.TextEdit] | None:
@@ -1235,6 +1265,7 @@ def on_formatting(
         document_selector=_TCL_DOCUMENT_SELECTOR,
     ),
 )
+@_state.scoped_to_doc
 def on_range_formatting(
     params: types.DocumentRangeFormattingParams,
 ) -> list[types.TextEdit] | None:
@@ -1255,6 +1286,7 @@ def on_range_formatting(
 
 
 @server.feature(types.TEXT_DOCUMENT_WILL_SAVE_WAIT_UNTIL)
+@_state.scoped_to_doc
 def on_will_save_wait_until(
     params: types.WillSaveTextDocumentParams,
 ) -> list[types.TextEdit] | None:

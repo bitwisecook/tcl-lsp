@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from enum import Enum
 
-from ..commands.registry.runtime import active_signature_profile
+from ..commands.registry.runtime import (
+    _canonical_dialect,
+    _dialect_var,
+    _extra_commands_var,
+    active_signature_profile,
+)
 
 
 class Dialect(Enum):
@@ -33,6 +40,47 @@ def active_dialect() -> str:
     if isinstance(dialect, str) and dialect:
         return dialect
     return Dialect.TCL_8_6.value
+
+
+@contextmanager
+def dialect_scope(
+    dialect: str | None = None,
+    extra_commands: Iterable[str] | None = None,
+) -> Iterator[str]:
+    """Scope the active dialect (and optional extra_commands) for a request.
+
+    LSP request handlers should wrap their work in this context manager so
+    that ``active_dialect()`` / ``SIGNATURES`` / lexer flags reflect the
+    folder-resolved dialect of the document being processed rather than a
+    process-wide singleton.  See issue #407.
+
+    ``dialect=None`` leaves the active dialect untouched.  Invalid dialect
+    strings are silently ignored (the current value is preserved).
+
+    Yields the effective dialect string for callers that want to log or
+    branch on it.
+    """
+    dialect_token = None
+    extras_token = None
+
+    if dialect is not None:
+        canonical = _canonical_dialect(dialect)
+        if canonical is not None:
+            dialect_token = _dialect_var.set(canonical)
+
+    if extra_commands is not None:
+        normalised = tuple(
+            sorted({name.strip() for name in extra_commands if name and name.strip()})
+        )
+        extras_token = _extra_commands_var.set(normalised)
+
+    try:
+        yield _dialect_var.get()
+    finally:
+        if extras_token is not None:
+            _extra_commands_var.reset(extras_token)
+        if dialect_token is not None:
+            _dialect_var.reset(dialect_token)
 
 
 _DIALECT_DIRECTIVE_RE = re.compile(r"^#\s*tcl-dialect:\s*(\S+)", re.IGNORECASE)

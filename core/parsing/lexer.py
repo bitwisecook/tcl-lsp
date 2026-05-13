@@ -28,6 +28,48 @@ def _strict_quoting() -> bool:
     return getattr(_thread_local, "strict_quoting", False)
 
 
+# Set of dialects that support {*} argument expansion (introduced in
+# Tcl 8.5).  Mirrors the canonical-dialect IDs in
+# ``core.commands.registry.dialects``.  Pre-frozen as a module constant so
+# the lexer hot path doesn't pay per-token import cost.
+_EXPAND_SYNTAX_DIALECTS: frozenset[str] = frozenset(
+    {
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "f5-iapps",
+        "f5-tmsh",
+        "f5-bigip",
+        "synopsys-eda-tcl",
+        "cadence-eda-tcl",
+        "xilinx-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "mentor-eda-tcl",
+        "expect",
+    }
+)
+
+
+def _expand_syntax_active() -> bool:
+    """Whether {*} word expansion is enabled for the active dialect.
+
+    Reads from the registry's per-request dialect ContextVar so that
+    documents under folders configured for different dialects (e.g. tcl8.4
+    vs tcl9.0) get the right lexer behaviour even when handled within the
+    same process.  See issue #407.
+    """
+    from ..commands.registry.runtime import _dialect_var
+
+    return _dialect_var.get() in _EXPAND_SYNTAX_DIALECTS
+
+
+def _irules_brace_separator_active() -> bool:
+    """Whether the iRules ``}{`` brace-word boundary is enabled."""
+    from ..commands.registry.runtime import _dialect_var
+
+    return _dialect_var.get() == "f5-irules"
+
+
 class TclParseError(Exception):
     """Raised for Tcl syntax errors detected during lexing."""
 
@@ -569,7 +611,7 @@ class TclLexer:
                                 and text[pos + 1] in ("\n", "\r")
                             ):
                                 pass  # backslash-newline is a valid line continuation
-                            elif TclLexer.irules_brace_separator and text[pos] == "{":
+                            elif _irules_brace_separator_active() and text[pos] == "{":
                                 sep_pos = self._position()
                                 self._pending_sep = Token(
                                     type=TokenType.SEP,
@@ -644,7 +686,7 @@ class TclLexer:
                             and self.text[self.pos + 1] in ("\n", "\r")
                         ):
                             pass  # backslash-newline is a valid line continuation
-                        elif TclLexer.irules_brace_separator and self._cur() == "{":
+                        elif _irules_brace_separator_active() and self._cur() == "{":
                             # iRules treats }{ as a word boundary — inject a
                             # zero-width SEP so the segmenter sees two words.
                             sep_pos = self._position()
@@ -692,7 +734,7 @@ class TclLexer:
             # Check for {*} expansion prefix (Tcl 8.5+)
             _len = self._len
             if (
-                TclLexer.expand_syntax
+                _expand_syntax_active()
                 and self.pos + 2 < _len
                 and self.text[self.pos + 1] == "*"
                 and self.text[self.pos + 2] == "}"

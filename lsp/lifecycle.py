@@ -44,20 +44,32 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
         analyse=False,
     )
 
+    folder_cfg = _state.config_for_uri(uri)
     if not is_irules_dialect() and _dp._is_irules_source(uri):
+        # Per-folder auto-switch (issue #407): write the detected dialect to
+        # the folder's FeatureConfig so request handlers pick it up via
+        # ``dialect_scope_for_uri``.  Only escalate to the workspace-wide
+        # ``configure_signatures`` (which mutates the process default) when
+        # the folder hasn't been explicitly configured for some other dialect.
         log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
-        configure_signatures(dialect="f5-irules")
+        if not folder_cfg.dialect_explicitly_set:
+            folder_cfg.dialect = "f5-irules"
+        if folder_cfg is _state.feature_config or not folder_cfg.dialect_explicitly_set:
+            configure_signatures(dialect="f5-irules")
         _server.window_show_message(  # type: ignore[union-attr]
             types.ShowMessageParams(
                 type=types.MessageType.Info,
                 message="Switched to iRules dialect for F5 iRules support.",
             )
         )
-    elif not _state.feature_config.dialect_explicitly_set:
+    elif not folder_cfg.dialect_explicitly_set:
         from core.common.dialect import detect_dialect_from_source
 
         source_dialect = detect_dialect_from_source(params.text_document.text)
         if source_dialect:
+            # Stash the detected dialect on the folder config so subsequent
+            # requests in this folder honour it without re-running detection.
+            folder_cfg.dialect = source_dialect
             changed = configure_signatures(dialect=source_dialect)
             if changed:
                 log.info(

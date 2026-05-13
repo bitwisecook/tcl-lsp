@@ -998,14 +998,41 @@ def _ensure_confusables() -> None:
 # (only flag confusable / copy-paste artifacts), "common" (allow
 # intentional Unicode, flag only control/zero-width/confusables), "off".
 # Configured via tclLsp.style.nonAscii; default "confusables".
-_non_ascii_mode: str = "confusables"
+import contextvars as _contextvars
+from contextlib import contextmanager as _contextmanager
+
+# W108 non-ASCII mode is scoped per LSP request via ``non_ascii_mode_scope``
+# so each workspace folder's ``tclLsp.style.nonAscii`` setting is honoured
+# even when multiple folders with different values are open in one process
+# (issue #407).  ``set_non_ascii_mode`` mutates the current context's
+# default and is kept for back-compat / startup configuration.
+_non_ascii_mode_var: _contextvars.ContextVar[str] = _contextvars.ContextVar(
+    "tcl_lsp_non_ascii_mode", default="confusables"
+)
 
 
 def set_non_ascii_mode(mode: str) -> None:
-    """Configure the W108 non-ASCII detection mode."""
-    global _non_ascii_mode
+    """Configure the default W108 non-ASCII detection mode.
+
+    Sets the value for the current context.  Per-request scoping should
+    use :func:`non_ascii_mode_scope` so that document-specific overrides
+    do not leak into other requests.
+    """
     if mode in ("strict", "confusables", "common", "off"):
-        _non_ascii_mode = mode
+        _non_ascii_mode_var.set(mode)
+
+
+@_contextmanager
+def non_ascii_mode_scope(mode: str | None):
+    """Scope the W108 detection mode for a single request/document."""
+    if mode is None or mode not in ("strict", "confusables", "common", "off"):
+        yield
+        return
+    token = _non_ascii_mode_var.set(mode)
+    try:
+        yield
+    finally:
+        _non_ascii_mode_var.reset(token)
 
 
 def _is_benign_unicode(ch: str) -> bool:
@@ -1189,7 +1216,7 @@ def check_non_ascii(
     # Determine effective mode: use explicit user setting, or default to
     # "strict" for iRules/iApps (ASCII-only environments) and
     # "confusables" for general Tcl.
-    mode = _non_ascii_mode
+    mode = _non_ascii_mode_var.get()
     if mode == "confusables":
         dialect = active_dialect()
         if dialect in ("f5-irules", "f5-iapps"):

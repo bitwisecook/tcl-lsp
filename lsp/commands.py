@@ -342,9 +342,18 @@ def on_list_subcommands(command_name: str) -> dict:
 
 
 def on_list_known_packages() -> dict:
-    """Return all package names discovered by PackageResolver."""
+    """Return all package names discovered across every PackageResolver.
+
+    With per-folder libraryPaths each workspace folder may have its own
+    resolver (issue #407); ``all_package_resolvers()`` returns the
+    workspace fallback plus every folder-specific instance so the union of
+    discoverable packages is returned.
+    """
+    names: set[str] = set()
+    for resolver in _state.all_package_resolvers():
+        names.update(resolver.all_package_names())
     return {
-        "packages": sorted(_state.package_resolver.all_package_names()),
+        "packages": sorted(names),
     }
 
 
@@ -354,9 +363,13 @@ def on_suggest_packages_for_symbol(symbol: str) -> dict:
     if not query:
         return {"symbol": query, "suggestions": []}
 
+    names: set[str] = set()
+    for resolver in _state.all_package_resolvers():
+        names.update(resolver.all_package_names())
+
     suggestions = rank_package_suggestions(
         query,
-        _state.package_resolver.all_package_names(),
+        sorted(names),
         20,
     )
     return {
