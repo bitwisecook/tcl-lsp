@@ -669,9 +669,16 @@ class BigipLtmAuthObject:
 
 
 @dataclass(frozen=True, slots=True)
-class BigipLtmMinimalObject:
-    """A generic ltm.* minimal projection — name / full-path /
-    kind / description.
+class BigipMinimalObject:
+    """Shared shape for every "minimal" projection.
+
+    The DSL has hundreds of kinds — most carry only the identity
+    tuple (``name``, ``full_path``) plus a ``description`` and the
+    TMSH kind label (``kind``).  Rather than mint a separate
+    dataclass per module, every minimal kind shares this one.  The
+    discriminator is ``kind`` (e.g. ``"net routing as-path"``,
+    ``"sys icall script"``), which the projection already exposes
+    via ``.kind``.
     """
 
     name: str
@@ -681,145 +688,25 @@ class BigipLtmMinimalObject:
     range: Range | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class BigipNetMinimalObject:
-    """Generic net.* minimal projection used by bundles 21-26."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipApmMinimalObject:
-    """Generic apm.* minimal projection used by bundles 27-31."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipPemMinimalObject:
-    """Generic pem.* minimal projection used by bundle 32."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipSysMinimalObject:
-    """Generic sys.* minimal projection used by bundles 33-41."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipVcmpMinimalObject:
-    """Generic vcmp.* minimal projection used by bundle 42."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipCmMinimalObject:
-    """Generic cm.* minimal projection used by bundle 43."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipCliMinimalObject:
-    """Generic cli.* minimal projection used by bundle 44."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipApiProtectionMinimalObject:
-    """Generic api-protection.* minimal projection used by bundle 45."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-# Audit follow-up minimal modules — kinds found in real BIG-IP
-# configs but absent from the projection-gaps doc.
-
-
-@dataclass(frozen=True, slots=True)
-class BigipAsmMinimalObject:
-    """Generic asm.* minimal projection (Application Security Manager)."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipIlxMinimalObject:
-    """Generic ilx.* minimal projection (iRulesLX)."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipWomMinimalObject:
-    """Generic wom.* minimal projection (WAN Optimization Manager — legacy)."""
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BigipAnalyticsMinimalObject:
-    """Generic analytics.* minimal projection.
-
-    Covers top-level ``analytics`` module kinds (e.g. ``analytics
-    global-settings``) — distinct from ``ltm dns analytics
-    global-settings`` which lives under the ``ltm`` module.
-    """
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
+# Per-module aliases — kept so existing imports and isinstance
+# checks across the parser / projection / tests continue to work
+# without an attribute renaming sweep.  All resolve to the same
+# class, so ``isinstance(x, BigipNetMinimalObject)`` and
+# ``isinstance(x, BigipSecurityMinimalObject)`` are the same
+# runtime check.
+BigipLtmMinimalObject = BigipMinimalObject
+BigipNetMinimalObject = BigipMinimalObject
+BigipApmMinimalObject = BigipMinimalObject
+BigipPemMinimalObject = BigipMinimalObject
+BigipSysMinimalObject = BigipMinimalObject
+BigipVcmpMinimalObject = BigipMinimalObject
+BigipCmMinimalObject = BigipMinimalObject
+BigipCliMinimalObject = BigipMinimalObject
+BigipApiProtectionMinimalObject = BigipMinimalObject
+BigipAsmMinimalObject = BigipMinimalObject
+BigipIlxMinimalObject = BigipMinimalObject
+BigipWomMinimalObject = BigipMinimalObject
+BigipAnalyticsMinimalObject = BigipMinimalObject
 
 
 @dataclass(frozen=True, slots=True)
@@ -1689,30 +1576,14 @@ class BigipSecurityBotDefenseProfile:
     range: Range | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class BigipSecurityMinimalObject:
-    """Shared dataclass for the bundle-10b ``security.*`` kinds that
-    surface only ``name`` / ``full_path`` / ``description``.
-
-    Includes the runtime-adjacent and signature-bag kinds (``debug
-    *``, ``dos signature``, ``datasync.*``, anti-fraud, blacklist-
-    publisher, protocol-inspection learning stats, etc.) where there
-    are no obviously addressable scalars beyond the identity tuple.
-    Each kind has its own dispatch entry on ``BigipConfig`` and its
-    own row in ``_KIND_FIELD_MAPS`` / ``_MODULE_KINDS``, but they
-    all share this dataclass so the v1 minimal-shape projection
-    doesn't need 37 near-identical dataclasses.
-
-    ``kind`` carries the TMSH module + sub-type (e.g. ``"security
-    dos virtual"``) so a query that reaches ``.security.dos-virtual
-    [].kind`` returns the kind string.
-    """
-
-    name: str
-    full_path: str
-    kind: str = ""
-    description: str = ""
-    range: Range | None = None
+# Alias — same shape as the other minimal kinds.  Originally a
+# dedicated dataclass for bundle-10b ``security.*`` kinds (``debug
+# *``, ``dos signature``, ``datasync.*``, anti-fraud, blacklist-
+# publisher, protocol-inspection learning stats, etc.); collapsed
+# into the shared :class:`BigipMinimalObject` since the shape is
+# identical.  ``kind`` carries the TMSH module + sub-type
+# (e.g. ``"security dos virtual"``).
+BigipSecurityMinimalObject = BigipMinimalObject
 
 
 @dataclass(frozen=True, slots=True)
@@ -3447,7 +3318,7 @@ class BigipConfig:
     auth_remote_user: dict[str, BigipAuthRemoteUser] = field(default_factory=dict)
     auth_login_failures: dict[str, BigipAuthLoginFailures] = field(default_factory=dict)
     auth_ldaps: dict[str, BigipAuthLdap] = field(default_factory=dict)
-    auth_radii: dict[str, BigipAuthRadius] = field(default_factory=dict)
+    auth_radius: dict[str, BigipAuthRadius] = field(default_factory=dict)
     auth_radius_servers: dict[str, BigipAuthRadiusServer] = field(default_factory=dict)
     auth_tacacs: dict[str, BigipAuthTacacs] = field(default_factory=dict)
     auth_cert_ldaps: dict[str, BigipAuthCertLdap] = field(default_factory=dict)

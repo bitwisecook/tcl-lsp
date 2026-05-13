@@ -5621,3 +5621,61 @@ def test_sibling_completeness_new_kinds_dispatch():
     assert desc.values_per_file["mem://1"] == ["dps"]
     full = _run(".analytics.global-settings[].full-path", _SIBLING_FOLLOWUP_CONF)
     assert full.values_per_file["mem://1"] == [""]
+
+
+# Aggregate kinds — ``_MODULE_KINDS`` exposes the family name
+# (``ltm monitor``, ``ltm profile``, …) but TMSH requires a
+# subtype on every stanza (``ltm monitor http``, ``ltm profile
+# tcp``, …).  The sweep uses these subtype hints to probe the
+# aggregate containers.
+_AGGREGATE_KIND_PROBES: dict[str, str] = {
+    "ltm profile": "ltm profile tcp",
+    "ltm monitor": "ltm monitor http",
+    "ltm persistence": "ltm persistence cookie",
+    "ltm data-group": "ltm data-group internal",
+    "ltm dns cache records": "ltm dns cache records rrset",
+    "gtm pool": "gtm pool a",
+    "gtm wideip": "gtm wideip a",
+    "gtm monitor": "gtm monitor http",
+    "apm policy agent": "apm policy agent message-box",
+    "pem profile": "pem profile spm",
+}
+
+
+def test_every_module_kind_round_trips():
+    """Sweep every ``_MODULE_KINDS`` entry, parse a minimal stanza
+    for it, and confirm the typed container is populated.
+
+    Guards against the failure mode where a kind is registered in
+    ``_MODULE_KINDS`` / ``_KIND_FIELD_MAPS`` but the parser never
+    routes to its container — navigation would silently return an
+    empty stream rather than the parsed objects.  Each kind is
+    tried in three forms (named ``/Common/t``, bare singleton, or
+    a subtype probe from :data:`_AGGREGATE_KIND_PROBES`); any one
+    populating the container counts as success.
+    """
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.query.projection import MODULE_KINDS
+
+    failed: list[tuple[str, str, str, str]] = []
+    for module, kinds in MODULE_KINDS.items():
+        for label, (attr, tmsh_kind) in kinds.items():
+            header = _AGGREGATE_KIND_PROBES.get(tmsh_kind, tmsh_kind)
+            # Named form first.
+            cfg = parse_bigip_conf(f"{header} /Common/t {{ }}\n")
+            if getattr(cfg, attr):
+                continue
+            # Singleton form (no path).
+            cfg = parse_bigip_conf(f"{header} {{ }}\n")
+            if getattr(cfg, attr):
+                continue
+            failed.append((module, label, tmsh_kind, attr))
+
+    if failed:
+        rendered = "\n".join(
+            f"  {mod}.{label}  ({kind!r} → {attr})" for mod, label, kind, attr in failed
+        )
+        raise AssertionError(
+            f"{len(failed)} module-kind entr{'y' if len(failed) == 1 else 'ies'} "
+            f"did not round-trip:\n{rendered}"
+        )

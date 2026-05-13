@@ -28,17 +28,13 @@ from dataclasses import dataclass
 from ..analysis.semantic_model import Range
 from ..common.document_buffer import DocumentBuffer
 from .model import (
-    BigipAnalyticsMinimalObject,
-    BigipApiProtectionMinimalObject,
     BigipApmEphemeralAuthSshSecurityConfig,
-    BigipApmMinimalObject,
     BigipApmOauthDbInstance,
     BigipApmPolicyAccessPolicy,
     BigipApmPolicyAgent,
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
-    BigipAsmMinimalObject,
     BigipAuthApmAuth,
     BigipAuthCertLdap,
     BigipAuthLdap,
@@ -53,12 +49,10 @@ from .model import (
     BigipAuthSource,
     BigipAuthTacacs,
     BigipAuthUser,
-    BigipCliMinimalObject,
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
     BigipCmKey,
-    BigipCmMinimalObject,
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
     BigipConfig,
@@ -81,7 +75,6 @@ from .model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
-    BigipIlxMinimalObject,
     BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
@@ -101,17 +94,16 @@ from .model import (
     BigipLtmEvictionPolicy,
     BigipLtmIfile,
     BigipLtmMessageRoutingObject,
-    BigipLtmMinimalObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
     BigipLtmSnat,
     BigipLtmSnatTranslation,
     BigipLtmTrafficClass,
     BigipLtmTrafficMatchingCriteria,
+    BigipMinimalObject,
     BigipMonitor,
     BigipNetDnsResolver,
     BigipNetInterface,
-    BigipNetMinimalObject,
     BigipNetPortList,
     BigipNetRoute,
     BigipNetRouteDomain,
@@ -123,7 +115,6 @@ from .model import (
     BigipPemForwardingEndpoint,
     BigipPemInterceptionEndpoint,
     BigipPemListener,
-    BigipPemMinimalObject,
     BigipPemPolicy,
     BigipPemProfile,
     BigipPemRatingGroup,
@@ -162,7 +153,6 @@ from .model import (
     BigipSecurityIpIntelligenceGlobalPolicy,
     BigipSecurityIpIntelligencePolicy,
     BigipSecurityLogProfile,
-    BigipSecurityMinimalObject,
     BigipSecurityNatDestinationTranslation,
     BigipSecurityNatPolicy,
     BigipSecurityNatSourceTranslation,
@@ -180,14 +170,11 @@ from .model import (
     BigipSysFolder,
     BigipSysGlobalSettings,
     BigipSysManagementRoute,
-    BigipSysMinimalObject,
     BigipSysNtp,
     BigipSysProvision,
     BigipSysSnmp,
-    BigipVcmpMinimalObject,
     BigipVirtualAddress,
     BigipVirtualServer,
-    BigipWomMinimalObject,
     DataGroupType,
     ProfileType,
 )
@@ -1982,22 +1969,35 @@ _LTM_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_ltm_minimal(
+def _parse_minimal(
     full_path: str,
     body: str,
     kind_label: str,
     source_map: DocumentBuffer,
     block: _Block,
-) -> BigipLtmMinimalObject:
+) -> BigipMinimalObject:
+    """Build a :class:`BigipMinimalObject` for any minimal-shape kind.
+
+    Every "minimal" projection (the 300+ kinds whose typed surface is
+    just ``name`` / ``full_path`` / ``kind`` / ``description``) uses
+    this single parser regardless of module.  The per-module
+    ``_parse_<module>_minimal`` aliases below exist only so call
+    sites stay grep-able by module.
+    """
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipLtmMinimalObject(
+    return BigipMinimalObject(
         name=name,
         full_path=full_path,
         kind=kind_label,
         description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
+
+
+# Module-scoped aliases — every one resolves to the shared
+# :func:`_parse_minimal` above.
+_parse_ltm_minimal = _parse_minimal
 
 
 _NET_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2077,22 +2077,7 @@ _NET_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_net_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipNetMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipNetMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_net_minimal = _parse_minimal
 
 
 _APM_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2190,22 +2175,7 @@ _APM_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_apm_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipApmMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipApmMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_apm_minimal = _parse_minimal
 
 
 _PEM_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2229,22 +2199,7 @@ _PEM_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_pem_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipPemMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipPemMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_pem_minimal = _parse_minimal
 
 
 _SYS_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2361,22 +2316,7 @@ _SYS_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_sys_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipSysMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipSysMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_sys_minimal = _parse_minimal
 
 
 _VCMP_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2388,22 +2328,7 @@ _VCMP_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_vcmp_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipVcmpMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipVcmpMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_vcmp_minimal = _parse_minimal
 
 
 _CM_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2413,22 +2338,7 @@ _CM_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_cm_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipCmMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipCmMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_cm_minimal = _parse_minimal
 
 
 _CLI_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2444,22 +2354,7 @@ _CLI_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_cli_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipCliMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipCliMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_cli_minimal = _parse_minimal
 
 
 _API_PROTECTION_MINIMAL_DISPATCH: dict[str, str] = {
@@ -2484,58 +2379,9 @@ _WOM_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_asm_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipAsmMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipAsmMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
-
-
-def _parse_ilx_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipIlxMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipIlxMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
-
-
-def _parse_wom_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipWomMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipWomMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_asm_minimal = _parse_minimal
+_parse_ilx_minimal = _parse_minimal
+_parse_wom_minimal = _parse_minimal
 
 
 # Sibling-completeness follow-up: top-level ``analytics`` module
@@ -2545,22 +2391,7 @@ _ANALYTICS_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
-def _parse_analytics_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipAnalyticsMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipAnalyticsMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_analytics_minimal = _parse_minimal
 
 
 # Module -> (dispatch table, parser function).  Used by the generic
@@ -2570,22 +2401,7 @@ _MinimalParserFn = Callable[[str, str, str, DocumentBuffer, "_Block"], object]
 _MINIMAL_DISPATCH_BY_MODULE: dict[str, tuple[dict[str, str], _MinimalParserFn]] = {}
 
 
-def _parse_api_protection_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipApiProtectionMinimalObject:
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipApiProtectionMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+_parse_api_protection_minimal = _parse_minimal
 
 
 _MINIMAL_DISPATCH_BY_MODULE.update(
@@ -4124,30 +3940,10 @@ def _parse_security_bot_defense_profile(
     )
 
 
-def _parse_security_minimal(
-    full_path: str,
-    body: str,
-    kind_label: str,
-    source_map: DocumentBuffer,
-    block: _Block,
-) -> BigipSecurityMinimalObject:
-    """Parser used for every bundle-10b security.* kind.
-
-    Surfaces only the identity tuple (``name`` / ``full_path``) plus
-    ``description``; the runtime / signature / stats kinds we
-    classify as minimal don't have addressable scalars beyond that.
-    The kind label is preserved on the dataclass so a query like
-    ``.security.dos-virtual[].kind`` returns ``"security dos virtual"``.
-    """
-    props = _parse_properties(body)
-    name = full_path.rsplit("/", 1)[-1] if full_path else ""
-    return BigipSecurityMinimalObject(
-        name=name,
-        full_path=full_path,
-        kind=kind_label,
-        description=_description(props),
-        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
-    )
+# Bundle 10b — uses the same shared minimal parser as every other
+# module.  Kept as an alias so the existing call site at
+# ``module == "security"`` stays grep-able.
+_parse_security_minimal = _parse_minimal
 
 
 # bundle-10b dispatch table — maps the in-config two-word obj_type
@@ -6066,7 +5862,7 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     full_path, block.body, source_map, block
                 )
             elif obj_type == "radius":
-                config.auth_radii[full_path] = _parse_auth_radius(
+                config.auth_radius[full_path] = _parse_auth_radius(
                     full_path, block.body, source_map, block
                 )
             elif obj_type == "radius-server":

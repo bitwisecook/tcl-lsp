@@ -634,92 +634,36 @@ _LTM_AUTH_FIELDS: dict[str, FieldSpec] = {
     "defaults-from": FieldSpec("defaults_from"),
 }
 
-# Bundles 17-20 — shared field map for the generic ltm.* minimal
-# kinds (CGNAT/LSN, global-settings, classification, tacdb).
-_LTM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
+# Shared field map for every "minimal" projection — identical
+# shape across all 14 modules (ltm bundles 17-20, net 21-26,
+# apm 27-31, pem 32, sys 33-41, vcmp 42, cm 43, cli 44,
+# api-protection 45, plus audit follow-ups asm/ilx/wom/analytics
+# and the bundle-10b security.* family).  Each kind keeps its
+# own dispatch entry / container; only the field-projection
+# template is shared.
+_MINIMAL_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "kind": FieldSpec("kind"),
     "description": FieldSpec("description"),
 }
 
-# Bundles 21-26: net.*  /  27-31: apm.*  /  32: pem.*  /  33-41: sys.*
-# / 42: vcmp.* / 43: cm.* / 44: cli.* / 45: api-protection.*
-# All use identical shape — name / full-path / kind / description.
-_NET_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_APM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_PEM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_SYS_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_VCMP_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_CM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_CLI_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_API_PROTECTION_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-
-# Audit follow-up modules.
-_ASM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_ILX_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_WOM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
-_ANALYTICS_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
+# Module-scoped aliases — kept so the call sites in
+# ``_KIND_FIELD_MAPS`` below stay grep-able by module without an
+# attribute-renaming sweep across the 300+ registrations.
+_LTM_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_NET_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_APM_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_PEM_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_SYS_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_VCMP_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_CM_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_CLI_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_API_PROTECTION_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_ASM_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_ILX_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_WOM_MINIMAL_FIELDS = _MINIMAL_FIELDS
+_ANALYTICS_MINIMAL_FIELDS = _MINIMAL_FIELDS
 
 _NODE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
@@ -1342,13 +1286,10 @@ _SECURITY_BOT_DEFENSE_PROFILE_FIELDS: dict[str, FieldSpec] = {
     "template": FieldSpec("template"),
 }
 
-# Bundle 10b — shared field map for the 37 minimal security.* kinds.
-_SECURITY_MINIMAL_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "kind": FieldSpec("kind"),
-    "description": FieldSpec("description"),
-}
+# Bundle 10b — alias to the shared minimal-fields template.  The
+# 37 ``security.*`` minimal kinds use the same shape as every other
+# minimal projection.
+_SECURITY_MINIMAL_FIELDS = _MINIMAL_FIELDS
 
 
 _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS: dict[str, FieldSpec] = {
@@ -3876,7 +3817,7 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "remote-user": ("auth_remote_user", "auth remote-user"),
         "login-failures": ("auth_login_failures", "auth login-failures"),
         "ldap": ("auth_ldaps", "auth ldap"),
-        "radius": ("auth_radii", "auth radius"),
+        "radius": ("auth_radius", "auth radius"),
         "radius-server": ("auth_radius_servers", "auth radius-server"),
         "tacacs": ("auth_tacacs", "auth tacacs"),
         "cert-ldap": ("auth_cert_ldaps", "auth cert-ldap"),

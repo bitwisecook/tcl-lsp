@@ -335,7 +335,7 @@ def _emit_values(
     result,
     sources: dict[str, str],
 ) -> int:
-    any_emitted = False
+    any_matched = False
     multi = len(sources) > 1
     # Per-file ``# === uri ===`` banners are line-oriented; emitting
     # them around ``--json`` output corrupts the JSON document.  Skip
@@ -343,10 +343,15 @@ def _emit_values(
     # query once per file (``for f in *.conf; do f5 query -j ... $f``).
     use_banner = multi and args.output_mode != "json"
     for uri, values in result.values_per_file.items():
+        # "Matched" means the evaluator produced at least one value
+        # for this source — empty strings, ``null``, ``false``, and
+        # zero-length renders all count as matches.  Earlier this
+        # branch keyed off the rendered text being truthy, which
+        # incorrectly reported "no results" when a query landed on
+        # an empty ``full-path`` or an empty paths-only list.
+        if values:
+            any_matched = True
         if use_banner:
             sys.stdout.write(f"# === {uri} ===\n")
-        text = render(values, mode=args.output_mode)
-        if text:
-            any_emitted = True
-        sys.stdout.write(text)
-    return 0 if any_emitted else 1
+        sys.stdout.write(render(values, mode=args.output_mode))
+    return 0 if any_matched else 1
