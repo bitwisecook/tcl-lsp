@@ -154,12 +154,39 @@ MODULES
                           so chained queries like
                           ``.gtm.wideip[].pools[].ttl`` walk
                           ``wideip → pool → ttl`` in one step.
+  .pem.<kind>             Policy Enforcement Manager: ``policy``,
+                          ``irule``, ``listener``,
+                          ``forwarding-endpoint``,
+                          ``interception-endpoint``,
+                          ``service-chain-endpoint``, ``profile``,
+                          ``rating-group``, plus ``global-settings-*``,
+                          ``protocol-*``, ``reporting-format-script``,
+                          ``subscriber``, ``subscriber-attribute``.
+  .auth.<kind>            Authentication: ``partition``, ``user``,
+                          ``ldap``, ``radius``, ``radius-server``,
+                          ``tacacs``, ``apm-auth``, ``cert-ldap``,
+                          plus singletons (``password``,
+                          ``password-policy``, ``source``,
+                          ``remote-role``, ``remote-user``,
+                          ``login-failures``).
+  .vcmp.<kind>            vCMP: ``guest``, ``traffic-profile``,
+                          ``virtual-disk``, ``virtual-disk-template``.
+  .cli.<kind>             CLI: ``admin-partitions``,
+                          ``alias-private``, ``alias-shared``,
+                          ``global-settings``, ``preference``,
+                          ``script``, ``transaction``, ``version``.
+  .api-protection.<kind>  API Protection: ``profile-apiprotection``,
+                          ``response``, ``server``.
+  .asm.<kind>             Application Security Manager: ``policy``.
+  .ilx.<kind>             iRulesLX: ``global-settings`` (singleton).
+  .wom.<kind>             WAN Optimization Manager (legacy):
+                          ``endpoint-discovery`` (singleton).
+  .analytics.<kind>       Analytics: ``global-settings`` (singleton).
 
-  Unmodelled kinds (``pem.*``, ``auth.*``, …) still parse
-  and are surfaced via ``rename_partition`` / cross-module rewrites,
-  but they are not navigable from the DSL in v1.  Reach into them
-  with ``f5 query --scf`` after a partition cascade, or wait for the
-  follow-on typed-projection rounds.
+  Any TMSH stanza the parser sees but no typed projection covers
+  still lands in ``cfg.generic_objects`` with full byte ranges
+  and is reachable via ``rename_partition`` / ``--scf`` source-
+  level operations, but it is not navigable from the DSL.
 
 ASSIGNMENT
 

@@ -238,11 +238,6 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
     return out
 
 
-# Fields where ``+=`` against a missing block should materialise a
-# fresh ``<field> { ... }`` compound block inside the stanza.  These
-# are the common BIG-IP list-shaped property slots; the value
-# projected by the evaluator is already a Python ``list``, so the
-# splice just wraps it in a brace block.
 # Fields that ``+=`` / ``=`` can materialise as a fresh
 # ``<field> { ... }`` block on a stanza that doesn't already have one.
 # Restricted to *flat* list slots whose elements stringify cleanly to
@@ -250,9 +245,35 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
 # intentionally excluded: their list elements are sub-block-shaped
 # objects (``/Common/n1:80 { address … port … monitor … }``) that the
 # generic materialiser would flatten into a meaningless token sequence
-# and produce invalid SCF.  Pool-member edits stay out of scope for
-# v1; reach for ``f5 cleanup`` round-trip or hand-edit the stanza.
-_MATERIALISABLE_LIST_FIELDS = frozenset({"rules", "profiles", "persist", "policies"})
+# and produce invalid SCF.
+#
+# Several field names also appear on kinds whose list elements are
+# compound sub-blocks (``ltm policy.rules`` is a tuple of named
+# rule objects, not a list of paths).  The bare field name is not
+# enough to know whether materialisation is safe, so we additionally
+# pin to (object_kind, field_name) pairs and reject any list whose
+# elements aren't flat scalars / PathRefs at apply time.
+_MATERIALISABLE_KIND_FIELDS = frozenset(
+    {
+        ("ltm virtual", "rules"),
+        ("ltm virtual", "profiles"),
+        ("ltm virtual", "persist"),
+        ("ltm virtual", "policies"),
+    }
+)
+
+
+def _is_flat_list_element(value: Any) -> bool:
+    """Return True iff *value* renders cleanly as a bare SCF token.
+
+    The materialiser joins list items with spaces and emits the result
+    verbatim, so we only accept types whose ``__str__`` produces
+    syntactically valid SCF: bare scalars and :class:`PathRef`
+    (which renders to its full-path).  ObjectRef / dict / list /
+    nested containers are rejected — they need a typed encoder we
+    don't have in v1.
+    """
+    return isinstance(value, (str, int, float, bool, PathRef)) or value is None
 
 
 def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
@@ -346,10 +367,17 @@ def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str,
 
     Eligibility:
 
-    - The op's ``field_name`` is one of the known
-      :data:`_MATERIALISABLE_LIST_FIELDS` (``rules`` / ``profiles`` /
-      ``persist`` / ``policies``).  ``members`` is intentionally out
-      of scope — its elements are sub-block-shaped objects.
+    - The op's ``(object_kind, field_name)`` pair is in
+      :data:`_MATERIALISABLE_KIND_FIELDS`.  A bare field name isn't
+      enough: ``rules`` on ``ltm virtual`` is a flat list of paths,
+      but ``rules`` on ``ltm policy`` is a tuple of compound
+      sub-block objects — materialising the latter would flatten
+      ``BigipPolicyRule`` reprs into the source and produce invalid
+      SCF.  Pool ``members`` is also intentionally absent: its
+      elements are sub-block-shaped.
+    - Every element of ``new_value`` is a flat scalar or PathRef
+      (see :func:`_is_flat_list_element`).  Anything else is
+      rejected loudly rather than silently corrupting the stanza.
     - The op has a ``stanza_slot`` so we know where to insert.
     - The op's ``new_value`` is a non-empty list (an empty list would
       produce ``<field> { }`` — no-op, skipped).
@@ -357,7 +385,7 @@ def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str,
       block is a no-op (nothing to remove); we leave it to the
       existing error path.
     """
-    if op.field_name not in _MATERIALISABLE_LIST_FIELDS:
+    if (op.object_kind, op.field_name) not in _MATERIALISABLE_KIND_FIELDS:
         return None
     if op.stanza_slot is None:
         return None
@@ -366,6 +394,14 @@ def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str,
     new_value = op.new_value
     if not isinstance(new_value, list) or not new_value:
         return None
+    bad = next((v for v in new_value if not _is_flat_list_element(v)), None)
+    if bad is not None:
+        bad_kind = type(bad).__name__
+        raise EditError(
+            f"cannot materialise {op.field_name!r} on {op.object_path!r}: "
+            f"list element of type {bad_kind} is not a flat SCF token "
+            f"(materialisation is restricted to scalars and PathRefs)"
+        )
 
     stanza_start = op.stanza_slot.start
     stanza_end = op.stanza_slot.end

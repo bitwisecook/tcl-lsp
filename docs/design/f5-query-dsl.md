@@ -347,12 +347,15 @@ PathRefs cross module boundaries: `.net.self[].vlan.tag` walks
 `.ltm.virtual[].pool.members[].address` walks the existing
 `virtual → pool → member → address` chain — same auto-deref engine.
 
-Unmodelled kinds (`apm.*`, `security.*`, `sys.*`, `cm.*`, `pem.*`, …)
-still parse — every stanza lands in `cfg.generic_objects` with full
-byte ranges — and are reached by source-level operations
-(`rename_partition` cascades, `--scf` selection through grep / a real
-SCF concatenation), but they're not navigable from the DSL in v1.
-Follow-on rounds will add typed projection for the high-value modules.
+`apm.*`, `security.*`, `sys.*`, `cm.*`, `pem.*`, `auth.*`, `vcmp.*`,
+`cli.*`, `api-protection.*`, `asm.*`, `ilx.*`, `wom.*`, and
+`analytics.*` are all projected and navigable — `_MODULE_KINDS` in
+`projection.py` enumerates the supported kinds per module.  Any TMSH
+stanza the parser sees but no typed projection covers still lands in
+`cfg.generic_objects` with full byte ranges and is reachable via
+source-level operations (`rename_partition` cascades, `--scf` selection
+through grep / a real SCF concatenation), but is not navigable from
+the DSL.
 
 The full per-kind field map lives in `_KIND_FIELD_MAPS` in
 `projection.py`; that table is the single source of truth for which

@@ -119,8 +119,9 @@ def _pipe_through(values: Any, rhs: Expr, ctx: EvalContext) -> Any:
     a time — plain Python lists are passed to *rhs* as a single value.
     This matches jq's "arrays don't iterate, generators do" rule and
     lets ``.rules | length`` measure the rules list rather than
-    running ``length`` on each PathRef.  Use ``.[]`` (or ``collect``)
-    to convert between forms explicitly.
+    running ``length`` on each PathRef.  Use ``.[]`` to iterate a list
+    explicitly, or wrap a streaming pipeline in ``[ ... ]`` to collect
+    its items back into a single list.
     """
     if isinstance(values, Stream):
         out: list[Any] = []
