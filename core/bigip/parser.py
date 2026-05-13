@@ -27,7 +27,9 @@ from dataclasses import dataclass
 from ..analysis.semantic_model import Range
 from ..common.document_buffer import DocumentBuffer
 from .model import (
+    BigipApiProtectionMinimalObject,
     BigipApmEphemeralAuthSshSecurityConfig,
+    BigipApmMinimalObject,
     BigipApmOauthDbInstance,
     BigipApmPolicyAccessPolicy,
     BigipApmPolicyAgent,
@@ -48,10 +50,12 @@ from .model import (
     BigipAuthSource,
     BigipAuthTacacs,
     BigipAuthUser,
+    BigipCliMinimalObject,
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
     BigipCmKey,
+    BigipCmMinimalObject,
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
     BigipConfig,
@@ -103,6 +107,7 @@ from .model import (
     BigipMonitor,
     BigipNetDnsResolver,
     BigipNetInterface,
+    BigipNetMinimalObject,
     BigipNetPortList,
     BigipNetRoute,
     BigipNetRouteDomain,
@@ -114,6 +119,7 @@ from .model import (
     BigipPemForwardingEndpoint,
     BigipPemInterceptionEndpoint,
     BigipPemListener,
+    BigipPemMinimalObject,
     BigipPemPolicy,
     BigipPemProfile,
     BigipPemRatingGroup,
@@ -170,9 +176,11 @@ from .model import (
     BigipSysFolder,
     BigipSysGlobalSettings,
     BigipSysManagementRoute,
+    BigipSysMinimalObject,
     BigipSysNtp,
     BigipSysProvision,
     BigipSysSnmp,
+    BigipVcmpMinimalObject,
     BigipVirtualAddress,
     BigipVirtualServer,
     DataGroupType,
@@ -634,6 +642,55 @@ _TWO_WORD_TYPES = frozenset(
         "tacdb customdb",
         "tacdb customdb-file",
         "tacdb licenseddb",
+        # Bundle 21 — net routing.
+        "routing access-list",
+        "routing bfd",
+        "routing bgp",
+        "routing community-list",
+        "routing extcommunity-list",
+        "routing prefix-list",
+        "routing route-map",
+        "routing debug",
+        # Bundle 22 — net tunnels family (each protocol two-word).
+        "tunnels endpoint",
+        "tunnels etherip",
+        "tunnels fec",
+        "tunnels geneve",
+        "tunnels gre",
+        "tunnels ipip",
+        "tunnels ipsec",
+        "tunnels lw4o6",
+        "tunnels map",
+        "tunnels ppp",
+        "tunnels tcp-forward",
+        "tunnels v6rd",
+        "tunnels vxlan",
+        "tunnels wccp",
+        # Bundle 23 — net ipsec.
+        "ipsec ike-daemon",
+        "ipsec ike-peer",
+        "ipsec ipsec-policy",
+        "ipsec manual-security-association",
+        "ipsec traffic-selector",
+        # Bundle 24 — net BWC / cos / rate-shaping.
+        "bwc policy",
+        "bwc priority-group",
+        "bwc traffic-group",
+        "cos global-settings",
+        "cos map-8021p",
+        "cos map-dscp",
+        "cos traffic-priority",
+        "rate-shaping class",
+        "rate-shaping color-policer",
+        "rate-shaping drop-policy",
+        "rate-shaping queue",
+        "rate-shaping shaping-policy",
+        # Bundle 25 — net L2 / misc two-word.
+        "fdb tunnel",
+        "fdb vlan",
+        # Bundle 26 — net sfc.
+        "sfc chain",
+        "sfc sf",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -824,6 +881,8 @@ _THREE_WORD_TYPES = frozenset(
         "dns hpke profile",
         # ltm bundle 19 — three-word.
         "classification auto-update settings",
+        # net bundle 21 — three-word.
+        "routing profile bgp",
         # ltm message-routing bundle 15 — three-word kinds.
         "message-routing diameter peer",
         "message-routing diameter route",
@@ -1701,6 +1760,266 @@ def _parse_ltm_minimal(
         description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
+
+
+_NET_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 21 — net routing (10 kinds).
+    "routing access-list": "net_routing_access_lists",
+    "routing bfd": "net_routing_bfd",
+    "routing bgp": "net_routing_bgp",
+    "routing community-list": "net_routing_community_lists",
+    "routing extcommunity-list": "net_routing_extcommunity_lists",
+    "routing prefix-list": "net_routing_prefix_lists",
+    "routing profile bgp": "net_routing_profile_bgp",
+    "routing route-map": "net_routing_route_maps",
+    "routing debug": "net_routing_debug",
+    "router-advertisement": "net_router_advertisements",
+    # Bundle 22 — net tunnels family (14 kinds).
+    "tunnels endpoint": "net_tunnels_endpoints",
+    "tunnels etherip": "net_tunnels_etherip",
+    "tunnels fec": "net_tunnels_fec",
+    "tunnels geneve": "net_tunnels_geneve",
+    "tunnels gre": "net_tunnels_gre",
+    "tunnels ipip": "net_tunnels_ipip",
+    "tunnels ipsec": "net_tunnels_ipsec",
+    "tunnels lw4o6": "net_tunnels_lw4o6",
+    "tunnels map": "net_tunnels_map",
+    "tunnels ppp": "net_tunnels_ppp",
+    "tunnels tcp-forward": "net_tunnels_tcp_forward",
+    "tunnels v6rd": "net_tunnels_v6rd",
+    "tunnels vxlan": "net_tunnels_vxlan",
+    "tunnels wccp": "net_tunnels_wccp",
+    # Bundle 23 — net ipsec (5 kinds).
+    "ipsec ike-daemon": "net_ipsec_ike_daemon",
+    "ipsec ike-peer": "net_ipsec_ike_peers",
+    "ipsec ipsec-policy": "net_ipsec_ipsec_policies",
+    "ipsec manual-security-association": "net_ipsec_manual_security_associations",
+    "ipsec traffic-selector": "net_ipsec_traffic_selectors",
+    # Bundle 24 — net BWC / rate-shaping / cos (12 kinds).
+    "bwc policy": "net_bwc_policies",
+    "bwc priority-group": "net_bwc_priority_groups",
+    "bwc traffic-group": "net_bwc_traffic_groups",
+    "cos global-settings": "net_cos_global_settings",
+    "cos map-8021p": "net_cos_map_8021p",
+    "cos map-dscp": "net_cos_map_dscp",
+    "cos traffic-priority": "net_cos_traffic_priority",
+    "rate-shaping class": "net_rate_shaping_class",
+    "rate-shaping color-policer": "net_rate_shaping_color_policer",
+    "rate-shaping drop-policy": "net_rate_shaping_drop_policy",
+    "rate-shaping queue": "net_rate_shaping_queue",
+    "rate-shaping shaping-policy": "net_rate_shaping_shaping_policy",
+    # Bundle 25 — net L2 / misc (22 kinds; mix of single- and two-word).
+    "address-list": "net_address_lists",
+    "arp": "net_arp",
+    "dag-globals": "net_dag_globals",
+    "fdb tunnel": "net_fdb_tunnel",
+    "fdb vlan": "net_fdb_vlan",
+    "interface-cos": "net_interface_cos",
+    "ipv6-subscriber-prefix-length": "net_ipv6_subscriber_prefix_length",
+    "lacp-globals": "net_lacp_globals",
+    "lldp-globals": "net_lldp_globals",
+    "multicast-globals": "net_multicast_globals",
+    "ndp": "net_ndp",
+    "packet-filter": "net_packet_filter",
+    "packet-filter-trusted": "net_packet_filter_trusted",
+    "port-mirror": "net_port_mirror",
+    "rst-cause": "net_rst_cause",
+    "self-allow": "net_self_allow",
+    "service-policy": "net_service_policy",
+    "stp-globals": "net_stp_globals",
+    "timer-policy": "net_timer_policy",
+    "trunk": "net_trunk",
+    "vlan-group": "net_vlan_group",
+    "wccp": "net_wccp",
+    # Bundle 26 — net sfc (2 kinds).
+    "sfc chain": "net_sfc_chain",
+    "sfc sf": "net_sfc_sf",
+}
+
+
+def _parse_net_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipNetMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipNetMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_APM_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+def _parse_apm_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipApmMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipApmMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_PEM_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+def _parse_pem_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipPemMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipPemMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_SYS_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+def _parse_sys_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipSysMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipSysMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_VCMP_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+def _parse_vcmp_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipVcmpMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipVcmpMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_CM_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+def _parse_cm_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipCmMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipCmMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_CLI_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+def _parse_cli_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipCliMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipCliMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_API_PROTECTION_MINIMAL_DISPATCH: dict[str, str] = {}
+
+
+# Module -> (dispatch table, parser function).  Used by the generic
+# minimal-dispatch pre-pass in ``parse_bigip_conf`` so every
+# bundles 17-45 minimal kind routes through the same code path.
+_MINIMAL_DISPATCH_BY_MODULE: dict[str, tuple[dict[str, str], object]] = {}
+
+
+def _parse_api_protection_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipApiProtectionMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipApiProtectionMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+_MINIMAL_DISPATCH_BY_MODULE.update(
+    {
+        "net": (_NET_MINIMAL_DISPATCH, _parse_net_minimal),
+        "apm": (_APM_MINIMAL_DISPATCH, _parse_apm_minimal),
+        "pem": (_PEM_MINIMAL_DISPATCH, _parse_pem_minimal),
+        "sys": (_SYS_MINIMAL_DISPATCH, _parse_sys_minimal),
+        "vcmp": (_VCMP_MINIMAL_DISPATCH, _parse_vcmp_minimal),
+        "cm": (_CM_MINIMAL_DISPATCH, _parse_cm_minimal),
+        "cli": (_CLI_MINIMAL_DISPATCH, _parse_cli_minimal),
+        "api-protection": (_API_PROTECTION_MINIMAL_DISPATCH, _parse_api_protection_minimal),
+    }
+)
 
 
 # Bundle 16 — ltm auth.* profiles (11 kinds).  All share the
@@ -4630,6 +4949,21 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                         source_map,
                         block,
                     )
+                elif identifier_g == "" and module_g in _MINIMAL_DISPATCH_BY_MODULE:
+                    # Bare-singleton non-ltm minimal kinds (e.g.
+                    # ``net lacp-globals {``, ``sys httpd {``,
+                    # ``cm config-sync {``).  Route via the generic
+                    # minimal dispatch table keyed by module.
+                    _table_fn = _MINIMAL_DISPATCH_BY_MODULE[module_g]
+                    if obj_type_g in _table_fn[0]:
+                        _attr = _table_fn[0][obj_type_g]
+                        getattr(config, _attr)[""] = _table_fn[1](
+                            "",
+                            block.body,
+                            f"{module_g} {obj_type_g}",
+                            source_map,
+                            block,
+                        )
                 elif module_g == "auth" and identifier_g == "":
                     # ``auth password``, ``auth password-policy``, ``auth
                     # source``, ``auth remote-role``, ``auth remote-user``,
@@ -4661,6 +4995,25 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                         )
             continue
         module, obj_type, full_path = parsed
+
+        # Generic minimal-dispatch pre-pass.  Runs first so that the
+        # bundles 17-45 minimal kinds for non-ltm modules (net.* /
+        # sys.* / apm.* / pem.* / cm.* / vcmp / cli / api-protection)
+        # are dispatched without each module needing its own elif
+        # chain.  Falls through to the module-specific blocks when
+        # the kind isn't in any minimal table.
+        _minimal_table = _MINIMAL_DISPATCH_BY_MODULE.get(module)
+        if _minimal_table is not None and obj_type in _minimal_table[0]:
+            _attr = _minimal_table[0][obj_type]
+            _parser_fn = _minimal_table[1]
+            getattr(config, _attr)[full_path] = _parser_fn(
+                full_path,
+                block.body,
+                f"{module} {obj_type}",
+                source_map,
+                block,
+            )
+            continue
 
         if module == "net":
             # ``net`` module has its own dispatch.  Unknown sub-types

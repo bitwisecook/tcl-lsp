@@ -5287,3 +5287,46 @@ def test_ltm_bundle_19_and_20_dispatch():
     ]:
         res = _run(f".ltm.{label}[].kind", _LTM19_CONF)
         assert res.values_per_file["mem://1"], f"{label}: no values"
+
+
+# Bundles 21-26 — net.* minimal kinds (65 across routing, tunnels,
+# ipsec, BWC/cos/rate-shaping, L2/misc, SFC).
+
+_NET_BUNDLES_CONF = """net routing access-list /Common/al1 { description "al" }
+net routing bgp /Common/bgp1 { description "bgp" }
+net routing profile bgp /Common/pb1 { description "pb" }
+net router-advertisement /Common/ra1 { description "ra" }
+net tunnels gre /Common/gre1 { description "gre" }
+net tunnels vxlan /Common/vx1 { description "vx" }
+net ipsec ike-daemon /Common/iked1 { description "iked" }
+net ipsec ike-peer /Common/ikepeer1 { description "ikepeer" }
+net bwc policy /Common/bwc1 { description "bwc" }
+net cos global-settings { description "cos" }
+net rate-shaping class /Common/rsc1 { description "rsc" }
+net address-list /Common/aln1 { description "addrl" }
+net lacp-globals { description "lacp" }
+net fdb tunnel /Common/fdbt1 { description "fdb-t" }
+net sfc chain /Common/sfc1 { description "sfc" }
+"""
+
+
+def test_net_bundles_21_to_26_dispatch():
+    for label in [
+        "routing-access-list",
+        "routing-bgp",
+        "routing-profile-bgp",
+        "router-advertisement",
+        "tunnels-gre",
+        "tunnels-vxlan",
+        "ipsec-ike-daemon",
+        "ipsec-ike-peer",
+        "bwc-policy",
+        "cos-global-settings",
+        "rate-shaping-class",
+        "address-list",
+        "lacp-globals",
+        "fdb-tunnel",
+        "sfc-chain",
+    ]:
+        res = _run(f".net.{label}[].kind", _NET_BUNDLES_CONF)
+        assert res.values_per_file["mem://1"], f"{label}: no values"

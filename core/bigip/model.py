@@ -682,6 +682,94 @@ class BigipLtmMinimalObject:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipNetMinimalObject:
+    """Generic net.* minimal projection used by bundles 21-26."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApmMinimalObject:
+    """Generic apm.* minimal projection used by bundles 27-31."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipPemMinimalObject:
+    """Generic pem.* minimal projection used by bundle 32."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSysMinimalObject:
+    """Generic sys.* minimal projection used by bundles 33-41."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipVcmpMinimalObject:
+    """Generic vcmp.* minimal projection used by bundle 42."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmMinimalObject:
+    """Generic cm.* minimal projection used by bundle 43."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCliMinimalObject:
+    """Generic cli.* minimal projection used by bundle 44."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipApiProtectionMinimalObject:
+    """Generic api-protection.* minimal projection used by bundle 45."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
 
@@ -2691,6 +2779,81 @@ class BigipConfig:
     ltm_tacdb_customdb: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     ltm_tacdb_customdb_file: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     ltm_tacdb_licenseddb: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    # Bundle 21 — net routing (10 kinds).
+    net_routing_access_lists: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_bfd: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_bgp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_community_lists: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_extcommunity_lists: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_prefix_lists: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_profile_bgp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_route_maps: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_routing_debug: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_router_advertisements: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    # Bundle 22 — net tunnels family (14 kinds).
+    net_tunnels_endpoints: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_etherip: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_fec: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_geneve: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_gre: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_ipip: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_ipsec: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_lw4o6: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_map: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_ppp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_tcp_forward: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_v6rd: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_vxlan: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_tunnels_wccp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    # Bundle 23 — net ipsec (5 kinds).
+    net_ipsec_ike_daemon: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_ipsec_ike_peers: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_ipsec_ipsec_policies: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_ipsec_manual_security_associations: dict[str, BigipNetMinimalObject] = field(
+        default_factory=dict
+    )
+    net_ipsec_traffic_selectors: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    # Bundle 24 — net BWC / cos / rate-shaping (12 kinds).
+    net_bwc_policies: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_bwc_priority_groups: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_bwc_traffic_groups: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_cos_global_settings: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_cos_map_8021p: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_cos_map_dscp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_cos_traffic_priority: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_rate_shaping_class: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_rate_shaping_color_policer: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_rate_shaping_drop_policy: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_rate_shaping_queue: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_rate_shaping_shaping_policy: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    # Bundle 25 — net L2 / misc (22 kinds).
+    net_address_lists: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_arp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_dag_globals: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_fdb_tunnel: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_fdb_vlan: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_interface_cos: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_ipv6_subscriber_prefix_length: dict[str, BigipNetMinimalObject] = field(
+        default_factory=dict
+    )
+    net_lacp_globals: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_lldp_globals: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_multicast_globals: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_ndp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_packet_filter: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_packet_filter_trusted: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_port_mirror: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_rst_cause: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_self_allow: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_service_policy: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_stp_globals: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_timer_policy: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_trunk: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_vlan_group: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_wccp: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    # Bundle 26 — net sfc (2 kinds).
+    net_sfc_chain: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    net_sfc_sf: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

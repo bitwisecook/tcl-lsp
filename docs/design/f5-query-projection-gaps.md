@@ -713,86 +713,86 @@ administrative ``auth.*`` namespace projected in bundle 8.
 
 ### Bundle 21 — `net.*` routing (10)
 
-- [ ] `net routing access-list`
-- [ ] `net routing bfd`
-- [ ] `net routing bgp`
-- [ ] `net routing community-list`
-- [ ] `net routing extcommunity-list`
-- [ ] `net routing prefix-list`
-- [ ] `net routing profile bgp`
-- [ ] `net routing route-map`
-- [ ] `net routing debug`
-- [ ] `net router-advertisement`
+- [x] `net routing access-list`
+- [x] `net routing bfd`
+- [x] `net routing bgp`
+- [x] `net routing community-list`
+- [x] `net routing extcommunity-list`
+- [x] `net routing prefix-list`
+- [x] `net routing profile bgp`
+- [x] `net routing route-map`
+- [x] `net routing debug`
+- [x] `net router-advertisement`
 
 ### Bundle 22 — `net.*` tunnels family (14)
 
-- [ ] `net tunnels endpoint`
-- [ ] `net tunnels etherip`
-- [ ] `net tunnels fec`
-- [ ] `net tunnels geneve`
-- [ ] `net tunnels gre`
-- [ ] `net tunnels ipip`
-- [ ] `net tunnels ipsec`
-- [ ] `net tunnels lw4o6`
-- [ ] `net tunnels map`
-- [ ] `net tunnels ppp`
-- [ ] `net tunnels tcp-forward`
-- [ ] `net tunnels v6rd`
-- [ ] `net tunnels vxlan`
-- [ ] `net tunnels wccp`
+- [x] `net tunnels endpoint`
+- [x] `net tunnels etherip`
+- [x] `net tunnels fec`
+- [x] `net tunnels geneve`
+- [x] `net tunnels gre`
+- [x] `net tunnels ipip`
+- [x] `net tunnels ipsec`
+- [x] `net tunnels lw4o6`
+- [x] `net tunnels map`
+- [x] `net tunnels ppp`
+- [x] `net tunnels tcp-forward`
+- [x] `net tunnels v6rd`
+- [x] `net tunnels vxlan`
+- [x] `net tunnels wccp`
 
 ### Bundle 23 — `net.*` IPsec (5)
 
-- [ ] `net ipsec ike-daemon`
-- [ ] `net ipsec ike-peer`
-- [ ] `net ipsec ipsec-policy`
-- [ ] `net ipsec manual-security-association`
-- [ ] `net ipsec traffic-selector`
+- [x] `net ipsec ike-daemon`
+- [x] `net ipsec ike-peer`
+- [x] `net ipsec ipsec-policy`
+- [x] `net ipsec manual-security-association`
+- [x] `net ipsec traffic-selector`
 
 ### Bundle 24 — `net.*` BWC + rate-shaping + cos (12)
 
-- [ ] `net bwc policy`
-- [ ] `net bwc priority-group`
-- [ ] `net bwc traffic-group`
-- [ ] `net cos global-settings`
-- [ ] `net cos map-8021p`
-- [ ] `net cos map-dscp`
-- [ ] `net cos traffic-priority`
-- [ ] `net rate-shaping class`
-- [ ] `net rate-shaping color-policer`
-- [ ] `net rate-shaping drop-policy`
-- [ ] `net rate-shaping queue`
-- [ ] `net rate-shaping shaping-policy`
+- [x] `net bwc policy`
+- [x] `net bwc priority-group`
+- [x] `net bwc traffic-group`
+- [x] `net cos global-settings`
+- [x] `net cos map-8021p`
+- [x] `net cos map-dscp`
+- [x] `net cos traffic-priority`
+- [x] `net rate-shaping class`
+- [x] `net rate-shaping color-policer`
+- [x] `net rate-shaping drop-policy`
+- [x] `net rate-shaping queue`
+- [x] `net rate-shaping shaping-policy`
 
 ### Bundle 25 — `net.*` packet-level + L2 + misc (19)
 
-- [ ] `net address-list`
-- [ ] `net arp`
-- [ ] `net dag-globals`
-- [ ] `net fdb tunnel`
-- [ ] `net fdb vlan`
-- [ ] `net interface-cos`
-- [ ] `net ipv6-subscriber-prefix-length`
-- [ ] `net lacp-globals`
-- [ ] `net lldp-globals`
-- [ ] `net multicast-globals`
-- [ ] `net ndp`
-- [ ] `net packet-filter`
-- [ ] `net packet-filter-trusted`
-- [ ] `net port-mirror`
-- [ ] `net rst-cause`
-- [ ] `net self-allow`
-- [ ] `net service-policy`
-- [ ] `net stp-globals`
-- [ ] `net timer-policy`
-- [ ] `net trunk`
-- [ ] `net vlan-group`
-- [ ] `net wccp`
+- [x] `net address-list`
+- [x] `net arp`
+- [x] `net dag-globals`
+- [x] `net fdb tunnel`
+- [x] `net fdb vlan`
+- [x] `net interface-cos`
+- [x] `net ipv6-subscriber-prefix-length`
+- [x] `net lacp-globals`
+- [x] `net lldp-globals`
+- [x] `net multicast-globals`
+- [x] `net ndp`
+- [x] `net packet-filter`
+- [x] `net packet-filter-trusted`
+- [x] `net port-mirror`
+- [x] `net rst-cause`
+- [x] `net self-allow`
+- [x] `net service-policy`
+- [x] `net stp-globals`
+- [x] `net timer-policy`
+- [x] `net trunk`
+- [x] `net vlan-group`
+- [x] `net wccp`
 
 ### Bundle 26 — `net.*` service-chain (3)
 
-- [ ] `net sfc chain`
-- [ ] `net sfc sf`
+- [x] `net sfc chain`
+- [x] `net sfc sf`
 
 ### Bundle 27 — `apm aaa.*` providers (24)
 
