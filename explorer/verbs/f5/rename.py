@@ -84,6 +84,18 @@ def _run_rename(args: argparse.Namespace) -> int:
     if args.path == "-" and args.in_place:
         print("error: --in-place requires a path argument, not stdin", file=sys.stderr)
         return 2
+    # ``--in-place`` must preserve the SCF source format; ``--format
+    # tmsh`` produces a ``tmsh modify`` script (useful for ``--write``
+    # or piping to a remote device) and would otherwise silently
+    # overwrite ``bigip.conf`` with a different file format.
+    if args.in_place and args.output_format == "tmsh":
+        print(
+            "error: --in-place is incompatible with --format tmsh "
+            "(in-place writes must preserve the SCF source format; "
+            "use --write, --output, or redirect for tmsh script output)",
+            file=sys.stderr,
+        )
+        return 2
     if not args.old:
         print("error: old name is empty", file=sys.stderr)
         return 2
@@ -91,8 +103,11 @@ def _run_rename(args: argparse.Namespace) -> int:
         print("error: new name is empty", file=sys.stderr)
         return 2
     try:
-        uri, source = read_path(args.path)
-    except OSError as exc:
+        # Strict UTF-8 for in-place writes — see ``f5 query``: silent
+        # U+FFFD replacement followed by an in-place rewrite would
+        # permanently overwrite the unreadable bytes.
+        uri, source = read_path(args.path, strict=args.in_place)
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

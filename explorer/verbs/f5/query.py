@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import json
 import sys
 from pathlib import Path
 
@@ -229,6 +230,22 @@ def _run_query(args: argparse.Namespace) -> int:
         print("error: no input files (pass '-' to read stdin)", file=sys.stderr)
         return 2
 
+    # ``--format tmsh`` re-renders the parsed config as a ``tmsh
+    # modify`` script — useful for stdout / pipes / dedicated output
+    # files, but never a safe replacement for the on-disk SCF source.
+    # Without this guard, ``f5 query --in-place --format tmsh`` would
+    # overwrite ``bigip.conf`` with a tmsh script and the dry-run
+    # diff (always SCF↔SCF) would still look normal beforehand.
+    if args.in_place and args.output_format == "tmsh":
+        print(
+            "error: --in-place is incompatible with --format tmsh "
+            "(in-place writes must preserve the SCF source format; "
+            "use --write or redirect to an explicit output file for "
+            "tmsh script output)",
+            file=sys.stderr,
+        )
+        return 2
+
     sources: dict[str, str] = {}
     path_for_uri: dict[str, str] = {}
     for path_str in args.paths:
@@ -236,8 +253,13 @@ def _run_query(args: argparse.Namespace) -> int:
             print("error: --in-place requires a path, not stdin", file=sys.stderr)
             return 2
         try:
-            uri, src = read_path(path_str)
-        except OSError as exc:
+            # Strict UTF-8 for mutating in-place writes: if any byte
+            # in the source can't be decoded, raise instead of
+            # silently swapping it for U+FFFD — otherwise the
+            # round-trip ``read … rewrite … write_text`` would
+            # permanently overwrite the unreadable bytes.
+            uri, src = read_path(path_str, strict=args.in_place)
+        except (OSError, UnicodeDecodeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         if uri in sources:
@@ -342,6 +364,28 @@ def _emit_values(
     # them for json — callers wanting per-file grouping can run the
     # query once per file (``for f in *.conf; do f5 query -j ... $f``).
     use_banner = multi and args.output_mode != "json"
+
+    # Multi-file ``--json`` must produce a single top-level JSON
+    # document, not a stream of adjacent arrays — otherwise tools
+    # like ``jq``, ``python -m json.tool``, and any ``json.load``
+    # consumer reject the output as invalid JSON.  Emit one
+    # ``[{"uri": ..., "values": [...]}, ...]`` envelope per
+    # invocation; single-file invocations stay flat (just the values
+    # array) so the simple case keeps its expected shape.
+    if multi and args.output_mode == "json":
+        envelope: list[dict] = []
+        for uri, values in result.values_per_file.items():
+            if values:
+                any_matched = True
+            envelope.append(
+                {
+                    "uri": uri,
+                    "values": json.loads(render(values, mode="json")),
+                }
+            )
+        sys.stdout.write(json.dumps(envelope, indent=2) + "\n")
+        return 0 if any_matched else 1
+
     for uri, values in result.values_per_file.items():
         # "Matched" means the evaluator produced at least one value
         # for this source — empty strings, ``null``, ``false``, and

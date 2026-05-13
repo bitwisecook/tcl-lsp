@@ -292,7 +292,11 @@ def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
     placed: list[tuple[int, int, str, EditOp]] = []
     for op in ops:
         if op.field_slot is not None:
-            new_text = _format_value(op.new_value, original_raw=op.field_slot.raw_text)
+            new_text = _format_value(
+                op.new_value,
+                original_raw=op.field_slot.raw_text,
+                field_name=op.field_name,
+            )
             placed.append((op.field_slot.start, op.field_slot.end, new_text, op))
             continue
         # No field_slot — see if we can materialise a fresh compound block.
@@ -327,21 +331,40 @@ def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
         out_parts.append(new_text)
         cursor = end
     out_parts.append(source[cursor:])
-    return "".join(out_parts)
+    new_source = "".join(out_parts)
+
+    # Defence-in-depth reparse — even with the SCF scalar encoder
+    # filtering destination strings, the generic ``_format_value``
+    # path could still hit a code path (or a future field type) that
+    # produces malformed SCF.  ``rename_object`` and the prefix
+    # rewrite path already do this; field edits skipped it.  Mirror
+    # the rename behaviour: if the rewritten source no longer parses,
+    # raise instead of letting ``--write`` / ``--in-place`` persist a
+    # broken config.
+    try:
+        parse_bigip_conf(new_source)
+    except Exception as exc:  # noqa: BLE001
+        raise EditError(f"field edit produced invalid SCF in {uri}: {exc}") from exc
+
+    return new_source
 
 
-def _format_value(value: Any, *, original_raw: str) -> str:
+def _format_value(value: Any, *, original_raw: str, field_name: str = "") -> str:
     """Render *value* for splicing back into source text.
 
-    Strings are emitted as-is (no quoting — TMSH values are bare
-    tokens).  Lists become brace-delimited groups, mirroring the
-    spacing of the original value.  Other scalars are converted with
-    ``str``.
+    Strings are encoded through :func:`_encode_tmsh_scalar`, which
+    bare-emits identifier-shaped tokens, double-quotes anything that
+    contains whitespace / quotes / semicolons / comment markers (with
+    backslash-escapes for embedded ``"`` and ``\\``), and rejects
+    values whose characters can't be safely represented in SCF at all
+    (newlines, braces, NUL / control chars).  Lists become brace-
+    delimited groups, mirroring the spacing of the original value.
+    Other scalars are converted with ``str``.
     """
     if isinstance(value, PathRef):
         return value.full_path
     if isinstance(value, list):
-        items = [_format_value(v, original_raw="") for v in value]
+        items = [_format_value(v, original_raw="", field_name=field_name) for v in value]
         # Preserve a brace wrapper if the original value used one.
         if original_raw.startswith("{"):
             return "{ " + " ".join(items) + " }"
@@ -350,7 +373,62 @@ def _format_value(value: Any, *, original_raw: str) -> str:
         return "none"
     if isinstance(value, bool):
         return "enabled" if value else "disabled"
+    if isinstance(value, str):
+        return _encode_tmsh_scalar(value, field_name=field_name)
     return str(value)
+
+
+# Characters whose presence in a scalar value forces double-quoting.
+# Whitespace and the SCF-significant punctuation (``"`` / ``;`` /
+# ``#`` / ``[`` / ``]``) all need quoting; bare tokens are restricted
+# to identifier-shaped sequences.
+_TMSH_REQUIRES_QUOTING = re.compile(r'[\s"\[\];#]')
+
+# Characters that have *no* safe textual representation inside an SCF
+# scalar — they break the brace-balanced structure or the line-oriented
+# parser, and the right answer is to refuse the edit.  Newlines are
+# the most important entry: a value with ``\n`` in it would split the
+# stanza body and inject arbitrary content into the surrounding scope
+# (the CVE-shaped concern that motivated the encoder).
+_TMSH_FORBIDDEN_IN_VALUE = re.compile(r"[\n\r\x00-\x08\x0b\x0c\x0e-\x1f{}]")
+
+
+def _encode_tmsh_scalar(value: str, *, field_name: str = "") -> str:
+    """Encode *value* as an SCF scalar token.
+
+    Three cases:
+
+    - ``""`` (empty string) → emit ``""`` so the slot stays
+      syntactically valid.
+    - Identifier-shaped value (no whitespace / no SCF punctuation) →
+      emit bare.
+    - Anything else that can be quoted → wrap in ``"..."`` with
+      backslash-escapes for embedded ``\\`` and ``"``.
+
+    Values containing characters from
+    :data:`_TMSH_FORBIDDEN_IN_VALUE` (newlines / braces / NUL / other
+    control chars) raise :class:`EditError`: the only way to "represent"
+    such a value in SCF would be to break the brace-balanced structure
+    or open a new scope, both of which are stanza-injection vectors.
+    The caller can either pre-sanitise its input or refuse to write
+    that field.
+    """
+    forbidden = _TMSH_FORBIDDEN_IN_VALUE.search(value)
+    if forbidden is not None:
+        bad = forbidden.group(0)
+        ctx = f" for field {field_name!r}" if field_name else ""
+        raise EditError(
+            f"value contains character {bad!r} that cannot be safely "
+            f"represented in SCF / TMSH{ctx}: newlines, braces, and "
+            f"control characters break the brace-balanced format and "
+            f"would corrupt the surrounding stanza"
+        )
+    if value == "":
+        return '""'
+    if _TMSH_REQUIRES_QUOTING.search(value):
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
 
 
 def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str, EditOp] | None:
@@ -422,7 +500,9 @@ def _materialise_compound_block(source: str, op: EditOp) -> tuple[int, int, str,
     else:
         indent = "    "
 
-    items_text = " ".join(_format_value(v, original_raw="") for v in new_value)
+    items_text = " ".join(
+        _format_value(v, original_raw="", field_name=op.field_name) for v in new_value
+    )
 
     # Is there an existing ``<field> { ... }`` block to overwrite?
     # Search the body for a top-level ``<indent>?<field>\s*{`` and

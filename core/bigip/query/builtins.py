@@ -214,6 +214,55 @@ def _as_int(value: object, *, name: str, arg: int) -> int:
     raise BuiltinError(f"{name}: argument {arg} must be an integer, got {_type_name(value)}")
 
 
+# Maximum length of a user-supplied regex pattern.  Anything longer
+# is almost certainly malformed or pathological — the DSL is for
+# F5-config queries, not arbitrary text mining, so a pattern past
+# this length is a strong signal of misuse rather than a legitimate
+# search.  Cheap to enforce and rules out the most trivial DoS shape
+# (a 1 MB ``(a+)+`` blob).
+_MAX_REGEX_PATTERN_LENGTH = 1024
+
+# Coarse syntactic block on the most common catastrophic-backtracking
+# shapes — nested quantifiers like ``(a+)+`` / ``(a*)*`` / ``(a*)+``
+# / ``(a+)*``.  Not a full ReDoS detector (that's undecidable in the
+# general case); just refuses the textbook patterns so a copy-pasted
+# CVE doesn't immediately hang the process.  Users with a legitimate
+# use case can always pre-process their input outside the DSL.
+_PATHOLOGICAL_REGEX = re.compile(r"\([^)]*[+*]\)\s*[+*]")
+
+
+def _safe_regex_compile(pattern: str, *, name: str) -> re.Pattern[str]:
+    """Compile *pattern* with length and shape guards.
+
+    The DSL exposes ``match`` / ``sub`` / ``gsub`` and the regex
+    container subscript to the query author.  Local CLI usage is
+    trusted (the query author is the operator), but the same code
+    path is reachable from MCP / chat / editor command surfaces
+    where the pattern can come from untrusted input.  This helper
+    is the single chokepoint: enforces a length cap, refuses obvious
+    catastrophic-backtracking shapes, and translates ``re.error`` to
+    the ``BuiltinError`` shape the DSL already raises elsewhere.
+    """
+    if len(pattern) > _MAX_REGEX_PATTERN_LENGTH:
+        raise BuiltinError(
+            f"{name}: regex pattern too long "
+            f"({len(pattern)} chars > {_MAX_REGEX_PATTERN_LENGTH} char limit) — "
+            "the DSL caps pattern length to bound regex compile / match cost; "
+            "split the search into smaller patterns or pre-filter the input"
+        )
+    if _PATHOLOGICAL_REGEX.search(pattern):
+        raise BuiltinError(
+            f"{name}: pattern {pattern!r} contains a nested quantifier "
+            "shape (``(...+)+``, ``(...*)*``, …) that triggers catastrophic "
+            "backtracking — refused to keep the engine responsive.  Rewrite "
+            "to use possessive quantifiers, atomic groups, or a non-nested form"
+        )
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        raise BuiltinError(f"{name}: invalid pattern {pattern!r}: {exc}") from exc
+
+
 def _as_sequence(value: object, *, name: str, arg: int) -> list[Any]:
     if isinstance(value, Stream):
         return list(value.items)
@@ -1189,6 +1238,16 @@ def _builtin_contains(value: Any, needle: Any) -> bool:
     ``re.error`` reason — the pattern comes from the query author,
     so a typo should fail loudly.
 
+    **Trust boundary.** ``match`` / ``sub`` / ``gsub`` and the
+    ``[~"pattern"]`` regex subscript route their patterns through a
+    central guard that caps pattern length and refuses obvious
+    catastrophic-backtracking shapes (``(a+)+`` etc.).  Local CLI
+    use is trusted (the query author is the operator); the same
+    guard makes it safe to expose the DSL through MCP / chat /
+    editor command surfaces where the pattern can come from
+    untrusted input.  See ``_safe_regex_compile`` for the exact
+    shape filter.
+
     For pure prefix/suffix or substring tests, prefer ``startswith``
     / ``endswith`` / ``contains`` — they're cheaper and read better.
 
@@ -1212,10 +1271,8 @@ def _builtin_contains(value: Any, needle: Any) -> bool:
 def _builtin_match(value: Any, pattern: Any) -> bool:
     s = _as_str(value, name="match", arg=1)
     p = _as_str(pattern, name="match", arg=2)
-    try:
-        return re.search(p, s) is not None
-    except re.error as exc:
-        raise BuiltinError(f"match: invalid pattern {p!r}: {exc}") from exc
+    rx = _safe_regex_compile(p, name="match")
+    return rx.search(s) is not None
 
 
 @_register(
@@ -1251,10 +1308,8 @@ def _builtin_sub(value: Any, pattern: Any, repl: Any) -> str:
     s = _as_str(value, name="sub", arg=1)
     p = _as_str(pattern, name="sub", arg=2)
     r = _as_str(repl, name="sub", arg=3)
-    try:
-        return re.sub(p, r, s, count=1)
-    except re.error as exc:
-        raise BuiltinError(f"sub: invalid pattern {p!r}: {exc}") from exc
+    rx = _safe_regex_compile(p, name="sub")
+    return rx.sub(r, s, count=1)
 
 
 @_register(
@@ -1285,10 +1340,8 @@ def _builtin_gsub(value: Any, pattern: Any, repl: Any) -> str:
     s = _as_str(value, name="gsub", arg=1)
     p = _as_str(pattern, name="gsub", arg=2)
     r = _as_str(repl, name="gsub", arg=3)
-    try:
-        return re.sub(p, r, s)
-    except re.error as exc:
-        raise BuiltinError(f"gsub: invalid pattern {p!r}: {exc}") from exc
+    rx = _safe_regex_compile(p, name="gsub")
+    return rx.sub(r, s)
 
 
 @_register(

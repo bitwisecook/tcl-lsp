@@ -18,14 +18,26 @@ _BIGIP_SUFFIXES = frozenset({".conf", ".scf"})
 _UCS_SUFFIXES = frozenset({".ucs"})
 
 
-def read_path(path_str: str) -> tuple[str, str]:
-    """Return ``(uri, source)`` for *path_str*.  ``-`` reads stdin."""
+def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
+    """Return ``(uri, source)`` for *path_str*.  ``-`` reads stdin.
+
+    When *strict* is true, undecodable bytes raise
+    :class:`UnicodeDecodeError` instead of silently being replaced
+    with U+FFFD.  Mutating commands (``f5 query --in-place`` /
+    ``f5 rename --in-place``) should pass ``strict=True`` so they
+    don't permanently lose data on the round-trip — once the source
+    has lost a byte to a replacement char, writing the rewritten
+    text back overwrites the original byte for good.
+    """
+    errors = "strict" if strict else "replace"
     if path_str == "-":
+        if strict:
+            return ("stdin://input", sys.stdin.buffer.read().decode("utf-8"))
         return ("stdin://input", sys.stdin.read())
     path = Path(path_str).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"not a file: {path_str}")
-    return (path.as_uri(), path.read_text(encoding="utf-8", errors="replace"))
+    return (path.as_uri(), path.read_text(encoding="utf-8", errors=errors))
 
 
 def load_paths(paths: list[str]) -> tuple[dict[str, str], dict[str, BigipConfig]]:

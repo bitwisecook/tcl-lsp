@@ -546,6 +546,16 @@ An invalid regex raises ``BuiltinError`` with the underlying
 ``re.error`` reason — the pattern comes from the query author,
 so a typo should fail loudly.
 
+**Trust boundary.** ``match`` / ``sub`` / ``gsub`` and the
+``[~"pattern"]`` regex subscript route their patterns through a
+central guard that caps pattern length and refuses obvious
+catastrophic-backtracking shapes (``(a+)+`` etc.).  Local CLI
+use is trusted (the query author is the operator); the same
+guard makes it safe to expose the DSL through MCP / chat /
+editor command surfaces where the pattern can come from
+untrusted input.  See ``_safe_regex_compile`` for the exact
+shape filter.
+
 For pure prefix/suffix or substring tests, prefer ``startswith``
 / ``endswith`` / ``contains`` — they're cheaper and read better.
 

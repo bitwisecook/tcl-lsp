@@ -8,6 +8,7 @@ the runner reusable from tests, MCP tools, or future ad-hoc scripts.
 from __future__ import annotations
 
 import contextlib
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,9 +21,25 @@ from .values import Root
 
 # Active roots are looked up by URI by graph builtins (``refs`` /
 # ``referenced_by``) which need the per-file context without it being
-# threaded through every call.  This is a module-level map rather than
-# a thread-local because the CLI is single-threaded.
-_ACTIVE_ROOTS: dict[str, Root] = {}
+# threaded through every call.  Stored in a :class:`ContextVar` of an
+# immutable dict so the runner is safe to call concurrently from an
+# LSP server, MCP tool, async editor command, or any other host that
+# might run two queries in flight at once — each ``set`` returns a
+# token the matching ``reset`` undoes, and contexts never share their
+# underlying mapping.  A bare module-level ``dict`` would race.
+_ACTIVE_ROOTS: ContextVar[dict[str, Root]] = ContextVar("f5_query_active_roots")
+
+
+def _lookup_active_root(uri: str) -> Root | None:
+    """Return the root currently bound for *uri*, or ``None``.
+
+    Graph builtins (``refs`` / ``referenced_by``) call this to find
+    the per-file context they're evaluating against.
+    """
+    try:
+        return _ACTIVE_ROOTS.get().get(uri)
+    except LookupError:
+        return None
 
 
 @dataclass
@@ -45,15 +62,24 @@ class QueryResult:
 
 @contextlib.contextmanager
 def _active_root(root: Root):
-    prior = _ACTIVE_ROOTS.get(root.uri)
-    _ACTIVE_ROOTS[root.uri] = root
+    """Bind *root* into the per-context active-root map for the
+    duration of the ``with`` block.
+
+    Uses copy-on-write on the underlying dict + ``ContextVar.reset``
+    so nested invocations (and concurrent contexts) never see each
+    other's bindings.
+    """
+    try:
+        current = _ACTIVE_ROOTS.get()
+    except LookupError:
+        current = {}
+    new = dict(current)
+    new[root.uri] = root
+    token = _ACTIVE_ROOTS.set(new)
     try:
         yield
     finally:
-        if prior is None:
-            _ACTIVE_ROOTS.pop(root.uri, None)
-        else:
-            _ACTIVE_ROOTS[root.uri] = prior
+        _ACTIVE_ROOTS.reset(token)
 
 
 def _build_root(uri: str, source: str) -> Root:

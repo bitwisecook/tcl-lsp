@@ -9,7 +9,6 @@ by the dispatch tables in :mod:`._data`.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -75,10 +74,18 @@ class Container:
         raise EvalError(f"{self.kind}: no entry {key!r}")
 
     def regex_keys(self, pattern: str) -> list[str]:
+        # Route through the DSL's central regex chokepoint
+        # (length + nested-quantifier guards) so the container regex
+        # subscript can't be the soft underbelly when the rest of the
+        # surface is hardened.  Wrap ``BuiltinError`` as ``EvalError``
+        # to keep the existing error type for navigation failures.
+        from ..builtins import _safe_regex_compile
+        from ..errors import BuiltinError
+
         try:
-            rx = re.compile(pattern)
-        except re.error as exc:
-            raise EvalError(f"invalid regex subscript {pattern!r}: {exc}") from exc
+            rx = _safe_regex_compile(pattern, name="regex subscript")
+        except BuiltinError as exc:
+            raise EvalError(str(exc)) from exc
         return [k for k in self.entries() if rx.search(k)]
 
     def _is_object_kind(self) -> bool:

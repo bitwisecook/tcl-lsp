@@ -15,9 +15,9 @@ from .values import ObjectRef
 def _root_for(obj: ObjectRef):
     if obj.config_uri == "":
         raise BuiltinError("graph builtins require an object loaded from a config")
-    from .runner import _ACTIVE_ROOTS
+    from .runner import _lookup_active_root
 
-    root = _ACTIVE_ROOTS.get(obj.config_uri)
+    root = _lookup_active_root(obj.config_uri)
     if root is None:
         raise BuiltinError("graph builtins called outside an active query context")
     return root

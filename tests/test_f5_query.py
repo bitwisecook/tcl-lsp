@@ -541,9 +541,12 @@ def test_cli_rejects_duplicate_inputs(sample_conf, capsys):
 
 def test_cli_json_mode_skips_multi_file_banners(tmp_path, capsys):
     """``# === uri ===`` per-file banners break JSON output.  In
-    ``--json`` mode the CLI must emit each file's JSON document
-    without any interleaved comment lines.
+    multi-file ``--json`` mode the CLI must emit a single top-level
+    JSON document keyed by URI — no interleaved comment lines and no
+    adjacent arrays (which together would not be valid JSON).
     """
+    import json as _json
+
     a = tmp_path / "a.conf"
     b = tmp_path / "b.conf"
     a.write_text("ltm node /Common/n_a { address 10.0.0.1 }\n", encoding="utf-8")
@@ -554,9 +557,18 @@ def test_cli_json_mode_skips_multi_file_banners(tmp_path, capsys):
     )
     assert rc == 0
     assert "# ===" not in out
-    # Each file's JSON document is on stdout as a separate ``[…]``
-    # array; the combined stdout therefore contains two ``[`` and ``]``.
-    assert out.count("[") == 2 and out.count("]") == 2
+    # Single top-level JSON document — must round-trip through
+    # ``json.loads`` cleanly.  Adjacent ``[…][…]`` arrays would raise
+    # ``json.JSONDecodeError``.
+    parsed = _json.loads(out)
+    assert isinstance(parsed, list)
+    assert len(parsed) == 2
+    by_uri = {entry["uri"]: entry["values"] for entry in parsed}
+    # Each entry's values are the renderer's JSON for that file.
+    assert all("uri" in entry and "values" in entry for entry in parsed)
+    # The values come back as the renderer's structured output.
+    a_values = by_uri[next(uri for uri in by_uri if uri.endswith("a.conf"))]
+    assert a_values == ["n_a"]
 
 
 def test_cli_exit_code_when_no_matches(sample_conf, capsys):
@@ -5856,3 +5868,163 @@ def test_stress_bug7_string_int_concatenation_coerces():
     assert s == "true"
     [s] = _run("str(null)", source="").values_per_file["mem://1"]
     assert s == "null"
+
+
+# ---------------------------------------------------------------------------
+# Code-review regressions (queryreview.md — keep these pinned so future
+# refactors of the editor / mutation paths can't silently regress).
+# ---------------------------------------------------------------------------
+
+
+def test_review_bug1_field_edit_rejects_newline_injection():
+    # Bug 1 — splicing raw user strings into SCF without quoting let
+    # ``description = "ok\nltm pool /Common/injected { }"`` synthesise
+    # a fresh stanza on a new line, escaping the surrounding scope.
+    # The SCF scalar encoder now rejects any value containing
+    # newlines / braces / control chars.
+    from core.bigip.query.errors import EditError
+
+    src = (
+        "ltm virtual /Common/web_vs {\n"
+        "    destination /Common/10.0.0.10:443\n"
+        "    description old\n"
+        "}\n"
+    )
+    payload = "ok\nltm pool /Common/injected { }"
+    with pytest.raises(EditError) as exc:
+        _run(
+            f'.ltm.virtual.web_vs.description = "{payload}"',
+            source=src,
+        )
+    assert "cannot be safely represented" in str(exc.value)
+
+
+def test_review_bug1_field_edit_quotes_whitespace_values():
+    # Bug 1, partner case — values that *can* be safely encoded must
+    # land double-quoted with proper escapes, so the rewritten config
+    # both parses and round-trips.
+    src = (
+        "ltm virtual /Common/web_vs {\n"
+        "    destination /Common/10.0.0.10:443\n"
+        "    description old\n"
+        "}\n"
+    )
+    out = (
+        _run(
+            '.ltm.virtual.web_vs.description = "hello world"',
+            source=src,
+        )
+        .edits_per_file["mem://1"]
+        .new_source
+    )
+    assert 'description "hello world"' in out
+    # And a value with embedded quotes must escape them.
+    out = (
+        _run(
+            '.ltm.virtual.web_vs.description = "say \\"hi\\""',
+            source=src,
+        )
+        .edits_per_file["mem://1"]
+        .new_source
+    )
+    assert 'description "say \\"hi\\""' in out
+
+
+def test_review_bug1_field_edit_validates_post_splice_parse():
+    # Bug 1, defence-in-depth — even when the encoder lets a value
+    # through, the post-splice ``parse_bigip_conf`` call must catch
+    # any malformed result and raise instead of returning the broken
+    # source to ``--write`` / ``--in-place``.  Hard to trigger from
+    # legal user input now that the encoder is in place; verify the
+    # check is wired up by inspecting the error path on a forbidden
+    # value (which would otherwise have been silently spliced before
+    # the encoder existed).
+    from core.bigip.query.errors import EditError
+
+    src = "ltm virtual /Common/v { destination /Common/1.1.1.1:80 description x }\n"
+    with pytest.raises(EditError):
+        _run('.ltm.virtual.v.description = "a{b"', source=src)
+
+
+def test_review_bug2_query_in_place_rejects_tmsh_format(tmp_path, capsys):
+    # Bug 2 — ``f5 query --in-place --format tmsh`` would overwrite
+    # the on-disk SCF source with a tmsh script, with the dry-run
+    # diff (always SCF↔SCF) hiding the format change.  CLI now
+    # refuses the combination before any work runs.
+    p = tmp_path / "x.conf"
+    p.write_text("ltm pool /Common/p { }\n", encoding="utf-8")
+    original = p.read_text(encoding="utf-8")
+    rc, _out, err = _cli(
+        [
+            "query",
+            "--in-place",
+            "--format",
+            "tmsh",
+            '.ltm.pool["/Common/p"].description = "x"',
+            str(p),
+        ],
+        capsys,
+    )
+    assert rc == 2
+    assert "incompatible with --format tmsh" in err
+    # File untouched.
+    assert p.read_text(encoding="utf-8") == original
+
+
+def test_review_bug2_rename_in_place_rejects_tmsh_format(tmp_path, capsys):
+    # Bug 2, partner case — same destructive mode on ``f5 rename``.
+    p = tmp_path / "x.conf"
+    p.write_text("ltm pool /Common/old { }\n", encoding="utf-8")
+    original = p.read_text(encoding="utf-8")
+    rc, _out, err = _cli(
+        [
+            "rename",
+            "--in-place",
+            "--format",
+            "tmsh",
+            "/Common/old",
+            "/Common/new",
+            str(p),
+        ],
+        capsys,
+    )
+    assert rc == 2
+    assert "incompatible with --format tmsh" in err
+    assert p.read_text(encoding="utf-8") == original
+
+
+def test_review_bug7_regex_pattern_length_capped():
+    # Bug 7 — every user-supplied regex (``match`` / ``sub`` / ``gsub``
+    # / ``[~"..."]``) routes through ``_safe_regex_compile`` which
+    # caps pattern length to keep compile + match cost bounded.
+    from core.bigip.query.errors import BuiltinError
+
+    src = "ltm node /Common/n { address 1.1.1.1 }\n"
+    long_pattern = "a" * 2000
+    with pytest.raises(BuiltinError) as exc:
+        _run(f'.ltm.node[].name | match(., "{long_pattern}")', source=src)
+    assert "pattern too long" in str(exc.value)
+
+
+def test_review_bug7_regex_rejects_nested_quantifier_redos():
+    # Bug 7, partner case — refuse the textbook ``(a+)+`` catastrophic-
+    # backtracking shape.  Not a complete ReDoS detector (that's
+    # undecidable), but copy-paste CVE patterns get caught at the door.
+    from core.bigip.query.errors import BuiltinError
+
+    src = "ltm node /Common/n { address 1.1.1.1 }\n"
+    with pytest.raises(BuiltinError) as exc:
+        _run('.ltm.node[].name | match(., "(a+)+")', source=src)
+    assert "catastrophic backtracking" in str(exc.value)
+
+
+def test_review_bug8_active_root_lookup_uses_contextvar():
+    # Bug 8 — graph-builtin context map is now a ``ContextVar`` so
+    # the runner is safe under concurrent ``run_query`` calls.
+    # Verify the new lookup helper is the only public knob.
+    from core.bigip.query import runner
+
+    assert hasattr(runner, "_lookup_active_root")
+    # The legacy module-global ``_ACTIVE_ROOTS`` dict is gone.
+    var = runner._ACTIVE_ROOTS
+    assert var.__class__.__name__ == "ContextVar"
