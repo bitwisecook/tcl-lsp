@@ -120,26 +120,17 @@ _BIGIP_SECTION_OPEN_RE = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*\{\s*(?:#.*)?$")
 _BIGIP_HEADER_LINE_RE = re.compile(
     r"^\s*(ltm|gtm|net|auth|cm|sys|security)\s+(.+?)\s*\{\s*(?:#.*)?$"
 )
-_BIGIP_CLASS_OPERATORS = r"equals|starts_with|ends_with|contains|matches_glob|matches_regex"
-_BIGIP_CLASS_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(
-        rf"\bclass\s+(?:match|search)\s+(?:(?:-\w+\s+)*)"
-        rf"(?:--\s+)?\S+\s+(?:{_BIGIP_CLASS_OPERATORS})\s+([^\s{{}}]+)"
-    ),
-    re.compile(r"\bclass\s+lookup\s+(?:--\s+)?\S+\s+([^\s{}]+)"),
-    re.compile(r"\bclass\s+(?:exists|size|type|get|startsearch)\s+([^\s{}]+)"),
-)
-_BIGIP_RULE_BODY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bpool\s+([^\s{}]+)"), "pool"),
-    (re.compile(r"\bsnatpool\s+([^\s{}]+)"), "snat_pool"),
-    (re.compile(r"\bpersist\s+([^\s{}]+)"), "persistence"),
-    (re.compile(r"\bvirtual\s+([^\s{}]+)"), "virtual"),
-    (re.compile(r"\bnode\s+([^\s{}]+)"), "node"),
-    (re.compile(r"\bprofile\s+([^\s{}]+)"), "profile"),
-    (re.compile(r"\bmonitor\s+([^\s{}]+)"), "monitor"),
-    (re.compile(r"\broute\s+([^\s{}]+)"), "route"),
-    (re.compile(r"\bvlan\s+([^\s{}]+)"), "vlan"),
-)
+# NOTE: the legacy ``_BIGIP_CLASS_PATTERNS`` and
+# ``_BIGIP_RULE_BODY_PATTERNS`` regex catalogues used to live here —
+# nine hardcoded ``\b<keyword>\s+([^\s{}]+)`` patterns plus three
+# ``class match`` shapes — and missed every iRule command that wasn't
+# in that fixed list.  They've been replaced by
+# :func:`_resolve_irule_body_definition`, which routes the cursor
+# through :func:`extract_irules_object_references` (the same iRule
+# scanner ``f5 grep`` / cleanup linter / document links use).  Adding
+# a new command-arg → kind mapping to
+# ``core/bigip/data/irules_object_refs_graph.json`` now lights up
+# go-to-definition automatically.
 
 _BIGIP_FALSEY_REF_TOKENS = frozenset(
     {
@@ -383,42 +374,82 @@ def get_bigip_definition(
                 target_uri, target_range = resolved
                 return [to_lsp_location(target_uri, target_range)]
 
-    # iRule source refs in embedded "ltm rule" bodies.
+    # iRule source refs in embedded "ltm rule" bodies.  Driven by the
+    # full iRule command registry (every command argument that can name
+    # a BIG-IP object is covered) instead of nine hand-rolled regexes.
     if container_module in {"ltm", "gtm"} and container_object_type == "rule":
-        for pattern, kind in _BIGIP_RULE_BODY_PATTERNS:
-            for match in pattern.finditer(line_text):
-                start, end = match.span(1)
-                if not _cursor_in_span(character, start, end):
-                    continue
-                resolved_kind = kind
-                if kind == "pool" and container_module in {"ltm", "gtm"}:
-                    resolved_kind = f"{container_module}_pool"
-                ref = _normalise_reference_for_kind(resolved_kind, match.group(1))
-                resolved = resolve_kind_in_configs(
-                    resolved_kind,
-                    ref,
-                    configs,
-                    preferred_module=container_module,
-                )
-                if resolved is not None:
-                    target_uri, target_range = resolved
-                    return [to_lsp_location(target_uri, target_range)]
-
-        for pattern in _BIGIP_CLASS_PATTERNS:
-            for match in pattern.finditer(line_text):
-                start, end = match.span(1)
-                if not _cursor_in_span(character, start, end):
-                    continue
-                for kind in ("ltm_data_group_internal", "ltm_data_group_external"):
-                    ref = _normalise_reference_for_kind(kind, match.group(1))
-                    resolved = resolve_kind_in_configs(
-                        kind,
-                        ref,
-                        configs,
-                        preferred_module=container_module,
-                    )
-                    if resolved is not None:
-                        target_uri, target_range = resolved
-                        return [to_lsp_location(target_uri, target_range)]
+        target = _resolve_irule_body_definition(
+            current_config,
+            line,
+            character,
+            container_module,
+            configs,
+        )
+        if target is not None:
+            return [target]
 
     return []
+
+
+def _resolve_irule_body_definition(
+    current_config: BigipConfig,
+    line: int,
+    character: int,
+    container_module: str,
+    configs: dict[str, BigipConfig],
+) -> types.Location | None:
+    """Locate the iRule body reference at (*line*, *character*) and resolve it.
+
+    Replaces the legacy 9-regex catalogue with a parser-driven walk:
+    :func:`extract_irules_object_references` runs the same iRule
+    scanner ``f5 grep`` / cleanup linter / document links use, so
+    every command-argument → kind mapping in the registry lights up
+    here automatically.  Resolution falls through to the same
+    :func:`resolve_kind_in_configs` the legacy path used.
+    """
+    from core.bigip.irules_refs import extract_irules_object_references
+
+    # Find the rule whose body contains this cursor position.
+    rule = None
+    rule_body_start_line = 0
+    for candidate in current_config.rules.values():
+        rng = candidate.range
+        if rng is None:
+            continue
+        if rng.start.line <= line <= rng.end.line:
+            rule = candidate
+            rule_body_start_line = rng.start.line + 1
+            break
+    if rule is None:
+        return None
+
+    # The references' ranges are body-relative; the cursor we got is
+    # document-absolute, so shift back into body coordinates before
+    # comparing.
+    body_line = line - rule_body_start_line
+    if body_line < 0:
+        return None
+
+    for ref in extract_irules_object_references(rule.source):
+        ref_start = ref.range.start
+        ref_end = ref.range.end
+        if not (ref_start.line <= body_line <= ref_end.line):
+            continue
+        if body_line == ref_start.line and character < ref_start.character:
+            continue
+        if body_line == ref_end.line and character > ref_end.character:
+            continue
+        # Try each candidate kind in the registry order.  The renamer
+        # uses the same approach (first kind that resolves wins).
+        for kind in ref.kinds:
+            ref_text = _normalise_reference_for_kind(kind, ref.name)
+            resolved = resolve_kind_in_configs(
+                kind,
+                ref_text,
+                configs,
+                preferred_module=container_module,
+            )
+            if resolved is not None:
+                target_uri, target_range = resolved
+                return to_lsp_location(target_uri, target_range)
+    return None
