@@ -1020,6 +1020,28 @@ class BigipConfig:
     analytics_global_settings: dict[str, BigipAnalyticsMinimalObject] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
+    def merge(self, other: "BigipConfig") -> None:
+        """In-place merge of every dict-valued field on *other* into ``self``.
+
+        Iterates the dataclass fields by introspection rather than a
+        hand-rolled ``self.x.update(other.x)`` list so future kinds
+        added to :class:`BigipConfig` are merged automatically — the
+        legacy hand-rolled list in ``lsp.workspace.scanner`` missed
+        every kind beyond the v1 ten and silently dropped data when
+        callers used ``merged_bigip_config``.
+
+        Standard ``dict.update`` semantics: keys from *other* win on
+        conflict.  Callers wanting partition / source-origin
+        precedence should pre-filter ``other`` themselves.
+        """
+        from dataclasses import fields
+
+        for fld in fields(self):
+            mine = getattr(self, fld.name)
+            theirs = getattr(other, fld.name)
+            if isinstance(mine, dict) and isinstance(theirs, dict):
+                mine.update(theirs)
+
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:
         """Resolve a possibly-short name to a full path in *objects*.
 

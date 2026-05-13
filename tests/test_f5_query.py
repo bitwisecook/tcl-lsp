@@ -6028,3 +6028,106 @@ def test_review_bug8_active_root_lookup_uses_contextvar():
     # The legacy module-global ``_ACTIVE_ROOTS`` dict is gone.
     var = runner._ACTIVE_ROOTS
     assert var.__class__.__name__ == "ContextVar"
+
+
+def test_review_bug4_merge_picks_up_every_dict_field():
+    # Bug 4 — the legacy hand-rolled ``merged.X.update(cfg.X)`` list
+    # in the LSP scanner missed every kind beyond the v1 ten, so
+    # workspace consumers of ``merged_bigip_config`` lost (e.g.)
+    # every PEM, security, GTM, APM, CM, sys, and net object.
+    # ``BigipConfig.merge()`` is now introspection-driven and picks
+    # up new kinds automatically.
+    from core.bigip.model import BigipConfig
+    from core.bigip.parser import parse_bigip_conf
+
+    a = parse_bigip_conf("ltm pool /Common/p { }\n")
+    b = parse_bigip_conf("pem policy /Common/q { }\nnet vlan /Common/v { tag 100 }\n")
+    merged = BigipConfig()
+    merged.merge(a)
+    merged.merge(b)
+    # Legacy v1 kind survived.
+    assert "/Common/p" in merged.pools
+    # Newly added per-F5-module kinds also flow through.
+    assert "/Common/q" in merged.pem_policies
+    assert "/Common/v" in merged.net_vlans
+
+
+def test_review_bug4_merge_overlay_semantics_match_dict_update():
+    # Bug 4, semantics check — keys from the second ``merge`` win on
+    # conflict (standard ``dict.update`` semantics).
+    from core.bigip.model import BigipConfig
+    from core.bigip.parser import parse_bigip_conf
+
+    earlier = parse_bigip_conf("ltm pool /Common/p { description first }\n")
+    later = parse_bigip_conf("ltm pool /Common/p { description second }\n")
+    merged = BigipConfig()
+    merged.merge(earlier)
+    merged.merge(later)
+    assert merged.pools["/Common/p"].description == "second"
+
+
+def test_review_bug6_query_projection_kinds_covered_by_object_registry():
+    # Bug 6 — every TMSH kind the query projection exposes should be
+    # *covered* by the deep-linking object registry, either as the
+    # exact kind label or as a subtyped form.  The two layers
+    # historically drifted because each was edited independently —
+    # the projection collapses TMSH sub-kinds (``ltm profile tcp`` /
+    # ``ltm profile http`` / …) to a single navigable family
+    # (``ltm profile``), while the registry enumerates each subtype.
+    #
+    # This test enforces "either the projection's exact kind is in
+    # the registry, or at least one ``<projection-kind> <subtype>``
+    # is".  A failure means a contributor added a new kind to one
+    # layer without the other — fix by adding the missing entry.
+    from core.bigip.query.projection import MODULE_KINDS
+    from core.bigip.registry.data import OBJECT_KIND_SPECS
+
+    proj_kinds = {
+        tmsh for module_table in MODULE_KINDS.values() for _attr, tmsh in module_table.values()
+    }
+    reg_kinds = {
+        f"{spec.module} {object_type}"
+        for spec in OBJECT_KIND_SPECS.values()
+        for object_type in spec.object_types
+    }
+
+    # A projection kind is "covered" if the registry has either the
+    # exact label or any ``<label> <subtype>`` entry.
+    def _covered(kind: str) -> bool:
+        if kind in reg_kinds:
+            return True
+        prefix = kind + " "
+        return any(rk.startswith(prefix) for rk in reg_kinds)
+
+    # Headline LTM kinds — these MUST be covered today.
+    headline = {
+        "ltm virtual",
+        "ltm pool",
+        "ltm node",
+        "ltm rule",
+        "ltm monitor",
+        "ltm profile",
+        "ltm persistence",
+        "ltm snatpool",
+        "ltm data-group",
+        "ltm policy",
+    }
+    uncovered_headline = {k for k in headline if not _covered(k)}
+    assert not uncovered_headline, (
+        f"headline projection kinds not covered by the object registry: "
+        f"{sorted(uncovered_headline)}.  Either add the kind to the "
+        f"registry (``core/bigip/registry/specs/<kind>.py``) or fix "
+        f"the projection's TMSH-form spelling."
+    )
+
+    # Lower-bar coverage for the wider projection: at least 50% of
+    # projection kinds must be covered today.  This is a regression
+    # tripwire — if a refactor accidentally drops registry coverage
+    # below the current floor we want to know.
+    covered_total = sum(1 for k in proj_kinds if _covered(k))
+    coverage_ratio = covered_total / len(proj_kinds) if proj_kinds else 1.0
+    assert coverage_ratio >= 0.5, (
+        f"object-registry coverage of the query projection has dropped "
+        f"to {coverage_ratio:.0%} (was at least 50%).  Recent changes "
+        f"broke parity — add registry entries for the missing kinds."
+    )

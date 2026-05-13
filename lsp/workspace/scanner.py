@@ -46,6 +46,8 @@ TCL_EXTENSIONS = frozenset(
 _IRULES_EXTENSIONS = frozenset({".irul", ".irule"})
 
 # BIG-IP configuration file names (matched by basename, not extension).
+# Canonical-name path — these always parse as BIG-IP no matter the
+# directory or surrounding files.
 _BIGIP_CONF_NAMES = frozenset(
     {
         "bigip.conf",
@@ -55,6 +57,20 @@ _BIGIP_CONF_NAMES = frozenset(
         "bigip_user.conf",
     }
 )
+
+# BIG-IP file extensions for discovery beyond the canonical basenames.
+# ``.scf`` is the F5 single-config-file export format (always BIG-IP);
+# ``.conf`` files are tried opportunistically — the parser is tolerant
+# of non-BIG-IP content (returns an empty :class:`BigipConfig` when
+# nothing recognisable is present), so the worst case is a wasted
+# parse rather than a false-positive entry in the inventory.
+_BIGIP_FILE_EXTENSIONS = frozenset({".scf", ".conf"})
+
+# Skip files larger than this when discovering arbitrary ``.conf`` /
+# ``.scf`` paths.  Real BIG-IP exports cap out at the low single-digit
+# MB range; anything bigger is more likely to be a log, dump, or
+# unrelated artefact than a config the LSP needs to index.
+_BIGIP_MAX_FILE_BYTES = 32 * 1024 * 1024
 
 # APL presentation file names (matched by basename, no extension).
 _APL_NAMES = frozenset({"presentation"})
@@ -129,9 +145,24 @@ class BackgroundScanner:
                     # Skip tclIndex itself — it is metadata, not Tcl code.
                     if fname_lower == "tclindex":
                         continue
-                    # Check for BIG-IP configuration files
+                    # BIG-IP config discovery — canonical basenames
+                    # always; ``.scf`` always; ``.conf`` opportunistic
+                    # (parser is tolerant of non-BIG-IP content, so a
+                    # wasted parse is the worst case).  Size-capped so
+                    # we don't slurp dump files / logs that happen to
+                    # share an extension.
                     if fname_lower in _BIGIP_CONF_NAMES:
                         full_path = os.path.join(root, fname)
+                        self._parse_bigip_file(full_path)
+                        continue
+                    ext = os.path.splitext(fname_lower)[1]
+                    if ext in _BIGIP_FILE_EXTENSIONS:
+                        full_path = os.path.join(root, fname)
+                        try:
+                            if os.path.getsize(full_path) > _BIGIP_MAX_FILE_BYTES:
+                                continue
+                        except OSError:
+                            continue
                         self._parse_bigip_file(full_path)
                         continue
                     # APL presentation files (extensionless)
@@ -332,21 +363,18 @@ class BackgroundScanner:
 
     @property
     def merged_bigip_config(self) -> BigipConfig | None:
-        """Return a merged BigipConfig from all scanned conf files, or None."""
+        """Return a merged BigipConfig from all scanned conf files, or None.
+
+        Uses :meth:`BigipConfig.merge` so every dict-valued kind on the
+        dataclass — not just the v1 ten — flows into the merged view.
+        Adding a new kind to ``BigipConfig`` no longer requires also
+        editing this scanner; it just shows up.
+        """
         if not self._bigip_configs:
             return None
         merged = BigipConfig()
         for cfg in self._bigip_configs.values():
-            merged.data_groups.update(cfg.data_groups)
-            merged.pools.update(cfg.pools)
-            merged.virtual_servers.update(cfg.virtual_servers)
-            merged.nodes.update(cfg.nodes)
-            merged.profiles.update(cfg.profiles)
-            merged.monitors.update(cfg.monitors)
-            merged.snat_pools.update(cfg.snat_pools)
-            merged.persistence.update(cfg.persistence)
-            merged.rules.update(cfg.rules)
-            merged.generic_objects.update(cfg.generic_objects)
+            merged.merge(cfg)
         return merged
 
     def parse_bigip_source(self, uri: str, source: str) -> BigipConfig | None:
