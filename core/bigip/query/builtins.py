@@ -1537,6 +1537,32 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
         raise BuiltinError("rename_partition: partition names must match [A-Za-z0-9_.-]+")
     if old_name == new_name:
         return 0
+    # F5 partition-visibility constraint: only ``/Common`` is
+    # visible to every other partition.  Renaming the system
+    # ``Common`` partition to a tenant name (or vice versa) is
+    # ambiguous — every cross-partition reference now points at
+    # something with different visibility rules, and the operator
+    # may not have intended the consequence.  Refuse the rename
+    # rather than silently breaking visibility for downstream
+    # objects; the operator can drop the offending references
+    # first (or use a per-object rename for the specific objects
+    # they want to move).
+    if old_name == "Common":
+        raise BuiltinError(
+            "rename_partition: refusing to rename /Common — "
+            "tenant partitions reference /Common one-way (the "
+            "F5 partition-visibility model), and renaming it "
+            "would silently break every cross-partition reference.  "
+            "Migrate the specific objects with rename(...) instead."
+        )
+    if new_name == "Common":
+        raise BuiltinError(
+            "rename_partition: refusing to rename a tenant partition to "
+            "/Common — /Common cannot reference tenant partitions, "
+            "so any cross-partition references in this config would "
+            "be silently invalidated.  Use check_partition_visibility() "
+            "first to audit existing references."
+        )
 
     # ``/Old/...`` -> ``/New/...``: token-bounded so a longer name
     # ("/OldExt/...") isn't matched.  The trailing lookahead requires
@@ -1836,6 +1862,128 @@ def _builtin_references_to(path: Any, *, ctx: Any) -> list[str]:
         if node.full_path not in seen:
             seen.append(node.full_path)
     return seen
+
+
+@_register(
+    "can_see",
+    summary="True when *referrer_path*'s partition may reference *target_path*'s partition.",
+    signatures=("can_see(referrer_path: string, target_path: string) -> boolean",),
+    details="""
+    F5 partition visibility is **directional**:
+
+    - Objects in any partition may reference objects in ``/Common``
+      (one-way visibility).
+    - Objects in ``/Common`` may **not** reference objects in any
+      tenant partition.
+    - Cross-tenant references (``/Tenant_A/...`` ↔ ``/Tenant_B/...``)
+      are **not** allowed.
+    - Same partition is always visible to itself.
+
+    Use this predicate to validate that a proposed rename or
+    cross-config reference is legal *before* applying it.  Example:
+    "find every iRule reference that would break partition
+    visibility":
+
+    ``.ltm.rule[] | .refs.pools[] | select(not can_see(.., .))``
+
+    Related: ``partition``, ``in_partition``,
+    ``check_partition_visibility``.
+    """,
+    examples=(
+        'can_see("/Tenant_A/vs1", "/Common/web_pool")  # true — Tenant_A can see /Common',
+        'can_see("/Common/vs1", "/Tenant_A/web_pool")  # false — /Common cannot see /Tenant_A',
+        'can_see("/Tenant_A/vs1", "/Tenant_B/web_pool")  # false — cross-tenant',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_can_see(referrer_path: Any, target_path: Any) -> bool:
+    from ..types import ObjectPath
+
+    r_text = _as_str(referrer_path, name="can_see", arg=1)
+    t_text = _as_str(target_path, name="can_see", arg=2)
+    r = ObjectPath.try_parse(r_text)
+    t = ObjectPath.try_parse(t_text)
+    if r is None or t is None:
+        return False
+    return r.partition.can_see(t.partition)
+
+
+@_register(
+    "check_partition_visibility",
+    summary="Return every reference in this config that violates F5 partition visibility rules.",
+    signatures=("check_partition_visibility() -> list",),
+    details="""
+    Walks the parsed config and surfaces every reference whose
+    *referrer* partition can't see the *target* partition under the
+    F5 partition-visibility rules (see :func:`can_see`).  Returns a
+    list of ``"<referrer> -> <target>"`` strings — empty list when
+    every reference is legal.
+
+    Used to validate a config before applying a partition-level
+    refactor, or to audit a config that was hand-edited and may
+    have grown invalid cross-partition refs over time.
+
+    Related: ``can_see``, ``references_to``, ``rename_partition``.
+    """,
+    examples=(
+        "check_partition_visibility()",
+        "count(check_partition_visibility())  # 0 → config is partition-clean",
+    ),
+    category="graph",
+    min_args=0,
+    max_args=0,
+    with_ctx=True,
+)
+def _builtin_check_partition_visibility(*, ctx: Any) -> list[str]:
+    from ..grep import compute_grep
+    from ..types import ObjectPath
+
+    violations: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    # For each typed-projectable object in the config, run a forward
+    # grep to find every other object it references; flag pairings
+    # where the referrer's partition can't see the target's.
+    cfg = ctx.root.config
+    from dataclasses import fields
+
+    for fld in fields(cfg):
+        if fld.name == "generic_objects":
+            continue
+        kind_dict = getattr(cfg, fld.name)
+        if not isinstance(kind_dict, dict):
+            continue
+        for referrer_path in kind_dict:
+            referrer = ObjectPath.try_parse(referrer_path)
+            if referrer is None:
+                continue
+            report = compute_grep(
+                sources={ctx.root.uri: ctx.root.source},
+                configs={ctx.root.uri: ctx.root.config},
+                pattern=referrer_path,
+                use_regex=False,
+                use_cidr=False,
+                direction="forward",
+                max_depth=1,
+                max_nodes=1024,
+                include_body=False,
+                recurse=True,
+            )
+            for node in report.related:
+                if node.full_path == referrer_path:
+                    continue
+                target = ObjectPath.try_parse(node.full_path)
+                if target is None:
+                    continue
+                if referrer.partition.can_see(target.partition):
+                    continue
+                key = (referrer_path, node.full_path)
+                if key in seen:
+                    continue
+                seen.add(key)
+                violations.append(f"{referrer_path} -> {node.full_path}")
+    return sorted(violations)
 
 
 # ---------------------------------------------------------------------------

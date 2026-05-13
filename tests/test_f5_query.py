@@ -6340,3 +6340,54 @@ def test_typed_folder_and_with_folder():
         source=src,
     ).values_per_file["mem://1"]
     assert moved == "/Tenant_A/web_pool"
+
+
+# ---------------------------------------------------------------------------
+# F5 partition-visibility model (``/Common`` is one-way visible).
+# ---------------------------------------------------------------------------
+
+
+def test_can_see_enforces_partition_visibility_rules():
+    """``/Common`` visible from every tenant; reverse never visible;
+    cross-tenant never visible; same partition always visible.
+    """
+    src = "ltm pool /Common/web_pool { }\n"
+    cases = [
+        ('can_see("/Tenant_A/vs1", "/Common/web_pool")', True),
+        ('can_see("/Common/vs1", "/Tenant_A/web_pool")', False),
+        ('can_see("/Tenant_A/vs1", "/Tenant_B/web_pool")', False),
+        ('can_see("/Common/vs1", "/Common/web_pool")', True),
+    ]
+    for query, expected in cases:
+        [out] = _run(query, source=src).values_per_file["mem://1"]
+        assert out is expected, f"{query!r} → {out!r}, expected {expected!r}"
+
+
+def test_rename_partition_refuses_to_rename_common():
+    from core.bigip.query.errors import BuiltinError
+
+    src = "ltm pool /Common/p { }\n"
+    with pytest.raises(BuiltinError) as exc:
+        _run('rename_partition("Common", "Renamed")', source=src)
+    assert "refusing to rename /Common" in str(exc.value)
+
+
+def test_rename_partition_refuses_tenant_to_common():
+    from core.bigip.query.errors import BuiltinError
+
+    src = "ltm pool /Tenant_A/p { }\n"
+    with pytest.raises(BuiltinError) as exc:
+        _run('rename_partition("Tenant_A", "Common")', source=src)
+    assert "Use check_partition_visibility()" in str(exc.value)
+
+
+def test_rename_partition_tenant_to_tenant_succeeds():
+    """Tenant ↔ tenant renames have the same visibility profile and
+    are safe."""
+    src = "ltm pool /Tenant_A/web_pool { }\n"
+    applied = _run(
+        'rename_partition("Tenant_A", "Tenant_X")',
+        source=src,
+    ).edits_per_file["mem://1"]
+    assert "/Tenant_X/web_pool" in applied.new_source
+    assert "/Tenant_A/web_pool" not in applied.new_source

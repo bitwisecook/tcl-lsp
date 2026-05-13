@@ -32,9 +32,9 @@ exactly the same content for one builtin.
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
   - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
+  - [`can_see`](#can_see), [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
-  - [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
+  - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
   - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`str`](#str), [`type`](#type)
 
@@ -972,6 +972,44 @@ rename_partition("staging", "prod")
 
 IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
 
+### `can_see`
+
+True when *referrer_path*'s partition may reference *target_path*'s partition.
+
+**Signatures**
+
+- `can_see(referrer_path: string, target_path: string) -> boolean`
+
+**Details**
+
+F5 partition visibility is **directional**:
+
+- Objects in any partition may reference objects in ``/Common``
+  (one-way visibility).
+- Objects in ``/Common`` may **not** reference objects in any
+  tenant partition.
+- Cross-tenant references (``/Tenant_A/...`` ↔ ``/Tenant_B/...``)
+  are **not** allowed.
+- Same partition is always visible to itself.
+
+Use this predicate to validate that a proposed rename or
+cross-config reference is legal *before* applying it.  Example:
+"find every iRule reference that would break partition
+visibility":
+
+``.ltm.rule[] | .refs.pools[] | select(not can_see(.., .))``
+
+Related: ``partition``, ``in_partition``,
+``check_partition_visibility``.
+
+**Examples**
+
+```
+can_see("/Tenant_A/vs1", "/Common/web_pool")  # true — Tenant_A can see /Common
+can_see("/Common/vs1", "/Tenant_A/web_pool")  # false — /Common cannot see /Tenant_A
+can_see("/Tenant_A/vs1", "/Tenant_B/web_pool")  # false — cross-tenant
+```
+
 ### `folder`
 
 Return the folder portion of a TMSH path (``/Common/Application_X``).
@@ -1664,6 +1702,35 @@ with_route_domain("/Common/10.0.0.1%5:80", "")     # -> "/Common/10.0.0.1:80"
 ## graph
 
 Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
+
+### `check_partition_visibility`
+
+Return every reference in this config that violates F5 partition visibility rules.
+
+**Signatures**
+
+- `check_partition_visibility() -> list`
+
+**Details**
+
+Walks the parsed config and surfaces every reference whose
+*referrer* partition can't see the *target* partition under the
+F5 partition-visibility rules (see :func:`can_see`).  Returns a
+list of ``"<referrer> -> <target>"`` strings — empty list when
+every reference is legal.
+
+Used to validate a config before applying a partition-level
+refactor, or to audit a config that was hand-edited and may
+have grown invalid cross-partition refs over time.
+
+Related: ``can_see``, ``references_to``, ``rename_partition``.
+
+**Examples**
+
+```
+check_partition_visibility()
+count(check_partition_visibility())  # 0 → config is partition-clean
+```
 
 ### `referenced_by`
 
