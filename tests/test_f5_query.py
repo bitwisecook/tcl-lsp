@@ -3284,3 +3284,88 @@ def test_pool_profiles_resolve_through_path_ref():
         "/Common/http_profile1",
         "/Common/tcp_profile1",
     ]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 4 — ltm persistence behaviour flags
+# ---------------------------------------------------------------------------
+
+_PERSISTENCE_FLAGS_CONF = """ltm persistence cookie /Common/sess_cookie {
+    description "session cookie"
+    timeout 1800
+    match-across-pools enabled
+    match-across-services enabled
+    match-across-virtuals disabled
+    mirror enabled
+    override-connection-limit disabled
+    always-send enabled
+    cookie-name "ASESSION"
+    cookie-encryption preferred
+    cookie-encryption-passphrase "$M$secret"
+    httponly enabled
+    secure enabled
+    expiration 1d:0:0:0
+    method insert
+}
+ltm persistence hash /Common/sess_hash {
+    timeout 600
+    hash-length 32
+    hash-offset 0
+    method carp
+}
+ltm persistence source-addr /Common/sess_src {
+    timeout 600
+    mask 255.255.255.0
+}
+"""
+
+
+def test_persistence_match_across_flags_are_visible():
+    pools = _run(".ltm.persistence.sess_cookie.match-across-pools", _PERSISTENCE_FLAGS_CONF)
+    assert pools.values_per_file["mem://1"] == ["enabled"]
+    svcs = _run(".ltm.persistence.sess_cookie.match-across-services", _PERSISTENCE_FLAGS_CONF)
+    assert svcs.values_per_file["mem://1"] == ["enabled"]
+    vss = _run(".ltm.persistence.sess_cookie.match-across-virtuals", _PERSISTENCE_FLAGS_CONF)
+    assert vss.values_per_file["mem://1"] == ["disabled"]
+
+
+def test_persistence_mirror_and_override_limit():
+    mirror = _run(".ltm.persistence.sess_cookie.mirror", _PERSISTENCE_FLAGS_CONF)
+    assert mirror.values_per_file["mem://1"] == ["enabled"]
+    ovr = _run(
+        ".ltm.persistence.sess_cookie.override-connection-limit",
+        _PERSISTENCE_FLAGS_CONF,
+    )
+    assert ovr.values_per_file["mem://1"] == ["disabled"]
+
+
+def test_persistence_cookie_name_is_unquoted():
+    name = _run(".ltm.persistence.sess_cookie.cookie-name", _PERSISTENCE_FLAGS_CONF)
+    assert name.values_per_file["mem://1"] == ["ASESSION"]
+
+
+def test_persistence_cookie_encryption_and_security_flags():
+    enc = _run(".ltm.persistence.sess_cookie.cookie-encryption", _PERSISTENCE_FLAGS_CONF)
+    assert enc.values_per_file["mem://1"] == ["preferred"]
+    secure = _run(".ltm.persistence.sess_cookie.secure", _PERSISTENCE_FLAGS_CONF)
+    assert secure.values_per_file["mem://1"] == ["enabled"]
+    ho = _run(".ltm.persistence.sess_cookie.httponly", _PERSISTENCE_FLAGS_CONF)
+    assert ho.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_persistence_expiration_method_and_always_send():
+    exp = _run(".ltm.persistence.sess_cookie.expiration", _PERSISTENCE_FLAGS_CONF)
+    assert exp.values_per_file["mem://1"] == ["1d:0:0:0"]
+    method = _run(".ltm.persistence.sess_cookie.method", _PERSISTENCE_FLAGS_CONF)
+    assert method.values_per_file["mem://1"] == ["insert"]
+    asend = _run(".ltm.persistence.sess_cookie.always-send", _PERSISTENCE_FLAGS_CONF)
+    assert asend.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_persistence_hash_length_and_offset():
+    hl = _run(".ltm.persistence.sess_hash.hash-length", _PERSISTENCE_FLAGS_CONF)
+    assert hl.values_per_file["mem://1"] == ["32"]
+    ho = _run(".ltm.persistence.sess_hash.hash-offset", _PERSISTENCE_FLAGS_CONF)
+    assert ho.values_per_file["mem://1"] == ["0"]
+    method = _run(".ltm.persistence.sess_hash.method", _PERSISTENCE_FLAGS_CONF)
+    assert method.values_per_file["mem://1"] == ["carp"]

@@ -172,21 +172,21 @@ Run `make ci-fast` before committing each bundle, and the broader
 
 ## Bundle 4 — `ltm persistence` behaviour flags
 
-- [ ] `match-across-pools`
-- [ ] `match-across-services`
-- [ ] `match-across-virtuals`
-- [ ] `mirror`
-- [ ] `override-connection-limit`
-- [ ] `cookie-name`
-- [ ] `cookie-encryption`
-- [ ] `cookie-encryption-passphrase`
-- [ ] `httponly`
-- [ ] `secure`
-- [ ] `expiration`
-- [ ] `method`
-- [ ] `hash-length`
-- [ ] `hash-offset`
-- [ ] `always-send`
+- [x] `match-across-pools`
+- [x] `match-across-services`
+- [x] `match-across-virtuals`
+- [x] `mirror`
+- [x] `override-connection-limit`
+- [x] `cookie-name`
+- [x] `cookie-encryption`
+- [x] `cookie-encryption-passphrase`
+- [x] `httponly`
+- [x] `secure`
+- [x] `expiration`
+- [x] `method`
+- [x] `hash-length`
+- [x] `hash-offset`
+- [x] `always-send`
 
 ---
 

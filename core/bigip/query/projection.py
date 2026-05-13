@@ -319,6 +319,21 @@ _PERSIST_FIELDS: dict[str, FieldSpec] = {
     "defaults-from": FieldSpec("defaults_from", ref_kind="ltm persistence"),
     "description": FieldSpec("description"),
     "timeout": FieldSpec("timeout"),
+    "match-across-pools": FieldSpec("match_across_pools"),
+    "match-across-services": FieldSpec("match_across_services"),
+    "match-across-virtuals": FieldSpec("match_across_virtuals"),
+    "mirror": FieldSpec("mirror"),
+    "override-connection-limit": FieldSpec("override_connection_limit"),
+    "always-send": FieldSpec("always_send"),
+    "cookie-name": FieldSpec("cookie_name"),
+    "cookie-encryption": FieldSpec("cookie_encryption"),
+    "cookie-encryption-passphrase": FieldSpec("cookie_encryption_passphrase"),
+    "httponly": FieldSpec("httponly"),
+    "secure": FieldSpec("secure"),
+    "expiration": FieldSpec("expiration"),
+    "method": FieldSpec("method"),
+    "hash-length": FieldSpec("hash_length"),
+    "hash-offset": FieldSpec("hash_offset"),
 }
 
 _SNATPOOL_FIELDS: dict[str, FieldSpec] = {

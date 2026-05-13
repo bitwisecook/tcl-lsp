@@ -189,6 +189,21 @@ class BigipPersistence:
     defaults_from: str = ""  # PathRef → ltm persistence
     description: str = ""
     timeout: str = ""
+    match_across_pools: str = ""
+    match_across_services: str = ""
+    match_across_virtuals: str = ""
+    mirror: str = ""
+    override_connection_limit: str = ""
+    always_send: str = ""
+    cookie_name: str = ""
+    cookie_encryption: str = ""
+    cookie_encryption_passphrase: str = ""
+    httponly: str = ""
+    secure: str = ""
+    expiration: str = ""
+    method: str = ""
+    hash_length: str = ""
+    hash_offset: str = ""
     range: Range | None = None
 
 
