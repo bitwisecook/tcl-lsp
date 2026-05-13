@@ -20,6 +20,7 @@ from .features import (
     compute_semantic_tokens_edits,
     semantic_tokens_full,
 )
+from .features._bigip_symbols import get_bigip_document_symbols
 from .features.call_hierarchy import (
     incoming_calls as get_incoming_calls,
 )
@@ -801,11 +802,18 @@ def on_document_symbol(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     chunks = state.chunks if state else None
+    # BIG-IP / SCF files outline the parsed object inventory grouped
+    # module → kind → object.  Conf-wrapped iRule files keep the Tcl
+    # path because the user is editing iRule bodies, not the
+    # surrounding stanza.
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        return get_bigip_document_symbols(source)
     return get_document_symbols(
         source,
         analysis=analysis,
         chunks=chunks,
-        embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
+        embedded_rules=state.embedded_rules if state and is_cw else None,
     )
 
 
