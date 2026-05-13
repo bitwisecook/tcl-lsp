@@ -64,3 +64,14 @@ BigipAnalyticsMinimalObject = BigipMinimalObject
 # identical.  ``kind`` carries the TMSH module + sub-type
 # (e.g. ``"security dos virtual"``).
 BigipSecurityMinimalObject = BigipMinimalObject
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGenericObject:
+    """A generic BIG-IP stanza retained when no specialised model exists."""
+
+    module: str  # e.g. "net", "auth", "sys"
+    object_type: str  # e.g. "route-domain", "partition", "user"
+    identifier: str  # e.g. "/Common/0", "admin", or "" for singleton stanzas
+    header: str
+    range: Range | None = None

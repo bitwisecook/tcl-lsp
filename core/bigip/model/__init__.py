@@ -5,11 +5,9 @@ implementation is split per F5 module so each file stays a navigable
 size:
 
 - :mod:`._enums` — ``DataGroupType``, ``ProfileType``.
-- :mod:`._common` — cross-cutting types (pools, profiles, monitors,
-  persistence, iRules, virtual servers + addresses, policies,
-  generic-stanza fallback).
 - :mod:`._minimal` — the shared minimal dataclass + per-F5-module
-  aliases used by long-tail kinds.
+  aliases used by long-tail kinds, plus the generic-stanza
+  fallback (:class:`BigipGenericObject`) for any unknown stanza.
 - :mod:`._ltm` / :mod:`._net` / :mod:`._sys` / :mod:`._security` /
   :mod:`._apm` / :mod:`._cm` / :mod:`._gtm` / :mod:`._pem` /
   :mod:`._auth` — typed projections for each F5 module.
@@ -56,24 +54,6 @@ from ._cm import (
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
 )
-from ._common import (
-    BigipDataGroup,
-    BigipGenericObject,
-    BigipMonitor,
-    BigipNode,
-    BigipPersistence,
-    BigipPolicy,
-    BigipPolicyAction,
-    BigipPolicyCondition,
-    BigipPolicyRule,
-    BigipPool,
-    BigipPoolMember,
-    BigipProfile,
-    BigipRule,
-    BigipSnatPool,
-    BigipVirtualAddress,
-    BigipVirtualServer,
-)
 from ._config import BigipConfig
 from ._enums import DataGroupType, ProfileType
 from ._gtm import (
@@ -96,6 +76,7 @@ from ._gtm import (
     BigipGtmWideip,
 )
 from ._ltm import (
+    BigipDataGroup,
     BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
@@ -121,6 +102,20 @@ from ._ltm import (
     BigipLtmSnatTranslation,
     BigipLtmTrafficClass,
     BigipLtmTrafficMatchingCriteria,
+    BigipMonitor,
+    BigipNode,
+    BigipPersistence,
+    BigipPolicy,
+    BigipPolicyAction,
+    BigipPolicyCondition,
+    BigipPolicyRule,
+    BigipPool,
+    BigipPoolMember,
+    BigipProfile,
+    BigipRule,
+    BigipSnatPool,
+    BigipVirtualAddress,
+    BigipVirtualServer,
 )
 from ._minimal import (
     BigipAnalyticsMinimalObject,
@@ -129,6 +124,7 @@ from ._minimal import (
     BigipAsmMinimalObject,
     BigipCliMinimalObject,
     BigipCmMinimalObject,
+    BigipGenericObject,
     BigipIlxMinimalObject,
     BigipLtmMinimalObject,
     BigipMinimalObject,

@@ -44,20 +44,6 @@ from ._cm import (
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
 )
-from ._common import (
-    BigipDataGroup,
-    BigipGenericObject,
-    BigipMonitor,
-    BigipNode,
-    BigipPersistence,
-    BigipPolicy,
-    BigipPool,
-    BigipProfile,
-    BigipRule,
-    BigipSnatPool,
-    BigipVirtualAddress,
-    BigipVirtualServer,
-)
 from ._enums import ProfileType
 from ._gtm import (
     BigipGtmDatacenter,
@@ -79,6 +65,7 @@ from ._gtm import (
     BigipGtmWideip,
 )
 from ._ltm import (
+    BigipDataGroup,
     BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
@@ -104,6 +91,16 @@ from ._ltm import (
     BigipLtmSnatTranslation,
     BigipLtmTrafficClass,
     BigipLtmTrafficMatchingCriteria,
+    BigipMonitor,
+    BigipNode,
+    BigipPersistence,
+    BigipPolicy,
+    BigipPool,
+    BigipProfile,
+    BigipRule,
+    BigipSnatPool,
+    BigipVirtualAddress,
+    BigipVirtualServer,
 )
 from ._minimal import (
     BigipAnalyticsMinimalObject,
@@ -112,6 +109,7 @@ from ._minimal import (
     BigipAsmMinimalObject,
     BigipCliMinimalObject,
     BigipCmMinimalObject,
+    BigipGenericObject,
     BigipIlxMinimalObject,
     BigipLtmMinimalObject,
     BigipNetMinimalObject,
