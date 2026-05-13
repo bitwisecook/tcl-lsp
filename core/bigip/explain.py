@@ -42,7 +42,10 @@ def _resolve_target(
 
 def _explain_virtual(cfg: BigipConfig, vs: BigipVirtualServer) -> list[tuple[str, list[str]]]:
     sections: list[tuple[str, list[str]]] = []
-    sections.append(("destination", [vs.destination or "(none)"]))
+    # ``vs.destination`` is a typed :class:`Destination` | None — render
+    # to its canonical text spelling for the explainer output.
+    dest_text = str(vs.destination) if vs.destination is not None else "(none)"
+    sections.append(("destination", [dest_text]))
 
     profiles = []
     for pref in vs.profiles:

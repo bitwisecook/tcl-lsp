@@ -250,8 +250,8 @@ def _resolve_pool_member_address(member_name: str, config: BigipConfig) -> str:
         resolved = config.resolve_name(candidate, config.nodes)
         if resolved:
             node = config.nodes[resolved]
-            if node.address:
-                return node.address
+            if node.address is not None:
+                return str(node.address)
     return ""
 
 
@@ -536,7 +536,10 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
     index = NameIndex()
 
     for full_path, vs in config.virtual_servers.items():
-        addr = _split_destination(vs.destination)
+        # ``vs.destination`` is now a typed :class:`Destination` or ``None``;
+        # ``_split_destination`` takes the canonical text form.
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        addr = _split_destination(dest_text)
         if not addr:
             continue
         index.add(addr, _label("vs", full_path))
@@ -546,7 +549,9 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
 
     for pool in config.pools.values():
         for member in pool.members:
-            addr = member.address or _resolve_pool_member_address(member.name, config)
+            # ``member.address`` is typed :class:`Address` | None.
+            member_addr_text = str(member.address) if member.address is not None else ""
+            addr = member_addr_text or _resolve_pool_member_address(member.name, config)
             if not addr:
                 continue
             index.add(addr, _label("pool", member.name or addr))
@@ -559,8 +564,9 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
             index.add(addr, _label("snat", full_path))
 
     for full_path, node in config.nodes.items():
-        if node.address:
-            index.add(node.address, _label("node", full_path))
+        # ``node.address`` is typed :class:`Address` | None.
+        if node.address is not None:
+            index.add(str(node.address), _label("node", full_path))
 
     if source is not None:
         for self_ip in _extract_self_ips(source):

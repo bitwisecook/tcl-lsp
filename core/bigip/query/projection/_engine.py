@@ -167,12 +167,15 @@ def _project_field(
 
 
 def _member_object_ref(member: BigipPoolMember, root: Root) -> ObjectRef:
+    # ``member.address`` is now a typed :class:`Address` or ``None``;
+    # render it to the canonical text spelling for the DSL surface so
+    # queries against ``.pool.members[].address`` keep seeing strings.
     return ObjectRef(
         kind="ltm pool-member",
         full_path=member.name,
         fields={
             "name": member.name,
-            "address": member.address,
+            "address": str(member.address) if member.address is not None else "",
             "port": member.port,
             "monitor": PathRef(full_path=member.monitor, root=root, expected_kind="ltm monitor")
             if member.monitor

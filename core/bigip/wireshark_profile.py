@@ -391,7 +391,9 @@ def _dfilters_for_virtual_servers(config: BigipConfig) -> list[tuple[str, str]]:
     """One display-filter button per virtual server (``ip.addr == <dest>``)."""
     out: list[tuple[str, str]] = []
     for full_path, vs in config.virtual_servers.items():
-        addr = _split_destination(vs.destination)
+        # ``vs.destination`` is a typed :class:`Destination` | None.
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        addr = _split_destination(dest_text)
         if not addr:
             continue
         try:
@@ -456,7 +458,8 @@ def _virtual_server_protocol(config: BigipConfig, vs_full_path: str) -> str:
 def _services_from_virtuals(config: BigipConfig) -> list[tuple[str, int, str]]:
     out: list[tuple[str, int, str]] = []
     for full_path, vs in config.virtual_servers.items():
-        port_proto = _vs_port_proto(vs.destination)
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        port_proto = _vs_port_proto(dest_text)
         if port_proto is None:
             continue
         port, default_proto = port_proto

@@ -979,10 +979,13 @@ def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
                 port = int(props.get("port", "0"))
             except ValueError:
                 port = 0
+        from ..types import try_parse_address
+
+        addr_typed = try_parse_address(addr) if addr else None
         members.append(
             BigipPoolMember(
                 name=name,
-                address=addr,
+                address=addr_typed,
                 port=port,
                 monitor=props.get("monitor", ""),
                 description=_unquote(props.get("description", "")),
@@ -1129,10 +1132,13 @@ def _parse_virtual(
     if cp_block:
         clone_pools = tuple(_parse_list_block(cp_block))
 
+    from ..types import Destination
+
+    destination_typed = Destination.try_parse(destination) if destination else None
     return BigipVirtualServer(
         name=name,
         full_path=full_path,
-        destination=destination,
+        destination=destination_typed,
         pool=pool,
         rules=tuple(rules),
         profiles=tuple(profiles),
@@ -1189,24 +1195,29 @@ def _parse_virtual(
 
 
 def _parse_node(full_path: str, body: str, source_map: DocumentBuffer, block: _Block) -> BigipNode:
+    from ..types import FQDN, try_parse_address
+
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
-    fqdn = ""
+    fqdn_raw = ""
     fqdn_block = props.get("fqdn", "")
     if fqdn_block.startswith("{"):
         fqdn_props = _parse_properties(fqdn_block.strip("{}"))
-        fqdn = fqdn_props.get("name", "")
+        fqdn_raw = fqdn_props.get("name", "")
+    addr_raw = props.get("address", "")
+    addr_typed = try_parse_address(addr_raw) if addr_raw else None
+    fqdn_typed = FQDN.try_parse(fqdn_raw) if fqdn_raw else None
     return BigipNode(
         name=name,
         full_path=full_path,
-        address=props.get("address", ""),
+        address=addr_typed,
         description=_description(props),
         monitor=props.get("monitor", ""),
         state=_state_flag(props),
         connection_limit=props.get("connection-limit", ""),
         rate_limit=props.get("rate-limit", ""),
         ratio=props.get("ratio", ""),
-        fqdn=fqdn,
+        fqdn=fqdn_typed,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -2199,12 +2210,16 @@ _LTM_MESSAGE_ROUTING_DISPATCH: dict[str, str] = {
 def _parse_virtual_address(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipVirtualAddress:
+    from ..types import IPAddress
+
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
+    addr_raw = props.get("address", "")
+    addr_typed = IPAddress.try_parse(addr_raw) if addr_raw else None
     return BigipVirtualAddress(
         name=name,
         full_path=full_path,
-        address=props.get("address", ""),
+        address=addr_typed,
         mask=props.get("mask", ""),
         arp=props.get("arp", ""),
         icmp_echo=props.get("icmp-echo", ""),

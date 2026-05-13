@@ -1378,7 +1378,8 @@ def _match_virtual(cfg: BigipConfig, dst_ip: str, dst_port: int) -> str | None:
     except ValueError:
         flow_ip = dst_ip
     for path, vs in cfg.virtual_servers.items():
-        parsed = _parse_destination(vs.destination)
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        parsed = _parse_destination(dest_text)
         if parsed is None:
             continue
         vs_addr, vs_port = parsed

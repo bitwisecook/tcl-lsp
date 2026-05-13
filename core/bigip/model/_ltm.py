@@ -17,9 +17,13 @@ Covers every typed LTM kind:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ...analysis.semantic_model import Range
 from ._enums import DataGroupType, ProfileType
+
+if TYPE_CHECKING:
+    from ..types import FQDN, Address, Destination, IPAddress
 
 
 # v1 LTM core types (data-groups, pools, virtuals, monitors, profiles,
@@ -42,10 +46,15 @@ class BigipDataGroup:
 
 @dataclass(frozen=True, slots=True)
 class BigipPoolMember:
-    """A single member entry inside a ``ltm pool``."""
+    """A single member entry inside a ``ltm pool``.
+
+    ``address`` is a typed :class:`Address` (``IPAddress`` for IPv4 /
+    IPv6 hosts, :class:`FQDN` for FQDN-based pool members) populated
+    by the parser; ``None`` when no ``address`` property was given.
+    """
 
     name: str  # e.g. "/Common/10.0.0.1:80"
-    address: str = ""
+    address: "Address | None" = None
     port: int = 0
     monitor: str = ""
     description: str = ""
@@ -54,38 +63,6 @@ class BigipPoolMember:
     priority_group: str = ""
     connection_limit: str = ""
     rate_limit: str = ""
-
-    @property
-    def address_typed(self):
-        """The :attr:`address` field as a typed :class:`Address`.
-
-        ``IPAddress`` for IPv4 / IPv6 hosts, :class:`FQDN` for
-        FQDN-based pool members.  Returns ``None`` when the raw
-        ``address`` field is empty or doesn't parse — callers that
-        need typed access should branch on ``None`` rather than
-        treating an empty string as a valid input.
-        """
-        from ..types import try_parse_address
-
-        if not self.address:
-            return None
-        return try_parse_address(self.address)
-
-    @property
-    def name_typed(self):
-        """The :attr:`name` field as a typed :class:`Destination`.
-
-        Pool-member names embed ``[partition/]address[:port]`` — a
-        :class:`Destination` decomposes it.  ``None`` when the raw
-        name doesn't parse (rare: the parser only stores names that
-        the BIG-IP parser already accepted, but defensive code is
-        cheap).
-        """
-        from ..types import Destination
-
-        if not self.name:
-            return None
-        return Destination.try_parse(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,37 +108,25 @@ class BigipPool:
 
 @dataclass(frozen=True, slots=True)
 class BigipNode:
-    """A ``ltm node`` object."""
+    """A ``ltm node`` object.
+
+    ``address`` is a typed :class:`Address` (``IPAddress`` for IPv4 /
+    IPv6 hosts, :class:`FQDN` for FQDN nodes); ``fqdn`` is the typed
+    :class:`FQDN` from a ``fqdn { name ... }`` sub-block when the
+    node uses dynamic resolution.
+    """
 
     name: str
     full_path: str
-    address: str = ""
+    address: "Address | None" = None
     description: str = ""
     monitor: str = ""
     state: str = ""  # ``enabled`` / ``disabled`` flag from the node body
     connection_limit: str = ""
     rate_limit: str = ""
     ratio: str = ""
-    fqdn: str = ""  # FQDN sub-block ``name`` value, when present
+    fqdn: "FQDN | None" = None
     range: Range | None = None
-
-    @property
-    def address_typed(self):
-        """The :attr:`address` field as a typed :class:`Address`."""
-        from ..types import try_parse_address
-
-        if not self.address:
-            return None
-        return try_parse_address(self.address)
-
-    @property
-    def fqdn_typed(self):
-        """The :attr:`fqdn` field as a typed :class:`FQDN`."""
-        from ..types import FQDN
-
-        if not self.fqdn:
-            return None
-        return FQDN.try_parse(self.fqdn)
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,7 +214,7 @@ class BigipVirtualServer:
 
     name: str
     full_path: str
-    destination: str = ""
+    destination: "Destination | None" = None
     pool: str = ""  # default pool path
     rules: tuple[str, ...] = ()  # attached iRule paths
     profiles: tuple[str, ...] = ()  # attached profile paths
@@ -303,23 +268,6 @@ class BigipVirtualServer:
     pool_range: Range | None = None
     range: Range | None = None
 
-    @property
-    def destination_typed(self):
-        """The :attr:`destination` field as a typed :class:`Destination`.
-
-        Decomposes the full ``[/partition[/folder...]/]addr[%rd][:port]``
-        triple — partition, folder, address (IPv4 / IPv6 / FQDN),
-        route-domain, port (or wildcard), bracket form, port
-        separator — into a structured value the rest of the
-        codebase can introspect without re-parsing the string.
-        ``None`` when the destination is empty or doesn't parse.
-        """
-        from ..types import Destination
-
-        if not self.destination:
-            return None
-        return Destination.try_parse(self.destination)
-
 
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
@@ -332,7 +280,7 @@ class BigipVirtualAddress:
 
     name: str
     full_path: str
-    address: str = ""
+    address: "IPAddress | None" = None
     mask: str = ""
     arp: str = ""
     icmp_echo: str = ""
@@ -351,20 +299,6 @@ class BigipVirtualAddress:
     range: Range | None = None
 
     @property
-    def address_typed(self):
-        """The :attr:`address` field as a typed :class:`IPAddress`.
-
-        ``ltm virtual-address`` stores just the host IP (no port, no
-        prefix) — :attr:`mask` is the matching netmask.  Use
-        :attr:`network_typed` for the combined CIDR.
-        """
-        from ..types import IPAddress
-
-        if not self.address:
-            return None
-        return IPAddress.try_parse(self.address)
-
-    @property
     def network_typed(self):
         """The :attr:`address` + :attr:`mask` combined as a typed
         :class:`Network` (CIDR).
@@ -375,12 +309,12 @@ class BigipVirtualAddress:
         """
         from ..types import Network
 
-        if not self.address:
+        if self.address is None:
             return None
         if self.mask:
             return Network.try_parse(f"{self.address}/{self.mask}")
         # No mask — treat the address as a /32 (IPv4) or /128 (IPv6) host.
-        return Network.try_parse(self.address)
+        return Network.try_parse(str(self.address))
 
 
 @dataclass(frozen=True, slots=True)

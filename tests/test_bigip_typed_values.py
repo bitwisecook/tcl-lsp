@@ -430,64 +430,150 @@ class TestObjectPath:
 # ---------------------------------------------------------------------------
 
 
-class TestPoolMemberTypedAccessors:
-    def test_ipv4_address_resolves_to_ipaddress(self):
-        from core.bigip.model import BigipPoolMember
+class TestPoolMemberTypedField:
+    """``BigipPoolMember.address`` is now a typed :class:`Address`."""
 
-        m = BigipPoolMember(name="/Common/10.0.0.1:80", address="10.0.0.1", port=80)
-        typed = m.address_typed
-        assert isinstance(typed, IPAddress)
-        assert typed.is_ipv4
-
-    def test_fqdn_address_resolves_to_fqdn(self):
+    def test_ipv4_address_is_typed(self):
         from core.bigip.model import BigipPoolMember
 
         m = BigipPoolMember(
-            name="/Common/host.example.com:443", address="host.example.com", port=443
+            name="/Common/10.0.0.1:80",
+            address=IPAddress.parse("10.0.0.1"),
+            port=80,
         )
-        typed = m.address_typed
-        assert isinstance(typed, FQDN)
+        assert isinstance(m.address, IPAddress)
+        assert m.address.is_ipv4
 
-    def test_empty_address_returns_none(self):
+    def test_fqdn_address_is_typed(self):
         from core.bigip.model import BigipPoolMember
 
-        m = BigipPoolMember(name="/Common/x", address="")
-        assert m.address_typed is None
+        m = BigipPoolMember(
+            name="/Common/host.example.com:443",
+            address=FQDN.parse("host.example.com"),
+            port=443,
+        )
+        assert isinstance(m.address, FQDN)
 
-    def test_name_typed_decomposes_destination(self):
+    def test_empty_address_is_none(self):
         from core.bigip.model import BigipPoolMember
 
-        m = BigipPoolMember(name="/Common/10.0.0.1:80", address="10.0.0.1", port=80)
-        dest = m.name_typed
-        assert isinstance(dest, Destination)
-        assert dest.partition is not None and dest.partition.short_name == "Common"
-        assert dest.port.port == 80
+        m = BigipPoolMember(name="/Common/x")
+        assert m.address is None
+
+    def test_parser_populates_typed_pool_member(self):
+        """End-to-end round-trip: a TMSH ``ltm pool`` member parses
+        into a typed :class:`Address`, no string detour."""
+        from core.bigip.parser import parse_bigip_conf
+
+        src = (
+            "ltm pool /Common/p1 {\n"
+            "    members {\n"
+            "        /Common/10.0.0.1:80 { address 10.0.0.1 }\n"
+            "        /Common/host.example.com:443 { address host.example.com }\n"
+            "    }\n"
+            "}\n"
+        )
+        config = parse_bigip_conf(src)
+        pool = config.pools["/Common/p1"]
+        addrs = {m.name: m.address for m in pool.members}
+        assert isinstance(addrs["/Common/10.0.0.1:80"], IPAddress)
+        assert str(addrs["/Common/10.0.0.1:80"]) == "10.0.0.1"
+        assert isinstance(addrs["/Common/host.example.com:443"], FQDN)
+        assert str(addrs["/Common/host.example.com:443"]) == "host.example.com"
 
 
-class TestVirtualServerTypedAccessors:
-    def test_destination_resolves_to_destination(self):
+class TestVirtualServerTypedField:
+    """``BigipVirtualServer.destination`` is now a typed :class:`Destination`."""
+
+    def test_destination_is_typed(self):
         from core.bigip.model import BigipVirtualServer
 
         vs = BigipVirtualServer(
-            name="vs1", full_path="/Common/vs1", destination="/Common/10.0.0.1:443"
+            name="vs1",
+            full_path="/Common/vs1",
+            destination=Destination.parse("/Common/10.0.0.1:443"),
         )
-        d = vs.destination_typed
-        assert isinstance(d, Destination)
-        assert d.port.port == 443
-        assert isinstance(d.address, IPAddress) and d.address.is_ipv4
+        assert isinstance(vs.destination, Destination)
+        assert vs.destination.port.port == 443
+        # Round-trip through the canonical text.
+        assert str(vs.destination) == "/Common/10.0.0.1:443"
+        assert Destination.parse(str(vs.destination)) == vs.destination
 
-    def test_ipv6_destination_with_brackets(self):
-        from core.bigip.model import BigipVirtualServer
+    def test_parser_populates_typed_destination(self):
+        """End-to-end: ``ltm virtual`` parses into a typed
+        :class:`Destination` directly.
+        """
+        from core.bigip.parser import parse_bigip_conf
 
-        vs = BigipVirtualServer(
-            name="vs2",
-            full_path="/Common/vs2",
-            destination="/Common/[2001:db8::1].443",
+        src = (
+            "ltm virtual /Common/vs1 {\n"
+            "    destination /Common/10.0.0.1:80\n"
+            "}\n"
+            "ltm virtual /Common/vs6 {\n"
+            "    destination /Common/[2001:db8::1].443\n"
+            "}\n"
         )
-        d = vs.destination_typed
-        assert isinstance(d, Destination)
-        assert d.ipv6_brackets
-        assert isinstance(d.address, IPAddress) and d.address.is_ipv6
+        config = parse_bigip_conf(src)
+        vs = config.virtual_servers["/Common/vs1"]
+        assert isinstance(vs.destination, Destination)
+        assert str(vs.destination) == "/Common/10.0.0.1:80"
+        vs6 = config.virtual_servers["/Common/vs6"]
+        assert vs6.destination is not None
+        assert vs6.destination.ipv6_brackets
+        assert str(vs6.destination) == "/Common/[2001:db8::1].443"
+
+
+class TestNodeTypedField:
+    """``BigipNode.address`` is :class:`Address`; ``.fqdn`` is :class:`FQDN`."""
+
+    def test_parser_populates_typed_node(self):
+        from core.bigip.parser import parse_bigip_conf
+
+        src = "ltm node /Common/n1 { address 10.0.0.1 }\n"
+        config = parse_bigip_conf(src)
+        node = config.nodes["/Common/n1"]
+        assert isinstance(node.address, IPAddress)
+        assert str(node.address) == "10.0.0.1"
+
+    def test_parser_populates_node_fqdn(self):
+        from core.bigip.parser import parse_bigip_conf
+
+        src = "ltm node /Common/n2 { fqdn { name host.example.com } }\n"
+        config = parse_bigip_conf(src)
+        node = config.nodes["/Common/n2"]
+        assert isinstance(node.fqdn, FQDN)
+        assert str(node.fqdn) == "host.example.com"
+
+
+class TestDslRendersTypedFieldsAsStrings:
+    """The DSL surface keeps emitting strings via the typed=True FieldSpec."""
+
+    def test_vs_destination(self):
+        from core.bigip.query.runner import run_query
+
+        src = "ltm virtual /Common/vs1 { destination /Common/10.0.0.1:80 }\n"
+        result = run_query('.ltm.virtual["/Common/vs1"].destination', {"mem://1": src})
+        assert result.values_per_file["mem://1"] == ["/Common/10.0.0.1:80"]
+
+    def test_pool_member_address(self):
+        from core.bigip.query.runner import run_query
+
+        src = (
+            "ltm pool /Common/p1 {\n"
+            "    members {\n"
+            "        /Common/10.0.0.1:80 { address 10.0.0.1 }\n"
+            "    }\n"
+            "}\n"
+        )
+        result = run_query('.ltm.pool["/Common/p1"].members[].address', {"mem://1": src})
+        assert result.values_per_file["mem://1"] == ["10.0.0.1"]
+
+    def test_node_address(self):
+        from core.bigip.query.runner import run_query
+
+        src = "ltm node /Common/n1 { address 10.0.0.1 }\n"
+        result = run_query('.ltm.node["/Common/n1"].address', {"mem://1": src})
+        assert result.values_per_file["mem://1"] == ["10.0.0.1"]
 
 
 class TestNetSelfTypedField:
@@ -592,13 +678,31 @@ class TestNetRouteTypedField:
         assert result.values_per_file["mem://1"] == ["192.168.1.1"]
 
 
-class TestVirtualAddressTypedAccessors:
+class TestVirtualAddressTypedField:
+    """``BigipVirtualAddress.address`` is now typed; ``.network_typed``
+    derives the combined CIDR from ``address`` + ``mask``."""
+
     def test_host_address_plus_mask_becomes_network(self):
         from core.bigip.model import BigipVirtualAddress
 
         va = BigipVirtualAddress(
-            name="va1", full_path="/Common/va1", address="10.0.0.1", mask="255.255.255.0"
+            name="va1",
+            full_path="/Common/va1",
+            address=IPAddress.parse("10.0.0.1"),
+            mask="255.255.255.0",
         )
-        assert isinstance(va.address_typed, IPAddress)
+        assert isinstance(va.address, IPAddress)
         assert isinstance(va.network_typed, Network)
+        assert va.network_typed.prefix_length == 24
+
+    def test_parser_populates_typed_virtual_address(self):
+        from core.bigip.parser import parse_bigip_conf
+
+        src = "ltm virtual-address /Common/10.0.0.1 { address 10.0.0.1 mask 255.255.255.0 }\n"
+        config = parse_bigip_conf(src)
+        va = config.virtual_addresses["/Common/10.0.0.1"]
+        assert isinstance(va.address, IPAddress)
+        assert str(va.address) == "10.0.0.1"
+        # ``network_typed`` combines address + mask into a CIDR.
+        assert va.network_typed is not None
         assert va.network_typed.prefix_length == 24

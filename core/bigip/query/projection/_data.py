@@ -172,7 +172,9 @@ from ._classes import FieldSpec
 _VS_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
-    "destination": FieldSpec("destination"),
+    # Typed :class:`Destination` on the dataclass — projection renders
+    # it back to canonical text for DSL queries.
+    "destination": FieldSpec("destination", typed=True),
     "pool": FieldSpec("pool", ref_kind="ltm pool"),
     "rules": FieldSpec("rules", ref_kind="ltm rule", list_ref=True),
     "profiles": FieldSpec("profiles", ref_kind="ltm profile", list_ref=True),
@@ -267,7 +269,8 @@ _POOL_FIELDS: dict[str, FieldSpec] = {
 _VIRTUAL_ADDRESS_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
-    "address": FieldSpec("address"),
+    # Typed :class:`IPAddress` on the dataclass.
+    "address": FieldSpec("address", typed=True),
     "mask": FieldSpec("mask"),
     "arp": FieldSpec("arp"),
     "icmp-echo": FieldSpec("icmp_echo"),
@@ -571,14 +574,16 @@ _ANALYTICS_MINIMAL_FIELDS = _MINIMAL_FIELDS
 _NODE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
-    "address": FieldSpec("address"),
+    # Typed :class:`Address` (IPAddress | FQDN) on the dataclass.
+    "address": FieldSpec("address", typed=True),
     "description": FieldSpec("description"),
     "monitor": FieldSpec("monitor", ref_kind="ltm monitor"),
     "state": FieldSpec("state"),
     "connection-limit": FieldSpec("connection_limit"),
     "rate-limit": FieldSpec("rate_limit"),
     "ratio": FieldSpec("ratio"),
-    "fqdn": FieldSpec("fqdn"),
+    # Typed :class:`FQDN` on the dataclass.
+    "fqdn": FieldSpec("fqdn", typed=True),
 }
 
 _RULE_FIELDS: dict[str, FieldSpec] = {
