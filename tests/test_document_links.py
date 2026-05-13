@@ -134,7 +134,12 @@ class TestBigipReferencesAndRename:
             workspace_sources=None,
         )
         assert edit is not None
-        assert "file:///t.conf" in edit.changes
-        rewritten = edit.changes["file:///t.conf"][0].new_text
+        # ``WorkspaceEdit.changes`` is ``Optional[Mapping[...]]``; bind to
+        # a local + assert non-None so the type checker can narrow before
+        # the lookup.
+        changes = edit.changes
+        assert changes is not None
+        assert "file:///t.conf" in changes
+        rewritten = changes["file:///t.conf"][0].new_text
         assert "/Common/web_renamed" in rewritten
         assert "/Common/web_pool" not in rewritten
