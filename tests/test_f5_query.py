@@ -6131,3 +6131,42 @@ def test_review_bug6_query_projection_kinds_covered_by_object_registry():
         f"to {coverage_ratio:.0%} (was at least 50%).  Recent changes "
         f"broke parity — add registry entries for the missing kinds."
     )
+
+
+def test_review_jq1_select_drop_does_not_leak_into_scalar_pipe():
+    # jq-semantics review note: ``select(false) | .field`` used to
+    # error with "cannot read field" because the ``_DROP`` sentinel
+    # leaked into the next pipe stage.  ``_pipe_through`` now treats
+    # ``_DROP`` as an empty stream, matching jq's "empty output
+    # short-circuits" semantics.
+    src = "ltm node /Common/n { address 1.1.1.1 }\n"
+    # Bare-LHS form — used to error.
+    out = _run("select(false) | .ltm.node[].name", source=src).values_per_file["mem://1"]
+    assert out == []
+    # Scalar select chain — used to error when predicate failed.
+    out = _run(
+        '.ltm.node["/Common/n"] | select(.address == "none") | .name',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert out == []
+    # Predicate-true case still works.
+    out = _run(
+        '.ltm.node["/Common/n"] | select(.address == "1.1.1.1") | .name',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert out == ["n"]
+
+
+def test_review_jq2_map_filters_with_select_drops_zero_outputs():
+    # jq-semantics review note: ``map`` is many-to-many via the
+    # same ``_flatten`` machinery the pipe uses, so a body that
+    # yields ``select(false)`` (the ``_DROP`` sentinel) contributes
+    # zero outputs.  This is the canonical filter-and-transform
+    # idiom and should now work end-to-end.
+    src = "ltm node /Common/a { address 1.1.1.1 }\nltm node /Common/b { address 2.2.2.2 }\n"
+    # Drop the node whose name doesn't equal "a"; project name on survivors.
+    out = _run(
+        '[.ltm.node[]] | map(select(.name == "a") | .name)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert out == [["a"]]

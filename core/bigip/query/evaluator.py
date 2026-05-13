@@ -122,10 +122,23 @@ def _pipe_through(values: Any, rhs: Expr, ctx: EvalContext) -> Any:
     running ``length`` on each PathRef.  Use ``.[]`` to iterate a list
     explicitly, or wrap a streaming pipeline in ``[ ... ]`` to collect
     its items back into a single list.
+
+    The LHS may also be the :data:`_DROP` sentinel returned by
+    ``select`` when its predicate fails on a non-stream value.  Treat
+    that as an empty stream — same semantics as jq's "empty output
+    short-circuits the rest of the pipe" — so ``select(false) | .x``
+    silently produces nothing instead of erroring with "cannot read
+    field".  Without this, the sentinel would leak into the RHS and
+    blow up the next stage; the ``Stream`` branch already handles the
+    sentinel transparently because ``_flatten`` drops it.
     """
+    if isinstance(values, _Drop):
+        return Stream(items=[])
     if isinstance(values, Stream):
         out: list[Any] = []
         for item in values.items:
+            if isinstance(item, _Drop):
+                continue
             out.extend(_flatten(_eval(rhs, item, ctx)))
         return Stream(items=out)
     return _eval(rhs, values, ctx)

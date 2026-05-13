@@ -61,7 +61,8 @@ Complex worked examples live in KCS How-Tos:
 - `--paths-only` — print only the full-path of each object or path-ref produced.  Cheap and pipeable, useful in shell loops.
 - `--json` — render the result as a JSON array; objects serialise as `{"kind", "full-path", "fields"}`.
 - `--write` — when the query mutates, print the rewritten config to stdout (default: print a unified-diff preview).  Mutually exclusive with `--in-place`.
-- `--in-place` — when the query mutates, overwrite each input file with the rewritten config.
+- `--in-place` — when the query mutates, overwrite each input file with the rewritten config.  Reads strictly UTF-8 (refuses undecodable bytes rather than substituting U+FFFD), and refuses `--format tmsh` (which would silently overwrite SCF source with a tmsh script).
+- `--format scf|tmsh` — output format for the rewritten config.  `scf` (default) emits the source with edits applied in-place, preserving comments / whitespace / field order.  `tmsh` emits a `tmsh modify` script suitable for piping to a remote device or redirecting to a file.
 - `--help-dsl` — print the DSL grammar reference and exit.
 - `--help-builtins [NAME]` — print every builtin's signature and example, or one named entry.
 - `--help-examples` — print the worked-example cookbook.

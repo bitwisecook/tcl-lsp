@@ -1234,6 +1234,14 @@ def _builtin_contains(value: Any, needle: Any) -> bool:
     *value* (semantically ``re.search``, not ``re.match``).  Use
     ``^`` / ``$`` to anchor.
 
+    **jq users note.**  This DSL's ``match`` is a *boolean
+    predicate* — it corresponds to jq's ``test(pattern)`` builtin,
+    not jq's ``match(pattern)`` (which returns rich match objects
+    with capture groups, byte offsets, and named groups).  This DSL
+    has no equivalent of jq's match-object output; if you need
+    capture groups, use ``sub`` / ``gsub`` with a replacement
+    template instead.
+
     An invalid regex raises ``BuiltinError`` with the underlying
     ``re.error`` reason — the pattern comes from the query author,
     so a typo should fail loudly.
@@ -1797,8 +1805,18 @@ def _builtin_select(*_args):  # pragma: no cover - dispatched specially
     **Special form.**  ``map`` is the transform primitive — for each
     item of the *input* (which must be a list / stream), it
     evaluates *body* with ``.`` re-bound to that item and collects
-    the results into a list.  Unlike ``select``, ``map`` always
-    produces an output element per input.
+    the results into a list.
+
+    Output cardinality matches jq's ``map(f) == [.[] | f]`` rule:
+    each *body* invocation flattens through the same machinery the
+    pipe uses, so a body that produces
+
+    - one value contributes one element (the common case);
+    - a stream contributes every stream item;
+    - the ``select`` drop sentinel contributes zero elements
+      (``map(select(predicate))`` is the canonical filter idiom).
+
+    So ``map`` is many-to-many in general, not strictly one-to-one.
 
     The body can be any expression: a field projection, a builtin
     call, a multi-stage pipeline, an arithmetic expression — `.` is
@@ -1809,6 +1827,9 @@ def _builtin_select(*_args):  # pragma: no cover - dispatched specially
     - **Project a field of a list**: ``.rules | map(basename(.))`` —
       ``.rules`` is a list, the pipe passes it whole, ``map``
       iterates it.
+    - **Filter + transform**: ``map(select(.address) | .name)`` —
+      drops items whose ``address`` is falsey, projects ``.name``
+      on the survivors.  Zero outputs per dropped item.
     - **Predicate over a stream** (don't use ``map`` for this): pipe
       the stream through the predicate instead —
       ``.pool.members[].address | in_cidr(., "10.0.0.0/8")``
@@ -1816,10 +1837,6 @@ def _builtin_select(*_args):  # pragma: no cover - dispatched specially
     - **Compose with sort + unique on a stream**: wrap with a list
       literal first so subsequent stages see one list:
       ``[.ltm.virtual[].name | partition(.)] | unique | sort``.
-
-    For *filtering* without transforming, use ``select`` inside the
-    pipeline rather than inside ``map`` (so dropped items don't
-    leave ``null`` slots).
 
     Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
     """,

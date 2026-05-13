@@ -118,11 +118,15 @@ Deliberate divergences:
 |---|---|---|
 | Function arguments | `;` separated | `,` separated |
 | Stream concat `,` | yes | not present — use lists or `;` statements |
-| Regex test | `test("pat")` builtin | `["~pat"]` subscript form |
+| Regex test | `test("pat")` builtin | `["~pat"]` subscript form, **and** `match()` builtin (jq's `match()` returns match objects; ours returns boolean — equivalent to jq's `test()`) |
 | Identifier hyphens | quoted only | bareword (`source-address-translation`) |
 | Object literals `{...}` | yes | not present in v1 — use `--json` output |
 | String interpolation `"\(.x)"` | yes | not present in v1 |
+| `//` / `?` / `try-catch` / `as` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
+| Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
 | Assignment + pipe | `path \|= f` binds tight via custom precedence | `\|=` is a pipe-stage trailing operator, so `a \| b \|= c` parses as `a \| (b \|= c)` |
+| `--format` flag | not applicable | `--format scf` (default) emits the rewritten config; `--format tmsh` emits a `tmsh modify` script suitable for piping to a live device.  Refused with `--in-place` (would silently overwrite SCF with a different file format) |
+| Multi-file `--json` | not applicable | one envelope `[{"uri": ..., "values": [...]}, ...]`, not adjacent arrays |
 
 The assignment-precedence divergence is the most consequential.  In
 jq, `a \| b \|= c` is `(a \| b) \|= c` — the LHS is a "path expression
@@ -480,7 +484,7 @@ text and dispatch table both pick it up automatically.
   `gsub`, `split`, `join`, `upcase`, `downcase`
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
-- **value** — `length`, `kind`, `path`, `defined`, `type`
+- **value** — `length`, `kind`, `path`, `defined`, `type`, `str`
 - **graph** — `refs`, `referenced_by` (forwards to `core.bigip.grep`)
 
 ### Rename verb integration
@@ -567,24 +571,56 @@ the iRule parser exports byte-level ranges for every token.
 - `auto` (default) — SCF stanzas when every value is a writable
   object; one value per line when every value is a scalar; JSON
   otherwise.
-- `scf` — every value rendered as an SCF stanza (with header), or
-  coerced through `str()` when no stanza slot is available.
-- `raw` — one scalar per line, no quoting.
+- `scf` — every value rendered as an SCF stanza (with header).  When
+  no stanza slot is available, scalars route through the same
+  `_scalar_str` formatter the `raw` mode uses (one canonical scalar
+  formatter, not bare `str()` — bools render as `true` / `false`,
+  `None` as `null`, `PathRef` as its full-path); object / list /
+  stream values that aren't scalars are refused with a clear error
+  asking for `--paths-only` / `--json` instead.
+- `raw` — one scalar per line, no quoting.  Same scalar formatter as
+  `scf`.
 - `paths` — print the full-path of each object or path-ref.
 - `json` — `json.dumps([...], indent=2)`, with objects serialised as
   `{"kind", "full-path", "fields"}` maps.
+
+## CLI flags that affect output
+
+- `--format scf` (default for the rewritten config) emits the source
+  with edits applied in-place, preserving comments / whitespace /
+  field order.
+- `--format tmsh` emits a `tmsh modify` script suitable for
+  `tmsh load /sys config from-terminal merge` or piping to a remote
+  device.  Refused when combined with `--in-place`: the dry-run diff
+  is always SCF↔SCF, so writing tmsh to the source file would
+  silently change the file's format.
 
 ## Multi-file behaviour
 
 Each input file is its own root.  In `auto` / `scf` / `raw` / `paths`
 output modes the renderer emits a `# === <uri> ===` header before
-each file's values when more than one file was supplied.  Edits are
-applied per file; identity renames do not propagate across files —
-both `f5 rename` and `f5 query` operate on one source at a time.  To
-perform a rename across a fan-out of partition files, either
-concatenate them first with `f5 merge` (or `cat`) and run the rename
-once over the combined SCF, or run `f5 rename` separately against
-each file (a shell loop is enough).
+each file's values when more than one file was supplied.
+
+In `--json` mode, multi-file invocations emit a single top-level
+envelope rather than adjacent per-file arrays (which would not be
+valid JSON):
+
+```json
+[
+  {"uri": "file:///a.conf", "values": [...]},
+  {"uri": "file:///b.conf", "values": [...]}
+]
+```
+
+Single-file `--json` invocations stay flat — just the values array,
+no envelope — so the simple case keeps the expected shape.
+
+Edits are applied per file; identity renames do not propagate across
+files — both `f5 rename` and `f5 query` operate on one source at a
+time.  To perform a rename across a fan-out of partition files,
+either concatenate them first with `f5 merge` (or `cat`) and run the
+rename once over the combined SCF, or run `f5 rename` separately
+against each file (a shell loop is enough).
 
 ## Exit codes
 
