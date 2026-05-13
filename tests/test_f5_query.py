@@ -410,6 +410,16 @@ def test_render_json_emits_array():
     assert json.loads(rendered) == ["web_vs", "api_vs"]
 
 
+def test_render_raw_rejects_object_refs():
+    """``--raw`` is documented as scalars-only; an ObjectRef should
+    raise rather than emit a Python ``repr`` that's useless for
+    scripting.  Steer the user towards ``--paths-only`` / ``--json``.
+    """
+    result = _run(".ltm.virtual[]")
+    with pytest.raises(ValueError, match=r"--raw cannot render"):
+        render(result.values_per_file["mem://1"], mode="raw")
+
+
 # ---------------------------------------------------------------------------
 # Help surfaces
 # ---------------------------------------------------------------------------
@@ -513,6 +523,40 @@ def test_cli_paths_only_mode(sample_conf, capsys):
     rc, out, _ = _cli(["query", "--paths-only", ".ltm.virtual[]", str(sample_conf)], capsys)
     assert rc == 0
     assert "/Common/web_vs" in out
+
+
+def test_cli_rejects_duplicate_inputs(sample_conf, capsys):
+    """A repeated input URI (most importantly ``-``, which would
+    silently drain stdin then read empty on the second pass) is
+    rejected with a clear error rather than producing a confusing
+    empty-projection result.
+    """
+    rc, _, err = _cli(
+        ["query", ".ltm.virtual[].name", str(sample_conf), str(sample_conf)],
+        capsys,
+    )
+    assert rc == 2
+    assert "duplicate input" in err
+
+
+def test_cli_json_mode_skips_multi_file_banners(tmp_path, capsys):
+    """``# === uri ===`` per-file banners break JSON output.  In
+    ``--json`` mode the CLI must emit each file's JSON document
+    without any interleaved comment lines.
+    """
+    a = tmp_path / "a.conf"
+    b = tmp_path / "b.conf"
+    a.write_text("ltm node /Common/n_a { address 10.0.0.1 }\n", encoding="utf-8")
+    b.write_text("ltm node /Common/n_b { address 10.0.0.2 }\n", encoding="utf-8")
+    rc, out, _ = _cli(
+        ["query", "--json", ".ltm.node[].name", str(a), str(b)],
+        capsys,
+    )
+    assert rc == 0
+    assert "# ===" not in out
+    # Each file's JSON document is on stdout as a separate ``[…]``
+    # array; the combined stdout therefore contains two ``[`` and ``]``.
+    assert out.count("[") == 2 and out.count("]") == 2
 
 
 def test_cli_exit_code_when_no_matches(sample_conf, capsys):

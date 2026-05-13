@@ -28,13 +28,13 @@ exactly the same content for one builtin.
 - **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `sub` / `gsub`, plain `split` / `join`, casing.
   - [`contains`](#contains), [`downcase`](#downcase), [`endswith`](#endswith), [`gsub`](#gsub), [`join`](#join), [`match`](#match), [`split`](#split), [`startswith`](#startswith), [`sub`](#sub), [`upcase`](#upcase)
 - **[path](#path)** — BIG-IP full-path string helpers — extract the partition or basename, swap a partition prefix.  These are *string* transforms; they don't move objects.  For object renames, reach for the **rename** category.
-  - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with-partition)
+  - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with_partition)
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
-  - [`rename`](#rename), [`rename_partition`](#rename-partition)
+  - [`rename`](#rename), [`rename_partition`](#rename_partition)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`host`](#host), [`in_cidr`](#in-cidr), [`ip`](#ip), [`net`](#net), [`port`](#port), [`route_domain`](#route-domain), [`with_route_domain`](#with-route-domain)
+  - [`host`](#host), [`in_cidr`](#in_cidr), [`ip`](#ip), [`net`](#net), [`port`](#port), [`route_domain`](#route_domain), [`with_route_domain`](#with_route_domain)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
-  - [`referenced_by`](#referenced-by), [`refs`](#refs)
+  - [`referenced_by`](#referenced_by), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
   - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`type`](#type)
 

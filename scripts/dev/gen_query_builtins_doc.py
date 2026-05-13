@@ -101,8 +101,15 @@ _CATEGORY_BLURBS: dict[str, str] = {
 
 
 def _anchor(name: str) -> str:
-    """Return the markdown anchor for a builtin name."""
-    return name.replace("_", "-")
+    """Return the markdown anchor for a builtin name.
+
+    GitHub-style heading IDs lowercase the heading and strip
+    punctuation, but **preserve underscores**, so a heading like
+    ``### `with_partition``` becomes the anchor ``#with_partition``.
+    Builtin names are already lowercase, so we just return them
+    verbatim.
+    """
+    return name
 
 
 def _render_function(spec: BuiltinSpec) -> str:

@@ -240,6 +240,21 @@ def _run_query(args: argparse.Namespace) -> int:
         except OSError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
+        if uri in sources:
+            # A repeated ``-`` would also silently overwrite — the
+            # first read drains stdin, the second produces an empty
+            # string.  Reject duplicates so the user gets a clear
+            # error rather than a confusing empty-projection result.
+            prev = path_for_uri[uri]
+            label = "stdin" if path_str == "-" else path_str
+            if prev == path_str:
+                print(f"error: duplicate input {label}", file=sys.stderr)
+            else:
+                print(
+                    f"error: duplicate input {label} (already read as {prev})",
+                    file=sys.stderr,
+                )
+            return 2
         sources[uri] = src
         path_for_uri[uri] = path_str
 
@@ -322,8 +337,13 @@ def _emit_values(
 ) -> int:
     any_emitted = False
     multi = len(sources) > 1
+    # Per-file ``# === uri ===`` banners are line-oriented; emitting
+    # them around ``--json`` output corrupts the JSON document.  Skip
+    # them for json — callers wanting per-file grouping can run the
+    # query once per file (``for f in *.conf; do f5 query -j ... $f``).
+    use_banner = multi and args.output_mode != "json"
     for uri, values in result.values_per_file.items():
-        if multi:
+        if use_banner:
             sys.stdout.write(f"# === {uri} ===\n")
         text = render(values, mode=args.output_mode)
         if text:

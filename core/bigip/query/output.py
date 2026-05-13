@@ -78,7 +78,23 @@ def _render_scf(values: list[Any]) -> str:
 
 
 def _render_raw(values: list[Any]) -> str:
-    return "".join(_scalar_str(v) + "\n" for v in _flatten_scalars(values))
+    out: list[str] = []
+    for v in _flatten_scalars(values):
+        if not _is_scalar(v):
+            # ``--raw`` is documented as "scalars only".  Falling
+            # back to ``str(v)`` would emit a Python repr like
+            # ``ObjectRef(kind='ltm pool', full_path='/Common/p')``
+            # which is useless for scripting / piping.  Refuse and
+            # tell the user to pick a different output mode.
+            kind = type(v).__name__
+            if isinstance(v, ObjectRef):
+                kind = f"ObjectRef({v.kind!r})"
+            raise ValueError(
+                f"--raw cannot render {kind}; use --paths-only for object "
+                f"identities or --json / --scf for full objects"
+            )
+        out.append(_scalar_str(v) + "\n")
+    return "".join(out)
 
 
 def _render_paths(values: list[Any]) -> str:
