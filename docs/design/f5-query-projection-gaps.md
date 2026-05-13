@@ -893,22 +893,22 @@ administrative ``auth.*`` namespace projected in bundle 8.
 
 ### Bundle 32 — `pem.*` globals + protocol (9)
 
-- [ ] `pem global-settings analytics`
-- [ ] `pem global-settings gx`
-- [ ] `pem global-settings hsl-flow`
-- [ ] `pem global-settings hsl-report`
-- [ ] `pem global-settings insert-content`
-- [ ] `pem global-settings policy`
-- [ ] `pem global-settings quota-mgmt`
-- [ ] `pem global-settings session-mgmt-attributes`
-- [ ] `pem global-settings subscriber-activity-log`
-- [ ] `pem protocol diameter-avp`
-- [ ] `pem protocol radius-avp`
-- [ ] `pem protocol profile gx`
-- [ ] `pem protocol profile radius`
-- [ ] `pem reporting format-script`
-- [ ] `pem subscriber`
-- [ ] `pem subscriber-attribute`
+- [x] `pem global-settings analytics`
+- [x] `pem global-settings gx`
+- [x] `pem global-settings hsl-flow`
+- [x] `pem global-settings hsl-report`
+- [x] `pem global-settings insert-content`
+- [x] `pem global-settings policy`
+- [x] `pem global-settings quota-mgmt`
+- [x] `pem global-settings session-mgmt-attributes`
+- [x] `pem global-settings subscriber-activity-log`
+- [x] `pem protocol diameter-avp`
+- [x] `pem protocol radius-avp`
+- [x] `pem protocol profile gx`
+- [x] `pem protocol profile radius`
+- [x] `pem reporting format-script`
+- [x] `pem subscriber`
+- [x] `pem subscriber-attribute`
 
 ### Bundle 33 — `sys` core configuration kinds (17)
 

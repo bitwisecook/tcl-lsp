@@ -768,6 +768,19 @@ _TWO_WORD_TYPES = frozenset(
         "policy customization-languages",
         "policy image-file",
         "policy windows-group-policy-file",
+        # Bundle 32 — pem.* globals + protocol.
+        "global-settings analytics",
+        "global-settings gx",
+        "global-settings hsl-flow",
+        "global-settings hsl-report",
+        "global-settings insert-content",
+        "global-settings policy",
+        "global-settings quota-mgmt",
+        "global-settings session-mgmt-attributes",
+        "global-settings subscriber-activity-log",
+        "protocol diameter-avp",
+        "protocol radius-avp",
+        "reporting format-script",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -967,6 +980,9 @@ _THREE_WORD_TYPES = frozenset(
         "resource remote-desktop quest",
         "resource remote-desktop rdp",
         "resource remote-desktop vmware-view",
+        # pem bundle 32 — protocol profile sub-kinds.
+        "protocol profile gx",
+        "protocol profile radius",
         # ltm message-routing bundle 15 — three-word kinds.
         "message-routing diameter peer",
         "message-routing diameter route",
@@ -2048,7 +2064,25 @@ def _parse_apm_minimal(
     )
 
 
-_PEM_MINIMAL_DISPATCH: dict[str, str] = {}
+_PEM_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 32 — pem.* globals + protocol (16 kinds).
+    "global-settings analytics": "pem_gs_analytics",
+    "global-settings gx": "pem_gs_gx",
+    "global-settings hsl-flow": "pem_gs_hsl_flow",
+    "global-settings hsl-report": "pem_gs_hsl_report",
+    "global-settings insert-content": "pem_gs_insert_content",
+    "global-settings policy": "pem_gs_policy",
+    "global-settings quota-mgmt": "pem_gs_quota_mgmt",
+    "global-settings session-mgmt-attributes": "pem_gs_session_mgmt_attributes",
+    "global-settings subscriber-activity-log": "pem_gs_subscriber_activity_log",
+    "protocol diameter-avp": "pem_protocol_diameter_avp",
+    "protocol radius-avp": "pem_protocol_radius_avp",
+    "protocol profile gx": "pem_protocol_profile_gx",
+    "protocol profile radius": "pem_protocol_profile_radius",
+    "reporting format-script": "pem_reporting_format_script",
+    "subscriber": "pem_subscriber",
+    "subscriber-attribute": "pem_subscriber_attribute",
+}
 
 
 def _parse_pem_minimal(

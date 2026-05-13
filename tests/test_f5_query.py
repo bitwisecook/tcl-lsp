@@ -5386,3 +5386,28 @@ def test_apm_bundles_27_to_31_dispatch():
     ]:
         res = _run(f".apm.{label}[].kind", _APM_BUNDLES_CONF)
         assert res.values_per_file["mem://1"], f"{label}: no values"
+
+
+# Bundle 32 — pem.* globals + protocol (16 kinds).
+_PEM_BUNDLE_CONF = """pem global-settings analytics { description "a" }
+pem global-settings policy { description "p" }
+pem protocol diameter-avp /Common/da1 { description "da" }
+pem protocol profile gx /Common/pgx { description "pgx" }
+pem reporting format-script /Common/fs1 { description "fs" }
+pem subscriber /Common/s1 { description "s" }
+pem subscriber-attribute /Common/sa1 { description "sa" }
+"""
+
+
+def test_pem_bundle_32_dispatch():
+    for label in [
+        "global-settings-analytics",
+        "global-settings-policy",
+        "protocol-diameter-avp",
+        "protocol-profile-gx",
+        "reporting-format-script",
+        "subscriber",
+        "subscriber-attribute",
+    ]:
+        res = _run(f".pem.{label}[].kind", _PEM_BUNDLE_CONF)
+        assert res.values_per_file["mem://1"], f"{label}: no values"
