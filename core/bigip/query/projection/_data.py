@@ -686,8 +686,13 @@ _DATAGROUP_FIELDS: dict[str, FieldSpec] = {
 _NET_ROUTE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
-    "network": FieldSpec("network"),
-    "gw": FieldSpec("gw"),
+    # ``network`` / ``gw`` are typed values on the dataclass; the
+    # projection renders them via ``str(value)`` so DSL users still
+    # see strings.  The special ``"default"`` route surfaces as the
+    # ``is-default-route`` boolean field.
+    "network": FieldSpec("network", typed=True),
+    "is-default-route": FieldSpec("is_default_route"),
+    "gw": FieldSpec("gw", typed=True),
     "pool": FieldSpec("pool", ref_kind="ltm pool"),
     "description": FieldSpec("description"),
     "mtu": FieldSpec("mtu"),
@@ -722,7 +727,9 @@ _NET_VLAN_FIELDS: dict[str, FieldSpec] = {
 _NET_SELF_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
-    "address": FieldSpec("address"),
+    # Typed :class:`Network` on the dataclass; rendered to its CIDR
+    # string for DSL consumption.
+    "address": FieldSpec("address", typed=True),
     "vlan": FieldSpec("vlan", ref_kind="net vlan"),
     "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
     "allow-service": FieldSpec("allow_service"),

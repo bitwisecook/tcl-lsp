@@ -490,30 +490,106 @@ class TestVirtualServerTypedAccessors:
         assert isinstance(d.address, IPAddress) and d.address.is_ipv6
 
 
-class TestNetSelfTypedAccessor:
-    def test_self_address_resolves_to_network(self):
+class TestNetSelfTypedField:
+    def test_self_address_is_typed_network(self):
+        """``BigipNetSelf.address`` is now a typed :class:`Network`
+        (was a raw string).  The parser populates it directly; consumers
+        no longer re-parse the CIDR.
+        """
         from core.bigip.model import BigipNetSelf
 
-        s = BigipNetSelf(name="self1", full_path="/Common/self1", address="10.0.0.1/24")
-        n = s.address_typed
-        assert isinstance(n, Network)
-        assert n.is_ipv4
-        assert n.prefix_length == 24
+        s = BigipNetSelf(
+            name="self1",
+            full_path="/Common/self1",
+            address=Network.parse("10.0.0.1/24"),
+        )
+        assert isinstance(s.address, Network)
+        assert s.address.is_ipv4
+        assert s.address.prefix_length == 24
+        # Round-trip: typed → str → parse yields the same typed value.
+        assert Network.parse(str(s.address)) == s.address
 
 
-class TestNetRouteTypedAccessor:
-    def test_network_resolves(self):
+class TestNetRouteTypedField:
+    def test_network_and_gw_are_typed(self):
+        """``BigipNetRoute.network`` / ``.gw`` are now typed
+        :class:`Network` / :class:`IPAddress` (were raw strings).
+        """
         from core.bigip.model import BigipNetRoute
 
-        r = BigipNetRoute(name="r1", full_path="/Common/r1", network="10.0.0.0/8", gw="192.168.1.1")
-        assert isinstance(r.network_typed, Network)
-        assert isinstance(r.gw_typed, IPAddress)
+        r = BigipNetRoute(
+            name="r1",
+            full_path="/Common/r1",
+            network=Network.parse("10.0.0.0/8"),
+            gw=IPAddress.parse("192.168.1.1"),
+        )
+        assert isinstance(r.network, Network)
+        assert isinstance(r.gw, IPAddress)
+        assert not r.is_default_route
+        # Round-trip both fields.
+        assert Network.parse(str(r.network)) == r.network
+        assert IPAddress.parse(str(r.gw)) == r.gw
 
-    def test_default_route_has_no_typed_network(self):
+    def test_default_route_carries_flag_not_network(self):
         from core.bigip.model import BigipNetRoute
 
-        r = BigipNetRoute(name="default", full_path="/Common/default", network="default")
-        assert r.network_typed is None
+        r = BigipNetRoute(
+            name="default",
+            full_path="/Common/default",
+            network=None,
+            is_default_route=True,
+        )
+        assert r.network is None
+        assert r.is_default_route
+
+    def test_parser_populates_typed_fields_for_net_route(self):
+        """End-to-end round-trip: a TMSH ``net route`` stanza parses
+        directly into typed :class:`Network` / :class:`IPAddress`
+        fields, no string detour."""
+        from core.bigip.parser import parse_bigip_conf
+
+        src = "net route /Common/r1 { network 10.0.0.0/8 gw 192.168.1.1 }\n"
+        config = parse_bigip_conf(src)
+        r = config.net_routes["/Common/r1"]
+        assert isinstance(r.network, Network)
+        assert str(r.network) == "10.0.0.0/8"
+        assert isinstance(r.gw, IPAddress)
+        assert str(r.gw) == "192.168.1.1"
+        assert not r.is_default_route
+
+    def test_parser_populates_default_route_flag(self):
+        from core.bigip.parser import parse_bigip_conf
+
+        src = "net route /Common/default_route { network default gw 192.168.1.1 }\n"
+        config = parse_bigip_conf(src)
+        r = config.net_routes["/Common/default_route"]
+        assert r.network is None
+        assert r.is_default_route
+        assert isinstance(r.gw, IPAddress)
+
+    def test_parser_populates_typed_fields_for_net_self(self):
+        from core.bigip.parser import parse_bigip_conf
+
+        src = "net self /Common/self1 { address 10.0.0.1/24 vlan /Common/internal }\n"
+        config = parse_bigip_conf(src)
+        s = config.net_selves["/Common/self1"]
+        assert isinstance(s.address, Network)
+        assert str(s.address) == "10.0.0.0/24"  # canonical CIDR
+        assert s.vlan == "/Common/internal"  # still a string ref
+
+    def test_dsl_renders_typed_fields_as_strings(self):
+        """The query DSL still surfaces these fields as strings —
+        the projection's ``typed=True`` FieldSpec converts the
+        typed value back to its canonical text before exposing it.
+        Existing queries that match against the string value keep
+        working."""
+        from core.bigip.query.runner import run_query
+
+        src = "net route /Common/r1 { network 10.0.0.0/8 gw 192.168.1.1 }\n"
+        result = run_query('.net.route["/Common/r1"].network', {"mem://1": src})
+        assert result.values_per_file["mem://1"] == ["10.0.0.0/8"]
+        result = run_query('.net.route["/Common/r1"].gw', {"mem://1": src})
+        assert result.values_per_file["mem://1"] == ["192.168.1.1"]
 
 
 class TestVirtualAddressTypedAccessors:

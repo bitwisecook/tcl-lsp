@@ -2692,13 +2692,21 @@ def _parse_policy(
 def _parse_net_route(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetRoute:
+    from ..types import IPAddress, Network
+
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
+    network_raw = props.get("network", "")
+    gw_raw = props.get("gw", "")
+    is_default = network_raw == "default"
+    network_typed = None if is_default or not network_raw else Network.try_parse(network_raw)
+    gw_typed = IPAddress.try_parse(gw_raw) if gw_raw else None
     return BigipNetRoute(
         name=name,
         full_path=full_path,
-        network=props.get("network", ""),
-        gw=props.get("gw", ""),
+        network=network_typed,
+        is_default_route=is_default,
+        gw=gw_typed,
         pool=props.get("pool", ""),
         description=_description(props),
         mtu=props.get("mtu", ""),
@@ -2761,10 +2769,14 @@ def _parse_net_self(
         elif value:
             # ``allow-service none`` / ``allow-service default`` (bare).
             allow_service = (value,)
+    from ..types import Network
+
+    address_raw = plain.get("address", "")
+    address_typed = Network.try_parse(address_raw) if address_raw else None
     return BigipNetSelf(
         name=name,
         full_path=full_path,
-        address=plain.get("address", ""),
+        address=address_typed,
         vlan=plain.get("vlan", ""),
         traffic_group=plain.get("traffic-group", ""),
         allow_service=allow_service,

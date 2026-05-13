@@ -8,49 +8,38 @@ DNS resolvers, tunnels, STP.  Long-tail ``net.*`` kinds share
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ...analysis.semantic_model import Range
+
+if TYPE_CHECKING:
+    from ..types import IPAddress, Network
 
 # ── net.* — typed projection for the network module ─────────────────
 
 
 @dataclass(frozen=True, slots=True)
 class BigipNetRoute:
-    """A ``net route`` object — a routing-table entry."""
+    """A ``net route`` object — a routing-table entry.
+
+    ``network`` / ``gw`` are typed values; the parser populates them
+    by calling :meth:`Network.try_parse` / :meth:`IPAddress.try_parse`
+    against the raw TMSH property, so consumers don't re-parse the
+    string.  The special ``"default"`` route surfaces as
+    ``is_default_route=True`` with ``network=None``.
+    """
 
     name: str
     full_path: str
-    network: str = ""  # e.g. "default", "10.0.0.0/8"
-    gw: str = ""  # gateway address; empty when the route uses ``pool`` instead
+    network: "Network | None" = None
+    is_default_route: bool = False  # ``network default`` route, no CIDR
+    gw: "IPAddress | None" = None
     pool: str = ""  # gateway pool reference; empty when ``gw`` is set
     description: str = ""
     mtu: str = ""
     blackhole: bool = False  # ``blackhole`` flag present
     interface: str = ""  # PathRef → net vlan when set
     range: Range | None = None
-
-    @property
-    def network_typed(self):
-        """The :attr:`network` field as a typed :class:`Network`.
-
-        Returns ``None`` for the special ``"default"`` route and any
-        other un-parseable value (a route with ``pool`` gateway has
-        no CIDR; callers should check before depending on this).
-        """
-        from ..types import Network
-
-        if not self.network or self.network == "default":
-            return None
-        return Network.try_parse(self.network)
-
-    @property
-    def gw_typed(self):
-        """The :attr:`gw` field as a typed :class:`IPAddress`."""
-        from ..types import IPAddress
-
-        if not self.gw:
-            return None
-        return IPAddress.try_parse(self.gw)
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,11 +72,15 @@ class BigipNetVlan:
 
 @dataclass(frozen=True, slots=True)
 class BigipNetSelf:
-    """A ``net self`` object — a self IP bound to a VLAN."""
+    """A ``net self`` object — a self IP bound to a VLAN.
+
+    ``address`` is a typed :class:`Network` populated by the parser
+    (self-IPs carry both host + prefix in one field).
+    """
 
     name: str
     full_path: str
-    address: str = ""  # ``10.0.0.1/24``
+    address: "Network | None" = None  # ``10.0.0.1/24`` typed
     vlan: str = ""  # full-path of the bound VLAN
     traffic_group: str = ""
     allow_service: tuple[str, ...] = ()  # ``default`` / ``all`` / per-service tokens
@@ -100,19 +93,6 @@ class BigipNetSelf:
     inherited_traffic_group: str = ""
     address_source: str = ""
     range: Range | None = None
-
-    @property
-    def address_typed(self):
-        """The :attr:`address` field as a typed :class:`Network`.
-
-        ``net self`` carries the address in CIDR form (``10.0.0.1/24``).
-        Returns ``None`` for empty / un-parseable input.
-        """
-        from ..types import Network
-
-        if not self.address:
-            return None
-        return Network.try_parse(self.address)
 
 
 @dataclass(frozen=True, slots=True)

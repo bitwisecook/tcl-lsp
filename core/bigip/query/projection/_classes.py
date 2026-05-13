@@ -113,3 +113,12 @@ class FieldSpec:
     # ``list_ref`` flags list-of-PathRef fields.
     ref_kind: str = ""
     list_ref: bool = False
+    # ``typed`` signals the dataclass field is a typed value object
+    # (``Network`` / ``IPAddress`` / ``Destination`` / ``FQDN`` / …)
+    # rather than a string.  The projection layer wraps ``str(value)``
+    # around the attribute access so DSL users continue to see strings
+    # (``.ltm.virtual[].destination`` still yields ``"/Common/1.1.1.1:80"``,
+    # not a ``Destination`` repr).  ``None``-typed values render as the
+    # empty string so the DSL truthiness rules match the prior
+    # string-field behaviour.
+    typed: bool = False

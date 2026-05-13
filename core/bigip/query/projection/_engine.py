@@ -155,6 +155,12 @@ def _project_field(
         return [_member_object_ref(m, root) for m in raw or ()]
     if kind == "ltm policy" and spec.attr == "rules":
         return [_policy_rule_object_ref(r, root) for r in raw or ()]
+    if spec.typed:
+        # Typed value (``Network`` / ``IPAddress`` / ``Destination`` / …)
+        # — render to its canonical string spelling so DSL users keep
+        # seeing strings.  ``None`` becomes ``""`` so falsey-truthiness
+        # matches the prior string-field behaviour for empty values.
+        return str(raw) if raw is not None else ""
     if isinstance(raw, tuple):
         return list(raw)
     return raw
