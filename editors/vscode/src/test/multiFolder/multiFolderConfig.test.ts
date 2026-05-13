@@ -162,4 +162,102 @@ suite("Multi-folder workspace configuration (#230)", () => {
       `folder A formatter should respect 160-col limit (longest=${longest})`,
     );
   });
+
+  // Per-folder dialect (issue #407) — VS Code must accept the
+  // ``tclLsp.dialect`` setting at the folder scope and the language
+  // server must apply it per-document rather than using a single
+  // process-wide dialect.
+  test("VS Code accepts folder-level tclLsp.dialect (#407 reproduction)", () => {
+    const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
+    const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
+
+    const a = vscode.workspace.getConfiguration("tclLsp", folderA.uri).get<string>("dialect");
+    const b = vscode.workspace.getConfiguration("tclLsp", folderB.uri).get<string>("dialect");
+
+    // proj-a is tcl8.4, proj-b is f5-irules.  Before the per-folder
+    // dialect refactor, only one of these could be honoured at a time
+    // and the LSP server emitted a "Per-folder dialects are not yet
+    // supported" warning for the loser.
+    assert.strictEqual(a, "tcl8.4", "folder A should report dialect=tcl8.4");
+    assert.strictEqual(b, "f5-irules", "folder B should report dialect=f5-irules");
+  });
+
+  test("VS Code accepts folder-level tclLsp.style.nonAscii", () => {
+    const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
+    const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
+
+    const a = vscode.workspace
+      .getConfiguration("tclLsp.style", folderA.uri)
+      .get<string>("nonAscii");
+    const b = vscode.workspace
+      .getConfiguration("tclLsp.style", folderB.uri)
+      .get<string>("nonAscii");
+
+    assert.strictEqual(a, "strict");
+    assert.strictEqual(b, "off");
+  });
+
+  test("folder A and folder B produce different diagnostics for {*}-expansion source (#407)", async () => {
+    // proj-a is tcl8.4 — ``{*}`` is NOT recognised as the word-expansion
+    // prefix, so ``cmd {*}$args`` lexes as a literal ``*$args`` word
+    // (no E001/E007 — the source is well-formed under 8.4 rules).
+    // proj-b is f5-irules — based on 8.4 syntax too, so it shares the
+    // no-expansion behaviour but flags many vanilla Tcl commands as
+    // unknown (iRules has a far smaller command surface).
+    // The interesting cross-folder diff: open identical ``my-helper``
+    // invocations — folder A accepts it as an unknown user command
+    // (no E002 in tcl8.4 either, but tcl8.4 *does* flag iRules-only
+    // commands).  Use ``when`` (iRules-only) which is a known command in
+    // proj-b but unknown in proj-a, yielding divergent E002 counts.
+    const source = `when CLIENT_ACCEPTED {\n    log local0. "hi"\n}\n`;
+
+    async function diagsFor(folderName: string): Promise<vscode.Diagnostic[]> {
+      const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
+      const fileUri = vscode.Uri.file(path.join(folder.uri.fsPath, "foo.tcl"));
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      const editor = await vscode.window.showTextDocument(doc);
+      await editor.edit((e) => {
+        const lastLine = doc.lineCount - 1;
+        const lastChar = doc.lineAt(lastLine).text.length;
+        e.replace(
+          new vscode.Range(new vscode.Position(0, 0), new vscode.Position(lastLine, lastChar)),
+          source,
+        );
+      });
+      // Wait for diagnostics to arrive; the server publishes them
+      // asynchronously after the didChange roundtrip.
+      for (let i = 0; i < 30; i++) {
+        const diags = vscode.languages.getDiagnostics(fileUri);
+        if (diags.length > 0) return diags;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return vscode.languages.getDiagnostics(fileUri);
+    }
+
+    const diagsA = await diagsFor("proj-a");
+    const diagsB = await diagsFor("proj-b");
+
+    // ``when`` is unknown under tcl8.4 (proj-a) so we expect at least
+    // one E002 (Unknown command); it's a registered iRules command
+    // under f5-irules (proj-b) so there should be none for ``when``
+    // itself.  The exact diagnostic count is sensitive to many other
+    // checks, so just assert the presence/absence of E002 on the ``when``
+    // command name.
+    const whenE002InA = diagsA.some(
+      (d) => d.code === "E002" && d.message.toLowerCase().includes("when"),
+    );
+    const whenE002InB = diagsB.some(
+      (d) => d.code === "E002" && d.message.toLowerCase().includes("when"),
+    );
+    assert.strictEqual(
+      whenE002InA,
+      true,
+      `folder A (tcl8.4) should flag 'when' as unknown.  Diags: ${JSON.stringify(diagsA.map((d) => [d.code, d.message]))}`,
+    );
+    assert.strictEqual(
+      whenE002InB,
+      false,
+      `folder B (f5-irules) should accept 'when' as a known command.  Diags: ${JSON.stringify(diagsB.map((d) => [d.code, d.message]))}`,
+    );
+  });
 });

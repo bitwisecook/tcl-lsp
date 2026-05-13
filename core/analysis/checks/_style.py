@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextvars as _contextvars
 import re
 from collections.abc import Callable
+from contextlib import contextmanager as _contextmanager
 
 from ...commands.registry.runtime import (
     ArgRole,
@@ -998,9 +1000,6 @@ def _ensure_confusables() -> None:
 # (only flag confusable / copy-paste artifacts), "common" (allow
 # intentional Unicode, flag only control/zero-width/confusables), "off".
 # Configured via tclLsp.style.nonAscii; default "confusables".
-import contextvars as _contextvars
-from contextlib import contextmanager as _contextmanager
-
 # W108 non-ASCII mode is scoped per LSP request via ``non_ascii_mode_scope``
 # so each workspace folder's ``tclLsp.style.nonAscii`` setting is honoured
 # even when multiple folders with different values are open in one process

@@ -206,8 +206,9 @@ def _publish_diagnostics_sync(
 
     cfg = _state.config_for_uri(uri)
     dialect, extras = _state.resolve_dialect_for_uri(uri, source)
-    with dialect_scope(dialect=dialect, extra_commands=extras), non_ascii_mode_scope(
-        cfg.non_ascii_mode
+    with (
+        dialect_scope(dialect=dialect, extra_commands=extras),
+        non_ascii_mode_scope(cfg.non_ascii_mode),
     ):
         state = _state.workspace_state.update(
             uri,
@@ -265,12 +266,11 @@ async def _publish_diagnostics(
     # ``to_thread`` use internally; the subprocess pool worker
     # (_analyse_document_fresh) gets the dialect via its explicit
     # ``dialect=`` argument.
-    with dialect_scope(dialect=dialect, extra_commands=extras), non_ascii_mode_scope(
-        cfg.non_ascii_mode
+    with (
+        dialect_scope(dialect=dialect, extra_commands=extras),
+        non_ascii_mode_scope(cfg.non_ascii_mode),
     ):
-        await _publish_diagnostics_inner(
-            uri, source, version, force_reanalyse=force_reanalyse
-        )
+        await _publish_diagnostics_inner(uri, source, version, force_reanalyse=force_reanalyse)
 
 
 async def _publish_diagnostics_inner(

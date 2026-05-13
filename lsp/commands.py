@@ -793,6 +793,11 @@ def _switch_dialect(dialect: str) -> dict:
     prev = active_dialect()
     changed = configure_signatures(dialect=dialect or None)
     current = active_dialect()
+    # Persist on the workspace-fallback FeatureConfig so the per-URI
+    # resolver (issue #407) keeps returning the explicit choice for
+    # documents outside every folder; per-folder overrides retain their
+    # own ``cfg.dialect``.
+    _state.feature_config.dialect = current
     _state.feature_config.dialect_explicitly_set = True
     log.info("Dialect set to %s (was %s)", current, prev)
 

@@ -233,7 +233,6 @@ from .state import (  # noqa: E402
     _semantic_token_results_lock,
     background_scanner,
     feature_config,
-    package_resolver,
     workspace_index,
     workspace_state,
 )

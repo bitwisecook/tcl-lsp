@@ -379,9 +379,7 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
     if folder_paths_raw is None:
         folder_paths_raw = tcl_settings.get("library_paths")
     if isinstance(folder_paths_raw, list):
-        normalised_paths = tuple(
-            str(p) for p in folder_paths_raw if isinstance(p, str) and p
-        )
+        normalised_paths = tuple(str(p) for p in folder_paths_raw if isinstance(p, str) and p)
         if normalised_paths != target.library_paths:
             target.library_paths = normalised_paths
             changed = True

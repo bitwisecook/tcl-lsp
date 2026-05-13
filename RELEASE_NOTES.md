@@ -64,6 +64,20 @@
 
 ## Bug Fixes
 
+- **Per-workspace-folder configuration now actually applies (#407).**
+  Previously the active dialect lived in a process-wide singleton, so a
+  multi-folder workspace with each folder configuring its own
+  `tclLsp.dialect` could only honour one value — the server picked one
+  folder and emitted a "Per-folder dialects are not yet supported"
+  warning for the rest. The dialect (and `extraCommands`,
+  `style.nonAscii`, `libraryPaths`, `dialect_explicitly_set`) are now
+  resolved per-document via the folder's `FeatureConfig`, with each LSP
+  request handler opening a scoped runtime profile. Diagnostics,
+  completion, hover, signature help, formatting, semantic tokens, the
+  W108 non-ASCII check, and `package require` resolution all honour the
+  folder's settings instead of a shared global. The warning loop in
+  `lsp/settings.py` is gone.
+
 - `return -code error` / compiled `INST_RETURN_IMM` — corrected the stack
   contract so the result value is read from `OBJ_UNDER_TOS` and the options
   dict from `OBJ_AT_TOS`, matching `tclsh`. Fixes empty-message errors

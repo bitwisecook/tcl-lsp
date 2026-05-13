@@ -329,9 +329,7 @@ class TestPerFolderPackageResolver:
             _lsp_state.package_resolver
         )
 
-    def test_all_package_resolvers_includes_fallback_and_folders(
-        self, reset_per_folder_state
-    ):
+    def test_all_package_resolvers_includes_fallback_and_folders(self, reset_per_folder_state):
         folder = "file:///workspaces/proj-a"
         folder_resolver = _lsp_state.get_or_init_folder_package_resolver(folder)
         resolvers = _lsp_state.all_package_resolvers()

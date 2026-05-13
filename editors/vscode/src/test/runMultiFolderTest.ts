@@ -57,6 +57,59 @@ async function main() {
     /* best-effort */
   }
 
+  // Materialise the per-folder ``.vscode/settings.json`` fixtures.  These
+  // are gitignored (the repo-wide ``.vscode/`` rule), so they have to be
+  // re-created on every test run.  Folder A and Folder B carry different
+  // ``tclLsp.formatting.maxLineLength`` (issue #230), ``tclLsp.dialect``
+  // (issue #407), ``tclLsp.style.nonAscii``, and ``tclLsp.diagnostics.W111``
+  // values to exercise the per-folder resolution path.
+  try {
+    const { writeFileSync, mkdirSync } = require("fs");
+    const projA = path.resolve(
+      extensionDevelopmentPath,
+      "testFixtureMultiFolder",
+      "proj-a",
+      ".vscode",
+    );
+    const projB = path.resolve(
+      extensionDevelopmentPath,
+      "testFixtureMultiFolder",
+      "proj-b",
+      ".vscode",
+    );
+    mkdirSync(projA, { recursive: true });
+    mkdirSync(projB, { recursive: true });
+    writeFileSync(
+      path.resolve(projA, "settings.json"),
+      JSON.stringify(
+        {
+          "tclLsp.formatting.maxLineLength": 160,
+          "tclLsp.diagnostics.W111": false,
+          "tclLsp.dialect": "tcl8.4",
+          "tclLsp.style.nonAscii": "strict",
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+    writeFileSync(
+      path.resolve(projB, "settings.json"),
+      JSON.stringify(
+        {
+          "tclLsp.formatting.maxLineLength": 60,
+          "tclLsp.dialect": "f5-irules",
+          "tclLsp.style.nonAscii": "off",
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+  } catch {
+    /* best-effort */
+  }
+
   const timeoutMs = parseExitTimeoutMs();
   try {
     const runPromise = runTests({
