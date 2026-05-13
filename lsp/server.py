@@ -20,6 +20,7 @@ from .features import (
     compute_semantic_tokens_edits,
     semantic_tokens_full,
 )
+from .features._bigip_links import get_bigip_document_links
 from .features._bigip_symbols import get_bigip_document_symbols
 from .features.call_hierarchy import (
     incoming_calls as get_incoming_calls,
@@ -1083,11 +1084,29 @@ def on_document_link(
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    is_cw = state is not None and state.conf_wrapped
+    # BIG-IP / SCF files emit object-reference links from the
+    # parser's iRule scanner (same path ``f5 grep`` uses).  Tcl
+    # files keep their existing ``source`` / ``package require``
+    # link path.  Conf-wrapped iRule files get both: BIG-IP links
+    # for the surrounding stanza references plus Tcl links inside
+    # rule bodies.
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        workspace_configs = (
+            _state.background_scanner.bigip_configs
+            if hasattr(_state, "background_scanner") and _state.background_scanner
+            else None
+        )
+        return get_bigip_document_links(
+            source,
+            uri=uri,
+            workspace_configs=workspace_configs,
+        )
     # Return empty when analysis hasn't completed — get_document_links
     # would call analyse(source) synchronously, blocking the event loop.
     if state is not None and state.analysis is None:
         return []
-    source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_document_links(source, analysis=analysis)
 

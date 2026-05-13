@@ -38,3 +38,43 @@ class TestDocumentLinks:
         source = "set x 42\nputs $x\n"
         links = get_document_links(source)
         assert len(links) == 0
+
+
+class TestBigipDocumentLinks:
+    def test_irule_body_pool_ref_emits_link(self):
+        from lsp.features._bigip_links import get_bigip_document_links
+
+        source = (
+            "ltm pool /Common/web_pool { }\n"
+            "ltm rule /Common/r {\n"
+            "when HTTP_REQUEST { pool /Common/web_pool }\n"
+            "}\n"
+        )
+        links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
+        assert links, "expected at least one document link for the iRule pool ref"
+        # Same-file resolve: target points back at the same URI's pool stanza line.
+        assert links[0].target is not None
+        assert "/tmp/x.conf" in links[0].target
+
+    def test_irule_body_unresolved_ref_still_emits_link_without_target(self):
+        from lsp.features._bigip_links import get_bigip_document_links
+
+        # Reference present but no matching definition — link still
+        # emitted (so the user can see the range was recognised), but
+        # ``target`` is ``None`` and the tooltip says "no definition".
+        source = (
+            "ltm rule /Common/r {\n"
+            "when HTTP_REQUEST { pool /Common/missing }\n"
+            "}\n"
+        )
+        links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
+        assert links
+        assert links[0].target is None
+        assert links[0].tooltip and "no definition" in links[0].tooltip
+
+    def test_no_irule_no_links(self):
+        from lsp.features._bigip_links import get_bigip_document_links
+
+        source = "ltm pool /Common/p { }\n"
+        links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
+        assert links == []
