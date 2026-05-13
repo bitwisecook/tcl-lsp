@@ -48,6 +48,46 @@ The mental model is jq:
 - ``count``, ``unique``, ``sort``, ``any``, ``all``, ``contains``,
   ``startswith`` / ``endswith``, ``match`` (boolean — jq's
   ``test()`` not its ``match()``), ``str``.
+- ``$name`` is a variable that yields the root container of one of
+  the loaded sources (see *Multi-config queries* below).  Reads and
+  writes both work: ``$ltm.ltm.virtual[].name`` projects, and
+  ``$ltm.ltm.virtual[].destination = "..."`` assigns and routes the
+  edit back to the source the named root came from.
+
+## Multi-config queries (cross-reference GTM + LTM, multi-tier LTM)
+
+``f5 query`` accepts more than one positional config.  By default
+each source becomes addressable inside the DSL through the
+``$name`` variable form; the runner auto-binds every input under
+its filename stem (so ``ltm.conf`` becomes ``$ltm``, ``gtm.conf``
+becomes ``$gtm``, ``/path/bigip-tier2.conf`` becomes
+``$bigip-tier2``).  Pass ``--name N=PATH`` to override the stem
+default — useful when two inputs share a stem or when the stem
+reads poorly inside a DSL.
+
+Two cross-file modes:
+
+1. **Per-file iteration (default)**.  The query runs once per
+   loaded source; ``.`` is bound to each in turn.  ``$name``
+   reaches across files freely; the graph builtins (``refs``,
+   ``referenced_by``) stay scoped to the originating source so
+   two unrelated inputs are not silently joined.
+2. **``--merge``**.  Every loaded source becomes one logical
+   namespace.  ``.ltm.virtual[]`` yields virtuals from all
+   inputs; ``refs`` / ``referenced_by`` cross files (a GTM pool
+   pointing into an LTM virtual resolves transparently); edits
+   route back to their originating source.  Refuses to merge
+   when two sources define the same ``(kind, full-path)`` —
+   namespace or redact the inputs first.
+
+Recipes:
+
+| User asks | Query |
+|---|---|
+| "list virtuals from ltm.conf while gtm.conf is loaded" | ``$ltm.ltm.virtual[].name`` |
+| "find every LTM pool a GTM pool references" | ``--merge .gtm.pool[] | refs(.)`` |
+| "rename a pool in tier1 only" | ``$tier1.ltm.pool["/Common/old"].name = "/Common/new"`` |
+| "list every object across both tiers" | ``--merge .ltm[][].name`` |
 
 The important divergences from jq:
 

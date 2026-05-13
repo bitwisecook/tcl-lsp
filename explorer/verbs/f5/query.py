@@ -75,6 +75,20 @@ _EPILOG = (
     '  f5 query \'.ltm.pool["/Common/old"].name = "/Common/new"\' '
     "--write bigip.conf > new.conf\n"
     "\n"
+    "Multi-config (cross-reference GTM + LTM, multiple LTM tiers, ...):\n"
+    "  # Auto-named (filename stem): $ltm and $gtm bind automatically.\n"
+    "  f5 query '$ltm.ltm.virtual[].name' gtm.conf ltm.conf\n"
+    "\n"
+    "  # Explicit naming via --name N=PATH (overrides the stem default).\n"
+    "  f5 query --name pri=tier1.conf --name sec=tier2.conf \\\n"
+    "    '$pri.ltm.pool[].name, $sec.ltm.pool[].name' tier1.conf tier2.conf\n"
+    "\n"
+    "  # --merge unifies every loaded config into one namespace; .x.y\n"
+    "  # iterates across all sources and refs cross files (a GTM pool\n"
+    "  # pointing into LTM resolves transparently).  Refuses to merge\n"
+    "  # when two sources define the same (kind, full-path).\n"
+    "  f5 query --merge '.ltm.pool[] | referenced_by(.)' ltm.conf gtm.conf\n"
+    "\n"
     "Run --help-dsl for the grammar, --help-builtins for the function\n"
     "catalogue, and --help-examples for a longer cookbook.\n"
 )
@@ -134,6 +148,39 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         help=(
             "Read the query expression from FILE.  Mutually exclusive "
             "with passing the expression as the first positional argument."
+        ),
+    )
+    p.add_argument(
+        "--name",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help=(
+            "Bind a config to the DSL variable ``$NAME`` (repeatable).  "
+            "Inside the query, ``$gtm.gtm.wideip[]`` reads from the "
+            "source given as ``--name gtm=/path/gtm.conf``.  Without "
+            "this flag every input is auto-bound under its filename "
+            "stem (``ltm.conf`` -> ``$ltm``), so most users won't need "
+            "to set it explicitly.  PATH must also appear as one of "
+            "the positional inputs.  Names must be valid DSL "
+            "identifiers (letters, digits, ``_``, ``-``; not starting "
+            "with a digit)."
+        ),
+    )
+    p.add_argument(
+        "--merge",
+        action="store_true",
+        help=(
+            "Treat every loaded config as one logical namespace: "
+            "``.ltm.virtual[]`` returns virtuals from every input, "
+            "and ``refs`` / ``referenced_by`` walk references across "
+            "files (a GTM pool pointing into an LTM tier resolves "
+            "transparently).  Edits route back to the source they "
+            "originated from.  Refuses to merge when two sources "
+            "define the same ``(kind, full-path)`` — namespace or "
+            "redact the inputs first.  Without --merge the query runs "
+            "once per file (back-compat); $name still reaches across "
+            "files in either mode."
         ),
     )
 
@@ -246,6 +293,11 @@ def _run_query(args: argparse.Namespace) -> int:
         )
         return 2
 
+    names_map, name_err = _parse_name_bindings(args.name, args.paths)
+    if name_err is not None:
+        print(f"error: {name_err}", file=sys.stderr)
+        return 2
+
     sources: dict[str, str] = {}
     path_for_uri: dict[str, str] = {}
     for path_str in args.paths:
@@ -280,8 +332,31 @@ def _run_query(args: argparse.Namespace) -> int:
         sources[uri] = src
         path_for_uri[uri] = path_str
 
+    # Translate ``--name N=PATH`` from path-string to URI keys so the
+    # runner can look each one up in ``sources``.  Paths that didn't
+    # parse / weren't read are flagged before run_query is called so
+    # the user gets a precise error rather than a silent miss.
+    resolved_names: dict[str, str] = {}
+    for nm, path_str in names_map.items():
+        # ``path_for_uri`` is keyed URI -> original path; invert it.
+        uri_for_path = {p: u for u, p in path_for_uri.items()}
+        uri = uri_for_path.get(path_str)
+        if uri is None:
+            print(
+                f"error: --name {nm}={path_str}: path was not loaded "
+                "(must also appear as a positional argument)",
+                file=sys.stderr,
+            )
+            return 2
+        resolved_names[nm] = uri
+
     try:
-        result = run_query(expression, sources)
+        result = run_query(
+            expression,
+            sources,
+            names=resolved_names or None,
+            merge=args.merge,
+        )
     except QueryError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -289,6 +364,42 @@ def _run_query(args: argparse.Namespace) -> int:
     if result.has_mutation:
         return _emit_mutation(args, sources, result, path_for_uri)
     return _emit_values(args, result, sources)
+
+
+def _parse_name_bindings(raw: list[str], paths: list[str]) -> tuple[dict[str, str], str | None]:
+    """Parse ``--name N=PATH`` entries.
+
+    Returns ``(bindings, error_or_None)``.  Validates that:
+
+    - each entry contains exactly one ``=``;
+    - each name is a valid DSL identifier (matches what the lexer
+      accepts after ``$``);
+    - names are unique;
+    - PATH appears in the positional inputs (caller cross-checks).
+    """
+    import re as _re
+
+    name_re = _re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+    bindings: dict[str, str] = {}
+    paths_set = set(paths)
+    for entry in raw:
+        if "=" not in entry:
+            return {}, f"--name expects NAME=PATH (got {entry!r})"
+        nm, _, pth = entry.partition("=")
+        if not name_re.match(nm):
+            return {}, (
+                f"--name {entry!r}: {nm!r} is not a valid DSL identifier "
+                "(letters, digits, '_', '-'; cannot start with a digit)"
+            )
+        if nm in bindings:
+            return {}, f"--name {nm}: duplicate binding"
+        if pth not in paths_set:
+            return {}, (
+                f"--name {nm}={pth}: path was not given as a positional "
+                "input (so the runner would have no source text for it)"
+            )
+        bindings[nm] = pth
+    return bindings, None
 
 
 def _resolve_expression(args: argparse.Namespace) -> str | None:

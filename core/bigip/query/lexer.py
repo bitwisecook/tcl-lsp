@@ -47,6 +47,7 @@ class TokenKind(Enum):
     TRUE = auto()
     FALSE = auto()
     NULL = auto()
+    DOLLAR_IDENT = auto()  # $name — variable reference to a named source
     EOF = auto()
 
 
@@ -182,6 +183,26 @@ def tokenise(source: str) -> list[Token]:
             else:
                 out.append(Token(TokenKind.GT, ">", start))
                 i += 1
+            continue
+
+        # Variable references: ``$name``.  Used to address one specific
+        # source when more than one config was loaded — e.g.
+        # ``$gtm.gtm.wideip[]`` reads from the source bound under
+        # ``gtm``.  The name follows the same identifier rules as a
+        # bareword (hyphens allowed mid-name, underscores anywhere).
+        if ch == "$":
+            j = i + 1
+            if j >= n or not _is_ident_start(source[j]):
+                raise LexError(
+                    "expected an identifier after '$' (e.g. $ltm)",
+                    start,
+                )
+            j += 1
+            while j < n and _is_ident_cont(source[j]):
+                j += 1
+            name = source[i + 1 : j]
+            out.append(Token(TokenKind.DOLLAR_IDENT, source[i:j], start, value=name))
+            i = j
             continue
 
         # Strings: double-quoted, with the usual backslash escapes.

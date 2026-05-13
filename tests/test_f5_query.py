@@ -28,7 +28,7 @@ from core.bigip.query import (
     parse_query,
     run_query,
 )
-from core.bigip.query.errors import EvalError, ParseError
+from core.bigip.query.errors import EvalError, ParseError, QueryError
 from core.bigip.query.output import render
 from explorer.f5_cli import main
 
@@ -6447,3 +6447,128 @@ def test_rename_within_same_partition_skips_visibility_check():
         source=src,
     ).edits_per_file["mem://1"]
     assert "/Tenant_A/renamed" in applied.new_source
+
+
+# ---------------------------------------------------------------------------
+# Multi-config: $name variable + --merge mode + cross-file edit routing.
+# ---------------------------------------------------------------------------
+
+
+_LTM_CONF = (
+    "ltm pool /Common/web_pool {\n"
+    "    members {\n"
+    "        /Common/web1:80 {\n"
+    "            address 10.0.0.1\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "ltm virtual /Common/vs_app {\n"
+    "    destination /Common/10.0.0.10:80\n"
+    "    pool /Common/web_pool\n"
+    "}\n"
+)
+
+
+_GTM_CONF = (
+    "gtm wideip a /Common/app.example.com {\n"
+    "    pools {\n"
+    "        /Common/gtm_pool {\n"
+    "            order 0\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+    "gtm pool a /Common/gtm_pool { }\n"
+)
+
+
+def test_named_variable_reaches_other_loaded_source():
+    """`$ltm.ltm.virtual[]` resolves to the source bound under that name."""
+    sources = {"file://ltm.conf": _LTM_CONF, "file://gtm.conf": _GTM_CONF}
+    result = run_query(
+        "$ltm.ltm.virtual[].name",
+        sources,
+        names={"ltm": "file://ltm.conf"},
+    )
+    # In per-file mode each source becomes primary once.  ``$ltm.x``
+    # reads from the same named source regardless of iteration so the
+    # values_per_file map carries the resolved name under whichever
+    # source produced it.
+    all_values = [v for vals in result.values_per_file.values() for v in vals]
+    assert "vs_app" in all_values
+
+
+def test_filename_stem_auto_names_each_source():
+    """When --name is not given, every source is auto-bound under its stem
+    (hyphens preserved — we do not silently rewrite ``-`` to ``_``)."""
+    sources = {"file:///path/bigip-ltm.conf": _LTM_CONF, "file:///gtm.conf": _GTM_CONF}
+    # Wrong name (``_`` substitution that does NOT happen) raises.
+    with pytest.raises(EvalError) as exc:
+        run_query("$bigip_ltm.ltm.pool[].name", sources)
+    assert "bigip-ltm" in str(exc.value)  # the actual binding is listed
+
+
+def test_filename_stem_with_hyphen_resolves_via_dollar_name():
+    sources = {"file:///bigip-ltm.conf": _LTM_CONF, "file:///gtm.conf": _GTM_CONF}
+    result = run_query("$bigip-ltm.ltm.pool[].name", sources)
+    all_values = [v for vals in result.values_per_file.values() for v in vals]
+    assert "web_pool" in all_values
+
+
+def test_unknown_named_source_raises_eval_error():
+    sources = {"file://ltm.conf": _LTM_CONF, "file://gtm.conf": _GTM_CONF}
+    with pytest.raises(EvalError) as exc:
+        run_query("$nosuchsource.ltm.virtual[]", sources)
+    assert "nosuchsource" in str(exc.value)
+
+
+def test_merge_mode_yields_objects_from_every_source():
+    sources = {"file://ltm.conf": _LTM_CONF, "file://gtm.conf": _GTM_CONF}
+    result = run_query(".ltm.virtual[].name", sources, merge=True)
+    all_values = [v for vals in result.values_per_file.values() for v in vals]
+    assert "vs_app" in all_values
+
+    # The gtm side yields wideips when iterated.
+    result2 = run_query(".gtm.wideip[].name", sources, merge=True)
+    all_values2 = [v for vals in result2.values_per_file.values() for v in vals]
+    assert "app.example.com" in all_values2
+
+
+def test_merge_mode_collision_hard_errors():
+    """Two sources defining the same object refuse to merge."""
+    sources = {"file://a.conf": _LTM_CONF, "file://b.conf": _LTM_CONF}
+    with pytest.raises(QueryError) as exc:
+        run_query(".ltm.virtual[].name", sources, merge=True)
+    msg = str(exc.value)
+    assert "refusing to merge" in msg
+    assert "/Common/vs_app" in msg
+
+
+def test_cross_file_edit_routes_to_origin_source():
+    """``$ltm.ltm.virtual[].destination = ...`` modifies ltm.conf only."""
+    sources = {"file://gtm.conf": _GTM_CONF, "file://ltm.conf": _LTM_CONF}
+    result = run_query(
+        '$ltm.ltm.virtual[].destination = "/Common/192.168.1.1:443"',
+        sources,
+        names={"ltm": "file://ltm.conf"},
+    )
+    assert "file://ltm.conf" in result.edits_per_file
+    ltm_applied = result.edits_per_file["file://ltm.conf"]
+    assert "/Common/192.168.1.1:443" in ltm_applied.new_source
+    # gtm.conf must not be touched.
+    assert "file://gtm.conf" not in result.edits_per_file or (
+        result.edits_per_file["file://gtm.conf"].new_source == _GTM_CONF
+    )
+
+
+def test_named_variable_without_assignment_still_reads_post_edit_self():
+    """In a multi-statement query the iterating source sees post-edit
+    text on $self lookups within the same run."""
+    sources = {"file://ltm.conf": _LTM_CONF}
+    result = run_query(
+        '.ltm.pool["/Common/web_pool"].name = "/Common/renamed"; .ltm.pool[].name',
+        sources,
+    )
+    applied = result.edits_per_file["file://ltm.conf"]
+    assert "/Common/renamed" in applied.new_source
+    all_values = [v for vals in result.values_per_file.values() for v in vals]
+    assert "renamed" in all_values

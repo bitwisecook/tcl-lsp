@@ -30,6 +30,20 @@ class Identity:
 
 
 @dataclass(frozen=True, slots=True)
+class Variable:
+    """``$name`` — yields the root container of the named source.
+
+    Used to address one specific config when the query verb was given
+    more than one input.  Without ``--merge`` this is the only way to
+    reach a non-primary source from inside an expression; with
+    ``--merge`` it is still useful for narrowing back to one file.
+    """
+
+    name: str
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
 class ListLiteral:
     """``[ inner ]`` — collect *inner*'s output into a list.
 
@@ -123,12 +137,18 @@ class Assignment:
       bound to the path's current value)
     - ``+=`` / ``-=`` → ``path = path <op> rhs`` for numeric or string
       values
+
+    ``source`` is set when the LHS was ``$name.path``: the variable is
+    evaluated once and its root container is used as the input for the
+    path walk instead of the outer ``.``.  ``None`` is the common
+    case (``.path = ...``).
     """
 
     target: PathExpr
     op: str
     rhs: "Expr"
     offset: int
+    source: "Variable | None" = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +161,7 @@ class Program:
 Expr = Union[
     Literal,
     Identity,
+    Variable,
     ListLiteral,
     PathExpr,
     Call,

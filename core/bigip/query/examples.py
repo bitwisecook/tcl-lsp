@@ -155,6 +155,38 @@ _EXAMPLES: tuple[Example, ...] = (
             "normal field edit.  Pair with `--in-place` to persist."
         ),
     ),
+    Example(
+        title="Cross-reference GTM and LTM via named sources",
+        query="$ltm.ltm.virtual[].name",
+        comment=(
+            "Load several configs together (`f5 query ... gtm.conf "
+            "ltm.conf`).  Every input is auto-bound under its "
+            "filename stem so `$ltm` and `$gtm` work without "
+            "ceremony; override with `--name N=PATH` when the stem "
+            "would collide or read poorly."
+        ),
+    ),
+    Example(
+        title="Edit one source via $name from a multi-config invocation",
+        query=('$ltm.ltm.virtual["/Common/vs_app"].destination = "/Common/192.168.1.1:443"'),
+        comment=(
+            "The assignment routes back to the source the named root "
+            "came from, so only `ltm.conf` is modified even though "
+            "`gtm.conf` was loaded alongside it.  Pair with "
+            "`--in-place` to persist edits to each originating file."
+        ),
+    ),
+    Example(
+        title="Walk references across files with --merge",
+        query=".ltm.pool[] | referenced_by(.)",
+        comment=(
+            "`--merge` treats every loaded source as one namespace, so "
+            "`refs` / `referenced_by` cross files (a GTM pool pointing "
+            "into an LTM virtual resolves transparently).  Refuses to "
+            "merge when two sources define the same (kind, full-path) "
+            "— namespace or redact the inputs first."
+        ),
+    ),
 )
 
 

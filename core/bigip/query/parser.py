@@ -58,6 +58,7 @@ from .ast import (
     Program,
     Subscript,
     UnaryOp,
+    Variable,
 )
 from .errors import ParseError
 from .lexer import Token, TokenKind, tokenise
@@ -151,10 +152,16 @@ class _Parser:
         lhs = self._parse_or()
         tok = self._peek()
         if tok.kind in _ASSIGN_OPS:
-            target = _as_path(lhs, tok.offset)
+            target, source = _as_path(lhs, tok.offset)
             self._consume()
             rhs = self._parse_pipe_stage()
-            return Assignment(target=target, op=_ASSIGN_OPS[tok.kind], rhs=rhs, offset=tok.offset)
+            return Assignment(
+                target=target,
+                op=_ASSIGN_OPS[tok.kind],
+                rhs=rhs,
+                offset=tok.offset,
+                source=source,
+            )
         return lhs
 
     def _parse_or(self) -> Expr:
@@ -332,6 +339,15 @@ class _Parser:
         if tok.kind is TokenKind.DOT:
             return self._parse_path_starting_with_dot()
 
+        if tok.kind is TokenKind.DOLLAR_IDENT:
+            # ``$name`` resolves to the root container of the named
+            # source.  Postfix path steps land afterwards via
+            # :meth:`_parse_primary_with_postfix`, so
+            # ``$gtm.gtm.wideip[]`` parses as the variable followed by
+            # the usual ``.gtm.wideip[]`` walk.
+            self._consume()
+            return Variable(name=str(tok.value), offset=tok.offset)
+
         raise ParseError(f"unexpected token {tok.text!r}", tok.offset)
 
     # --- path expressions --------------------------------------------------
@@ -400,13 +416,27 @@ class _Parser:
         return Subscript(stream=False, index=inner, regex=None, offset=lb.offset)
 
 
-def _as_path(expr: Expr, op_offset: int) -> PathExpr:
+def _as_path(expr: Expr, op_offset: int) -> tuple[PathExpr, Variable | None]:
+    """Return (path, source) for an assignment LHS.
+
+    ``source`` is set when the LHS was ``$name.path`` — the parser
+    produces that as ``Pipe(Variable, PathExpr)`` via the
+    primary-with-postfix machinery, and the evaluator needs to know
+    which named root to evaluate the path against.  The common case
+    (``.path``) returns ``(path, None)``.
+    """
     if isinstance(expr, PathExpr):
-        return expr
+        return expr, None
     if isinstance(expr, Identity):
-        return PathExpr(steps=(), offset=expr.offset)
+        return PathExpr(steps=(), offset=expr.offset), None
+    if isinstance(expr, Pipe) and isinstance(expr.lhs, Variable):
+        rhs = expr.rhs
+        if isinstance(rhs, PathExpr):
+            return rhs, expr.lhs
+        if isinstance(rhs, Identity):
+            return PathExpr(steps=(), offset=rhs.offset), expr.lhs
     raise ParseError(
-        "left-hand side of an assignment must be a path expression (starting with '.')",
+        "left-hand side of an assignment must be a path expression (starting with '.' or '$name')",
         op_offset,
     )
 

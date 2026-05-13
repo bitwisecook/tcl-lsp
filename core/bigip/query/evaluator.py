@@ -33,6 +33,7 @@ from .ast import (
     Program,
     Subscript,
     UnaryOp,
+    Variable,
 )
 from .builtins import _truthy
 from .edit_plan import EditOp, EditPlan
@@ -45,6 +46,16 @@ from .values import ObjectRef, PathRef, Root, Stream
 class EvalContext:
     root: Root
     edits: EditPlan = field(default_factory=EditPlan)
+    # When the verb was invoked with more than one config, *named_roots*
+    # maps each source's user-facing name (auto-derived from the
+    # filename stem, or set explicitly via ``--name N=PATH``) to its
+    # :class:`Root`.  The ``$name`` DSL form consults this table; when
+    # the table is empty (single-input run) ``$name`` raises.
+    named_roots: dict[str, Root] = field(default_factory=dict)
+    # ``--merge`` was passed: graph builtins (``refs`` /
+    # ``referenced_by``) should walk references across every loaded
+    # source, not just the one the object came from.
+    merge_mode: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +103,8 @@ def _eval(node: Expr, current: Any, ctx: EvalContext) -> Any:
         return node.value
     if isinstance(node, Identity):
         return current
+    if isinstance(node, Variable):
+        return _eval_variable(node, ctx)
     if isinstance(node, ListLiteral):
         if node.inner is None:
             return []
@@ -142,6 +155,33 @@ def _pipe_through(values: Any, rhs: Expr, ctx: EvalContext) -> Any:
             out.extend(_flatten(_eval(rhs, item, ctx)))
         return Stream(items=out)
     return _eval(rhs, values, ctx)
+
+
+# ---------------------------------------------------------------------------
+# Variables
+# ---------------------------------------------------------------------------
+
+
+def _eval_variable(node: Variable, ctx: EvalContext) -> Any:
+    """Resolve ``$name`` to the root container of the named source.
+
+    The query verb pre-binds one entry per loaded config into
+    ``ctx.named_roots`` (filename-stem default, or the explicit name
+    supplied with ``--name N=PATH``).  Unknown names raise an
+    :class:`EvalError` listing the available bindings — guessing
+    silently against an arbitrary source would mask typos.
+    """
+    root = ctx.named_roots.get(node.name)
+    if root is None:
+        if not ctx.named_roots:
+            raise EvalError(
+                f"${node.name}: no named sources are bound — load more "
+                "than one config and either name them with --name N=PATH "
+                "or rely on filename-stem auto-naming."
+            )
+        known = ", ".join(sorted(ctx.named_roots)) or "<none>"
+        raise EvalError(f"${node.name}: unknown named source (known: {known})")
+    return root_container(root)
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +579,15 @@ def _div(lhs: Any, rhs: Any) -> Any:
 
 
 def _eval_assignment(node: Assignment, current: Any, ctx: EvalContext) -> Any:
-    targets = _resolve_assignment_targets(node.target, current, ctx)
+    # ``$name.field = ...`` walks the path against the named root's
+    # container rather than the outer input.  This is the only place
+    # the AST exposes a Variable directly on the LHS; the parser sets
+    # ``node.source`` for that form and leaves it ``None`` for the
+    # normal ``.field = ...`` case.
+    path_input = current
+    if node.source is not None:
+        path_input = _eval_variable(node.source, ctx)
+    targets = _resolve_assignment_targets(node.target, path_input, ctx)
     produced: list[Any] = []
     for target in targets:
         new_value = _compute_assignment_value(node, target, current, ctx)
@@ -628,8 +676,14 @@ def _build_edit_op(
     new_value: Any,
     ctx: EvalContext,
 ) -> EditOp:
+    # ``target.obj.config_uri`` is the URI of the source that defined
+    # the object — it may differ from ``ctx.root.uri`` when the LHS
+    # was ``$name.path`` and the named root is a different config.
+    # Routing by the target's URI is what makes cross-file edits land
+    # in the right file.  Falls back to the eval context's root when
+    # the object came from a synthetic / un-attributed source.
     return EditOp(
-        source_uri=ctx.root.uri,
+        source_uri=target.obj.config_uri or ctx.root.uri,
         object_path=target.obj.full_path,
         object_kind=target.obj.kind,
         field_name=target.field_name,

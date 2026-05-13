@@ -29,8 +29,19 @@ root.
   mul_expr      := unary    (('*' | '/') unary)*
   unary         := '-' unary | postfix
   postfix       := primary path_tail
-  primary       := literal | call | path | list_literal
+  primary       := literal | call | path | variable | list_literal
                  | '(' pipeline ')'
+  variable      := '$' IDENT          /* root container of a named
+                                         source loaded alongside this
+                                         query (`f5 query` accepts
+                                         several configs with
+                                         filename-stem default names
+                                         and an explicit --name N=PATH
+                                         override).  Postfix path
+                                         steps land afterwards, so
+                                         `$gtm.gtm.wideip[]` reads from
+                                         the source bound under
+                                         `$gtm`.                       */
   list_literal  := '[' pipeline? ']'        /* jq's array constructor */
   path          := '.'
                  | '.' field path_tail
