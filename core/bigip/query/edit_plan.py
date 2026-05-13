@@ -204,6 +204,17 @@ def apply(plan: EditPlan, sources: dict[str, str]) -> dict[str, AppliedSource]:
             new_path = _stringify(op.new_value)
             if not new_path:
                 raise EditError(f"rename target for {op.object_path!r} produced an empty value")
+            # Bare-leaf new values (no ``/`` at all) are resolved
+            # against the existing object's partition + folder
+            # context so ``.name = "X"`` (or ``.name |= with_name(.,
+            # "X")``) keeps the object in the same partition without
+            # the user having to remember to write a full path or
+            # compose ``with_partition`` / ``with_folder``.  The
+            # ``rename()`` builtin and ``f5 rename`` CLI always
+            # supply a full path so this branch is a no-op for them.
+            if "/" not in new_path and "/" in op.object_path:
+                folder = op.object_path.rsplit("/", 1)[0]
+                new_path = f"{folder}/{new_path}"
             # Pass ``object_kind`` as the rename scope so a rename
             # driven by ``.<kind>[X].name = Y`` doesn't accidentally
             # rewrite the *header* of a different-kind stanza that

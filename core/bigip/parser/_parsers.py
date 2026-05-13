@@ -2714,7 +2714,11 @@ def _parse_net_route(
     network_raw = props.get("network", "")
     gw_raw = props.get("gw", "")
     is_default = network_raw == "default"
-    network_typed = None if is_default or not network_raw else Network.try_parse(network_raw)
+    # ``Network`` now understands the ``default`` keyword directly and
+    # preserves the original spelling on ``.original`` so it
+    # round-trips as ``default`` rather than ``0.0.0.0/0``.  Keep
+    # ``is_default_route`` on the model as the convenient bool.
+    network_typed = Network.try_parse(network_raw) if network_raw else None
     gw_typed = IPAddress.try_parse(gw_raw) if gw_raw else None
     return BigipNetRoute(
         name=name,

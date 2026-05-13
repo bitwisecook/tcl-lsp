@@ -251,6 +251,27 @@ when HTTP_REQUEST {
 }
 """
 
+# Tenant-only variant of PARTITION_CONF — every reference lives under
+# a tenant partition (``Tenant_A``) rather than ``/Common``.  Used by
+# the rename_partition tests after the partition-visibility guard
+# (slice A) refused renames of ``/Common``; the same prefix-cascade
+# mechanics apply unchanged for tenant-to-tenant renames.
+PARTITION_TENANT_CONF = """auth partition Tenant_A { description default }
+ltm pool /Tenant_A/web_pool {
+    members { /Tenant_A/n1%5:80 { address 10.0.0.1%5 } }
+    monitor /Common/http
+}
+ltm virtual /Tenant_A/web_vs {
+    destination /Tenant_A/10.10.0.5%5:443
+    pool /Tenant_A/web_pool
+}
+ltm rule /Tenant_A/log_rule {
+when HTTP_REQUEST {
+    pool /Tenant_A/web_pool
+}
+}
+"""
+
 
 def test_rename_builtin_renames_header_and_references():
     result = _run('rename("/Common/web_pool", "/Common/app_pool")')
@@ -289,25 +310,29 @@ def test_rename_builtin_composes_with_property_edit_across_statements():
 
 
 def test_rename_partition_cascades_through_compound_values():
-    result = run_query('rename_partition("Common", "Tenant_A")', {"mem://1": PARTITION_CONF})
+    # Tenant→tenant rename (Common renames are refused by the
+    # partition-visibility guard; the prefix-cascade mechanics are
+    # identical, so this exercises the same code paths).
+    result = run_query(
+        'rename_partition("Tenant_A", "Tenant_B")',
+        {"mem://1": PARTITION_TENANT_CONF},
+    )
     new_src = result.edits_per_file["mem://1"].new_source
-    # Every /Common/ occurrence — including the destination address
-    # prefix and the pool-member identifier — has moved.
-    assert "/Common/" not in new_src
-    assert "ltm pool /Tenant_A/web_pool" in new_src
-    assert "destination /Tenant_A/10.10.0.5%5:443" in new_src  # RD preserved
-    assert "/Tenant_A/n1%5:80" in new_src
+    assert "/Tenant_A/" not in new_src
+    assert "ltm pool /Tenant_B/web_pool" in new_src
+    assert "destination /Tenant_B/10.10.0.5%5:443" in new_src  # RD preserved
+    assert "/Tenant_B/n1%5:80" in new_src
     # The auth partition stanza header was renamed too.
-    assert "auth partition Tenant_A" in new_src
+    assert "auth partition Tenant_B" in new_src
     # iRule body reference picked up the rename.
-    assert "pool /Tenant_A/web_pool" in new_src
+    assert "pool /Tenant_B/web_pool" in new_src
 
 
 def test_rename_partition_does_not_rewrite_address_octets():
     # The third octet of every address is 10, which matches "10" as a
-    # bare number — we must not rewrite it when renaming "/Common/".
-    src = "ltm node /Common/n1 { address 10.10.10.10 }\n"
-    result = run_query('rename_partition("Common", "Tenant_A")', {"mem://1": src})
+    # bare number — we must not rewrite it when renaming "/Tenant_A/".
+    src = "ltm node /Tenant_A/n1 { address 10.10.10.10 }\n"
+    result = run_query('rename_partition("Tenant_A", "Tenant_B")', {"mem://1": src})
     new_src = result.edits_per_file["mem://1"].new_source
     assert "address 10.10.10.10" in new_src
 
@@ -367,13 +392,13 @@ def test_semicolon_lets_prefix_cascade_compose_with_field_edits():
     # `;` splits them into separate statements that each see the
     # post-rewrite source.
     result = run_query(
-        'rename_partition("Common", "Tenant_A") ; '
-        '.ltm.virtual["/Tenant_A/web_vs"].destination = "9.9.9.9:443"',
-        {"mem://1": PARTITION_CONF},
+        'rename_partition("Tenant_A", "Tenant_B") ; '
+        '.ltm.virtual["/Tenant_B/web_vs"].destination = "9.9.9.9:443"',
+        {"mem://1": PARTITION_TENANT_CONF},
     )
     new_src = result.edits_per_file["mem://1"].new_source
     assert "destination 9.9.9.9:443" in new_src
-    assert "ltm virtual /Tenant_A/web_vs" in new_src
+    assert "ltm virtual /Tenant_B/web_vs" in new_src
 
 
 def test_assignment_to_unknown_field_raises():
@@ -770,31 +795,34 @@ def test_null_renders_as_literal_token():
 
 
 def test_rename_partition_count_includes_header():
+    # Tenant→tenant rename — Common renames are refused by the
+    # visibility guard but the count-and-cascade mechanics are
+    # identical so this exercises the same code paths.
     src = (
-        "auth partition Common { description default }\n"
-        "ltm pool /Common/p1 { monitor /Common/http }\n"
+        "auth partition Tenant_A { description default }\n"
+        "ltm pool /Tenant_A/p1 { monitor /Common/http }\n"
     )
-    result = run_query('rename_partition("Common", "Tenant_A")', {"m": src})
+    result = run_query('rename_partition("Tenant_A", "Tenant_B")', {"m": src})
     [count] = result.values_per_file["m"]
-    # Two ``/Common/`` prefix matches (``/Common/p1`` header,
-    # ``/Common/http`` monitor reference) plus one
-    # ``auth partition Common`` header rewrite.  Before the fix, only
-    # the prefix matches were counted.
-    assert count == 3
-    # And the on-disk rewrite did land on all three.
+    # One ``/Tenant_A/`` prefix match (``/Tenant_A/p1`` header) plus
+    # one ``auth partition Tenant_A`` header rewrite — two total.
+    # ``/Common/http`` is a cross-partition monitor reference that
+    # stays put when we rename Tenant_A.
+    assert count == 2
+    # And the on-disk rewrite did land on all of them.
     applied = result.edits_per_file["m"]
-    assert "/Common/" not in applied.new_source
-    assert "auth partition Tenant_A" in applied.new_source
+    assert "/Tenant_A/" not in applied.new_source
+    assert "auth partition Tenant_B" in applied.new_source
 
 
 def test_prefix_rewrite_report_does_not_leak_regex_backrefs():
-    src = "auth partition Common { description default }\n"
-    result = run_query('rename_partition("Common", "Tenant_A")', {"m": src})
+    src = "auth partition Tenant_A { description default }\n"
+    result = run_query('rename_partition("Tenant_A", "Tenant_B")', {"m": src})
     new_strings = [rep.new for rep in result.edits_per_file["m"].rename_reports]
     # The header rewrite uses a regex backref (\g<1>) internally;
     # the report's ``new`` field must show the human-readable form.
     assert all("\\g<" not in s for s in new_strings)
-    assert any("auth partition Tenant_A" == s for s in new_strings)
+    assert any("auth partition Tenant_B" == s for s in new_strings)
 
 
 def test_every_builtin_has_a_details_block():
@@ -6258,8 +6286,14 @@ def test_typed_is_wildcard_port():
 
 def test_typed_prefix_length():
     src = (
-        "net self /Common/self_24 { address 10.0.0.1/24 vlan /Common/v }\n"
-        "net self /Common/self_16 { address 10.0.0.1/16 vlan /Common/v }\n"
+        "net self /Common/self_24 {\n"
+        "    address 10.0.0.1/24\n"
+        "    vlan /Common/v\n"
+        "}\n"
+        "net self /Common/self_16 {\n"
+        "    address 10.0.0.1/16\n"
+        "    vlan /Common/v\n"
+        "}\n"
     )
     [twenty_four] = _run(
         'prefix_length(.net.self["/Common/self_24"].address)',

@@ -231,6 +231,19 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         action="store_true",
         help=("When the query mutates, overwrite each input file with the rewritten config."),
     )
+    p.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "Exit with status 2 (and a stderr message) when a mutating "
+            "query produces no textual change — i.e. nothing matched.  "
+            "Without --strict, a zero-match mutation returns 1 silently "
+            "(tolerant: useful interactively).  With --strict it becomes "
+            "a hard error, which is the shape CI / scripted change "
+            "pipelines need so a typo in the path doesn't silently "
+            "land a no-op build."
+        ),
+    )
 
     add_format_arg(p, tmsh_default_verb="modify")
 
@@ -465,7 +478,16 @@ def _emit_mutation(
             tofile=f"{path_str} (modified)",
         )
         sys.stdout.writelines(diff)
-    return 0 if any_changed else 1
+    if not any_changed:
+        if getattr(args, "strict", False):
+            print(
+                "error: --strict: mutating query produced no textual "
+                "change (no matches).  Check the path / predicate.",
+                file=sys.stderr,
+            )
+            return 2
+        return 1
+    return 0
 
 
 def _emit_values(

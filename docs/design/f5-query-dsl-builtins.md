@@ -26,11 +26,11 @@ exactly the same content for one builtin.
 - **[stream](#stream)** — Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `unique` / `sort`), and the object-introspection helpers (`keys` / `values` / `first` / `last`).
   - [`all`](#all), [`any`](#any), [`count`](#count), [`first`](#first), [`keys`](#keys), [`last`](#last), [`map`](#map), [`select`](#select), [`sort`](#sort), [`unique`](#unique), [`values`](#values)
 - **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `sub` / `gsub`, plain `split` / `join`, casing.
-  - [`contains`](#contains), [`downcase`](#downcase), [`endswith`](#endswith), [`gsub`](#gsub), [`join`](#join), [`match`](#match), [`split`](#split), [`startswith`](#startswith), [`sub`](#sub), [`upcase`](#upcase)
+  - [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`gsub`](#gsub), [`join`](#join), [`match`](#match), [`split`](#split), [`startswith`](#startswith), [`sub`](#sub), [`tsv`](#tsv), [`upcase`](#upcase)
 - **[path](#path)** — BIG-IP full-path string helpers — extract the partition or basename, swap a partition prefix.  These are *string* transforms; they don't move objects.  For object renames, reach for the **rename** category.
   - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with_partition)
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
-  - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition)
+  - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition), [`rename_prefix`](#rename_prefix)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
   - [`can_see`](#can_see), [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
@@ -436,6 +436,39 @@ contains(.rules, "/Common/log_rule")
 .ltm.virtual[] | select(contains(.rules, "/Common/log_rule")) | .name
 ```
 
+### `csv`
+
+Join arguments with commas, quoting cells when necessary.
+
+**Signatures**
+
+- `csv(*cells: any) -> string`
+- `csv(a, b, c, ...) -> string`
+
+**Details**
+
+RFC 4180-style CSV row builder.  Each argument is coerced to its
+scalar string form and emitted as a CSV field; cells containing
+``,``, ``"``, ``\n``, or ``\r`` are wrapped in double quotes
+with embedded quotes doubled (``"`` → ``""``).  Empty cells emit
+as an empty field (``,``), not as ``""``.
+
+Broadcasts the same way as ``tsv``: when any argument is a
+:class:`Stream`, ``csv`` produces one row per element with scalar
+arguments replicated.
+
+Pair with ``--raw`` for clean piping into CSV consumers:
+``f5 query --raw 'csv(.name, .destination)' bigip.conf | head``.
+
+Related: ``tsv``, ``join``.
+
+**Examples**
+
+```
+.ltm.virtual[] | csv(.name, .destination, .pool)
+.ltm.pool[].members[] | csv(.name, .address)
+```
+
 ### `downcase`
 
 Lowercase a string.
@@ -677,6 +710,44 @@ identity renames the engine already understands).
 ```
 sub(.name, "^vs_dev_", "vs_qa_")
 .ltm.virtual[].destination |= sub(., ":443$", ":8443")
+```
+
+### `tsv`
+
+Join arguments with tabs for tab-separated row output.
+
+**Signatures**
+
+- `tsv(*cells: any) -> string`
+- `tsv(a, b, c, ...) -> string`
+
+**Details**
+
+Each argument is coerced to its scalar string form (``PathRef`` →
+full-path, ``null`` → empty, bool → ``true`` / ``false``,
+numbers → their decimal form) and joined with ``\t``.  Embedded
+tabs, newlines, and carriage returns inside cell values are
+replaced with spaces so the resulting line stays one TSV row;
+pre-quote cells explicitly if you need to retain whitespace.
+
+Designed to compose with stream broadcast: when any argument is a
+:class:`Stream`, ``tsv`` broadcasts element-wise so
+``tsv(.name, .destination, .pool)`` produces one row per virtual
+server, and ``tsv(.name, .pool.members[].address)`` produces one
+row per pool member with the VS name replicated across each row
+(same semantics every other scalar builtin uses).
+
+Pair with ``--raw`` to print without surrounding quoting:
+``f5 query --raw 'tsv(.name, .destination)' bigip.conf``.
+
+Related: ``csv`` (comma-separated, quote-aware), ``join`` (join
+one list with a separator), string concat with ``+``.
+
+**Examples**
+
+```
+.ltm.virtual[] | tsv(.name, .destination, .pool)
+.ltm.pool[].members[] | tsv(.name, .address, port(.name))
 ```
 
 ### `upcase`
@@ -966,6 +1037,60 @@ transform, doesn't migrate references).
 ```
 rename_partition("Common", "Tenant_A")
 rename_partition("staging", "prod")
+```
+
+### `rename_prefix`
+
+Rewrite every object whose full-path starts with *old* to start with *new*.
+
+**Signatures**
+
+- `rename_prefix(old: string, new: string) -> integer`
+
+**Details**
+
+A general-purpose sibling of :func:`rename_partition` and
+:func:`rename_folder`: where those are scoped to partition or
+folder boundaries, ``rename_prefix`` operates on arbitrary
+full-path prefixes.  Useful for moving a *family* of related
+objects together when their identifying convention is a leaf-
+name prefix that doesn't align with a partition or folder
+boundary, e.g. moving every ``/Common/app3_*`` object to
+``/Tenant_A/app3_*``:
+
+::
+
+    rename_prefix("/Common/app3_", "/Tenant_A/app3_")
+
+Every full-path occurrence beginning with ``<old>`` is rewritten
+to begin with ``<new>``, cascading through:
+
+- object stanza headers (``ltm pool /Common/app3_p1``);
+- reference properties (``pool /Common/app3_p1``);
+- destinations that embed the prefix
+  (``destination /Common/app3_vip:443``);
+- iRule body literals.
+
+Token-bounded so an unrelated path that *contains* the prefix
+later in the string (``/Common/old/app3_x``) doesn't accidentally
+match — the rewrite only fires when the prefix starts on a
+path-segment boundary.
+
+Pre-flight checks: both arguments must be non-empty.  ``old ==
+new`` is a no-op.  Mixing with field edits inside the same
+statement is rejected (byte offsets shift); split with ``;``.
+
+Returns the count of textual matches the cascade landed on.
+
+Related: ``rename_partition`` (partition-level cascade),
+``rename_folder`` (folder-level cascade), ``rename`` (single
+object + every reference).
+
+**Examples**
+
+```
+rename_prefix("/Common/app3_", "/Tenant_A/app3_")
+rename_prefix("/Common/legacy-", "/Tenant_B/legacy-")
 ```
 
 ## net
@@ -1621,6 +1746,15 @@ relocating an object inside its existing folder context:
 ``with_name("/Common/iApps/Tenant.app/old_pool", "new_pool")``
 → ``"/Common/iApps/Tenant.app/new_pool"``.
 
+Both spellings are accepted as the *path* argument:
+
+- **Full path** (``"/Common/old_pool"``): the partition + folder
+  segments are preserved and only the leaf is replaced.
+- **Bare leaf** (``"old_pool"`` — what ``.name`` projects): no
+  partition / folder context to preserve, so the result is just
+  the new leaf name.  This makes ``.name |= with_name(., "X")``
+  work the same way ``."full-path" |= with_name(., "X")`` does.
+
 Related: ``basename`` (extract leaf), ``with_partition``,
 ``with_folder``.
 
@@ -1629,6 +1763,7 @@ Related: ``basename`` (extract leaf), ``with_partition``,
 ```
 with_name("/Common/old_pool", "new_pool")
 with_name(."full-path", "renamed")
+with_name(.name, "renamed")
 ```
 
 ### `with_port`

@@ -59,6 +59,17 @@ class BuiltinSpec:
     with_ctx: bool = False
     min_args: int = 0
     max_args: int | None = 0
+    # Most builtins are *scalar*: they accept one value per argument
+    # and the call dispatcher broadcasts each :class:`Stream`
+    # argument element-wise.  This makes idioms like
+    # ``is_fqdn(.pool.members[].address)`` produce a stream of bools
+    # rather than rejecting the stream input, matching jq's natural
+    # element-wise model.  Stream-aware builtins (``count``,
+    # ``sort``, ``any``, ``all``, ``first``, ``last``, ``unique``,
+    # ``reverse``, ``join``, ``min``, ``max``, ``group_by``,
+    # ``sort_by``) set ``stream_aware=True`` so they receive the
+    # whole stream as one argument.
+    stream_aware: bool = False
 
 
 _REGISTRY: dict[str, BuiltinSpec] = {}
@@ -86,6 +97,7 @@ def _register(
     details: str = "",
     special_form: bool = False,
     with_ctx: bool = False,
+    stream_aware: bool = False,
 ) -> Callable[[Callable], Callable]:
     def decorator(fn: Callable) -> Callable:
         if name in _REGISTRY:
@@ -102,6 +114,7 @@ def _register(
             with_ctx=with_ctx,
             min_args=min_args,
             max_args=max_args,
+            stream_aware=stream_aware,
         )
         return fn
 
@@ -858,16 +871,24 @@ def _typed_address(value: Any, *, name: str, arg: int = 1):
     """Coerce *value* to a typed :class:`Address` (``IPAddress`` |
     ``FQDN``).
 
-    Strings flow through ``Destination.try_parse`` first (so
-    ``/Common/10.0.0.1:80`` extracts the host) and fall back to
-    ``parse_address`` for bare hosts.  Returns ``None`` for inputs
-    that can't be coerced.
+    Pass-throughs:
+
+    - Already-typed :class:`IPAddress` / :class:`FQDN` / :class:`Address`
+      instances (typed fields surface these directly through the
+      projection layer) are returned as-is.
+    - Strings flow through ``Destination.try_parse`` first (so
+      ``/Common/10.0.0.1:80`` extracts the host) and fall back to
+      ``parse_address`` for bare hosts.
+
+    Returns ``None`` for inputs that can't be coerced.
     """
-    from ..types import Destination, parse_address
+    from ..types import FQDN, Address, Destination, IPAddress, parse_address
 
     if value is None:
         return None
-    s = _as_str(value, name=name, arg=arg)
+    if isinstance(value, (IPAddress, FQDN, Address)):
+        return value
+    s = _as_typed_str(value, name=name, arg=arg)
     if not s:
         return None
     dest = Destination.try_parse(s)
@@ -884,15 +905,34 @@ def _typed_network(value: Any, *, name: str, arg: int = 1):
 
     Accepts integer CIDR (``10.0.0.0/24``) and dotted-quad netmask
     (``10.0.0.0/255.255.255.0``) — same shapes the parser does.
+    Already-typed :class:`Network` instances pass through unchanged
+    so that callers projecting from a typed field (``.net.self[].address``
+    is already a ``Network``) skip a round-trip through ``str``.
     """
     from ..types import Network
 
     if value is None:
         return None
-    s = _as_str(value, name=name, arg=arg)
+    if isinstance(value, Network):
+        return value
+    s = _as_typed_str(value, name=name, arg=arg)
     if not s:
         return None
     return Network.try_parse(s)
+
+
+def _as_typed_str(value: object, *, name: str, arg: int) -> str:
+    """Like :func:`_as_str` but also accepts already-typed value objects
+    so the typed builtins can stringify a passed-in
+    :class:`IPAddress` / :class:`Network` / :class:`Destination` /
+    :class:`FQDN` / :class:`Address` without going through the
+    bare-string check that :func:`_as_str` enforces.
+    """
+    from ..types import FQDN, Address, Destination, IPAddress, Network
+
+    if isinstance(value, (IPAddress, Network, Destination, FQDN, Address)):
+        return str(value)
+    return _as_str(value, name=name, arg=arg)
 
 
 @_register(
@@ -1728,6 +1768,86 @@ def _builtin_rename_folder(old: Any, new: Any, *, ctx: Any) -> int:
     return len(prefix_pattern.findall(ctx.root.source))
 
 
+@_register(
+    "rename_prefix",
+    summary="Rewrite every object whose full-path starts with *old* to start with *new*.",
+    details="""
+    A general-purpose sibling of :func:`rename_partition` and
+    :func:`rename_folder`: where those are scoped to partition or
+    folder boundaries, ``rename_prefix`` operates on arbitrary
+    full-path prefixes.  Useful for moving a *family* of related
+    objects together when their identifying convention is a leaf-
+    name prefix that doesn't align with a partition or folder
+    boundary, e.g. moving every ``/Common/app3_*`` object to
+    ``/Tenant_A/app3_*``:
+
+    ::
+
+        rename_prefix("/Common/app3_", "/Tenant_A/app3_")
+
+    Every full-path occurrence beginning with ``<old>`` is rewritten
+    to begin with ``<new>``, cascading through:
+
+    - object stanza headers (``ltm pool /Common/app3_p1``);
+    - reference properties (``pool /Common/app3_p1``);
+    - destinations that embed the prefix
+      (``destination /Common/app3_vip:443``);
+    - iRule body literals.
+
+    Token-bounded so an unrelated path that *contains* the prefix
+    later in the string (``/Common/old/app3_x``) doesn't accidentally
+    match — the rewrite only fires when the prefix starts on a
+    path-segment boundary.
+
+    Pre-flight checks: both arguments must be non-empty.  ``old ==
+    new`` is a no-op.  Mixing with field edits inside the same
+    statement is rejected (byte offsets shift); split with ``;``.
+
+    Returns the count of textual matches the cascade landed on.
+
+    Related: ``rename_partition`` (partition-level cascade),
+    ``rename_folder`` (folder-level cascade), ``rename`` (single
+    object + every reference).
+    """,
+    signatures=("rename_prefix(old: string, new: string) -> integer",),
+    examples=(
+        'rename_prefix("/Common/app3_", "/Tenant_A/app3_")',
+        'rename_prefix("/Common/legacy-", "/Tenant_B/legacy-")',
+    ),
+    category="rename",
+    min_args=2,
+    max_args=2,
+    with_ctx=True,
+)
+def _builtin_rename_prefix(old: Any, new: Any, *, ctx: Any) -> int:
+    from .edit_plan import PrefixRewrite
+
+    old_text = _as_str(old, name="rename_prefix", arg=1).strip()
+    new_text = _as_str(new, name="rename_prefix", arg=2).strip()
+    if not old_text or not new_text:
+        raise BuiltinError("rename_prefix: prefixes must not be empty")
+    if old_text == new_text:
+        return 0
+    # Token-bounded: the prefix must start on a path-segment
+    # boundary (preceded by whitespace, ``/``, ``=``, ``,``, ``{``,
+    # ``"``, or start-of-line) so an unrelated sub-string match deep
+    # inside another token doesn't fire.  The lookahead requires a
+    # name character so an exact-prefix match (no further name
+    # characters after the prefix) still hits but a random ``{`` or
+    # whitespace doesn't.
+    prefix_pattern = re.compile(rf"(?<![A-Za-z0-9_./\-]){re.escape(old_text)}(?=[A-Za-z0-9_])")
+    ctx.edits.add_prefix(
+        PrefixRewrite(
+            source_uri=ctx.root.uri,
+            label=f"prefix {old_text}",
+            pattern=prefix_pattern,
+            replacement=new_text,
+            human_new=new_text,
+        )
+    )
+    return len(prefix_pattern.findall(ctx.root.source))
+
+
 # ---------------------------------------------------------------------------
 # Object-path / graph predicates
 # ---------------------------------------------------------------------------
@@ -1748,12 +1868,22 @@ def _builtin_rename_folder(old: Any, new: Any, *, ctx: Any) -> int:
     ``with_name("/Common/iApps/Tenant.app/old_pool", "new_pool")``
     → ``"/Common/iApps/Tenant.app/new_pool"``.
 
+    Both spellings are accepted as the *path* argument:
+
+    - **Full path** (``"/Common/old_pool"``): the partition + folder
+      segments are preserved and only the leaf is replaced.
+    - **Bare leaf** (``"old_pool"`` — what ``.name`` projects): no
+      partition / folder context to preserve, so the result is just
+      the new leaf name.  This makes ``.name |= with_name(., "X")``
+      work the same way ``."full-path" |= with_name(., "X")`` does.
+
     Related: ``basename`` (extract leaf), ``with_partition``,
     ``with_folder``.
     """,
     examples=(
         'with_name("/Common/old_pool", "new_pool")',
         'with_name(."full-path", "renamed")',
+        'with_name(.name, "renamed")',
     ),
     category="net",
     min_args=2,
@@ -1768,6 +1898,12 @@ def _builtin_with_name(path: Any, name: Any) -> str:
         raise BuiltinError("with_name: new name must not be empty")
     obj = ObjectPath.try_parse(p)
     if obj is None:
+        # Bare leaf — no partition / folder context to preserve.
+        # ``.name`` projects this shape; accepting it lets users write
+        # ``.name |= with_name(., "X")`` without remembering that the
+        # full-path variant is the only "parseable" one.
+        if p and "/" not in p:
+            return n
         raise BuiltinError(f"with_name: cannot parse path {p!r}")
     return str(ObjectPath(folder=obj.folder, name=n))
 
@@ -2065,6 +2201,7 @@ def _builtin_check_partition_visibility(*, ctx: Any) -> list[str]:
     category="value",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_length(value: Any) -> int:
     if value is None:
@@ -2413,11 +2550,132 @@ def _builtin_split(value: Any, sep: Any) -> list[str]:
     category="string",
     min_args=2,
     max_args=2,
+    stream_aware=True,
 )
 def _builtin_join(values: Any, sep: Any) -> str:
     items = _as_sequence(values, name="join", arg=1)
     s = _as_str(sep, name="join", arg=2)
     return s.join(_as_str(v, name="join", arg=1) for v in items)
+
+
+@_register(
+    "tsv",
+    summary="Join arguments with tabs for tab-separated row output.",
+    signatures=(
+        "tsv(*cells: any) -> string",
+        "tsv(a, b, c, ...) -> string",
+    ),
+    details="""
+    Each argument is coerced to its scalar string form (``PathRef`` →
+    full-path, ``null`` → empty, bool → ``true`` / ``false``,
+    numbers → their decimal form) and joined with ``\\t``.  Embedded
+    tabs, newlines, and carriage returns inside cell values are
+    replaced with spaces so the resulting line stays one TSV row;
+    pre-quote cells explicitly if you need to retain whitespace.
+
+    Designed to compose with stream broadcast: when any argument is a
+    :class:`Stream`, ``tsv`` broadcasts element-wise so
+    ``tsv(.name, .destination, .pool)`` produces one row per virtual
+    server, and ``tsv(.name, .pool.members[].address)`` produces one
+    row per pool member with the VS name replicated across each row
+    (same semantics every other scalar builtin uses).
+
+    Pair with ``--raw`` to print without surrounding quoting:
+    ``f5 query --raw 'tsv(.name, .destination)' bigip.conf``.
+
+    Related: ``csv`` (comma-separated, quote-aware), ``join`` (join
+    one list with a separator), string concat with ``+``.
+    """,
+    examples=(
+        ".ltm.virtual[] | tsv(.name, .destination, .pool)",
+        ".ltm.pool[].members[] | tsv(.name, .address, port(.name))",
+    ),
+    category="string",
+    min_args=1,
+    max_args=None,
+)
+def _builtin_tsv(*cells: Any) -> str:
+    return "\t".join(_csv_cell_text(c, name="tsv", arg=i) for i, c in enumerate(cells, 1))
+
+
+@_register(
+    "csv",
+    summary="Join arguments with commas, quoting cells when necessary.",
+    signatures=(
+        "csv(*cells: any) -> string",
+        "csv(a, b, c, ...) -> string",
+    ),
+    details="""
+    RFC 4180-style CSV row builder.  Each argument is coerced to its
+    scalar string form and emitted as a CSV field; cells containing
+    ``,``, ``"``, ``\\n``, or ``\\r`` are wrapped in double quotes
+    with embedded quotes doubled (``"`` → ``""``).  Empty cells emit
+    as an empty field (``,``), not as ``""``.
+
+    Broadcasts the same way as ``tsv``: when any argument is a
+    :class:`Stream`, ``csv`` produces one row per element with scalar
+    arguments replicated.
+
+    Pair with ``--raw`` for clean piping into CSV consumers:
+    ``f5 query --raw 'csv(.name, .destination)' bigip.conf | head``.
+
+    Related: ``tsv``, ``join``.
+    """,
+    examples=(
+        ".ltm.virtual[] | csv(.name, .destination, .pool)",
+        ".ltm.pool[].members[] | csv(.name, .address)",
+    ),
+    category="string",
+    min_args=1,
+    max_args=None,
+)
+def _builtin_csv(*cells: Any) -> str:
+    return ",".join(
+        _csv_quote(_csv_cell_text(c, name="csv", arg=i)) for i, c in enumerate(cells, 1)
+    )
+
+
+def _csv_cell_text(value: Any, *, name: str, arg: int) -> str:
+    """Coerce *value* to a row-cell string.
+
+    ``PathRef`` → ``full_path``, ``None`` → empty, bool / int / float
+    render through ``str``, already-typed value objects (``IPAddress``
+    / ``Network`` / ``Destination`` / ``FQDN`` / ``Address``) render
+    through their ``__str__``.  Tabs / newlines / carriage returns
+    inside a cell are replaced with single spaces so a TSV / CSV row
+    stays on one line.
+    """
+    from ..types import FQDN, Address, Destination, IPAddress, Network
+
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, PathRef):
+        s = value.full_path
+    elif isinstance(value, (IPAddress, Network, Destination, FQDN, Address)):
+        s = str(value)
+    elif isinstance(value, str):
+        s = value
+    elif isinstance(value, (list, tuple)):
+        # Compact rendering for list-valued fields (e.g. ``.rules``):
+        # space-separated full-paths is the rendering ``f5 grep`` /
+        # the rename engine already use.
+        s = " ".join(_csv_cell_text(v, name=name, arg=arg) for v in value)
+    else:
+        raise BuiltinError(
+            f"{name}: argument {arg} cannot be rendered as a row cell ({_type_name(value)})"
+        )
+    return s.replace("\t", " ").replace("\n", " ").replace("\r", " ")
+
+
+def _csv_quote(cell: str) -> str:
+    """Apply RFC 4180 quoting when *cell* contains a delimiter / quote."""
+    if any(ch in cell for ch in (",", '"', "\n", "\r")):
+        return '"' + cell.replace('"', '""') + '"'
+    return cell
 
 
 @_register(
@@ -2495,6 +2753,7 @@ def _builtin_downcase(value: Any) -> str:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_keys(value: Any) -> list[str]:
     if isinstance(value, ObjectRef):
@@ -2528,6 +2787,7 @@ def _builtin_keys(value: Any) -> list[str]:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_values(value: Any) -> list[Any]:
     if isinstance(value, ObjectRef):
@@ -2559,6 +2819,7 @@ def _builtin_values(value: Any) -> list[Any]:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_first(value: Any) -> Any:
     items = _as_sequence(value, name="first", arg=1)
@@ -2583,6 +2844,7 @@ def _builtin_first(value: Any) -> Any:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_last(value: Any) -> Any:
     items = _as_sequence(value, name="last", arg=1)
@@ -2606,6 +2868,7 @@ def _builtin_last(value: Any) -> Any:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_count(value: Any) -> int:
     return len(_as_sequence(value, name="count", arg=1))
@@ -2637,6 +2900,7 @@ def _builtin_count(value: Any) -> int:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_unique(value: Any) -> list[Any]:
     items = _as_sequence(value, name="unique", arg=1)
@@ -2683,6 +2947,7 @@ def _builtin_unique(value: Any) -> list[Any]:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_sort(value: Any) -> list[Any]:
     items = _as_sequence(value, name="sort", arg=1)
@@ -2726,6 +2991,7 @@ def _builtin_sort(value: Any) -> list[Any]:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_any(value: Any) -> bool:
     return any(_truthy(v) for v in _flatten_one_level(value, name="any"))
@@ -2754,6 +3020,7 @@ def _builtin_any(value: Any) -> bool:
     category="stream",
     min_args=1,
     max_args=1,
+    stream_aware=True,
 )
 def _builtin_all(value: Any) -> bool:
     return all(_truthy(v) for v in _flatten_one_level(value, name="all"))

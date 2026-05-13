@@ -405,9 +405,55 @@ def _eval_call(node: Call, current: Any, ctx: EvalContext) -> Any:
         return _eval_special_form(node, current, ctx)
 
     args = [_eval(a, current, ctx) for a in node.args]
+    # Scalar builtins (the default) broadcast each stream argument
+    # element-wise so idioms like
+    # ``is_fqdn(.pool.members[].address)`` produce a stream of
+    # booleans rather than rejecting the stream input.  When several
+    # arguments are streams they zip pairwise (lengths must match);
+    # scalar arguments mixed with stream arguments replicate across
+    # each iteration.  Stream-aware builtins (``count`` / ``sort`` /
+    # ``any`` / ``all`` / ...) opt out via ``stream_aware=True`` so
+    # they receive the whole stream as a single argument; ``with_ctx``
+    # builtins also skip broadcast because they reach into evaluator
+    # state and rarely match the element-wise shape.
+    if not spec.stream_aware and not spec.with_ctx:
+        broadcast = _broadcast_call_args(node.name, args)
+        if broadcast is not None:
+            return Stream(items=[spec.impl(*tup) for tup in broadcast])
     if spec.with_ctx:
         return spec.impl(*args, ctx=ctx)
     return spec.impl(*args)
+
+
+def _broadcast_call_args(name: str, args: list[Any]) -> list[tuple[Any, ...]] | None:
+    """Compute the broadcast iteration plan for a scalar builtin's args.
+
+    Returns ``None`` when no argument is a :class:`Stream` (so the
+    dispatcher takes the regular call path).  Otherwise returns a list
+    of arg-tuples, one per element of the broadcast.  All stream
+    arguments must share a length; scalars replicate.  Raises
+    :class:`EvalError` on length mismatch.
+    """
+    stream_indices = [i for i, a in enumerate(args) if isinstance(a, Stream)]
+    if not stream_indices:
+        return None
+    lengths = {len(args[i].items) for i in stream_indices}
+    if len(lengths) > 1:
+        raise EvalError(
+            f"{name}: cannot broadcast streams of differing lengths "
+            f"({sorted(lengths)!r}); collect one side with [...] first"
+        )
+    (length,) = lengths
+    plan: list[tuple[Any, ...]] = []
+    for idx in range(length):
+        row = []
+        for i, a in enumerate(args):
+            if i in stream_indices:
+                row.append(a.items[idx])
+            else:
+                row.append(a)
+        plan.append(tuple(row))
+    return plan
 
 
 def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
@@ -454,8 +500,21 @@ def _eval_binop(node: BinOp, current: Any, ctx: EvalContext) -> Any:
             return True
         return _truthy(_eval(node.rhs, current, ctx))
 
-    lhs = _coerce_scalar(_eval(node.lhs, current, ctx))
-    rhs = _coerce_scalar(_eval(node.rhs, current, ctx))
+    lhs_raw = _eval(node.lhs, current, ctx)
+    rhs_raw = _eval(node.rhs, current, ctx)
+    # Stream broadcast: when either side of an arithmetic / comparison
+    # operator is a :class:`Stream`, broadcast the scalar across each
+    # item.  Without this, the natural row-builder shape
+    # ``.ltm.virtual[].name + "\t" + .pool.members[].address`` would
+    # error out with "cannot add str and stream"; broadcasting yields
+    # one row per stream item which is what the user almost always
+    # wanted.  Both-sides-streams iterate pairwise when the lengths
+    # match and error otherwise (consistent with how jq's ``,`` /
+    # stream-pair semantics work).
+    if isinstance(lhs_raw, Stream) or isinstance(rhs_raw, Stream):
+        return _broadcast_binop(node.op, lhs_raw, rhs_raw)
+    lhs = _coerce_scalar(lhs_raw)
+    rhs = _coerce_scalar(rhs_raw)
     if node.op == "==":
         return _eq(lhs, rhs)
     if node.op == "!=":
@@ -471,6 +530,55 @@ def _eval_binop(node: BinOp, current: Any, ctx: EvalContext) -> Any:
     if node.op == "/":
         return _div(lhs, rhs)
     raise EvalError(f"unsupported operator {node.op!r}")
+
+
+def _apply_scalar_binop(op: str, lhs: Any, rhs: Any) -> Any:
+    """Run a scalar-only binop after operand coercion.
+
+    The same dispatch table as :func:`_eval_binop` but applied to
+    already-evaluated values; used by :func:`_broadcast_binop` so the
+    stream-broadcast path doesn't have to recurse through the AST.
+    """
+    lhs = _coerce_scalar(lhs)
+    rhs = _coerce_scalar(rhs)
+    if op == "==":
+        return _eq(lhs, rhs)
+    if op == "!=":
+        return not _eq(lhs, rhs)
+    if op in {"<", "<=", ">", ">="}:
+        return _cmp(lhs, rhs, op)
+    if op == "+":
+        return _add(lhs, rhs)
+    if op == "-":
+        return _sub(lhs, rhs)
+    if op == "*":
+        return _mul(lhs, rhs)
+    if op == "/":
+        return _div(lhs, rhs)
+    raise EvalError(f"unsupported operator {op!r}")
+
+
+def _broadcast_binop(op: str, lhs: Any, rhs: Any) -> Stream:
+    """Apply *op* across a stream operand, broadcasting the scalar side.
+
+    - ``stream op scalar``  → ``Stream(items=[op(x, scalar) for x in stream])``
+    - ``scalar op stream``  → ``Stream(items=[op(scalar, x) for x in stream])``
+    - ``stream op stream``  → pairwise when lengths match; raises when
+      they don't (the user almost certainly meant to widen with
+      ``[...]`` first if they wanted a cartesian).
+    """
+    if isinstance(lhs, Stream) and isinstance(rhs, Stream):
+        if len(lhs.items) != len(rhs.items):
+            raise EvalError(
+                f"cannot {op!r} two streams of differing lengths "
+                f"({len(lhs.items)} vs {len(rhs.items)}) — collect one "
+                "side with [...] first"
+            )
+        return Stream(items=[_apply_scalar_binop(op, a, b) for a, b in zip(lhs.items, rhs.items)])
+    if isinstance(lhs, Stream):
+        return Stream(items=[_apply_scalar_binop(op, item, rhs) for item in lhs.items])
+    assert isinstance(rhs, Stream)
+    return Stream(items=[_apply_scalar_binop(op, lhs, item) for item in rhs.items])
 
 
 def _eval_unop(node: UnaryOp, current: Any, ctx: EvalContext) -> Any:
