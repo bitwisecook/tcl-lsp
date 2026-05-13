@@ -5142,3 +5142,64 @@ def test_ltm_message_routing_descriptions_round_trip():
     assert res.values_per_file["mem://1"] == ["diameter peer"]
     res = _run('.ltm.message-routing-generic-protocol["/Common/gen_p1"].description', _LTM15_CONF)
     assert res.values_per_file["mem://1"] == ["generic protocol"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 16 — ltm auth.* profiles (11 kinds).  All share
+# BigipLtmAuthObject + _LTM_AUTH_FIELDS.
+# ---------------------------------------------------------------------------
+
+_LTM16_CONF = """ltm auth profile /Common/auth_p1 {
+    description "auth profile"
+    defaults-from /Common/auth_default
+}
+ltm auth ldap /Common/auth_ldap1 { description "ldap" }
+ltm auth radius /Common/auth_radius1 { description "radius" }
+ltm auth radius-server /Common/auth_rs1 { description "radius-server" }
+ltm auth tacacs /Common/auth_tac1 { description "tacacs" }
+ltm auth crldp-server /Common/auth_crldp1 { description "crldp" }
+ltm auth ocsp-responder /Common/auth_ocsp1 { description "ocsp" }
+ltm auth kerberos-delegation /Common/auth_krb1 { description "krb" }
+ltm auth ssl-cc-ldap /Common/auth_sslccldap1 { description "ssl-cc-ldap" }
+ltm auth ssl-crldp /Common/auth_sslcrldp1 { description "ssl-crldp" }
+ltm auth ssl-ocsp /Common/auth_sslocsp1 { description "ssl-ocsp" }
+"""
+
+
+def test_ltm_auth_all_11_kinds_dispatch_correctly():
+    """Every ``ltm auth X`` dispatch label round-trips the kind
+    label through ``.kind``.
+    """
+    cases: list[tuple[str, str]] = [
+        ("auth-profile", "ltm auth profile"),
+        ("auth-ldap", "ltm auth ldap"),
+        ("auth-radius", "ltm auth radius"),
+        ("auth-radius-server", "ltm auth radius-server"),
+        ("auth-tacacs", "ltm auth tacacs"),
+        ("auth-crldp-server", "ltm auth crldp-server"),
+        ("auth-ocsp-responder", "ltm auth ocsp-responder"),
+        ("auth-kerberos-delegation", "ltm auth kerberos-delegation"),
+        ("auth-ssl-cc-ldap", "ltm auth ssl-cc-ldap"),
+        ("auth-ssl-crldp", "ltm auth ssl-crldp"),
+        ("auth-ssl-ocsp", "ltm auth ssl-ocsp"),
+    ]
+    for label, kind_str in cases:
+        res = _run(f".ltm.{label}[].kind", _LTM16_CONF)
+        kinds = res.values_per_file["mem://1"]
+        assert kind_str in kinds, f"{label}: expected kind={kind_str!r}, got {kinds!r}"
+
+
+def test_ltm_auth_profile_surfaces_defaults_from():
+    """Auth profiles inherit from a default profile via
+    ``defaults-from``; the shared shape captures it."""
+    res = _run('.ltm.auth-profile["/Common/auth_p1"]."defaults-from"', _LTM16_CONF)
+    assert res.values_per_file["mem://1"] == ["/Common/auth_default"]
+
+
+def test_ltm_auth_isolation_from_ltm_message_routing_dispatch():
+    """The ``auth-*`` dispatch path is independent of the
+    ``message-routing-*`` path even though both share a minimal
+    shape; confirm names and containers don't bleed across.
+    """
+    res = _run('.ltm.auth-ldap[]."full-path"', _LTM16_CONF)
+    assert res.values_per_file["mem://1"] == ["/Common/auth_ldap1"]

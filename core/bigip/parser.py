@@ -74,6 +74,7 @@ from .model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
+    BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
     BigipLtmDnsAnalyticsGlobalSettings,
@@ -600,6 +601,18 @@ _TWO_WORD_TYPES = frozenset(
         "dns nameserver",
         "dns tsig-key",
         "dns zone",
+        # ltm bundle 16 — auth profiles.
+        "auth profile",
+        "auth ldap",
+        "auth radius",
+        "auth radius-server",
+        "auth tacacs",
+        "auth crldp-server",
+        "auth ocsp-responder",
+        "auth kerberos-delegation",
+        "auth ssl-cc-ldap",
+        "auth ssl-crldp",
+        "auth ssl-ocsp",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -1612,6 +1625,44 @@ def _parse_ltm_dns_analytics_global_settings(
 
 # Bundle 15 parsers — ltm message-routing.*  shared parser routing
 # off a single dispatch table keyed by the in-config obj_type.
+
+
+# Bundle 16 — ltm auth.* profiles (11 kinds).  All share the
+# minimal shape; ``defaults_from`` is captured because most auth
+# kinds inherit from a system-default profile chain.
+
+_LTM_AUTH_DISPATCH: dict[str, str] = {
+    "auth profile": "ltm_auth_profiles",
+    "auth ldap": "ltm_auth_ldap",
+    "auth radius": "ltm_auth_radius",
+    "auth radius-server": "ltm_auth_radius_servers",
+    "auth tacacs": "ltm_auth_tacacs",
+    "auth crldp-server": "ltm_auth_crldp_servers",
+    "auth ocsp-responder": "ltm_auth_ocsp_responders",
+    "auth kerberos-delegation": "ltm_auth_kerberos_delegations",
+    "auth ssl-cc-ldap": "ltm_auth_ssl_cc_ldap",
+    "auth ssl-crldp": "ltm_auth_ssl_crldp",
+    "auth ssl-ocsp": "ltm_auth_ssl_ocsp",
+}
+
+
+def _parse_ltm_auth(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipLtmAuthObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipLtmAuthObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        defaults_from=props.get("defaults-from", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
 
 
 def _parse_ltm_message_routing(
@@ -5138,6 +5189,20 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     config.ltm_dns_analytics_global_settings[""] = (
                         _parse_ltm_dns_analytics_global_settings(block.body, source_map, block)
                     )
+            case _ if (
+                module == "ltm" and obj_type.startswith("auth ") and obj_type in _LTM_AUTH_DISPATCH
+            ):
+                # Bundle 16 — ltm auth.*  All 11 kinds share one
+                # parser; the ``kind`` field carries the full
+                # ``ltm auth X`` label.
+                attr = _LTM_AUTH_DISPATCH[obj_type]
+                getattr(config, attr)[full_path] = _parse_ltm_auth(
+                    full_path,
+                    block.body,
+                    f"ltm {obj_type}",
+                    source_map,
+                    block,
+                )
             case _ if (
                 module == "ltm"
                 and obj_type.startswith("message-routing ")

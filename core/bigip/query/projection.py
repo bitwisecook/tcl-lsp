@@ -67,6 +67,7 @@ from ..model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
+    BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
     BigipLtmDnsAnalyticsGlobalSettings,
@@ -607,6 +608,17 @@ _LTM_MESSAGE_ROUTING_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "kind": FieldSpec("kind"),
     "description": FieldSpec("description"),
+}
+
+# Bundle 16 — shared field map for all 11 ltm auth.* profile kinds.
+# Surfaces ``defaults-from`` since most auth profiles inherit from a
+# system-default chain.
+_LTM_AUTH_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
+    "description": FieldSpec("description"),
+    "defaults-from": FieldSpec("defaults_from"),
 }
 
 _NODE_FIELDS: dict[str, FieldSpec] = {
@@ -2014,6 +2026,18 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipLtmMessageRoutingObject,
         _LTM_MESSAGE_ROUTING_FIELDS,
     ),
+    # Bundle 16 — ltm auth.* profiles (11 kinds).
+    "ltm auth profile": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth ldap": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth radius": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth radius-server": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth tacacs": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth crldp-server": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth ocsp-responder": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth kerberos-delegation": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth ssl-cc-ldap": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth ssl-crldp": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
+    "ltm auth ssl-ocsp": (BigipLtmAuthObject, _LTM_AUTH_FIELDS),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -2439,6 +2463,21 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "ltm_mr_generic_transport_config",
             "ltm message-routing generic transport-config",
         ),
+        # Bundle 16 — ltm auth.* profiles (11 kinds).
+        "auth-profile": ("ltm_auth_profiles", "ltm auth profile"),
+        "auth-ldap": ("ltm_auth_ldap", "ltm auth ldap"),
+        "auth-radius": ("ltm_auth_radius", "ltm auth radius"),
+        "auth-radius-server": ("ltm_auth_radius_servers", "ltm auth radius-server"),
+        "auth-tacacs": ("ltm_auth_tacacs", "ltm auth tacacs"),
+        "auth-crldp-server": ("ltm_auth_crldp_servers", "ltm auth crldp-server"),
+        "auth-ocsp-responder": ("ltm_auth_ocsp_responders", "ltm auth ocsp-responder"),
+        "auth-kerberos-delegation": (
+            "ltm_auth_kerberos_delegations",
+            "ltm auth kerberos-delegation",
+        ),
+        "auth-ssl-cc-ldap": ("ltm_auth_ssl_cc_ldap", "ltm auth ssl-cc-ldap"),
+        "auth-ssl-crldp": ("ltm_auth_ssl_crldp", "ltm auth ssl-crldp"),
+        "auth-ssl-ocsp": ("ltm_auth_ssl_ocsp", "ltm auth ssl-ocsp"),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),

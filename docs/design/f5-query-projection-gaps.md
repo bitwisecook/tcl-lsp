@@ -657,19 +657,24 @@ parsed via the bundle-14 ``_FOUR_WORD_TYPES`` extension).
 - [x] `ltm message-routing generic router`
 - [x] `ltm message-routing generic transport-config`
 
-### Bundle 16 — `ltm` auth profiles (12)
+### Bundle 16 — `ltm` auth profiles (11)
 
-- [ ] `ltm auth profile`
-- [ ] `ltm auth ldap`
-- [ ] `ltm auth radius`
-- [ ] `ltm auth radius-server`
-- [ ] `ltm auth tacacs`
-- [ ] `ltm auth crldp-server`
-- [ ] `ltm auth ocsp-responder`
-- [ ] `ltm auth kerberos-delegation`
-- [ ] `ltm auth ssl-cc-ldap`
-- [ ] `ltm auth ssl-crldp`
-- [ ] `ltm auth ssl-ocsp`
+All 11 kinds share ``BigipLtmAuthObject`` + ``_LTM_AUTH_FIELDS``
+(name / full-path / kind / description / defaults-from).  These
+are the LTM-side auth profile objects, distinct from the
+administrative ``auth.*`` namespace projected in bundle 8.
+
+- [x] `ltm auth profile`
+- [x] `ltm auth ldap`
+- [x] `ltm auth radius`
+- [x] `ltm auth radius-server`
+- [x] `ltm auth tacacs`
+- [x] `ltm auth crldp-server`
+- [x] `ltm auth ocsp-responder`
+- [x] `ltm auth kerberos-delegation`
+- [x] `ltm auth ssl-cc-ldap`
+- [x] `ltm auth ssl-crldp`
+- [x] `ltm auth ssl-ocsp`
 
 ### Bundle 17 — `ltm` CGNAT / LSN (3)
 

@@ -643,6 +643,25 @@ class BigipLtmMessageRoutingObject:
     range: Range | None = None
 
 
+# Bundle 16 — ltm auth.* profiles (11 kinds).  These are the
+# LTM-side auth profile entities (distinct from the
+# administrative ``auth.*`` namespace in bundle 8).  All share
+# this minimal shape with the kind label preserved on each
+# instance.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmAuthObject:
+    """A ``ltm auth *`` object — shared minimal shape."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    defaults_from: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
@@ -2602,6 +2621,18 @@ class BigipConfig:
     ltm_mr_generic_transport_config: dict[str, BigipLtmMessageRoutingObject] = field(
         default_factory=dict
     )
+    # Bundle 16 — ltm auth.* profiles (11 kinds).
+    ltm_auth_profiles: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_ldap: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_radius: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_radius_servers: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_tacacs: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_crldp_servers: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_ocsp_responders: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_kerberos_delegations: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_ssl_cc_ldap: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_ssl_crldp: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    ltm_auth_ssl_ocsp: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)
