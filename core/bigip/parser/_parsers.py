@@ -910,17 +910,49 @@ def _parse_data_group(
     )
 
 
-def _parse_pool_member_body(braced_body: str) -> dict[str, str]:
-    """Parse the per-member ``{ ... }`` body of a pool members entry."""
-    inner = braced_body.strip()
+def _parse_pool_member_body_with_spans(
+    braced_body: str, *, base_offset: int
+) -> tuple[dict[str, str], dict[str, tuple[int, int]]]:
+    """Parse a member's ``{ ... }`` body, returning values + absolute spans.
+
+    *base_offset* is the absolute byte offset at which *braced_body*
+    begins in the original source so the per-field spans
+    :func:`_parse_properties_with_spans` reports (local to the inner
+    body) can be lifted to absolute offsets the edit planner uses.
+    """
+    inner = braced_body
+    inner_start = 0
     if inner.startswith("{"):
         inner = inner[1:]
+        inner_start = 1
     if inner.endswith("}"):
         inner = inner[:-1]
-    return _parse_properties(inner)
+    props_with_spans = _parse_properties_with_spans(inner)
+    values = {k: p.value for k, p in props_with_spans.items()}
+    spans: dict[str, tuple[int, int]] = {}
+    for key, prop in props_with_spans.items():
+        if prop.value_start is None or prop.value_end is None:
+            continue
+        # ``_parse_properties_with_spans`` reports value spans
+        # relative to ``inner``; lift to absolute by adding the
+        # offset where ``inner`` starts in the original source.
+        abs_start = base_offset + inner_start + prop.value_start
+        abs_end = base_offset + inner_start + prop.value_end
+        # Trim surrounding whitespace inside the value span so the
+        # FieldSlot covers only the value bytes (the property
+        # parser already trims for ``prop.value`` but the span
+        # extends to the literal value-end before trimming).
+        spans[key] = (abs_start, abs_end)
+    return values, spans
 
 
-def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
+def _parse_pool_member_body(braced_body: str) -> dict[str, str]:
+    """Back-compat wrapper for callers that don't need spans."""
+    values, _ = _parse_pool_member_body_with_spans(braced_body, base_offset=0)
+    return values
+
+
+def _parse_pool_members(braced: str, *, base_offset: int = 0) -> list[BigipPoolMember]:
     """Extract pool members from a ``members { ... }`` block.
 
     Each member entry may carry an inline body — ``/Common/n:80 { address ... }``
@@ -928,11 +960,20 @@ def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
     :class:`BigipPoolMember` so projections (and the query DSL) can
     interrogate state, ratio, and monitor without reaching back into
     the source.
+
+    *base_offset* (when non-zero) is the absolute byte offset at
+    which *braced* begins in the original source.  When supplied,
+    each parsed member's per-field byte ranges are captured on
+    :attr:`BigipPoolMember.field_offsets` so the edit planner can
+    rewrite a member's ``address`` / ``monitor`` / etc. in place via
+    ``.pool.members[].<field> |= ...``.
     """
     members: list[BigipPoolMember] = []
-    inner = braced.strip()
+    inner = braced
+    inner_start_in_braced = 0
     if inner.startswith("{"):
         inner = inner[1:]
+        inner_start_in_braced = 1
     if inner.endswith("}"):
         inner = inner[:-1]
 
@@ -953,6 +994,7 @@ def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
         while pos < length and inner[pos] in " \t":
             pos += 1
         body_text = ""
+        body_abs_offset = 0
         if pos < length and inner[pos] == "{":
             body_start = pos
             pos += 1
@@ -965,7 +1007,17 @@ def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
                     depth -= 1
                 pos += 1
             body_text = inner[body_start:pos]
-        props = _parse_pool_member_body(body_text) if body_text else {}
+            # Lift the member body's start offset from
+            # ``inner``-relative back into absolute source offsets:
+            # ``inner`` itself starts at ``base_offset +
+            # inner_start_in_braced`` in the original source.
+            body_abs_offset = base_offset + inner_start_in_braced + body_start
+        if body_text:
+            props, field_offsets = _parse_pool_member_body_with_spans(
+                body_text, base_offset=body_abs_offset
+            )
+        else:
+            props, field_offsets = {}, {}
         addr = props.get("address", "")
         port = 0
         if ":" in name and not addr:
@@ -994,6 +1046,7 @@ def _parse_pool_members(braced: str) -> list[BigipPoolMember]:
                 priority_group=props.get("priority-group", ""),
                 connection_limit=props.get("connection-limit", ""),
                 rate_limit=props.get("rate-limit", ""),
+                field_offsets=field_offsets,
             )
         )
     return members
@@ -1007,14 +1060,26 @@ def _parse_pool(
     block: _Block,
 ) -> BigipPool:
     """Parse a ``ltm pool`` block."""
-    props = _parse_properties(body)
+    props_with_spans = _parse_properties_with_spans(body)
+    props = {k: p.value for k, p in props_with_spans.items()}
     name = full_path.rsplit("/", 1)[-1]
     monitor = props.get("monitor", "")
     lb_mode = props.get("load-balancing-mode", "")
     members: list[BigipPoolMember] = []
     members_block = props.get("members")
     if members_block:
-        members = _parse_pool_members(members_block)
+        # The ``body`` argument is the text between the pool's
+        # outermost braces — i.e. ``block.start_offset + 1`` in the
+        # original source.  The ``members`` property's value (the
+        # nested ``{ ... }`` block) starts at ``value_start`` within
+        # ``body``, so members_abs is the absolute offset of the
+        # nested block in the source.  Threading that through lets
+        # the per-member property parser capture absolute byte
+        # ranges so the edit planner can rewrite a member's field
+        # in place via ``.pool.members[].address |= ...``.
+        members_prop = props_with_spans["members"]
+        members_abs = block.start_offset + 1 + (members_prop.value_start or 0)
+        members = _parse_pool_members(members_block, base_offset=members_abs)
     profiles: tuple[str, ...] = ()
     profiles_block = props.get("profiles")
     if profiles_block:

@@ -296,9 +296,9 @@ def _run_query(args: argparse.Namespace) -> int:
     # Without this guard, ``f5 query --in-place --format tmsh`` would
     # overwrite ``bigip.conf`` with a tmsh script and the dry-run
     # diff (always SCF↔SCF) would still look normal beforehand.
-    if args.in_place and args.output_format == "tmsh":
+    if args.in_place and args.output_format in ("tmsh", "tmsh-delta"):
         print(
-            "error: --in-place is incompatible with --format tmsh "
+            f"error: --in-place is incompatible with --format {args.output_format} "
             "(in-place writes must preserve the SCF source format; "
             "use --write or redirect to an explicit output file for "
             "tmsh script output)",
@@ -464,6 +464,7 @@ def _emit_mutation(
             fmt=args.output_format,
             tmsh_verb="modify",
             transaction=getattr(args, "output_transaction", False),
+            original=applied.original,
         )
         if args.in_place and path_str != "-":
             Path(path_str).write_text(rewritten, encoding="utf-8")

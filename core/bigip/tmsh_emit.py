@@ -167,6 +167,196 @@ def emit_tmsh(
     return TmshScript(text=text, command_count=count)
 
 
+def emit_tmsh_delta(
+    old_cfg: BigipConfig,
+    new_cfg: BigipConfig,
+    *,
+    old_source: str = "",
+    new_source: str = "",
+    include: tuple[str, ...] = _DEFAULT_ORDER,
+) -> TmshScript:
+    """Emit only the *changed* objects between *old_cfg* and *new_cfg*.
+
+    Produces a tighter tmsh script than :func:`emit_tmsh` for the
+    ``f5 query`` change-rollout shape: rather than re-rendering every
+    object in the config (which the full emitter does and which
+    produces a ~126-line script even when only two objects actually
+    changed in the test report's 1906-line corkscrew config), this
+    walks each per-kind container twice and emits:
+
+    - ``tmsh create <kind> <full-path> { ... }`` for objects added in
+      *new_cfg* but absent from *old_cfg*;
+    - ``tmsh modify <kind> <full-path> { ... }`` for objects whose
+      stanza text differs between *old_source* and *new_source*;
+    - ``tmsh delete <kind> <full-path>`` for objects removed in
+      *new_cfg* that were present in *old_cfg*.
+
+    Equality is compared on the parsed stanza text (via the block
+    iterator the SCF emitter also uses): if the textual stanza is
+    byte-identical the object is treated as unchanged and dropped.
+    Falls back to dataclass equality when neither source is supplied.
+
+    Order matches :func:`emit_tmsh`: foundation objects first so
+    creates and modifies always have their dependencies in place.
+    Deletes follow the inverse: virtuals → rules → pools → ... so a
+    delete of a referenced object doesn't fire before its referrers
+    have been removed.
+    """
+    new_blocks = _index_blocks(new_source)
+    old_blocks = _index_blocks(old_source)
+
+    def _changed(kind_tuple: tuple[str, str, str]) -> bool:
+        return new_blocks.get(kind_tuple, "") != old_blocks.get(kind_tuple, "")
+
+    lines: list[str] = []
+    count = 0
+
+    def _add(line: str) -> None:
+        nonlocal count
+        lines.append(line)
+        count += 1
+
+    # ── creates / modifies, in dependency order ────────────────────
+    if "generic-foundation" in include:
+        for ident, obj in new_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            key = (obj.module, obj.object_type, obj.identifier)
+            old = old_cfg.generic_objects.get(ident)
+            if old is None:
+                _add(_render_generic("create", obj, new_blocks))
+            elif _changed(key):
+                _add(_render_generic("modify", obj, new_blocks))
+    for kind_name, container_attr, render_fn, render_needs_source in (
+        ("node", "nodes", _render_node, False),
+        ("monitor", "monitors", _render_monitor, True),
+        ("data-group", "data_groups", _render_data_group, False),
+        ("profile", "profiles", _render_profile, False),
+        ("snatpool", "snat_pools", _render_snatpool, False),
+        ("persistence", "persistence", _render_persistence, True),
+        ("pool", "pools", _render_pool, False),
+        ("rule", "rules", _render_rule, False),
+        ("virtual", "virtual_servers", _render_virtual, False),
+    ):
+        if kind_name not in include:
+            continue
+        new_container = getattr(new_cfg, container_attr)
+        old_container = getattr(old_cfg, container_attr)
+        for full_path, obj in new_container.items():
+            key = _block_key_for(kind_name, obj)
+            old_obj = old_container.get(full_path)
+            if old_obj is None:
+                _add(_dispatch_render("create", render_fn, obj, new_source, new_blocks))
+                continue
+            if _changed(key):
+                _add(_dispatch_render("modify", render_fn, obj, new_source, new_blocks))
+
+    # ── deletes (inverse order) ────────────────────────────────────
+    delete_kinds = [k for k in reversed(include) if k not in ("generic-foundation",)]
+    for kind_name in delete_kinds:
+        container_attr = {
+            "node": "nodes",
+            "monitor": "monitors",
+            "data-group": "data_groups",
+            "profile": "profiles",
+            "snatpool": "snat_pools",
+            "persistence": "persistence",
+            "pool": "pools",
+            "rule": "rules",
+            "virtual": "virtual_servers",
+        }.get(kind_name)
+        if container_attr is None:
+            continue
+        new_container = getattr(new_cfg, container_attr)
+        old_container = getattr(old_cfg, container_attr)
+        for full_path, old_obj in old_container.items():
+            if full_path in new_container:
+                continue
+            _add(_delete_command(kind_name, old_obj))
+    # Generic foundation deletes (deferred to end so they don't strand
+    # references in objects deleted above).
+    if "generic-foundation" in include:
+        for ident, obj in old_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            if ident in new_cfg.generic_objects:
+                continue
+            _add(f"tmsh delete {obj.module} {obj.object_type} {obj.identifier}")
+
+    text = "\n".join(lines) + ("\n" if lines else "")
+    return TmshScript(text=text, command_count=count)
+
+
+def _index_blocks(source: str) -> dict[tuple[str, str, str], str]:
+    if not source:
+        return {}
+    out: dict[tuple[str, str, str], str] = {}
+    for bs in iter_blocks_with_source(source):
+        out[(bs.module, bs.object_type, bs.identifier)] = bs.text
+    return out
+
+
+def _block_key_for(kind_name: str, obj: object) -> tuple[str, str, str]:
+    """Return the (module, object_type, identifier) tuple matching block-index keys.
+
+    Mirrors what :func:`iter_blocks_with_source` produces so the
+    delta emitter can look up the stanza text for an object given
+    its dataclass.  Each *kind_name* maps to a fixed (module,
+    object_type) pair; *identifier* is the object's full-path.
+    """
+    type_map = {
+        "node": ("ltm", "node"),
+        "monitor": ("ltm", "monitor"),
+        "data-group": ("ltm", "data-group"),
+        "profile": ("ltm", "profile"),
+        "snatpool": ("ltm", "snatpool"),
+        "persistence": ("ltm", "persistence"),
+        "pool": ("ltm", "pool"),
+        "rule": ("ltm", "rule"),
+        "virtual": ("ltm", "virtual"),
+    }
+    module, object_type = type_map[kind_name]
+    full_path = getattr(obj, "full_path", "")
+    return (module, object_type, full_path)
+
+
+def _dispatch_render(verb: str, render_fn, obj, new_source: str, new_blocks: dict) -> str:
+    """Call a per-kind renderer with whatever extra args it expects.
+
+    Most renderers take ``(verb, obj)``; iRules / persistence /
+    monitors that may carry block-text bodies take a *source* and
+    *block_text_by_id* argument set too.  We dispatch by inspecting
+    the function signature lazily to keep the call sites compact.
+    """
+    import inspect
+
+    sig = inspect.signature(render_fn)
+    params = sig.parameters
+    if len(params) == 2:
+        return render_fn(verb, obj)
+    # Heuristic for the (verb, obj, source, blocks) and (verb, obj, blocks) shapes.
+    if "source" in params:
+        return render_fn(verb, obj, new_source, new_blocks)
+    return render_fn(verb, obj, new_blocks)
+
+
+def _delete_command(kind_name: str, obj: object) -> str:
+    """Build a ``tmsh delete <kind> <full-path>`` command."""
+    full_path = getattr(obj, "full_path", "")
+    spelt = {
+        "node": "ltm node",
+        "monitor": "ltm monitor",
+        "data-group": "ltm data-group",
+        "profile": "ltm profile",
+        "snatpool": "ltm snatpool",
+        "persistence": "ltm persistence",
+        "pool": "ltm pool",
+        "rule": "ltm rule",
+        "virtual": "ltm virtual",
+    }.get(kind_name, f"ltm {kind_name}")
+    return f"tmsh delete {spelt} {full_path}"
+
+
 # ── Renderers ───────────────────────────────────────────────────────
 
 

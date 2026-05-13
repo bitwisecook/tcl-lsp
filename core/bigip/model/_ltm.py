@@ -17,6 +17,7 @@ Covers every typed LTM kind:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field as dc_field
 from typing import TYPE_CHECKING
 
 from ...analysis.semantic_model import Range
@@ -51,6 +52,14 @@ class BigipPoolMember:
     ``address`` is a typed :class:`Address` (``IPAddress`` for IPv4 /
     IPv6 hosts, :class:`FQDN` for FQDN-based pool members) populated
     by the parser; ``None`` when no ``address`` property was given.
+
+    ``field_offsets`` carries the absolute (start, end) byte offsets
+    of each field's value in the source so the projection layer can
+    surface per-member :class:`FieldSlot` entries and the edit
+    planner can rewrite a single member's property in place
+    (``.pool.members[].address |= ip("10.50.0.0/16", .)``).
+    Members written on a single line (no per-member body braces) do
+    not contribute to this map.
     """
 
     name: str  # e.g. "/Common/10.0.0.1:80"
@@ -63,6 +72,10 @@ class BigipPoolMember:
     priority_group: str = ""
     connection_limit: str = ""
     rate_limit: str = ""
+    # ``{tmsh-spelt key: (start, end)}`` in the original source.  The
+    # range covers just the value half — ``address [10.0.0.1]`` →
+    # range for ``10.0.0.1``.
+    field_offsets: dict[str, tuple[int, int]] = dc_field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

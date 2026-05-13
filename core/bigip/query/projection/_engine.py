@@ -170,6 +170,15 @@ def _member_object_ref(member: BigipPoolMember, root: Root) -> ObjectRef:
     # ``member.address`` is now a typed :class:`Address` or ``None``;
     # render it to the canonical text spelling for the DSL surface so
     # queries against ``.pool.members[].address`` keep seeing strings.
+    field_slots: dict[str, FieldSlot] = {}
+    if member.field_offsets:
+        for key, (start, end) in member.field_offsets.items():
+            field_slots[key] = FieldSlot(
+                source_uri=root.uri,
+                start=start,
+                end=end,
+                raw_text=root.source[start:end],
+            )
     return ObjectRef(
         kind="ltm pool-member",
         full_path=member.name,
@@ -187,6 +196,8 @@ def _member_object_ref(member: BigipPoolMember, root: Root) -> ObjectRef:
             "connection-limit": member.connection_limit,
             "rate-limit": member.rate_limit,
         },
+        field_slots=field_slots,
+        config_uri=root.uri,
     )
 
 
