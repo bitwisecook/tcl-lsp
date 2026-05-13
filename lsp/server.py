@@ -20,6 +20,7 @@ from .features import (
     compute_semantic_tokens_edits,
     semantic_tokens_full,
 )
+from .features._bigip_code_actions import get_bigip_code_actions
 from .features._bigip_links import get_bigip_document_links
 from .features._bigip_refs import (
     get_bigip_references,
@@ -1289,6 +1290,12 @@ def on_code_action(
     uri = params.text_document.uri
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
+    # BIG-IP files get a separate code-action provider that wraps
+    # the query engine's rename/cascade machinery as quick-fix
+    # entries (no analysis dependency, parses the source directly).
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        return get_bigip_code_actions(source, uri=uri, range_=params.range) or None
     # Skip code actions when analysis hasn't completed yet — running
     # analyse(source) synchronously here would block the event loop
     # for the entire analysis duration.  Code actions depend on
