@@ -3080,3 +3080,117 @@ def test_sys_file_ssl_key_checksum_and_audit_fields():
     assert cs.values_per_file["mem://1"] == ["SHA1:fedcba"]
     ub = _run('.sys.file-ssl-key["/Common/example.key"].updated-by', _CERT_KEY_CONF)
     assert ub.values_per_file["mem://1"] == ["ops"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 2 — ltm virtual flags + refs
+# ---------------------------------------------------------------------------
+
+_VS_FLAGS_CONF = """net vlan /Common/ext { tag 10 }
+net vlan /Common/int { tag 20 }
+apm policy access-policy /Common/per_flow_ap { }
+ltm virtual /Common/fwd_vs {
+    destination /Common/0.0.0.0:any
+    mask any
+    address-status no
+    auto-discovery enabled
+    cmp-enabled yes
+    eviction-protected enabled
+    ip-forward
+    nat64 disabled
+    gtm-score 42
+    mirror enabled
+    service-down-immediate-action reset
+    source-port preserve-strict
+    serverssl-use-sni enabled
+    rate-limit-dst-mask 24
+    rate-limit-src-mask 16
+    rate-class /Common/rc1
+    transparent-nexthop /Common/ext
+    per-flow-request-access-policy /Common/per_flow_ap
+}
+ltm virtual /Common/internal_vs {
+    destination /Common/10.1.1.1:80
+    internal
+}
+ltm virtual /Common/dhcp_vs {
+    destination /Common/0.0.0.0:67
+    dhcp-relay
+}
+ltm virtual /Common/l2_vs {
+    destination /Common/10.1.2.1:80
+    l2-forward
+}
+ltm virtual /Common/reject_vs {
+    destination /Common/10.1.3.1:80
+    reject
+}
+"""
+
+
+def test_virtual_address_status_and_auto_discovery():
+    addr_status = _run(".ltm.virtual.fwd_vs.address-status", _VS_FLAGS_CONF)
+    assert addr_status.values_per_file["mem://1"] == ["no"]
+    ad = _run(".ltm.virtual.fwd_vs.auto-discovery", _VS_FLAGS_CONF)
+    assert ad.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_virtual_cmp_enabled_and_eviction_protected():
+    cmp = _run(".ltm.virtual.fwd_vs.cmp-enabled", _VS_FLAGS_CONF)
+    assert cmp.values_per_file["mem://1"] == ["yes"]
+    ev = _run(".ltm.virtual.fwd_vs.eviction-protected", _VS_FLAGS_CONF)
+    assert ev.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_virtual_bare_flags_are_true_when_present():
+    intl = _run(".ltm.virtual.internal_vs.internal", _VS_FLAGS_CONF)
+    assert intl.values_per_file["mem://1"] == [True]
+    dhcp = _run(".ltm.virtual.dhcp_vs.dhcp-relay", _VS_FLAGS_CONF)
+    assert dhcp.values_per_file["mem://1"] == [True]
+    ipf = _run(".ltm.virtual.fwd_vs.ip-forward", _VS_FLAGS_CONF)
+    assert ipf.values_per_file["mem://1"] == [True]
+    l2 = _run(".ltm.virtual.l2_vs.l2-forward", _VS_FLAGS_CONF)
+    assert l2.values_per_file["mem://1"] == [True]
+    rj = _run(".ltm.virtual.reject_vs.reject", _VS_FLAGS_CONF)
+    assert rj.values_per_file["mem://1"] == [True]
+
+
+def test_virtual_bare_flags_are_false_when_absent():
+    intl = _run(".ltm.virtual.fwd_vs.internal", _VS_FLAGS_CONF)
+    assert intl.values_per_file["mem://1"] == [False]
+
+
+def test_virtual_gtm_score_mirror_and_service_down_action():
+    score = _run(".ltm.virtual.fwd_vs.gtm-score", _VS_FLAGS_CONF)
+    assert score.values_per_file["mem://1"] == ["42"]
+    mirror = _run(".ltm.virtual.fwd_vs.mirror", _VS_FLAGS_CONF)
+    assert mirror.values_per_file["mem://1"] == ["enabled"]
+    sda = _run(".ltm.virtual.fwd_vs.service-down-immediate-action", _VS_FLAGS_CONF)
+    assert sda.values_per_file["mem://1"] == ["reset"]
+
+
+def test_virtual_source_port_and_rate_limit_masks():
+    sp = _run(".ltm.virtual.fwd_vs.source-port", _VS_FLAGS_CONF)
+    assert sp.values_per_file["mem://1"] == ["preserve-strict"]
+    dst_mask = _run(".ltm.virtual.fwd_vs.rate-limit-dst-mask", _VS_FLAGS_CONF)
+    assert dst_mask.values_per_file["mem://1"] == ["24"]
+    src_mask = _run(".ltm.virtual.fwd_vs.rate-limit-src-mask", _VS_FLAGS_CONF)
+    assert src_mask.values_per_file["mem://1"] == ["16"]
+
+
+def test_virtual_transparent_nexthop_walks_to_vlan_tag():
+    result = _run(".ltm.virtual.fwd_vs.transparent-nexthop.tag", _VS_FLAGS_CONF)
+    assert result.values_per_file["mem://1"] == [10]
+
+
+def test_virtual_per_flow_access_policy_pathref_resolves():
+    result = _run(
+        ".ltm.virtual.fwd_vs.per-flow-request-access-policy.full-path",
+        _VS_FLAGS_CONF,
+    )
+    assert result.values_per_file["mem://1"] == ["/Common/per_flow_ap"]
+
+
+def test_virtual_rate_class_is_projected_as_string():
+    rc = _run(".ltm.virtual.fwd_vs.rate-class", _VS_FLAGS_CONF)
+    assert rc.values_per_file["mem://1"] == ["/Common/rc1"]

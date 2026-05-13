@@ -124,26 +124,26 @@ Run `make ci-fast` before committing each bundle, and the broader
 
 ## Bundle 2 — `ltm virtual` flags + refs
 
-- [ ] `address-status`
-- [ ] `auto-discovery`
-- [ ] `cmp-enabled`
-- [ ] `eviction-protected`
-- [ ] `dhcp-relay` (bool flag)
-- [ ] `internal` (bool flag)
-- [ ] `ip-forward` (bool flag)
-- [ ] `l2-forward` (bool flag)
-- [ ] `reject` (bool flag)
-- [ ] `nat64`
-- [ ] `gtm-score`
-- [ ] `mirror`
-- [ ] `service-down-immediate-action`
-- [ ] `source-port`
-- [ ] `serverssl-use-sni`
-- [ ] `rate-limit-dst-mask`
-- [ ] `rate-limit-src-mask`
-- [ ] `per-flow-request-access-policy` → `apm policy access-policy`
-- [ ] `transparent-nexthop` → `net vlan`
-- [ ] `rate-class`
+- [x] `address-status`
+- [x] `auto-discovery`
+- [x] `cmp-enabled`
+- [x] `eviction-protected`
+- [x] `dhcp-relay` (bool flag)
+- [x] `internal` (bool flag)
+- [x] `ip-forward` (bool flag)
+- [x] `l2-forward` (bool flag)
+- [x] `reject` (bool flag)
+- [x] `nat64`
+- [x] `gtm-score`
+- [x] `mirror`
+- [x] `service-down-immediate-action`
+- [x] `source-port`
+- [x] `serverssl-use-sni`
+- [x] `rate-limit-dst-mask`
+- [x] `rate-limit-src-mask`
+- [x] `per-flow-request-access-policy` → `apm policy access-policy`
+- [x] `transparent-nexthop` → `net vlan`
+- [x] `rate-class`
 
 ---
 
