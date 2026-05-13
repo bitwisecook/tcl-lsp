@@ -129,7 +129,12 @@ def _run_rename(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
-    rewritten = render_config(applied.new_source, fmt=args.output_format, tmsh_verb="modify")
+    rewritten = render_config(
+        applied.new_source,
+        fmt=args.output_format,
+        tmsh_verb="modify",
+        transaction=getattr(args, "output_transaction", False),
+    )
 
     if args.in_place:
         Path(args.path).write_text(rewritten, encoding="utf-8")

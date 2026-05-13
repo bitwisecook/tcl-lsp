@@ -54,7 +54,12 @@ def _run_split(args: argparse.Namespace) -> int:
     parts = emit_split_by_partition(source)
     suffix = "tmsh" if args.output_format == "tmsh" else "conf"
     for partition, text in parts.items():
-        out_text = render_config(text, fmt=args.output_format, tmsh_verb="create")
+        out_text = render_config(
+            text,
+            fmt=args.output_format,
+            tmsh_verb="create",
+            transaction=getattr(args, "output_transaction", False),
+        )
         (out_dir / f"{partition}.{suffix}").write_text(out_text, encoding="utf-8")
 
     print(

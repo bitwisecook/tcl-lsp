@@ -160,7 +160,12 @@ def _run_redact(args: argparse.Namespace) -> int:
         remap_private=args.remap_private,
     )
 
-    rendered = render_config(report.new_source, fmt=args.output_format, tmsh_verb="modify")
+    rendered = render_config(
+        report.new_source,
+        fmt=args.output_format,
+        tmsh_verb="modify",
+        transaction=getattr(args, "output_transaction", False),
+    )
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")
     else:

@@ -70,7 +70,12 @@ def _run_unredact(args: argparse.Namespace) -> int:
         return 2
 
     out, count = apply_map(rm, source, reverse=True)
-    out = render_config(out, fmt=args.output_format, tmsh_verb="modify")
+    out = render_config(
+        out,
+        fmt=args.output_format,
+        tmsh_verb="modify",
+        transaction=getattr(args, "output_transaction", False),
+    )
 
     if args.output:
         Path(args.output).write_text(out, encoding="utf-8")

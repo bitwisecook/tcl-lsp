@@ -335,7 +335,12 @@ def _emit_mutation(
         # ``tmsh modify`` script for persisting onto a live device.
         # The unified-diff path stays SCF↔SCF because the on-disk
         # source is always SCF.
-        rewritten = render_config(applied.new_source, fmt=args.output_format, tmsh_verb="modify")
+        rewritten = render_config(
+            applied.new_source,
+            fmt=args.output_format,
+            tmsh_verb="modify",
+            transaction=getattr(args, "output_transaction", False),
+        )
         if args.in_place and path_str != "-":
             Path(path_str).write_text(rewritten, encoding="utf-8")
             continue
