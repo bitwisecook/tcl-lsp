@@ -22,6 +22,7 @@ This parser extracts structured objects into :class:`BigipConfig`.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..analysis.semantic_model import Range
@@ -691,6 +692,82 @@ _TWO_WORD_TYPES = frozenset(
         # Bundle 26 — net sfc.
         "sfc chain",
         "sfc sf",
+        # Bundle 27 — apm aaa.* (24 kinds).
+        "aaa active-directory",
+        "aaa active-directory-trusted-domains",
+        "aaa crldp",
+        "aaa endpoint-management-system",
+        "aaa f5-mfa-configuration",
+        "aaa f5-service-connector",
+        "aaa http",
+        "aaa http-connector-request",
+        "aaa http-connector-transport",
+        "aaa kerberos",
+        "aaa kerberos-keytab-file",
+        "aaa ldap",
+        "aaa oam",
+        "aaa oauth-provider",
+        "aaa oauth-request",
+        "aaa oauth-server",
+        "aaa ocsp",
+        "aaa okta-connector",
+        "aaa radius",
+        "aaa saml",
+        "aaa saml-idp-automation",
+        "aaa saml-idp-connector",
+        "aaa securid",
+        "aaa tacacsplus",
+        # Bundle 28 — apm profile.* + apm sso.* (16 kinds).
+        "profile access",
+        "profile connectivity",
+        "profile exchange",
+        "profile oauth",
+        "profile vdi",
+        "sso basic",
+        "sso form-based",
+        "sso form-basedv2",
+        "sso kerberos",
+        "sso ntlmv1",
+        "sso ntlmv2",
+        "sso oauth-bearer",
+        "sso saml",
+        "sso saml-resource",
+        "sso saml-sp-automation",
+        "sso saml-sp-connector",
+        # Bundle 29 — apm resource.* (two-word forms).
+        "resource address-space",
+        "resource app-tunnel",
+        "resource client-rate-class",
+        "resource client-traffic-classifier",
+        "resource ipv6-leasepool",
+        "resource leasepool",
+        "resource network-access",
+        "resource portal-access",
+        "resource sandbox",
+        "resource webtop",
+        "resource webtop-link",
+        # Bundle 30 — apm oauth.* (7 kinds).
+        "oauth jwk-config",
+        "oauth jwt-config",
+        "oauth jwt-provider-list",
+        "oauth oauth-claim",
+        "oauth oauth-client-app",
+        "oauth oauth-resource-server",
+        "oauth oauth-scope",
+        # Bundle 31 — apm saml/ntlm/configuration/etc.
+        "saml artifact-resolution-service",
+        "saml attribute-consuming-service",
+        "saml auth-context-class-list",
+        "ntlm machine-account",
+        "ntlm ntlm-auth",
+        "client image",
+        "configuration captcha",
+        "epsec epsec-package",
+        "report custom-report-field",
+        "policy customization-group",
+        "policy customization-languages",
+        "policy image-file",
+        "policy windows-group-policy-file",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -883,6 +960,13 @@ _THREE_WORD_TYPES = frozenset(
         "classification auto-update settings",
         # net bundle 21 — three-word.
         "routing profile bgp",
+        # apm bundle 29 — resource remote-desktop sub-kinds.
+        "resource remote-desktop citrix",
+        "resource remote-desktop citrix-client-bundle",
+        "resource remote-desktop citrix-client-package-file",
+        "resource remote-desktop quest",
+        "resource remote-desktop rdp",
+        "resource remote-desktop vmware-view",
         # ltm message-routing bundle 15 — three-word kinds.
         "message-routing diameter peer",
         "message-routing diameter route",
@@ -1855,7 +1939,95 @@ def _parse_net_minimal(
     )
 
 
-_APM_MINIMAL_DISPATCH: dict[str, str] = {}
+_APM_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 27 — apm aaa.* (24 kinds).
+    "aaa active-directory": "apm_aaa_active_directory",
+    "aaa active-directory-trusted-domains": "apm_aaa_active_directory_trusted_domains",
+    "aaa crldp": "apm_aaa_crldp",
+    "aaa endpoint-management-system": "apm_aaa_endpoint_management_system",
+    "aaa f5-mfa-configuration": "apm_aaa_f5_mfa_configuration",
+    "aaa f5-service-connector": "apm_aaa_f5_service_connector",
+    "aaa http": "apm_aaa_http",
+    "aaa http-connector-request": "apm_aaa_http_connector_request",
+    "aaa http-connector-transport": "apm_aaa_http_connector_transport",
+    "aaa kerberos": "apm_aaa_kerberos",
+    "aaa kerberos-keytab-file": "apm_aaa_kerberos_keytab_file",
+    "aaa ldap": "apm_aaa_ldap",
+    "aaa oam": "apm_aaa_oam",
+    "aaa oauth-provider": "apm_aaa_oauth_provider",
+    "aaa oauth-request": "apm_aaa_oauth_request",
+    "aaa oauth-server": "apm_aaa_oauth_server",
+    "aaa ocsp": "apm_aaa_ocsp",
+    "aaa okta-connector": "apm_aaa_okta_connector",
+    "aaa radius": "apm_aaa_radius",
+    "aaa saml": "apm_aaa_saml",
+    "aaa saml-idp-automation": "apm_aaa_saml_idp_automation",
+    "aaa saml-idp-connector": "apm_aaa_saml_idp_connector",
+    "aaa securid": "apm_aaa_securid",
+    "aaa tacacsplus": "apm_aaa_tacacsplus",
+    # Bundle 28 — apm profile.* + apm sso.* (16 kinds).
+    "profile access": "apm_profile_access",
+    "profile connectivity": "apm_profile_connectivity",
+    "profile exchange": "apm_profile_exchange",
+    "profile oauth": "apm_profile_oauth",
+    "profile vdi": "apm_profile_vdi",
+    "sso basic": "apm_sso_basic",
+    "sso form-based": "apm_sso_form_based",
+    "sso form-basedv2": "apm_sso_form_basedv2",
+    "sso kerberos": "apm_sso_kerberos",
+    "sso ntlmv1": "apm_sso_ntlmv1",
+    "sso ntlmv2": "apm_sso_ntlmv2",
+    "sso oauth-bearer": "apm_sso_oauth_bearer",
+    "sso saml": "apm_sso_saml",
+    "sso saml-resource": "apm_sso_saml_resource",
+    "sso saml-sp-automation": "apm_sso_saml_sp_automation",
+    "sso saml-sp-connector": "apm_sso_saml_sp_connector",
+    # Bundle 29 — apm resource.* (17 kinds, 6 three-word).
+    "resource address-space": "apm_resource_address_space",
+    "resource app-tunnel": "apm_resource_app_tunnel",
+    "resource client-rate-class": "apm_resource_client_rate_class",
+    "resource client-traffic-classifier": "apm_resource_client_traffic_classifier",
+    "resource ipv6-leasepool": "apm_resource_ipv6_leasepool",
+    "resource leasepool": "apm_resource_leasepool",
+    "resource network-access": "apm_resource_network_access",
+    "resource portal-access": "apm_resource_portal_access",
+    "resource remote-desktop citrix": "apm_resource_remote_desktop_citrix",
+    "resource remote-desktop citrix-client-bundle": "apm_resource_remote_desktop_citrix_client_bundle",
+    "resource remote-desktop citrix-client-package-file": "apm_resource_remote_desktop_citrix_client_package_file",
+    "resource remote-desktop quest": "apm_resource_remote_desktop_quest",
+    "resource remote-desktop rdp": "apm_resource_remote_desktop_rdp",
+    "resource remote-desktop vmware-view": "apm_resource_remote_desktop_vmware_view",
+    "resource sandbox": "apm_resource_sandbox",
+    "resource webtop": "apm_resource_webtop",
+    "resource webtop-link": "apm_resource_webtop_link",
+    # Bundle 30 — apm oauth.* (7 kinds, beyond db-instance from bundle 6).
+    "oauth jwk-config": "apm_oauth_jwk_config",
+    "oauth jwt-config": "apm_oauth_jwt_config",
+    "oauth jwt-provider-list": "apm_oauth_jwt_provider_list",
+    "oauth oauth-claim": "apm_oauth_oauth_claim",
+    "oauth oauth-client-app": "apm_oauth_oauth_client_app",
+    "oauth oauth-resource-server": "apm_oauth_oauth_resource_server",
+    "oauth oauth-scope": "apm_oauth_oauth_scope",
+    # Bundle 31 — apm saml/ntlm/acl/configuration/etc (18 kinds).
+    "saml artifact-resolution-service": "apm_saml_artifact_resolution_service",
+    "saml attribute-consuming-service": "apm_saml_attribute_consuming_service",
+    "saml auth-context-class-list": "apm_saml_auth_context_class_list",
+    "ntlm machine-account": "apm_ntlm_machine_account",
+    "ntlm ntlm-auth": "apm_ntlm_ntlm_auth",
+    "acl": "apm_acl",
+    "log-setting": "apm_log_setting",
+    "url-filter": "apm_url_filter",
+    "swg-scheme": "apm_swg_scheme",
+    "client image": "apm_client_image",
+    "configuration captcha": "apm_configuration_captcha",
+    "epsec epsec-package": "apm_epsec_epsec_package",
+    "apm-avr-config": "apm_apm_avr_config",
+    "report custom-report-field": "apm_report_custom_report_field",
+    "policy customization-group": "apm_policy_customization_group",
+    "policy customization-languages": "apm_policy_customization_languages",
+    "policy image-file": "apm_policy_image_file",
+    "policy windows-group-policy-file": "apm_policy_windows_group_policy_file",
+}
 
 
 def _parse_apm_minimal(
@@ -1987,7 +2159,8 @@ _API_PROTECTION_MINIMAL_DISPATCH: dict[str, str] = {}
 # Module -> (dispatch table, parser function).  Used by the generic
 # minimal-dispatch pre-pass in ``parse_bigip_conf`` so every
 # bundles 17-45 minimal kind routes through the same code path.
-_MINIMAL_DISPATCH_BY_MODULE: dict[str, tuple[dict[str, str], object]] = {}
+_MinimalParserFn = Callable[[str, str, str, DocumentBuffer, "_Block"], object]
+_MINIMAL_DISPATCH_BY_MODULE: dict[str, tuple[dict[str, str], _MinimalParserFn]] = {}
 
 
 def _parse_api_protection_minimal(

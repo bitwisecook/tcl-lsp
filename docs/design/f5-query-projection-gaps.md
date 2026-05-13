@@ -796,100 +796,100 @@ administrative ``auth.*`` namespace projected in bundle 8.
 
 ### Bundle 27 — `apm aaa.*` providers (24)
 
-- [ ] `apm aaa active-directory`
-- [ ] `apm aaa active-directory-trusted-domains`
-- [ ] `apm aaa crldp`
-- [ ] `apm aaa endpoint-management-system`
-- [ ] `apm aaa f5-mfa-configuration`
-- [ ] `apm aaa f5-service-connector`
-- [ ] `apm aaa http`
-- [ ] `apm aaa http-connector-request`
-- [ ] `apm aaa http-connector-transport`
-- [ ] `apm aaa kerberos`
-- [ ] `apm aaa kerberos-keytab-file`
-- [ ] `apm aaa ldap`
-- [ ] `apm aaa oam`
-- [ ] `apm aaa oauth-provider`
-- [ ] `apm aaa oauth-request`
-- [ ] `apm aaa oauth-server`
-- [ ] `apm aaa ocsp`
-- [ ] `apm aaa okta-connector`
-- [ ] `apm aaa radius`
-- [ ] `apm aaa saml`
-- [ ] `apm aaa saml-idp-automation`
-- [ ] `apm aaa saml-idp-connector`
-- [ ] `apm aaa securid`
-- [ ] `apm aaa tacacsplus`
+- [x] `apm aaa active-directory`
+- [x] `apm aaa active-directory-trusted-domains`
+- [x] `apm aaa crldp`
+- [x] `apm aaa endpoint-management-system`
+- [x] `apm aaa f5-mfa-configuration`
+- [x] `apm aaa f5-service-connector`
+- [x] `apm aaa http`
+- [x] `apm aaa http-connector-request`
+- [x] `apm aaa http-connector-transport`
+- [x] `apm aaa kerberos`
+- [x] `apm aaa kerberos-keytab-file`
+- [x] `apm aaa ldap`
+- [x] `apm aaa oam`
+- [x] `apm aaa oauth-provider`
+- [x] `apm aaa oauth-request`
+- [x] `apm aaa oauth-server`
+- [x] `apm aaa ocsp`
+- [x] `apm aaa okta-connector`
+- [x] `apm aaa radius`
+- [x] `apm aaa saml`
+- [x] `apm aaa saml-idp-automation`
+- [x] `apm aaa saml-idp-connector`
+- [x] `apm aaa securid`
+- [x] `apm aaa tacacsplus`
 
 ### Bundle 28 — `apm profile.*` + `apm sso.*` (16)
 
-- [ ] `apm profile access`
-- [ ] `apm profile connectivity`
-- [ ] `apm profile exchange`
-- [ ] `apm profile oauth`
-- [ ] `apm profile vdi`
-- [ ] `apm sso basic`
-- [ ] `apm sso form-based`
-- [ ] `apm sso form-basedv2`
-- [ ] `apm sso kerberos`
-- [ ] `apm sso ntlmv1`
-- [ ] `apm sso ntlmv2`
-- [ ] `apm sso oauth-bearer`
-- [ ] `apm sso saml`
-- [ ] `apm sso saml-resource`
-- [ ] `apm sso saml-sp-automation`
-- [ ] `apm sso saml-sp-connector`
+- [x] `apm profile access`
+- [x] `apm profile connectivity`
+- [x] `apm profile exchange`
+- [x] `apm profile oauth`
+- [x] `apm profile vdi`
+- [x] `apm sso basic`
+- [x] `apm sso form-based`
+- [x] `apm sso form-basedv2`
+- [x] `apm sso kerberos`
+- [x] `apm sso ntlmv1`
+- [x] `apm sso ntlmv2`
+- [x] `apm sso oauth-bearer`
+- [x] `apm sso saml`
+- [x] `apm sso saml-resource`
+- [x] `apm sso saml-sp-automation`
+- [x] `apm sso saml-sp-connector`
 
 ### Bundle 29 — `apm resource.*` + remote-desktop (16)
 
-- [ ] `apm resource address-space`
-- [ ] `apm resource app-tunnel`
-- [ ] `apm resource client-rate-class`
-- [ ] `apm resource client-traffic-classifier`
-- [ ] `apm resource ipv6-leasepool`
-- [ ] `apm resource leasepool`
-- [ ] `apm resource network-access`
-- [ ] `apm resource portal-access`
-- [ ] `apm resource remote-desktop citrix`
-- [ ] `apm resource remote-desktop citrix-client-bundle`
-- [ ] `apm resource remote-desktop citrix-client-package-file`
-- [ ] `apm resource remote-desktop quest`
-- [ ] `apm resource remote-desktop rdp`
-- [ ] `apm resource remote-desktop vmware-view`
-- [ ] `apm resource sandbox`
-- [ ] `apm resource webtop`
-- [ ] `apm resource webtop-link`
+- [x] `apm resource address-space`
+- [x] `apm resource app-tunnel`
+- [x] `apm resource client-rate-class`
+- [x] `apm resource client-traffic-classifier`
+- [x] `apm resource ipv6-leasepool`
+- [x] `apm resource leasepool`
+- [x] `apm resource network-access`
+- [x] `apm resource portal-access`
+- [x] `apm resource remote-desktop citrix`
+- [x] `apm resource remote-desktop citrix-client-bundle`
+- [x] `apm resource remote-desktop citrix-client-package-file`
+- [x] `apm resource remote-desktop quest`
+- [x] `apm resource remote-desktop rdp`
+- [x] `apm resource remote-desktop vmware-view`
+- [x] `apm resource sandbox`
+- [x] `apm resource webtop`
+- [x] `apm resource webtop-link`
 
 ### Bundle 30 — `apm oauth.*` (7)
 
-- [ ] `apm oauth jwk-config`
-- [ ] `apm oauth jwt-config`
-- [ ] `apm oauth jwt-provider-list`
-- [ ] `apm oauth oauth-claim`
-- [ ] `apm oauth oauth-client-app`
-- [ ] `apm oauth oauth-resource-server`
-- [ ] `apm oauth oauth-scope`
+- [x] `apm oauth jwk-config`
+- [x] `apm oauth jwt-config`
+- [x] `apm oauth jwt-provider-list`
+- [x] `apm oauth oauth-claim`
+- [x] `apm oauth oauth-client-app`
+- [x] `apm oauth oauth-resource-server`
+- [x] `apm oauth oauth-scope`
 
 ### Bundle 31 — `apm saml.*` + NTLM + ACL + others (15)
 
-- [ ] `apm saml artifact-resolution-service`
-- [ ] `apm saml attribute-consuming-service`
-- [ ] `apm saml auth-context-class-list`
-- [ ] `apm ntlm machine-account`
-- [ ] `apm ntlm ntlm-auth`
-- [ ] `apm acl`
-- [ ] `apm log-setting`
-- [ ] `apm url-filter`
-- [ ] `apm swg-scheme`
-- [ ] `apm client image`
-- [ ] `apm configuration captcha`
-- [ ] `apm epsec epsec-package`
-- [ ] `apm apm-avr-config`
-- [ ] `apm report custom-report-field`
-- [ ] `apm policy customization-group`
-- [ ] `apm policy customization-languages`
-- [ ] `apm policy image-file`
-- [ ] `apm policy windows-group-policy-file`
+- [x] `apm saml artifact-resolution-service`
+- [x] `apm saml attribute-consuming-service`
+- [x] `apm saml auth-context-class-list`
+- [x] `apm ntlm machine-account`
+- [x] `apm ntlm ntlm-auth`
+- [x] `apm acl`
+- [x] `apm log-setting`
+- [x] `apm url-filter`
+- [x] `apm swg-scheme`
+- [x] `apm client image`
+- [x] `apm configuration captcha`
+- [x] `apm epsec epsec-package`
+- [x] `apm apm-avr-config`
+- [x] `apm report custom-report-field`
+- [x] `apm policy customization-group`
+- [x] `apm policy customization-languages`
+- [x] `apm policy image-file`
+- [x] `apm policy windows-group-policy-file`
 
 ### Bundle 32 — `pem.*` globals + protocol (9)
 

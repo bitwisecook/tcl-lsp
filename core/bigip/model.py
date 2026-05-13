@@ -2854,6 +2854,113 @@ class BigipConfig:
     # Bundle 26 — net sfc (2 kinds).
     net_sfc_chain: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
     net_sfc_sf: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    # Bundles 27-31 — apm.* minimal kinds.
+    apm_aaa_active_directory: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_active_directory_trusted_domains: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_aaa_crldp: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_endpoint_management_system: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_aaa_f5_mfa_configuration: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_f5_service_connector: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_http: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_http_connector_request: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_http_connector_transport: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_kerberos: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_kerberos_keytab_file: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_ldap: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_oam: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_oauth_provider: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_oauth_request: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_oauth_server: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_ocsp: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_okta_connector: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_radius: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_saml: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_saml_idp_automation: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_saml_idp_connector: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_securid: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_aaa_tacacsplus: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_profile_access: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_profile_connectivity: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_profile_exchange: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_profile_oauth: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_profile_vdi: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_basic: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_form_based: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_form_basedv2: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_kerberos: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_ntlmv1: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_ntlmv2: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_oauth_bearer: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_saml: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_saml_resource: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_saml_sp_automation: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_sso_saml_sp_connector: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_address_space: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_app_tunnel: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_client_rate_class: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_client_traffic_classifier: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_resource_ipv6_leasepool: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_leasepool: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_network_access: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_portal_access: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_remote_desktop_citrix: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_resource_remote_desktop_citrix_client_bundle: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_resource_remote_desktop_citrix_client_package_file: dict[str, BigipApmMinimalObject] = (
+        field(default_factory=dict)
+    )
+    apm_resource_remote_desktop_quest: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_resource_remote_desktop_rdp: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_remote_desktop_vmware_view: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_resource_sandbox: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_webtop: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_resource_webtop_link: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_jwk_config: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_jwt_config: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_jwt_provider_list: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_oauth_claim: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_oauth_client_app: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_oauth_resource_server: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_oauth_oauth_scope: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_saml_artifact_resolution_service: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_saml_attribute_consuming_service: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_saml_auth_context_class_list: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_ntlm_machine_account: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_ntlm_ntlm_auth: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_acl: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_log_setting: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_url_filter: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_swg_scheme: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_client_image: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_configuration_captcha: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_epsec_epsec_package: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_apm_avr_config: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_report_custom_report_field: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_policy_customization_group: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_policy_customization_languages: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_policy_image_file: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    apm_policy_windows_group_policy_file: dict[str, BigipApmMinimalObject] = field(
+        default_factory=dict
+    )
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

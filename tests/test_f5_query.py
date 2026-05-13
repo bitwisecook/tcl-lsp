@@ -5330,3 +5330,59 @@ def test_net_bundles_21_to_26_dispatch():
     ]:
         res = _run(f".net.{label}[].kind", _NET_BUNDLES_CONF)
         assert res.values_per_file["mem://1"], f"{label}: no values"
+
+
+# Bundles 27-31 — apm.* minimal kinds (82 across aaa, profile/sso, resource,
+# oauth, saml/ntlm/policy customisation).
+_APM_BUNDLES_CONF = """apm aaa active-directory /Common/ad1 { description "ad" }
+apm aaa kerberos /Common/krb1 { description "k" }
+apm aaa ldap /Common/al1 { description "l" }
+apm aaa radius /Common/ar1 { description "r" }
+apm profile access /Common/pa1 { description "pa" }
+apm profile connectivity /Common/pc1 { description "pc" }
+apm sso basic /Common/sb1 { description "sb" }
+apm sso saml /Common/ss1 { description "ss" }
+apm resource address-space /Common/ras1 { description "ras" }
+apm resource portal-access /Common/rpa1 { description "rpa" }
+apm resource remote-desktop citrix /Common/rdc1 { description "rdc" }
+apm resource remote-desktop rdp /Common/rrdp1 { description "rrdp" }
+apm oauth jwk-config /Common/jwk1 { description "j" }
+apm oauth oauth-claim /Common/oc1 { description "oc" }
+apm saml artifact-resolution-service /Common/ars1 { description "ars" }
+apm ntlm machine-account /Common/nm1 { description "nm" }
+apm acl /Common/acl1 { description "acl" }
+apm log-setting /Common/ls1 { description "ls" }
+apm url-filter /Common/uf1 { description "uf" }
+apm swg-scheme /Common/ss2 { description "ss" }
+apm client image /Common/ci1 { description "ci" }
+apm policy customization-group /Common/cg1 { description "cg" }
+"""
+
+
+def test_apm_bundles_27_to_31_dispatch():
+    for label in [
+        "aaa-active-directory",
+        "aaa-kerberos",
+        "aaa-ldap",
+        "aaa-radius",
+        "profile-access",
+        "profile-connectivity",
+        "sso-basic",
+        "sso-saml",
+        "resource-address-space",
+        "resource-portal-access",
+        "resource-remote-desktop-citrix",
+        "resource-remote-desktop-rdp",
+        "oauth-jwk-config",
+        "oauth-oauth-claim",
+        "saml-artifact-resolution-service",
+        "ntlm-machine-account",
+        "acl",
+        "log-setting",
+        "url-filter",
+        "swg-scheme",
+        "client-image",
+        "policy-customization-group",
+    ]:
+        res = _run(f".apm.{label}[].kind", _APM_BUNDLES_CONF)
+        assert res.values_per_file["mem://1"], f"{label}: no values"
