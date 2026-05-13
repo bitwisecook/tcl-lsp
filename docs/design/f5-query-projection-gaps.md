@@ -1,0 +1,339 @@
+# f5 query — projection enrichment backlog
+
+## What this file is
+
+A working checklist of properties that the authoritative TMSH option
+set documents on a configured object but the typed projection in
+`core/bigip/query/projection.py` does not surface today. Each line
+names one property; the corresponding field needs to be parsed in
+`core/bigip/parser.py` (after the dataclass in `core/bigip/model.py`
+gains the field) and exposed via the per-kind field map in
+`core/bigip/query/projection.py`.
+
+## How to work through it
+
+1. Pick a bundle (a top-level `##` header below).
+2. For every unticked field in the bundle:
+   - Add the field (with an empty / default value) to the relevant
+     dataclass in `core/bigip/model.py`.
+   - Populate it in the relevant `_parse_*` function in
+     `core/bigip/parser.py`. Use `_description` / `_unquote` /
+     `_state_flag` where appropriate. Flag-style options (`internal`,
+     `ip-forward`, …) live in `props` with an empty string value;
+     surface them as `bool` via `"<flag>" in props`.
+   - Add an entry to the per-kind `_*_FIELDS` map in
+     `core/bigip/query/projection.py`. Promote to `ref_kind=` when
+     the field references another projected kind.
+3. Add at least one test in `tests/test_f5_query.py` covering the new
+   field (and any new `PathRef` chain it enables).
+4. Tick the line in this file.
+5. Commit the bundle as one change.
+
+Run `make ci-fast` before committing each bundle, and the broader
+`tests/test_f5_query.py` plus `tests/` sweep before opening a PR.
+
+## Notes on the checklist
+
+- Some "options" in the underlying TMSH grammar are enum values
+  (`automap`, `lsn`, `snat` under `source-address-translation type`),
+  bare keywords (`add` / `delete` / `modify` / `replace-all-with`),
+  or sub-block keys. These have been filtered out — only items below
+  are real, addressable properties.
+- Where the new field is a reference to another projected kind, the
+  line carries a `→` annotation. Promote those to `PathRef` with the
+  appropriate `ref_kind=` rather than a plain string.
+- `(needs sub-block walker)` marks properties that live inside a
+  numbered or anonymous sub-block; the parser already has helpers
+  (`_collect_named_property_from_subblocks`,
+  `_collect_named_property_from_anon_subblocks`,
+  `_parse_multitoken_keyed_entries`) — pick or extend them as needed.
+
+---
+
+## Bundle 1 — cert / key metadata
+
+### `cm cert`
+
+- [ ] `issuer`
+- [ ] `subject`
+- [ ] `subject-alternative-name`
+- [ ] `expiration-date`
+- [ ] `expiration-string`
+- [ ] `fingerprint`
+- [ ] `serial-number`
+- [ ] `version`
+- [ ] `key-type`
+- [ ] `certificate-key-size`
+- [ ] `is-bundle`
+- [ ] `email`
+- [ ] `source-path`
+- [ ] `system-path`
+- [ ] `size`
+- [ ] `mode`
+- [ ] `create-time`
+- [ ] `created-by`
+- [ ] `last-update-time`
+- [ ] `updated-by`
+
+### `cm key`
+
+- [ ] `key-size`
+- [ ] `key-type`
+- [ ] `security-type`
+- [ ] `source-path`
+- [ ] `system-path`
+- [ ] `size`
+- [ ] `mode`
+- [ ] `create-time`
+- [ ] `created-by`
+- [ ] `last-update-time`
+- [ ] `updated-by`
+
+### `sys file ssl-cert` (extend)
+
+- [ ] `expiration-date`
+- [ ] `key-type`
+- [ ] `is-bundle`
+- [ ] `certificate-key-size`
+- [ ] `issuer-cert` → `sys file ssl-cert`
+- [ ] `serial-number`
+- [ ] `version`
+- [ ] `subject-alternative-name`
+- [ ] `bundle-certificates`
+- [ ] `cert-validation-options`
+- [ ] `cert-validators`
+- [ ] `checksum`
+- [ ] `mode`
+- [ ] `size`
+- [ ] `create-time`
+- [ ] `created-by`
+- [ ] `last-update-time`
+- [ ] `updated-by`
+
+### `sys file ssl-key` (extend)
+
+- [ ] `checksum`
+- [ ] `mode`
+- [ ] `size`
+- [ ] `create-time`
+- [ ] `created-by`
+- [ ] `last-update-time`
+- [ ] `updated-by`
+
+---
+
+## Bundle 2 — `ltm virtual` flags + refs
+
+- [ ] `address-status`
+- [ ] `auto-discovery`
+- [ ] `cmp-enabled`
+- [ ] `eviction-protected`
+- [ ] `dhcp-relay` (bool flag)
+- [ ] `internal` (bool flag)
+- [ ] `ip-forward` (bool flag)
+- [ ] `l2-forward` (bool flag)
+- [ ] `reject` (bool flag)
+- [ ] `nat64`
+- [ ] `gtm-score`
+- [ ] `mirror`
+- [ ] `service-down-immediate-action`
+- [ ] `source-port`
+- [ ] `serverssl-use-sni`
+- [ ] `rate-limit-dst-mask`
+- [ ] `rate-limit-src-mask`
+- [ ] `per-flow-request-access-policy` → `apm policy access-policy`
+- [ ] `transparent-nexthop` → `net vlan`
+- [ ] `rate-class`
+
+---
+
+## Bundle 3 — `ltm pool` scalars
+
+- [ ] `connection-limit`
+- [ ] `rate-limit`
+- [ ] `ratio`
+- [ ] `down-interval`
+- [ ] `interval`
+- [ ] `min-up-members-action`
+- [ ] `min-up-members-checking`
+- [ ] `ip-tos-to-client`
+- [ ] `ip-tos-to-server`
+- [ ] `link-qos-to-client`
+- [ ] `link-qos-to-server`
+- [ ] `gateway-failsafe-device`
+- [ ] `ignore-persisted-weight`
+- [ ] `inherit-profile`
+- [ ] `queue-on-connection-limit`
+- [ ] `address-family`
+- [ ] `autopopulate`
+- [ ] `profiles` (list) → `ltm profile`
+
+---
+
+## Bundle 4 — `ltm persistence` behaviour flags
+
+- [ ] `match-across-pools`
+- [ ] `match-across-services`
+- [ ] `match-across-virtuals`
+- [ ] `mirror`
+- [ ] `override-connection-limit`
+- [ ] `cookie-name`
+- [ ] `cookie-encryption`
+- [ ] `cookie-encryption-passphrase`
+- [ ] `httponly`
+- [ ] `secure`
+- [ ] `expiration`
+- [ ] `method`
+- [ ] `hash-length`
+- [ ] `hash-offset`
+- [ ] `always-send`
+
+---
+
+## Bundle 5 — `net.*` enrichments
+
+### `net vlan`
+
+- [ ] `failsafe-action`
+- [ ] `failsafe-timeout`
+- [ ] `fwd-mode`
+- [ ] `hardware-syncookie`
+- [ ] `learning`
+- [ ] `tag-mode`
+- [ ] `virtual-wire`
+- [ ] `source-checking`
+- [ ] `syn-flood-rate-limit`
+- [ ] `syncache-threshold`
+- [ ] `service-policy`
+
+### `net self`
+
+- [ ] `service-policy`
+- [ ] `fw-enforced-policy`
+- [ ] `fw-staged-policy`
+- [ ] `inherited-traffic-group`
+- [ ] `address-source`
+
+### `net route-domain`
+
+- [ ] `bwc-policy`
+- [ ] `connection-limit`
+- [ ] `flow-eviction-policy`
+- [ ] `routing-protocol` (list)
+- [ ] `security-nat-policy`
+- [ ] `service-policy`
+
+### `net interface`
+
+- [ ] `mtu`
+- [ ] `flow-control`
+- [ ] `mac-address`
+- [ ] `media-active`
+- [ ] `media-max`
+- [ ] `media-sfp`
+- [ ] `port-fwd-mode`
+- [ ] `qinq-ethertype`
+- [ ] `stp`
+- [ ] `stp-edge-port`
+- [ ] `stp-link-type`
+- [ ] `stp-auto-edge-port`
+- [ ] `stp-reset`
+- [ ] `sflow` (needs sub-block walker; summary scalar)
+- [ ] `vendor`
+- [ ] `vendor-oui`
+- [ ] `vendor-partnum`
+- [ ] `vendor-revision`
+- [ ] `virtual-wire`
+- [ ] `transmitter-technology`
+- [ ] `lacp-port-priority`
+
+### `net tunnels tunnel`
+
+- [ ] `mtu`
+- [ ] `mode`
+- [ ] `idle-timeout`
+- [ ] `auto-lasthop`
+- [ ] `secondary-address`
+- [ ] `traffic-group` → `cm traffic-group`
+- [ ] `transparent`
+- [ ] `key`
+- [ ] `use-pmtu`
+- [ ] `tos`
+
+### `net dns-resolver`
+
+- [ ] `nameservers` (needs sub-block walker; surface keys)
+- [ ] `answer-default-zones`
+- [ ] `prefetch`
+- [ ] `nameserver-min-rtt`
+- [ ] `nameserver-ttl`
+- [ ] `outbound-msg-retry`
+
+### `net stp`
+
+- [ ] `priority`
+- [ ] `external-path-cost`
+- [ ] `internal-path-cost`
+- [ ] `vlans` (list) → `net vlan`
+
+---
+
+## Bundle 6 — `apm` enrichments
+
+### `apm oauth db-instance`
+
+- [ ] `db-name`
+- [ ] `purge-frequency`
+- [ ] `purge-time`
+
+### `apm policy agent`
+
+The current projection covers `agent_type` and `customization_group`
+only. Each agent sub-type carries its own grammar; the items below
+are the meaningful, addressable properties that occur across the
+common AAA / ending / Kerberos sub-types.
+
+- [ ] `auth` (bool flag — e.g. on AAA agents)
+- [ ] `auth-max-logon-attempt` / `max-logon-attempt`
+- [ ] `fetch-nested-groups`
+- [ ] `fetch-primary-groups`
+- [ ] `password-source`
+- [ ] `query`
+- [ ] `query-attrname`
+- [ ] `query-filter`
+- [ ] `server` → `apm aaa <type>` (no projected kind yet)
+- [ ] `show-extended-error`
+- [ ] `upn`
+- [ ] `username-source`
+- [ ] `attribute-consuming-service`
+- [ ] `attr-consuming-service-session-var`
+- [ ] `hints`
+
+---
+
+## Out-of-scope follow-ups
+
+These need a model rewrite or a new top-level kind, so they are not
+in the bundles above:
+
+- **`ltm profile`** — per-type fields (HTTP `idle-timeout`,
+  client-ssl `ciphers` / `cert` / `chain` / `key`, …) belong on
+  per-type kinds; the current single-container projection collapses
+  every profile sub-type into one container. Consider splitting into
+  `ltm profile http`, `ltm profile client-ssl`, etc.
+- **`ltm monitor`** — same shape: adaptive / args / send-recv-
+  per-protocol fields belong on per-type kinds.
+- **`sys snmp`** — the SNMP stanza is essentially several sub-blocks
+  (`communities`, `users`, `traps`, `process-monitors`,
+  `disk-monitors`, plus `sys-contact` / `sys-location`); needs a
+  structural pass.
+- **`sys ntp` restrict** — per-network ACL sub-block.
+- **`cm ha-group`** — new top-level kind; would unblock
+  `cm traffic-group.ha-group` as a `PathRef`.
+- **`ltm rate-class`** — new top-level kind; would unblock
+  `ltm virtual.rate-class` as a `PathRef`.
+- **`gtm pool` members** — the per-member sub-objects (with their
+  own `monitor`, `member-order`, `service-port`) are not modelled.
+- **`cm cert` / `sys file ssl-cert` audit fields** — `create-time`
+  etc. are listed above; verify whether the parser receives them on
+  a real save (TMSH may suppress them on `list` output).
