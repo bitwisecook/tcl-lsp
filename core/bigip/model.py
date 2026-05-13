@@ -2990,6 +2990,124 @@ class BigipConfig:
     sys_file_ssl_certs: dict[str, BigipSysFileSslCert] = field(default_factory=dict)
     sys_file_ssl_keys: dict[str, BigipSysFileSslKey] = field(default_factory=dict)
     sys_management_routes: dict[str, BigipSysManagementRoute] = field(default_factory=dict)
+    # Bundles 33-41 — sys.* minimal kinds.
+    sys_ha_group: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_application_service: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_application_template: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_application_apl_script: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_application_custom_stat: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_autoscale_group: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_db: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_httpd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_sshd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_syslog: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_outbound_smtp: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_smtp_server: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_feature_module: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_console: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_log_rotate: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_ucs: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_url_db_download_schedule: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_url_db_url_category: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_data_group: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_external_monitor: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_ifile: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_rewrite_rule: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_apache_ssl_cert: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_ssl_crl: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_lwtunneltbl: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_browser_capabilities_db: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_file_device_capabilities_db: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_log_config_destination_alertd: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_arcsight: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_ipfix: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_log_config_destination_local_database: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_local_syslog: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_management_port: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_remote_high_speed_log: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_remote_syslog: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_destination_splunk: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_log_config_filter: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_log_config_publisher: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_daemon_log_settings_clusterd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_daemon_log_settings_csyncd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_daemon_log_settings_icr_eventd: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_daemon_log_settings_icrd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_daemon_log_settings_lind: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_daemon_log_settings_mcpd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_daemon_log_settings_tmm: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_cert: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_key: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_crl: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_csr: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_master_key: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_cert_order_manager: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_ca_bundle_manager: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_cert_validator_crl: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_cert_validator_ocsp: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_cert_validation_response_ocsp: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_crypto_client: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_server: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_acceleration_strategy: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_fips_key: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_crypto_fips_external_hsm: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_ipfix_destination: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_ipfix_element: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_ipfix_irules: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_icall_handler_periodic: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_icall_handler_perpetual: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_icall_handler_triggered: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_icall_script: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_icall_istats_trigger: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_management_dhcp: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_management_ip: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_management_ovsdb: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_management_proxy_config: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_state_mirroring: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_datastor: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_sflow_receiver: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_sflow_global_settings_http: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_sflow_global_settings_interface: dict[str, BigipSysMinimalObject] = field(
+        default_factory=dict
+    )
+    sys_sflow_global_settings_system: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_sflow_global_settings_vlan: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_software_hotfix: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_software_image: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_software_signature: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_software_volume: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_alert_lcd: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_aom: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_appiq_config: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_cluster: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_config: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_default_config: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_failover: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_internal_proxy: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_traffic: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_tmm_traffic: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_turboflex_profile_config: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_fpga_firmware_config: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
     # security.* — AFM / DDoS / inspection / device-id.
     security_firewall_port_lists: dict[str, BigipSecurityFirewallPortList] = field(
         default_factory=dict
@@ -3281,6 +3399,31 @@ class BigipConfig:
     auth_tacacs: dict[str, BigipAuthTacacs] = field(default_factory=dict)
     auth_cert_ldaps: dict[str, BigipAuthCertLdap] = field(default_factory=dict)
     auth_apm_auths: dict[str, BigipAuthApmAuth] = field(default_factory=dict)
+    # Bundle 42 — vcmp.* minimal kinds.
+    vcmp_guests: dict[str, BigipVcmpMinimalObject] = field(default_factory=dict)
+    vcmp_traffic_profiles: dict[str, BigipVcmpMinimalObject] = field(default_factory=dict)
+    vcmp_virtual_disks: dict[str, BigipVcmpMinimalObject] = field(default_factory=dict)
+    vcmp_virtual_disk_templates: dict[str, BigipVcmpMinimalObject] = field(default_factory=dict)
+    # Bundle 43 — cm.* follow-ons.
+    cm_ha_groups: dict[str, BigipCmMinimalObject] = field(default_factory=dict)
+    cm_config_sync: dict[str, BigipCmMinimalObject] = field(default_factory=dict)
+    # Bundle 44 — cli.* minimal kinds.
+    cli_admin_partitions: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_alias_private: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_alias_shared: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_global_settings: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_preference: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_script: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_transaction: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    cli_version: dict[str, BigipCliMinimalObject] = field(default_factory=dict)
+    # Bundle 45 — api-protection.* minimal kinds.
+    api_protection_profile_apiprotection: dict[str, BigipApiProtectionMinimalObject] = field(
+        default_factory=dict
+    )
+    api_protection_response: dict[str, BigipApiProtectionMinimalObject] = field(
+        default_factory=dict
+    )
+    api_protection_server: dict[str, BigipApiProtectionMinimalObject] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

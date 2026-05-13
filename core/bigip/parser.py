@@ -781,6 +781,68 @@ _TWO_WORD_TYPES = frozenset(
         "protocol diameter-avp",
         "protocol radius-avp",
         "reporting format-script",
+        # Bundle 33 — sys core configuration two-word kinds.
+        "application service",
+        "application template",
+        "application apl-script",
+        "application custom-stat",
+        "url-db download-schedule",
+        "url-db url-category",
+        # Bundle 34 — sys file.* two-word kinds.
+        "file data-group",
+        "file external-monitor",
+        "file ifile",
+        "file rewrite-rule",
+        "file apache-ssl-cert",
+        "file ssl-crl",
+        "file lwtunneltbl",
+        "file browser-capabilities-db",
+        "file device-capabilities-db",
+        # Bundle 35 — sys log-config two-word kinds.
+        "log-config filter",
+        "log-config publisher",
+        # Bundle 36 — sys daemon-log-settings two-word kinds.
+        "daemon-log-settings clusterd",
+        "daemon-log-settings csyncd",
+        "daemon-log-settings icr-eventd",
+        "daemon-log-settings icrd",
+        "daemon-log-settings lind",
+        "daemon-log-settings mcpd",
+        "daemon-log-settings tmm",
+        # Bundle 37 — sys crypto two-word kinds.
+        "crypto cert",
+        "crypto key",
+        "crypto crl",
+        "crypto csr",
+        "crypto master-key",
+        "crypto cert-order-manager",
+        "crypto ca-bundle-manager",
+        "crypto client",
+        "crypto server",
+        "crypto acceleration-strategy",
+        # Bundle 38 — sys ipfix + icall.
+        "ipfix destination",
+        "ipfix element",
+        "ipfix irules",
+        "icall script",
+        "icall istats-trigger",
+        # Bundle 39 — sys sflow two-word kind.
+        "sflow receiver",
+        # Bundle 40 — sys software two-word kinds.
+        "software hotfix",
+        "software image",
+        "software signature",
+        "software volume",
+        # Bundle 41 — sys runtime two-word kinds.
+        "alert lcd",
+        "appiq config",
+        "turboflex profile-config",
+        "fpga firmware-config",
+        # Bundle 44 — cli alias.
+        "alias private",
+        "alias shared",
+        # Bundle 45 — api-protection profile.
+        "profile apiprotection",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -983,6 +1045,31 @@ _THREE_WORD_TYPES = frozenset(
         # pem bundle 32 — protocol profile sub-kinds.
         "protocol profile gx",
         "protocol profile radius",
+        # sys bundle 35 — log-config destination three-word kinds.
+        "log-config destination alertd",
+        "log-config destination arcsight",
+        "log-config destination ipfix",
+        "log-config destination local-database",
+        "log-config destination local-syslog",
+        "log-config destination management-port",
+        "log-config destination remote-high-speed-log",
+        "log-config destination remote-syslog",
+        "log-config destination splunk",
+        # sys bundle 37 — crypto three-word kinds.
+        "crypto cert-validator crl",
+        "crypto cert-validator ocsp",
+        "crypto cert-validation-response ocsp",
+        "crypto fips key",
+        "crypto fips external-hsm",
+        # sys bundle 38 — icall handler three-word kinds.
+        "icall handler periodic",
+        "icall handler perpetual",
+        "icall handler triggered",
+        # sys bundle 39 — sflow global-settings three-word kinds.
+        "sflow global-settings http",
+        "sflow global-settings interface",
+        "sflow global-settings system",
+        "sflow global-settings vlan",
         # ltm message-routing bundle 15 — three-word kinds.
         "message-routing diameter peer",
         "message-routing diameter route",
@@ -2103,7 +2190,112 @@ def _parse_pem_minimal(
     )
 
 
-_SYS_MINIMAL_DISPATCH: dict[str, str] = {}
+_SYS_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 33 — sys core configuration kinds (18).
+    "ha-group": "sys_ha_group",
+    "application service": "sys_application_service",
+    "application template": "sys_application_template",
+    "application apl-script": "sys_application_apl_script",
+    "application custom-stat": "sys_application_custom_stat",
+    "autoscale-group": "sys_autoscale_group",
+    "db": "sys_db",
+    "httpd": "sys_httpd",
+    "sshd": "sys_sshd",
+    "syslog": "sys_syslog",
+    "outbound-smtp": "sys_outbound_smtp",
+    "smtp-server": "sys_smtp_server",
+    "feature-module": "sys_feature_module",
+    "console": "sys_console",
+    "log-rotate": "sys_log_rotate",
+    "ucs": "sys_ucs",
+    "url-db download-schedule": "sys_url_db_download_schedule",
+    "url-db url-category": "sys_url_db_url_category",
+    # Bundle 34 — sys file.* (9).
+    "file data-group": "sys_file_data_group",
+    "file external-monitor": "sys_file_external_monitor",
+    "file ifile": "sys_file_ifile",
+    "file rewrite-rule": "sys_file_rewrite_rule",
+    "file apache-ssl-cert": "sys_file_apache_ssl_cert",
+    "file ssl-crl": "sys_file_ssl_crl",
+    "file lwtunneltbl": "sys_file_lwtunneltbl",
+    "file browser-capabilities-db": "sys_file_browser_capabilities_db",
+    "file device-capabilities-db": "sys_file_device_capabilities_db",
+    # Bundle 35 — sys log-config (11).
+    "log-config destination alertd": "sys_log_config_destination_alertd",
+    "log-config destination arcsight": "sys_log_config_destination_arcsight",
+    "log-config destination ipfix": "sys_log_config_destination_ipfix",
+    "log-config destination local-database": "sys_log_config_destination_local_database",
+    "log-config destination local-syslog": "sys_log_config_destination_local_syslog",
+    "log-config destination management-port": "sys_log_config_destination_management_port",
+    "log-config destination remote-high-speed-log": "sys_log_config_destination_remote_high_speed_log",
+    "log-config destination remote-syslog": "sys_log_config_destination_remote_syslog",
+    "log-config destination splunk": "sys_log_config_destination_splunk",
+    "log-config filter": "sys_log_config_filter",
+    "log-config publisher": "sys_log_config_publisher",
+    # Bundle 36 — sys daemon-log-settings (7).
+    "daemon-log-settings clusterd": "sys_daemon_log_settings_clusterd",
+    "daemon-log-settings csyncd": "sys_daemon_log_settings_csyncd",
+    "daemon-log-settings icr-eventd": "sys_daemon_log_settings_icr_eventd",
+    "daemon-log-settings icrd": "sys_daemon_log_settings_icrd",
+    "daemon-log-settings lind": "sys_daemon_log_settings_lind",
+    "daemon-log-settings mcpd": "sys_daemon_log_settings_mcpd",
+    "daemon-log-settings tmm": "sys_daemon_log_settings_tmm",
+    # Bundle 37 — sys crypto (15).
+    "crypto cert": "sys_crypto_cert",
+    "crypto key": "sys_crypto_key",
+    "crypto crl": "sys_crypto_crl",
+    "crypto csr": "sys_crypto_csr",
+    "crypto master-key": "sys_crypto_master_key",
+    "crypto cert-order-manager": "sys_crypto_cert_order_manager",
+    "crypto ca-bundle-manager": "sys_crypto_ca_bundle_manager",
+    "crypto cert-validator crl": "sys_crypto_cert_validator_crl",
+    "crypto cert-validator ocsp": "sys_crypto_cert_validator_ocsp",
+    "crypto cert-validation-response ocsp": "sys_crypto_cert_validation_response_ocsp",
+    "crypto client": "sys_crypto_client",
+    "crypto server": "sys_crypto_server",
+    "crypto acceleration-strategy": "sys_crypto_acceleration_strategy",
+    "crypto fips key": "sys_crypto_fips_key",
+    "crypto fips external-hsm": "sys_crypto_fips_external_hsm",
+    # Bundle 38 — sys ipfix + icall (8).
+    "ipfix destination": "sys_ipfix_destination",
+    "ipfix element": "sys_ipfix_element",
+    "ipfix irules": "sys_ipfix_irules",
+    "icall handler periodic": "sys_icall_handler_periodic",
+    "icall handler perpetual": "sys_icall_handler_perpetual",
+    "icall handler triggered": "sys_icall_handler_triggered",
+    "icall script": "sys_icall_script",
+    "icall istats-trigger": "sys_icall_istats_trigger",
+    # Bundle 39 — sys management/state-mirroring/sflow (11).
+    "management-dhcp": "sys_management_dhcp",
+    "management-ip": "sys_management_ip",
+    "management-ovsdb": "sys_management_ovsdb",
+    "management-proxy-config": "sys_management_proxy_config",
+    "state-mirroring": "sys_state_mirroring",
+    "datastor": "sys_datastor",
+    "sflow receiver": "sys_sflow_receiver",
+    "sflow global-settings http": "sys_sflow_global_settings_http",
+    "sflow global-settings interface": "sys_sflow_global_settings_interface",
+    "sflow global-settings system": "sys_sflow_global_settings_system",
+    "sflow global-settings vlan": "sys_sflow_global_settings_vlan",
+    # Bundle 40 — sys software (4).
+    "software hotfix": "sys_software_hotfix",
+    "software image": "sys_software_image",
+    "software signature": "sys_software_signature",
+    "software volume": "sys_software_volume",
+    # Bundle 41 — sys runtime-adjacent config (12).
+    "alert lcd": "sys_alert_lcd",
+    "aom": "sys_aom",
+    "appiq config": "sys_appiq_config",
+    "cluster": "sys_cluster",
+    "config": "sys_config",
+    "default-config": "sys_default_config",
+    "failover": "sys_failover",
+    "internal-proxy": "sys_internal_proxy",
+    "traffic": "sys_traffic",
+    "tmm-traffic": "sys_tmm_traffic",
+    "turboflex profile-config": "sys_turboflex_profile_config",
+    "fpga firmware-config": "sys_fpga_firmware_config",
+}
 
 
 def _parse_sys_minimal(
@@ -2124,7 +2316,13 @@ def _parse_sys_minimal(
     )
 
 
-_VCMP_MINIMAL_DISPATCH: dict[str, str] = {}
+_VCMP_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 42 — vcmp.* (4 kinds).
+    "guest": "vcmp_guests",
+    "traffic-profile": "vcmp_traffic_profiles",
+    "virtual-disk": "vcmp_virtual_disks",
+    "virtual-disk-template": "vcmp_virtual_disk_templates",
+}
 
 
 def _parse_vcmp_minimal(
@@ -2145,7 +2343,11 @@ def _parse_vcmp_minimal(
     )
 
 
-_CM_MINIMAL_DISPATCH: dict[str, str] = {}
+_CM_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 43 — cm.* follow-ons (2 kinds).
+    "ha-group": "cm_ha_groups",
+    "config-sync": "cm_config_sync",
+}
 
 
 def _parse_cm_minimal(
@@ -2166,7 +2368,17 @@ def _parse_cm_minimal(
     )
 
 
-_CLI_MINIMAL_DISPATCH: dict[str, str] = {}
+_CLI_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 44 — cli.* (8 kinds).
+    "admin-partitions": "cli_admin_partitions",
+    "alias private": "cli_alias_private",
+    "alias shared": "cli_alias_shared",
+    "global-settings": "cli_global_settings",
+    "preference": "cli_preference",
+    "script": "cli_script",
+    "transaction": "cli_transaction",
+    "version": "cli_version",
+}
 
 
 def _parse_cli_minimal(
@@ -2187,7 +2399,12 @@ def _parse_cli_minimal(
     )
 
 
-_API_PROTECTION_MINIMAL_DISPATCH: dict[str, str] = {}
+_API_PROTECTION_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 45 — api-protection.* (3 kinds).
+    "profile apiprotection": "api_protection_profile_apiprotection",
+    "response": "api_protection_response",
+    "server": "api_protection_server",
+}
 
 
 # Module -> (dispatch table, parser function).  Used by the generic
@@ -5140,6 +5357,18 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     elif obj_type_g == "global-settings":
                         config.sys_global_settings[""] = _parse_sys_global_settings(
                             block.body, source_map, block
+                        )
+                    elif obj_type_g in _SYS_MINIMAL_DISPATCH:
+                        # Bare-singleton sys.* minimal kinds (``sys
+                        # httpd {``, ``sys cluster {``, etc.) fall
+                        # through to the shared minimal dispatch.
+                        attr = _SYS_MINIMAL_DISPATCH[obj_type_g]
+                        getattr(config, attr)[""] = _parse_sys_minimal(
+                            "",
+                            block.body,
+                            f"sys {obj_type_g}",
+                            source_map,
+                            block,
                         )
                 elif (
                     module_g == "ltm" and identifier_g == "" and obj_type_g in _LTM_MINIMAL_DISPATCH

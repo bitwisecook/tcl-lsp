@@ -912,160 +912,160 @@ administrative ``auth.*`` namespace projected in bundle 8.
 
 ### Bundle 33 — `sys` core configuration kinds (17)
 
-- [ ] `sys ha-group` (referenced from `cm traffic-group.ha-group`)
-- [ ] `sys application service`
-- [ ] `sys application template`
-- [ ] `sys application apl-script`
-- [ ] `sys application custom-stat`
-- [ ] `sys autoscale-group`
-- [ ] `sys db`
-- [ ] `sys httpd`
-- [ ] `sys sshd`
-- [ ] `sys syslog`
-- [ ] `sys outbound-smtp`
-- [ ] `sys smtp-server`
-- [ ] `sys feature-module`
-- [ ] `sys console`
-- [ ] `sys log-rotate`
-- [ ] `sys ucs`
-- [ ] `sys url-db download-schedule`
-- [ ] `sys url-db url-category`
+- [x] `sys ha-group` (referenced from `cm traffic-group.ha-group`)
+- [x] `sys application service`
+- [x] `sys application template`
+- [x] `sys application apl-script`
+- [x] `sys application custom-stat`
+- [x] `sys autoscale-group`
+- [x] `sys db`
+- [x] `sys httpd`
+- [x] `sys sshd`
+- [x] `sys syslog`
+- [x] `sys outbound-smtp`
+- [x] `sys smtp-server`
+- [x] `sys feature-module`
+- [x] `sys console`
+- [x] `sys log-rotate`
+- [x] `sys ucs`
+- [x] `sys url-db download-schedule`
+- [x] `sys url-db url-category`
 
 ### Bundle 34 — `sys file.*` referenceable file objects (7)
 
-- [ ] `sys file data-group`
-- [ ] `sys file external-monitor`
-- [ ] `sys file ifile`
-- [ ] `sys file rewrite-rule`
-- [ ] `sys file apache-ssl-cert`
-- [ ] `sys file ssl-crl`
-- [ ] `sys file lwtunneltbl`
-- [ ] `sys file browser-capabilities-db`
-- [ ] `sys file device-capabilities-db`
+- [x] `sys file data-group`
+- [x] `sys file external-monitor`
+- [x] `sys file ifile`
+- [x] `sys file rewrite-rule`
+- [x] `sys file apache-ssl-cert`
+- [x] `sys file ssl-crl`
+- [x] `sys file lwtunneltbl`
+- [x] `sys file browser-capabilities-db`
+- [x] `sys file device-capabilities-db`
 
 ### Bundle 35 — `sys log-config.*` HSL pipeline (12)
 
-- [ ] `sys log-config destination alertd`
-- [ ] `sys log-config destination arcsight`
-- [ ] `sys log-config destination ipfix`
-- [ ] `sys log-config destination local-database`
-- [ ] `sys log-config destination local-syslog`
-- [ ] `sys log-config destination management-port`
-- [ ] `sys log-config destination remote-high-speed-log`
-- [ ] `sys log-config destination remote-syslog`
-- [ ] `sys log-config destination splunk`
-- [ ] `sys log-config filter`
-- [ ] `sys log-config publisher`
+- [x] `sys log-config destination alertd`
+- [x] `sys log-config destination arcsight`
+- [x] `sys log-config destination ipfix`
+- [x] `sys log-config destination local-database`
+- [x] `sys log-config destination local-syslog`
+- [x] `sys log-config destination management-port`
+- [x] `sys log-config destination remote-high-speed-log`
+- [x] `sys log-config destination remote-syslog`
+- [x] `sys log-config destination splunk`
+- [x] `sys log-config filter`
+- [x] `sys log-config publisher`
 
 ### Bundle 36 — `sys daemon-log-settings.*` (7)
 
-- [ ] `sys daemon-log-settings clusterd`
-- [ ] `sys daemon-log-settings csyncd`
-- [ ] `sys daemon-log-settings icr-eventd`
-- [ ] `sys daemon-log-settings icrd`
-- [ ] `sys daemon-log-settings lind`
-- [ ] `sys daemon-log-settings mcpd`
-- [ ] `sys daemon-log-settings tmm`
+- [x] `sys daemon-log-settings clusterd`
+- [x] `sys daemon-log-settings csyncd`
+- [x] `sys daemon-log-settings icr-eventd`
+- [x] `sys daemon-log-settings icrd`
+- [x] `sys daemon-log-settings lind`
+- [x] `sys daemon-log-settings mcpd`
+- [x] `sys daemon-log-settings tmm`
 
 ### Bundle 37 — `sys crypto.*` (12)
 
-- [ ] `sys crypto cert`
-- [ ] `sys crypto key`
-- [ ] `sys crypto crl`
-- [ ] `sys crypto csr`
-- [ ] `sys crypto master-key`
-- [ ] `sys crypto cert-order-manager`
-- [ ] `sys crypto ca-bundle-manager`
-- [ ] `sys crypto cert-validator crl`
-- [ ] `sys crypto cert-validator ocsp`
-- [ ] `sys crypto cert-validation-response ocsp`
-- [ ] `sys crypto client`
-- [ ] `sys crypto server`
-- [ ] `sys crypto acceleration-strategy`
-- [ ] `sys crypto fips key`
-- [ ] `sys crypto fips external-hsm`
+- [x] `sys crypto cert`
+- [x] `sys crypto key`
+- [x] `sys crypto crl`
+- [x] `sys crypto csr`
+- [x] `sys crypto master-key`
+- [x] `sys crypto cert-order-manager`
+- [x] `sys crypto ca-bundle-manager`
+- [x] `sys crypto cert-validator crl`
+- [x] `sys crypto cert-validator ocsp`
+- [x] `sys crypto cert-validation-response ocsp`
+- [x] `sys crypto client`
+- [x] `sys crypto server`
+- [x] `sys crypto acceleration-strategy`
+- [x] `sys crypto fips key`
+- [x] `sys crypto fips external-hsm`
 
 ### Bundle 38 — `sys ipfix.*` + `sys icall.*` (8)
 
-- [ ] `sys ipfix destination`
-- [ ] `sys ipfix element`
-- [ ] `sys ipfix irules`
-- [ ] `sys icall handler periodic`
-- [ ] `sys icall handler perpetual`
-- [ ] `sys icall handler triggered`
-- [ ] `sys icall script`
-- [ ] `sys icall istats-trigger`
+- [x] `sys ipfix destination`
+- [x] `sys ipfix element`
+- [x] `sys ipfix irules`
+- [x] `sys icall handler periodic`
+- [x] `sys icall handler perpetual`
+- [x] `sys icall handler triggered`
+- [x] `sys icall script`
+- [x] `sys icall istats-trigger`
 
 ### Bundle 39 — `sys management*` + state-mirroring + sflow (10)
 
-- [ ] `sys management-dhcp`
-- [ ] `sys management-ip`
-- [ ] `sys management-ovsdb`
-- [ ] `sys management-proxy-config`
-- [ ] `sys state-mirroring`
-- [ ] `sys datastor`
-- [ ] `sys sflow receiver`
-- [ ] `sys sflow global-settings http`
-- [ ] `sys sflow global-settings interface`
-- [ ] `sys sflow global-settings system`
-- [ ] `sys sflow global-settings vlan`
+- [x] `sys management-dhcp`
+- [x] `sys management-ip`
+- [x] `sys management-ovsdb`
+- [x] `sys management-proxy-config`
+- [x] `sys state-mirroring`
+- [x] `sys datastor`
+- [x] `sys sflow receiver`
+- [x] `sys sflow global-settings http`
+- [x] `sys sflow global-settings interface`
+- [x] `sys sflow global-settings system`
+- [x] `sys sflow global-settings vlan`
 
 ### Bundle 40 — `sys software*` (4)
 
-- [ ] `sys software hotfix`
-- [ ] `sys software image`
-- [ ] `sys software signature`
-- [ ] `sys software volume`
+- [x] `sys software hotfix`
+- [x] `sys software image`
+- [x] `sys software signature`
+- [x] `sys software volume`
 
 ### Bundle 41 — `sys` runtime-adjacent config (8)
 
 Includes the kinds whose man page says `create/modify` but that
 many sites treat as set-once or platform-driven.
 
-- [ ] `sys alert lcd`
-- [ ] `sys aom`
-- [ ] `sys appiq config`
-- [ ] `sys cluster`
-- [ ] `sys config`
-- [ ] `sys default-config`
-- [ ] `sys failover`
-- [ ] `sys internal-proxy`
-- [ ] `sys traffic`
-- [ ] `sys tmm-traffic`
-- [ ] `sys turboflex profile-config`
-- [ ] `sys fpga firmware-config`
+- [x] `sys alert lcd`
+- [x] `sys aom`
+- [x] `sys appiq config`
+- [x] `sys cluster`
+- [x] `sys config`
+- [x] `sys default-config`
+- [x] `sys failover`
+- [x] `sys internal-proxy`
+- [x] `sys traffic`
+- [x] `sys tmm-traffic`
+- [x] `sys turboflex profile-config`
+- [x] `sys fpga firmware-config`
 
 ### Bundle 42 — `vcmp.*` (4)
 
-- [ ] `vcmp guest`
-- [ ] `vcmp traffic-profile`
-- [ ] `vcmp virtual-disk`
-- [ ] `vcmp virtual-disk-template`
+- [x] `vcmp guest`
+- [x] `vcmp traffic-profile`
+- [x] `vcmp virtual-disk`
+- [x] `vcmp virtual-disk-template`
 
 ### Bundle 43 — `cm.*` follow-ons (2)
 
-- [ ] `cm ha-group` (would unblock `cm traffic-group.ha-group` as
+- [x] `cm ha-group` (would unblock `cm traffic-group.ha-group` as
       a PathRef)
-- [ ] `cm config-sync` (singleton)
+- [x] `cm config-sync` (singleton)
 
 ### Bundle 44 — `cli.*` (8)
 
 Mostly per-user / per-session prefs. Low query value but small:
 
-- [ ] `cli admin-partitions`
-- [ ] `cli alias private`
-- [ ] `cli alias shared`
-- [ ] `cli global-settings`
-- [ ] `cli preference`
-- [ ] `cli script`
-- [ ] `cli transaction`
-- [ ] `cli version`
+- [x] `cli admin-partitions`
+- [x] `cli alias private`
+- [x] `cli alias shared`
+- [x] `cli global-settings`
+- [x] `cli preference`
+- [x] `cli script`
+- [x] `cli transaction`
+- [x] `cli version`
 
 ### Bundle 45 — `api-protection.*` (3)
 
-- [ ] `api-protection profile apiprotection`
-- [ ] `api-protection response`
-- [ ] `api-protection server`
+- [x] `api-protection profile apiprotection`
+- [x] `api-protection response`
+- [x] `api-protection server`
 
 ---
 

@@ -5411,3 +5411,68 @@ def test_pem_bundle_32_dispatch():
     ]:
         res = _run(f".pem.{label}[].kind", _PEM_BUNDLE_CONF)
         assert res.values_per_file["mem://1"], f"{label}: no values"
+
+
+# Bundles 33-45 — sys/vcmp/cm/cli/api-protection minimal kinds.
+_BUNDLES_33_45_CONF = """sys ha-group /Common/hg1 { description "hg" }
+sys application service /Common/as1 { description "as" }
+sys httpd { description "httpd" }
+sys url-db download-schedule /Common/uds1 { description "uds" }
+sys file ifile /Common/fi1 { description "fi" }
+sys log-config destination splunk /Common/lds1 { description "lds" }
+sys log-config publisher /Common/lcp1 { description "lcp" }
+sys daemon-log-settings mcpd /Common/dlsm1 { description "dlsm" }
+sys crypto cert /Common/cc1 { description "cc" }
+sys crypto cert-validator ocsp /Common/cvo1 { description "cvo" }
+sys ipfix destination /Common/id1 { description "id" }
+sys icall handler periodic /Common/ihp1 { description "ihp" }
+sys icall script /Common/is1 { description "is" }
+sys management-dhcp /Common/md1 { description "md" }
+sys sflow receiver /Common/sr1 { description "sr" }
+sys sflow global-settings http { description "sgh" }
+sys software image /Common/si1 { description "si" }
+sys cluster { description "c" }
+sys aom { description "aom" }
+vcmp guest /Common/vg1 { description "vg" }
+vcmp traffic-profile /Common/vtp1 { description "vtp" }
+cm ha-group /Common/cmh1 { description "cmh" }
+cm config-sync { description "cs" }
+cli admin-partitions { description "ap" }
+cli alias shared /Common/cas1 { description "cas" }
+cli version { description "v" }
+api-protection profile apiprotection /Common/aap1 { description "aap" }
+api-protection response /Common/apr1 { description "apr" }
+api-protection server /Common/aps1 { description "aps" }
+"""
+
+
+def test_bundles_33_to_45_dispatch():
+    for path, expected_kind in [
+        (".sys.ha-group[].kind", "sys ha-group"),
+        (".sys.application-service[].kind", "sys application service"),
+        (".sys.httpd[].kind", "sys httpd"),
+        (".sys.url-db-download-schedule[].kind", "sys url-db download-schedule"),
+        (".sys.file-ifile[].kind", "sys file ifile"),
+        (".sys.log-config-destination-splunk[].kind", "sys log-config destination splunk"),
+        (".sys.log-config-publisher[].kind", "sys log-config publisher"),
+        (".sys.crypto-cert[].kind", "sys crypto cert"),
+        (".sys.crypto-cert-validator-ocsp[].kind", "sys crypto cert-validator ocsp"),
+        (".sys.icall-handler-periodic[].kind", "sys icall handler periodic"),
+        (".sys.management-dhcp[].kind", "sys management-dhcp"),
+        (".sys.sflow-global-settings-http[].kind", "sys sflow global-settings http"),
+        (".sys.software-image[].kind", "sys software image"),
+        (".sys.cluster[].kind", "sys cluster"),
+        (".vcmp.guest[].kind", "vcmp guest"),
+        (".cm.ha-group[].kind", "cm ha-group"),
+        (".cm.config-sync[].kind", "cm config-sync"),
+        (".cli.admin-partitions[].kind", "cli admin-partitions"),
+        (".cli.alias-shared[].kind", "cli alias shared"),
+        (".cli.version[].kind", "cli version"),
+        (".api-protection.profile-apiprotection[].kind", "api-protection profile apiprotection"),
+        (".api-protection.response[].kind", "api-protection response"),
+        (".api-protection.server[].kind", "api-protection server"),
+    ]:
+        res = _run(path, _BUNDLES_33_45_CONF)
+        assert expected_kind in res.values_per_file["mem://1"], (
+            f"{path}: expected {expected_kind!r}, got {res.values_per_file['mem://1']!r}"
+        )
