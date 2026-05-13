@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from ._address import FQDN, Address, IPAddress
 from ._destination import Destination
+from ._folder import Folder, ObjectPath
 from ._network import Network
 from ._partition import Partition
 from ._port import Port, PortRange
@@ -51,8 +52,10 @@ __all__ = [
     "Address",
     "Destination",
     "FQDN",
+    "Folder",
     "IPAddress",
     "Network",
+    "ObjectPath",
     "Partition",
     "Port",
     "PortRange",

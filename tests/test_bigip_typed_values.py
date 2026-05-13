@@ -7,8 +7,10 @@ import pytest
 from core.bigip.types import (
     FQDN,
     Destination,
+    Folder,
     IPAddress,
     Network,
+    ObjectPath,
     Partition,
     Port,
     PortRange,
@@ -251,8 +253,36 @@ class TestDestination:
         d = Destination.parse("/Common/10.0.0.1:80")
         assert isinstance(d.address, IPAddress) and d.address.is_ipv4
         assert d.port.port == 80
+        # ``partition`` is a convenience property over ``folder``.
         assert d.partition is not None and d.partition.short_name == "Common"
+        assert d.folder is not None and d.folder.is_root
         assert str(d) == "/Common/10.0.0.1:80"
+
+    def test_folder_nested_ipv4_port(self):
+        # ``/Common/Application_X/10.0.0.1:80`` — partition + one
+        # folder segment + IPv4 + port.
+        d = Destination.parse("/Common/Application_X/10.0.0.1:80")
+        assert isinstance(d.address, IPAddress) and d.address.is_ipv4
+        assert d.port.port == 80
+        assert d.folder is not None
+        assert d.folder.partition.short_name == "Common"
+        assert d.folder.segments == ("Application_X",)
+        assert str(d) == "/Common/Application_X/10.0.0.1:80"
+
+    def test_folder_nested_two_levels_ipv6(self):
+        d = Destination.parse("/Common/iApps/Tenant.app/[2001:db8::1].443")
+        assert d.folder is not None
+        assert d.folder.segments == ("iApps", "Tenant.app")
+        assert isinstance(d.address, IPAddress) and d.address.is_ipv6
+        assert d.port.port == 443
+        assert str(d) == "/Common/iApps/Tenant.app/[2001:db8::1].443"
+
+    def test_folder_nested_fqdn_pool_member(self):
+        d = Destination.parse("/Common/iApps/Tenant.app/host.example.com:443")
+        assert d.folder is not None
+        assert d.folder.segments == ("iApps", "Tenant.app")
+        assert isinstance(d.address, FQDN)
+        assert str(d) == "/Common/iApps/Tenant.app/host.example.com:443"
 
     def test_bare_ipv4_port(self):
         d = Destination.parse("10.0.0.1:80")
@@ -322,3 +352,74 @@ class TestDestination:
             Destination.parse("/Common/[unclosed:80")
         with pytest.raises(ValueError):
             Destination.parse("not-a-host:80")
+
+
+# ---------------------------------------------------------------------------
+# Folder + ObjectPath
+# ---------------------------------------------------------------------------
+
+
+class TestFolder:
+    def test_partition_only(self):
+        f = Folder.parse("/Common")
+        assert f.is_root
+        assert f.depth == 0
+        assert str(f) == "/Common"
+
+    def test_partition_plus_one_segment(self):
+        f = Folder.parse("/Common/Application_X")
+        assert not f.is_root
+        assert f.depth == 1
+        assert f.segments == ("Application_X",)
+        assert str(f) == "/Common/Application_X"
+
+    def test_deep_nesting(self):
+        f = Folder.parse("/Common/iApps/Tenant.app/sub_a")
+        assert f.depth == 3
+        assert f.segments == ("iApps", "Tenant.app", "sub_a")
+        assert str(f) == "/Common/iApps/Tenant.app/sub_a"
+
+    def test_trailing_slash_tolerated(self):
+        assert str(Folder.parse("/Common/")) == "/Common"
+
+    def test_must_start_with_slash(self):
+        with pytest.raises(ValueError):
+            Folder.parse("Common/Application_X")
+
+    def test_invalid_segment_char(self):
+        with pytest.raises(ValueError):
+            Folder.parse("/Common/bad segment")
+
+    def test_child_appends_segment(self):
+        root = Folder.parse("/Common")
+        child = root.child("Application_X")
+        assert child.depth == 1
+        assert str(child) == "/Common/Application_X"
+
+
+class TestObjectPath:
+    def test_root_partition(self):
+        op = ObjectPath.parse("/Common/web_pool")
+        assert op.in_root_folder
+        assert op.partition.short_name == "Common"
+        assert op.name == "web_pool"
+        assert str(op) == "/Common/web_pool"
+
+    def test_folder_nested(self):
+        op = ObjectPath.parse("/Common/Application_X/web_pool")
+        assert not op.in_root_folder
+        assert op.folder.segments == ("Application_X",)
+        assert op.name == "web_pool"
+        assert str(op) == "/Common/Application_X/web_pool"
+
+    def test_deeply_nested(self):
+        op = ObjectPath.parse("/Common/iApps/Tenant.app/pool_1")
+        assert op.folder.segments == ("iApps", "Tenant.app")
+        assert op.name == "pool_1"
+        assert str(op) == "/Common/iApps/Tenant.app/pool_1"
+
+    def test_must_have_partition_and_leaf(self):
+        with pytest.raises(ValueError):
+            ObjectPath.parse("/Common")  # leaf missing
+        with pytest.raises(ValueError):
+            ObjectPath.parse("web_pool")  # partition missing
