@@ -180,6 +180,11 @@ def _to_json(v: Any) -> Any:
         return [_to_json(x) for x in v.items]
     if isinstance(v, list):
         return [_to_json(x) for x in v]
+    if isinstance(v, dict):
+        # Object literals produce plain Python dicts; recurse so
+        # nested PathRef / ObjectRef / Stream values render the same
+        # way they would at the top level.
+        return {k: _to_json(val) for k, val in v.items()}
     if isinstance(v, (str, int, float, bool)) or v is None:
         return v
     return str(v)

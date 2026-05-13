@@ -51,8 +51,10 @@ from .ast import (
     Expr,
     Field,
     Identity,
+    LetBinding,
     ListLiteral,
     Literal,
+    ObjectLiteral,
     PathExpr,
     Pipe,
     Program,
@@ -161,6 +163,43 @@ class _Parser:
                 rhs=rhs,
                 offset=tok.offset,
                 source=source,
+            )
+        if tok.kind is TokenKind.AS:
+            # ``expr as $name | body`` — let-binding.  The body
+            # consumes every subsequent ``|`` stage so the binding
+            # stays in scope across nested streams, matching jq's
+            # right-associative ``as`` semantics:
+            #
+            #   .ltm.virtual[] as $vs | $vs.pool.members[] | $vs.name + ...
+            #
+            # Reads as: bind $vs to each virtual, then evaluate
+            # ``$vs.pool.members[] | $vs.name + ...`` with that
+            # binding in scope.  The right-hand side absorbs through
+            # to the next statement boundary (``;`` / EOF / ``)`` etc.)
+            # so the body sees the entire downstream pipeline.
+            self._consume()
+            name_tok = self._peek()
+            if name_tok.kind is not TokenKind.DOLLAR_IDENT:
+                raise ParseError(
+                    "'as' must be followed by a $-prefixed identifier "
+                    f"(e.g. ``as $vs``), got {name_tok.text!r}",
+                    name_tok.offset,
+                )
+            self._consume()
+            pipe_tok = self._peek()
+            if pipe_tok.kind is not TokenKind.PIPE:
+                raise ParseError(
+                    "'as $name' must be immediately followed by '|' and "
+                    f"the body expression, got {pipe_tok.text!r}",
+                    pipe_tok.offset,
+                )
+            self._consume()
+            body = self._parse_pipeline()
+            return LetBinding(
+                source=lhs,
+                name=str(name_tok.value),
+                body=body,
+                offset=tok.offset,
             )
         return lhs
 
@@ -339,6 +378,9 @@ class _Parser:
         if tok.kind is TokenKind.DOT:
             return self._parse_path_starting_with_dot()
 
+        if tok.kind is TokenKind.LBRACE:
+            return self._parse_object_literal()
+
         if tok.kind is TokenKind.DOLLAR_IDENT:
             # ``$name`` resolves to the root container of the named
             # source.  Postfix path steps land afterwards via
@@ -414,6 +456,53 @@ class _Parser:
         inner = self._parse_pipeline()
         self._expect(TokenKind.RBRACKET, msg="expected ']'")
         return Subscript(stream=False, index=inner, regex=None, offset=lb.offset)
+
+    def _parse_object_literal(self) -> Expr:
+        """``{ key: expr, key2, key3: expr3, ... }`` — jq's object constructor.
+
+        Bareword keys may use the same identifier rules as ``.field`` (so
+        ``data-group`` lexes as one token), or they can be quoted
+        strings for keys with unusual characters.  When the value is
+        omitted (``{name}``) it desugars to ``{name: .name}`` which is
+        the common case when projecting an object into a row.
+        """
+        lb = self._consume()  # consume '{'
+        entries: list[tuple[str, Expr]] = []
+        if self._peek().kind is TokenKind.RBRACE:
+            self._consume()
+            return ObjectLiteral(entries=(), offset=lb.offset)
+        while True:
+            key_tok = self._peek()
+            if key_tok.kind is TokenKind.IDENT:
+                self._consume()
+                key = key_tok.text
+            elif key_tok.kind is TokenKind.STRING:
+                self._consume()
+                key = str(key_tok.value)
+            else:
+                raise ParseError(
+                    "expected an object-literal key (identifier or string) "
+                    f"but got {key_tok.text!r}",
+                    key_tok.offset,
+                )
+            # Optional ``: expression`` — when omitted, desugar to a
+            # ``.<key>`` path so ``{name, destination}`` works as
+            # jq users expect.
+            if self._peek().kind is TokenKind.COLON:
+                self._consume()
+                value: Expr = self._parse_pipe_stage()
+            else:
+                value = PathExpr(
+                    steps=(Field(name=key, optional=False, offset=key_tok.offset),),
+                    offset=key_tok.offset,
+                )
+            entries.append((key, value))
+            if self._peek().kind is TokenKind.COMMA:
+                self._consume()
+                continue
+            break
+        self._expect(TokenKind.RBRACE, msg="expected '}' to close object literal")
+        return ObjectLiteral(entries=tuple(entries), offset=lb.offset)
 
 
 def _as_path(expr: Expr, op_offset: int) -> tuple[PathExpr, Variable | None]:

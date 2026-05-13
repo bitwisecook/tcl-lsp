@@ -44,6 +44,26 @@ class Variable:
 
 
 @dataclass(frozen=True, slots=True)
+class ObjectLiteral:
+    """``{ key: expr, key2: expr2, ... }`` — jq's object constructor.
+
+    Each entry pairs a *key* (a TMSH-spelt string, the bareword
+    syntactic shorthand handles itself in the parser) with a *value*
+    expression evaluated against the current input.  The shorthand
+    ``{name}`` desugars to ``{name: .name}`` so the natural shape
+    ``.ltm.virtual[] | {name, destination, pool}`` builds one row per
+    virtual server without typing the key twice.
+
+    Used to fold a per-row stream into a structured value the output
+    layer can serialise (``--json``) or pretty-print (planned: tsv-
+    by-keys auto-tabular rendering).
+    """
+
+    entries: tuple[tuple[str, "Expr"], ...]
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
 class ListLiteral:
     """``[ inner ]`` — collect *inner*'s output into a list.
 
@@ -126,6 +146,32 @@ class Pipe:
 
 
 @dataclass(frozen=True, slots=True)
+class LetBinding:
+    """``source as $name | body`` — jq's let-binding form.
+
+    Evaluates *source* against the current input, binds each value to
+    ``$name`` in the body's scope, then evaluates *body* with the
+    current input still bound to ``.``.  The binding shadows any
+    named-source binding of the same name (the runner's auto-named
+    ``$ltm`` / ``$gtm`` bindings) for the duration of the body.
+
+    Idiomatic shape (carries an outer-context scalar into an inner
+    stream)::
+
+        .ltm.virtual[] as $vs | $vs.pool.members[] | $vs.name + "\t" + .address
+
+    The outer ``$vs`` stays addressable inside the nested
+    ``.pool.members[]`` stream so per-row reports can include the
+    parent's name without losing context.
+    """
+
+    source: "Expr"
+    name: str
+    body: "Expr"
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
 class Assignment:
     """``path = expr`` / ``path |= expr`` / ``path += expr`` / ``-=``.
 
@@ -163,10 +209,12 @@ Expr = Union[
     Identity,
     Variable,
     ListLiteral,
+    ObjectLiteral,
     PathExpr,
     Call,
     BinOp,
     UnaryOp,
     Pipe,
+    LetBinding,
     Assignment,
 ]

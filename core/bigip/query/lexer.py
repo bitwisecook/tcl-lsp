@@ -22,6 +22,7 @@ class TokenKind(Enum):
     LBRACE = auto()
     RBRACE = auto()
     COMMA = auto()
+    COLON = auto()
     SEMICOLON = auto()
     PIPE = auto()  # |
     PIPE_EQ = auto()  # |=
@@ -47,6 +48,7 @@ class TokenKind(Enum):
     TRUE = auto()
     FALSE = auto()
     NULL = auto()
+    AS = auto()  # `expr as $name | body` — jq's let-binding form
     DOLLAR_IDENT = auto()  # $name — variable reference to a named source
     EOF = auto()
 
@@ -68,6 +70,7 @@ _KEYWORDS = {
     "true": TokenKind.TRUE,
     "false": TokenKind.FALSE,
     "null": TokenKind.NULL,
+    "as": TokenKind.AS,
 }
 
 
@@ -114,6 +117,7 @@ def tokenise(source: str) -> list[Token]:
             "{": TokenKind.LBRACE,
             "}": TokenKind.RBRACE,
             ",": TokenKind.COMMA,
+            ":": TokenKind.COLON,
             ";": TokenKind.SEMICOLON,
             "*": TokenKind.STAR,
             "/": TokenKind.SLASH,

@@ -26,8 +26,10 @@ from .ast import (
     Expr,
     Field,
     Identity,
+    LetBinding,
     ListLiteral,
     Literal,
+    ObjectLiteral,
     PathExpr,
     Pipe,
     Program,
@@ -56,6 +58,13 @@ class EvalContext:
     # ``referenced_by``) should walk references across every loaded
     # source, not just the one the object came from.
     merge_mode: bool = False
+    # Lexical bindings introduced by ``expr as $name | body`` —
+    # ``$name`` lookup checks here first and falls back to
+    # ``named_roots``.  The let-binding evaluator pushes a new frame
+    # (a shallow-copied dict) per iteration so concurrent stream
+    # evaluations stay isolated; the previous frame is restored when
+    # the body finishes.
+    bindings: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -109,11 +118,15 @@ def _eval(node: Expr, current: Any, ctx: EvalContext) -> Any:
         if node.inner is None:
             return []
         return _flatten(_eval(node.inner, current, ctx))
+    if isinstance(node, ObjectLiteral):
+        return _eval_object_literal(node, current, ctx)
     if isinstance(node, PathExpr):
         return _eval_path(node, current, ctx)
     if isinstance(node, Pipe):
         lhs = _eval(node.lhs, current, ctx)
         return _pipe_through(lhs, node.rhs, ctx)
+    if isinstance(node, LetBinding):
+        return _eval_let_binding(node, current, ctx)
     if isinstance(node, Call):
         return _eval_call(node, current, ctx)
     if isinstance(node, BinOp):
@@ -158,30 +171,147 @@ def _pipe_through(values: Any, rhs: Expr, ctx: EvalContext) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Object literals
+# ---------------------------------------------------------------------------
+
+
+def _eval_object_literal(node: ObjectLiteral, current: Any, ctx: EvalContext) -> Any:
+    """Evaluate ``{key: expr, ...}`` against the current input.
+
+    Each value expression is evaluated with ``.`` bound to *current*
+    (same shape as :func:`select` / :func:`map` bodies).  When any
+    value evaluates to a :class:`Stream`, the object literal
+    broadcasts element-wise: a stream of dicts comes back, one per
+    item of the longest stream value (every other stream value must
+    share that length; scalars replicate).  This matches the
+    behaviour of the call dispatcher and the arithmetic operators, so
+    ``.ltm.virtual[] | {name, dest: .destination, members: [.pool.members[].address]}``
+    builds a list-per-row consistently.
+    """
+    if not node.entries:
+        return {}
+    resolved: list[tuple[str, Any]] = []
+    for key, value_expr in node.entries:
+        resolved.append((key, _eval(value_expr, current, ctx)))
+
+    # Identify stream-valued slots; if any, broadcast.
+    stream_indices = [i for i, (_, v) in enumerate(resolved) if isinstance(v, Stream)]
+    if not stream_indices:
+        return {k: _scalarise_dict_value(v) for k, v in resolved}
+    lengths = {len(resolved[i][1].items) for i in stream_indices}
+    if len(lengths) > 1:
+        raise EvalError(
+            "object literal: cannot broadcast streams of differing "
+            f"lengths ({sorted(lengths)!r}); collect one side with "
+            "[...] first to keep each field a single list value"
+        )
+    (length,) = lengths
+    rows: list[dict[str, Any]] = []
+    for idx in range(length):
+        row: dict[str, Any] = {}
+        for i, (k, v) in enumerate(resolved):
+            row[k] = _scalarise_dict_value(v.items[idx] if i in stream_indices else v)
+        rows.append(row)
+    return Stream(items=rows)
+
+
+def _scalarise_dict_value(value: Any) -> Any:
+    """Render a value for placement inside a dict.
+
+    ``PathRef`` → its full-path string (consistent with how scalar
+    rendering treats PathRefs everywhere else), ``ObjectRef`` →
+    full-path (objects are too big to inline as a sub-tree; if the
+    user wants the projected fields they can spell them out as
+    individual keys).  Plain lists pass through so a user-built
+    ``[.pool.members[].address]`` lands as a JSON array.
+    """
+    if isinstance(value, PathRef):
+        return value.full_path
+    if isinstance(value, ObjectRef):
+        return value.full_path
+    return value
+
+
+# ---------------------------------------------------------------------------
 # Variables
 # ---------------------------------------------------------------------------
 
 
 def _eval_variable(node: Variable, ctx: EvalContext) -> Any:
-    """Resolve ``$name`` to the root container of the named source.
+    """Resolve ``$name`` to a bound value or the named source's root.
 
-    The query verb pre-binds one entry per loaded config into
-    ``ctx.named_roots`` (filename-stem default, or the explicit name
-    supplied with ``--name N=PATH``).  Unknown names raise an
-    :class:`EvalError` listing the available bindings — guessing
-    silently against an arbitrary source would mask typos.
+    Lexical ``as``-bindings (introduced by
+    ``expr as $name | body``) win first; if no lexical binding is in
+    scope, the named-source table (auto-named from the filename stem
+    or set explicitly via ``--name N=PATH``) is consulted.  Unknown
+    names raise an :class:`EvalError` that lists what's actually
+    bound — guessing silently against an arbitrary source / value
+    would mask typos.
     """
+    if node.name in ctx.bindings:
+        return ctx.bindings[node.name]
     root = ctx.named_roots.get(node.name)
     if root is None:
-        if not ctx.named_roots:
+        bound_names = sorted(set(ctx.named_roots) | set(ctx.bindings)) or ["<none>"]
+        if not bound_names or bound_names == ["<none>"]:
             raise EvalError(
-                f"${node.name}: no named sources are bound — load more "
-                "than one config and either name them with --name N=PATH "
-                "or rely on filename-stem auto-naming."
+                f"${node.name}: no variables are bound — introduce one "
+                "with ``expr as $name | ...`` or load several configs "
+                "to auto-bind one per filename stem."
             )
-        known = ", ".join(sorted(ctx.named_roots)) or "<none>"
-        raise EvalError(f"${node.name}: unknown named source (known: {known})")
+        known = ", ".join(bound_names)
+        raise EvalError(f"${node.name}: unknown variable (known: {known})")
     return root_container(root)
+
+
+def _eval_let_binding(node: LetBinding, current: Any, ctx: EvalContext) -> Any:
+    """Evaluate ``expr as $name | body``.
+
+    The source expression is evaluated once against the current
+    input.  For each value it produces, the body is evaluated with
+    ``$name`` bound to that value.  The current input (``.``) is
+    *not* rebound — the body still sees the outer ``.``, matching
+    jq's semantics so let-bindings compose naturally:
+
+        .ltm.virtual[] as $vs | $vs.pool.members[] | $vs.name + ...
+
+    Streams iterate one body call per item; non-stream values run the
+    body once.  The binding frame is shallow-copied per iteration so
+    nested let-bindings of the same name shadow correctly and a
+    body's edits to the bindings dict (none currently possible, but
+    future-proof) don't leak between iterations.
+    """
+    source_value = _eval(node.source, current, ctx)
+    items = _stream_items(source_value)
+    out: list[Any] = []
+    is_stream = isinstance(source_value, Stream)
+    for item in items:
+        prior = ctx.bindings.get(node.name, _UNBOUND)
+        ctx.bindings[node.name] = item
+        try:
+            result = _eval(node.body, current, ctx)
+        finally:
+            if prior is _UNBOUND:
+                ctx.bindings.pop(node.name, None)
+            else:
+                ctx.bindings[node.name] = prior
+        out.extend(_flatten(result))
+    if is_stream or len(items) != 1:
+        return Stream(items=out)
+    if not out:
+        return Stream(items=[])
+    if len(out) == 1:
+        return out[0]
+    return Stream(items=out)
+
+
+class _Unbound:
+    """Sentinel marking a binding that did not exist before push."""
+
+    __slots__ = ()
+
+
+_UNBOUND = _Unbound()
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +408,8 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
 
 
 def _regex_subscript(value: Any, pattern: str, ctx: EvalContext):
+    import re as _re
+
     if isinstance(value, PathRef):
         target = _resolve_pathref(value, ctx)
         if target is None:
@@ -286,6 +418,22 @@ def _regex_subscript(value: Any, pattern: str, ctx: EvalContext):
     if isinstance(value, Container):
         keys = value.regex_keys(pattern)
         return [value.entries()[k] for k in keys]
+    if isinstance(value, ObjectRef):
+        # Cross-kind regex subscript: ``.ltm[]["~app3"]`` flattens the
+        # module container through every kind into a stream of
+        # ObjectRefs, then this branch matches each one by full-path
+        # against the regex.  Returns a single-element list when the
+        # object matches and an empty list otherwise so the caller's
+        # for-each loop produces the expected stream of matches.  The
+        # pattern is anchored via :func:`re.search` (not ``fullmatch``)
+        # so substring-style searches (``"~app3"``) work as users
+        # would expect from the kind-level subscript form
+        # (``.ltm.pool["~app3"]`` is also a substring search).
+        try:
+            rx = _re.compile(pattern)
+        except _re.error as exc:
+            raise EvalError(f"regex subscript {pattern!r}: {exc}") from exc
+        return [value] if rx.search(value.full_path) else []
     raise EvalError(f"regex subscript not supported on {_describe(value)}")
 
 

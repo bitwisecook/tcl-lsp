@@ -30,7 +30,7 @@ root.
   unary         := '-' unary | postfix
   postfix       := primary path_tail
   primary       := literal | call | path | variable | list_literal
-                 | '(' pipeline ')'
+                 | object_literal | '(' pipeline ')'
   variable      := '$' IDENT          /* root container of a named
                                          source loaded alongside this
                                          query (`f5 query` accepts
@@ -42,6 +42,29 @@ root.
                                          `$gtm.gtm.wideip[]` reads from
                                          the source bound under
                                          `$gtm`.                       */
+  object_literal:= '{' (entry (',' entry)*)? '}'
+                                       /* jq-style object constructor:
+                                          { name, destination: .dest }
+                                          builds a dict per input.
+                                          Stream values broadcast
+                                          element-wise so one stream
+                                          field becomes one row per
+                                          item.                        */
+  entry         := IDENT (':' pipeline)?
+                 | STRING ':' pipeline
+                                       /* Bareword shorthand: { name }
+                                          desugars to { name: .name }. */
+  pipe_stage    := or_expr (ASSIGN_OP pipe_stage)?
+                 | or_expr 'as' '$' IDENT '|' pipeline
+                                       /* let-binding: bind each
+                                          value from `or_expr` to
+                                          $IDENT and evaluate the
+                                          downstream pipeline with
+                                          that binding in scope.
+                                          Right-associative so
+                                          `.a[] as $x | .b | $x.c +
+                                          ...` keeps $x bound across
+                                          subsequent pipe stages.     */
   list_literal  := '[' pipeline? ']'        /* jq's array constructor */
   path          := '.'
                  | '.' field path_tail
