@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from ..model import (
+from ...model import (
     BigipAnalyticsMinimalObject,
     BigipApiProtectionMinimalObject,
     BigipApmEphemeralAuthSshSecurityConfig,
@@ -181,8 +181,8 @@ from ..model import (
     BigipVirtualServer,
     BigipWomMinimalObject,
 )
-from .errors import EvalError
-from .values import FieldSlot, ObjectRef, PathRef, Root
+from ..errors import EvalError
+from ..values import FieldSlot, ObjectRef, PathRef, Root
 
 # ---------------------------------------------------------------------------
 # Container abstraction
@@ -4107,7 +4107,7 @@ def _rule_refs_value(obj: BigipRule, root: Root) -> ObjectRef:
 
 
 def _extract_rule_refs(obj: BigipRule, root: Root) -> tuple[list[str], list[str], list[str]]:
-    from ..grep import compute_grep
+    from ...grep import compute_grep
 
     report = compute_grep(
         sources={root.uri: root.source},

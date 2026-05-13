@@ -25,9 +25,9 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..analysis.semantic_model import Range
-from ..common.document_buffer import DocumentBuffer
-from .model import (
+from ...analysis.semantic_model import Range
+from ...common.document_buffer import DocumentBuffer
+from ..model import (
     BigipApmEphemeralAuthSshSecurityConfig,
     BigipApmOauthDbInstance,
     BigipApmPolicyAccessPolicy,

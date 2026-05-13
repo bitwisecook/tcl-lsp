@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from ..analysis.semantic_model import Range
+from ...analysis.semantic_model import Range
 
 # Enums
 
