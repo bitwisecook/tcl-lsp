@@ -21,6 +21,11 @@ from .features import (
     semantic_tokens_full,
 )
 from .features._bigip_links import get_bigip_document_links
+from .features._bigip_refs import (
+    get_bigip_references,
+    get_bigip_rename_edits,
+    prepare_bigip_rename,
+)
 from .features._bigip_symbols import get_bigip_document_symbols
 from .features.call_hierarchy import (
     incoming_calls as get_incoming_calls,
@@ -753,6 +758,23 @@ def on_references(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     include_decl = params.context.include_declaration if params.context else True
+    # BIG-IP files: walk every indexed config and emit one Location
+    # per token-bounded occurrence of the path-shaped token at the
+    # cursor.  Tcl files keep their existing var/proc/class path.
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        scanner = getattr(_state, "background_scanner", None)
+        ws_configs = scanner.bigip_configs if scanner else None
+        ws_sources = {u: _get_doc_source(u) for u in (ws_configs or {})} if ws_configs else None
+        return get_bigip_references(
+            source,
+            uri=uri,
+            line=params.position.line,
+            character=params.position.character,
+            workspace_configs=ws_configs,
+            workspace_sources=ws_sources,
+            include_declaration=include_decl,
+        )
     return get_references(
         source,
         uri,
@@ -857,6 +879,20 @@ def on_rename(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        scanner = getattr(_state, "background_scanner", None)
+        ws_configs = scanner.bigip_configs if scanner else None
+        ws_sources = {u: _get_doc_source(u) for u in (ws_configs or {})} if ws_configs else None
+        return get_bigip_rename_edits(
+            source,
+            uri=uri,
+            line=params.position.line,
+            character=params.position.character,
+            new_name=params.new_name,
+            workspace_configs=ws_configs,
+            workspace_sources=ws_sources,
+        )
     return get_rename_edits(
         source,
         uri,
@@ -878,6 +914,25 @@ def on_prepare_rename(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        bigip_range = prepare_bigip_rename(
+            source,
+            line=params.position.line,
+            character=params.position.character,
+        )
+        if bigip_range is None:
+            return None
+        # Extract the placeholder text directly from the source slice
+        # the range covers — that way the rename input pre-fills with
+        # the actual ``/Common/<name>`` the user clicked on.
+        lines = source.split("\n")
+        line_text = lines[bigip_range.start.line] if bigip_range.start.line < len(lines) else ""
+        placeholder = line_text[bigip_range.start.character : bigip_range.end.character]
+        return types.PrepareRenamePlaceholder(
+            range=bigip_range,
+            placeholder=placeholder,
+        )
     return prepare_rename(
         source,
         uri,

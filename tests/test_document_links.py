@@ -62,11 +62,7 @@ class TestBigipDocumentLinks:
         # Reference present but no matching definition — link still
         # emitted (so the user can see the range was recognised), but
         # ``target`` is ``None`` and the tooltip says "no definition".
-        source = (
-            "ltm rule /Common/r {\n"
-            "when HTTP_REQUEST { pool /Common/missing }\n"
-            "}\n"
-        )
+        source = "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/missing }\n}\n"
         links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
         assert links
         assert links[0].target is None
@@ -78,3 +74,67 @@ class TestBigipDocumentLinks:
         source = "ltm pool /Common/p { }\n"
         links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
         assert links == []
+
+
+class TestBigipReferencesAndRename:
+    def test_references_finds_decl_and_irule_body_use(self):
+        from lsp.features._bigip_refs import get_bigip_references
+
+        src = (
+            "ltm pool /Common/web_pool { }\n"
+            "ltm rule /Common/r {\n"
+            "when HTTP_REQUEST { pool /Common/web_pool }\n"
+            "}\n"
+        )
+        # Cursor on the pool path in the stanza header.
+        refs = get_bigip_references(
+            src,
+            uri="file:///t.conf",
+            line=0,
+            character=13,
+            workspace_configs=None,
+            workspace_sources=None,
+        )
+        assert len(refs) == 2
+        assert {r.range.start.line for r in refs} == {0, 2}
+
+    def test_prepare_rename_returns_token_range(self):
+        from lsp.features._bigip_refs import prepare_bigip_rename
+
+        src = "ltm pool /Common/web_pool { }\n"
+        rng = prepare_bigip_rename(src, line=0, character=13)
+        assert rng is not None
+        assert rng.start.line == 0
+        assert rng.end.character > rng.start.character
+
+    def test_prepare_rename_returns_none_off_path(self):
+        from lsp.features._bigip_refs import prepare_bigip_rename
+
+        src = "ltm pool /Common/web_pool { }\n"
+        # Cursor on the bare ``pool`` keyword (not a TMSH path).
+        rng = prepare_bigip_rename(src, line=0, character=4)
+        assert rng is None
+
+    def test_rename_edits_produce_workspace_edit_per_file(self):
+        from lsp.features._bigip_refs import get_bigip_rename_edits
+
+        src = (
+            "ltm pool /Common/web_pool { }\n"
+            "ltm rule /Common/r {\n"
+            "when HTTP_REQUEST { pool /Common/web_pool }\n"
+            "}\n"
+        )
+        edit = get_bigip_rename_edits(
+            src,
+            uri="file:///t.conf",
+            line=0,
+            character=13,
+            new_name="/Common/web_renamed",
+            workspace_configs=None,
+            workspace_sources=None,
+        )
+        assert edit is not None
+        assert "file:///t.conf" in edit.changes
+        rewritten = edit.changes["file:///t.conf"][0].new_text
+        assert "/Common/web_renamed" in rewritten
+        assert "/Common/web_pool" not in rewritten
