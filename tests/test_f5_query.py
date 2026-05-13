@@ -3194,3 +3194,93 @@ def test_virtual_per_flow_access_policy_pathref_resolves():
 def test_virtual_rate_class_is_projected_as_string():
     rc = _run(".ltm.virtual.fwd_vs.rate-class", _VS_FLAGS_CONF)
     assert rc.values_per_file["mem://1"] == ["/Common/rc1"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 3 — ltm pool scalars
+# ---------------------------------------------------------------------------
+
+_POOL_SCALARS_CONF = """ltm profile http /Common/http_profile1 { }
+ltm profile tcp /Common/tcp_profile1 { }
+ltm pool /Common/web_pool {
+    members {
+        /Common/n1:80 { address 10.0.0.1 }
+    }
+    monitor /Common/http
+    load-balancing-mode least-connections-member
+    connection-limit 5000
+    rate-limit 250
+    ratio 7
+    down-interval 30
+    interval 5
+    min-up-members-action reboot
+    min-up-members-checking enabled
+    ip-tos-to-client mimic
+    ip-tos-to-server pass-through
+    link-qos-to-client 0
+    link-qos-to-server 5
+    gateway-failsafe-device /Common/bigip-1
+    ignore-persisted-weight enabled
+    inherit-profile enabled
+    queue-on-connection-limit enabled
+    address-family ipv4
+    autopopulate disabled
+    profiles { /Common/http_profile1 /Common/tcp_profile1 }
+}
+"""
+
+
+def test_pool_connection_and_rate_limits():
+    cl = _run(".ltm.pool.web_pool.connection-limit", _POOL_SCALARS_CONF)
+    assert cl.values_per_file["mem://1"] == ["5000"]
+    rl = _run(".ltm.pool.web_pool.rate-limit", _POOL_SCALARS_CONF)
+    assert rl.values_per_file["mem://1"] == ["250"]
+
+
+def test_pool_ratio_and_intervals():
+    ratio = _run(".ltm.pool.web_pool.ratio", _POOL_SCALARS_CONF)
+    assert ratio.values_per_file["mem://1"] == ["7"]
+    down = _run(".ltm.pool.web_pool.down-interval", _POOL_SCALARS_CONF)
+    assert down.values_per_file["mem://1"] == ["30"]
+    interval = _run(".ltm.pool.web_pool.interval", _POOL_SCALARS_CONF)
+    assert interval.values_per_file["mem://1"] == ["5"]
+
+
+def test_pool_min_up_members_action_and_checking():
+    action = _run(".ltm.pool.web_pool.min-up-members-action", _POOL_SCALARS_CONF)
+    assert action.values_per_file["mem://1"] == ["reboot"]
+    checking = _run(".ltm.pool.web_pool.min-up-members-checking", _POOL_SCALARS_CONF)
+    assert checking.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_pool_ip_tos_and_link_qos():
+    ipc = _run(".ltm.pool.web_pool.ip-tos-to-client", _POOL_SCALARS_CONF)
+    assert ipc.values_per_file["mem://1"] == ["mimic"]
+    ips = _run(".ltm.pool.web_pool.ip-tos-to-server", _POOL_SCALARS_CONF)
+    assert ips.values_per_file["mem://1"] == ["pass-through"]
+    lqc = _run(".ltm.pool.web_pool.link-qos-to-client", _POOL_SCALARS_CONF)
+    assert lqc.values_per_file["mem://1"] == ["0"]
+    lqs = _run(".ltm.pool.web_pool.link-qos-to-server", _POOL_SCALARS_CONF)
+    assert lqs.values_per_file["mem://1"] == ["5"]
+
+
+def test_pool_gateway_failsafe_device_and_inherit_profile():
+    gfd = _run(".ltm.pool.web_pool.gateway-failsafe-device", _POOL_SCALARS_CONF)
+    assert gfd.values_per_file["mem://1"] == ["/Common/bigip-1"]
+    ip = _run(".ltm.pool.web_pool.inherit-profile", _POOL_SCALARS_CONF)
+    assert ip.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_pool_address_family_and_autopopulate():
+    af = _run(".ltm.pool.web_pool.address-family", _POOL_SCALARS_CONF)
+    assert af.values_per_file["mem://1"] == ["ipv4"]
+    ap = _run(".ltm.pool.web_pool.autopopulate", _POOL_SCALARS_CONF)
+    assert ap.values_per_file["mem://1"] == ["disabled"]
+
+
+def test_pool_profiles_resolve_through_path_ref():
+    result = _run(".ltm.pool.web_pool.profiles[].full-path", _POOL_SCALARS_CONF)
+    assert sorted(result.values_per_file["mem://1"]) == [
+        "/Common/http_profile1",
+        "/Common/tcp_profile1",
+    ]

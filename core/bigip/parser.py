@@ -715,6 +715,10 @@ def _parse_pool(
     members_block = props.get("members")
     if members_block:
         members = _parse_pool_members(members_block)
+    profiles: tuple[str, ...] = ()
+    profiles_block = props.get("profiles")
+    if profiles_block:
+        profiles = tuple(_parse_list_block(profiles_block))
     return BigipPool(
         name=name,
         full_path=full_path,
@@ -732,6 +736,24 @@ def _parse_pool(
         reselect_tries=props.get("reselect-tries", ""),
         queue_depth_limit=props.get("queue-depth-limit", ""),
         queue_time_limit=props.get("queue-time-limit", ""),
+        connection_limit=props.get("connection-limit", ""),
+        rate_limit=props.get("rate-limit", ""),
+        ratio=props.get("ratio", ""),
+        down_interval=props.get("down-interval", ""),
+        interval=props.get("interval", ""),
+        min_up_members_action=props.get("min-up-members-action", ""),
+        min_up_members_checking=props.get("min-up-members-checking", ""),
+        ip_tos_to_client=props.get("ip-tos-to-client", ""),
+        ip_tos_to_server=props.get("ip-tos-to-server", ""),
+        link_qos_to_client=props.get("link-qos-to-client", ""),
+        link_qos_to_server=props.get("link-qos-to-server", ""),
+        gateway_failsafe_device=props.get("gateway-failsafe-device", ""),
+        ignore_persisted_weight=props.get("ignore-persisted-weight", ""),
+        inherit_profile=props.get("inherit-profile", ""),
+        queue_on_connection_limit=props.get("queue-on-connection-limit", ""),
+        address_family=props.get("address-family", ""),
+        autopopulate=props.get("autopopulate", ""),
+        profiles=profiles,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 

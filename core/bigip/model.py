@@ -101,6 +101,24 @@ class BigipPool:
     reselect_tries: str = ""
     queue_depth_limit: str = ""
     queue_time_limit: str = ""
+    connection_limit: str = ""
+    rate_limit: str = ""
+    ratio: str = ""
+    down_interval: str = ""
+    interval: str = ""
+    min_up_members_action: str = ""
+    min_up_members_checking: str = ""
+    ip_tos_to_client: str = ""
+    ip_tos_to_server: str = ""
+    link_qos_to_client: str = ""
+    link_qos_to_server: str = ""
+    gateway_failsafe_device: str = ""
+    ignore_persisted_weight: str = ""
+    inherit_profile: str = ""
+    queue_on_connection_limit: str = ""
+    address_family: str = ""
+    autopopulate: str = ""
+    profiles: tuple[str, ...] = ()  # PathRefs → ltm profile
     range: Range | None = None
 
 

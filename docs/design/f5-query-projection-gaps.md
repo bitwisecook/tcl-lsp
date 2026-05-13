@@ -149,24 +149,24 @@ Run `make ci-fast` before committing each bundle, and the broader
 
 ## Bundle 3 — `ltm pool` scalars
 
-- [ ] `connection-limit`
-- [ ] `rate-limit`
-- [ ] `ratio`
-- [ ] `down-interval`
-- [ ] `interval`
-- [ ] `min-up-members-action`
-- [ ] `min-up-members-checking`
-- [ ] `ip-tos-to-client`
-- [ ] `ip-tos-to-server`
-- [ ] `link-qos-to-client`
-- [ ] `link-qos-to-server`
-- [ ] `gateway-failsafe-device`
-- [ ] `ignore-persisted-weight`
-- [ ] `inherit-profile`
-- [ ] `queue-on-connection-limit`
-- [ ] `address-family`
-- [ ] `autopopulate`
-- [ ] `profiles` (list) → `ltm profile`
+- [x] `connection-limit`
+- [x] `rate-limit`
+- [x] `ratio`
+- [x] `down-interval`
+- [x] `interval`
+- [x] `min-up-members-action`
+- [x] `min-up-members-checking`
+- [x] `ip-tos-to-client`
+- [x] `ip-tos-to-server`
+- [x] `link-qos-to-client`
+- [x] `link-qos-to-server`
+- [x] `gateway-failsafe-device`
+- [x] `ignore-persisted-weight`
+- [x] `inherit-profile`
+- [x] `queue-on-connection-limit`
+- [x] `address-family`
+- [x] `autopopulate`
+- [x] `profiles` (list) → `ltm profile`
 
 ---
 
