@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bisect
 import threading
+from contextlib import contextmanager as _contextmanager
 
 from .tokens import SourcePosition, Token, TokenType
 
@@ -70,8 +71,28 @@ def disable_expand_syntax_for_thread(disabled: bool) -> None:
     treats word expansion as inapplicable inside a word value).  The
     override is thread-local so concurrent VM workers don't fight over a
     shared flag.
+
+    Prefer :func:`expand_syntax_disabled_scope` over toggling raw True /
+    False — the scope helper preserves the caller's previous value so
+    nested ``substitute()`` calls don't clobber an outer ``True``.
     """
     _thread_local.expand_syntax_force_off = disabled
+
+
+@_contextmanager
+def expand_syntax_disabled_scope():
+    """Force {*} expansion off for the current thread, restoring on exit.
+
+    Save/restore the previous ``expand_syntax_force_off`` value so that
+    nested substitution calls compose correctly: an outer scope that has
+    already forced expansion off stays off when an inner scope exits.
+    """
+    previous = getattr(_thread_local, "expand_syntax_force_off", False)
+    _thread_local.expand_syntax_force_off = True
+    try:
+        yield
+    finally:
+        _thread_local.expand_syntax_force_off = previous
 
 
 def _irules_brace_separator_active() -> bool:

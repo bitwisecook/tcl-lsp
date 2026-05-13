@@ -612,11 +612,28 @@ def _apply_merged_settings_now() -> None:
             # Folder mirrors the workspace fallback — drop any stale
             # per-folder resolver so ``package_resolver_for_uri`` falls
             # back to the shared workspace resolver instead of
-            # double-scanning.
-            _state._per_folder_package_resolvers.pop(folder_uri, None)
+            # double-scanning.  Also prune any ``_loaded_packages`` entries
+            # keyed to the dropped resolver so a follow-up rescan can
+            # re-load packages via the workspace resolver.
+            dropped = _state._per_folder_package_resolvers.pop(folder_uri, None)
+            if dropped is not None:
+                dropped_key = id(dropped)
+                _state._loaded_packages.difference_update(
+                    entry for entry in list(_state._loaded_packages) if entry[0] == dropped_key
+                )
             continue
         folder_resolver = _state.get_or_init_folder_package_resolver(folder_uri)
-        folder_resolver.configure(search_paths=workspace_roots + list(folder_paths))
+        new_search_paths = workspace_roots + list(folder_paths)
+        if folder_resolver._search_paths != new_search_paths:
+            # Search paths changed — drop the ``(resolver_id, name)``
+            # entries in ``_loaded_packages`` for this resolver so that
+            # packages that resolved to the old paths get re-loaded
+            # from the new ones.
+            resolver_key = id(folder_resolver)
+            _state._loaded_packages.difference_update(
+                entry for entry in list(_state._loaded_packages) if entry[0] == resolver_key
+            )
+            folder_resolver.configure(search_paths=new_search_paths)
 
     if not signatures_changed and not features_changed:
         return

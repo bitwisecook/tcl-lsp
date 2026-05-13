@@ -317,6 +317,7 @@ async def _publish_diagnostics_inner(
     if did_analyse:
         is_fresh = state.analysis is None or force_reanalyse
         if is_fresh:
+            from core.analysis.checks._style import _non_ascii_mode_var
             from core.commands.registry.runtime import _dialect_var, _extra_commands_var
             from lsp.workspace.document_state import _analyse_document_fresh
 
@@ -339,8 +340,12 @@ async def _publish_diagnostics_inner(
                             # Forward every per-request ContextVar value
                             # so the subprocess sees the per-folder
                             # dialect / extras / nonAscii (issue #407).
+                            # Read the effective non-ASCII mode from the
+                            # ContextVar rather than ``cfg.non_ascii_mode``
+                            # so the subprocess inherits the workspace
+                            # default when a folder hasn't overridden it.
                             extra_commands=_extra_commands_var.get(),
-                            non_ascii_mode=cfg.non_ascii_mode,
+                            non_ascii_mode=_non_ascii_mode_var.get(),
                         ),
                     ),
                     timeout=15.0,

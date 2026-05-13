@@ -53,17 +53,28 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     # already explicitly configured for iRules.
     folder_effective_dialect = folder_cfg.dialect or active_dialect()
     if folder_effective_dialect != "f5-irules" and _dp._is_irules_source(uri):
-        log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
-        if not folder_cfg.dialect_explicitly_set:
-            folder_cfg.dialect = "f5-irules"
-        if folder_cfg is _state.feature_config or not folder_cfg.dialect_explicitly_set:
-            configure_signatures(dialect="f5-irules")
-        _server.window_show_message(  # type: ignore[union-attr]
-            types.ShowMessageParams(
-                type=types.MessageType.Info,
-                message="Switched to iRules dialect for F5 iRules support.",
+        # Skip entirely when the folder's dialect was explicitly set —
+        # the user has chosen a non-iRules dialect for this folder, so
+        # auto-switching would override that choice silently and a
+        # "Switched to iRules dialect" notification would be misleading
+        # because we don't actually mutate the folder config in that case.
+        if folder_cfg.dialect_explicitly_set:
+            log.info(
+                "Skipping iRules auto-switch for %s: folder dialect is explicitly %s",
+                uri,
+                folder_cfg.dialect,
             )
-        )
+        else:
+            log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
+            folder_cfg.dialect = "f5-irules"
+            if folder_cfg is _state.feature_config:
+                configure_signatures(dialect="f5-irules")
+            _server.window_show_message(  # type: ignore[union-attr]
+                types.ShowMessageParams(
+                    type=types.MessageType.Info,
+                    message="Switched to iRules dialect for F5 iRules support.",
+                )
+            )
     elif not folder_cfg.dialect_explicitly_set:
         from core.common.dialect import detect_dialect_from_source
 

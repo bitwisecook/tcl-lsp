@@ -69,10 +69,10 @@
   multi-folder workspace with each folder configuring its own
   `tclLsp.dialect` could only honour one value — the server picked one
   folder and emitted a "Per-folder dialects are not yet supported"
-  warning for the rest. The dialect (and `extraCommands`,
-  `style.nonAscii`, `libraryPaths`, `dialect_explicitly_set`) are now
-  resolved per-document via the folder's `FeatureConfig`, with each LSP
-  request handler opening a scoped runtime profile. Diagnostics,
+  warning for the rest. `tclLsp.dialect`, `tclLsp.extraCommands`,
+  `tclLsp.style.nonAscii`, and `tclLsp.libraryPaths` are now resolved
+  per-document via the folder's `FeatureConfig`, with each LSP request
+  handler opening a scoped runtime profile. Diagnostics,
   completion, hover, signature help, formatting, semantic tokens, the
   W108 non-ASCII check, and `package require` resolution all honour the
   folder's settings instead of a shared global. The warning loop in

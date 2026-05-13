@@ -120,15 +120,14 @@ def substitute(
     # command-level concept, not applicable within a word value.  Uses the
     # thread-local override (post-#407 the lexer flag is no longer a
     # mutable class attribute; it's derived from the active dialect with a
-    # thread-local force-off escape hatch).
-    from core.parsing.lexer import disable_expand_syntax_for_thread
+    # thread-local force-off escape hatch).  The scope helper preserves
+    # the previous force-off value so nested ``substitute()`` calls don't
+    # clobber an outer ``True``.
+    from core.parsing.lexer import expand_syntax_disabled_scope
 
-    disable_expand_syntax_for_thread(True)
-    try:
+    with expand_syntax_disabled_scope():
         lexer = TclLexer(text)
         tokens = lexer.tokenise_all()
-    finally:
-        disable_expand_syntax_for_thread(False)
     parts: list[str] = []
 
     for tok in tokens:
