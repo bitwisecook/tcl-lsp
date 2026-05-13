@@ -198,6 +198,205 @@ class TestMergedSettingsPerFolder:
         assert merged["style"]["lineLength"] == 50
 
 
+class TestPerFolderDialect:
+    """Per-folder ``tclLsp.dialect`` resolution (issue #407).
+
+    Documents in folders configured for different dialects must see the
+    folder-resolved dialect — not a single process-wide setting — when
+    the LSP handler opens a ``dialect_scope`` via
+    ``_state.dialect_scope_for_uri``.  The lexer's ``{*}`` expansion flag
+    and ``SIGNATURES`` proxy must reflect the scoped value.
+    """
+
+    def test_resolve_dialect_for_uri_picks_folder_dialect(self, reset_per_folder_state):
+        a = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+        b = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-b")
+        a.dialect = "tcl8.4"
+        b.dialect = "f5-irules"
+
+        dia_a, _ = _lsp_state.resolve_dialect_for_uri("file:///workspaces/proj-a/foo.tcl")
+        dia_b, _ = _lsp_state.resolve_dialect_for_uri("file:///workspaces/proj-b/bar.tcl")
+        assert dia_a == "tcl8.4"
+        assert dia_b == "f5-irules"
+
+    def test_resolve_dialect_falls_back_to_workspace(self, reset_per_folder_state):
+        _lsp_state.feature_config.dialect = "tcl9.0"
+        _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+
+        dia, _ = _lsp_state.resolve_dialect_for_uri("file:///elsewhere/foo.tcl")
+        assert dia == "tcl9.0"
+
+    def test_dialect_scope_swaps_lexer_expand_flag(self, reset_per_folder_state):
+        from core.parsing.lexer import _expand_syntax_active
+
+        a = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-84")
+        b = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-86")
+        a.dialect = "tcl8.4"
+        b.dialect = "tcl8.6"
+
+        with _lsp_state.dialect_scope_for_uri("file:///workspaces/proj-84/foo.tcl"):
+            assert _expand_syntax_active() is False
+        with _lsp_state.dialect_scope_for_uri("file:///workspaces/proj-86/foo.tcl"):
+            assert _expand_syntax_active() is True
+
+    def test_dialect_scope_swaps_signature_table(self, reset_per_folder_state):
+        """The ``SIGNATURES`` proxy returns dialect-specific entries.
+
+        ``when`` is an iRules-only command; it must be present under the
+        f5-irules folder scope and absent under a vanilla tcl8.6 scope.
+        """
+        from core.commands.registry.runtime import SIGNATURES
+
+        a = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/tcl-only")
+        b = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/irules-only")
+        a.dialect = "tcl8.6"
+        b.dialect = "f5-irules"
+
+        with _lsp_state.dialect_scope_for_uri("file:///workspaces/tcl-only/foo.tcl"):
+            assert "when" not in SIGNATURES
+        with _lsp_state.dialect_scope_for_uri("file:///workspaces/irules-only/foo.tcl"):
+            assert "when" in SIGNATURES
+
+    def test_apply_feature_settings_picks_up_dialect(self, reset_per_folder_state):
+        """``_apply_feature_settings`` writes ``dialect`` to the FeatureConfig.
+
+        This is the wiring that makes per-folder ``tclLsp.dialect`` settings
+        actually land on the per-folder FeatureConfig (rather than being
+        silently dropped under the old "process-wide singleton" model).
+        """
+        cfg = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+        changed = _lsp_settings._apply_feature_settings({"dialect": "f5-irules"}, target=cfg)
+        assert changed
+        assert cfg.dialect == "f5-irules"
+
+        # Invalid dialect strings are silently ignored (not written).
+        cfg.dialect = "tcl8.6"
+        _lsp_settings._apply_feature_settings({"dialect": "nonsense"}, target=cfg)
+        assert cfg.dialect == "tcl8.6"
+
+    def test_apply_feature_settings_picks_up_extra_commands(self, reset_per_folder_state):
+        cfg = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+        changed = _lsp_settings._apply_feature_settings(
+            {"extraCommands": ["my-helper", "another"]}, target=cfg
+        )
+        assert changed
+        assert cfg.extra_commands == ("another", "my-helper")
+
+    def test_extra_commands_suppress_w123_unknown_command(self, reset_per_folder_state):
+        """An ``extraCommands`` entry must suppress W123 for that name.
+
+        Pre-#407 the analyser built ``registry_names`` from
+        ``REGISTRY.command_names(dialect)`` alone, so the per-context
+        ``_extra_commands_var`` never reached the unknown-command emitter
+        and ``tclLsp.extraCommands`` did not actually mark its entries as
+        known.  The unknown-command check now unions ``active_extra_commands()``
+        into ``registry_names``.
+        """
+        from core.analysis import Analyser
+        from core.common.dialect import dialect_scope
+
+        src = "cmd_alpha foo bar\n"
+        with dialect_scope("tcl8.6", extra_commands=["cmd_alpha"]):
+            diags = Analyser().analyse(src).diagnostics
+        w123 = [d for d in diags if d.code == "W123"]
+        assert w123 == [], (
+            f"W123 should be suppressed when name is in extra_commands; got {[d.message for d in w123]}"
+        )
+
+        with dialect_scope("tcl8.6", extra_commands=[]):
+            diags = Analyser().analyse(src).diagnostics
+        w123 = [d for d in diags if d.code == "W123"]
+        assert len(w123) == 1, (
+            f"W123 should still fire when name is not in extra_commands; got {len(w123)}"
+        )
+        assert "cmd_alpha" in w123[0].message
+
+    def test_apply_feature_settings_sets_explicit_flag(self, reset_per_folder_state):
+        """Setting ``tclLsp.dialect`` flips ``dialect_explicitly_set`` on the target."""
+        cfg = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+        assert cfg.dialect_explicitly_set is False
+        _lsp_settings._apply_feature_settings({"dialect": "tcl8.4"}, target=cfg)
+        assert cfg.dialect_explicitly_set is True
+
+        # Explicit null clears the override AND the flag.
+        _lsp_settings._apply_feature_settings({"dialect": None}, target=cfg)
+        assert cfg.dialect_explicitly_set is False
+
+
+class TestPerFolderNonAscii:
+    """Per-folder ``tclLsp.style.nonAscii`` resolution (issue #407)."""
+
+    def test_apply_feature_settings_writes_non_ascii_mode(self, reset_per_folder_state):
+        cfg = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+        changed = _lsp_settings._apply_feature_settings(
+            {"style": {"nonAscii": "strict"}}, target=cfg
+        )
+        assert changed
+        assert cfg.non_ascii_mode == "strict"
+
+    def test_non_ascii_mode_scope_swaps_module_var(self, reset_per_folder_state):
+        from core.analysis.checks._style import _non_ascii_mode_var, non_ascii_mode_scope
+
+        baseline = _non_ascii_mode_var.get()
+        with non_ascii_mode_scope("off"):
+            assert _non_ascii_mode_var.get() == "off"
+        assert _non_ascii_mode_var.get() == baseline
+
+
+class TestPerFolderPackageResolver:
+    """Per-folder ``tclLsp.libraryPaths`` resolution (issue #407)."""
+
+    def test_package_resolver_for_uri_falls_back(self, reset_per_folder_state):
+        resolver = _lsp_state.package_resolver_for_uri("file:///elsewhere/foo.tcl")
+        assert resolver is _lsp_state.package_resolver
+
+    def test_per_folder_resolver_returned_for_matching_uri(self, reset_per_folder_state):
+        folder = "file:///workspaces/proj-a"
+        folder_resolver = _lsp_state.get_or_init_folder_package_resolver(folder)
+        # The resolver is only selected when the folder's FeatureConfig
+        # has live ``library_paths`` — otherwise the stale-resolver guard
+        # falls back to the workspace resolver.
+        _lsp_state.get_or_init_folder_feature_config(folder).library_paths = ("/opt/tcllib",)
+        assert _lsp_state.package_resolver_for_uri(f"{folder}/foo.tcl") is folder_resolver
+        assert _lsp_state.package_resolver_for_uri("file:///elsewhere/foo.tcl") is (
+            _lsp_state.package_resolver
+        )
+
+    def test_per_folder_resolver_skipped_when_library_paths_cleared(self, reset_per_folder_state):
+        """When ``library_paths`` is unset the workspace resolver is used."""
+        folder = "file:///workspaces/proj-a"
+        _lsp_state.get_or_init_folder_package_resolver(folder)
+        cfg = _lsp_state.get_or_init_folder_feature_config(folder)
+        cfg.library_paths = ("/opt/tcllib",)
+        # Now clear it.
+        cfg.library_paths = None
+        assert _lsp_state.package_resolver_for_uri(f"{folder}/foo.tcl") is (
+            _lsp_state.package_resolver
+        )
+
+    def test_drop_folder_configs_prunes_resolver(self, reset_per_folder_state):
+        folder = "file:///workspaces/proj-a"
+        _lsp_state.get_or_init_folder_package_resolver(folder)
+        assert folder in _lsp_state._per_folder_package_resolvers
+        _lsp_state.drop_folder_configs(folder)
+        assert folder not in _lsp_state._per_folder_package_resolvers
+
+    def test_all_package_resolvers_includes_fallback_and_folders(self, reset_per_folder_state):
+        folder = "file:///workspaces/proj-a"
+        folder_resolver = _lsp_state.get_or_init_folder_package_resolver(folder)
+        resolvers = _lsp_state.all_package_resolvers()
+        assert _lsp_state.package_resolver in resolvers
+        assert folder_resolver in resolvers
+
+    def test_apply_feature_settings_writes_library_paths(self, reset_per_folder_state):
+        cfg = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")
+        changed = _lsp_settings._apply_feature_settings(
+            {"libraryPaths": ["/opt/tcllib", "/usr/local/lib/tcl"]}, target=cfg
+        )
+        assert changed
+        assert cfg.library_paths == ("/opt/tcllib", "/usr/local/lib/tcl")
+
+
 class TestDropFolderConfigs:
     def test_drop_clears_all_layers(self, reset_per_folder_state):
         folder_uri = "file:///home/user/proj-a"

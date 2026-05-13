@@ -155,6 +155,8 @@ def _analyse_document_fresh(
     disabled_diagnostics: set[str] | None = None,
     disabled_optimisations: set[str] | None = None,
     optimiser_enabled: bool = True,
+    extra_commands: tuple[str, ...] = (),
+    non_ascii_mode: str | None = None,
 ) -> dict:
     """Run the full analysis pipeline in a subprocess.
 
@@ -162,12 +164,21 @@ def _analyse_document_fresh(
     ``_update_full`` but returns a result dict instead of mutating
     ``DocumentState``.  Called via ``ProcessPoolExecutor`` to escape
     the GIL and achieve true parallelism.
+
+    The subprocess does not share ContextVars with the parent task, so
+    every per-request setting that the analyser / checks read from a
+    ContextVar (dialect, extra_commands, W108 non-ASCII mode) must be
+    forwarded explicitly and re-applied here.  See issue #407.
     """
     # Ensure diagnostic codes are registered in the subprocess.
     import core.common.codes_all  # noqa: F401
     from core.commands.registry.runtime import configure_signatures
 
-    configure_signatures(dialect=dialect)
+    configure_signatures(dialect=dialect, extra_commands=list(extra_commands))
+    if non_ascii_mode is not None:
+        from core.analysis.checks._style import set_non_ascii_mode
+
+        set_non_ascii_mode(non_ascii_mode)
 
     t0 = time.perf_counter()
 

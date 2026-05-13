@@ -1263,27 +1263,23 @@ class TestIRulesBraceSeparator:
 
     def test_brace_separator_produces_separate_words(self):
         """``if {$a}{puts a}`` parses as 3-arg command in iRules mode."""
-        old = TclLexer.irules_brace_separator
-        TclLexer.irules_brace_separator = True
-        try:
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
             cmds = segment_commands("if {$a}{puts a}")
             assert len(cmds) == 1
             assert len(cmds[0].argv) == 3
             assert cmds[0].texts[0] == "if"
             assert cmds[0].texts[1] == "$a"
             assert cmds[0].texts[2] == "puts a"
-        finally:
-            TclLexer.irules_brace_separator = old
 
     def test_brace_separator_no_warning(self):
         """``}{`` should not warn in iRules mode."""
-        old = TclLexer.irules_brace_separator
-        TclLexer.irules_brace_separator = True
-        try:
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
             _, warnings = lex_with_warnings("if {$a}{puts a}")
             assert not warnings
-        finally:
-            TclLexer.irules_brace_separator = old
 
     def test_standard_tcl_warns_on_brace_separator(self):
         """``}{`` should warn in standard Tcl mode."""
@@ -1299,12 +1295,10 @@ class TestIRulesBraceSeparator:
 
     def test_triple_brace_separator(self):
         """``if {cond}{body1}{body2}`` — three braced words in iRules."""
-        old = TclLexer.irules_brace_separator
-        TclLexer.irules_brace_separator = True
-        try:
+        from core.common.dialect import dialect_scope
+
+        with dialect_scope("f5-irules"):
             cmds = segment_commands("if {cond}{body1}{body2}")
             assert len(cmds) == 1
             assert len(cmds[0].argv) == 4
             assert cmds[0].texts == ["if", "cond", "body1", "body2"]
-        finally:
-            TclLexer.irules_brace_separator = old

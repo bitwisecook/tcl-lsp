@@ -201,43 +201,79 @@ def _publish_diagnostics_sync(
     *,
     force_reanalyse: bool = False,
 ) -> None:
+    from core.analysis.checks._style import non_ascii_mode_scope
+    from core.common.dialect import dialect_scope
+
     cfg = _state.config_for_uri(uri)
-    state = _state.workspace_state.update(
-        uri,
-        source,
-        version,
-        force_reanalyse=force_reanalyse,
-        line_length=cfg.line_length,
-    )
-    partial_mode = state.has_partial_commands
-
-    if cfg.diagnostics_enabled:
-        ws_ctx = _build_workspace_diagnostic_context()
-        diagnostics = get_diagnostics(
+    dialect, extras = _state.resolve_dialect_for_uri(uri, source)
+    with (
+        dialect_scope(dialect=dialect, extra_commands=extras),
+        non_ascii_mode_scope(cfg.non_ascii_mode),
+    ):
+        state = _state.workspace_state.update(
+            uri,
             source,
-            analysis=state.analysis,
-            cu=state.compilation_unit,
-            optimiser_enabled=cfg.optimiser_enabled and not partial_mode,
-            shimmer_enabled=cfg.shimmer_enabled and not partial_mode,
-            taint_enabled=not partial_mode,
-            xc_diagnostics_enabled=cfg.xc_diagnostics_enabled,
-            disabled_diagnostics=cfg.disabled_diagnostics,
-            disabled_optimisations=cfg.disabled_optimisations,
-            uri=uri,
+            version,
+            force_reanalyse=force_reanalyse,
             line_length=cfg.line_length,
-            workspace_context=ws_ctx,
         )
-    else:
-        diagnostics = []
+        partial_mode = state.has_partial_commands
 
-    _publish_diags_to_client(uri, diagnostics, version)
-    _update_workspace_index(uri, source, state)
+        if cfg.diagnostics_enabled:
+            ws_ctx = _build_workspace_diagnostic_context()
+            diagnostics = get_diagnostics(
+                source,
+                analysis=state.analysis,
+                cu=state.compilation_unit,
+                optimiser_enabled=cfg.optimiser_enabled and not partial_mode,
+                shimmer_enabled=cfg.shimmer_enabled and not partial_mode,
+                taint_enabled=not partial_mode,
+                xc_diagnostics_enabled=cfg.xc_diagnostics_enabled,
+                disabled_diagnostics=cfg.disabled_diagnostics,
+                disabled_optimisations=cfg.disabled_optimisations,
+                uri=uri,
+                line_length=cfg.line_length,
+                workspace_context=ws_ctx,
+            )
+        else:
+            diagnostics = []
+
+        _publish_diags_to_client(uri, diagnostics, version)
+        _update_workspace_index(uri, source, state)
 
 
 # Async publish pipeline
 
 
 async def _publish_diagnostics(
+    uri: str,
+    source: str,
+    version: int | None = None,
+    *,
+    force_reanalyse: bool = False,
+) -> None:
+    from core.analysis.checks._style import non_ascii_mode_scope
+    from core.common.dialect import dialect_scope
+
+    dialect, extras = _state.resolve_dialect_for_uri(uri, source)
+    cfg = _state.config_for_uri(uri)
+    # Resolve once at the top so every step of this coroutine — quick
+    # parsing, semantic-token precompute, subprocess-pool analysis, the
+    # deep-diagnostics worker, and the final publish — operates under the
+    # same per-folder dialect / non-ASCII mode (issue #407).  ContextVar
+    # values propagate to ``asyncio.to_thread`` / pool workers via
+    # ``contextvars.copy_context`` which ``run_in_executor`` and
+    # ``to_thread`` use internally; the subprocess pool worker
+    # (_analyse_document_fresh) gets the dialect via its explicit
+    # ``dialect=`` argument.
+    with (
+        dialect_scope(dialect=dialect, extra_commands=extras),
+        non_ascii_mode_scope(cfg.non_ascii_mode),
+    ):
+        await _publish_diagnostics_inner(uri, source, version, force_reanalyse=force_reanalyse)
+
+
+async def _publish_diagnostics_inner(
     uri: str,
     source: str,
     version: int | None = None,
@@ -281,7 +317,8 @@ async def _publish_diagnostics(
     if did_analyse:
         is_fresh = state.analysis is None or force_reanalyse
         if is_fresh:
-            from core.common.dialect import active_dialect
+            from core.analysis.checks._style import _non_ascii_mode_var
+            from core.commands.registry.runtime import _dialect_var, _extra_commands_var
             from lsp.workspace.document_state import _analyse_document_fresh
 
             try:
@@ -295,11 +332,20 @@ async def _publish_diagnostics(
                             source=source,
                             version=version,
                             line_length=line_length,
-                            dialect=active_dialect(),
+                            dialect=_dialect_var.get(),
                             uri=uri,
                             disabled_diagnostics=disabled_diagnostics,
                             disabled_optimisations=disabled_optimisations,
                             optimiser_enabled=optimiser_enabled,
+                            # Forward every per-request ContextVar value
+                            # so the subprocess sees the per-folder
+                            # dialect / extras / nonAscii (issue #407).
+                            # Read the effective non-ASCII mode from the
+                            # ContextVar rather than ``cfg.non_ascii_mode``
+                            # so the subprocess inherits the workspace
+                            # default when a folder hasn't overridden it.
+                            extra_commands=_extra_commands_var.get(),
+                            non_ascii_mode=_non_ascii_mode_var.get(),
                         ),
                     ),
                     timeout=15.0,
@@ -530,6 +576,12 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
     if not isinstance(analysis, AnalysisResult):
         return
 
+    # Per-folder PackageResolver selection (issue #407): documents in
+    # folders with their own ``tclLsp.libraryPaths`` use a dedicated
+    # resolver configured with those paths; everything else falls back to
+    # the workspace-level resolver.
+    resolver = _state.package_resolver_for_uri(uri)
+
     if analysis.auto_path_entries and uri is not None:
         import os
 
@@ -551,17 +603,22 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
             if resolved not in extra_paths:
                 extra_paths.append(resolved)
         if extra_paths:
-            _state.package_resolver.add_search_paths(extra_paths)
+            resolver.add_search_paths(extra_paths)
 
     if not analysis.package_requires:
         return
+    resolver_key = id(resolver)
     for pkg_req in analysis.package_requires:
-        if pkg_req.name in _state._loaded_packages:
+        # Key the load-once cache by (resolver, name) so per-folder
+        # resolvers (issue #407) can independently resolve the same
+        # package name to different files — folder A's ``Foo`` from
+        # /opt/tcllib doesn't block folder B's ``Foo`` from /usr/lib.
+        if (resolver_key, pkg_req.name) in _state._loaded_packages:
             continue
-        source_files = _state.package_resolver.resolve(pkg_req.name, pkg_req.version)
+        source_files = resolver.resolve(pkg_req.name, pkg_req.version)
         if not source_files:
             continue
-        _state._loaded_packages.add(pkg_req.name)
+        _state._loaded_packages.add((resolver_key, pkg_req.name))
         for file_path in source_files:
             pkg_uri = path_to_uri(file_path)
             if _state.workspace_state.get(pkg_uri) is not None:
