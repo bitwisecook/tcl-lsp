@@ -51,11 +51,21 @@ from ..model import (
     BigipCmTrustDomain,
     BigipDataGroup,
     BigipGtmDatacenter,
+    BigipGtmDistributedApp,
+    BigipGtmGlobalSettingsGeneral,
+    BigipGtmGlobalSettingsLoadBalancing,
+    BigipGtmGlobalSettingsMetrics,
+    BigipGtmGlobalSettingsMetricsExclusions,
+    BigipGtmLink,
+    BigipGtmListener,
+    BigipGtmListenerDohProxy,
+    BigipGtmListenerDohServer,
     BigipGtmPool,
     BigipGtmProberPool,
     BigipGtmRegion,
     BigipGtmRule,
     BigipGtmServer,
+    BigipGtmTopology,
     BigipGtmWideip,
     BigipMonitor,
     BigipNetDnsResolver,
@@ -1296,6 +1306,105 @@ _GTM_RULE_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
 }
 
+# Bundle 12 — gtm listeners / link / topology / distributed-app /
+# global-settings.
+_GTM_LISTENER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "address": FieldSpec("address"),
+    "port": FieldSpec("port"),
+    "ip-protocol": FieldSpec("ip_protocol"),
+    "mask": FieldSpec("mask"),
+    "pool": FieldSpec("pool", ref_kind="gtm pool"),
+    "profiles": FieldSpec("profiles", ref_kind="ltm profile", list_ref=True),
+    "rules": FieldSpec("rules", ref_kind="gtm rule", list_ref=True),
+    "source-address-translation": FieldSpec("source_address_translation"),
+    "state": FieldSpec("state"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+    "vlans-disabled": FieldSpec("vlans_disabled"),
+    "vlans-enabled": FieldSpec("vlans_enabled"),
+}
+
+_GTM_LISTENER_DOH_PROXY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "address": FieldSpec("address"),
+    "port": FieldSpec("port"),
+    "pool": FieldSpec("pool", ref_kind="gtm pool"),
+}
+
+_GTM_LISTENER_DOH_SERVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "address": FieldSpec("address"),
+    "port": FieldSpec("port"),
+    "pool": FieldSpec("pool", ref_kind="gtm pool"),
+}
+
+_GTM_LINK_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "datacenter": FieldSpec("datacenter", ref_kind="gtm datacenter"),
+    "monitor": FieldSpec("monitor", ref_kind="gtm monitor"),
+    "prober-pool": FieldSpec("prober_pool", ref_kind="gtm prober-pool"),
+    "state": FieldSpec("state"),
+    "weight": FieldSpec("weight"),
+}
+
+_GTM_DISTRIBUTED_APP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "wide-ips": FieldSpec("wide_ips", ref_kind="gtm wideip", list_ref=True),
+    "persist-cidr": FieldSpec("persist_cidr"),
+    "dependency-level": FieldSpec("dependency_level"),
+}
+
+_GTM_TOPOLOGY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "order": FieldSpec("order"),
+    "score": FieldSpec("score"),
+}
+
+_GTM_GLOBAL_SETTINGS_GENERAL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "auto-discovery": FieldSpec("auto_discovery"),
+    "synchronization": FieldSpec("synchronization"),
+    "synchronization-group-name": FieldSpec("synchronization_group_name"),
+}
+
+_GTM_GLOBAL_SETTINGS_LOAD_BALANCING_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "topology-longest-match": FieldSpec("topology_longest_match"),
+    "ignore-path-ttl": FieldSpec("ignore_path_ttl"),
+    "respect-dependent-objects": FieldSpec("respect_dependent_objects"),
+    "verify-vs-availability": FieldSpec("verify_vs_availability"),
+}
+
+_GTM_GLOBAL_SETTINGS_METRICS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "metrics-collection-protocols": FieldSpec("metrics_collection_protocols"),
+}
+
+_GTM_GLOBAL_SETTINGS_METRICS_EXCLUSIONS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "addresses": FieldSpec("addresses"),
+}
+
 _PEM_POLICY_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
@@ -1776,6 +1885,30 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "gtm prober-pool": (BigipGtmProberPool, _GTM_PROBER_POOL_FIELDS),
     "gtm region": (BigipGtmRegion, _GTM_REGION_FIELDS),
     "gtm rule": (BigipGtmRule, _GTM_RULE_FIELDS),
+    # Bundle 12 — gtm listeners / link / topology / distributed-app /
+    # global-settings singletons.
+    "gtm listener": (BigipGtmListener, _GTM_LISTENER_FIELDS),
+    "gtm listener-doh-proxy": (BigipGtmListenerDohProxy, _GTM_LISTENER_DOH_PROXY_FIELDS),
+    "gtm listener-doh-server": (BigipGtmListenerDohServer, _GTM_LISTENER_DOH_SERVER_FIELDS),
+    "gtm link": (BigipGtmLink, _GTM_LINK_FIELDS),
+    "gtm distributed-app": (BigipGtmDistributedApp, _GTM_DISTRIBUTED_APP_FIELDS),
+    "gtm topology": (BigipGtmTopology, _GTM_TOPOLOGY_FIELDS),
+    "gtm global-settings general": (
+        BigipGtmGlobalSettingsGeneral,
+        _GTM_GLOBAL_SETTINGS_GENERAL_FIELDS,
+    ),
+    "gtm global-settings load-balancing": (
+        BigipGtmGlobalSettingsLoadBalancing,
+        _GTM_GLOBAL_SETTINGS_LOAD_BALANCING_FIELDS,
+    ),
+    "gtm global-settings metrics": (
+        BigipGtmGlobalSettingsMetrics,
+        _GTM_GLOBAL_SETTINGS_METRICS_FIELDS,
+    ),
+    "gtm global-settings metrics-exclusions": (
+        BigipGtmGlobalSettingsMetricsExclusions,
+        _GTM_GLOBAL_SETTINGS_METRICS_EXCLUSIONS_FIELDS,
+    ),
     # Bundle 11 — gtm monitor.*  Reuses the existing BigipMonitor
     # dataclass + field map; ``monitor-type`` distinguishes the 31
     # protocol variants (bigip, bigip-link, http, https, ldap, …)
@@ -1872,6 +2005,36 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "region": ("gtm_regions", "gtm region"),
         "rule": ("gtm_rules", "gtm rule"),
         "monitor": ("gtm_monitors", "gtm monitor"),
+        # Bundle 12 — gtm listeners / link / topology / distributed-app /
+        # global-settings singletons.
+        "listener": ("gtm_listeners", "gtm listener"),
+        "listener-doh-proxy": (
+            "gtm_listener_doh_proxies",
+            "gtm listener-doh-proxy",
+        ),
+        "listener-doh-server": (
+            "gtm_listener_doh_servers",
+            "gtm listener-doh-server",
+        ),
+        "link": ("gtm_links", "gtm link"),
+        "topology": ("gtm_topologies", "gtm topology"),
+        "distributed-app": ("gtm_distributed_apps", "gtm distributed-app"),
+        "global-settings-general": (
+            "gtm_global_settings_general",
+            "gtm global-settings general",
+        ),
+        "global-settings-load-balancing": (
+            "gtm_global_settings_load_balancing",
+            "gtm global-settings load-balancing",
+        ),
+        "global-settings-metrics": (
+            "gtm_global_settings_metrics",
+            "gtm global-settings metrics",
+        ),
+        "global-settings-metrics-exclusions": (
+            "gtm_global_settings_metrics_exclusions",
+            "gtm global-settings metrics-exclusions",
+        ),
     },
     "apm": {
         "ssh-security-config": (

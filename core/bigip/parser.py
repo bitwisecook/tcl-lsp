@@ -58,11 +58,21 @@ from .model import (
     BigipDataGroup,
     BigipGenericObject,
     BigipGtmDatacenter,
+    BigipGtmDistributedApp,
+    BigipGtmGlobalSettingsGeneral,
+    BigipGtmGlobalSettingsLoadBalancing,
+    BigipGtmGlobalSettingsMetrics,
+    BigipGtmGlobalSettingsMetricsExclusions,
+    BigipGtmLink,
+    BigipGtmListener,
+    BigipGtmListenerDohProxy,
+    BigipGtmListenerDohServer,
     BigipGtmPool,
     BigipGtmProberPool,
     BigipGtmRegion,
     BigipGtmRule,
     BigipGtmServer,
+    BigipGtmTopology,
     BigipGtmWideip,
     BigipMonitor,
     BigipNetDnsResolver,
@@ -554,6 +564,11 @@ _TWO_WORD_TYPES = frozenset(
         "monitor tcp-half-open",
         "monitor wap",
         "monitor wmi",
+        # gtm bundle 12 — global-settings 4-singleton family.
+        "global-settings general",
+        "global-settings load-balancing",
+        "global-settings metrics",
+        "global-settings metrics-exclusions",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -3315,6 +3330,171 @@ def _parse_gtm_rule(
     )
 
 
+# Bundle 12 parsers — gtm listeners / link / topology /
+# distributed-app / global-settings singletons.
+
+
+def _parse_gtm_listener(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmListener:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmListener(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        address=props.get("address", ""),
+        port=props.get("port", ""),
+        ip_protocol=props.get("ip-protocol", ""),
+        mask=props.get("mask", ""),
+        pool=props.get("pool", ""),
+        profiles=_list_field(props, "profiles"),
+        rules=_list_field(props, "rules"),
+        source_address_translation=props.get("source-address-translation", ""),
+        state=_state_flag(props),
+        vlans=_list_field(props, "vlans"),
+        vlans_disabled="vlans-disabled" in props,
+        vlans_enabled="vlans-enabled" in props,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_listener_doh_proxy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmListenerDohProxy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmListenerDohProxy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        address=props.get("address", ""),
+        port=props.get("port", ""),
+        pool=props.get("pool", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_listener_doh_server(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmListenerDohServer:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmListenerDohServer(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        address=props.get("address", ""),
+        port=props.get("port", ""),
+        pool=props.get("pool", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_link(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmLink:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmLink(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        datacenter=props.get("datacenter", ""),
+        monitor=props.get("monitor", ""),
+        prober_pool=props.get("prober-pool", ""),
+        state=_state_flag(props),
+        weight=props.get("weight", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_distributed_app(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmDistributedApp:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipGtmDistributedApp(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        wide_ips=_list_field(props, "wide-ips"),
+        persist_cidr=props.get("persist-cidr", ""),
+        dependency_level=props.get("dependency-level", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_topology(
+    identifier: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmTopology:
+    """Parse a ``gtm topology`` stanza.
+
+    Unlike every other kind, the header carries a multi-token
+    condition (``ldns: subnet 10.0.0.0/8 server: subnet 10.1.0.0/16``)
+    in place of a full-path; the caller passes that condition as the
+    identifier.
+    """
+    props = _parse_properties(body)
+    return BigipGtmTopology(
+        name=identifier,
+        full_path=identifier,
+        description=_description(props),
+        order=props.get("order", ""),
+        score=props.get("score", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_global_settings_general(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmGlobalSettingsGeneral:
+    props = _parse_properties(body)
+    return BigipGtmGlobalSettingsGeneral(
+        description=_description(props),
+        auto_discovery=props.get("auto-discovery", ""),
+        synchronization=props.get("synchronization", ""),
+        synchronization_group_name=props.get("synchronization-group-name", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_global_settings_load_balancing(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmGlobalSettingsLoadBalancing:
+    props = _parse_properties(body)
+    return BigipGtmGlobalSettingsLoadBalancing(
+        description=_description(props),
+        topology_longest_match=props.get("topology-longest-match", ""),
+        ignore_path_ttl=props.get("ignore-path-ttl", ""),
+        respect_dependent_objects=props.get("respect-dependent-objects", ""),
+        verify_vs_availability=props.get("verify-vs-availability", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_global_settings_metrics(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmGlobalSettingsMetrics:
+    props = _parse_properties(body)
+    return BigipGtmGlobalSettingsMetrics(
+        description=_description(props),
+        metrics_collection_protocols=_list_field(props, "metrics-collection-protocols"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_gtm_global_settings_metrics_exclusions(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipGtmGlobalSettingsMetricsExclusions:
+    props = _parse_properties(body)
+    return BigipGtmGlobalSettingsMetricsExclusions(
+        description=_description(props),
+        addresses=props.get("addresses", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # pem.* parsers
 
 
@@ -3728,6 +3908,17 @@ def parse_bigip_conf(source: str) -> BigipConfig:
     source_map = DocumentBuffer.from_source(source)
 
     for block in blocks:
+        # ``gtm topology`` carries a multi-token condition rather than a
+        # full-path (``gtm topology ldns: subnet 10.0.0.0/8 server:
+        # subnet 10.1.0.0/16 { ... }``); the standard header parser
+        # would mis-tokenise it.  Pre-extract the condition and treat
+        # the whole thing as the topology identifier.
+        if block.header.startswith("gtm topology "):
+            topo_id = block.header[len("gtm topology ") :].strip()
+            config.gtm_topologies[topo_id] = _parse_gtm_topology(
+                topo_id, block.body, source_map, block
+            )
+            continue
         generic = _parse_generic_header(block.header)
         if generic is not None:
             module_g, obj_type_g, identifier_g = generic
@@ -4133,6 +4324,53 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             if obj_type == "rule":
                 config.gtm_rules[full_path] = _parse_gtm_rule(
                     full_path, block.body, source_map, block
+                )
+                continue
+            # Bundle 12 — listeners / link / distributed-app /
+            # global-settings singletons.
+            if obj_type == "listener":
+                config.gtm_listeners[full_path] = _parse_gtm_listener(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "listener-doh-proxy":
+                config.gtm_listener_doh_proxies[full_path] = _parse_gtm_listener_doh_proxy(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "listener-doh-server":
+                config.gtm_listener_doh_servers[full_path] = _parse_gtm_listener_doh_server(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "link":
+                config.gtm_links[full_path] = _parse_gtm_link(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "distributed-app":
+                config.gtm_distributed_apps[full_path] = _parse_gtm_distributed_app(
+                    full_path, block.body, source_map, block
+                )
+                continue
+            if obj_type == "global-settings general":
+                config.gtm_global_settings_general[""] = _parse_gtm_global_settings_general(
+                    block.body, source_map, block
+                )
+                continue
+            if obj_type == "global-settings load-balancing":
+                config.gtm_global_settings_load_balancing[""] = (
+                    _parse_gtm_global_settings_load_balancing(block.body, source_map, block)
+                )
+                continue
+            if obj_type == "global-settings metrics":
+                config.gtm_global_settings_metrics[""] = _parse_gtm_global_settings_metrics(
+                    block.body, source_map, block
+                )
+                continue
+            if obj_type == "global-settings metrics-exclusions":
+                config.gtm_global_settings_metrics_exclusions[""] = (
+                    _parse_gtm_global_settings_metrics_exclusions(block.body, source_map, block)
                 )
                 continue
 

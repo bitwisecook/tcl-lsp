@@ -1657,6 +1657,155 @@ class BigipGtmRule:
     range: Range | None = None
 
 
+# Bundle 12 — gtm listeners / link / topology / distributed-app /
+# global-settings singletons.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmListener:
+    """A ``gtm listener`` object — DNS listener, GTM equivalent of
+    ``ltm virtual``."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    address: str = ""
+    port: str = ""
+    ip_protocol: str = ""
+    mask: str = ""
+    pool: str = ""  # PathRef → gtm pool / ltm pool (DNS-Express)
+    profiles: tuple[str, ...] = ()  # PathRefs → ltm profile
+    rules: tuple[str, ...] = ()  # PathRefs → ltm rule / gtm rule
+    source_address_translation: str = ""
+    state: str = ""  # enabled/disabled
+    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
+    vlans_disabled: bool = False
+    vlans_enabled: bool = False
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmListenerDohProxy:
+    """A ``gtm listener-doh-proxy`` object — DNS-over-HTTPS proxy listener."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    address: str = ""
+    port: str = ""
+    pool: str = ""  # PathRef → gtm pool / ltm pool
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmListenerDohServer:
+    """A ``gtm listener-doh-server`` object — DOH server listener."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    address: str = ""
+    port: str = ""
+    pool: str = ""  # PathRef → gtm pool / ltm pool
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmLink:
+    """A ``gtm link`` object — uplink-bandwidth tracker."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    datacenter: str = ""  # PathRef → gtm datacenter
+    monitor: str = ""
+    prober_pool: str = ""  # PathRef → gtm prober-pool
+    state: str = ""  # enabled/disabled
+    weight: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmDistributedApp:
+    """A ``gtm distributed-app`` object — multi-wideip app grouping."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    wide_ips: tuple[str, ...] = ()  # PathRefs → gtm wideip
+    persist_cidr: str = ""
+    dependency_level: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmTopology:
+    """A ``gtm topology`` object — a topology record.
+
+    The header takes a multi-token condition rather than a normal
+    full-path: ``gtm topology ldns: subnet 10.15.1.1/32 server:
+    subnet 10.16.1.1/32 { ... }``.  We treat the entire condition
+    string as the identifier; ``name`` and ``full_path`` both carry
+    it verbatim.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    order: str = ""
+    score: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmGlobalSettingsGeneral:
+    """The ``gtm global-settings general`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    auto_discovery: str = ""
+    synchronization: str = ""
+    synchronization_group_name: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmGlobalSettingsLoadBalancing:
+    """The ``gtm global-settings load-balancing`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    topology_longest_match: str = ""
+    ignore_path_ttl: str = ""
+    respect_dependent_objects: str = ""
+    verify_vs_availability: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmGlobalSettingsMetrics:
+    """The ``gtm global-settings metrics`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    metrics_collection_protocols: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipGtmGlobalSettingsMetricsExclusions:
+    """The ``gtm global-settings metrics-exclusions`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    addresses: str = ""
+    range: Range | None = None
+
+
 # pem.* — typed projection for the Policy Enforcement Manager module.
 
 
@@ -2267,6 +2416,26 @@ class BigipConfig:
     # share the ``BigipMonitor`` dataclass; ``monitor_type``
     # disambiguates.
     gtm_monitors: dict[str, BigipMonitor] = field(default_factory=dict)
+    # Bundle 12 — gtm listeners / link / topology / distributed-app /
+    # global-settings singletons.
+    gtm_listeners: dict[str, BigipGtmListener] = field(default_factory=dict)
+    gtm_listener_doh_proxies: dict[str, BigipGtmListenerDohProxy] = field(default_factory=dict)
+    gtm_listener_doh_servers: dict[str, BigipGtmListenerDohServer] = field(default_factory=dict)
+    gtm_links: dict[str, BigipGtmLink] = field(default_factory=dict)
+    gtm_topologies: dict[str, BigipGtmTopology] = field(default_factory=dict)
+    gtm_distributed_apps: dict[str, BigipGtmDistributedApp] = field(default_factory=dict)
+    gtm_global_settings_general: dict[str, BigipGtmGlobalSettingsGeneral] = field(
+        default_factory=dict
+    )
+    gtm_global_settings_load_balancing: dict[str, BigipGtmGlobalSettingsLoadBalancing] = field(
+        default_factory=dict
+    )
+    gtm_global_settings_metrics: dict[str, BigipGtmGlobalSettingsMetrics] = field(
+        default_factory=dict
+    )
+    gtm_global_settings_metrics_exclusions: dict[str, BigipGtmGlobalSettingsMetricsExclusions] = (
+        field(default_factory=dict)
+    )
     # pem.* — Policy Enforcement Manager (subscriber policy).
     pem_policies: dict[str, BigipPemPolicy] = field(default_factory=dict)
     pem_rules: dict[str, BigipPemRule] = field(default_factory=dict)

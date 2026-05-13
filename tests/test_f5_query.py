@@ -4588,3 +4588,157 @@ def test_gtm_monitor_defaults_from_resolves_within_gtm_namespace():
         _GTM_MON_CONF,
     )
     assert res.values_per_file["mem://1"] == ["/Common/gtm_https_parent"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 12 — gtm listeners / link / topology / distributed-app /
+# global-settings singletons (10 kinds total).
+# ---------------------------------------------------------------------------
+
+_GTM12_CONF = """gtm datacenter /Common/dc_east { location east }
+gtm prober-pool /Common/pp_main {
+    description "main"
+}
+gtm pool a /Common/dns_pool {
+    ttl 60
+}
+gtm wideip a /Common/widget.example.test { }
+gtm wideip a /Common/widget2.example.test { }
+gtm listener /Common/dns_listener_1 {
+    address 192.0.2.53
+    port 53
+    ip-protocol udp
+    pool /Common/dns_pool
+    profiles { /Common/dns }
+    rules { /Common/dns_log }
+    vlans { /Common/vlan_dns }
+}
+gtm listener-doh-proxy /Common/doh_proxy_1 {
+    address 192.0.2.443
+    port 443
+    pool /Common/dns_pool
+}
+gtm listener-doh-server /Common/doh_server_1 {
+    address 192.0.2.444
+    port 443
+    pool /Common/dns_pool
+}
+gtm link /Common/uplink_a {
+    description "primary uplink"
+    datacenter /Common/dc_east
+    monitor /Common/gtm_bigip
+    prober-pool /Common/pp_main
+    weight 10
+}
+gtm distributed-app /Common/app_widget {
+    description "widget app"
+    persist-cidr 32
+    wide-ips { /Common/widget.example.test /Common/widget2.example.test }
+}
+gtm topology ldns: subnet 10.15.1.1/32 server: subnet 10.16.1.1/32 {
+    order 1
+}
+gtm topology ldns: country DK server: not geoip-isp some-isp {
+    description "country/isp rule"
+    order 2
+    score 5
+}
+gtm global-settings general {
+    auto-discovery enabled
+    synchronization yes
+    synchronization-group-name sync_a
+}
+gtm global-settings load-balancing {
+    topology-longest-match yes
+}
+gtm global-settings metrics {
+    metrics-collection-protocols { icmp tcp }
+}
+gtm global-settings metrics-exclusions {
+    addresses none
+}
+"""
+
+
+def test_gtm_listener_projects_address_port_and_profiles():
+    base = '.gtm.listener["/Common/dns_listener_1"]'
+    assert _run(f"{base}.address", _GTM12_CONF).values_per_file["mem://1"] == ["192.0.2.53"]
+    assert _run(f"{base}.port", _GTM12_CONF).values_per_file["mem://1"] == ["53"]
+    [profiles] = _run(f"{base}.profiles", _GTM12_CONF).values_per_file["mem://1"]
+    assert [p.full_path for p in profiles] == ["/Common/dns"]
+
+
+def test_gtm_listener_pool_pathref_walks_into_gtm_pool():
+    """``listener.pool`` is a PathRef into ``gtm pool``; chaining
+    ``.ttl`` walks into the target pool.
+    """
+    res = _run('.gtm.listener["/Common/dns_listener_1"].pool.ttl', _GTM12_CONF)
+    assert res.values_per_file["mem://1"] == ["60"]
+
+
+def test_gtm_listener_doh_proxy_and_server_share_shape():
+    proxy = _run(
+        '.gtm.listener-doh-proxy["/Common/doh_proxy_1"].port', _GTM12_CONF
+    ).values_per_file["mem://1"]
+    server = _run(
+        '.gtm.listener-doh-server["/Common/doh_server_1"].port', _GTM12_CONF
+    ).values_per_file["mem://1"]
+    assert proxy == ["443"]
+    assert server == ["443"]
+
+
+def test_gtm_link_datacenter_walks_through_pathref():
+    """``link.datacenter`` is a PathRef into ``gtm datacenter``."""
+    res = _run('.gtm.link["/Common/uplink_a"].datacenter.location', _GTM12_CONF)
+    assert res.values_per_file["mem://1"] == ["east"]
+
+
+def test_gtm_distributed_app_wide_ips_resolve_through_pathref():
+    """``distributed-app.wide-ips[]`` is a PathRef list into ``gtm wideip``."""
+    res = _run(
+        '.gtm.distributed-app["/Common/app_widget"]."wide-ips"[]."full-path"',
+        _GTM12_CONF,
+    )
+    assert sorted(res.values_per_file["mem://1"]) == [
+        "/Common/widget.example.test",
+        "/Common/widget2.example.test",
+    ]
+
+
+def test_gtm_topology_uses_multi_token_condition_as_identifier():
+    """``gtm topology`` carries a multi-token condition instead of a
+    full-path.  The parser captures the entire post-``topology`` header
+    as the identifier and stores under that key.
+    """
+    res = _run('.gtm.topology[]."full-path"', _GTM12_CONF)
+    keys = res.values_per_file["mem://1"]
+    assert "ldns: subnet 10.15.1.1/32 server: subnet 10.16.1.1/32" in keys
+    assert "ldns: country DK server: not geoip-isp some-isp" in keys
+
+
+def test_gtm_topology_projects_order_and_score():
+    res = _run(".gtm.topology[].order", _GTM12_CONF)
+    assert sorted(res.values_per_file["mem://1"]) == ["1", "2"]
+
+
+def test_gtm_global_settings_general_singleton_projects_sync():
+    res = _run(".gtm.global-settings-general[].synchronization", _GTM12_CONF)
+    assert res.values_per_file["mem://1"] == ["yes"]
+
+
+def test_gtm_global_settings_load_balancing_singleton_projects_topology_longest_match():
+    res = _run('.gtm.global-settings-load-balancing[]."topology-longest-match"', _GTM12_CONF)
+    assert res.values_per_file["mem://1"] == ["yes"]
+
+
+def test_gtm_global_settings_metrics_singleton_surfaces_protocol_list():
+    [protos] = _run(
+        '.gtm.global-settings-metrics[]."metrics-collection-protocols"', _GTM12_CONF
+    ).values_per_file["mem://1"]
+    assert sorted(protos) == ["icmp", "tcp"]
+
+
+def test_gtm_global_settings_metrics_exclusions_singleton_projects_addresses():
+    assert _run(".gtm.global-settings-metrics-exclusions[].addresses", _GTM12_CONF).values_per_file[
+        "mem://1"
+    ] == ["none"]

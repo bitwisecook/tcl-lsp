@@ -553,18 +553,22 @@ collide); the new `gtm_monitors` container fixes that.
 - [x] `gtm monitor wap`
 - [x] `gtm monitor wmi`
 
-### Bundle 12 — `gtm` listeners / topology / settings (11)
+### Bundle 12 — `gtm` listeners / topology / settings (10)
 
-- [ ] `gtm listener` (DNS listener — the GTM equivalent of `ltm virtual`)
-- [ ] `gtm listener-doh-proxy`
-- [ ] `gtm listener-doh-server`
-- [ ] `gtm link`
-- [ ] `gtm topology`
-- [ ] `gtm distributed-app`
-- [ ] `gtm global-settings general`
-- [ ] `gtm global-settings load-balancing`
-- [ ] `gtm global-settings metrics`
-- [ ] `gtm global-settings metrics-exclusions`
+- [x] `gtm listener` (DNS listener — GTM equivalent of `ltm virtual`;
+      ``pool`` is a PathRef into `gtm pool`)
+- [x] `gtm listener-doh-proxy`
+- [x] `gtm listener-doh-server`
+- [x] `gtm link` (``datacenter`` PathRef → `gtm datacenter`,
+      ``prober-pool`` PathRef → `gtm prober-pool`)
+- [x] `gtm topology` (multi-token condition stored as the identifier;
+      the parser pre-extracts ``block.header[len("gtm topology "):]``
+      before the standard header dispatch)
+- [x] `gtm distributed-app` (``wide-ips[]`` PathRef list → `gtm wideip`)
+- [x] `gtm global-settings general` (singleton)
+- [x] `gtm global-settings load-balancing` (singleton)
+- [x] `gtm global-settings metrics` (singleton)
+- [x] `gtm global-settings metrics-exclusions` (singleton)
 
 ### Bundle 13 — `ltm.*` cross-cutting infra (10)
 
