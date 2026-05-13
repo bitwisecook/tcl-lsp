@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import ipaddress
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -258,13 +257,14 @@ def _resolve_pool_member_address(member_name: str, config: BigipConfig) -> str:
 
 # net self extraction
 #
-# `net self` blocks aren't modelled in BigipConfig, but they carry the
-# only addresses that let us answer "what subnet is this packet on?" —
-# i.e. the BIG-IP's own VLAN-attached IPs.  We do a small text-level
-# pass to extract them.  Route-domain suffixes (``%N``) are stripped
-# before parsing the address.
-
-_ADDR_LINE = re.compile(r"^\s*address\s+(\S+)\s*$", re.MULTILINE)
+# `net self` blocks aren't modelled in BigipConfig at the v1 level
+# (they live in ``BigipConfig.net_selves``), but pcap enrichment
+# needs only the address.  The previous regex-based extraction
+# (``^\s*address\s+(\S+)\s*$``) is now replaced by
+# ``_parse_properties`` — the same TMSH property parser the rest
+# of the codebase uses — for consistency with the parse-not-regex
+# preference.  Route-domain suffixes (``%N``) are stripped before
+# parsing the address.
 
 
 @dataclass(frozen=True, slots=True)
@@ -327,10 +327,9 @@ def _extract_self_ips(source: str) -> list[_SelfIp]:
         if len(parts) < 3 or parts[0] != "net" or parts[1] != "self":
             continue
         full_path = parts[2]
-        m = _ADDR_LINE.search(block.body)
-        if m is None:
+        raw = _parse_properties(block.body).get("address", "").strip()
+        if not raw:
             continue
-        raw = m.group(1).strip()
         if "/" in raw:
             addr_part, _, cidr = raw.partition("/")
         else:

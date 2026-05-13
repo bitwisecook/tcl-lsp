@@ -505,9 +505,7 @@ class TestNetRouteTypedAccessor:
     def test_network_resolves(self):
         from core.bigip.model import BigipNetRoute
 
-        r = BigipNetRoute(
-            name="r1", full_path="/Common/r1", network="10.0.0.0/8", gw="192.168.1.1"
-        )
+        r = BigipNetRoute(name="r1", full_path="/Common/r1", network="10.0.0.0/8", gw="192.168.1.1")
         assert isinstance(r.network_typed, Network)
         assert isinstance(r.gw_typed, IPAddress)
 
