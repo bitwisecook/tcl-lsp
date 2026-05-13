@@ -4,9 +4,6 @@ A walkthrough of the `f5 query` DSL on small, self-contained SCF
 fixtures. Every example shows the input config, the exact command, and
 the literal output from the build.
 
-**Build used:** `build/f5-1.9.0-103-gafcfc.pyz`
-**Symlinked as:** `/tmp/f5` for brevity below
-
 The doc is organised in three layers:
 
 1. **LTM** — single-config queries on `ltm.conf`.
@@ -91,9 +88,6 @@ ltm virtual /Common/vpn_vs {
     profiles { /Common/employee_login_profile { } }
 }
 ```
-
-(The real file is the full SCF; one-liner `{ }` shown here for
-compactness — see `/tmp/f5q/inputs/ltm.conf` for the exact text.)
 
 ### `gtm.conf`
 
