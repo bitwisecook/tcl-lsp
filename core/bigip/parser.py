@@ -5266,6 +5266,311 @@ def _parse_auth_apm_auth(
     )
 
 
+# ---------------------------------------------------------------------------
+# Typed dispatch tables
+# ---------------------------------------------------------------------------
+#
+# Every typed kind whose parser fits the canonical signature
+# ``(full_path, body, source_map, block) -> Type`` lives in
+# :data:`_NAMED_DISPATCH` keyed by ``(module, obj_type)``.  Singleton
+# typed kinds whose parser is just ``(body, source_map, block) -> Type``
+# live in :data:`_SINGLETON_DISPATCH`.  Both replace the long
+# ``if module == "X": if obj_type == "Y": ...`` chains in
+# :func:`parse_bigip_conf`.
+#
+# Family parsers that need an extra TMSH sub-type argument (``ltm
+# profile <type>``, ``ltm monitor <type>``, ``gtm pool <record-type>``,
+# ``pem profile <variant>``, …) and the gtm-topology special case are
+# kept as inline branches in ``parse_bigip_conf``.
+
+_NamedTypedParserFn = Callable[[str, str, DocumentBuffer, "_Block"], object]
+_SingletonTypedParserFn = Callable[[str, DocumentBuffer, "_Block"], object]
+
+_NAMED_DISPATCH: dict[tuple[str, str], tuple[str, _NamedTypedParserFn]] = {
+    # net.*
+    ("net", "route"): ("net_routes", _parse_net_route),
+    ("net", "vlan"): ("net_vlans", _parse_net_vlan),
+    ("net", "self"): ("net_selves", _parse_net_self),
+    ("net", "route-domain"): ("net_route_domains", _parse_net_route_domain),
+    ("net", "port-list"): ("net_port_lists", _parse_net_port_list),
+    ("net", "interface"): ("net_interfaces", _parse_net_interface),
+    ("net", "dns-resolver"): ("net_dns_resolvers", _parse_net_dns_resolver),
+    ("net", "tunnels tunnel"): ("net_tunnels", _parse_net_tunnel),
+    ("net", "stp"): ("net_stps", _parse_net_stp),
+    # sys.*
+    ("sys", "provision"): ("sys_provisions", _parse_sys_provision),
+    ("sys", "folder"): ("sys_folders", _parse_sys_folder),
+    ("sys", "file ssl-cert"): ("sys_file_ssl_certs", _parse_sys_file_ssl_cert),
+    ("sys", "file ssl-key"): ("sys_file_ssl_keys", _parse_sys_file_ssl_key),
+    ("sys", "management-route"): ("sys_management_routes", _parse_sys_management_route),
+    # security.*  (named — full_path required)
+    ("security", "firewall port-list"): (
+        "security_firewall_port_lists",
+        _parse_security_firewall_port_list,
+    ),
+    ("security", "firewall rule-list"): (
+        "security_firewall_rule_lists",
+        _parse_security_firewall_rule_list,
+    ),
+    ("security", "firewall config-entity-id"): (
+        "security_firewall_config_entity_ids",
+        _parse_security_firewall_config_entity_id,
+    ),
+    ("security", "firewall policy"): (
+        "security_firewall_policies",
+        _parse_security_firewall_policy,
+    ),
+    ("security", "firewall address-list"): (
+        "security_firewall_address_lists",
+        _parse_security_firewall_address_list,
+    ),
+    ("security", "firewall schedule"): (
+        "security_firewall_schedules",
+        _parse_security_firewall_schedule,
+    ),
+    ("security", "firewall user-list"): (
+        "security_firewall_user_lists",
+        _parse_security_firewall_user_list,
+    ),
+    ("security", "firewall user-domain"): (
+        "security_firewall_user_domains",
+        _parse_security_firewall_user_domain,
+    ),
+    ("security", "firewall port-misuse-policy"): (
+        "security_firewall_port_misuse_policies",
+        _parse_security_firewall_port_misuse_policy,
+    ),
+    ("security", "ip-intelligence policy"): (
+        "security_ip_intelligence_policies",
+        _parse_security_ip_intelligence_policy,
+    ),
+    ("security", "protocol-inspection compliance-map"): (
+        "security_pi_compliance_maps",
+        _parse_security_pi_compliance_map,
+    ),
+    ("security", "protocol-inspection compliance-objects"): (
+        "security_pi_compliance_objects",
+        _parse_security_pi_compliance_object,
+    ),
+    ("security", "device-id attribute"): (
+        "security_device_id_attributes",
+        _parse_security_device_id_attribute,
+    ),
+    ("security", "nat policy"): ("security_nat_policies", _parse_security_nat_policy),
+    ("security", "nat source-translation"): (
+        "security_nat_source_translations",
+        _parse_security_nat_source_translation,
+    ),
+    ("security", "nat destination-translation"): (
+        "security_nat_destination_translations",
+        _parse_security_nat_destination_translation,
+    ),
+    ("security", "log profile"): ("security_log_profiles", _parse_security_log_profile),
+    ("security", "dos profile"): ("security_dos_profiles", _parse_security_dos_profile),
+    ("security", "ip-intelligence feed-list"): (
+        "security_ip_intelligence_feed_lists",
+        _parse_security_ip_intelligence_feed_list,
+    ),
+    ("security", "zone"): ("security_zones", _parse_security_zone),
+    ("security", "protected zone"): (
+        "security_protected_zones",
+        _parse_security_protected_zone,
+    ),
+    ("security", "packet-filter policy"): (
+        "security_packet_filter_policies",
+        _parse_security_packet_filter_policy,
+    ),
+    ("security", "ssh profile"): ("security_ssh_profiles", _parse_security_ssh_profile),
+    ("security", "http profile"): ("security_http_profiles", _parse_security_http_profile),
+    ("security", "bot-defense profile"): (
+        "security_bot_defense_profiles",
+        _parse_security_bot_defense_profile,
+    ),
+    # apm.*
+    ("apm", "ephemeral-auth ssh-security-config"): (
+        "apm_ephemeral_auth_ssh_security_configs",
+        _parse_apm_ssh_security_config,
+    ),
+    ("apm", "oauth db-instance"): ("apm_oauth_db_instances", _parse_apm_oauth_db_instance),
+    ("apm", "policy access-policy"): (
+        "apm_policy_access_policies",
+        _parse_apm_policy_access_policy,
+    ),
+    ("apm", "policy customization-source"): (
+        "apm_policy_customization_sources",
+        _parse_apm_policy_customization_source,
+    ),
+    ("apm", "policy policy-item"): ("apm_policy_items", _parse_apm_policy_item),
+    # cm.*
+    ("cm", "cert"): ("cm_certs", _parse_cm_cert),
+    ("cm", "key"): ("cm_keys", _parse_cm_key),
+    ("cm", "device"): ("cm_devices", _parse_cm_device),
+    ("cm", "device-group"): ("cm_device_groups", _parse_cm_device_group),
+    ("cm", "traffic-group"): ("cm_traffic_groups", _parse_cm_traffic_group),
+    ("cm", "trust-domain"): ("cm_trust_domains", _parse_cm_trust_domain),
+    # gtm.*  (most are named, singletons go in _SINGLETON_DISPATCH)
+    ("gtm", "datacenter"): ("gtm_datacenters", _parse_gtm_datacenter),
+    ("gtm", "server"): ("gtm_servers", _parse_gtm_server),
+    ("gtm", "prober-pool"): ("gtm_prober_pools", _parse_gtm_prober_pool),
+    ("gtm", "region"): ("gtm_regions", _parse_gtm_region),
+    ("gtm", "rule"): ("gtm_rules", _parse_gtm_rule),
+    ("gtm", "listener"): ("gtm_listeners", _parse_gtm_listener),
+    ("gtm", "listener-doh-proxy"): (
+        "gtm_listener_doh_proxies",
+        _parse_gtm_listener_doh_proxy,
+    ),
+    ("gtm", "listener-doh-server"): (
+        "gtm_listener_doh_servers",
+        _parse_gtm_listener_doh_server,
+    ),
+    ("gtm", "link"): ("gtm_links", _parse_gtm_link),
+    ("gtm", "distributed-app"): ("gtm_distributed_apps", _parse_gtm_distributed_app),
+    # pem.*
+    ("pem", "policy"): ("pem_policies", _parse_pem_policy),
+    ("pem", "irule"): ("pem_rules", _parse_pem_irule),
+    ("pem", "listener"): ("pem_listeners", _parse_pem_listener),
+    ("pem", "forwarding-endpoint"): (
+        "pem_forwarding_endpoints",
+        _parse_pem_forwarding_endpoint,
+    ),
+    ("pem", "interception-endpoint"): (
+        "pem_interception_endpoints",
+        _parse_pem_interception_endpoint,
+    ),
+    ("pem", "service-chain-endpoint"): (
+        "pem_service_chain_endpoints",
+        _parse_pem_service_chain_endpoint,
+    ),
+    ("pem", "quota-mgmt rating-group"): ("pem_rating_groups", _parse_pem_rating_group),
+    # auth.* (named — singletons handled separately)
+    ("auth", "partition"): ("auth_partitions", _parse_auth_partition),
+    ("auth", "user"): ("auth_users", _parse_auth_user),
+    ("auth", "ldap"): ("auth_ldaps", _parse_auth_ldap),
+    ("auth", "radius"): ("auth_radius", _parse_auth_radius),
+    ("auth", "radius-server"): ("auth_radius_servers", _parse_auth_radius_server),
+    ("auth", "tacacs"): ("auth_tacacs", _parse_auth_tacacs),
+    ("auth", "cert-ldap"): ("auth_cert_ldaps", _parse_auth_cert_ldap),
+    ("auth", "apm-auth"): ("auth_apm_auths", _parse_auth_apm_auth),
+    # ltm.*  (named — kinds that take only the canonical 4-arg parser
+    # signature; the family parsers that need a sub-type stay inline)
+    ("ltm", "cipher group"): ("ltm_cipher_groups", _parse_ltm_cipher_group),
+    ("ltm", "cipher rule"): ("ltm_cipher_rules", _parse_ltm_cipher_rule),
+    ("ltm", "nat"): ("ltm_nats", _parse_ltm_nat),
+    ("ltm", "snat"): ("ltm_snats", _parse_ltm_snat),
+    ("ltm", "snat-translation"): ("ltm_snat_translations", _parse_ltm_snat_translation),
+    ("ltm", "policy-strategy"): ("ltm_policy_strategies", _parse_ltm_policy_strategy),
+    ("ltm", "traffic-class"): ("ltm_traffic_classes", _parse_ltm_traffic_class),
+    ("ltm", "traffic-matching-criteria"): (
+        "ltm_traffic_matching_criteria",
+        _parse_ltm_traffic_matching_criteria,
+    ),
+    ("ltm", "ifile"): ("ltm_ifiles", _parse_ltm_ifile),
+    ("ltm", "eviction-policy"): ("ltm_eviction_policies", _parse_ltm_eviction_policy),
+    ("ltm", "dns nameserver"): ("ltm_dns_nameservers", _parse_ltm_dns_nameserver),
+    ("ltm", "dns tsig-key"): ("ltm_dns_tsig_keys", _parse_ltm_dns_tsig_key),
+    ("ltm", "dns zone"): ("ltm_dns_zones", _parse_ltm_dns_zone),
+    ("ltm", "dns dnssec key"): ("ltm_dns_dnssec_keys", _parse_ltm_dns_dnssec_key),
+    ("ltm", "dns dnssec zone"): ("ltm_dns_dnssec_zones", _parse_ltm_dns_dnssec_zone),
+    ("ltm", "dns cache resolver"): (
+        "ltm_dns_cache_resolvers",
+        _parse_ltm_dns_cache_resolver,
+    ),
+    ("ltm", "dns cache transparent"): (
+        "ltm_dns_cache_transparent",
+        _parse_ltm_dns_cache_transparent,
+    ),
+    ("ltm", "dns cache validating-resolver"): (
+        "ltm_dns_cache_validating_resolvers",
+        _parse_ltm_dns_cache_validating_resolver,
+    ),
+    ("ltm", "dns hpke key"): ("ltm_dns_hpke_keys", _parse_ltm_dns_hpke_key),
+    ("ltm", "dns hpke profile"): ("ltm_dns_hpke_profiles", _parse_ltm_dns_hpke_profile),
+}
+
+_SINGLETON_DISPATCH: dict[tuple[str, str], tuple[str, _SingletonTypedParserFn]] = {
+    # sys.*
+    ("sys", "dns"): ("sys_dns", _parse_sys_dns),
+    ("sys", "ntp"): ("sys_ntp", _parse_sys_ntp),
+    ("sys", "snmp"): ("sys_snmp", _parse_sys_snmp),
+    ("sys", "global-settings"): ("sys_global_settings", _parse_sys_global_settings),
+    # security.* (singleton-only kinds — no full_path)
+    ("security", "firewall global-rules"): (
+        "security_firewall_global_rules",
+        _parse_security_firewall_global_rules,
+    ),
+    ("security", "firewall management-ip-rules"): (
+        "security_firewall_management_ip_rules",
+        _parse_security_firewall_management_ip_rules,
+    ),
+    ("security", "firewall global-fqdn-policy"): (
+        "security_firewall_global_fqdn_policy",
+        _parse_security_firewall_global_fqdn_policy,
+    ),
+    ("security", "firewall on-demand-compilation"): (
+        "security_firewall_on_demand_compilation",
+        _parse_security_firewall_on_demand_compilation,
+    ),
+    ("security", "firewall on-demand-rule-deploy"): (
+        "security_firewall_on_demand_rule_deploy",
+        _parse_security_firewall_on_demand_rule_deploy,
+    ),
+    ("security", "firewall uuid-default-autogenerate"): (
+        "security_firewall_uuid_default_autogenerate",
+        _parse_security_firewall_uuid_default_autogenerate,
+    ),
+    ("security", "firewall config-change-log"): (
+        "security_firewall_config_change_log",
+        _parse_security_firewall_config_change_log,
+    ),
+    ("security", "ip-intelligence global-policy"): (
+        "security_ip_intelligence_global_policy",
+        _parse_security_ip_intelligence_global_policy,
+    ),
+    ("security", "packet-filter default-rules"): (
+        "security_packet_filter_default_rules",
+        _parse_security_packet_filter_default_rules,
+    ),
+    # apm.*
+    ("apm", "report default-report"): (
+        "apm_report_default_report",
+        _parse_apm_report_default_report,
+    ),
+    # gtm.* singletons.
+    ("gtm", "global-settings general"): (
+        "gtm_global_settings_general",
+        _parse_gtm_global_settings_general,
+    ),
+    ("gtm", "global-settings load-balancing"): (
+        "gtm_global_settings_load_balancing",
+        _parse_gtm_global_settings_load_balancing,
+    ),
+    ("gtm", "global-settings metrics"): (
+        "gtm_global_settings_metrics",
+        _parse_gtm_global_settings_metrics,
+    ),
+    ("gtm", "global-settings metrics-exclusions"): (
+        "gtm_global_settings_metrics_exclusions",
+        _parse_gtm_global_settings_metrics_exclusions,
+    ),
+    # auth.* singletons.
+    ("auth", "password"): ("auth_password", _parse_auth_password),
+    ("auth", "password-policy"): ("auth_password_policy", _parse_auth_password_policy),
+    ("auth", "source"): ("auth_source", _parse_auth_source),
+    ("auth", "remote-role"): ("auth_remote_role", _parse_auth_remote_role),
+    ("auth", "remote-user"): ("auth_remote_user", _parse_auth_remote_user),
+    ("auth", "login-failures"): ("auth_login_failures", _parse_auth_login_failures),
+    # ltm.* singletons.
+    ("ltm", "dns cache global-settings"): (
+        "ltm_dns_cache_global_settings",
+        _parse_ltm_dns_cache_global_settings,
+    ),
+    ("ltm", "dns analytics global-settings"): (
+        "ltm_dns_analytics_global_settings",
+        _parse_ltm_dns_analytics_global_settings,
+    ),
+}
+
+
 # Public API
 
 
@@ -5305,42 +5610,39 @@ def parse_bigip_conf(source: str) -> BigipConfig:
 
         parsed = _parse_header(block.header)
         if parsed is None:
-            # Singleton stanzas (``sys dns {``, ``sys ntp {``,
-            # ``sys snmp {``, ``sys global-settings {``) have a
-            # two-token header that the standard header parser
-            # rejects.  Dispatch them off ``generic`` and continue.
+            # Two-token / three-token bare singleton headers (e.g.
+            # ``sys dns {``, ``auth password {``, ``net lacp-globals
+            # {``) that the strict header parser rejects.  Dispatch
+            # off ``generic`` via the unified singleton-typed and
+            # minimal tables.
             if generic is not None:
                 module_g, obj_type_g, identifier_g = generic
-                if module_g == "sys" and identifier_g == "":
-                    if obj_type_g == "dns":
-                        config.sys_dns[""] = _parse_sys_dns(block.body, source_map, block)
-                    elif obj_type_g == "ntp":
-                        config.sys_ntp[""] = _parse_sys_ntp(block.body, source_map, block)
-                    elif obj_type_g == "snmp":
-                        config.sys_snmp[""] = _parse_sys_snmp(block.body, source_map, block)
-                    elif obj_type_g == "global-settings":
-                        config.sys_global_settings[""] = _parse_sys_global_settings(
-                            block.body, source_map, block
-                        )
-                    elif obj_type_g in _SYS_MINIMAL_DISPATCH:
-                        # Bare-singleton sys.* minimal kinds (``sys
-                        # httpd {``, ``sys cluster {``, etc.) fall
-                        # through to the shared minimal dispatch.
-                        attr = _SYS_MINIMAL_DISPATCH[obj_type_g]
-                        getattr(config, attr)[""] = _parse_sys_minimal(
-                            "",
-                            block.body,
-                            f"sys {obj_type_g}",
-                            source_map,
-                            block,
-                        )
-                elif (
-                    module_g == "ltm" and identifier_g == "" and obj_type_g in _LTM_MINIMAL_DISPATCH
-                ):
-                    # Bare-singleton ltm.* kinds (e.g. ``ltm default-
-                    # node-monitor {`` is a 2-token header that the
-                    # strict header parser rejects).  Route via the
-                    # shared minimal dispatch.
+                if identifier_g != "":
+                    continue
+                singleton = _SINGLETON_DISPATCH.get((module_g, obj_type_g))
+                if singleton is not None:
+                    attr, parser_fn = singleton
+                    getattr(config, attr)[""] = parser_fn(block.body, source_map, block)
+                    continue
+                # Bare-singleton minimal kinds (``sys httpd``, ``net
+                # lacp-globals``, ``cm config-sync``, …) — route via
+                # the per-module minimal dispatch.
+                minimal_table = _MINIMAL_DISPATCH_BY_MODULE.get(module_g)
+                if minimal_table is not None and obj_type_g in minimal_table[0]:
+                    attr = minimal_table[0][obj_type_g]
+                    parser_fn = minimal_table[1]
+                    getattr(config, attr)[""] = parser_fn(
+                        "",
+                        block.body,
+                        f"{module_g} {obj_type_g}",
+                        source_map,
+                        block,
+                    )
+                    continue
+                # ``ltm`` minimal kinds aren't keyed in
+                # ``_MINIMAL_DISPATCH_BY_MODULE``; their dispatch
+                # table is :data:`_LTM_MINIMAL_DISPATCH`.
+                if module_g == "ltm" and obj_type_g in _LTM_MINIMAL_DISPATCH:
                     attr = _LTM_MINIMAL_DISPATCH[obj_type_g]
                     getattr(config, attr)[""] = _parse_ltm_minimal(
                         "",
@@ -5349,50 +5651,6 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                         source_map,
                         block,
                     )
-                elif identifier_g == "" and module_g in _MINIMAL_DISPATCH_BY_MODULE:
-                    # Bare-singleton non-ltm minimal kinds (e.g.
-                    # ``net lacp-globals {``, ``sys httpd {``,
-                    # ``cm config-sync {``).  Route via the generic
-                    # minimal dispatch table keyed by module.
-                    _table_fn = _MINIMAL_DISPATCH_BY_MODULE[module_g]
-                    if obj_type_g in _table_fn[0]:
-                        _attr = _table_fn[0][obj_type_g]
-                        getattr(config, _attr)[""] = _table_fn[1](
-                            "",
-                            block.body,
-                            f"{module_g} {obj_type_g}",
-                            source_map,
-                            block,
-                        )
-                elif module_g == "auth" and identifier_g == "":
-                    # ``auth password``, ``auth password-policy``, ``auth
-                    # source``, ``auth remote-role``, ``auth remote-user``,
-                    # and ``auth login-failures`` are 2-token singletons
-                    # the strict header parser rejects.  Dispatch them
-                    # off ``generic`` and store under the empty-string
-                    # key, matching the ``sys`` singleton pattern.
-                    if obj_type_g == "password":
-                        config.auth_password[""] = _parse_auth_password(
-                            block.body, source_map, block
-                        )
-                    elif obj_type_g == "password-policy":
-                        config.auth_password_policy[""] = _parse_auth_password_policy(
-                            block.body, source_map, block
-                        )
-                    elif obj_type_g == "source":
-                        config.auth_source[""] = _parse_auth_source(block.body, source_map, block)
-                    elif obj_type_g == "remote-role":
-                        config.auth_remote_role[""] = _parse_auth_remote_role(
-                            block.body, source_map, block
-                        )
-                    elif obj_type_g == "remote-user":
-                        config.auth_remote_user[""] = _parse_auth_remote_user(
-                            block.body, source_map, block
-                        )
-                    elif obj_type_g == "login-failures":
-                        config.auth_login_failures[""] = _parse_auth_login_failures(
-                            block.body, source_map, block
-                        )
             continue
         module, obj_type, full_path = parsed
 
@@ -5415,477 +5673,79 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             )
             continue
 
-        if module == "net":
-            # ``net`` module has its own dispatch.  Unknown sub-types
-            # fall through to ``generic_objects`` via the earlier
-            # branch (which ran for every block above).
-            if obj_type == "route":
-                config.net_routes[full_path] = _parse_net_route(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "vlan":
-                config.net_vlans[full_path] = _parse_net_vlan(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "self":
-                config.net_selves[full_path] = _parse_net_self(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "route-domain":
-                config.net_route_domains[full_path] = _parse_net_route_domain(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "port-list":
-                config.net_port_lists[full_path] = _parse_net_port_list(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "interface":
-                config.net_interfaces[full_path] = _parse_net_interface(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "dns-resolver":
-                config.net_dns_resolvers[full_path] = _parse_net_dns_resolver(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "tunnels tunnel":
-                config.net_tunnels[full_path] = _parse_net_tunnel(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "stp":
-                config.net_stps[full_path] = _parse_net_stp(
-                    full_path, block.body, source_map, block
-                )
+        # Named-typed dispatch — every (module, obj_type) pair listed
+        # in :data:`_NAMED_DISPATCH` routes here with the canonical
+        # ``(full_path, body, source_map, block)`` parser signature.
+        # Singleton typed kinds (no full_path) are in
+        # :data:`_SINGLETON_DISPATCH` but parsed via the same
+        # branch when full_path is empty.
+        named = _NAMED_DISPATCH.get((module, obj_type))
+        if named is not None:
+            attr, parser_fn = named
+            getattr(config, attr)[full_path] = parser_fn(full_path, block.body, source_map, block)
+            continue
+        singleton = _SINGLETON_DISPATCH.get((module, obj_type))
+        if singleton is not None and full_path == "":
+            attr, singleton_parser = singleton
+            getattr(config, attr)[""] = singleton_parser(block.body, source_map, block)
             continue
 
-        if module == "sys":
-            # ``sys`` module dispatch.  Singletons are handled above
-            # via the ``parsed is None`` branch.
-            if obj_type == "provision":
-                config.sys_provisions[full_path] = _parse_sys_provision(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "folder":
-                config.sys_folders[full_path] = _parse_sys_folder(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "file ssl-cert":
-                config.sys_file_ssl_certs[full_path] = _parse_sys_file_ssl_cert(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "file ssl-key":
-                config.sys_file_ssl_keys[full_path] = _parse_sys_file_ssl_key(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "management-route":
-                config.sys_management_routes[full_path] = _parse_sys_management_route(
-                    full_path, block.body, source_map, block
-                )
+        # Family parsers that take an extra TMSH sub-type argument —
+        # the parser signature deviates from the canonical 4-arg form
+        # so they're handled inline rather than via dispatch tables.
+        if module == "security" and obj_type in _SECURITY_MINIMAL_DISPATCH:
+            attr = _SECURITY_MINIMAL_DISPATCH[obj_type]
+            getattr(config, attr)[full_path] = _parse_security_minimal(
+                full_path,
+                block.body,
+                f"security {obj_type}",
+                source_map,
+                block,
+            )
+            continue
+        if module == "apm" and obj_type.startswith("policy agent "):
+            agent_type = obj_type.rsplit(" ", 1)[-1]
+            config.apm_policy_agents[full_path] = _parse_apm_policy_agent(
+                full_path, block.body, source_map, block, agent_type
+            )
+            continue
+        if module == "gtm" and obj_type.startswith("pool "):
+            record_type = obj_type.split(" ", 1)[1]
+            config.gtm_pools[full_path] = _parse_gtm_pool(
+                full_path, block.body, record_type, source_map, block
+            )
+            continue
+        if module == "gtm" and obj_type.startswith("wideip "):
+            record_type = obj_type.split(" ", 1)[1]
+            config.gtm_wideips[full_path] = _parse_gtm_wideip(
+                full_path, block.body, record_type, source_map, block
+            )
+            continue
+        if module == "pem" and obj_type in (
+            "profile diameter-endpoint",
+            "profile radius-aaa",
+            "profile spm",
+            "profile subscriber-mgmt",
+        ):
+            profile_type = obj_type.split(" ", 1)[1]
+            config.pem_profiles[full_path] = _parse_pem_profile(
+                full_path, profile_type, block.body, source_map, block
+            )
             continue
 
-        if module == "security":
-            if obj_type == "firewall port-list":
-                config.security_firewall_port_lists[full_path] = _parse_security_firewall_port_list(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "firewall rule-list":
-                config.security_firewall_rule_lists[full_path] = _parse_security_firewall_rule_list(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "firewall config-entity-id":
-                config.security_firewall_config_entity_ids[full_path] = (
-                    _parse_security_firewall_config_entity_id(
-                        full_path, block.body, source_map, block
-                    )
-                )
-            elif obj_type == "ip-intelligence policy":
-                config.security_ip_intelligence_policies[full_path] = (
-                    _parse_security_ip_intelligence_policy(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "protocol-inspection compliance-map":
-                config.security_pi_compliance_maps[full_path] = _parse_security_pi_compliance_map(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "protocol-inspection compliance-objects":
-                config.security_pi_compliance_objects[full_path] = (
-                    _parse_security_pi_compliance_object(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "device-id attribute":
-                config.security_device_id_attributes[full_path] = (
-                    _parse_security_device_id_attribute(full_path, block.body, source_map, block)
-                )
-            # Bundle 9 — security firewall.* core.  The 4-token forms
-            # (with a full-path) and the 3-token singleton forms both
-            # come through here; singletons land under the empty key
-            # (``full_path == ""``) thanks to ``_parse_header``'s
-            # two-word singleton branch.
-            elif obj_type == "firewall policy":
-                config.security_firewall_policies[full_path] = _parse_security_firewall_policy(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "firewall address-list":
-                config.security_firewall_address_lists[full_path] = (
-                    _parse_security_firewall_address_list(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "firewall schedule":
-                config.security_firewall_schedules[full_path] = _parse_security_firewall_schedule(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "firewall user-list":
-                config.security_firewall_user_lists[full_path] = _parse_security_firewall_user_list(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "firewall user-domain":
-                config.security_firewall_user_domains[full_path] = (
-                    _parse_security_firewall_user_domain(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "firewall port-misuse-policy":
-                config.security_firewall_port_misuse_policies[full_path] = (
-                    _parse_security_firewall_port_misuse_policy(
-                        full_path, block.body, source_map, block
-                    )
-                )
-            elif obj_type == "firewall global-rules":
-                config.security_firewall_global_rules[""] = _parse_security_firewall_global_rules(
-                    block.body, source_map, block
-                )
-            elif obj_type == "firewall management-ip-rules":
-                config.security_firewall_management_ip_rules[""] = (
-                    _parse_security_firewall_management_ip_rules(block.body, source_map, block)
-                )
-            elif obj_type == "firewall global-fqdn-policy":
-                config.security_firewall_global_fqdn_policy[""] = (
-                    _parse_security_firewall_global_fqdn_policy(block.body, source_map, block)
-                )
-            elif obj_type == "firewall on-demand-compilation":
-                config.security_firewall_on_demand_compilation[""] = (
-                    _parse_security_firewall_on_demand_compilation(block.body, source_map, block)
-                )
-            elif obj_type == "firewall on-demand-rule-deploy":
-                config.security_firewall_on_demand_rule_deploy[""] = (
-                    _parse_security_firewall_on_demand_rule_deploy(block.body, source_map, block)
-                )
-            elif obj_type == "firewall uuid-default-autogenerate":
-                config.security_firewall_uuid_default_autogenerate[""] = (
-                    _parse_security_firewall_uuid_default_autogenerate(
-                        block.body, source_map, block
-                    )
-                )
-            elif obj_type == "firewall config-change-log":
-                config.security_firewall_config_change_log[""] = (
-                    _parse_security_firewall_config_change_log(block.body, source_map, block)
-                )
-            # bundle 10a — NAT / log / DoS / IP-intel / zones / packet-filter /
-            # SSH / HTTP / bot-defense profiles.  Singletons land with
-            # ``full_path == ""`` via the two-word singleton branch.
-            elif obj_type == "nat policy":
-                config.security_nat_policies[full_path] = _parse_security_nat_policy(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "nat source-translation":
-                config.security_nat_source_translations[full_path] = (
-                    _parse_security_nat_source_translation(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "nat destination-translation":
-                config.security_nat_destination_translations[full_path] = (
-                    _parse_security_nat_destination_translation(
-                        full_path, block.body, source_map, block
-                    )
-                )
-            elif obj_type == "log profile":
-                config.security_log_profiles[full_path] = _parse_security_log_profile(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "dos profile":
-                config.security_dos_profiles[full_path] = _parse_security_dos_profile(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "ip-intelligence feed-list":
-                config.security_ip_intelligence_feed_lists[full_path] = (
-                    _parse_security_ip_intelligence_feed_list(
-                        full_path, block.body, source_map, block
-                    )
-                )
-            elif obj_type == "ip-intelligence global-policy":
-                config.security_ip_intelligence_global_policy[""] = (
-                    _parse_security_ip_intelligence_global_policy(block.body, source_map, block)
-                )
-            elif obj_type == "zone":
-                # ``security zone /Common/X`` — single-word kind.
-                config.security_zones[full_path] = _parse_security_zone(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "protected zone":
-                config.security_protected_zones[full_path] = _parse_security_protected_zone(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "packet-filter policy":
-                config.security_packet_filter_policies[full_path] = (
-                    _parse_security_packet_filter_policy(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "packet-filter default-rules":
-                config.security_packet_filter_default_rules[""] = (
-                    _parse_security_packet_filter_default_rules(block.body, source_map, block)
-                )
-            elif obj_type == "ssh profile":
-                config.security_ssh_profiles[full_path] = _parse_security_ssh_profile(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "http profile":
-                config.security_http_profiles[full_path] = _parse_security_http_profile(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "bot-defense profile":
-                config.security_bot_defense_profiles[full_path] = (
-                    _parse_security_bot_defense_profile(full_path, block.body, source_map, block)
-                )
-            elif obj_type in _SECURITY_MINIMAL_DISPATCH:
-                # Bundle 10b — minimal-shape security.* kinds that
-                # share one parser and one dataclass.  ``full_path``
-                # is "" for the singleton variants (``debug *``,
-                # ``dos device-config``, ``protocol-inspection
-                # common-config``, …) via the two-word singleton
-                # branch in ``_parse_header``.
-                attr = _SECURITY_MINIMAL_DISPATCH[obj_type]
-                getattr(config, attr)[full_path] = _parse_security_minimal(
-                    full_path,
-                    block.body,
-                    f"security {obj_type}",
-                    source_map,
-                    block,
-                )
-            continue
-
-        if module == "apm":
-            if obj_type == "ephemeral-auth ssh-security-config":
-                config.apm_ephemeral_auth_ssh_security_configs[full_path] = (
-                    _parse_apm_ssh_security_config(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "oauth db-instance":
-                config.apm_oauth_db_instances[full_path] = _parse_apm_oauth_db_instance(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "policy access-policy":
-                config.apm_policy_access_policies[full_path] = _parse_apm_policy_access_policy(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "policy customization-source":
-                config.apm_policy_customization_sources[full_path] = (
-                    _parse_apm_policy_customization_source(full_path, block.body, source_map, block)
-                )
-            elif obj_type == "policy policy-item":
-                config.apm_policy_items[full_path] = _parse_apm_policy_item(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type.startswith("policy agent "):
-                # ``policy agent <type>`` — surface every variant in the
-                # same container, classified by ``agent_type``.
-                agent_type = obj_type.rsplit(" ", 1)[-1]
-                config.apm_policy_agents[full_path] = _parse_apm_policy_agent(
-                    full_path, block.body, source_map, block, agent_type
-                )
-            elif obj_type == "report default-report":
-                # Singleton — stored under the empty-string key.
-                config.apm_report_default_report[""] = _parse_apm_report_default_report(
-                    block.body, source_map, block
-                )
-            continue
-
-        if module == "cm":
-            if obj_type == "cert":
-                config.cm_certs[full_path] = _parse_cm_cert(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "key":
-                config.cm_keys[full_path] = _parse_cm_key(full_path, block.body, source_map, block)
-            elif obj_type == "device":
-                config.cm_devices[full_path] = _parse_cm_device(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "device-group":
-                config.cm_device_groups[full_path] = _parse_cm_device_group(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "traffic-group":
-                config.cm_traffic_groups[full_path] = _parse_cm_traffic_group(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "trust-domain":
-                config.cm_trust_domains[full_path] = _parse_cm_trust_domain(
-                    full_path, block.body, source_map, block
-                )
-            continue
-
-        if module == "gtm":
-            # gtm.* dispatch.  ``pool a|aaaa|cname|mx|srv|naptr`` and
-            # ``wideip <record-type>`` are two-word kinds; the record
-            # type tags the dataclass so all six DNS variants share
-            # one container.  Fall through to the shared ``ltm/gtm``
-            # match below for unmodelled gtm kinds (``monitor``,
-            # ``rule``) so existing behaviour is preserved.
-            if obj_type == "datacenter":
-                config.gtm_datacenters[full_path] = _parse_gtm_datacenter(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "server":
-                config.gtm_servers[full_path] = _parse_gtm_server(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type.startswith("pool "):
-                record_type = obj_type.split(" ", 1)[1]
-                config.gtm_pools[full_path] = _parse_gtm_pool(
-                    full_path, block.body, record_type, source_map, block
-                )
-                continue
-            if obj_type.startswith("wideip "):
-                record_type = obj_type.split(" ", 1)[1]
-                config.gtm_wideips[full_path] = _parse_gtm_wideip(
-                    full_path, block.body, record_type, source_map, block
-                )
-                continue
-            if obj_type == "prober-pool":
-                config.gtm_prober_pools[full_path] = _parse_gtm_prober_pool(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "region":
-                config.gtm_regions[full_path] = _parse_gtm_region(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "rule":
-                config.gtm_rules[full_path] = _parse_gtm_rule(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            # Bundle 12 — listeners / link / distributed-app /
-            # global-settings singletons.
-            if obj_type == "listener":
-                config.gtm_listeners[full_path] = _parse_gtm_listener(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "listener-doh-proxy":
-                config.gtm_listener_doh_proxies[full_path] = _parse_gtm_listener_doh_proxy(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "listener-doh-server":
-                config.gtm_listener_doh_servers[full_path] = _parse_gtm_listener_doh_server(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "link":
-                config.gtm_links[full_path] = _parse_gtm_link(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "distributed-app":
-                config.gtm_distributed_apps[full_path] = _parse_gtm_distributed_app(
-                    full_path, block.body, source_map, block
-                )
-                continue
-            if obj_type == "global-settings general":
-                config.gtm_global_settings_general[""] = _parse_gtm_global_settings_general(
-                    block.body, source_map, block
-                )
-                continue
-            if obj_type == "global-settings load-balancing":
-                config.gtm_global_settings_load_balancing[""] = (
-                    _parse_gtm_global_settings_load_balancing(block.body, source_map, block)
-                )
-                continue
-            if obj_type == "global-settings metrics":
-                config.gtm_global_settings_metrics[""] = _parse_gtm_global_settings_metrics(
-                    block.body, source_map, block
-                )
-                continue
-            if obj_type == "global-settings metrics-exclusions":
-                config.gtm_global_settings_metrics_exclusions[""] = (
-                    _parse_gtm_global_settings_metrics_exclusions(block.body, source_map, block)
-                )
-                continue
-
-        if module == "pem":
-            if obj_type == "policy":
-                config.pem_policies[full_path] = _parse_pem_policy(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "irule":
-                config.pem_rules[full_path] = _parse_pem_irule(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "listener":
-                config.pem_listeners[full_path] = _parse_pem_listener(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "forwarding-endpoint":
-                config.pem_forwarding_endpoints[full_path] = _parse_pem_forwarding_endpoint(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "interception-endpoint":
-                config.pem_interception_endpoints[full_path] = _parse_pem_interception_endpoint(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "service-chain-endpoint":
-                config.pem_service_chain_endpoints[full_path] = _parse_pem_service_chain_endpoint(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type in (
-                "profile diameter-endpoint",
-                "profile radius-aaa",
-                "profile spm",
-                "profile subscriber-mgmt",
-            ):
-                profile_type = obj_type.split(" ", 1)[1]
-                config.pem_profiles[full_path] = _parse_pem_profile(
-                    full_path, profile_type, block.body, source_map, block
-                )
-            elif obj_type == "quota-mgmt rating-group":
-                config.pem_rating_groups[full_path] = _parse_pem_rating_group(
-                    full_path, block.body, source_map, block
-                )
-            continue
-
-        if module == "auth":
-            if obj_type == "partition":
-                config.auth_partitions[full_path] = _parse_auth_partition(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "user":
-                config.auth_users[full_path] = _parse_auth_user(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "ldap":
-                config.auth_ldaps[full_path] = _parse_auth_ldap(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "radius":
-                config.auth_radius[full_path] = _parse_auth_radius(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "radius-server":
-                config.auth_radius_servers[full_path] = _parse_auth_radius_server(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "tacacs":
-                config.auth_tacacs[full_path] = _parse_auth_tacacs(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "cert-ldap":
-                config.auth_cert_ldaps[full_path] = _parse_auth_cert_ldap(
-                    full_path, block.body, source_map, block
-                )
-            elif obj_type == "apm-auth":
-                config.auth_apm_auths[full_path] = _parse_auth_apm_auth(
-                    full_path, block.body, source_map, block
-                )
-            continue
-
+        # Non-shared modules end here — only ``ltm`` and ``gtm`` fall
+        # through to the legacy ``match`` block below (some kinds
+        # like ``rule`` exist under both modules and dispatch by
+        # ``module`` inside the match arms).
         if module not in ("ltm", "gtm"):
             continue
 
+        # ltm/gtm shared kinds — ``data-group``, ``virtual``, ``pool``,
+        # ``rule``, ``policy`` etc. that can appear under both modules.
+        # The dispatch arms gate on ``module`` where the kind is
+        # ltm-only.  Family parsers (profile / persistence / monitor
+        # / dns-cache-records) stay below because they need an extra
+        # sub-type argument.
         match obj_type:
             case "data-group internal":
                 dg = _parse_data_group(
@@ -5908,109 +5768,6 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 if module == "ltm":
                     va = _parse_virtual_address(full_path, block.body, source_map, block)
                     config.virtual_addresses[full_path] = va
-            # Bundle 13 — ltm.* cross-cutting infra.
-            case "cipher group":
-                if module == "ltm":
-                    config.ltm_cipher_groups[full_path] = _parse_ltm_cipher_group(
-                        full_path, block.body, source_map, block
-                    )
-            case "cipher rule":
-                if module == "ltm":
-                    config.ltm_cipher_rules[full_path] = _parse_ltm_cipher_rule(
-                        full_path, block.body, source_map, block
-                    )
-            case "nat":
-                if module == "ltm":
-                    config.ltm_nats[full_path] = _parse_ltm_nat(
-                        full_path, block.body, source_map, block
-                    )
-            case "snat":
-                if module == "ltm":
-                    config.ltm_snats[full_path] = _parse_ltm_snat(
-                        full_path, block.body, source_map, block
-                    )
-            case "snat-translation":
-                if module == "ltm":
-                    config.ltm_snat_translations[full_path] = _parse_ltm_snat_translation(
-                        full_path, block.body, source_map, block
-                    )
-            case "policy-strategy":
-                if module == "ltm":
-                    config.ltm_policy_strategies[full_path] = _parse_ltm_policy_strategy(
-                        full_path, block.body, source_map, block
-                    )
-            case "traffic-class":
-                if module == "ltm":
-                    config.ltm_traffic_classes[full_path] = _parse_ltm_traffic_class(
-                        full_path, block.body, source_map, block
-                    )
-            case "traffic-matching-criteria":
-                if module == "ltm":
-                    config.ltm_traffic_matching_criteria[full_path] = (
-                        _parse_ltm_traffic_matching_criteria(
-                            full_path, block.body, source_map, block
-                        )
-                    )
-            case "ifile":
-                if module == "ltm":
-                    config.ltm_ifiles[full_path] = _parse_ltm_ifile(
-                        full_path, block.body, source_map, block
-                    )
-            case "eviction-policy":
-                if module == "ltm":
-                    config.ltm_eviction_policies[full_path] = _parse_ltm_eviction_policy(
-                        full_path, block.body, source_map, block
-                    )
-            # Bundle 14 — ltm dns.* (DNS Express).
-            case "dns nameserver":
-                if module == "ltm":
-                    config.ltm_dns_nameservers[full_path] = _parse_ltm_dns_nameserver(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns tsig-key":
-                if module == "ltm":
-                    config.ltm_dns_tsig_keys[full_path] = _parse_ltm_dns_tsig_key(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns zone":
-                if module == "ltm":
-                    config.ltm_dns_zones[full_path] = _parse_ltm_dns_zone(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns dnssec key":
-                if module == "ltm":
-                    config.ltm_dns_dnssec_keys[full_path] = _parse_ltm_dns_dnssec_key(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns dnssec zone":
-                if module == "ltm":
-                    config.ltm_dns_dnssec_zones[full_path] = _parse_ltm_dns_dnssec_zone(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns cache resolver":
-                if module == "ltm":
-                    config.ltm_dns_cache_resolvers[full_path] = _parse_ltm_dns_cache_resolver(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns cache transparent":
-                if module == "ltm":
-                    config.ltm_dns_cache_transparent[full_path] = _parse_ltm_dns_cache_transparent(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns cache validating-resolver":
-                if module == "ltm":
-                    config.ltm_dns_cache_validating_resolvers[full_path] = (
-                        _parse_ltm_dns_cache_validating_resolver(
-                            full_path, block.body, source_map, block
-                        )
-                    )
-            case "dns cache global-settings":
-                if module == "ltm":
-                    # Singleton (empty full_path from the three-word
-                    # singleton branch in _parse_header).
-                    config.ltm_dns_cache_global_settings[""] = _parse_ltm_dns_cache_global_settings(
-                        block.body, source_map, block
-                    )
             case _ if obj_type.startswith("dns cache records ") and module == "ltm":
                 # Four-word kind: all five record sub-kinds (all / key /
                 # msg / nameserver / rrset) merge into one container.
@@ -6018,21 +5775,6 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 config.ltm_dns_cache_records[full_path] = _parse_ltm_dns_cache_record(
                     full_path, block.body, record_kind, source_map, block
                 )
-            case "dns hpke key":
-                if module == "ltm":
-                    config.ltm_dns_hpke_keys[full_path] = _parse_ltm_dns_hpke_key(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns hpke profile":
-                if module == "ltm":
-                    config.ltm_dns_hpke_profiles[full_path] = _parse_ltm_dns_hpke_profile(
-                        full_path, block.body, source_map, block
-                    )
-            case "dns analytics global-settings":
-                if module == "ltm":
-                    config.ltm_dns_analytics_global_settings[""] = (
-                        _parse_ltm_dns_analytics_global_settings(block.body, source_map, block)
-                    )
             case _ if (
                 module == "ltm" and obj_type.startswith("auth ") and obj_type in _LTM_AUTH_DISPATCH
             ):
