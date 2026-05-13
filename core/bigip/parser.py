@@ -5857,3 +5857,10 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     config.monitors[full_path] = monitor
 
     return config
+
+
+# Public API surface.  Everything else (parser helpers, dispatch
+# tables, sub-parsers) is implementation detail and may change
+# without notice.  Tests that need internals reach for them by
+# their underscore-prefixed names.
+__all__ = ["parse_bigip_conf"]

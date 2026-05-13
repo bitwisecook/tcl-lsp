@@ -4196,3 +4196,19 @@ def _collect_field_slots(
             raw_text=value_text,
         )
     return slots
+
+
+# Public API surface.  ``MODULE_KINDS`` / ``LTM_KINDS`` enumerate the
+# navigable module/kind tree exposed to the DSL; ``root_container``
+# materialises the top-level entry into projection state.  Container
+# / FieldSpec are part of the public surface so consumers can build
+# their own typed objects.  Everything else (per-kind field maps,
+# per-kind projector helpers, internal dispatch tables) is
+# implementation detail.
+__all__ = [
+    "Container",
+    "FieldSpec",
+    "LTM_KINDS",
+    "MODULE_KINDS",
+    "root_container",
+]
