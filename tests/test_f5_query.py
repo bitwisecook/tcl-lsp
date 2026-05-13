@@ -5203,3 +5203,23 @@ def test_ltm_auth_isolation_from_ltm_message_routing_dispatch():
     """
     res = _run('.ltm.auth-ldap[]."full-path"', _LTM16_CONF)
     assert res.values_per_file["mem://1"] == ["/Common/auth_ldap1"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 17 — ltm CGNAT / LSN (3 kinds, generic minimal shape).
+# ---------------------------------------------------------------------------
+
+_LTM17_CONF = """ltm lsn-pool /Common/lsn1 { description "lsn pool" }
+ltm lsn-log-profile /Common/lsnlog1 { description "lsn log profile" }
+ltm alg-log-profile /Common/alglog1 { description "alg log profile" }
+"""
+
+
+def test_ltm_bundle_17_lsn_kinds_dispatch():
+    for label, kind_str in [
+        ("lsn-pool", "ltm lsn-pool"),
+        ("lsn-log-profile", "ltm lsn-log-profile"),
+        ("alg-log-profile", "ltm alg-log-profile"),
+    ]:
+        res = _run(f".ltm.{label}[].kind", _LTM17_CONF)
+        assert kind_str in res.values_per_file["mem://1"], f"{label}"

@@ -662,6 +662,25 @@ class BigipLtmAuthObject:
     range: Range | None = None
 
 
+# Bundles 17-20 — shared minimal shape for the long-tail ltm.*
+# kinds (CGNAT / LSN, global-settings singletons, classification /
+# URL-DB, tacdb).  Each kind keeps its own ``BigipConfig``
+# attribute; the ``kind`` field preserves the full TMSH label.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmMinimalObject:
+    """A generic ltm.* minimal projection — name / full-path /
+    kind / description.
+    """
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
@@ -2633,6 +2652,10 @@ class BigipConfig:
     ltm_auth_ssl_cc_ldap: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
     ltm_auth_ssl_crldp: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
     ltm_auth_ssl_ocsp: dict[str, BigipLtmAuthObject] = field(default_factory=dict)
+    # Bundle 17 — ltm CGNAT / LSN (3 kinds).
+    ltm_lsn_pools: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_lsn_log_profiles: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_alg_log_profiles: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

@@ -93,6 +93,7 @@ from .model import (
     BigipLtmEvictionPolicy,
     BigipLtmIfile,
     BigipLtmMessageRoutingObject,
+    BigipLtmMinimalObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
     BigipLtmSnat,
@@ -1625,6 +1626,36 @@ def _parse_ltm_dns_analytics_global_settings(
 
 # Bundle 15 parsers — ltm message-routing.*  shared parser routing
 # off a single dispatch table keyed by the in-config obj_type.
+
+
+# Bundles 17-20 — generic ltm.* minimal parser.  Shared by the
+# long-tail kinds where the v1 projection only needs identity +
+# description.
+
+_LTM_MINIMAL_DISPATCH: dict[str, str] = {
+    # Bundle 17 — ltm CGNAT / LSN.
+    "lsn-pool": "ltm_lsn_pools",
+    "lsn-log-profile": "ltm_lsn_log_profiles",
+    "alg-log-profile": "ltm_alg_log_profiles",
+}
+
+
+def _parse_ltm_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipLtmMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipLtmMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
 
 
 # Bundle 16 — ltm auth.* profiles (11 kinds).  All share the
@@ -5197,6 +5228,19 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 # ``ltm auth X`` label.
                 attr = _LTM_AUTH_DISPATCH[obj_type]
                 getattr(config, attr)[full_path] = _parse_ltm_auth(
+                    full_path,
+                    block.body,
+                    f"ltm {obj_type}",
+                    source_map,
+                    block,
+                )
+            case _ if module == "ltm" and obj_type in _LTM_MINIMAL_DISPATCH:
+                # Bundles 17-20 — generic ltm.* minimal-shape kinds
+                # (CGNAT/LSN, global-settings singletons,
+                # classification, tacdb).  Routed via the dispatch
+                # table; ``kind`` field carries the TMSH label.
+                attr = _LTM_MINIMAL_DISPATCH[obj_type]
+                getattr(config, attr)[full_path] = _parse_ltm_minimal(
                     full_path,
                     block.body,
                     f"ltm {obj_type}",

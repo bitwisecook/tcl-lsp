@@ -678,9 +678,9 @@ administrative ``auth.*`` namespace projected in bundle 8.
 
 ### Bundle 17 — `ltm` CGNAT / LSN (3)
 
-- [ ] `ltm lsn-pool`
-- [ ] `ltm lsn-log-profile`
-- [ ] `ltm alg-log-profile`
+- [x] `ltm lsn-pool`
+- [x] `ltm lsn-log-profile`
+- [x] `ltm alg-log-profile`
 
 ### Bundle 18 — `ltm` global-settings + misc singletons (5)
 
