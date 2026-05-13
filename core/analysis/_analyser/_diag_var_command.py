@@ -89,28 +89,16 @@ class _AnalyserDiagVarCommandMixin(_Base):
             if not disabled_names:
                 return
             unique_names = sorted(set(disabled_names))
-            # Normalised lookup keys (no leading ``::``) so qualified
-            # forms like ``::when`` are treated identically to ``when``
-            # for special-case guidance and registry lookups, matching
-            # ``check_disabled_command``.
-            unique_lookups = {normalise_qualified_name(n).lstrip(":") for n in unique_names}
             if len(disabled_names) == 1:
                 msg = f"'{disabled_names[0]}' is disabled in the active dialect profile"
             else:
                 quoted = ", ".join(f"'{n}'" for n in unique_names)
                 msg = f"command may resolve to {quoted}, all disabled in the active dialect profile"
-            # Mirror the special-case guidance from
-            # ``check_disabled_command``: ``when`` is the iRules
-            # event-binding command, so direct users to the iRules
-            # dialect.  Otherwise add the generic "available in iRules"
-            # hint when at least one resolved name exists there.
-            if "when" in unique_lookups:
-                msg += ". Select iRules as the language to enable F5 iRules support"
-            elif any(
-                REGISTRY.command_status(name, "f5-irules") is DialectStatus.EXISTS
-                for name in unique_lookups
-            ):
-                msg += " (available in the iRules dialect)"
+            # The iRules-suggestion suffixes (``Select iRules`` /
+            # ``available in the iRules dialect``) used to be appended
+            # here; they only fired outside iRules mode and so were
+            # guaranteed-noise for non-iRules users.  Per #407 feedback:
+            # iRules-specific messaging is irrelevant outside iRules.
             self.result.diagnostics.append(
                 Diagnostic(
                     range=site_range,

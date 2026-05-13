@@ -456,24 +456,28 @@ class TestDiagnostics:
             configure_signatures(dialect="tcl8.6")
 
     def test_configure_signatures_sets_lexer_expand_flag(self):
-        """``configure_signatures`` must toggle ``TclLexer.expand_syntax``
-        based on the active dialect's base Tcl version."""
+        """The lexer's {*} expansion flag reflects the active dialect.
+
+        Post-#407 the flag is read from the registry's ContextVar via
+        ``_expand_syntax_active()`` rather than a mutable class attribute,
+        so per-folder dialect resolution affects only the current scope.
+        """
         from core.commands.registry.runtime import configure_signatures
-        from core.parsing.lexer import TclLexer
+        from core.parsing.lexer import _expand_syntax_active
 
         try:
             configure_signatures(dialect="tcl8.4")
-            assert TclLexer.expand_syntax is False
+            assert _expand_syntax_active() is False
             configure_signatures(dialect="f5-irules")
-            assert TclLexer.expand_syntax is False
+            assert _expand_syntax_active() is False
             configure_signatures(dialect="tcl8.5")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
             configure_signatures(dialect="tcl8.6")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
             configure_signatures(dialect="tcl9.0")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
             configure_signatures(dialect="f5-iapps")
-            assert TclLexer.expand_syntax is True
+            assert _expand_syntax_active() is True
         finally:
             configure_signatures(dialect="tcl8.6")
 

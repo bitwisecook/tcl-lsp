@@ -186,10 +186,6 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
 
     Mutates ``target`` (defaulting to the workspace-level ``feature_config``)
     in place and returns True if any diagnostics need republishing.
-
-    ``set_non_ascii_mode`` is a process-global side effect — applied for
-    every target since it cannot be made per-folder without restructuring
-    ``core.analysis.checks._style``.
     """
     if target is None:
         target = _state.feature_config
@@ -269,10 +265,19 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
             changed = True
         non_ascii = style_section.get("nonAscii")
         if isinstance(non_ascii, str) and non_ascii in ("strict", "confusables", "common", "off"):
-            from core.analysis.checks._style import set_non_ascii_mode
+            # Per-folder W108 mode (issue #407).  The LSP request handlers
+            # open a ``non_ascii_mode_scope`` for the resolved value so this
+            # setting applies to documents in this folder only.  The
+            # workspace-fallback target's value also feeds
+            # ``set_non_ascii_mode`` below to keep the process-wide default
+            # in sync for callers that don't open a scope.
+            if non_ascii != target.non_ascii_mode:
+                target.non_ascii_mode = non_ascii
+                changed = True
+            if target is _state.feature_config:
+                from core.analysis.checks._style import set_non_ascii_mode
 
-            set_non_ascii_mode(non_ascii)
-            changed = True
+                set_non_ascii_mode(non_ascii)
 
     # Shimmer detection toggle  (tclLsp.shimmer.enabled)
     shimmer_section = tcl_settings.get("shimmer")
@@ -331,6 +336,62 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
             log.warning(
                 "Unrecognised optimisation codes in settings (ignored): %s", sorted(unknown_opt)
             )
+
+    # Per-folder dialect / extra commands (issue #407).  These mirror the
+    # process-wide ``configure_signatures(...)`` call in
+    # ``_apply_merged_settings_now`` but live on the FeatureConfig so each
+    # workspace folder can carry its own value.  The LSP request handlers
+    # wrap their work in ``dialect_scope(...)`` using these fields, so
+    # documents in folders configured for different dialects don't fight
+    # over a single process-wide setting.
+    folder_dialect = tcl_settings.get("dialect")
+    if isinstance(folder_dialect, str) and folder_dialect:
+        from core.commands.registry.runtime import _canonical_dialect
+
+        canonical = _canonical_dialect(folder_dialect)
+        if canonical is not None and canonical != target.dialect:
+            target.dialect = canonical
+            changed = True
+        if canonical is not None and not target.dialect_explicitly_set:
+            # Per-folder ``tclLsp.dialect`` is an explicit user override —
+            # mark the flag on this target so the auto-detect-from-source
+            # path in ``lifecycle.did_open`` doesn't second-guess it.
+            target.dialect_explicitly_set = True
+            changed = True
+    elif folder_dialect is None and target.dialect is not None and "dialect" in tcl_settings:
+        # Explicit null clears the override; absent key keeps the current value.
+        target.dialect = None
+        target.dialect_explicitly_set = False
+        changed = True
+
+    folder_extras_raw = tcl_settings.get("extraCommands")
+    if folder_extras_raw is None:
+        folder_extras_raw = tcl_settings.get("extra_commands")
+    if isinstance(folder_extras_raw, list):
+        # Filter to actual string entries before stripping — otherwise
+        # ``str(None).strip()`` would silently register a ``"None"``
+        # command name (and similar artefacts for any non-string entry).
+        normalised = tuple(
+            sorted(
+                {
+                    name.strip()
+                    for name in folder_extras_raw
+                    if isinstance(name, str) and name.strip()
+                }
+            )
+        )
+        if normalised != target.extra_commands:
+            target.extra_commands = normalised
+            changed = True
+
+    folder_paths_raw = tcl_settings.get("libraryPaths")
+    if folder_paths_raw is None:
+        folder_paths_raw = tcl_settings.get("library_paths")
+    if isinstance(folder_paths_raw, list):
+        normalised_paths = tuple(str(p) for p in folder_paths_raw if isinstance(p, str) and p)
+        if normalised_paths != target.library_paths:
+            target.library_paths = normalised_paths
+            changed = True
 
     # Generic variable patterns  (tclLsp.diagnostics.genericVariablePatterns)
     # An explicit empty list disables IRULE4002; absent key leaves the default.
@@ -470,7 +531,10 @@ def _apply_merged_settings_now() -> None:
     if extra_commands_setting is None:
         extra_commands = None
     elif isinstance(extra_commands_setting, list):
-        extra_commands = [str(cmd) for cmd in extra_commands_setting]
+        # Filter to actual string entries — ``str(None)`` would otherwise
+        # silently register a ``"None"`` command name (and similar
+        # artefacts for any non-string entry).
+        extra_commands = [cmd for cmd in extra_commands_setting if isinstance(cmd, str)]
     else:
         extra_commands = []
 
@@ -478,7 +542,7 @@ def _apply_merged_settings_now() -> None:
     if library_paths_setting is None:
         library_paths_setting = fallback_settings.get("library_paths")
     if isinstance(library_paths_setting, list):
-        library_paths = [str(p) for p in library_paths_setting]
+        library_paths = [p for p in library_paths_setting if isinstance(p, str) and p]
         _state.background_scanner.configure(library_paths=library_paths)
         resolver_paths = _state.background_scanner.workspace_roots + library_paths
         _state.package_resolver.configure(search_paths=resolver_paths)
@@ -503,23 +567,13 @@ def _apply_merged_settings_now() -> None:
             _state.feature_config.dialect_explicitly_set,
         )
 
-    # ``tclLsp.dialect`` is declared as ``language-overridable`` so VS Code
-    # accepts per-folder overrides, but the active dialect controls a
-    # process-global signature registry — only one dialect can be active
-    # at a time.  Warn the user when folder-level dialect overrides
-    # disagree with the workspace fallback so they understand why their
-    # folder setting "isn't applying".
-    for folder_uri in _state.editor_config_settings_per_folder:
-        folder_dialect = _state.editor_config_settings_per_folder[folder_uri].get("dialect")
-        if isinstance(folder_dialect, str) and folder_dialect and folder_dialect != dialect_setting:
-            log.warning(
-                "Folder %s configures tclLsp.dialect=%r but the workspace "
-                "dialect is %r — only the workspace value applies. "
-                "Per-folder dialects are not yet supported.",
-                folder_uri,
-                folder_dialect,
-                dialect_setting or "<auto>",
-            )
+    # Per-folder dialect overrides (issue #407) are honoured via
+    # ``FeatureConfig.dialect`` + ``dialect_scope`` at request time, so the
+    # "only one dialect can be active at a time" caveat that used to live
+    # here no longer applies.  The workspace-fallback ``configure_signatures``
+    # call above sets the default that applies to documents outside every
+    # known folder; folder-specific dialects flow through the FeatureConfig
+    # populated by ``_apply_feature_settings``.
 
     # Per-folder + fallback feature/formatter application.
     diags_were_enabled = _state.feature_config.diagnostics_enabled
@@ -536,6 +590,64 @@ def _apply_merged_settings_now() -> None:
         folder_settings = _merged_settings(folder_uri)
         if _apply_settings_to_target(folder_uri, folder_settings):
             features_changed = True
+
+    # Per-folder PackageResolver configuration (issue #407).  Each folder
+    # with its own ``tclLsp.libraryPaths`` gets a dedicated resolver
+    # configured with that folder's paths plus the workspace_roots.  Only
+    # spin one up when the folder's paths actually *differ* from the
+    # workspace fallback — VS Code typically returns folder configuration
+    # already merged with workspace values, so library_paths is populated
+    # for every folder even when no folder-level override exists.  Without
+    # this guard we'd end up with N duplicate resolvers all scanning the
+    # same set of paths.
+    workspace_roots = _state.background_scanner.workspace_roots
+    fallback_paths = (
+        tuple(_state.feature_config.library_paths) if _state.feature_config.library_paths else ()
+    )
+    for folder_uri in folder_uris:
+        if folder_uri == "":
+            continue
+        folder_cfg = _state.get_or_init_folder_feature_config(folder_uri)
+        if folder_cfg.library_paths is None:
+            # Folder cleared its libraryPaths override — drop any stale
+            # per-folder resolver so ``package_resolver_for_uri`` falls
+            # back to the workspace resolver, and prune ``_loaded_packages``
+            # entries keyed to it so a follow-up rescan picks the
+            # workspace files instead of the stale folder ones.
+            dropped = _state._per_folder_package_resolvers.pop(folder_uri, None)
+            if dropped is not None:
+                dropped_key = id(dropped)
+                _state._loaded_packages.difference_update(
+                    entry for entry in list(_state._loaded_packages) if entry[0] == dropped_key
+                )
+            continue
+        folder_paths = tuple(folder_cfg.library_paths)
+        if folder_paths == fallback_paths:
+            # Folder mirrors the workspace fallback — drop any stale
+            # per-folder resolver so ``package_resolver_for_uri`` falls
+            # back to the shared workspace resolver instead of
+            # double-scanning.  Also prune any ``_loaded_packages`` entries
+            # keyed to the dropped resolver so a follow-up rescan can
+            # re-load packages via the workspace resolver.
+            dropped = _state._per_folder_package_resolvers.pop(folder_uri, None)
+            if dropped is not None:
+                dropped_key = id(dropped)
+                _state._loaded_packages.difference_update(
+                    entry for entry in list(_state._loaded_packages) if entry[0] == dropped_key
+                )
+            continue
+        folder_resolver = _state.get_or_init_folder_package_resolver(folder_uri)
+        new_search_paths = workspace_roots + list(folder_paths)
+        if folder_resolver._search_paths != new_search_paths:
+            # Search paths changed — drop the ``(resolver_id, name)``
+            # entries in ``_loaded_packages`` for this resolver so that
+            # packages that resolved to the old paths get re-loaded
+            # from the new ones.
+            resolver_key = id(folder_resolver)
+            _state._loaded_packages.difference_update(
+                entry for entry in list(_state._loaded_packages) if entry[0] == resolver_key
+            )
+            folder_resolver.configure(search_paths=new_search_paths)
 
     if not signatures_changed and not features_changed:
         return

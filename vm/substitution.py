@@ -117,14 +117,17 @@ def substitute(
     use :func:`subst_command` instead.
     """
     # Disable {*} expansion during substitution — expansion is a
-    # command-level concept, not applicable within a word value.
-    old_expand = TclLexer.expand_syntax
-    TclLexer.expand_syntax = False
-    try:
+    # command-level concept, not applicable within a word value.  Uses the
+    # thread-local override (post-#407 the lexer flag is no longer a
+    # mutable class attribute; it's derived from the active dialect with a
+    # thread-local force-off escape hatch).  The scope helper preserves
+    # the previous force-off value so nested ``substitute()`` calls don't
+    # clobber an outer ``True``.
+    from core.parsing.lexer import expand_syntax_disabled_scope
+
+    with expand_syntax_disabled_scope():
         lexer = TclLexer(text)
         tokens = lexer.tokenise_all()
-    finally:
-        TclLexer.expand_syntax = old_expand
     parts: list[str] = []
 
     for tok in tokens:

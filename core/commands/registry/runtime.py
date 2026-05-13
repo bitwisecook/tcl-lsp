@@ -212,6 +212,9 @@ def _invalidate_runtime_caches(loader_keys: list[str]) -> None:
     loop_list_header_commands.cache_clear()
     scope_alias_commands.cache_clear()
     options_with_value.cache_clear()
+    # Drop the per-(dialect, extras) signature cache so it is rebuilt with
+    # the freshly-loaded specs on next access.
+    signatures_for.cache_clear()
 
     # Also clear the parser's known-command cache.
     from ...parsing.known_commands import known_command_names
@@ -431,11 +434,65 @@ _EDA_TCL_BASE: dict[str, str] = {
     "mentor-eda-tcl": "tcl8.5",
 }
 
+import contextvars  # noqa: E402
+
 from .dialects import KNOWN_DIALECTS as _KNOWN_DIALECTS  # noqa: E402
 
-_active_dialect = "tcl8.6"
-_active_extra_commands: tuple[str, ...] = ()
-SIGNATURES: dict[str, CommandSig | SubcommandSig] = {}
+# Per-request scope variables.  Each LSP request handler is expected to wrap
+# its work in ``dialect_scope(dialect, extra_commands=...)`` so that
+# ``active_dialect()``, ``SIGNATURES``, and the lexer flags return values
+# scoped to the current document's folder rather than a process-wide
+# singleton.  See issue #407.
+_dialect_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "tcl_lsp_dialect", default="tcl8.6"
+)
+_extra_commands_var: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "tcl_lsp_extra_commands", default=()
+)
+
+
+class _SignaturesProxy:
+    """Mapping-like view of the signature table for the active dialect.
+
+    Resolves on every access via ``signatures_for(dialect, extra)`` which is
+    ``lru_cache``-d, so per-dialect lookups are O(1) after warm-up.  Behaves
+    like ``dict`` for the read patterns the analyser/compiler/LSP layer
+    relies on (``get``, ``__contains__``, ``__getitem__``, iteration,
+    ``keys``).  Writes are not supported — the cached per-dialect dicts are
+    immutable from the callers' perspective.
+    """
+
+    __slots__ = ()
+
+    def _current(self) -> dict[str, "CommandSig | SubcommandSig"]:
+        return signatures_for(_dialect_var.get(), _extra_commands_var.get())
+
+    def __getitem__(self, key: str) -> "CommandSig | SubcommandSig":
+        return self._current()[key]
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._current()
+
+    def __iter__(self):
+        return iter(self._current())
+
+    def __len__(self) -> int:
+        return len(self._current())
+
+    def get(self, key, default=None):
+        return self._current().get(key, default)
+
+    def keys(self):
+        return self._current().keys()
+
+    def values(self):
+        return self._current().values()
+
+    def items(self):
+        return self._current().items()
+
+
+SIGNATURES: _SignaturesProxy = _SignaturesProxy()
 
 
 def _canonical_dialect(dialect: str) -> str | None:
@@ -617,14 +674,33 @@ def available_dialects() -> list[str]:
 def active_signature_profile() -> dict[str, object]:
     """Return the currently active command-signature profile."""
     return {
-        "dialect": _active_dialect,
-        "extra_commands": list(_active_extra_commands),
+        "dialect": _dialect_var.get(),
+        "extra_commands": list(_extra_commands_var.get()),
     }
 
 
 def is_irules_dialect() -> bool:
     """Return True if the active dialect is iRules."""
-    return _active_dialect == "f5-irules"
+    return _dialect_var.get() == "f5-irules"
+
+
+@lru_cache(maxsize=32)
+def signatures_for(
+    dialect: str,
+    extra_commands: tuple[str, ...] = (),
+) -> dict[str, CommandSig | SubcommandSig]:
+    """Return the signature table for ``dialect`` (+ ``extra_commands``).
+
+    Cached so per-request lookups via ``SIGNATURES.get(...)`` are O(1) after
+    each (dialect, extras) tuple is built once.  The cache is invalidated
+    when new specs are loaded via ``_invalidate_runtime_caches``.
+    """
+    canonical = _canonical_dialect(dialect)
+    if canonical is None:
+        return {}
+    # Ensure dialect-specific command specs are loaded before building.
+    REGISTRY.load_dialect_specs(canonical)
+    return _build_signatures(canonical, extra_commands=extra_commands)
 
 
 def configure_signatures(
@@ -632,53 +708,45 @@ def configure_signatures(
     dialect: str | None = None,
     extra_commands: list[str] | tuple[str, ...] | None = None,
 ) -> bool:
-    """Configure active command signatures.
+    """Configure the dialect/extra_commands for the current context.
 
     Returns ``True`` if the effective profile changed.
+
+    This sets the ContextVar values in the *current* context.  For
+    per-request scoping (the common case in the LSP), prefer
+    :func:`core.common.dialect.dialect_scope` which uses a
+    ``with``-statement and restores the previous value on exit.
+    ``configure_signatures`` remains as the long-lived default-setter
+    used at server startup and on workspace-level configuration changes.
     """
-    global _active_dialect, _active_extra_commands
+    cur_dialect = _dialect_var.get()
+    cur_extra = _extra_commands_var.get()
 
     if dialect is None:
-        next_dialect = _active_dialect
+        next_dialect = cur_dialect
     else:
         requested = _canonical_dialect(dialect)
         if requested is None:
             return False
         next_dialect = requested
     if extra_commands is None:
-        next_extra = _active_extra_commands
+        next_extra = cur_extra
     else:
         next_extra = tuple(
             sorted({name.strip() for name in extra_commands if name and name.strip()})
         )
 
-    if next_dialect == _active_dialect and next_extra == _active_extra_commands and SIGNATURES:
+    if next_dialect == cur_dialect and next_extra == cur_extra:
         return False
 
-    # Ensure dialect-specific command specs are loaded before building
-    # signatures.  Taint hints are merged automatically via the
-    # _on_specs_loaded callback when new specs are loaded.
-    REGISTRY.load_dialect_specs(next_dialect)
+    # Eagerly populate the signature cache for the new (dialect, extras)
+    # tuple so callers reading ``SIGNATURES`` don't pay the build cost on
+    # the first request.  This also ensures dialect-specific command specs
+    # are loaded; taint hints merge in via the _on_specs_loaded callback.
+    signatures_for(next_dialect, next_extra)
 
-    new_signatures = _build_signatures(
-        next_dialect,
-        extra_commands=next_extra,
-    )
-    SIGNATURES.clear()
-    SIGNATURES.update(new_signatures)
-    _active_dialect = next_dialect
-    _active_extra_commands = next_extra
-
-    # Configure lexer flags for the active dialect.
-    from core.parsing.lexer import TclLexer
-
-    from .dialects import dialects_since
-
-    TclLexer.irules_brace_separator = next_dialect == "f5-irules"
-    # {*} argument expansion was introduced in Tcl 8.5.  Disable it for
-    # 8.4-based dialects (tcl8.4, f5-irules) so ``cmd {*}$args`` is
-    # lexed as a single ``*${args}`` word rather than an expansion.
-    TclLexer.expand_syntax = next_dialect in dialects_since("tcl8.5")
+    _dialect_var.set(next_dialect)
+    _extra_commands_var.set(next_extra)
 
     return True
 
@@ -1295,5 +1363,7 @@ import core.commands.registry.command_registry as _cmd_reg  # noqa: E402
 
 _cmd_reg._on_specs_loaded = _invalidate_runtime_caches
 
-# Initialize runtime signatures for default profile.
-configure_signatures(dialect="tcl8.6", extra_commands=[])
+# Eagerly populate the signature cache for the default profile so the first
+# request doesn't pay the build cost.  Per-request scoping via
+# ``dialect_scope`` (see core.common.dialect) overrides this default.
+signatures_for("tcl8.6", ())

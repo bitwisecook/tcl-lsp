@@ -74,15 +74,17 @@ def check_disabled_command(
     dialect = active_dialect()
     status = REGISTRY.command_status(lookup, dialect)
     if status is DialectStatus.DISALLOWED:
-        msg = f"'{cmd_name}' is disabled in the active dialect profile"
-        if lookup == "when":
-            msg += ". Select iRules as the language to enable F5 iRules support"
-        elif REGISTRY.command_status(lookup, "f5-irules") is DialectStatus.EXISTS:
-            msg += " (available in the iRules dialect)"
+        # The base "disabled in active profile" wording is dialect-agnostic.
+        # Older revisions appended "(available in the iRules dialect)" /
+        # "Select iRules as the language" hints when the command happened
+        # to exist in f5-irules, but those hints only ever fired when the
+        # active dialect was NOT iRules — so they were guaranteed-noise
+        # for users who have no interest in iRules.  Per #407 feedback:
+        # iRules-specific messaging is irrelevant outside iRules mode.
         return [
             Diagnostic(
                 range=range_from_token(all_tokens[0]),
-                message=msg,
+                message=f"'{cmd_name}' is disabled in the active dialect profile",
                 severity=Severity.WARNING,
                 code="W002",
             )
