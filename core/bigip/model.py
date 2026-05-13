@@ -386,8 +386,19 @@ class BigipNetVlan:
     mtu: str = ""
     cmp_hash: str = ""
     failsafe: str = ""
+    failsafe_action: str = ""
+    failsafe_timeout: str = ""
+    fwd_mode: str = ""
+    hardware_syncookie: str = ""
+    learning: str = ""
+    tag_mode: str = ""
+    virtual_wire: str = ""
     auto_lasthop: str = ""
     source_check: str = ""
+    source_checking: str = ""
+    syn_flood_rate_limit: str = ""
+    syncache_threshold: str = ""
+    service_policy: str = ""
     range: Range | None = None
 
 
@@ -404,6 +415,11 @@ class BigipNetSelf:
     description: str = ""
     floating: str = ""  # ``enabled`` / ``disabled``
     unit: str = ""
+    service_policy: str = ""
+    fw_enforced_policy: str = ""
+    fw_staged_policy: str = ""
+    inherited_traffic_group: str = ""
+    address_source: str = ""
     range: Range | None = None
 
 
@@ -420,6 +436,12 @@ class BigipNetRouteDomain:
     strict: str = ""
     fw_enforced_policy: str = ""
     fw_staged_policy: str = ""
+    bwc_policy: str = ""
+    connection_limit: str = ""
+    flow_eviction_policy: str = ""
+    routing_protocol: tuple[str, ...] = ()
+    security_nat_policy: str = ""
+    service_policy: str = ""
     range: Range | None = None
 
 
@@ -452,6 +474,28 @@ class BigipNetInterface:
     bundle: str = ""
     bundle_speed: str = ""
     lldp_admin: str = ""
+    mtu: str = ""
+    flow_control: str = ""
+    mac_address: str = ""
+    media_active: str = ""
+    media_max: str = ""
+    media_sfp: str = ""
+    port_fwd_mode: str = ""
+    qinq_ethertype: str = ""
+    stp: str = ""
+    stp_edge_port: str = ""
+    stp_link_type: str = ""
+    stp_auto_edge_port: str = ""
+    stp_reset: str = ""
+    sflow_poll_interval: str = ""
+    sflow_poll_interval_global: str = ""
+    vendor: str = ""
+    vendor_oui: str = ""
+    vendor_partnum: str = ""
+    vendor_revision: str = ""
+    virtual_wire: str = ""
+    transmitter_technology: str = ""
+    lacp_port_priority: str = ""
     range: Range | None = None
 
 
@@ -470,6 +514,12 @@ class BigipNetDnsResolver:
     use_ipv6: str = ""
     use_tcp: str = ""
     use_udp: str = ""
+    nameservers: tuple[str, ...] = ()  # surface bare nameserver entry keys
+    answer_default_zones: str = ""
+    prefetch: str = ""
+    nameserver_min_rtt: str = ""
+    nameserver_ttl: str = ""
+    outbound_msg_retry: str = ""
     range: Range | None = None
 
 
@@ -483,6 +533,16 @@ class BigipNetTunnel:
     local_address: str = ""
     remote_address: str = ""
     description: str = ""
+    mtu: str = ""
+    mode: str = ""
+    idle_timeout: str = ""
+    auto_lasthop: str = ""
+    secondary_address: str = ""
+    traffic_group: str = ""  # PathRef → cm traffic-group
+    transparent: str = ""
+    key: str = ""
+    use_pmtu: str = ""
+    tos: str = ""
     range: Range | None = None
 
 
@@ -500,6 +560,10 @@ class BigipNetStp:
     interfaces: tuple[str, ...] = ()
     description: str = ""
     mode: str = ""
+    priority: str = ""
+    external_path_cost: str = ""
+    internal_path_cost: str = ""
+    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
     range: Range | None = None
 
 

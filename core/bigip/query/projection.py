@@ -388,8 +388,19 @@ _NET_VLAN_FIELDS: dict[str, FieldSpec] = {
     "mtu": FieldSpec("mtu"),
     "cmp-hash": FieldSpec("cmp_hash"),
     "failsafe": FieldSpec("failsafe"),
+    "failsafe-action": FieldSpec("failsafe_action"),
+    "failsafe-timeout": FieldSpec("failsafe_timeout"),
+    "fwd-mode": FieldSpec("fwd_mode"),
+    "hardware-syncookie": FieldSpec("hardware_syncookie"),
+    "learning": FieldSpec("learning"),
+    "tag-mode": FieldSpec("tag_mode"),
+    "virtual-wire": FieldSpec("virtual_wire"),
     "auto-lasthop": FieldSpec("auto_lasthop"),
     "source-check": FieldSpec("source_check"),
+    "source-checking": FieldSpec("source_checking"),
+    "syn-flood-rate-limit": FieldSpec("syn_flood_rate_limit"),
+    "syncache-threshold": FieldSpec("syncache_threshold"),
+    "service-policy": FieldSpec("service_policy"),
 }
 
 _NET_SELF_FIELDS: dict[str, FieldSpec] = {
@@ -402,6 +413,11 @@ _NET_SELF_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
     "floating": FieldSpec("floating"),
     "unit": FieldSpec("unit"),
+    "service-policy": FieldSpec("service_policy"),
+    "fw-enforced-policy": FieldSpec("fw_enforced_policy"),
+    "fw-staged-policy": FieldSpec("fw_staged_policy"),
+    "inherited-traffic-group": FieldSpec("inherited_traffic_group"),
+    "address-source": FieldSpec("address_source"),
 }
 
 _NET_ROUTE_DOMAIN_FIELDS: dict[str, FieldSpec] = {
@@ -414,6 +430,12 @@ _NET_ROUTE_DOMAIN_FIELDS: dict[str, FieldSpec] = {
     "strict": FieldSpec("strict"),
     "fw-enforced-policy": FieldSpec("fw_enforced_policy"),
     "fw-staged-policy": FieldSpec("fw_staged_policy"),
+    "bwc-policy": FieldSpec("bwc_policy"),
+    "connection-limit": FieldSpec("connection_limit"),
+    "flow-eviction-policy": FieldSpec("flow_eviction_policy"),
+    "routing-protocol": FieldSpec("routing_protocol"),
+    "security-nat-policy": FieldSpec("security_nat_policy"),
+    "service-policy": FieldSpec("service_policy"),
 }
 
 _NET_PORT_LIST_FIELDS: dict[str, FieldSpec] = {
@@ -433,6 +455,28 @@ _NET_INTERFACE_FIELDS: dict[str, FieldSpec] = {
     "bundle": FieldSpec("bundle"),
     "bundle-speed": FieldSpec("bundle_speed"),
     "lldp-admin": FieldSpec("lldp_admin"),
+    "mtu": FieldSpec("mtu"),
+    "flow-control": FieldSpec("flow_control"),
+    "mac-address": FieldSpec("mac_address"),
+    "media-active": FieldSpec("media_active"),
+    "media-max": FieldSpec("media_max"),
+    "media-sfp": FieldSpec("media_sfp"),
+    "port-fwd-mode": FieldSpec("port_fwd_mode"),
+    "qinq-ethertype": FieldSpec("qinq_ethertype"),
+    "stp": FieldSpec("stp"),
+    "stp-edge-port": FieldSpec("stp_edge_port"),
+    "stp-link-type": FieldSpec("stp_link_type"),
+    "stp-auto-edge-port": FieldSpec("stp_auto_edge_port"),
+    "stp-reset": FieldSpec("stp_reset"),
+    "sflow-poll-interval": FieldSpec("sflow_poll_interval"),
+    "sflow-poll-interval-global": FieldSpec("sflow_poll_interval_global"),
+    "vendor": FieldSpec("vendor"),
+    "vendor-oui": FieldSpec("vendor_oui"),
+    "vendor-partnum": FieldSpec("vendor_partnum"),
+    "vendor-revision": FieldSpec("vendor_revision"),
+    "virtual-wire": FieldSpec("virtual_wire"),
+    "transmitter-technology": FieldSpec("transmitter_technology"),
+    "lacp-port-priority": FieldSpec("lacp_port_priority"),
 }
 
 _NET_DNS_RESOLVER_FIELDS: dict[str, FieldSpec] = {
@@ -447,6 +491,12 @@ _NET_DNS_RESOLVER_FIELDS: dict[str, FieldSpec] = {
     "use-ipv6": FieldSpec("use_ipv6"),
     "use-tcp": FieldSpec("use_tcp"),
     "use-udp": FieldSpec("use_udp"),
+    "nameservers": FieldSpec("nameservers"),
+    "answer-default-zones": FieldSpec("answer_default_zones"),
+    "prefetch": FieldSpec("prefetch"),
+    "nameserver-min-rtt": FieldSpec("nameserver_min_rtt"),
+    "nameserver-ttl": FieldSpec("nameserver_ttl"),
+    "outbound-msg-retry": FieldSpec("outbound_msg_retry"),
 }
 
 _NET_TUNNEL_FIELDS: dict[str, FieldSpec] = {
@@ -456,6 +506,16 @@ _NET_TUNNEL_FIELDS: dict[str, FieldSpec] = {
     "local-address": FieldSpec("local_address"),
     "remote-address": FieldSpec("remote_address"),
     "description": FieldSpec("description"),
+    "mtu": FieldSpec("mtu"),
+    "mode": FieldSpec("mode"),
+    "idle-timeout": FieldSpec("idle_timeout"),
+    "auto-lasthop": FieldSpec("auto_lasthop"),
+    "secondary-address": FieldSpec("secondary_address"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
+    "transparent": FieldSpec("transparent"),
+    "key": FieldSpec("key"),
+    "use-pmtu": FieldSpec("use_pmtu"),
+    "tos": FieldSpec("tos"),
 }
 
 _NET_STP_FIELDS: dict[str, FieldSpec] = {
@@ -464,6 +524,10 @@ _NET_STP_FIELDS: dict[str, FieldSpec] = {
     "interfaces": FieldSpec("interfaces"),
     "description": FieldSpec("description"),
     "mode": FieldSpec("mode"),
+    "priority": FieldSpec("priority"),
+    "external-path-cost": FieldSpec("external_path_cost"),
+    "internal-path-cost": FieldSpec("internal_path_cost"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
 }
 
 _SYS_DNS_FIELDS: dict[str, FieldSpec] = {

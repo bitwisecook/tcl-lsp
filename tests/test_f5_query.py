@@ -3369,3 +3369,212 @@ def test_persistence_hash_length_and_offset():
     assert ho.values_per_file["mem://1"] == ["0"]
     method = _run(".ltm.persistence.sess_hash.method", _PERSISTENCE_FLAGS_CONF)
     assert method.values_per_file["mem://1"] == ["carp"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 5 — net.* enrichments
+# ---------------------------------------------------------------------------
+
+_NET_ENRICH_CONF = """net vlan /Common/vbase {
+    tag 100
+    mtu 9000
+    cmp-hash src-ip
+    failsafe enabled
+    failsafe-action reboot
+    failsafe-timeout 30
+    fwd-mode l3
+    hardware-syncookie enabled
+    learning enable-forward
+    tag-mode customer
+    virtual-wire disabled
+    source-checking enabled
+    syn-flood-rate-limit 1000
+    syncache-threshold 4096
+    service-policy /Common/svc_pol
+}
+net vlan /Common/v10 { tag 10 }
+net vlan /Common/v20 { tag 20 }
+net self /Common/self1 {
+    address 10.0.0.1/24
+    vlan /Common/vbase
+    service-policy /Common/svc_pol
+    fw-enforced-policy /Common/edge_fw
+    fw-staged-policy /Common/edge_fw_staged
+    inherited-traffic-group true
+    address-source from-user
+}
+net route-domain /Common/rd_full {
+    id 5
+    vlans { /Common/vbase }
+    bwc-policy /Common/bwc1
+    connection-limit 100000
+    flow-eviction-policy /Common/fep1
+    routing-protocol { BGP OSPFv2 }
+    security-nat-policy /Common/snat_pol
+    service-policy /Common/svc_pol
+}
+net interface 1.1 {
+    media-fixed 10000T-FD
+    mtu 9000
+    flow-control tx-rx
+    mac-address 00:11:22:33:44:55
+    media-active 10000T-FD
+    media-max 10000T-FD
+    port-fwd-mode l3
+    qinq-ethertype 0x8100
+    stp enabled
+    stp-edge-port enabled
+    stp-link-type auto
+    stp-auto-edge-port enabled
+    sflow {
+        poll-interval 0
+        poll-interval-global yes
+    }
+    vendor "F5 Networks"
+    vendor-oui 009065
+    vendor-partnum "OPT-0026"
+    vendor-revision 03
+    transmitter-technology fiber
+    lacp-port-priority 32768
+    virtual-wire disabled
+}
+net tunnels tunnel /Common/tun1 {
+    profile /Common/gre
+    local-address 10.0.99.1
+    remote-address 10.0.99.2
+    mtu 1500
+    mode bidirectional
+    idle-timeout 300
+    auto-lasthop default
+    secondary-address 10.0.99.3
+    traffic-group /Common/traffic-group-1
+    transparent disabled
+    key 12345
+    use-pmtu enabled
+    tos preserve
+}
+cm traffic-group /Common/traffic-group-1 { unit-id 1 }
+net dns-resolver /Common/dnsr_full {
+    route-domain 0
+    cache-size 1048576
+    nameservers { 1.1.1.1 1.0.0.1 }
+    answer-default-zones yes
+    prefetch enabled
+    nameserver-min-rtt 5
+    nameserver-ttl 30
+    outbound-msg-retry 3
+}
+net stp /Common/cist1 {
+    interfaces { 1.1 1.2 }
+    mode rstp
+    priority 32768
+    external-path-cost 20000
+    internal-path-cost 20000
+    vlans { /Common/v10 /Common/v20 }
+}
+"""
+
+
+def test_net_vlan_failsafe_and_learning():
+    fa = _run(".net.vlan.vbase.failsafe-action", _NET_ENRICH_CONF)
+    assert fa.values_per_file["mem://1"] == ["reboot"]
+    learning = _run(".net.vlan.vbase.learning", _NET_ENRICH_CONF)
+    assert learning.values_per_file["mem://1"] == ["enable-forward"]
+
+
+def test_net_vlan_fwd_mode_and_syncookies():
+    fm = _run(".net.vlan.vbase.fwd-mode", _NET_ENRICH_CONF)
+    assert fm.values_per_file["mem://1"] == ["l3"]
+    hs = _run(".net.vlan.vbase.hardware-syncookie", _NET_ENRICH_CONF)
+    assert hs.values_per_file["mem://1"] == ["enabled"]
+    rl = _run(".net.vlan.vbase.syn-flood-rate-limit", _NET_ENRICH_CONF)
+    assert rl.values_per_file["mem://1"] == ["1000"]
+
+
+def test_net_self_service_and_fw_policies():
+    sp = _run(".net.self.self1.service-policy", _NET_ENRICH_CONF)
+    assert sp.values_per_file["mem://1"] == ["/Common/svc_pol"]
+    fw = _run(".net.self.self1.fw-enforced-policy", _NET_ENRICH_CONF)
+    assert fw.values_per_file["mem://1"] == ["/Common/edge_fw"]
+    fws = _run(".net.self.self1.fw-staged-policy", _NET_ENRICH_CONF)
+    assert fws.values_per_file["mem://1"] == ["/Common/edge_fw_staged"]
+
+
+def test_net_self_inherited_traffic_group_and_address_source():
+    itg = _run(".net.self.self1.inherited-traffic-group", _NET_ENRICH_CONF)
+    assert itg.values_per_file["mem://1"] == ["true"]
+    addr_src = _run(".net.self.self1.address-source", _NET_ENRICH_CONF)
+    assert addr_src.values_per_file["mem://1"] == ["from-user"]
+
+
+def test_net_route_domain_governance_fields():
+    bwc = _run(".net.route-domain.rd_full.bwc-policy", _NET_ENRICH_CONF)
+    assert bwc.values_per_file["mem://1"] == ["/Common/bwc1"]
+    cl = _run(".net.route-domain.rd_full.connection-limit", _NET_ENRICH_CONF)
+    assert cl.values_per_file["mem://1"] == ["100000"]
+    flep = _run(".net.route-domain.rd_full.flow-eviction-policy", _NET_ENRICH_CONF)
+    assert flep.values_per_file["mem://1"] == ["/Common/fep1"]
+
+
+def test_net_route_domain_routing_protocol_is_a_list():
+    rp = _run(".net.route-domain.rd_full.routing-protocol", _NET_ENRICH_CONF)
+    [protos] = rp.values_per_file["mem://1"]
+    assert sorted(protos) == ["BGP", "OSPFv2"]
+
+
+def test_net_interface_mtu_mac_and_media():
+    mtu = _run('.net.interface["1.1"].mtu', _NET_ENRICH_CONF)
+    assert mtu.values_per_file["mem://1"] == ["9000"]
+    mac = _run('.net.interface["1.1"].mac-address', _NET_ENRICH_CONF)
+    assert mac.values_per_file["mem://1"] == ["00:11:22:33:44:55"]
+    ma = _run('.net.interface["1.1"].media-active', _NET_ENRICH_CONF)
+    assert ma.values_per_file["mem://1"] == ["10000T-FD"]
+
+
+def test_net_interface_stp_and_sflow_subblock():
+    stp = _run('.net.interface["1.1"].stp', _NET_ENRICH_CONF)
+    assert stp.values_per_file["mem://1"] == ["enabled"]
+    spi = _run('.net.interface["1.1"].sflow-poll-interval', _NET_ENRICH_CONF)
+    assert spi.values_per_file["mem://1"] == ["0"]
+    spig = _run('.net.interface["1.1"].sflow-poll-interval-global', _NET_ENRICH_CONF)
+    assert spig.values_per_file["mem://1"] == ["yes"]
+
+
+def test_net_interface_vendor_metadata_is_unquoted():
+    vendor = _run('.net.interface["1.1"].vendor', _NET_ENRICH_CONF)
+    assert vendor.values_per_file["mem://1"] == ["F5 Networks"]
+    part = _run('.net.interface["1.1"].vendor-partnum', _NET_ENRICH_CONF)
+    assert part.values_per_file["mem://1"] == ["OPT-0026"]
+
+
+def test_net_tunnel_traffic_group_pathref_walks_to_unit_id():
+    result = _run(".net.tunnels-tunnel.tun1.traffic-group.unit-id", _NET_ENRICH_CONF)
+    assert result.values_per_file["mem://1"] == ["1"]
+
+
+def test_net_tunnel_mtu_mode_and_pmtu():
+    mtu = _run(".net.tunnels-tunnel.tun1.mtu", _NET_ENRICH_CONF)
+    assert mtu.values_per_file["mem://1"] == ["1500"]
+    mode = _run(".net.tunnels-tunnel.tun1.mode", _NET_ENRICH_CONF)
+    assert mode.values_per_file["mem://1"] == ["bidirectional"]
+    pmtu = _run(".net.tunnels-tunnel.tun1.use-pmtu", _NET_ENRICH_CONF)
+    assert pmtu.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_net_dns_resolver_nameservers_and_prefetch():
+    ns = _run(".net.dns-resolver.dnsr_full.nameservers", _NET_ENRICH_CONF)
+    [servers] = ns.values_per_file["mem://1"]
+    assert sorted(servers) == ["1.0.0.1", "1.1.1.1"]
+    pf = _run(".net.dns-resolver.dnsr_full.prefetch", _NET_ENRICH_CONF)
+    assert pf.values_per_file["mem://1"] == ["enabled"]
+    adz = _run(".net.dns-resolver.dnsr_full.answer-default-zones", _NET_ENRICH_CONF)
+    assert adz.values_per_file["mem://1"] == ["yes"]
+
+
+def test_net_stp_priority_path_cost_and_vlans():
+    pri = _run(".net.stp.cist1.priority", _NET_ENRICH_CONF)
+    assert pri.values_per_file["mem://1"] == ["32768"]
+    ec = _run(".net.stp.cist1.external-path-cost", _NET_ENRICH_CONF)
+    assert ec.values_per_file["mem://1"] == ["20000"]
+    vlans = _run(".net.stp.cist1.vlans[].tag", _NET_ENRICH_CONF)
+    assert sorted(vlans.values_per_file["mem://1"]) == [10, 20]

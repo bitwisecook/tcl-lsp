@@ -1420,8 +1420,19 @@ def _parse_net_vlan(
         mtu=plain.get("mtu", ""),
         cmp_hash=plain.get("cmp-hash", ""),
         failsafe=plain.get("failsafe", ""),
+        failsafe_action=plain.get("failsafe-action", ""),
+        failsafe_timeout=plain.get("failsafe-timeout", ""),
+        fwd_mode=plain.get("fwd-mode", ""),
+        hardware_syncookie=plain.get("hardware-syncookie", ""),
+        learning=plain.get("learning", ""),
+        tag_mode=plain.get("tag-mode", ""),
+        virtual_wire=plain.get("virtual-wire", ""),
         auto_lasthop=plain.get("auto-lasthop", ""),
         source_check=plain.get("source-check", ""),
+        source_checking=plain.get("source-checking", ""),
+        syn_flood_rate_limit=plain.get("syn-flood-rate-limit", ""),
+        syncache_threshold=plain.get("syncache-threshold", ""),
+        service_policy=plain.get("service-policy", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1450,6 +1461,11 @@ def _parse_net_self(
         description=_description(plain),
         floating=plain.get("floating", ""),
         unit=plain.get("unit", ""),
+        service_policy=plain.get("service-policy", ""),
+        fw_enforced_policy=plain.get("fw-enforced-policy", ""),
+        fw_staged_policy=plain.get("fw-staged-policy", ""),
+        inherited_traffic_group=plain.get("inherited-traffic-group", ""),
+        address_source=plain.get("address-source", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1467,6 +1483,9 @@ def _parse_net_route_domain(
     vlans: tuple[str, ...] = ()
     if "vlans" in props:
         vlans = tuple(_parse_list_block(props["vlans"].value))
+    routing_protocol: tuple[str, ...] = ()
+    if "routing-protocol" in props:
+        routing_protocol = tuple(_parse_list_block(props["routing-protocol"].value))
     return BigipNetRouteDomain(
         name=name,
         full_path=full_path,
@@ -1477,6 +1496,12 @@ def _parse_net_route_domain(
         strict=plain.get("strict", ""),
         fw_enforced_policy=plain.get("fw-enforced-policy", ""),
         fw_staged_policy=plain.get("fw-staged-policy", ""),
+        bwc_policy=plain.get("bwc-policy", ""),
+        connection_limit=plain.get("connection-limit", ""),
+        flow_eviction_policy=plain.get("flow-eviction-policy", ""),
+        routing_protocol=routing_protocol,
+        security_nat_policy=plain.get("security-nat-policy", ""),
+        service_policy=plain.get("service-policy", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1507,6 +1532,13 @@ def _parse_net_interface(
     # without a partition prefix.  Keep ``name`` and ``full_path`` as
     # the same bare token so downstream consumers don't have to
     # special-case the missing prefix.
+    sflow_poll_interval = ""
+    sflow_poll_interval_global = ""
+    sflow_block = props.get("sflow")
+    if sflow_block and sflow_block.startswith("{"):
+        sflow_inner = _parse_properties(sflow_block.strip("{}"))
+        sflow_poll_interval = sflow_inner.get("poll-interval", "")
+        sflow_poll_interval_global = sflow_inner.get("poll-interval-global", "")
     return BigipNetInterface(
         name=full_path,
         full_path=full_path,
@@ -1517,6 +1549,28 @@ def _parse_net_interface(
         bundle=props.get("bundle", ""),
         bundle_speed=props.get("bundle-speed", ""),
         lldp_admin=props.get("lldp-admin", ""),
+        mtu=props.get("mtu", ""),
+        flow_control=props.get("flow-control", ""),
+        mac_address=props.get("mac-address", ""),
+        media_active=props.get("media-active", ""),
+        media_max=props.get("media-max", ""),
+        media_sfp=props.get("media-sfp", ""),
+        port_fwd_mode=props.get("port-fwd-mode", ""),
+        qinq_ethertype=props.get("qinq-ethertype", ""),
+        stp=props.get("stp", ""),
+        stp_edge_port=props.get("stp-edge-port", ""),
+        stp_link_type=props.get("stp-link-type", ""),
+        stp_auto_edge_port=props.get("stp-auto-edge-port", ""),
+        stp_reset=props.get("stp-reset", ""),
+        sflow_poll_interval=sflow_poll_interval,
+        sflow_poll_interval_global=sflow_poll_interval_global,
+        vendor=_unquote(props.get("vendor", "")),
+        vendor_oui=props.get("vendor-oui", ""),
+        vendor_partnum=_unquote(props.get("vendor-partnum", "")),
+        vendor_revision=props.get("vendor-revision", ""),
+        virtual_wire=props.get("virtual-wire", ""),
+        transmitter_technology=props.get("transmitter-technology", ""),
+        lacp_port_priority=props.get("lacp-port-priority", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1533,6 +1587,9 @@ def _parse_net_dns_resolver(
         # list-block parser to extract the top-level keys; nested
         # ``nameservers { ... }`` sub-blocks are skipped.
         forward_zones = tuple(_parse_list_block(props["forward-zones"].value))
+    nameservers: tuple[str, ...] = ()
+    if "nameservers" in props:
+        nameservers = tuple(_parse_list_block(props["nameservers"].value))
     return BigipNetDnsResolver(
         name=name,
         full_path=full_path,
@@ -1545,6 +1602,12 @@ def _parse_net_dns_resolver(
         use_ipv6=plain.get("use-ipv6", ""),
         use_tcp=plain.get("use-tcp", ""),
         use_udp=plain.get("use-udp", ""),
+        nameservers=nameservers,
+        answer_default_zones=plain.get("answer-default-zones", ""),
+        prefetch=plain.get("prefetch", ""),
+        nameserver_min_rtt=plain.get("nameserver-min-rtt", ""),
+        nameserver_ttl=plain.get("nameserver-ttl", ""),
+        outbound_msg_retry=plain.get("outbound-msg-retry", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1562,6 +1625,18 @@ def _parse_net_tunnel(
         local_address=props["local-address"].value if "local-address" in props else "",
         remote_address=props["remote-address"].value if "remote-address" in props else "",
         description=description,
+        mtu=props["mtu"].value if "mtu" in props else "",
+        mode=props["mode"].value if "mode" in props else "",
+        idle_timeout=props["idle-timeout"].value if "idle-timeout" in props else "",
+        auto_lasthop=props["auto-lasthop"].value if "auto-lasthop" in props else "",
+        secondary_address=(
+            props["secondary-address"].value if "secondary-address" in props else ""
+        ),
+        traffic_group=props["traffic-group"].value if "traffic-group" in props else "",
+        transparent=props["transparent"].value if "transparent" in props else "",
+        key=props["key"].value if "key" in props else "",
+        use_pmtu=props["use-pmtu"].value if "use-pmtu" in props else "",
+        tos=props["tos"].value if "tos" in props else "",
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1575,12 +1650,19 @@ def _parse_net_stp(
     interfaces: tuple[str, ...] = ()
     if "interfaces" in props:
         interfaces = tuple(_parse_list_block(props["interfaces"].value))
+    vlans: tuple[str, ...] = ()
+    if "vlans" in props:
+        vlans = tuple(_parse_list_block(props["vlans"].value))
     return BigipNetStp(
         name=name,
         full_path=full_path,
         interfaces=interfaces,
         description=_description(plain),
         mode=plain.get("mode", ""),
+        priority=plain.get("priority", ""),
+        external_path_cost=plain.get("external-path-cost", ""),
+        internal_path_cost=plain.get("internal-path-cost", ""),
+        vlans=vlans,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 

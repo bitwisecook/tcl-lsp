@@ -194,87 +194,87 @@ Run `make ci-fast` before committing each bundle, and the broader
 
 ### `net vlan`
 
-- [ ] `failsafe-action`
-- [ ] `failsafe-timeout`
-- [ ] `fwd-mode`
-- [ ] `hardware-syncookie`
-- [ ] `learning`
-- [ ] `tag-mode`
-- [ ] `virtual-wire`
-- [ ] `source-checking`
-- [ ] `syn-flood-rate-limit`
-- [ ] `syncache-threshold`
-- [ ] `service-policy`
+- [x] `failsafe-action`
+- [x] `failsafe-timeout`
+- [x] `fwd-mode`
+- [x] `hardware-syncookie`
+- [x] `learning`
+- [x] `tag-mode`
+- [x] `virtual-wire`
+- [x] `source-checking`
+- [x] `syn-flood-rate-limit`
+- [x] `syncache-threshold`
+- [x] `service-policy`
 
 ### `net self`
 
-- [ ] `service-policy`
-- [ ] `fw-enforced-policy`
-- [ ] `fw-staged-policy`
-- [ ] `inherited-traffic-group`
-- [ ] `address-source`
+- [x] `service-policy`
+- [x] `fw-enforced-policy`
+- [x] `fw-staged-policy`
+- [x] `inherited-traffic-group`
+- [x] `address-source`
 
 ### `net route-domain`
 
-- [ ] `bwc-policy`
-- [ ] `connection-limit`
-- [ ] `flow-eviction-policy`
-- [ ] `routing-protocol` (list)
-- [ ] `security-nat-policy`
-- [ ] `service-policy`
+- [x] `bwc-policy`
+- [x] `connection-limit`
+- [x] `flow-eviction-policy`
+- [x] `routing-protocol` (list)
+- [x] `security-nat-policy`
+- [x] `service-policy`
 
 ### `net interface`
 
-- [ ] `mtu`
-- [ ] `flow-control`
-- [ ] `mac-address`
-- [ ] `media-active`
-- [ ] `media-max`
-- [ ] `media-sfp`
-- [ ] `port-fwd-mode`
-- [ ] `qinq-ethertype`
-- [ ] `stp`
-- [ ] `stp-edge-port`
-- [ ] `stp-link-type`
-- [ ] `stp-auto-edge-port`
-- [ ] `stp-reset`
-- [ ] `sflow` (needs sub-block walker; summary scalar)
-- [ ] `vendor`
-- [ ] `vendor-oui`
-- [ ] `vendor-partnum`
-- [ ] `vendor-revision`
-- [ ] `virtual-wire`
-- [ ] `transmitter-technology`
-- [ ] `lacp-port-priority`
+- [x] `mtu`
+- [x] `flow-control`
+- [x] `mac-address`
+- [x] `media-active`
+- [x] `media-max`
+- [x] `media-sfp`
+- [x] `port-fwd-mode`
+- [x] `qinq-ethertype`
+- [x] `stp`
+- [x] `stp-edge-port`
+- [x] `stp-link-type`
+- [x] `stp-auto-edge-port`
+- [x] `stp-reset`
+- [x] `sflow` (surfaced as `sflow-poll-interval` and `sflow-poll-interval-global`)
+- [x] `vendor`
+- [x] `vendor-oui`
+- [x] `vendor-partnum`
+- [x] `vendor-revision`
+- [x] `virtual-wire`
+- [x] `transmitter-technology`
+- [x] `lacp-port-priority`
 
 ### `net tunnels tunnel`
 
-- [ ] `mtu`
-- [ ] `mode`
-- [ ] `idle-timeout`
-- [ ] `auto-lasthop`
-- [ ] `secondary-address`
-- [ ] `traffic-group` → `cm traffic-group`
-- [ ] `transparent`
-- [ ] `key`
-- [ ] `use-pmtu`
-- [ ] `tos`
+- [x] `mtu`
+- [x] `mode`
+- [x] `idle-timeout`
+- [x] `auto-lasthop`
+- [x] `secondary-address`
+- [x] `traffic-group` → `cm traffic-group`
+- [x] `transparent`
+- [x] `key`
+- [x] `use-pmtu`
+- [x] `tos`
 
 ### `net dns-resolver`
 
-- [ ] `nameservers` (needs sub-block walker; surface keys)
-- [ ] `answer-default-zones`
-- [ ] `prefetch`
-- [ ] `nameserver-min-rtt`
-- [ ] `nameserver-ttl`
-- [ ] `outbound-msg-retry`
+- [x] `nameservers` (surfaces entry keys)
+- [x] `answer-default-zones`
+- [x] `prefetch`
+- [x] `nameserver-min-rtt`
+- [x] `nameserver-ttl`
+- [x] `outbound-msg-retry`
 
 ### `net stp`
 
-- [ ] `priority`
-- [ ] `external-path-cost`
-- [ ] `internal-path-cost`
-- [ ] `vlans` (list) → `net vlan`
+- [x] `priority`
+- [x] `external-path-cost`
+- [x] `internal-path-cost`
+- [x] `vlans` (list) → `net vlan`
 
 ---
 
