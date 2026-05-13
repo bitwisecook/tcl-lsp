@@ -260,4 +260,90 @@ suite("Multi-folder workspace configuration (#230)", () => {
       `folder B (f5-irules) should accept 'when' as a known command.  Diags: ${JSON.stringify(diagsB.map((d) => [d.code, d.message]))}`,
     );
   });
+
+  test("VS Code accepts folder-level tclLsp.extraCommands (#407)", () => {
+    const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
+    const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
+
+    const a = vscode.workspace
+      .getConfiguration("tclLsp", folderA.uri)
+      .get<string[]>("extraCommands");
+    const b = vscode.workspace
+      .getConfiguration("tclLsp", folderB.uri)
+      .get<string[]>("extraCommands");
+
+    assert.deepStrictEqual(
+      a,
+      ["folder-a-helper", "shared-util"],
+      "folder A should report its own extraCommands list",
+    );
+    assert.deepStrictEqual(
+      b,
+      ["folder-b-helper"],
+      "folder B should report its own extraCommands list",
+    );
+  });
+
+  test("VS Code accepts folder-level tclLsp.libraryPaths (#407)", () => {
+    const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
+    const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
+
+    const a = vscode.workspace
+      .getConfiguration("tclLsp", folderA.uri)
+      .get<string[]>("libraryPaths");
+    const b = vscode.workspace
+      .getConfiguration("tclLsp", folderB.uri)
+      .get<string[]>("libraryPaths");
+
+    assert.deepStrictEqual(a, ["/opt/proj-a/tcl-lib"]);
+    assert.deepStrictEqual(b, ["/opt/proj-b/tcl-lib", "/usr/local/share/tcl"]);
+  });
+
+  test("folder A and folder B differ on W108 non-ASCII diagnostics (#407)", async () => {
+    // proj-a configures ``style.nonAscii=strict`` — every non-ASCII
+    // character is flagged.
+    // proj-b configures ``style.nonAscii=off`` — W108 is disabled.
+    // Identical source: a single smart-quote literal that "strict" flags
+    // and "off" ignores.  The dialect mode the W108 check reads from must
+    // be scoped to the folder so the same source produces different
+    // diagnostics in each folder.
+    const source = `set greeting "“hello”"\n`;
+
+    async function w108DiagsFor(folderName: string): Promise<vscode.Diagnostic[]> {
+      const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
+      const fileUri = vscode.Uri.file(path.join(folder.uri.fsPath, "foo.tcl"));
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      const editor = await vscode.window.showTextDocument(doc);
+      await editor.edit((e) => {
+        const lastLine = doc.lineCount - 1;
+        const lastChar = doc.lineAt(lastLine).text.length;
+        e.replace(
+          new vscode.Range(new vscode.Position(0, 0), new vscode.Position(lastLine, lastChar)),
+          source,
+        );
+      });
+      // Wait up to 6s for diagnostics to settle (server publishes async).
+      for (let i = 0; i < 30; i++) {
+        const diags = vscode.languages.getDiagnostics(fileUri);
+        if (diags.length > 0) return diags.filter((d) => d.code === "W108");
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W108");
+    }
+
+    const w108A = await w108DiagsFor("proj-a");
+    const w108B = await w108DiagsFor("proj-b");
+
+    // strict mode in folder A → at least one W108 for each smart quote.
+    assert.ok(
+      w108A.length >= 1,
+      `folder A (strict) should flag the smart quote.  Got ${w108A.length} W108 diags.`,
+    );
+    // "off" in folder B → zero W108.
+    assert.strictEqual(
+      w108B.length,
+      0,
+      `folder B (off) should suppress W108.  Got ${w108B.length} W108 diags: ${JSON.stringify(w108B.map((d) => d.message))}`,
+    );
+  });
 });
