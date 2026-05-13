@@ -128,14 +128,33 @@ def _uri_from_lsp_params(params) -> str | None:
     return None
 
 
+def _maybe_doc_source(uri: str) -> str | None:
+    """Return the cached source for ``uri`` if the workspace knows it.
+
+    Used by ``scoped_to_doc`` so the in-source dialect-detection step in
+    :func:`resolve_dialect_for_uri` (shebang, ``# tcl-dialect:`` directive,
+    ``package require Tcl X.Y``, conf-wrapped iRules) applies to every LSP
+    request — matching the diagnostics pipeline's behaviour.  Never raises
+    or falls through to a pygls workspace lookup: handlers tolerate the
+    source being absent (most don't need it for the resolver anyway since
+    the resolved dialect is also cached on ``FeatureConfig.dialect`` by
+    ``did_open``).
+    """
+    state = workspace_state.get(uri)
+    return state.source if state is not None and state.source is not None else None
+
+
 def scoped_to_doc(fn):
     """Decorator: open ``dialect_scope`` for the document URI in ``params``.
 
     Applies to LSP request handlers so that per-folder dialect resolution
     (issue #407) is honoured by every step of the handler — including any
     lazy re-lex, signature lookup, or compiler re-entry that consults
-    ``active_dialect()`` / ``SIGNATURES``.  Handlers whose ``params`` carry
-    no URI (e.g. workspace-wide queries) run under the process default.
+    ``active_dialect()`` / ``SIGNATURES``.  Passes the document's cached
+    source through to :func:`resolve_dialect_for_uri` so priority-1
+    in-source hints (``# tcl-dialect:`` etc.) are honoured consistently
+    with the diagnostics pipeline.  Handlers whose ``params`` carry no
+    URI (workspace-wide queries) run under the process default.
     """
     import functools
     import inspect
@@ -147,7 +166,7 @@ def scoped_to_doc(fn):
             uri = _uri_from_lsp_params(params)
             if uri is None:
                 return await fn(params, *args, **kwargs)
-            with dialect_scope_for_uri(uri):
+            with dialect_scope_for_uri(uri, _maybe_doc_source(uri)):
                 return await fn(params, *args, **kwargs)
 
         return async_wrapper
@@ -157,7 +176,7 @@ def scoped_to_doc(fn):
         uri = _uri_from_lsp_params(params)
         if uri is None:
             return fn(params, *args, **kwargs)
-        with dialect_scope_for_uri(uri):
+        with dialect_scope_for_uri(uri, _maybe_doc_source(uri)):
             return fn(params, *args, **kwargs)
 
     return sync_wrapper
@@ -216,12 +235,17 @@ def package_resolver_for_uri(doc_uri: str | None) -> PackageResolver:
 
     Picks the longest matching workspace-folder URI; falls back to the
     workspace/user-level :data:`package_resolver` when the document is
-    outside every known folder or no URI was supplied.
+    outside every known folder, no URI was supplied, or the folder's
+    ``FeatureConfig.library_paths`` was cleared (so a stale resolver
+    with old search paths doesn't keep getting selected after the user
+    unsets ``tclLsp.libraryPaths``).
     """
     if doc_uri and _per_folder_package_resolvers:
         match = _longest_folder_prefix(doc_uri, list(_per_folder_package_resolvers.keys()))
         if match is not None:
-            return _per_folder_package_resolvers[match]
+            folder_cfg = _per_folder_feature_configs.get(match)
+            if folder_cfg is not None and folder_cfg.library_paths:
+                return _per_folder_package_resolvers[match]
     return package_resolver
 
 
@@ -292,6 +316,16 @@ def drop_folder_configs(folder_uri: str) -> None:
     _per_folder_formatter_configs.pop(folder_uri, None)
     editor_config_settings_per_folder.pop(folder_uri, None)
     project_config_settings_per_folder.pop(folder_uri, None)
+    # Also prune the per-folder PackageResolver and any cached "loaded"
+    # entries keyed to it, so workspace-wide queries (``listPackages`` /
+    # package suggestions) stop returning packages from a folder that's
+    # no longer open.
+    dropped_resolver = _per_folder_package_resolvers.pop(folder_uri, None)
+    if dropped_resolver is not None:
+        dropped_key = id(dropped_resolver)
+        _loaded_packages.difference_update(
+            entry for entry in list(_loaded_packages) if entry[0] == dropped_key
+        )
 
 
 # Configuration layers, merged on each apply in the order:
@@ -332,7 +366,12 @@ def _get_process_pool() -> ProcessPoolExecutor:
     return _process_pool
 
 
-_loaded_packages: set[str] = set()
+# Tracks which (resolver, package_name) pairs have already had their source
+# files loaded into the workspace index.  Keyed by ``id(resolver)`` so each
+# per-folder ``PackageResolver`` (issue #407) can independently track its
+# own loaded packages — otherwise folder A loading ``Foo 1.0`` would
+# silently block folder B from loading its own ``Foo 2.0``.
+_loaded_packages: set[tuple[int, str]] = set()
 _SAFE_FIX_CODES = frozenset(
     {
         "W100",

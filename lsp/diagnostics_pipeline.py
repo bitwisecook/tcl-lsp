@@ -597,13 +597,18 @@ def _load_packages_if_needed(analysis: object, uri: str | None = None) -> None:
 
     if not analysis.package_requires:
         return
+    resolver_key = id(resolver)
     for pkg_req in analysis.package_requires:
-        if pkg_req.name in _state._loaded_packages:
+        # Key the load-once cache by (resolver, name) so per-folder
+        # resolvers (issue #407) can independently resolve the same
+        # package name to different files — folder A's ``Foo`` from
+        # /opt/tcllib doesn't block folder B's ``Foo`` from /usr/lib.
+        if (resolver_key, pkg_req.name) in _state._loaded_packages:
             continue
         source_files = resolver.resolve(pkg_req.name, pkg_req.version)
         if not source_files:
             continue
-        _state._loaded_packages.add(pkg_req.name)
+        _state._loaded_packages.add((resolver_key, pkg_req.name))
         for file_path in source_files:
             pkg_uri = path_to_uri(file_path)
             if _state.workspace_state.get(pkg_uri) is not None:

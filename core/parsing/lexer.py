@@ -29,25 +29,18 @@ def _strict_quoting() -> bool:
 
 
 # Set of dialects that support {*} argument expansion (introduced in
-# Tcl 8.5).  Mirrors the canonical-dialect IDs in
-# ``core.commands.registry.dialects``.  Pre-frozen as a module constant so
-# the lexer hot path doesn't pay per-token import cost.
-_EXPAND_SYNTAX_DIALECTS: frozenset[str] = frozenset(
-    {
-        "tcl8.5",
-        "tcl8.6",
-        "tcl9.0",
-        "f5-iapps",
-        "f5-tmsh",
-        "f5-bigip",
-        "synopsys-eda-tcl",
-        "cadence-eda-tcl",
-        "xilinx-eda-tcl",
-        "intel-quartus-eda-tcl",
-        "mentor-eda-tcl",
-        "expect",
-    }
-)
+# Tcl 8.5).  Derived once at import time from
+# ``core.commands.registry.dialects.dialects_since`` so any new dialect
+# added there (or any dialect that intentionally opts out of version-based
+# trait inheritance, e.g. f5-bigip) inherits the correct {*} behaviour
+# without a manual list to keep in sync.
+def _build_expand_syntax_dialects() -> frozenset[str]:
+    from ..commands.registry.dialects import dialects_since
+
+    return frozenset(dialects_since("tcl8.5"))
+
+
+_EXPAND_SYNTAX_DIALECTS: frozenset[str] = _build_expand_syntax_dialects()
 
 
 def _expand_syntax_active() -> bool:
@@ -57,10 +50,28 @@ def _expand_syntax_active() -> bool:
     documents under folders configured for different dialects (e.g. tcl8.4
     vs tcl9.0) get the right lexer behaviour even when handled within the
     same process.  See issue #407.
+
+    A thread-local ``expand_syntax_force_off`` flag (set by
+    :func:`disable_expand_syntax_for_thread`) overrides the dialect-based
+    decision; this is how the VM's ``subst`` machinery disables {*}
+    expansion during substitution regardless of the active dialect.
     """
+    if getattr(_thread_local, "expand_syntax_force_off", False):
+        return False
     from ..commands.registry.runtime import _dialect_var
 
     return _dialect_var.get() in _EXPAND_SYNTAX_DIALECTS
+
+
+def disable_expand_syntax_for_thread(disabled: bool) -> None:
+    """Toggle the thread-local override that forces {*} expansion off.
+
+    Used by ``vm.substitution`` to disable {*} during ``subst`` (which
+    treats word expansion as inapplicable inside a word value).  The
+    override is thread-local so concurrent VM workers don't fight over a
+    shared flag.
+    """
+    _thread_local.expand_syntax_force_off = disabled
 
 
 def _irules_brace_separator_active() -> bool:

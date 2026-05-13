@@ -324,10 +324,33 @@ class TestPerFolderPackageResolver:
     def test_per_folder_resolver_returned_for_matching_uri(self, reset_per_folder_state):
         folder = "file:///workspaces/proj-a"
         folder_resolver = _lsp_state.get_or_init_folder_package_resolver(folder)
+        # The resolver is only selected when the folder's FeatureConfig
+        # has live ``library_paths`` — otherwise the stale-resolver guard
+        # falls back to the workspace resolver.
+        _lsp_state.get_or_init_folder_feature_config(folder).library_paths = ("/opt/tcllib",)
         assert _lsp_state.package_resolver_for_uri(f"{folder}/foo.tcl") is folder_resolver
         assert _lsp_state.package_resolver_for_uri("file:///elsewhere/foo.tcl") is (
             _lsp_state.package_resolver
         )
+
+    def test_per_folder_resolver_skipped_when_library_paths_cleared(self, reset_per_folder_state):
+        """When ``library_paths`` is unset the workspace resolver is used."""
+        folder = "file:///workspaces/proj-a"
+        _lsp_state.get_or_init_folder_package_resolver(folder)
+        cfg = _lsp_state.get_or_init_folder_feature_config(folder)
+        cfg.library_paths = ("/opt/tcllib",)
+        # Now clear it.
+        cfg.library_paths = None
+        assert _lsp_state.package_resolver_for_uri(f"{folder}/foo.tcl") is (
+            _lsp_state.package_resolver
+        )
+
+    def test_drop_folder_configs_prunes_resolver(self, reset_per_folder_state):
+        folder = "file:///workspaces/proj-a"
+        _lsp_state.get_or_init_folder_package_resolver(folder)
+        assert folder in _lsp_state._per_folder_package_resolvers
+        _lsp_state.drop_folder_configs(folder)
+        assert folder not in _lsp_state._per_folder_package_resolvers
 
     def test_all_package_resolvers_includes_fallback_and_folders(self, reset_per_folder_state):
         folder = "file:///workspaces/proj-a"

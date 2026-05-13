@@ -368,8 +368,17 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
     if folder_extras_raw is None:
         folder_extras_raw = tcl_settings.get("extra_commands")
     if isinstance(folder_extras_raw, list):
+        # Filter to actual string entries before stripping — otherwise
+        # ``str(None).strip()`` would silently register a ``"None"``
+        # command name (and similar artefacts for any non-string entry).
         normalised = tuple(
-            sorted({str(name).strip() for name in folder_extras_raw if str(name).strip()})
+            sorted(
+                {
+                    name.strip()
+                    for name in folder_extras_raw
+                    if isinstance(name, str) and name.strip()
+                }
+            )
         )
         if normalised != target.extra_commands:
             target.extra_commands = normalised
