@@ -282,6 +282,35 @@ class TestPerFolderDialect:
         assert changed
         assert cfg.extra_commands == ("another", "my-helper")
 
+    def test_extra_commands_suppress_w123_unknown_command(self, reset_per_folder_state):
+        """An ``extraCommands`` entry must suppress W123 for that name.
+
+        Pre-#407 the analyser built ``registry_names`` from
+        ``REGISTRY.command_names(dialect)`` alone, so the per-context
+        ``_extra_commands_var`` never reached the unknown-command emitter
+        and ``tclLsp.extraCommands`` did not actually mark its entries as
+        known.  The unknown-command check now unions ``active_extra_commands()``
+        into ``registry_names``.
+        """
+        from core.analysis import Analyser
+        from core.common.dialect import dialect_scope
+
+        src = "cmd_alpha foo bar\n"
+        with dialect_scope("tcl8.6", extra_commands=["cmd_alpha"]):
+            diags = Analyser().analyse(src).diagnostics
+        w123 = [d for d in diags if d.code == "W123"]
+        assert w123 == [], (
+            f"W123 should be suppressed when name is in extra_commands; got {[d.message for d in w123]}"
+        )
+
+        with dialect_scope("tcl8.6", extra_commands=[]):
+            diags = Analyser().analyse(src).diagnostics
+        w123 = [d for d in diags if d.code == "W123"]
+        assert len(w123) == 1, (
+            f"W123 should still fire when name is not in extra_commands; got {len(w123)}"
+        )
+        assert "cmd_alpha" in w123[0].message
+
     def test_apply_feature_settings_sets_explicit_flag(self, reset_per_folder_state):
         """Setting ``tclLsp.dialect`` flips ``dialect_explicitly_set`` on the target."""
         cfg = _lsp_state.get_or_init_folder_feature_config("file:///workspaces/proj-a")

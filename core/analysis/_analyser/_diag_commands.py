@@ -10,7 +10,7 @@ else:
     _Base = object
 
 from ...commands.registry import REGISTRY
-from ...common.dialect import active_dialect
+from ...common.dialect import active_dialect, active_extra_commands
 from ...compiler.compilation_unit import CompilationUnit
 from ...compiler.core_analyses import LatticeValue
 from ...compiler.ir import (
@@ -52,7 +52,9 @@ class _AnalyserDiagCommandsMixin(_Base):
         from ...common.text import suggest_similar
 
         dialect = active_dialect()
-        registry_names = frozenset(REGISTRY.command_names(dialect))
+        registry_names = frozenset(REGISTRY.command_names(dialect)) | frozenset(
+            active_extra_commands()
+        )
         stub_names = frozenset(s.name for s in self.result.stub_commands)
 
         proc_tail_names: set[str] = set()

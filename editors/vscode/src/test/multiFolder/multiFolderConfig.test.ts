@@ -346,4 +346,52 @@ suite("Multi-folder workspace configuration (#230)", () => {
       `folder B (off) should suppress W108.  Got ${w108B.length} W108 diags: ${JSON.stringify(w108B.map((d) => d.message))}`,
     );
   });
+
+  test("folder A and folder B differ on W123 for extraCommands names (#407)", async () => {
+    // proj-a registers ``folder-a-helper`` via tclLsp.extraCommands.
+    // proj-b does not.  Identical source calling ``folder-a-helper`` must
+    // be silent in folder A but emit W123 (Unknown command) in folder B.
+    // This proves the per-folder extra_commands list actually reaches the
+    // analyser's unknown-command emitter rather than just sitting in the
+    // FeatureConfig.
+    const source = `folder-a-helper foo bar\n`;
+
+    async function w123DiagsFor(folderName: string): Promise<vscode.Diagnostic[]> {
+      const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
+      const fileUri = vscode.Uri.file(path.join(folder.uri.fsPath, "extra.tcl"));
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      const editor = await vscode.window.showTextDocument(doc);
+      await editor.edit((e) => {
+        const lastLine = doc.lineCount - 1;
+        const lastChar = doc.lineAt(lastLine).text.length;
+        e.replace(
+          new vscode.Range(new vscode.Position(0, 0), new vscode.Position(lastLine, lastChar)),
+          source,
+        );
+      });
+      for (let i = 0; i < 30; i++) {
+        const all = vscode.languages.getDiagnostics(fileUri);
+        const w123 = all.filter((d) => d.code === "W123");
+        // Folder A may produce zero diagnostics at all, so we can't gate
+        // on .length>0 — wait for the document to be analysed by polling
+        // a fixed budget and returning whatever's there.
+        if (all.length > 0 || i >= 6) return w123;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return vscode.languages.getDiagnostics(fileUri).filter((d) => d.code === "W123");
+    }
+
+    const w123A = await w123DiagsFor("proj-a");
+    const w123B = await w123DiagsFor("proj-b");
+
+    assert.strictEqual(
+      w123A.length,
+      0,
+      `folder A (extraCommands includes folder-a-helper) should not emit W123.  Got: ${JSON.stringify(w123A.map((d) => d.message))}`,
+    );
+    assert.ok(
+      w123B.some((d) => String(d.message).includes("folder-a-helper")),
+      `folder B (no extraCommands for folder-a-helper) should emit W123 for it.  Got: ${JSON.stringify(w123B.map((d) => d.message))}`,
+    );
+  });
 });

@@ -42,6 +42,14 @@ def active_dialect() -> str:
     return Dialect.TCL_8_6.value
 
 
+def active_extra_commands() -> tuple[str, ...]:
+    """Return the extra commands tuple for the active signature profile."""
+    extras = active_signature_profile().get("extra_commands")
+    if isinstance(extras, list):
+        return tuple(str(name) for name in extras)
+    return ()
+
+
 @contextmanager
 def dialect_scope(
     dialect: str | None = None,
