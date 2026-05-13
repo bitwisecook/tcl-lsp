@@ -691,25 +691,25 @@ administrative ``auth.*`` namespace projected in bundle 8.
 - [x] `ltm global-settings traffic-control`
 - [x] `ltm rule-profiler`
 
-### Bundle 19 — `ltm classification.*` (URL DB, 10)
+### Bundle 19 — `ltm classification.*` (URL DB, 11)
 
-- [ ] `ltm classification application`
-- [ ] `ltm classification auto-update settings`
-- [ ] `ltm classification category`
-- [ ] `ltm classification ce`
-- [ ] `ltm classification signature-update-schedule`
-- [ ] `ltm classification url-cat-policy`
-- [ ] `ltm classification url-category`
-- [ ] `ltm classification urldb-feed-list`
-- [ ] `ltm classification urldb-file`
-- [ ] `ltm clientssl ocsp-stapling-responses`
-- [ ] `ltm clientssl-proxy cached-certs`
+- [x] `ltm classification application`
+- [x] `ltm classification auto-update settings`
+- [x] `ltm classification category`
+- [x] `ltm classification ce`
+- [x] `ltm classification signature-update-schedule`
+- [x] `ltm classification url-cat-policy`
+- [x] `ltm classification url-category`
+- [x] `ltm classification urldb-feed-list`
+- [x] `ltm classification urldb-file`
+- [x] `ltm clientssl ocsp-stapling-responses`
+- [x] `ltm clientssl-proxy cached-certs`
 
 ### Bundle 20 — `ltm tacdb.*` traffic-accel DB (3)
 
-- [ ] `ltm tacdb customdb`
-- [ ] `ltm tacdb customdb-file`
-- [ ] `ltm tacdb licenseddb`
+- [x] `ltm tacdb customdb`
+- [x] `ltm tacdb customdb-file`
+- [x] `ltm tacdb licenseddb`
 
 ### Bundle 21 — `net.*` routing (10)
 

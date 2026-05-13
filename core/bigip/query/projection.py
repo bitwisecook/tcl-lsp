@@ -2059,6 +2059,25 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm global-settings rule": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm global-settings traffic-control": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm rule-profiler": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    # Bundle 19 — ltm classification + clientssl (11 kinds).
+    "ltm classification application": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification auto-update settings": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification category": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification ce": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification signature-update-schedule": (
+        BigipLtmMinimalObject,
+        _LTM_MINIMAL_FIELDS,
+    ),
+    "ltm classification url-cat-policy": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification url-category": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification urldb-feed-list": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm classification urldb-file": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm clientssl ocsp-stapling-responses": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm clientssl-proxy cached-certs": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    # Bundle 20 — ltm tacdb (3 kinds).
+    "ltm tacdb customdb": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm tacdb customdb-file": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm tacdb licenseddb": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -2519,6 +2538,52 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "ltm global-settings traffic-control",
         ),
         "rule-profiler": ("ltm_rule_profiler", "ltm rule-profiler"),
+        # Bundle 19 — ltm classification + clientssl (11 kinds).
+        "classification-application": (
+            "ltm_classification_application",
+            "ltm classification application",
+        ),
+        "classification-auto-update-settings": (
+            "ltm_classification_auto_update_settings",
+            "ltm classification auto-update settings",
+        ),
+        "classification-category": (
+            "ltm_classification_category",
+            "ltm classification category",
+        ),
+        "classification-ce": ("ltm_classification_ce", "ltm classification ce"),
+        "classification-signature-update-schedule": (
+            "ltm_classification_signature_update_schedule",
+            "ltm classification signature-update-schedule",
+        ),
+        "classification-url-cat-policy": (
+            "ltm_classification_url_cat_policy",
+            "ltm classification url-cat-policy",
+        ),
+        "classification-url-category": (
+            "ltm_classification_url_category",
+            "ltm classification url-category",
+        ),
+        "classification-urldb-feed-list": (
+            "ltm_classification_urldb_feed_list",
+            "ltm classification urldb-feed-list",
+        ),
+        "classification-urldb-file": (
+            "ltm_classification_urldb_file",
+            "ltm classification urldb-file",
+        ),
+        "clientssl-ocsp-stapling-responses": (
+            "ltm_clientssl_ocsp_stapling_responses",
+            "ltm clientssl ocsp-stapling-responses",
+        ),
+        "clientssl-proxy-cached-certs": (
+            "ltm_clientssl_proxy_cached_certs",
+            "ltm clientssl-proxy cached-certs",
+        ),
+        # Bundle 20 — ltm tacdb (3 kinds).
+        "tacdb-customdb": ("ltm_tacdb_customdb", "ltm tacdb customdb"),
+        "tacdb-customdb-file": ("ltm_tacdb_customdb_file", "ltm tacdb customdb-file"),
+        "tacdb-licenseddb": ("ltm_tacdb_licenseddb", "ltm tacdb licenseddb"),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),

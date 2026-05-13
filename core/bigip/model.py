@@ -2665,6 +2665,32 @@ class BigipConfig:
         default_factory=dict
     )
     ltm_rule_profiler: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    # Bundle 19 — ltm classification + clientssl (11 kinds).
+    ltm_classification_application: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_classification_auto_update_settings: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_classification_category: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_classification_ce: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_classification_signature_update_schedule: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_classification_url_cat_policy: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_classification_url_category: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_classification_urldb_feed_list: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_classification_urldb_file: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_clientssl_ocsp_stapling_responses: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_clientssl_proxy_cached_certs: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    # Bundle 20 — ltm tacdb (3 kinds).
+    ltm_tacdb_customdb: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_tacdb_customdb_file: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_tacdb_licenseddb: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

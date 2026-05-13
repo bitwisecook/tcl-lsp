@@ -619,6 +619,21 @@ _TWO_WORD_TYPES = frozenset(
         "global-settings connection",
         "global-settings rule",
         "global-settings traffic-control",
+        # ltm bundle 19 — classification + clientssl.
+        "classification application",
+        "classification category",
+        "classification ce",
+        "classification signature-update-schedule",
+        "classification url-cat-policy",
+        "classification url-category",
+        "classification urldb-feed-list",
+        "classification urldb-file",
+        "clientssl ocsp-stapling-responses",
+        "clientssl-proxy cached-certs",
+        # ltm bundle 20 — tacdb.
+        "tacdb customdb",
+        "tacdb customdb-file",
+        "tacdb licenseddb",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -807,6 +822,8 @@ _THREE_WORD_TYPES = frozenset(
         "dns analytics global-settings",  # singleton
         "dns hpke key",
         "dns hpke profile",
+        # ltm bundle 19 — three-word.
+        "classification auto-update settings",
         # ltm message-routing bundle 15 — three-word kinds.
         "message-routing diameter peer",
         "message-routing diameter route",
@@ -1649,6 +1666,22 @@ _LTM_MINIMAL_DISPATCH: dict[str, str] = {
     "global-settings rule": "ltm_global_settings_rule",
     "global-settings traffic-control": "ltm_global_settings_traffic_control",
     "rule-profiler": "ltm_rule_profiler",
+    # Bundle 19 — ltm classification + clientssl.
+    "classification application": "ltm_classification_application",
+    "classification auto-update settings": "ltm_classification_auto_update_settings",
+    "classification category": "ltm_classification_category",
+    "classification ce": "ltm_classification_ce",
+    "classification signature-update-schedule": "ltm_classification_signature_update_schedule",
+    "classification url-cat-policy": "ltm_classification_url_cat_policy",
+    "classification url-category": "ltm_classification_url_category",
+    "classification urldb-feed-list": "ltm_classification_urldb_feed_list",
+    "classification urldb-file": "ltm_classification_urldb_file",
+    "clientssl ocsp-stapling-responses": "ltm_clientssl_ocsp_stapling_responses",
+    "clientssl-proxy cached-certs": "ltm_clientssl_proxy_cached_certs",
+    # Bundle 20 — ltm tacdb.
+    "tacdb customdb": "ltm_tacdb_customdb",
+    "tacdb customdb-file": "ltm_tacdb_customdb_file",
+    "tacdb licenseddb": "ltm_tacdb_licenseddb",
 }
 
 

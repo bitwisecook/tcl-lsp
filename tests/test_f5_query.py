@@ -5247,3 +5247,43 @@ def test_ltm_bundle_18_global_settings_dispatch():
     ]:
         res = _run(f".ltm.{label}[].kind", _LTM18_CONF)
         assert kind_str in res.values_per_file["mem://1"], f"{label}"
+
+
+# Bundle 19+20 — ltm classification + clientssl + tacdb (14 kinds).
+
+_LTM19_CONF = """ltm classification application /Common/ca1 { }
+ltm classification auto-update settings { description "auto-up" }
+ltm classification category /Common/cc1 { }
+ltm classification ce /Common/ce1 { }
+ltm classification signature-update-schedule /Common/sus1 { }
+ltm classification url-cat-policy /Common/ucp1 { }
+ltm classification url-category /Common/uc1 { }
+ltm classification urldb-feed-list /Common/ufl1 { }
+ltm classification urldb-file /Common/uf1 { }
+ltm clientssl ocsp-stapling-responses /Common/csor1 { }
+ltm clientssl-proxy cached-certs /Common/cpcc1 { }
+ltm tacdb customdb /Common/td1 { }
+ltm tacdb customdb-file /Common/tdf1 { }
+ltm tacdb licenseddb /Common/tld1 { }
+"""
+
+
+def test_ltm_bundle_19_and_20_dispatch():
+    for label in [
+        "classification-application",
+        "classification-auto-update-settings",
+        "classification-category",
+        "classification-ce",
+        "classification-signature-update-schedule",
+        "classification-url-cat-policy",
+        "classification-url-category",
+        "classification-urldb-feed-list",
+        "classification-urldb-file",
+        "clientssl-ocsp-stapling-responses",
+        "clientssl-proxy-cached-certs",
+        "tacdb-customdb",
+        "tacdb-customdb-file",
+        "tacdb-licenseddb",
+    ]:
+        res = _run(f".ltm.{label}[].kind", _LTM19_CONF)
+        assert res.values_per_file["mem://1"], f"{label}: no values"
