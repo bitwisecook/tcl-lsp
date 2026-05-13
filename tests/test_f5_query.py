@@ -5679,3 +5679,180 @@ def test_every_module_kind_round_trips():
             f"{len(failed)} module-kind entr{'y' if len(failed) == 1 else 'ies'} "
             f"did not round-trip:\n{rendered}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Stress-test regressions (g6827 report — keep these pinned so the
+# fixes don't silently regress on the next refactor).
+# ---------------------------------------------------------------------------
+
+
+def test_stress_bug1_any_over_mapped_stream_returns_false_when_all_false():
+    # Bug 1 — ``any(stream | map(predicate))`` used to collapse to
+    # "is the per-iteration map output non-empty?" because each
+    # ``map`` call returns a single-element list and ``[False]`` is
+    # truthy.  ``any`` / ``all`` now flatten one level when every
+    # element is a list, so the predicate truthiness wins.
+    scf = (
+        "ltm virtual /Common/a { destination /Common/1.1.1.1:80 }\n"
+        "ltm virtual /Common/b { destination /Common/1.1.1.2:80 }\n"
+        "ltm virtual /Common/c { destination /Common/1.1.1.3:80 }\n"
+    )
+    [hit] = _run('any(.ltm.virtual[].name | map(. == "nope"))', source=scf).values_per_file[
+        "mem://1"
+    ]
+    assert hit is False
+    [hit_wrapped] = _run(
+        'any([.ltm.virtual[].name | map(. == "nope")])', source=scf
+    ).values_per_file["mem://1"]
+    assert hit_wrapped is False
+    # Predicate form (the idiomatic shape) stays correct too.
+    [hit_predicate] = _run('any(.ltm.virtual[].name | (. == "nope"))', source=scf).values_per_file[
+        "mem://1"
+    ]
+    assert hit_predicate is False
+    # ``all`` over an all-true mapped stream is true.
+    [pass_all] = _run(
+        'all(.ltm.virtual[].name | map(startswith(., "")))', source=scf
+    ).values_per_file["mem://1"]
+    assert pass_all is True
+
+
+def test_stress_bug2_comma_in_list_literal_has_targeted_error():
+    # Bug 2 — ``count([1, 2])`` used to report "expected ']' to
+    # close list literal" pointing past the comma.  The error now
+    # names the comma and explains the DSL doesn't expose ``,``
+    # as a pipeline operator.
+    with pytest.raises(ParseError) as exc:
+        _run("count([1, 2])", source="")
+    assert "','" in str(exc.value)
+    assert "pipeline operator" in str(exc.value)
+
+
+def test_stress_bug3_profile_rename_hits_stanza_and_attachments():
+    # Bug 3 — ``.ltm.profile[X].name = Y`` used to skip the
+    # sub-typed stanza header (``ltm profile tcp ...``) and the
+    # VS ``profiles { /Common/X { } }`` attachment, renaming only
+    # the ``defaults-from`` reference.  Now all three sites land.
+    scf = (
+        "ltm profile tcp /Common/parent_tcp { idle-timeout 600 }\n"
+        "ltm profile tcp /Common/child_tcp  { defaults-from /Common/parent_tcp }\n"
+        "ltm virtual /Common/vs1 {\n"
+        "    destination /Common/1.1.1.1:80\n"
+        "    profiles {\n"
+        "        /Common/parent_tcp { }\n"
+        "    }\n"
+        "}\n"
+    )
+    result = _run(
+        '.ltm.profile["/Common/parent_tcp"].name = "/Common/parent_renamed"',
+        source=scf,
+    )
+    applied = result.edits_per_file["mem://1"]
+    [report] = applied.rename_reports
+    assert report.occurrences == 3
+    assert "ltm profile tcp /Common/parent_renamed {" in applied.new_source
+    assert "defaults-from /Common/parent_renamed" in applied.new_source
+    assert "/Common/parent_renamed { }" in applied.new_source
+    # Stanzas that *don't* match must not be touched.
+    assert "/Common/child_tcp" in applied.new_source
+
+
+def test_stress_bug4_data_group_rename_hits_stanza_and_irule_body():
+    # Bug 4 — same regex root cause as bug 3: the stanza header
+    # ``ltm data-group internal /Common/dg_a`` was skipped because
+    # the on-disk kind ``ltm data-group internal`` didn't equal
+    # the projection kind ``ltm data-group``.  Family-prefix check
+    # in :func:`_other_kind_header_spans` now passes both.
+    scf = (
+        "ltm data-group internal /Common/dg_a {\n"
+        '    type string\n    records { "x" { data 1 } }\n}\n'
+        "ltm rule /Common/r1 {\n"
+        "when HTTP_REQUEST {\n"
+        "    if { [class match [HTTP::uri] equals /Common/dg_a] } "
+        '{ log local0. "hit" }\n'
+        "}\n"
+        "}\n"
+    )
+    result = _run(
+        '.ltm["data-group"]["/Common/dg_a"].name = "/Common/dg_renamed"',
+        source=scf,
+    )
+    applied = result.edits_per_file["mem://1"]
+    [report] = applied.rename_reports
+    assert report.occurrences == 2
+    assert "ltm data-group internal /Common/dg_renamed {" in applied.new_source
+    assert "equals /Common/dg_renamed" in applied.new_source
+
+
+def test_stress_bug5_module_subscript_yields_objects_not_containers():
+    # Bug 5 — ``.pem[]`` (and ``.ltm[]`` / ``.[]``) used to return
+    # the per-kind ``Container`` wrapper instead of the addressable
+    # objects, so the renderer fell back to ``repr`` and dumped the
+    # entire BigipConfig.  ``_subscript_root`` now recursively
+    # flattens Container nesting down to ObjectRefs.
+    scf = "pem policy /Common/p { }\nltm pool /Common/pool1 { }\n"
+    pem_values = _run(".pem[]", source=scf).values_per_file["mem://1"]
+    assert len(pem_values) == 1
+    assert pem_values[0].kind == "pem policy"
+    assert pem_values[0].full_path == "/Common/p"
+    # Root ``.[]`` walks through both module → kind levels.
+    root_values = _run(".[]", source=scf).values_per_file["mem://1"]
+    full_paths = sorted(v.full_path for v in root_values)
+    assert full_paths == ["/Common/p", "/Common/pool1"]
+    # And the renderer no longer leaks ``Container(...)`` text.
+    rendered = render(root_values, mode="paths")
+    assert "Container(" not in rendered
+
+
+def test_stress_bug6_persist_insert_path_is_detected_as_persistence_ref():
+    # Bug 6 — ``persist <kind> insert /Common/X`` is technically a
+    # session-key value per F5 docs, but real configs use a
+    # TMSH-shaped path there as a convention.  The candidate ref
+    # is now emitted (when args[2] is path-shaped) and gated by
+    # the downstream ``compute_grep`` to actual config objects.
+    scf = (
+        "ltm persistence cookie /Common/persist_a { defaults-from /Common/cookie }\n"
+        "ltm rule /Common/r {\n"
+        "when HTTP_REQUEST { persist cookie insert /Common/persist_a }\n"
+        "}\n"
+    )
+    refs = _run('.ltm.rule["/Common/r"].refs.persists[]', source=scf).values_per_file["mem://1"]
+    assert [ref.full_path for ref in refs] == ["/Common/persist_a"]
+
+    # Non-existent persistence: candidate emitted but filtered to
+    # empty by the grep-driven object resolution.
+    scf_missing = (
+        "ltm rule /Common/r {\nwhen HTTP_REQUEST { persist cookie insert /Common/missing }\n}\n"
+    )
+    refs = _run('.ltm.rule["/Common/r"].refs.persists[]', source=scf_missing).values_per_file[
+        "mem://1"
+    ]
+    assert refs == []
+
+
+def test_stress_bug7_string_int_concatenation_coerces():
+    # Bug 7 — ``str + int`` used to error with "cannot add str
+    # and int" — no implicit coercion, no ``str()`` builtin.
+    # ``_add`` now coerces the non-string side; an explicit
+    # ``str()`` builtin handles non-string-on-both-sides cases.
+    scf = (
+        "ltm pool /Common/p1 { members { /Common/n:80 { address 1.1.1.1 } } }\n"
+        "ltm pool /Common/p2 {\n"
+        "    members {\n"
+        "        /Common/n:81 { address 1.1.1.2 }\n"
+        "        /Common/n:82 { address 1.1.1.3 }\n"
+        "    }\n"
+        "}\n"
+    )
+    rendered = _run('.ltm.pool[] | .name + ": " + count(.members)', source=scf).values_per_file[
+        "mem://1"
+    ]
+    assert rendered == ["p1: 1", "p2: 2"]
+    # Explicit ``str()`` builtin handles the both-non-strings case.
+    [s] = _run("str(42)", source="").values_per_file["mem://1"]
+    assert s == "42"
+    [s] = _run("str(true)", source="").values_per_file["mem://1"]
+    assert s == "true"
+    [s] = _run("str(null)", source="").values_per_file["mem://1"]
+    assert s == "null"

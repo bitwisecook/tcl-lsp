@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .model import BigipConfig, ProfileType
-from .parser import _extract_blocks
+from .parser._impl import _extract_blocks
 from .pcap_enrich import (
     NameIndex,
     _extract_self_ips,
@@ -535,7 +535,7 @@ def _services_from_gtm_servers(source: str) -> list[tuple[str, int, str]]:
         vs_block_match = re.search(r"virtual-servers\s*\{(.*)\}\s*$", block.body, re.DOTALL)
         if vs_block_match is None:
             continue
-        from .parser import _parse_properties
+        from .parser._impl import _parse_properties
         from .pcap_enrich import _parse_named_subblocks
 
         for vs_name, body in _parse_named_subblocks("{" + vs_block_match.group(1) + "}"):

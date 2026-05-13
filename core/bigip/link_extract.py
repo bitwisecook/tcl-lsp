@@ -17,7 +17,7 @@ from .object_registry import (
     kind_for_header,
     resolve_kind_in_configs,
 )
-from .parser import (
+from .parser._impl import (
     _extract_blocks,
     _parse_generic_header,
     _parse_list_block,
