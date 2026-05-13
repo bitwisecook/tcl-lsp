@@ -3246,6 +3246,23 @@ class BigipConfig:
     )
     pem_profiles: dict[str, BigipPemProfile] = field(default_factory=dict)
     pem_rating_groups: dict[str, BigipPemRatingGroup] = field(default_factory=dict)
+    # Bundle 32 — pem.* minimal kinds.
+    pem_gs_analytics: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_gx: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_hsl_flow: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_hsl_report: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_insert_content: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_policy: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_quota_mgmt: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_session_mgmt_attributes: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_gs_subscriber_activity_log: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_protocol_diameter_avp: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_protocol_radius_avp: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_protocol_profile_gx: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_protocol_profile_radius: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_reporting_format_script: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_subscriber: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    pem_subscriber_attribute: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
     # auth.* — administrative partitions, users, and authentication
     # back-ends.  Singletons (``auth password``, ``auth password-policy``,
     # ``auth source``, ``auth remote-role``, ``auth remote-user``,
