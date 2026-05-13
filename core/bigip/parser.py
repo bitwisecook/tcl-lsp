@@ -91,6 +91,7 @@ from .model import (
     BigipLtmDnsZone,
     BigipLtmEvictionPolicy,
     BigipLtmIfile,
+    BigipLtmMessageRoutingObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
     BigipLtmSnat,
@@ -787,6 +788,21 @@ _THREE_WORD_TYPES = frozenset(
         "dns analytics global-settings",  # singleton
         "dns hpke key",
         "dns hpke profile",
+        # ltm message-routing bundle 15 — three-word kinds.
+        "message-routing diameter peer",
+        "message-routing diameter route",
+        "message-routing diameter transport-config",
+        "message-routing sip peer",
+        "message-routing sip route",
+        "message-routing sip transport-config",
+        "message-routing mqtt peer",
+        "message-routing mqtt route",
+        "message-routing mqtt transport-config",
+        "message-routing generic peer",
+        "message-routing generic protocol",
+        "message-routing generic route",
+        "message-routing generic router",
+        "message-routing generic transport-config",
     ]
 )
 
@@ -799,6 +815,13 @@ _FOUR_WORD_TYPES = frozenset(
         "dns cache records msg",
         "dns cache records nameserver",
         "dns cache records rrset",
+        # ltm message-routing bundle 15 — four-word ``profile *`` kinds.
+        "message-routing diameter profile router",
+        "message-routing diameter profile session",
+        "message-routing sip profile router",
+        "message-routing sip profile session",
+        "message-routing mqtt profile router",
+        "message-routing mqtt profile session",
     ]
 )
 
@@ -1585,6 +1608,56 @@ def _parse_ltm_dns_analytics_global_settings(
         description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
+
+
+# Bundle 15 parsers — ltm message-routing.*  shared parser routing
+# off a single dispatch table keyed by the in-config obj_type.
+
+
+def _parse_ltm_message_routing(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipLtmMessageRoutingObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipLtmMessageRoutingObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+# Maps in-config obj_type (e.g. ``"message-routing diameter peer"``)
+# to the ``BigipConfig`` attribute that holds it.  Bundle 15 covers
+# 14 three-word kinds and 6 four-word ``... profile *`` kinds across
+# four protocols (diameter / sip / mqtt / generic).
+_LTM_MESSAGE_ROUTING_DISPATCH: dict[str, str] = {
+    "message-routing diameter peer": "ltm_mr_diameter_peers",
+    "message-routing diameter route": "ltm_mr_diameter_routes",
+    "message-routing diameter profile router": "ltm_mr_diameter_profile_router",
+    "message-routing diameter profile session": "ltm_mr_diameter_profile_session",
+    "message-routing diameter transport-config": "ltm_mr_diameter_transport_config",
+    "message-routing sip peer": "ltm_mr_sip_peers",
+    "message-routing sip route": "ltm_mr_sip_routes",
+    "message-routing sip profile router": "ltm_mr_sip_profile_router",
+    "message-routing sip profile session": "ltm_mr_sip_profile_session",
+    "message-routing sip transport-config": "ltm_mr_sip_transport_config",
+    "message-routing mqtt peer": "ltm_mr_mqtt_peers",
+    "message-routing mqtt route": "ltm_mr_mqtt_routes",
+    "message-routing mqtt profile router": "ltm_mr_mqtt_profile_router",
+    "message-routing mqtt profile session": "ltm_mr_mqtt_profile_session",
+    "message-routing mqtt transport-config": "ltm_mr_mqtt_transport_config",
+    "message-routing generic peer": "ltm_mr_generic_peers",
+    "message-routing generic protocol": "ltm_mr_generic_protocols",
+    "message-routing generic route": "ltm_mr_generic_routes",
+    "message-routing generic router": "ltm_mr_generic_routers",
+    "message-routing generic transport-config": "ltm_mr_generic_transport_config",
+}
 
 
 def _parse_virtual_address(
@@ -5065,6 +5138,24 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                     config.ltm_dns_analytics_global_settings[""] = (
                         _parse_ltm_dns_analytics_global_settings(block.body, source_map, block)
                     )
+            case _ if (
+                module == "ltm"
+                and obj_type.startswith("message-routing ")
+                and obj_type in _LTM_MESSAGE_ROUTING_DISPATCH
+            ):
+                # Bundle 15 — ltm message-routing.*  All 20 kinds
+                # share one parser; the obj_type label picks the
+                # right ``BigipConfig`` attribute via the dispatch
+                # table.  The ``kind`` field on each instance carries
+                # the full ``ltm message-routing X Y`` label.
+                attr = _LTM_MESSAGE_ROUTING_DISPATCH[obj_type]
+                getattr(config, attr)[full_path] = _parse_ltm_message_routing(
+                    full_path,
+                    block.body,
+                    f"ltm {obj_type}",
+                    source_map,
+                    block,
+                )
             case "node":
                 node = _parse_node(full_path, block.body, source_map, block)
                 config.nodes[full_path] = node

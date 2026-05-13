@@ -624,6 +624,25 @@ class BigipLtmDnsAnalyticsGlobalSettings:
     range: Range | None = None
 
 
+# Bundle 15 — ltm message-routing.* (20 kinds across diameter / sip /
+# mqtt / generic protocols).  Each kind has its own ``BigipConfig``
+# dict, but all share this minimal shape; ``kind`` carries the
+# protocol + row label so a query that hits
+# ``.ltm.message-routing-diameter-peer[].kind`` returns ``"ltm
+# message-routing diameter peer"``.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmMessageRoutingObject:
+    """A ``ltm message-routing *`` object — shared minimal shape."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
@@ -2542,6 +2561,45 @@ class BigipConfig:
     ltm_dns_hpke_keys: dict[str, BigipLtmDnsHpkeKey] = field(default_factory=dict)
     ltm_dns_hpke_profiles: dict[str, BigipLtmDnsHpkeProfile] = field(default_factory=dict)
     ltm_dns_analytics_global_settings: dict[str, BigipLtmDnsAnalyticsGlobalSettings] = field(
+        default_factory=dict
+    )
+    # Bundle 15 — ltm message-routing.* (20 kinds, four protocols).
+    ltm_mr_diameter_peers: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_diameter_routes: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_diameter_profile_router: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_diameter_profile_session: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_diameter_transport_config: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_sip_peers: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_sip_routes: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_sip_profile_router: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_sip_profile_session: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_sip_transport_config: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_mqtt_peers: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_mqtt_routes: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_mqtt_profile_router: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_mqtt_profile_session: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_mqtt_transport_config: dict[str, BigipLtmMessageRoutingObject] = field(
+        default_factory=dict
+    )
+    ltm_mr_generic_peers: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_generic_protocols: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_generic_routes: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_generic_routers: dict[str, BigipLtmMessageRoutingObject] = field(default_factory=dict)
+    ltm_mr_generic_transport_config: dict[str, BigipLtmMessageRoutingObject] = field(
         default_factory=dict
     )
     nodes: dict[str, BigipNode] = field(default_factory=dict)

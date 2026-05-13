@@ -5039,3 +5039,106 @@ def test_ltm_dns_analytics_global_settings_singleton_present():
     """
     res = _run('.ltm.dns-analytics-global-settings[]."full-path"', _LTM14_CONF)
     assert res.values_per_file["mem://1"] == [""]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 15 — ltm message-routing.*  (20 kinds across 4 protocols).
+# All share BigipLtmMessageRoutingObject + _LTM_MESSAGE_ROUTING_FIELDS.
+# ---------------------------------------------------------------------------
+
+_LTM15_CONF = """ltm message-routing diameter peer /Common/dia_peer1 {
+    description "diameter peer"
+    transport-config /Common/dia_tc1
+}
+ltm message-routing diameter route /Common/dia_r1 { description "dia route" }
+ltm message-routing diameter profile router /Common/dia_pr1 { description "dia router" }
+ltm message-routing diameter profile session /Common/dia_ps1 { description "dia session" }
+ltm message-routing diameter transport-config /Common/dia_tc1 { description "dia tc" }
+ltm message-routing sip peer /Common/sip_peer1 { description "sip peer" }
+ltm message-routing sip route /Common/sip_r1 { description "sip route" }
+ltm message-routing sip profile router /Common/sip_pr1 { }
+ltm message-routing sip profile session /Common/sip_ps1 { }
+ltm message-routing sip transport-config /Common/sip_tc1 { }
+ltm message-routing mqtt peer /Common/mqtt_peer1 { }
+ltm message-routing mqtt route /Common/mqtt_r1 { }
+ltm message-routing mqtt profile router /Common/mqtt_pr1 { }
+ltm message-routing mqtt profile session /Common/mqtt_ps1 { }
+ltm message-routing mqtt transport-config /Common/mqtt_tc1 { }
+ltm message-routing generic peer /Common/gen_peer1 { }
+ltm message-routing generic protocol /Common/gen_p1 { description "generic protocol" }
+ltm message-routing generic route /Common/gen_r1 { }
+ltm message-routing generic router /Common/gen_router1 { }
+ltm message-routing generic transport-config /Common/gen_tc1 { }
+"""
+
+
+def test_ltm_message_routing_all_20_kinds_dispatch_correctly():
+    """Walk every dispatch label and check the kind label
+    round-trips through ``.kind``.  Cross-checks the dispatch
+    table is in sync with ``_MODULE_KINDS["ltm"]``.
+    """
+    cases: list[tuple[str, str]] = [
+        ("message-routing-diameter-peer", "ltm message-routing diameter peer"),
+        ("message-routing-diameter-route", "ltm message-routing diameter route"),
+        (
+            "message-routing-diameter-profile-router",
+            "ltm message-routing diameter profile router",
+        ),
+        (
+            "message-routing-diameter-profile-session",
+            "ltm message-routing diameter profile session",
+        ),
+        (
+            "message-routing-diameter-transport-config",
+            "ltm message-routing diameter transport-config",
+        ),
+        ("message-routing-sip-peer", "ltm message-routing sip peer"),
+        ("message-routing-sip-route", "ltm message-routing sip route"),
+        ("message-routing-sip-profile-router", "ltm message-routing sip profile router"),
+        ("message-routing-sip-profile-session", "ltm message-routing sip profile session"),
+        ("message-routing-sip-transport-config", "ltm message-routing sip transport-config"),
+        ("message-routing-mqtt-peer", "ltm message-routing mqtt peer"),
+        ("message-routing-mqtt-route", "ltm message-routing mqtt route"),
+        ("message-routing-mqtt-profile-router", "ltm message-routing mqtt profile router"),
+        ("message-routing-mqtt-profile-session", "ltm message-routing mqtt profile session"),
+        ("message-routing-mqtt-transport-config", "ltm message-routing mqtt transport-config"),
+        ("message-routing-generic-peer", "ltm message-routing generic peer"),
+        ("message-routing-generic-protocol", "ltm message-routing generic protocol"),
+        ("message-routing-generic-route", "ltm message-routing generic route"),
+        ("message-routing-generic-router", "ltm message-routing generic router"),
+        (
+            "message-routing-generic-transport-config",
+            "ltm message-routing generic transport-config",
+        ),
+    ]
+    for label, kind_str in cases:
+        res = _run(f".ltm.{label}[].kind", _LTM15_CONF)
+        kinds = res.values_per_file["mem://1"]
+        assert kind_str in kinds, f"{label}: expected kind={kind_str!r}, got {kinds!r}"
+
+
+def test_ltm_message_routing_four_word_profile_kinds_dispatch():
+    """The 6 ``... profile router/session`` kinds are four-word
+    kinds (6-token headers).  Verify they land in the right
+    container via the new ``_FOUR_WORD_TYPES`` path.
+    """
+    for label, name in [
+        ("message-routing-diameter-profile-router", "dia_pr1"),
+        ("message-routing-diameter-profile-session", "dia_ps1"),
+        ("message-routing-sip-profile-router", "sip_pr1"),
+        ("message-routing-sip-profile-session", "sip_ps1"),
+        ("message-routing-mqtt-profile-router", "mqtt_pr1"),
+        ("message-routing-mqtt-profile-session", "mqtt_ps1"),
+    ]:
+        res = _run(f'.ltm.{label}["/Common/{name}"].name', _LTM15_CONF)
+        assert res.values_per_file["mem://1"] == [name]
+
+
+def test_ltm_message_routing_descriptions_round_trip():
+    """Unquoted and unquoted-with-spaces descriptions both
+    round-trip through the minimal shape.
+    """
+    res = _run('.ltm.message-routing-diameter-peer["/Common/dia_peer1"].description', _LTM15_CONF)
+    assert res.values_per_file["mem://1"] == ["diameter peer"]
+    res = _run('.ltm.message-routing-generic-protocol["/Common/gen_p1"].description', _LTM15_CONF)
+    assert res.values_per_file["mem://1"] == ["generic protocol"]

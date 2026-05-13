@@ -625,33 +625,37 @@ records`` merge into one container keyed by full-path, with
       hpke key`)
 - [x] `ltm dns analytics global-settings` (singleton)
 
-### Bundle 15 — `ltm message-routing.*` (25)
+### Bundle 15 — `ltm message-routing.*` (20)
 
-Five protocol families (Diameter, SIP, MQTT, Generic + their
-common router/route/peer/transport-config kinds). Almost
-mechanical; one shared dataclass shape per row, tagged by
-protocol.
+Four protocol families (Diameter, SIP, MQTT, Generic).  All 20
+kinds share ``BigipLtmMessageRoutingObject`` +
+``_LTM_MESSAGE_ROUTING_FIELDS`` (minimal shape — name / full-path
+/ kind / description); a ``_LTM_MESSAGE_ROUTING_DISPATCH`` table
+routes each kind to its own ``BigipConfig`` attribute.  14 of the
+20 are three-word kinds (5-token headers); the six ``... profile
+router/session`` rows are four-word kinds (6-token headers,
+parsed via the bundle-14 ``_FOUR_WORD_TYPES`` extension).
 
-- [ ] `ltm message-routing diameter peer`
-- [ ] `ltm message-routing diameter route`
-- [ ] `ltm message-routing diameter profile router`
-- [ ] `ltm message-routing diameter profile session`
-- [ ] `ltm message-routing diameter transport-config`
-- [ ] `ltm message-routing sip peer`
-- [ ] `ltm message-routing sip route`
-- [ ] `ltm message-routing sip profile router`
-- [ ] `ltm message-routing sip profile session`
-- [ ] `ltm message-routing sip transport-config`
-- [ ] `ltm message-routing mqtt peer`
-- [ ] `ltm message-routing mqtt route`
-- [ ] `ltm message-routing mqtt profile router`
-- [ ] `ltm message-routing mqtt profile session`
-- [ ] `ltm message-routing mqtt transport-config`
-- [ ] `ltm message-routing generic peer`
-- [ ] `ltm message-routing generic protocol`
-- [ ] `ltm message-routing generic route`
-- [ ] `ltm message-routing generic router`
-- [ ] `ltm message-routing generic transport-config`
+- [x] `ltm message-routing diameter peer`
+- [x] `ltm message-routing diameter route`
+- [x] `ltm message-routing diameter profile router`
+- [x] `ltm message-routing diameter profile session`
+- [x] `ltm message-routing diameter transport-config`
+- [x] `ltm message-routing sip peer`
+- [x] `ltm message-routing sip route`
+- [x] `ltm message-routing sip profile router`
+- [x] `ltm message-routing sip profile session`
+- [x] `ltm message-routing sip transport-config`
+- [x] `ltm message-routing mqtt peer`
+- [x] `ltm message-routing mqtt route`
+- [x] `ltm message-routing mqtt profile router`
+- [x] `ltm message-routing mqtt profile session`
+- [x] `ltm message-routing mqtt transport-config`
+- [x] `ltm message-routing generic peer`
+- [x] `ltm message-routing generic protocol`
+- [x] `ltm message-routing generic route`
+- [x] `ltm message-routing generic router`
+- [x] `ltm message-routing generic transport-config`
 
 ### Bundle 16 — `ltm` auth profiles (12)
 

@@ -84,6 +84,7 @@ from ..model import (
     BigipLtmDnsZone,
     BigipLtmEvictionPolicy,
     BigipLtmIfile,
+    BigipLtmMessageRoutingObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
     BigipLtmSnat,
@@ -597,6 +598,14 @@ _LTM_DNS_HPKE_PROFILE_FIELDS: dict[str, FieldSpec] = {
 _LTM_DNS_ANALYTICS_GLOBAL_SETTINGS_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+}
+
+# Bundle 15 — shared field map for all 20 ltm message-routing.* kinds.
+_LTM_MESSAGE_ROUTING_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
     "description": FieldSpec("description"),
 }
 
@@ -1936,6 +1945,75 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipLtmDnsAnalyticsGlobalSettings,
         _LTM_DNS_ANALYTICS_GLOBAL_SETTINGS_FIELDS,
     ),
+    # Bundle 15 — ltm message-routing.* (20 kinds, shared shape).
+    "ltm message-routing diameter peer": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing diameter route": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing diameter profile router": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing diameter profile session": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing diameter transport-config": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing sip peer": (BigipLtmMessageRoutingObject, _LTM_MESSAGE_ROUTING_FIELDS),
+    "ltm message-routing sip route": (BigipLtmMessageRoutingObject, _LTM_MESSAGE_ROUTING_FIELDS),
+    "ltm message-routing sip profile router": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing sip profile session": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing sip transport-config": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing mqtt peer": (BigipLtmMessageRoutingObject, _LTM_MESSAGE_ROUTING_FIELDS),
+    "ltm message-routing mqtt route": (BigipLtmMessageRoutingObject, _LTM_MESSAGE_ROUTING_FIELDS),
+    "ltm message-routing mqtt profile router": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing mqtt profile session": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing mqtt transport-config": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing generic peer": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing generic protocol": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing generic route": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing generic router": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
+    "ltm message-routing generic transport-config": (
+        BigipLtmMessageRoutingObject,
+        _LTM_MESSAGE_ROUTING_FIELDS,
+    ),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -2291,6 +2369,75 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "dns-analytics-global-settings": (
             "ltm_dns_analytics_global_settings",
             "ltm dns analytics global-settings",
+        ),
+        # Bundle 15 — ltm message-routing.* (20 kinds).
+        "message-routing-diameter-peer": (
+            "ltm_mr_diameter_peers",
+            "ltm message-routing diameter peer",
+        ),
+        "message-routing-diameter-route": (
+            "ltm_mr_diameter_routes",
+            "ltm message-routing diameter route",
+        ),
+        "message-routing-diameter-profile-router": (
+            "ltm_mr_diameter_profile_router",
+            "ltm message-routing diameter profile router",
+        ),
+        "message-routing-diameter-profile-session": (
+            "ltm_mr_diameter_profile_session",
+            "ltm message-routing diameter profile session",
+        ),
+        "message-routing-diameter-transport-config": (
+            "ltm_mr_diameter_transport_config",
+            "ltm message-routing diameter transport-config",
+        ),
+        "message-routing-sip-peer": ("ltm_mr_sip_peers", "ltm message-routing sip peer"),
+        "message-routing-sip-route": ("ltm_mr_sip_routes", "ltm message-routing sip route"),
+        "message-routing-sip-profile-router": (
+            "ltm_mr_sip_profile_router",
+            "ltm message-routing sip profile router",
+        ),
+        "message-routing-sip-profile-session": (
+            "ltm_mr_sip_profile_session",
+            "ltm message-routing sip profile session",
+        ),
+        "message-routing-sip-transport-config": (
+            "ltm_mr_sip_transport_config",
+            "ltm message-routing sip transport-config",
+        ),
+        "message-routing-mqtt-peer": ("ltm_mr_mqtt_peers", "ltm message-routing mqtt peer"),
+        "message-routing-mqtt-route": ("ltm_mr_mqtt_routes", "ltm message-routing mqtt route"),
+        "message-routing-mqtt-profile-router": (
+            "ltm_mr_mqtt_profile_router",
+            "ltm message-routing mqtt profile router",
+        ),
+        "message-routing-mqtt-profile-session": (
+            "ltm_mr_mqtt_profile_session",
+            "ltm message-routing mqtt profile session",
+        ),
+        "message-routing-mqtt-transport-config": (
+            "ltm_mr_mqtt_transport_config",
+            "ltm message-routing mqtt transport-config",
+        ),
+        "message-routing-generic-peer": (
+            "ltm_mr_generic_peers",
+            "ltm message-routing generic peer",
+        ),
+        "message-routing-generic-protocol": (
+            "ltm_mr_generic_protocols",
+            "ltm message-routing generic protocol",
+        ),
+        "message-routing-generic-route": (
+            "ltm_mr_generic_routes",
+            "ltm message-routing generic route",
+        ),
+        "message-routing-generic-router": (
+            "ltm_mr_generic_routers",
+            "ltm message-routing generic router",
+        ),
+        "message-routing-generic-transport-config": (
+            "ltm_mr_generic_transport_config",
+            "ltm message-routing generic transport-config",
         ),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
