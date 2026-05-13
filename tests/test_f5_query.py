@@ -5540,6 +5540,9 @@ def test_audit_followup_new_kinds_dispatch():
     cloud-provider, sys software update, dynad, compatibility-
     level, diags ihealth, apm client-packaging, pem irule, plus
     new modules asm/ilx/wom) all dispatch to typed containers.
+    ``pem irule`` parses via the dedicated ``_parse_pem_irule``
+    path into ``cfg.pem_rules`` (BigipPemRule, with ``source``
+    field projected as ``body``).
     """
     from core.bigip.parser import parse_bigip_conf
 
@@ -5557,10 +5560,64 @@ def test_audit_followup_new_kinds_dispatch():
     assert cfg.sys_dynad_settings.get("")  # singleton
     assert cfg.sys_compatibility_level.get("")  # singleton
     assert cfg.sys_diags_ihealth.get("")  # singleton
-    # apm + pem follow-ups.
+    # apm + pem follow-ups.  ``pem irule`` is the only kind in the
+    # PEM iRule family; it parses via the dedicated parser into
+    # ``pem_rules`` so the body remains addressable as ``.body``.
     assert cfg.apm_client_packaging
-    assert cfg.pem_irule_kinds
+    assert cfg.pem_rules
     # New modules.
     assert cfg.asm_policies
     assert cfg.ilx_global_settings.get("")  # singleton
     assert cfg.wom_endpoint_discovery.get("")  # singleton
+
+
+_SIBLING_FOLLOWUP_CONF = """\
+net routing as-path /Common/asp1 {
+    entries {
+        10 { action permit regex "^65001$" }
+    }
+}
+security dos profile-signatures /Common/dpsig1 { description "dps" }
+apm aaa localdb /Common/my_local_db { description "ldb" }
+analytics global-settings {
+    avrd-debug-mode enabled
+    avrd-interval 60
+    offbox-protocol tcp
+}
+"""
+
+
+def test_sibling_completeness_new_kinds_dispatch():
+    """Four sibling-completeness follow-ups found by a wider corpus
+    scan against HOL-2571 + BigIPReport + SSL Orchestrator .scf
+    fixtures + F5 ACC doConverter test configs:
+
+    - ``net routing as-path`` — sibling of net routing family.
+    - ``security dos profile-signatures`` — sibling of dos family.
+    - ``apm aaa localdb`` — sibling of apm aaa family.
+    - ``analytics global-settings`` — top-level ``analytics``
+      module (distinct from ``ltm dns analytics global-settings``,
+      which is a different kind under ``ltm``).
+    """
+    from core.bigip.parser import parse_bigip_conf
+
+    cfg = parse_bigip_conf(_SIBLING_FOLLOWUP_CONF)
+    assert "/Common/asp1" in cfg.net_routing_as_paths
+    assert "/Common/dpsig1" in cfg.security_dos_profile_signatures
+    assert "/Common/my_local_db" in cfg.apm_aaa_localdb
+    assert cfg.analytics_global_settings.get("")  # singleton
+
+    # Kind labels on the typed objects reflect the TMSH kind.
+    assert cfg.net_routing_as_paths["/Common/asp1"].kind == "net routing as-path"
+    assert (
+        cfg.security_dos_profile_signatures["/Common/dpsig1"].kind
+        == "security dos profile-signatures"
+    )
+    assert cfg.apm_aaa_localdb["/Common/my_local_db"].kind == "apm aaa localdb"
+    assert cfg.analytics_global_settings[""].kind == "analytics global-settings"
+
+    # Projection navigates the new kinds end-to-end.
+    desc = _run(".security.dos-profile-signatures.dpsig1.description", _SIBLING_FOLLOWUP_CONF)
+    assert desc.values_per_file["mem://1"] == ["dps"]
+    full = _run(".analytics.global-settings[].full-path", _SIBLING_FOLLOWUP_CONF)
+    assert full.values_per_file["mem://1"] == [""]

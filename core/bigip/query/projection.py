@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..model import (
+    BigipAnalyticsMinimalObject,
     BigipApiProtectionMinimalObject,
     BigipApmEphemeralAuthSshSecurityConfig,
     BigipApmMinimalObject,
@@ -708,6 +709,12 @@ _ILX_MINIMAL_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
 }
 _WOM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
+    "description": FieldSpec("description"),
+}
+_ANALYTICS_MINIMAL_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "kind": FieldSpec("kind"),
@@ -2182,13 +2189,17 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "sys dynad settings": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
     "sys compatibility-level": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
     "sys diags ihealth": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
-    # Audit follow-up — apm/pem.
+    # Audit follow-up — apm.
     "apm client-packaging": (BigipApmMinimalObject, _APM_MINIMAL_FIELDS),
-    "pem irule": (BigipPemMinimalObject, _PEM_MINIMAL_FIELDS),
     # Audit follow-up — new modules.
     "asm policy": (BigipAsmMinimalObject, _ASM_MINIMAL_FIELDS),
     "ilx global-settings": (BigipIlxMinimalObject, _ILX_MINIMAL_FIELDS),
     "wom endpoint-discovery": (BigipWomMinimalObject, _WOM_MINIMAL_FIELDS),
+    # Sibling-completeness follow-ups.
+    "net routing as-path": (BigipNetMinimalObject, _NET_MINIMAL_FIELDS),
+    "security dos profile-signatures": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "apm aaa localdb": (BigipApmMinimalObject, _APM_MINIMAL_FIELDS),
+    "analytics global-settings": (BigipAnalyticsMinimalObject, _ANALYTICS_MINIMAL_FIELDS),
     # Bundle 21-26 — net.* minimal kinds.
     "net routing access-list": (BigipNetMinimalObject, _NET_MINIMAL_FIELDS),
     "net routing bfd": (BigipNetMinimalObject, _NET_MINIMAL_FIELDS),
@@ -2718,7 +2729,7 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     # within the merged container.
     "gtm monitor": (BigipMonitor, _GTM_MONITOR_FIELDS),
     "pem policy": (BigipPemPolicy, _PEM_POLICY_FIELDS),
-    "pem rule": (BigipPemRule, _PEM_RULE_FIELDS),
+    "pem irule": (BigipPemRule, _PEM_RULE_FIELDS),
     "pem listener": (BigipPemListener, _PEM_LISTENER_FIELDS),
     "pem forwarding-endpoint": (
         BigipPemForwardingEndpoint,
@@ -3122,6 +3133,8 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "wccp": ("net_wccp", "net wccp"),
         "sfc-chain": ("net_sfc_chain", "net sfc chain"),
         "sfc-sf": ("net_sfc_sf", "net sfc sf"),
+        # Sibling-completeness follow-up.
+        "routing-as-path": ("net_routing_as_paths", "net routing as-path"),
     },
     "sys": {
         "dns": ("sys_dns", "sys dns"),
@@ -3549,6 +3562,8 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         # Audit follow-up.
         "client-packaging": ("apm_client_packaging", "apm client-packaging"),
+        # Sibling-completeness follow-up.
+        "aaa-localdb": ("apm_aaa_localdb", "apm aaa localdb"),
     },
     "security": {
         "firewall-port-list": (
@@ -3785,6 +3800,11 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "security_dos_ipv6_ext_hdr",
             "security dos ipv6-ext-hdr",
         ),
+        # Sibling-completeness follow-up.
+        "dos-profile-signatures": (
+            "security_dos_profile_signatures",
+            "security dos profile-signatures",
+        ),
         "ip-intelligence-policy": (
             "security_ip_intelligence_policies",
             "security ip-intelligence policy",
@@ -3804,7 +3824,7 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
     },
     "pem": {
         "policy": ("pem_policies", "pem policy"),
-        "rule": ("pem_rules", "pem rule"),
+        "irule": ("pem_rules", "pem irule"),
         "listener": ("pem_listeners", "pem listener"),
         "forwarding-endpoint": (
             "pem_forwarding_endpoints",
@@ -3845,8 +3865,6 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "reporting-format-script": ("pem_reporting_format_script", "pem reporting format-script"),
         "subscriber": ("pem_subscriber", "pem subscriber"),
         "subscriber-attribute": ("pem_subscriber_attribute", "pem subscriber-attribute"),
-        # Audit follow-up — distinct from ``pem rule``.
-        "irule": ("pem_irule_kinds", "pem irule"),
     },
     "auth": {
         "partition": ("auth_partitions", "auth partition"),
@@ -3897,6 +3915,11 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
     },
     "wom": {
         "endpoint-discovery": ("wom_endpoint_discovery", "wom endpoint-discovery"),
+    },
+    # Sibling-completeness follow-up: top-level analytics module
+    # (distinct from ``ltm dns analytics global-settings``).
+    "analytics": {
+        "global-settings": ("analytics_global_settings", "analytics global-settings"),
     },
 }
 

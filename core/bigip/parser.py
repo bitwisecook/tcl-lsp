@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from ..analysis.semantic_model import Range
 from ..common.document_buffer import DocumentBuffer
 from .model import (
+    BigipAnalyticsMinimalObject,
     BigipApiProtectionMinimalObject,
     BigipApmEphemeralAuthSshSecurityConfig,
     BigipApmMinimalObject,
@@ -880,6 +881,11 @@ _TWO_WORD_TYPES = frozenset(
         "dynad settings",
         "dos ipv6-ext-hdr",
         "diags ihealth",
+        # Sibling-completeness follow-ups discovered by the wider
+        # corpus scan (HOL-2571 + BigIPReport + sslo .scf).
+        "routing as-path",
+        "dos profile-signatures",
+        "aaa localdb",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -2066,6 +2072,8 @@ _NET_MINIMAL_DISPATCH: dict[str, str] = {
     # Bundle 26 — net sfc (2 kinds).
     "sfc chain": "net_sfc_chain",
     "sfc sf": "net_sfc_sf",
+    # Sibling-completeness follow-up.
+    "routing as-path": "net_routing_as_paths",
 }
 
 
@@ -2177,6 +2185,8 @@ _APM_MINIMAL_DISPATCH: dict[str, str] = {
     "policy windows-group-policy-file": "apm_policy_windows_group_policy_file",
     # Audit follow-up — apm.* found in real BIG-IP configs.
     "client-packaging": "apm_client_packaging",
+    # Sibling-completeness follow-up (sslo swg_profile.scf).
+    "aaa localdb": "apm_aaa_localdb",
 }
 
 
@@ -2216,8 +2226,6 @@ _PEM_MINIMAL_DISPATCH: dict[str, str] = {
     "reporting format-script": "pem_reporting_format_script",
     "subscriber": "pem_subscriber",
     "subscriber-attribute": "pem_subscriber_attribute",
-    # Audit follow-up — distinct from ``pem rule`` (also exists).
-    "irule": "pem_irule_kinds",
 }
 
 
@@ -2530,6 +2538,31 @@ def _parse_wom_minimal(
     )
 
 
+# Sibling-completeness follow-up: top-level ``analytics`` module
+# (distinct from ``ltm dns analytics global-settings``).
+_ANALYTICS_MINIMAL_DISPATCH: dict[str, str] = {
+    "global-settings": "analytics_global_settings",
+}
+
+
+def _parse_analytics_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipAnalyticsMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipAnalyticsMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Module -> (dispatch table, parser function).  Used by the generic
 # minimal-dispatch pre-pass in ``parse_bigip_conf`` so every
 # bundles 17-45 minimal kind routes through the same code path.
@@ -2569,6 +2602,8 @@ _MINIMAL_DISPATCH_BY_MODULE.update(
         "asm": (_ASM_MINIMAL_DISPATCH, _parse_asm_minimal),
         "ilx": (_ILX_MINIMAL_DISPATCH, _parse_ilx_minimal),
         "wom": (_WOM_MINIMAL_DISPATCH, _parse_wom_minimal),
+        # Sibling-completeness follow-up: top-level ``analytics`` module.
+        "analytics": (_ANALYTICS_MINIMAL_DISPATCH, _parse_analytics_minimal),
     }
 )
 
@@ -4160,6 +4195,8 @@ _SECURITY_MINIMAL_DISPATCH: dict[str, str] = {
     "shared-objects port-list": "security_shared_objects_port_lists",
     "shared-objects address-list": "security_shared_objects_address_lists",
     "dos ipv6-ext-hdr": "security_dos_ipv6_ext_hdr",
+    # Sibling-completeness follow-up.
+    "dos profile-signatures": "security_dos_profile_signatures",
 }
 
 

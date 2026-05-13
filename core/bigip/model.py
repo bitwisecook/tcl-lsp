@@ -807,6 +807,22 @@ class BigipWomMinimalObject:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipAnalyticsMinimalObject:
+    """Generic analytics.* minimal projection.
+
+    Covers top-level ``analytics`` module kinds (e.g. ``analytics
+    global-settings``) — distinct from ``ltm dns analytics
+    global-settings`` which lives under the ``ltm`` module.
+    """
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
 
@@ -3491,8 +3507,6 @@ class BigipConfig:
     sys_diags_ihealth: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
     # apm follow-on.
     apm_client_packaging: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
-    # pem follow-on (irule, distinct from pem rule).
-    pem_irule_kinds: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
     # New module — asm.*  (Application Security Manager).
     asm_policies: dict[str, BigipAsmMinimalObject] = field(default_factory=dict)
     # New module — ilx.*  (iRulesLX).
@@ -3500,6 +3514,18 @@ class BigipConfig:
     # New module — wom.*  (WAN Optimization Manager, legacy but in
     # real configs).
     wom_endpoint_discovery: dict[str, BigipWomMinimalObject] = field(default_factory=dict)
+    # Sibling-completeness follow-ups (HOL-2571 + BigIPReport + sslo
+    # .scf corpus scan).  Distinct from look-alike kinds already
+    # captured under different modules (e.g. ``ltm dns analytics
+    # global-settings``).
+    net_routing_as_paths: dict[str, BigipNetMinimalObject] = field(default_factory=dict)
+    security_dos_profile_signatures: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    apm_aaa_localdb: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    # New module — analytics.*  (top-level analytics global-settings,
+    # not the ``ltm dns analytics global-settings`` singleton).
+    analytics_global_settings: dict[str, BigipAnalyticsMinimalObject] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:
