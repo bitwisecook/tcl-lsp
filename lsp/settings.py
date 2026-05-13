@@ -186,10 +186,6 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
 
     Mutates ``target`` (defaulting to the workspace-level ``feature_config``)
     in place and returns True if any diagnostics need republishing.
-
-    ``set_non_ascii_mode`` is a process-global side effect — applied for
-    every target since it cannot be made per-folder without restructuring
-    ``core.analysis.checks._style``.
     """
     if target is None:
         target = _state.feature_config
