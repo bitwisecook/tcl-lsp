@@ -1430,6 +1430,8 @@ def _builtin_with_folder(path: Any, folder: Any) -> str:
     with_ctx=True,
 )
 def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
+    from ..grep import compute_grep
+    from ..types import ObjectPath
     from .edit_plan import EditOp
 
     old_s = _as_str(old, name="rename", arg=1).strip()
@@ -1440,6 +1442,49 @@ def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
         raise BuiltinError("rename: new name must not be empty")
     if old_s == new_s:
         return 0
+
+    # Partition-visibility check.  When the rename CHANGES the
+    # target's partition, every existing referrer must still be
+    # able to see the new partition under the F5 visibility rules.
+    # If any referrer would lose visibility, refuse the move with
+    # an explicit list — the operator can drop the offending refs,
+    # move the referrers too, or pick a different target partition.
+    old_path = ObjectPath.try_parse(old_s)
+    new_path = ObjectPath.try_parse(new_s)
+    if old_path is not None and new_path is not None and old_path.partition != new_path.partition:
+        report = compute_grep(
+            sources={ctx.root.uri: ctx.root.source},
+            configs={ctx.root.uri: ctx.root.config},
+            pattern=old_s,
+            use_regex=False,
+            use_cidr=False,
+            direction="reverse",
+            max_depth=1,
+            max_nodes=1024,
+            include_body=False,
+            recurse=True,
+        )
+        broken: list[str] = []
+        for node in report.related:
+            if node.full_path == old_s:
+                continue
+            referrer = ObjectPath.try_parse(node.full_path)
+            if referrer is None:
+                continue
+            if not referrer.partition.can_see(new_path.partition):
+                broken.append(node.full_path)
+        if broken:
+            shown = ", ".join(sorted(set(broken))[:10])
+            extra = f" (+{len(set(broken)) - 10} more)" if len(set(broken)) > 10 else ""
+            raise BuiltinError(
+                f"rename: moving {old_s!r} to {new_s!r} would break "
+                f"partition visibility for {len(set(broken))} referrer(s): "
+                f"{shown}{extra}.  Move the referrer(s) to "
+                f"{new_path.partition!s} first, drop the offending "
+                f"references, or pick a target partition the referrers "
+                f"can see."
+            )
+
     ctx.edits.add(
         EditOp(
             source_uri=ctx.root.uri,

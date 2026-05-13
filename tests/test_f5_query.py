@@ -6391,3 +6391,59 @@ def test_rename_partition_tenant_to_tenant_succeeds():
     ).edits_per_file["mem://1"]
     assert "/Tenant_X/web_pool" in applied.new_source
     assert "/Tenant_A/web_pool" not in applied.new_source
+
+
+def test_rename_refuses_move_that_breaks_partition_visibility():
+    """Moving ``/Common/X`` to a tenant partition breaks visibility
+    for every other-partition referrer.  The rename is refused with
+    an explicit list."""
+    from core.bigip.query.errors import BuiltinError
+
+    src = (
+        "ltm pool /Common/shared_pool { }\n"
+        "ltm virtual /Tenant_B/vs1 {\n"
+        "    destination /Tenant_B/2.2.2.2:80\n"
+        "    pool /Common/shared_pool\n"
+        "}\n"
+    )
+    with pytest.raises(BuiltinError) as exc:
+        _run(
+            'rename("/Common/shared_pool", "/Tenant_A/shared_pool")',
+            source=src,
+        )
+    assert "partition visibility" in str(exc.value)
+    assert "/Tenant_B/vs1" in str(exc.value)
+
+
+def test_rename_allows_move_into_common_because_all_referrers_can_see():
+    """Moving ``/Tenant_A/X`` to ``/Common/X`` is always safe — every
+    referrer (in any partition) can see ``/Common``."""
+    src = (
+        "ltm pool /Tenant_A/web_pool { }\n"
+        "ltm virtual /Tenant_A/vs1 {\n"
+        "    destination /Tenant_A/1.1.1.1:80\n"
+        "    pool /Tenant_A/web_pool\n"
+        "}\n"
+    )
+    applied = _run(
+        'rename("/Tenant_A/web_pool", "/Common/web_pool")',
+        source=src,
+    ).edits_per_file["mem://1"]
+    assert "/Common/web_pool" in applied.new_source
+    assert "/Tenant_A/web_pool" not in applied.new_source
+
+
+def test_rename_within_same_partition_skips_visibility_check():
+    """Same-partition rename never triggers the visibility check."""
+    src = (
+        "ltm pool /Tenant_A/web_pool { }\n"
+        "ltm virtual /Tenant_A/vs1 {\n"
+        "    destination /Tenant_A/1.1.1.1:80\n"
+        "    pool /Tenant_A/web_pool\n"
+        "}\n"
+    )
+    applied = _run(
+        'rename("/Tenant_A/web_pool", "/Tenant_A/renamed")',
+        source=src,
+    ).edits_per_file["mem://1"]
+    assert "/Tenant_A/renamed" in applied.new_source
