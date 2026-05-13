@@ -93,9 +93,22 @@ from .model import (
     BigipProfile,
     BigipRule,
     BigipSecurityDeviceIdAttribute,
+    BigipSecurityFirewallAddressList,
+    BigipSecurityFirewallConfigChangeLog,
     BigipSecurityFirewallConfigEntityId,
+    BigipSecurityFirewallGlobalFqdnPolicy,
+    BigipSecurityFirewallGlobalRules,
+    BigipSecurityFirewallManagementIpRules,
+    BigipSecurityFirewallOnDemandCompilation,
+    BigipSecurityFirewallOnDemandRuleDeploy,
+    BigipSecurityFirewallPolicy,
     BigipSecurityFirewallPortList,
+    BigipSecurityFirewallPortMisusePolicy,
     BigipSecurityFirewallRuleList,
+    BigipSecurityFirewallSchedule,
+    BigipSecurityFirewallUserDomain,
+    BigipSecurityFirewallUserList,
+    BigipSecurityFirewallUuidDefaultAutogenerate,
     BigipSecurityIpIntelligencePolicy,
     BigipSecurityProtocolInspectionComplianceMap,
     BigipSecurityProtocolInspectionComplianceObject,
@@ -508,6 +521,22 @@ _TWO_WORD_TYPES = frozenset(
         "firewall port-list",
         "firewall rule-list",
         "firewall config-entity-id",
+        # security firewall.* bundle 9 — policies, address-lists,
+        # singletons, schedules, user-list / user-domain, and the
+        # afm meta-singletons.
+        "firewall policy",
+        "firewall address-list",
+        "firewall global-rules",
+        "firewall management-ip-rules",
+        "firewall schedule",
+        "firewall user-list",
+        "firewall user-domain",
+        "firewall global-fqdn-policy",
+        "firewall port-misuse-policy",
+        "firewall on-demand-compilation",
+        "firewall on-demand-rule-deploy",
+        "firewall uuid-default-autogenerate",
+        "firewall config-change-log",
         "ip-intelligence policy",
         "protocol-inspection compliance-map",
         "protocol-inspection compliance-objects",
@@ -2011,6 +2040,202 @@ def _parse_security_firewall_config_entity_id(
     )
 
 
+def _firewall_rules_summary(props: dict[str, str]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Walk a firewall ``rules { ... }`` block and return
+    ``(rule_names, rule_list_refs)`` — top-level keys plus the
+    ``rule-list /Common/...`` PathRef from each rule body, in
+    document order.
+    """
+    raw = props.get("rules", "")
+    if not raw or not raw.startswith("{"):
+        return ((), ())
+    inner = _strip_outer_braces(raw)
+    names: list[str] = []
+    refs: list[str] = []
+    for sub in _parse_properties_with_spans(inner).values():
+        names.append(sub.key)
+        if sub.value.startswith("{"):
+            inner_body = _strip_outer_braces(sub.value)
+            sub_props = _parse_properties(inner_body)
+            if "rule-list" in sub_props:
+                refs.append(sub_props["rule-list"])
+    return (tuple(names), tuple(refs))
+
+
+def _parse_security_firewall_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallPolicy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    rule_names, rule_refs = _firewall_rules_summary(props)
+    return BigipSecurityFirewallPolicy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        rules=rule_names,
+        rule_lists=rule_refs,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_address_list(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallAddressList:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    addresses = _list_field(props, "addresses")
+    address_lists = _list_field(props, "address-lists")
+    fqdns = _list_field(props, "fqdns")
+    return BigipSecurityFirewallAddressList(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        addresses=addresses,
+        address_lists=address_lists,
+        fqdns=fqdns,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_global_rules(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallGlobalRules:
+    props = _parse_properties(body)
+    rule_names, _ = _firewall_rules_summary(props)
+    return BigipSecurityFirewallGlobalRules(
+        description=_description(props),
+        rules=rule_names,
+        enforced_policy=props.get("enforced-policy", ""),
+        staged_policy=props.get("staged-policy", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_management_ip_rules(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallManagementIpRules:
+    props = _parse_properties(body)
+    rule_names, _ = _firewall_rules_summary(props)
+    return BigipSecurityFirewallManagementIpRules(
+        description=_description(props),
+        rules=rule_names,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_schedule(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallSchedule:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityFirewallSchedule(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        daily_hour_end=props.get("daily-hour-end", ""),
+        daily_hour_start=props.get("daily-hour-start", ""),
+        days_of_week=_list_field(props, "days-of-week"),
+        date_valid_end=props.get("date-valid-end", ""),
+        date_valid_start=props.get("date-valid-start", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_user_list(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallUserList:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityFirewallUserList(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        users=_list_field(props, "users"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_user_domain(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallUserDomain:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityFirewallUserDomain(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        domain=props.get("domain", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_global_fqdn_policy(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallGlobalFqdnPolicy:
+    props = _parse_properties(body)
+    return BigipSecurityFirewallGlobalFqdnPolicy(
+        description=_description(props),
+        context=props.get("context", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_port_misuse_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallPortMisusePolicy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityFirewallPortMisusePolicy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        default_log=props.get("default-log", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_on_demand_compilation(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallOnDemandCompilation:
+    props = _parse_properties(body)
+    return BigipSecurityFirewallOnDemandCompilation(
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_on_demand_rule_deploy(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallOnDemandRuleDeploy:
+    props = _parse_properties(body)
+    return BigipSecurityFirewallOnDemandRuleDeploy(
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_uuid_default_autogenerate(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallUuidDefaultAutogenerate:
+    props = _parse_properties(body)
+    return BigipSecurityFirewallUuidDefaultAutogenerate(
+        description=_description(props),
+        auto_generate_uuid=props.get("auto-generate-uuid", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_firewall_config_change_log(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityFirewallConfigChangeLog:
+    props = _parse_properties(body)
+    return BigipSecurityFirewallConfigChangeLog(
+        description=_description(props),
+        log_publisher=props.get("log-publisher", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 def _parse_security_ip_intelligence_policy(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityIpIntelligencePolicy:
@@ -3290,6 +3515,67 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             elif obj_type == "device-id attribute":
                 config.security_device_id_attributes[full_path] = (
                     _parse_security_device_id_attribute(full_path, block.body, source_map, block)
+                )
+            # Bundle 9 — security firewall.* core.  The 4-token forms
+            # (with a full-path) and the 3-token singleton forms both
+            # come through here; singletons land under the empty key
+            # (``full_path == ""``) thanks to ``_parse_header``'s
+            # two-word singleton branch.
+            elif obj_type == "firewall policy":
+                config.security_firewall_policies[full_path] = _parse_security_firewall_policy(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "firewall address-list":
+                config.security_firewall_address_lists[full_path] = (
+                    _parse_security_firewall_address_list(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "firewall schedule":
+                config.security_firewall_schedules[full_path] = _parse_security_firewall_schedule(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "firewall user-list":
+                config.security_firewall_user_lists[full_path] = _parse_security_firewall_user_list(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "firewall user-domain":
+                config.security_firewall_user_domains[full_path] = (
+                    _parse_security_firewall_user_domain(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "firewall port-misuse-policy":
+                config.security_firewall_port_misuse_policies[full_path] = (
+                    _parse_security_firewall_port_misuse_policy(
+                        full_path, block.body, source_map, block
+                    )
+                )
+            elif obj_type == "firewall global-rules":
+                config.security_firewall_global_rules[""] = _parse_security_firewall_global_rules(
+                    block.body, source_map, block
+                )
+            elif obj_type == "firewall management-ip-rules":
+                config.security_firewall_management_ip_rules[""] = (
+                    _parse_security_firewall_management_ip_rules(block.body, source_map, block)
+                )
+            elif obj_type == "firewall global-fqdn-policy":
+                config.security_firewall_global_fqdn_policy[""] = (
+                    _parse_security_firewall_global_fqdn_policy(block.body, source_map, block)
+                )
+            elif obj_type == "firewall on-demand-compilation":
+                config.security_firewall_on_demand_compilation[""] = (
+                    _parse_security_firewall_on_demand_compilation(block.body, source_map, block)
+                )
+            elif obj_type == "firewall on-demand-rule-deploy":
+                config.security_firewall_on_demand_rule_deploy[""] = (
+                    _parse_security_firewall_on_demand_rule_deploy(block.body, source_map, block)
+                )
+            elif obj_type == "firewall uuid-default-autogenerate":
+                config.security_firewall_uuid_default_autogenerate[""] = (
+                    _parse_security_firewall_uuid_default_autogenerate(
+                        block.body, source_map, block
+                    )
+                )
+            elif obj_type == "firewall config-change-log":
+                config.security_firewall_config_change_log[""] = (
+                    _parse_security_firewall_config_change_log(block.body, source_map, block)
                 )
             continue
 

@@ -796,6 +796,168 @@ class BigipSecurityFirewallConfigEntityId:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallPolicy:
+    """A ``security firewall policy`` object — AFM policy carrying
+    rule-list bindings.  Sister to ``ltm policy`` on the LTM side.
+
+    ``rules`` surfaces the top-level keys of the ``rules { ... }``
+    sub-block (one per rule binding) and ``rule_lists`` is the
+    extracted PathRefs into ``security firewall rule-list``.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    rules: tuple[str, ...] = ()
+    rule_lists: tuple[str, ...] = ()  # PathRefs → security firewall rule-list
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallAddressList:
+    """A ``security firewall address-list`` object — sister to
+    ``firewall port-list`` but for IP addresses / CIDRs.
+
+    ``addresses`` surfaces the bare address tokens from the
+    ``addresses { ... }`` sub-block; ``address_lists`` carries
+    PathRefs to nested child address-lists.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    addresses: tuple[str, ...] = ()
+    address_lists: tuple[str, ...] = ()  # PathRefs → security firewall address-list
+    fqdns: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallGlobalRules:
+    """The ``security firewall global-rules`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    rules: tuple[str, ...] = ()
+    enforced_policy: str = ""  # PathRef → security firewall policy
+    staged_policy: str = ""  # PathRef → security firewall policy
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallManagementIpRules:
+    """The ``security firewall management-ip-rules`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    rules: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallSchedule:
+    """A ``security firewall schedule`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    daily_hour_end: str = ""
+    daily_hour_start: str = ""
+    days_of_week: tuple[str, ...] = ()
+    date_valid_end: str = ""
+    date_valid_start: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallUserList:
+    """A ``security firewall user-list`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    users: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallUserDomain:
+    """A ``security firewall user-domain`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    domain: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallGlobalFqdnPolicy:
+    """The ``security firewall global-fqdn-policy`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    context: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallPortMisusePolicy:
+    """A ``security firewall port-misuse-policy`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    default_log: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallOnDemandCompilation:
+    """The ``security firewall on-demand-compilation`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallOnDemandRuleDeploy:
+    """The ``security firewall on-demand-rule-deploy`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallUuidDefaultAutogenerate:
+    """The ``security firewall uuid-default-autogenerate`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    auto_generate_uuid: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityFirewallConfigChangeLog:
+    """The ``security firewall config-change-log`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    log_publisher: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BigipSecurityIpIntelligencePolicy:
     """A ``security ip-intelligence policy`` object.
 
@@ -1675,6 +1837,43 @@ class BigipConfig:
         default_factory=dict
     )
     security_firewall_config_entity_ids: dict[str, BigipSecurityFirewallConfigEntityId] = field(
+        default_factory=dict
+    )
+    security_firewall_policies: dict[str, BigipSecurityFirewallPolicy] = field(default_factory=dict)
+    security_firewall_address_lists: dict[str, BigipSecurityFirewallAddressList] = field(
+        default_factory=dict
+    )
+    security_firewall_global_rules: dict[str, BigipSecurityFirewallGlobalRules] = field(
+        default_factory=dict
+    )
+    security_firewall_management_ip_rules: dict[str, BigipSecurityFirewallManagementIpRules] = (
+        field(default_factory=dict)
+    )
+    security_firewall_schedules: dict[str, BigipSecurityFirewallSchedule] = field(
+        default_factory=dict
+    )
+    security_firewall_user_lists: dict[str, BigipSecurityFirewallUserList] = field(
+        default_factory=dict
+    )
+    security_firewall_user_domains: dict[str, BigipSecurityFirewallUserDomain] = field(
+        default_factory=dict
+    )
+    security_firewall_global_fqdn_policy: dict[str, BigipSecurityFirewallGlobalFqdnPolicy] = field(
+        default_factory=dict
+    )
+    security_firewall_port_misuse_policies: dict[str, BigipSecurityFirewallPortMisusePolicy] = (
+        field(default_factory=dict)
+    )
+    security_firewall_on_demand_compilation: dict[str, BigipSecurityFirewallOnDemandCompilation] = (
+        field(default_factory=dict)
+    )
+    security_firewall_on_demand_rule_deploy: dict[str, BigipSecurityFirewallOnDemandRuleDeploy] = (
+        field(default_factory=dict)
+    )
+    security_firewall_uuid_default_autogenerate: dict[
+        str, BigipSecurityFirewallUuidDefaultAutogenerate
+    ] = field(default_factory=dict)
+    security_firewall_config_change_log: dict[str, BigipSecurityFirewallConfigChangeLog] = field(
         default_factory=dict
     )
     security_ip_intelligence_policies: dict[str, BigipSecurityIpIntelligencePolicy] = field(

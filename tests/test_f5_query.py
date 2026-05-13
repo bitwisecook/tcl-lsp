@@ -3975,3 +3975,172 @@ def test_auth_apm_auth_profile_is_pathref_into_access_policy():
     res = _run('.auth.apm-auth["/Common/apm-auth-1"].profile', _AUTH_BUNDLE_CONF)
     [ref] = res.values_per_file["mem://1"]
     assert ref.full_path == "/Common/access_policy_1"
+
+
+# ---------------------------------------------------------------------------
+# Bundle 9 — AFM ``security firewall.*`` core (13 kinds: policy, address-list,
+# global-rules / management-ip-rules / global-fqdn-policy / on-demand-* /
+# uuid-default-autogenerate / config-change-log singletons, schedule,
+# user-list, user-domain, port-misuse-policy).
+# ---------------------------------------------------------------------------
+
+_FW9_CONF = """security firewall policy /Common/policy_main {
+    description "main firewall policy"
+    rules {
+        binding_a { rule-list /Common/rl_a }
+        binding_b { rule-list /Common/rl_b }
+    }
+}
+security firewall rule-list /Common/rl_a { }
+security firewall rule-list /Common/rl_b { }
+security firewall address-list /Common/al_internal {
+    description "internal nets"
+    addresses {
+        192.0.2.0/24 { }
+        198.51.100.5 { }
+    }
+}
+security firewall address-list /Common/al_parent {
+    description "parent"
+    address-lists {
+        /Common/al_internal { }
+    }
+}
+security firewall global-rules {
+    description "global wrapper"
+    rules { gfoo { } gbar { } }
+    enforced-policy /Common/policy_main
+}
+security firewall management-ip-rules {
+    description "mgmt"
+    rules { mgmt_allow { } }
+}
+security firewall schedule /Common/sched_biz {
+    description "business hours"
+    daily-hour-start 09:00
+    daily-hour-end 17:00
+    days-of-week { mon tue wed thu fri }
+}
+security firewall user-list /Common/ul_users {
+    users { alice { } bob { } }
+}
+security firewall user-domain /Common/ud_corp {
+    domain corp.example.test
+}
+security firewall global-fqdn-policy {
+    context global
+}
+security firewall port-misuse-policy /Common/pmp1 {
+    default-log no
+}
+security firewall on-demand-compilation { }
+security firewall on-demand-rule-deploy { }
+security firewall uuid-default-autogenerate {
+    auto-generate-uuid enabled
+}
+security firewall config-change-log {
+    log-publisher /Common/local-db-publisher
+}
+"""
+
+
+def test_security_firewall_policy_projects_rule_bindings_and_rule_lists():
+    base = '.security.firewall-policy["/Common/policy_main"]'
+    [names] = _run(f"{base}.rules", _FW9_CONF).values_per_file["mem://1"]
+    assert sorted(names) == ["binding_a", "binding_b"]
+    [refs] = _run(f'{base}."rule-lists"', _FW9_CONF).values_per_file["mem://1"]
+    assert sorted(r.full_path for r in refs) == ["/Common/rl_a", "/Common/rl_b"]
+
+
+def test_security_firewall_policy_rule_lists_resolve_through_pathref():
+    """The ``rule-lists`` PathRefs deref into the existing
+    ``security firewall rule-list`` projection.  Chaining ``.name`` from
+    the deref'd ObjectRef yields the rule-list basenames.
+    """
+    res = _run(
+        '.security.firewall-policy["/Common/policy_main"]."rule-lists"[].name',
+        _FW9_CONF,
+    )
+    assert sorted(res.values_per_file["mem://1"]) == ["rl_a", "rl_b"]
+
+
+def test_security_firewall_address_list_projects_addresses_and_children():
+    [addrs] = _run(
+        '.security.firewall-address-list["/Common/al_internal"].addresses',
+        _FW9_CONF,
+    ).values_per_file["mem://1"]
+    assert sorted(addrs) == ["192.0.2.0/24", "198.51.100.5"]
+    [children] = _run(
+        '.security.firewall-address-list["/Common/al_parent"]."address-lists"',
+        _FW9_CONF,
+    ).values_per_file["mem://1"]
+    assert [c.full_path for c in children] == ["/Common/al_internal"]
+
+
+def test_security_firewall_global_rules_singleton_projects_rules_and_enforced_policy():
+    [names] = _run(".security.firewall-global-rules[].rules", _FW9_CONF).values_per_file["mem://1"]
+    assert sorted(names) == ["gbar", "gfoo"]
+    [policy] = _run(
+        '.security.firewall-global-rules[]."enforced-policy"', _FW9_CONF
+    ).values_per_file["mem://1"]
+    assert policy.full_path == "/Common/policy_main"
+
+
+def test_security_firewall_management_ip_rules_singleton_surfaces_rule_names():
+    [names] = _run(".security.firewall-management-ip-rules[].rules", _FW9_CONF).values_per_file[
+        "mem://1"
+    ]
+    assert list(names) == ["mgmt_allow"]
+
+
+def test_security_firewall_schedule_projects_days_and_hours():
+    base = '.security.firewall-schedule["/Common/sched_biz"]'
+    assert _run(f'{base}."daily-hour-start"', _FW9_CONF).values_per_file["mem://1"] == ["09:00"]
+    assert _run(f'{base}."daily-hour-end"', _FW9_CONF).values_per_file["mem://1"] == ["17:00"]
+    [days] = _run(f'{base}."days-of-week"', _FW9_CONF).values_per_file["mem://1"]
+    assert sorted(days) == ["fri", "mon", "thu", "tue", "wed"]
+
+
+def test_security_firewall_user_list_projects_user_keys():
+    [users] = _run(
+        '.security.firewall-user-list["/Common/ul_users"].users', _FW9_CONF
+    ).values_per_file["mem://1"]
+    assert sorted(users) == ["alice", "bob"]
+
+
+def test_security_firewall_user_domain_projects_domain_scalar():
+    assert _run(
+        '.security.firewall-user-domain["/Common/ud_corp"].domain', _FW9_CONF
+    ).values_per_file["mem://1"] == ["corp.example.test"]
+
+
+def test_security_firewall_global_fqdn_policy_singleton_projects_context():
+    assert _run(".security.firewall-global-fqdn-policy[].context", _FW9_CONF).values_per_file[
+        "mem://1"
+    ] == ["global"]
+
+
+def test_security_firewall_port_misuse_policy_projects_default_log():
+    assert _run(
+        '.security.firewall-port-misuse-policy["/Common/pmp1"]."default-log"', _FW9_CONF
+    ).values_per_file["mem://1"] == ["no"]
+
+
+def test_security_firewall_on_demand_compilation_singleton_is_present():
+    res = _run('.security.firewall-on-demand-compilation[]."full-path"', _FW9_CONF)
+    assert res.values_per_file["mem://1"] == [""]
+
+
+def test_security_firewall_on_demand_rule_deploy_singleton_is_present():
+    res = _run('.security.firewall-on-demand-rule-deploy[]."full-path"', _FW9_CONF)
+    assert res.values_per_file["mem://1"] == [""]
+
+
+def test_security_firewall_uuid_default_autogenerate_singleton_projects_setting():
+    res = _run('.security.firewall-uuid-default-autogenerate[]."auto-generate-uuid"', _FW9_CONF)
+    assert res.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_security_firewall_config_change_log_singleton_projects_publisher():
+    res = _run('.security.firewall-config-change-log[]."log-publisher"', _FW9_CONF)
+    assert res.values_per_file["mem://1"] == ["/Common/local-db-publisher"]

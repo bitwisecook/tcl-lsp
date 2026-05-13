@@ -409,25 +409,36 @@ live under the empty-string key.
 - [x] `auth apm-auth`.  `profile` is a PathRef into
       `apm policy access-policy`.
 
-### Bundle 9 — AFM `security firewall.*` core (12)
+### Bundle 9 — AFM `security firewall.*` core (13)
 
-The single most-requested AFM kind is `security firewall policy`
-— it carries the rules that drive the firewall.
+All 13 AFM firewall kinds are now projected.  The five enumerated
+singletons (`global-rules`, `management-ip-rules`,
+`global-fqdn-policy`, `on-demand-compilation`,
+`on-demand-rule-deploy`, `uuid-default-autogenerate`,
+`config-change-log`) live under the empty-string key via the
+existing two-word singleton dispatch.
 
-- [ ] `security firewall policy` (sister to `ltm policy`)
-- [ ] `security firewall address-list` (IP-list, sister to
-      `firewall port-list`)
-- [ ] `security firewall global-rules` (singleton)
-- [ ] `security firewall management-ip-rules` (singleton)
-- [ ] `security firewall schedule`
-- [ ] `security firewall user-list`
-- [ ] `security firewall user-domain`
-- [ ] `security firewall global-fqdn-policy`
-- [ ] `security firewall port-misuse-policy`
-- [ ] `security firewall on-demand-compilation`
-- [ ] `security firewall on-demand-rule-deploy`
-- [ ] `security firewall uuid-default-autogenerate`
-- [ ] `security firewall config-change-log`
+- [x] `security firewall policy`.  ``rules`` surfaces the top-level
+      rule-binding keys; ``rule-lists`` is a PathRef list into
+      `security firewall rule-list` so chains like
+      `.security.firewall-policy[]."rule-lists"[].name` walk the
+      bound rule-lists.
+- [x] `security firewall address-list`.  ``addresses`` is the bare
+      address / CIDR tokens; ``address-lists`` is a PathRef list
+      into peer address-lists; ``fqdns`` is a plain string list.
+- [x] `security firewall global-rules` (singleton).
+      ``enforced-policy`` / ``staged-policy`` are PathRefs into
+      `security firewall policy`.
+- [x] `security firewall management-ip-rules` (singleton)
+- [x] `security firewall schedule`
+- [x] `security firewall user-list`
+- [x] `security firewall user-domain`
+- [x] `security firewall global-fqdn-policy` (singleton)
+- [x] `security firewall port-misuse-policy`
+- [x] `security firewall on-demand-compilation` (singleton)
+- [x] `security firewall on-demand-rule-deploy` (singleton)
+- [x] `security firewall uuid-default-autogenerate` (singleton)
+- [x] `security firewall config-change-log` (singleton)
 
 ### Bundle 10 — `security` other (53)
 

@@ -86,9 +86,22 @@ from ..model import (
     BigipProfile,
     BigipRule,
     BigipSecurityDeviceIdAttribute,
+    BigipSecurityFirewallAddressList,
+    BigipSecurityFirewallConfigChangeLog,
     BigipSecurityFirewallConfigEntityId,
+    BigipSecurityFirewallGlobalFqdnPolicy,
+    BigipSecurityFirewallGlobalRules,
+    BigipSecurityFirewallManagementIpRules,
+    BigipSecurityFirewallOnDemandCompilation,
+    BigipSecurityFirewallOnDemandRuleDeploy,
+    BigipSecurityFirewallPolicy,
     BigipSecurityFirewallPortList,
+    BigipSecurityFirewallPortMisusePolicy,
     BigipSecurityFirewallRuleList,
+    BigipSecurityFirewallSchedule,
+    BigipSecurityFirewallUserDomain,
+    BigipSecurityFirewallUserList,
+    BigipSecurityFirewallUuidDefaultAutogenerate,
     BigipSecurityIpIntelligencePolicy,
     BigipSecurityProtocolInspectionComplianceMap,
     BigipSecurityProtocolInspectionComplianceObject,
@@ -697,6 +710,106 @@ _SECURITY_FW_CONFIG_ENTITY_ID_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
 }
 
+_SECURITY_FW_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rules": FieldSpec("rules"),
+    "rule-lists": FieldSpec("rule_lists", ref_kind="security firewall rule-list", list_ref=True),
+}
+
+_SECURITY_FW_ADDRESS_LIST_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "addresses": FieldSpec("addresses"),
+    "address-lists": FieldSpec(
+        "address_lists", ref_kind="security firewall address-list", list_ref=True
+    ),
+    "fqdns": FieldSpec("fqdns"),
+}
+
+_SECURITY_FW_GLOBAL_RULES_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rules": FieldSpec("rules"),
+    "enforced-policy": FieldSpec("enforced_policy", ref_kind="security firewall policy"),
+    "staged-policy": FieldSpec("staged_policy", ref_kind="security firewall policy"),
+}
+
+_SECURITY_FW_MANAGEMENT_IP_RULES_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rules": FieldSpec("rules"),
+}
+
+_SECURITY_FW_SCHEDULE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "daily-hour-end": FieldSpec("daily_hour_end"),
+    "daily-hour-start": FieldSpec("daily_hour_start"),
+    "days-of-week": FieldSpec("days_of_week"),
+    "date-valid-end": FieldSpec("date_valid_end"),
+    "date-valid-start": FieldSpec("date_valid_start"),
+}
+
+_SECURITY_FW_USER_LIST_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "users": FieldSpec("users"),
+}
+
+_SECURITY_FW_USER_DOMAIN_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "domain": FieldSpec("domain"),
+}
+
+_SECURITY_FW_GLOBAL_FQDN_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "context": FieldSpec("context"),
+}
+
+_SECURITY_FW_PORT_MISUSE_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "default-log": FieldSpec("default_log"),
+}
+
+_SECURITY_FW_ON_DEMAND_COMPILATION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+}
+
+_SECURITY_FW_ON_DEMAND_RULE_DEPLOY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+}
+
+_SECURITY_FW_UUID_DEFAULT_AUTOGENERATE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "auto-generate-uuid": FieldSpec("auto_generate_uuid"),
+}
+
+_SECURITY_FW_CONFIG_CHANGE_LOG_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "log-publisher": FieldSpec("log_publisher"),
+}
+
 _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
@@ -1303,6 +1416,55 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipSecurityFirewallConfigEntityId,
         _SECURITY_FW_CONFIG_ENTITY_ID_FIELDS,
     ),
+    "security firewall policy": (BigipSecurityFirewallPolicy, _SECURITY_FW_POLICY_FIELDS),
+    "security firewall address-list": (
+        BigipSecurityFirewallAddressList,
+        _SECURITY_FW_ADDRESS_LIST_FIELDS,
+    ),
+    "security firewall global-rules": (
+        BigipSecurityFirewallGlobalRules,
+        _SECURITY_FW_GLOBAL_RULES_FIELDS,
+    ),
+    "security firewall management-ip-rules": (
+        BigipSecurityFirewallManagementIpRules,
+        _SECURITY_FW_MANAGEMENT_IP_RULES_FIELDS,
+    ),
+    "security firewall schedule": (
+        BigipSecurityFirewallSchedule,
+        _SECURITY_FW_SCHEDULE_FIELDS,
+    ),
+    "security firewall user-list": (
+        BigipSecurityFirewallUserList,
+        _SECURITY_FW_USER_LIST_FIELDS,
+    ),
+    "security firewall user-domain": (
+        BigipSecurityFirewallUserDomain,
+        _SECURITY_FW_USER_DOMAIN_FIELDS,
+    ),
+    "security firewall global-fqdn-policy": (
+        BigipSecurityFirewallGlobalFqdnPolicy,
+        _SECURITY_FW_GLOBAL_FQDN_POLICY_FIELDS,
+    ),
+    "security firewall port-misuse-policy": (
+        BigipSecurityFirewallPortMisusePolicy,
+        _SECURITY_FW_PORT_MISUSE_POLICY_FIELDS,
+    ),
+    "security firewall on-demand-compilation": (
+        BigipSecurityFirewallOnDemandCompilation,
+        _SECURITY_FW_ON_DEMAND_COMPILATION_FIELDS,
+    ),
+    "security firewall on-demand-rule-deploy": (
+        BigipSecurityFirewallOnDemandRuleDeploy,
+        _SECURITY_FW_ON_DEMAND_RULE_DEPLOY_FIELDS,
+    ),
+    "security firewall uuid-default-autogenerate": (
+        BigipSecurityFirewallUuidDefaultAutogenerate,
+        _SECURITY_FW_UUID_DEFAULT_AUTOGENERATE_FIELDS,
+    ),
+    "security firewall config-change-log": (
+        BigipSecurityFirewallConfigChangeLog,
+        _SECURITY_FW_CONFIG_CHANGE_LOG_FIELDS,
+    ),
     "security ip-intelligence policy": (
         BigipSecurityIpIntelligencePolicy,
         _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS,
@@ -1475,6 +1637,52 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "firewall-config-entity-id": (
             "security_firewall_config_entity_ids",
             "security firewall config-entity-id",
+        ),
+        "firewall-policy": ("security_firewall_policies", "security firewall policy"),
+        "firewall-address-list": (
+            "security_firewall_address_lists",
+            "security firewall address-list",
+        ),
+        "firewall-global-rules": (
+            "security_firewall_global_rules",
+            "security firewall global-rules",
+        ),
+        "firewall-management-ip-rules": (
+            "security_firewall_management_ip_rules",
+            "security firewall management-ip-rules",
+        ),
+        "firewall-schedule": ("security_firewall_schedules", "security firewall schedule"),
+        "firewall-user-list": (
+            "security_firewall_user_lists",
+            "security firewall user-list",
+        ),
+        "firewall-user-domain": (
+            "security_firewall_user_domains",
+            "security firewall user-domain",
+        ),
+        "firewall-global-fqdn-policy": (
+            "security_firewall_global_fqdn_policy",
+            "security firewall global-fqdn-policy",
+        ),
+        "firewall-port-misuse-policy": (
+            "security_firewall_port_misuse_policies",
+            "security firewall port-misuse-policy",
+        ),
+        "firewall-on-demand-compilation": (
+            "security_firewall_on_demand_compilation",
+            "security firewall on-demand-compilation",
+        ),
+        "firewall-on-demand-rule-deploy": (
+            "security_firewall_on_demand_rule_deploy",
+            "security firewall on-demand-rule-deploy",
+        ),
+        "firewall-uuid-default-autogenerate": (
+            "security_firewall_uuid_default_autogenerate",
+            "security firewall uuid-default-autogenerate",
+        ),
+        "firewall-config-change-log": (
+            "security_firewall_config_change_log",
+            "security firewall config-change-log",
         ),
         "ip-intelligence-policy": (
             "security_ip_intelligence_policies",
