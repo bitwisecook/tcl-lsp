@@ -376,6 +376,24 @@ _MONITOR_FIELDS: dict[str, FieldSpec] = {
     "recv": FieldSpec("recv"),
 }
 
+# Same shape as ``_MONITOR_FIELDS`` but ``defaults-from`` resolves
+# into ``gtm monitor`` rather than ``ltm monitor`` so a query
+# like ``.gtm.monitor[]."defaults-from".name`` walks the parent
+# chain within GTM, not into the (potentially same-path) LTM
+# monitor.
+_GTM_MONITOR_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "type": FieldSpec("monitor_type"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="gtm monitor"),
+    "description": FieldSpec("description"),
+    "interval": FieldSpec("interval"),
+    "timeout": FieldSpec("timeout"),
+    "destination": FieldSpec("destination"),
+    "send": FieldSpec("send"),
+    "recv": FieldSpec("recv"),
+}
+
 _PERSIST_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
@@ -1758,6 +1776,11 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "gtm prober-pool": (BigipGtmProberPool, _GTM_PROBER_POOL_FIELDS),
     "gtm region": (BigipGtmRegion, _GTM_REGION_FIELDS),
     "gtm rule": (BigipGtmRule, _GTM_RULE_FIELDS),
+    # Bundle 11 — gtm monitor.*  Reuses the existing BigipMonitor
+    # dataclass + field map; ``monitor-type`` distinguishes the 31
+    # protocol variants (bigip, bigip-link, http, https, ldap, …)
+    # within the merged container.
+    "gtm monitor": (BigipMonitor, _GTM_MONITOR_FIELDS),
     "pem policy": (BigipPemPolicy, _PEM_POLICY_FIELDS),
     "pem rule": (BigipPemRule, _PEM_RULE_FIELDS),
     "pem listener": (BigipPemListener, _PEM_LISTENER_FIELDS),
@@ -1848,6 +1871,7 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "prober-pool": ("gtm_prober_pools", "gtm prober-pool"),
         "region": ("gtm_regions", "gtm region"),
         "rule": ("gtm_rules", "gtm rule"),
+        "monitor": ("gtm_monitors", "gtm monitor"),
     },
     "apm": {
         "ssh-security-config": (

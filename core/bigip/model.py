@@ -2261,6 +2261,12 @@ class BigipConfig:
     gtm_prober_pools: dict[str, BigipGtmProberPool] = field(default_factory=dict)
     gtm_regions: dict[str, BigipGtmRegion] = field(default_factory=dict)
     gtm_rules: dict[str, BigipGtmRule] = field(default_factory=dict)
+    # ``gtm monitor <type>`` lands here — kept separate from
+    # ``monitors`` (which holds ltm) so a config with the same path
+    # under both modules doesn't collide.  All 31 protocol variants
+    # share the ``BigipMonitor`` dataclass; ``monitor_type``
+    # disambiguates.
+    gtm_monitors: dict[str, BigipMonitor] = field(default_factory=dict)
     # pem.* — Policy Enforcement Manager (subscriber policy).
     pem_policies: dict[str, BigipPemPolicy] = field(default_factory=dict)
     pem_rules: dict[str, BigipPemRule] = field(default_factory=dict)

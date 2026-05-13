@@ -527,6 +527,33 @@ _TWO_WORD_TYPES = frozenset(
         "monitor gateway-icmp",
         "monitor inband",
         "monitor external",
+        # gtm monitor protocol variants (bundle 11) — 25 new types
+        # beyond the ltm-shared http/https/tcp/udp/gateway-icmp/external.
+        "monitor bigip",
+        "monitor bigip-link",
+        "monitor firepass",
+        "monitor ftp",
+        "monitor gtp",
+        "monitor imap",
+        "monitor ldap",
+        "monitor mssql",
+        "monitor mysql",
+        "monitor nntp",
+        "monitor oracle",
+        "monitor pop3",
+        "monitor postgresql",
+        "monitor radius",
+        "monitor radius-accounting",
+        "monitor real-server",
+        "monitor scripted",
+        "monitor sip",
+        "monitor smtp",
+        "monitor snmp",
+        "monitor snmp-link",
+        "monitor soap",
+        "monitor tcp-half-open",
+        "monitor wap",
+        "monitor wmi",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -4236,6 +4263,14 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             case _ if obj_type.startswith("monitor "):
                 monitor_type = obj_type.split(" ", 1)[1]
                 monitor = _parse_monitor(full_path, monitor_type, block.body, source_map, block)
-                config.monitors[full_path] = monitor
+                # Route by module — ``gtm monitor <type>`` lands in
+                # ``gtm_monitors`` so it doesn't collide with the
+                # identically-named LTM monitor (same path is valid
+                # under both modules; TMSH enforces uniqueness per
+                # (module, kind, full-path) tuple).
+                if module == "gtm":
+                    config.gtm_monitors[full_path] = monitor
+                else:
+                    config.monitors[full_path] = monitor
 
     return config

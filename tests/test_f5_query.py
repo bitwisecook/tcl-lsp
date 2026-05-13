@@ -4457,3 +4457,134 @@ def test_security_minimal_path_keyed_kinds_resolve_by_full_path():
         assert res.values_per_file["mem://1"] == [name], (
             f"{label}: got {res.values_per_file['mem://1']!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Bundle 11 — gtm monitor.*  (31 per-protocol variants merged into one
+# container keyed by full-path; ``type`` distinguishes them).
+# ---------------------------------------------------------------------------
+
+_GTM_MON_CONF = """gtm monitor bigip /Common/gtm_bigip {
+    description "gtm bigip monitor"
+    interval 30
+    timeout 90
+}
+gtm monitor bigip-link /Common/gtm_bigip_link { interval 30 }
+gtm monitor http /Common/gtm_http {
+    interval 30
+    send "GET / HTTP/1.0\\r\\n\\r\\n"
+    recv "200 OK"
+}
+gtm monitor https /Common/gtm_https {
+    defaults-from /Common/gtm_https_parent
+    interval 30
+}
+gtm monitor https /Common/gtm_https_parent { interval 30 }
+gtm monitor tcp /Common/gtm_tcp { interval 30 }
+gtm monitor tcp-half-open /Common/gtm_tcp_ho { interval 30 }
+gtm monitor udp /Common/gtm_udp { interval 30 }
+gtm monitor ldap /Common/gtm_ldap { interval 30 }
+gtm monitor sip /Common/gtm_sip { interval 30 }
+gtm monitor snmp /Common/gtm_snmp { interval 30 }
+gtm monitor snmp-link /Common/gtm_snmp_link { interval 30 }
+gtm monitor radius /Common/gtm_radius { interval 30 }
+gtm monitor radius-accounting /Common/gtm_radius_acc { interval 30 }
+gtm monitor real-server /Common/gtm_rs { interval 30 }
+gtm monitor wmi /Common/gtm_wmi { interval 30 }
+gtm monitor wap /Common/gtm_wap { interval 30 }
+gtm monitor scripted /Common/gtm_scripted { interval 30 }
+gtm monitor mssql /Common/gtm_mssql { interval 30 }
+gtm monitor mysql /Common/gtm_mysql { interval 30 }
+gtm monitor oracle /Common/gtm_oracle { interval 30 }
+gtm monitor postgresql /Common/gtm_psql { interval 30 }
+gtm monitor smtp /Common/gtm_smtp { interval 30 }
+gtm monitor imap /Common/gtm_imap { interval 30 }
+gtm monitor pop3 /Common/gtm_pop3 { interval 30 }
+gtm monitor nntp /Common/gtm_nntp { interval 30 }
+gtm monitor ftp /Common/gtm_ftp { interval 30 }
+gtm monitor soap /Common/gtm_soap { interval 30 }
+gtm monitor firepass /Common/gtm_firepass { interval 30 }
+gtm monitor gateway-icmp /Common/gtm_gw_icmp { interval 30 }
+gtm monitor external /Common/gtm_ext { interval 30 }
+gtm monitor gtp /Common/gtm_gtp { interval 30 }
+ltm monitor http /Common/ltm_http { interval 5 }
+"""
+
+
+def test_gtm_monitor_merges_all_protocol_variants():
+    """All 31 ``gtm monitor <type>`` variants land in one container
+    keyed by full-path; the ``type`` field distinguishes them.
+    """
+    res = _run(".gtm.monitor[].type", _GTM_MON_CONF)
+    types = res.values_per_file["mem://1"]
+    expected = {
+        "bigip",
+        "bigip-link",
+        "http",
+        "https",
+        "tcp",
+        "tcp-half-open",
+        "udp",
+        "ldap",
+        "sip",
+        "snmp",
+        "snmp-link",
+        "radius",
+        "radius-accounting",
+        "real-server",
+        "wmi",
+        "wap",
+        "scripted",
+        "mssql",
+        "mysql",
+        "oracle",
+        "postgresql",
+        "smtp",
+        "imap",
+        "pop3",
+        "nntp",
+        "ftp",
+        "soap",
+        "firepass",
+        "gateway-icmp",
+        "external",
+        "gtp",
+    }
+    assert set(types) == expected
+
+
+def test_gtm_monitor_kept_separate_from_ltm_monitor():
+    """``ltm monitor http /Common/X`` and ``gtm monitor http /Common/X``
+    used to collide in ``config.monitors``.  GTM monitors now live in
+    ``config.gtm_monitors`` so the LTM container is uncontaminated.
+    """
+    res = _run('.ltm.monitor[]."full-path"', _GTM_MON_CONF)
+    assert res.values_per_file["mem://1"] == ["/Common/ltm_http"]
+    res = _run('.gtm.monitor[]."full-path"', _GTM_MON_CONF)
+    # 31 ``gtm monitor`` variants + an extra ``https`` parent for the
+    # defaults-from chain test = 32.
+    assert len(res.values_per_file["mem://1"]) == 32
+    assert all(p.startswith("/Common/gtm_") for p in res.values_per_file["mem://1"])
+
+
+def test_gtm_monitor_send_and_recv_round_trip():
+    """The send/recv strings carry escape sequences verbatim — the
+    parser must not corrupt them.
+    """
+    base = '.gtm.monitor["/Common/gtm_http"]'
+    assert _run(f"{base}.send", _GTM_MON_CONF).values_per_file["mem://1"] == [
+        "GET / HTTP/1.0\\r\\n\\r\\n"
+    ]
+    assert _run(f"{base}.recv", _GTM_MON_CONF).values_per_file["mem://1"] == ["200 OK"]
+
+
+def test_gtm_monitor_defaults_from_resolves_within_gtm_namespace():
+    """``defaults-from`` is a PathRef into ``gtm monitor`` (not
+    ``ltm monitor``) so chained access lands in the GTM parent
+    monitor.  Same-path LTM monitor must not bleed through.
+    """
+    res = _run(
+        '.gtm.monitor["/Common/gtm_https"]."defaults-from"."full-path"',
+        _GTM_MON_CONF,
+    )
+    assert res.values_per_file["mem://1"] == ["/Common/gtm_https_parent"]

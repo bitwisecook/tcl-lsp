@@ -513,43 +513,45 @@ dataclass + projection field map are reused.  Surfaces ``name``,
 land in dedicated dataclasses if and when there's a query-shape
 that needs them.
 
-### Bundle 11 — `gtm monitor.*` (29)
+### Bundle 11 — `gtm monitor.*` (31)
 
-Analogue of `ltm monitor` — all per-protocol monitor variants get
-collapsed into a single `gtm monitor` container tagged by
-`monitor_type` (matches the LTM pattern).
+Analogue of `ltm monitor` — all per-protocol monitor variants
+collapse into a single `gtm monitor` container tagged by
+`monitor_type`, mirroring the LTM pattern.  GTM monitors used to
+land in `config.monitors` alongside LTM monitors (same path could
+collide); the new `gtm_monitors` container fixes that.
 
-- [ ] `gtm monitor bigip`
-- [ ] `gtm monitor bigip-link`
-- [ ] `gtm monitor external`
-- [ ] `gtm monitor firepass`
-- [ ] `gtm monitor ftp`
-- [ ] `gtm monitor gateway-icmp`
-- [ ] `gtm monitor gtp`
-- [ ] `gtm monitor http`
-- [ ] `gtm monitor https`
-- [ ] `gtm monitor imap`
-- [ ] `gtm monitor ldap`
-- [ ] `gtm monitor mssql`
-- [ ] `gtm monitor mysql`
-- [ ] `gtm monitor nntp`
-- [ ] `gtm monitor oracle`
-- [ ] `gtm monitor pop3`
-- [ ] `gtm monitor postgresql`
-- [ ] `gtm monitor radius`
-- [ ] `gtm monitor radius-accounting`
-- [ ] `gtm monitor real-server`
-- [ ] `gtm monitor scripted`
-- [ ] `gtm monitor sip`
-- [ ] `gtm monitor smtp`
-- [ ] `gtm monitor snmp`
-- [ ] `gtm monitor snmp-link`
-- [ ] `gtm monitor soap`
-- [ ] `gtm monitor tcp`
-- [ ] `gtm monitor tcp-half-open`
-- [ ] `gtm monitor udp`
-- [ ] `gtm monitor wap`
-- [ ] `gtm monitor wmi`
+- [x] `gtm monitor bigip`
+- [x] `gtm monitor bigip-link`
+- [x] `gtm monitor external`
+- [x] `gtm monitor firepass`
+- [x] `gtm monitor ftp`
+- [x] `gtm monitor gateway-icmp`
+- [x] `gtm monitor gtp`
+- [x] `gtm monitor http`
+- [x] `gtm monitor https`
+- [x] `gtm monitor imap`
+- [x] `gtm monitor ldap`
+- [x] `gtm monitor mssql`
+- [x] `gtm monitor mysql`
+- [x] `gtm monitor nntp`
+- [x] `gtm monitor oracle`
+- [x] `gtm monitor pop3`
+- [x] `gtm monitor postgresql`
+- [x] `gtm monitor radius`
+- [x] `gtm monitor radius-accounting`
+- [x] `gtm monitor real-server`
+- [x] `gtm monitor scripted`
+- [x] `gtm monitor sip`
+- [x] `gtm monitor smtp`
+- [x] `gtm monitor snmp`
+- [x] `gtm monitor snmp-link`
+- [x] `gtm monitor soap`
+- [x] `gtm monitor tcp`
+- [x] `gtm monitor tcp-half-open`
+- [x] `gtm monitor udp`
+- [x] `gtm monitor wap`
+- [x] `gtm monitor wmi`
 
 ### Bundle 12 — `gtm` listeners / topology / settings (11)
 
