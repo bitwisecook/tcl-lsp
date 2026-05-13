@@ -29,6 +29,20 @@ from ..model import (
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
+    BigipAuthApmAuth,
+    BigipAuthCertLdap,
+    BigipAuthLdap,
+    BigipAuthLoginFailures,
+    BigipAuthPartition,
+    BigipAuthPassword,
+    BigipAuthPasswordPolicy,
+    BigipAuthRadius,
+    BigipAuthRadiusServer,
+    BigipAuthRemoteRole,
+    BigipAuthRemoteUser,
+    BigipAuthSource,
+    BigipAuthTacacs,
+    BigipAuthUser,
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
@@ -1095,6 +1109,157 @@ _PEM_RATING_GROUP_FIELDS: dict[str, FieldSpec] = {
     "volume": FieldSpec("volume"),
 }
 
+_AUTH_PARTITION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "default-route-domain": FieldSpec("default_route_domain", ref_kind="net route-domain"),
+    "inherited-traffic-group": FieldSpec("inherited_traffic_group"),
+}
+
+_AUTH_USER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "partition": FieldSpec("partition", ref_kind="auth partition"),
+    "shell": FieldSpec("shell"),
+    "encrypted-password": FieldSpec("encrypted_password"),
+    "partition-access": FieldSpec("partition_access"),
+}
+
+_AUTH_PASSWORD_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "expiration-warning": FieldSpec("expiration_warning"),
+    "minimum-length": FieldSpec("minimum_length"),
+    "policy": FieldSpec("policy"),
+}
+
+_AUTH_PASSWORD_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "expiration-warning": FieldSpec("expiration_warning"),
+    "max-duration": FieldSpec("max_duration"),
+    "max-login-failures": FieldSpec("max_login_failures"),
+    "min-duration": FieldSpec("min_duration"),
+    "minimum-length": FieldSpec("minimum_length"),
+    "minimum-regular-characters": FieldSpec("minimum_regular_characters"),
+    "password-memory": FieldSpec("password_memory"),
+    "policy-enforcement": FieldSpec("policy_enforcement"),
+    "required-lowercase": FieldSpec("required_lowercase"),
+    "required-numeric": FieldSpec("required_numeric"),
+    "required-special": FieldSpec("required_special"),
+    "required-uppercase": FieldSpec("required_uppercase"),
+}
+
+_AUTH_SOURCE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "fallback": FieldSpec("fallback"),
+    "type": FieldSpec("type_"),
+}
+
+_AUTH_REMOTE_ROLE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "role-info": FieldSpec("role_info"),
+}
+
+_AUTH_REMOTE_USER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "default-partition": FieldSpec("default_partition"),
+    "default-role": FieldSpec("default_role"),
+    "remote-console-access": FieldSpec("remote_console_access"),
+}
+
+_AUTH_LOGIN_FAILURES_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+}
+
+_AUTH_LDAP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "bind-dn": FieldSpec("bind_dn"),
+    "bind-pw": FieldSpec("bind_pw"),
+    "bind-timeout": FieldSpec("bind_timeout"),
+    "check-host-attr": FieldSpec("check_host_attr"),
+    "check-roles-group": FieldSpec("check_roles_group"),
+    "filter": FieldSpec("filter_"),
+    "group-dn": FieldSpec("group_dn"),
+    "group-member-attribute": FieldSpec("group_member_attribute"),
+    "idle-timeout": FieldSpec("idle_timeout"),
+    "ignore-auth-info-unavail": FieldSpec("ignore_auth_info_unavail"),
+    "ignore-unknown-user": FieldSpec("ignore_unknown_user"),
+    "login-attribute": FieldSpec("login_attribute"),
+    "port": FieldSpec("port"),
+    "scope": FieldSpec("scope"),
+    "search-base-dn": FieldSpec("search_base_dn"),
+    "search-timeout": FieldSpec("search_timeout"),
+    "servers": FieldSpec("servers"),
+    "ssl": FieldSpec("ssl"),
+    "ssl-ca-cert": FieldSpec("ssl_ca_cert"),
+    "ssl-check-peer": FieldSpec("ssl_check_peer"),
+    "ssl-client-cert": FieldSpec("ssl_client_cert"),
+    "ssl-client-key": FieldSpec("ssl_client_key"),
+    "user-template": FieldSpec("user_template"),
+    "version": FieldSpec("version"),
+}
+
+_AUTH_RADIUS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "service-type": FieldSpec("service_type"),
+    "servers": FieldSpec("servers", ref_kind="auth radius-server", list_ref=True),
+}
+
+_AUTH_RADIUS_SERVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "server": FieldSpec("server"),
+    "port": FieldSpec("port"),
+    "secret": FieldSpec("secret"),
+    "timeout": FieldSpec("timeout"),
+}
+
+_AUTH_TACACS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "protocol": FieldSpec("protocol"),
+    "secret": FieldSpec("secret"),
+    "service": FieldSpec("service"),
+    "servers": FieldSpec("servers"),
+    "accounting": FieldSpec("accounting"),
+    "authentication": FieldSpec("authentication"),
+    "debug": FieldSpec("debug"),
+    "encryption": FieldSpec("encryption"),
+}
+
+_AUTH_CERT_LDAP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "bind-dn": FieldSpec("bind_dn"),
+    "bind-pw": FieldSpec("bind_pw"),
+    "bind-timeout": FieldSpec("bind_timeout"),
+    "idle-timeout": FieldSpec("idle_timeout"),
+    "login-attribute": FieldSpec("login_attribute"),
+    "port": FieldSpec("port"),
+    "scope": FieldSpec("scope"),
+    "search-base-dn": FieldSpec("search_base_dn"),
+    "search-timeout": FieldSpec("search_timeout"),
+    "servers": FieldSpec("servers"),
+    "ssl": FieldSpec("ssl"),
+    "user-template": FieldSpec("user_template"),
+    "version": FieldSpec("version"),
+}
+
+_AUTH_APM_AUTH_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "profile": FieldSpec("profile", ref_kind="apm policy access-policy"),
+}
+
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
@@ -1203,6 +1368,20 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     ),
     "pem profile": (BigipPemProfile, _PEM_PROFILE_FIELDS),
     "pem quota-mgmt rating-group": (BigipPemRatingGroup, _PEM_RATING_GROUP_FIELDS),
+    "auth partition": (BigipAuthPartition, _AUTH_PARTITION_FIELDS),
+    "auth user": (BigipAuthUser, _AUTH_USER_FIELDS),
+    "auth password": (BigipAuthPassword, _AUTH_PASSWORD_FIELDS),
+    "auth password-policy": (BigipAuthPasswordPolicy, _AUTH_PASSWORD_POLICY_FIELDS),
+    "auth source": (BigipAuthSource, _AUTH_SOURCE_FIELDS),
+    "auth remote-role": (BigipAuthRemoteRole, _AUTH_REMOTE_ROLE_FIELDS),
+    "auth remote-user": (BigipAuthRemoteUser, _AUTH_REMOTE_USER_FIELDS),
+    "auth login-failures": (BigipAuthLoginFailures, _AUTH_LOGIN_FAILURES_FIELDS),
+    "auth ldap": (BigipAuthLdap, _AUTH_LDAP_FIELDS),
+    "auth radius": (BigipAuthRadius, _AUTH_RADIUS_FIELDS),
+    "auth radius-server": (BigipAuthRadiusServer, _AUTH_RADIUS_SERVER_FIELDS),
+    "auth tacacs": (BigipAuthTacacs, _AUTH_TACACS_FIELDS),
+    "auth cert-ldap": (BigipAuthCertLdap, _AUTH_CERT_LDAP_FIELDS),
+    "auth apm-auth": (BigipAuthApmAuth, _AUTH_APM_AUTH_FIELDS),
 }
 
 # Per-module kind tables.  Each entry is a mapping from the **container
@@ -1332,6 +1511,22 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         "profile": ("pem_profiles", "pem profile"),
         "rating-group": ("pem_rating_groups", "pem quota-mgmt rating-group"),
+    },
+    "auth": {
+        "partition": ("auth_partitions", "auth partition"),
+        "user": ("auth_users", "auth user"),
+        "password": ("auth_password", "auth password"),
+        "password-policy": ("auth_password_policy", "auth password-policy"),
+        "source": ("auth_source", "auth source"),
+        "remote-role": ("auth_remote_role", "auth remote-role"),
+        "remote-user": ("auth_remote_user", "auth remote-user"),
+        "login-failures": ("auth_login_failures", "auth login-failures"),
+        "ldap": ("auth_ldaps", "auth ldap"),
+        "radius": ("auth_radii", "auth radius"),
+        "radius-server": ("auth_radius_servers", "auth radius-server"),
+        "tacacs": ("auth_tacacs", "auth tacacs"),
+        "cert-ldap": ("auth_cert_ldaps", "auth cert-ldap"),
+        "apm-auth": ("auth_apm_auths", "auth apm-auth"),
     },
 }
 

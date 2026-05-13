@@ -3767,3 +3767,211 @@ def test_ltm_virtual_address_route_advertisement_and_scope():
     assert _run(f'{base}."inherited-traffic-group"', conf).values_per_file["mem://1"] == ["true"]
     assert _run(f'{base}."auto-delete"', conf).values_per_file["mem://1"] == ["true"]
     assert _run(f'{base}."connection-limit"', conf).values_per_file["mem://1"] == ["1000"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 8 — auth.* (partitions, users, password / source / remote-role
+# singletons, LDAP / RADIUS / TACACS / cert-LDAP / APM auth)
+# ---------------------------------------------------------------------------
+
+_AUTH_BUNDLE_CONF = """auth partition Common {
+    description "default partition"
+    default-route-domain 0
+}
+auth partition Tenant_A {
+    description "App tenant"
+    default-route-domain 0
+}
+auth user admin {
+    description "Default admin"
+    shell bash
+    partition Common
+    encrypted-password $6$abcdef
+    partition-access {
+        all-partitions { role admin }
+        Tenant_A { role operator }
+    }
+}
+auth password {
+    minimum-length 6
+}
+auth password-policy {
+    minimum-length 8
+    required-uppercase 1
+    required-numeric 1
+    max-login-failures 5
+}
+auth source {
+    fallback true
+    type radius
+}
+auth remote-role {
+    role-info {
+        TEAM1 { role admin }
+        TEAM2 { role operator }
+    }
+}
+auth remote-user {
+    default-partition all
+    default-role resource-admin
+    remote-console-access tmsh
+}
+auth login-failures { }
+auth ldap /Common/system-auth {
+    bind-dn cn=admin,dc=example,dc=test
+    bind-timeout 40
+    filter "(uid=%u)"
+    group-dn ou=groups,dc=example,dc=test
+    search-base-dn dc=example,dc=test
+    servers { ldap1.example.test ldap2.example.test }
+    ssl enabled
+    version 3
+}
+auth radius /Common/system-auth-radius {
+    servers { /Common/system_auth_name1 /Common/system_auth_name2 }
+    service-type login
+}
+auth radius-server /Common/system_auth_name1 {
+    port 1811
+    secret obscured1
+    server 192.0.2.4
+}
+auth radius-server /Common/system_auth_name2 {
+    port 1888
+    secret obscured2
+    server 198.51.100.4
+}
+auth tacacs /Common/system-auth-tac {
+    protocol ip
+    secret obscured
+    servers { 192.0.2.5 198.51.100.5 }
+    service ppp
+}
+auth cert-ldap /Common/cert-ldap-1 {
+    bind-dn cn=cert-reader
+    search-base-dn dc=example,dc=test
+    servers { ldap1.example.test }
+}
+auth apm-auth /Common/apm-auth-1 {
+    profile /Common/access_policy_1
+}
+net route-domain /Common/0 {
+    id 0
+}
+"""
+
+
+def test_auth_partition_projects_description_and_default_route_domain():
+    res = _run(".auth.partition[] | .name", _AUTH_BUNDLE_CONF)
+    assert sorted(res.values_per_file["mem://1"]) == ["Common", "Tenant_A"]
+    res = _run('.auth.partition["Tenant_A"].description', _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["App tenant"]
+
+
+def test_auth_partition_default_route_domain_is_pathref_into_net():
+    """``default-route-domain`` carries the numeric id; we project it
+    as a PathRef into ``net route-domain`` so the chain
+    ``.auth.partition[].default-route-domain.id`` resolves when a
+    route-domain object is present with that id as the basename."""
+    res = _run('.auth.partition["Tenant_A"]."default-route-domain"', _AUTH_BUNDLE_CONF)
+    [ref] = res.values_per_file["mem://1"]
+    assert ref.full_path == "0"
+
+
+def test_auth_user_projects_shell_partition_and_partition_access():
+    base = '.auth.user["admin"]'
+    assert _run(f"{base}.shell", _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == ["bash"]
+    res = _run(f"{base}.partition", _AUTH_BUNDLE_CONF)
+    [ref] = res.values_per_file["mem://1"]
+    assert ref.full_path == "Common"
+    res = _run(f'{base}."partition-access"', _AUTH_BUNDLE_CONF)
+    [pa] = res.values_per_file["mem://1"]
+    assert sorted(pa) == ["Tenant_A", "all-partitions"]
+
+
+def test_auth_password_singleton_projects_minimum_length():
+    res = _run(".auth.password[]", _AUTH_BUNDLE_CONF)
+    [obj] = res.values_per_file["mem://1"]
+    assert obj.fields["minimum-length"] == "6"
+
+
+def test_auth_password_policy_singleton_projects_policy_fields():
+    base = ".auth.password-policy[]"
+    res = _run(f'{base} | ."minimum-length"', _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["8"]
+    res = _run(f'{base} | ."max-login-failures"', _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["5"]
+
+
+def test_auth_source_singleton_projects_type_and_fallback():
+    res = _run(".auth.source[].type", _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["radius"]
+    res = _run(".auth.source[].fallback", _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["true"]
+
+
+def test_auth_remote_role_singleton_surfaces_role_info_keys():
+    res = _run('.auth.remote-role[]."role-info"', _AUTH_BUNDLE_CONF)
+    [keys] = res.values_per_file["mem://1"]
+    assert sorted(keys) == ["TEAM1", "TEAM2"]
+
+
+def test_auth_remote_user_singleton_projects_default_partition_and_role():
+    res = _run('.auth.remote-user[]."default-partition"', _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["all"]
+    res = _run('.auth.remote-user[]."default-role"', _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == ["resource-admin"]
+
+
+def test_auth_login_failures_singleton_is_present():
+    res = _run('.auth.login-failures[]."full-path"', _AUTH_BUNDLE_CONF)
+    assert res.values_per_file["mem://1"] == [""]
+
+
+def test_auth_ldap_projects_bind_dn_servers_and_ssl():
+    base = '.auth.ldap["/Common/system-auth"]'
+    assert _run(f'{base}."bind-dn"', _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == [
+        "cn=admin,dc=example,dc=test"
+    ]
+    [servers] = _run(f"{base}.servers", _AUTH_BUNDLE_CONF).values_per_file["mem://1"]
+    assert list(servers) == ["ldap1.example.test", "ldap2.example.test"]
+    assert _run(f"{base}.ssl", _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == ["enabled"]
+
+
+def test_auth_radius_servers_walk_through_pathref_chain():
+    """``auth radius.servers[]`` are PathRefs into ``auth radius-server``;
+    chaining ``.port`` walks server -> port across both entries.
+    """
+    res = _run(
+        '.auth.radius["/Common/system-auth-radius"].servers[].port',
+        _AUTH_BUNDLE_CONF,
+    )
+    assert sorted(res.values_per_file["mem://1"]) == ["1811", "1888"]
+
+
+def test_auth_radius_server_projects_server_and_secret():
+    base = '.auth.radius-server["/Common/system_auth_name1"]'
+    assert _run(f"{base}.server", _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == ["192.0.2.4"]
+    assert _run(f"{base}.secret", _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == ["obscured1"]
+
+
+def test_auth_tacacs_projects_servers_and_protocol():
+    base = '.auth.tacacs["/Common/system-auth-tac"]'
+    [servers] = _run(f"{base}.servers", _AUTH_BUNDLE_CONF).values_per_file["mem://1"]
+    assert list(servers) == ["192.0.2.5", "198.51.100.5"]
+    assert _run(f"{base}.protocol", _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == ["ip"]
+
+
+def test_auth_cert_ldap_projects_bind_dn_and_servers():
+    base = '.auth.cert-ldap["/Common/cert-ldap-1"]'
+    assert _run(f'{base}."bind-dn"', _AUTH_BUNDLE_CONF).values_per_file["mem://1"] == [
+        "cn=cert-reader"
+    ]
+    [servers] = _run(f"{base}.servers", _AUTH_BUNDLE_CONF).values_per_file["mem://1"]
+    assert list(servers) == ["ldap1.example.test"]
+
+
+def test_auth_apm_auth_profile_is_pathref_into_access_policy():
+    res = _run('.auth.apm-auth["/Common/apm-auth-1"].profile', _AUTH_BUNDLE_CONF)
+    [ref] = res.values_per_file["mem://1"]
+    assert ref.full_path == "/Common/access_policy_1"

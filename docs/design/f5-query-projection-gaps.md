@@ -381,23 +381,33 @@ virtual.destination` references one.
 
 ### Bundle 8 — `auth.*` (14)
 
-The `.auth` namespace does not exist in the projection at all.
+The `.auth` namespace is now projected. Six of the kinds are
+singletons (`auth password`, `auth password-policy`, `auth source`,
+`auth remote-role`, `auth remote-user`, `auth login-failures`) and
+live under the empty-string key.
 
-- [ ] `auth partition` (central admin partition; referenced from
-      virtually every full-path)
-- [ ] `auth user` (local users)
-- [ ] `auth password`
-- [ ] `auth password-policy`
-- [ ] `auth source`
-- [ ] `auth remote-role`
-- [ ] `auth remote-user`
-- [ ] `auth login-failures`
-- [ ] `auth ldap`
-- [ ] `auth radius`
-- [ ] `auth radius-server`
-- [ ] `auth tacacs`
-- [ ] `auth cert-ldap`
-- [ ] `auth apm-auth`
+- [x] `auth partition` (central admin partition; referenced from
+      virtually every full-path).  `default-route-domain` is a
+      PathRef into `net route-domain` (id-keyed).
+- [x] `auth user` (local users).  `partition` is a PathRef into
+      `auth partition`; `partition-access` surfaces the keys of the
+      sub-block.
+- [x] `auth password`
+- [x] `auth password-policy`
+- [x] `auth source`
+- [x] `auth remote-role`
+- [x] `auth remote-user`
+- [x] `auth login-failures`
+- [x] `auth ldap`
+- [x] `auth radius`.  `servers[]` is a PathRef list into
+      `auth radius-server` for two-hop chains
+      (`.auth.radius[].servers[].port`).
+- [x] `auth radius-server`
+- [x] `auth tacacs`.  `servers` is a plain string list (bare
+      hostnames / IPs — not full-paths).
+- [x] `auth cert-ldap`
+- [x] `auth apm-auth`.  `profile` is a PathRef into
+      `apm policy access-policy`.
 
 ### Bundle 9 — AFM `security firewall.*` core (12)
 

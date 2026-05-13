@@ -34,6 +34,20 @@ from .model import (
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
+    BigipAuthApmAuth,
+    BigipAuthCertLdap,
+    BigipAuthLdap,
+    BigipAuthLoginFailures,
+    BigipAuthPartition,
+    BigipAuthPassword,
+    BigipAuthPasswordPolicy,
+    BigipAuthRadius,
+    BigipAuthRadiusServer,
+    BigipAuthRemoteRole,
+    BigipAuthRemoteUser,
+    BigipAuthSource,
+    BigipAuthTacacs,
+    BigipAuthUser,
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
@@ -2865,6 +2879,243 @@ def _parse_pem_rating_group(
     )
 
 
+# auth.* parsers
+
+
+def _list_field(props: dict[str, str], key: str) -> tuple[str, ...]:
+    """Extract a brace-delimited list field, returning ``()`` when absent.
+
+    Handles both ``key { a b c }`` (flat list) and the nested-block
+    form used for sub-objects (which falls back to top-level keys).
+    """
+    raw = props.get(key, "")
+    if not raw:
+        return ()
+    if raw.startswith("{"):
+        return tuple(_parse_list_block(raw))
+    # Bare-value form ``servers a.b.c.d`` — surface as a single entry.
+    return (raw,)
+
+
+def _parse_auth_partition(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthPartition:
+    props = _parse_properties(body)
+    return BigipAuthPartition(
+        name=full_path,
+        full_path=full_path,
+        description=_description(props),
+        default_route_domain=props.get("default-route-domain", ""),
+        inherited_traffic_group=props.get("inherited-traffic-group", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_user(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthUser:
+    props = _parse_properties(body)
+    return BigipAuthUser(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        description=_description(props),
+        partition=props.get("partition", ""),
+        shell=props.get("shell", ""),
+        encrypted_password=props.get("encrypted-password", ""),
+        partition_access=_list_field(props, "partition-access"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_password(body: str, source_map: DocumentBuffer, block: _Block) -> BigipAuthPassword:
+    props = _parse_properties(body)
+    return BigipAuthPassword(
+        expiration_warning=props.get("expiration-warning", ""),
+        minimum_length=props.get("minimum-length", ""),
+        policy=props.get("policy", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_password_policy(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthPasswordPolicy:
+    props = _parse_properties(body)
+    return BigipAuthPasswordPolicy(
+        expiration_warning=props.get("expiration-warning", ""),
+        max_duration=props.get("max-duration", ""),
+        max_login_failures=props.get("max-login-failures", ""),
+        min_duration=props.get("min-duration", ""),
+        minimum_length=props.get("minimum-length", ""),
+        minimum_regular_characters=props.get("minimum-regular-characters", ""),
+        password_memory=props.get("password-memory", ""),
+        policy_enforcement=props.get("policy-enforcement", ""),
+        required_lowercase=props.get("required-lowercase", ""),
+        required_numeric=props.get("required-numeric", ""),
+        required_special=props.get("required-special", ""),
+        required_uppercase=props.get("required-uppercase", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_source(body: str, source_map: DocumentBuffer, block: _Block) -> BigipAuthSource:
+    props = _parse_properties(body)
+    return BigipAuthSource(
+        fallback=props.get("fallback", ""),
+        type_=props.get("type", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_remote_role(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthRemoteRole:
+    props = _parse_properties(body)
+    return BigipAuthRemoteRole(
+        role_info=_list_field(props, "role-info"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_remote_user(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthRemoteUser:
+    props = _parse_properties(body)
+    return BigipAuthRemoteUser(
+        default_partition=props.get("default-partition", ""),
+        default_role=props.get("default-role", ""),
+        remote_console_access=props.get("remote-console-access", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_login_failures(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthLoginFailures:
+    del body
+    return BigipAuthLoginFailures(
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_ldap(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthLdap:
+    props = _parse_properties(body)
+    return BigipAuthLdap(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        bind_dn=props.get("bind-dn", ""),
+        bind_pw=props.get("bind-pw", ""),
+        bind_timeout=props.get("bind-timeout", ""),
+        check_host_attr=props.get("check-host-attr", ""),
+        check_roles_group=props.get("check-roles-group", ""),
+        filter_=props.get("filter", ""),
+        group_dn=props.get("group-dn", ""),
+        group_member_attribute=props.get("group-member-attribute", ""),
+        idle_timeout=props.get("idle-timeout", ""),
+        ignore_auth_info_unavail=props.get("ignore-auth-info-unavail", ""),
+        ignore_unknown_user=props.get("ignore-unknown-user", ""),
+        login_attribute=props.get("login-attribute", ""),
+        port=props.get("port", ""),
+        scope=props.get("scope", ""),
+        search_base_dn=props.get("search-base-dn", ""),
+        search_timeout=props.get("search-timeout", ""),
+        servers=_list_field(props, "servers"),
+        ssl=props.get("ssl", ""),
+        ssl_ca_cert=props.get("ssl-ca-cert", ""),
+        ssl_check_peer=props.get("ssl-check-peer", ""),
+        ssl_client_cert=props.get("ssl-client-cert", ""),
+        ssl_client_key=props.get("ssl-client-key", ""),
+        user_template=props.get("user-template", ""),
+        version=props.get("version", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_radius(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthRadius:
+    props = _parse_properties(body)
+    return BigipAuthRadius(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        service_type=props.get("service-type", ""),
+        servers=_list_field(props, "servers"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_radius_server(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthRadiusServer:
+    props = _parse_properties(body)
+    return BigipAuthRadiusServer(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        server=props.get("server", ""),
+        port=props.get("port", ""),
+        secret=props.get("secret", ""),
+        timeout=props.get("timeout", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_tacacs(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthTacacs:
+    props = _parse_properties(body)
+    return BigipAuthTacacs(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        protocol=props.get("protocol", ""),
+        secret=props.get("secret", ""),
+        service=props.get("service", ""),
+        servers=_list_field(props, "servers"),
+        accounting=props.get("accounting", ""),
+        authentication=props.get("authentication", ""),
+        debug=props.get("debug", ""),
+        encryption=props.get("encryption", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_cert_ldap(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthCertLdap:
+    props = _parse_properties(body)
+    return BigipAuthCertLdap(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        bind_dn=props.get("bind-dn", ""),
+        bind_pw=props.get("bind-pw", ""),
+        bind_timeout=props.get("bind-timeout", ""),
+        idle_timeout=props.get("idle-timeout", ""),
+        login_attribute=props.get("login-attribute", ""),
+        port=props.get("port", ""),
+        scope=props.get("scope", ""),
+        search_base_dn=props.get("search-base-dn", ""),
+        search_timeout=props.get("search-timeout", ""),
+        servers=_list_field(props, "servers"),
+        ssl=props.get("ssl", ""),
+        user_template=props.get("user-template", ""),
+        version=props.get("version", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_auth_apm_auth(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipAuthApmAuth:
+    props = _parse_properties(body)
+    return BigipAuthApmAuth(
+        name=full_path.rsplit("/", 1)[-1],
+        full_path=full_path,
+        profile=props.get("profile", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Public API
 
 
@@ -2908,6 +3159,35 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                         config.sys_snmp[""] = _parse_sys_snmp(block.body, source_map, block)
                     elif obj_type_g == "global-settings":
                         config.sys_global_settings[""] = _parse_sys_global_settings(
+                            block.body, source_map, block
+                        )
+                elif module_g == "auth" and identifier_g == "":
+                    # ``auth password``, ``auth password-policy``, ``auth
+                    # source``, ``auth remote-role``, ``auth remote-user``,
+                    # and ``auth login-failures`` are 2-token singletons
+                    # the strict header parser rejects.  Dispatch them
+                    # off ``generic`` and store under the empty-string
+                    # key, matching the ``sys`` singleton pattern.
+                    if obj_type_g == "password":
+                        config.auth_password[""] = _parse_auth_password(
+                            block.body, source_map, block
+                        )
+                    elif obj_type_g == "password-policy":
+                        config.auth_password_policy[""] = _parse_auth_password_policy(
+                            block.body, source_map, block
+                        )
+                    elif obj_type_g == "source":
+                        config.auth_source[""] = _parse_auth_source(block.body, source_map, block)
+                    elif obj_type_g == "remote-role":
+                        config.auth_remote_role[""] = _parse_auth_remote_role(
+                            block.body, source_map, block
+                        )
+                    elif obj_type_g == "remote-user":
+                        config.auth_remote_user[""] = _parse_auth_remote_user(
+                            block.body, source_map, block
+                        )
+                    elif obj_type_g == "login-failures":
+                        config.auth_login_failures[""] = _parse_auth_login_failures(
                             block.body, source_map, block
                         )
             continue
@@ -3155,6 +3435,41 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 )
             elif obj_type == "quota-mgmt rating-group":
                 config.pem_rating_groups[full_path] = _parse_pem_rating_group(
+                    full_path, block.body, source_map, block
+                )
+            continue
+
+        if module == "auth":
+            if obj_type == "partition":
+                config.auth_partitions[full_path] = _parse_auth_partition(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "user":
+                config.auth_users[full_path] = _parse_auth_user(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "ldap":
+                config.auth_ldaps[full_path] = _parse_auth_ldap(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "radius":
+                config.auth_radii[full_path] = _parse_auth_radius(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "radius-server":
+                config.auth_radius_servers[full_path] = _parse_auth_radius_server(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "tacacs":
+                config.auth_tacacs[full_path] = _parse_auth_tacacs(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "cert-ldap":
+                config.auth_cert_ldaps[full_path] = _parse_auth_cert_ldap(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "apm-auth":
+                config.auth_apm_auths[full_path] = _parse_auth_apm_auth(
                     full_path, block.body, source_map, block
                 )
             continue
