@@ -531,7 +531,10 @@ def _apply_merged_settings_now() -> None:
     if extra_commands_setting is None:
         extra_commands = None
     elif isinstance(extra_commands_setting, list):
-        extra_commands = [str(cmd) for cmd in extra_commands_setting]
+        # Filter to actual string entries — ``str(None)`` would otherwise
+        # silently register a ``"None"`` command name (and similar
+        # artefacts for any non-string entry).
+        extra_commands = [cmd for cmd in extra_commands_setting if isinstance(cmd, str)]
     else:
         extra_commands = []
 
@@ -539,7 +542,7 @@ def _apply_merged_settings_now() -> None:
     if library_paths_setting is None:
         library_paths_setting = fallback_settings.get("library_paths")
     if isinstance(library_paths_setting, list):
-        library_paths = [str(p) for p in library_paths_setting]
+        library_paths = [p for p in library_paths_setting if isinstance(p, str) and p]
         _state.background_scanner.configure(library_paths=library_paths)
         resolver_paths = _state.background_scanner.workspace_roots + library_paths
         _state.package_resolver.configure(search_paths=resolver_paths)
@@ -606,6 +609,17 @@ def _apply_merged_settings_now() -> None:
             continue
         folder_cfg = _state.get_or_init_folder_feature_config(folder_uri)
         if folder_cfg.library_paths is None:
+            # Folder cleared its libraryPaths override — drop any stale
+            # per-folder resolver so ``package_resolver_for_uri`` falls
+            # back to the workspace resolver, and prune ``_loaded_packages``
+            # entries keyed to it so a follow-up rescan picks the
+            # workspace files instead of the stale folder ones.
+            dropped = _state._per_folder_package_resolvers.pop(folder_uri, None)
+            if dropped is not None:
+                dropped_key = id(dropped)
+                _state._loaded_packages.difference_update(
+                    entry for entry in list(_state._loaded_packages) if entry[0] == dropped_key
+                )
             continue
         folder_paths = tuple(folder_cfg.library_paths)
         if folder_paths == fallback_paths:

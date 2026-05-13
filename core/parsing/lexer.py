@@ -53,7 +53,7 @@ def _expand_syntax_active() -> bool:
     same process.  See issue #407.
 
     A thread-local ``expand_syntax_force_off`` flag (set by
-    :func:`disable_expand_syntax_for_thread`) overrides the dialect-based
+    :func:`expand_syntax_disabled_scope`) overrides the dialect-based
     decision; this is how the VM's ``subst`` machinery disables {*}
     expansion during substitution regardless of the active dialect.
     """
@@ -64,27 +64,15 @@ def _expand_syntax_active() -> bool:
     return _dialect_var.get() in _EXPAND_SYNTAX_DIALECTS
 
 
-def disable_expand_syntax_for_thread(disabled: bool) -> None:
-    """Toggle the thread-local override that forces {*} expansion off.
-
-    Used by ``vm.substitution`` to disable {*} during ``subst`` (which
-    treats word expansion as inapplicable inside a word value).  The
-    override is thread-local so concurrent VM workers don't fight over a
-    shared flag.
-
-    Prefer :func:`expand_syntax_disabled_scope` over toggling raw True /
-    False — the scope helper preserves the caller's previous value so
-    nested ``substitute()`` calls don't clobber an outer ``True``.
-    """
-    _thread_local.expand_syntax_force_off = disabled
-
-
 @_contextmanager
 def expand_syntax_disabled_scope():
     """Force {*} expansion off for the current thread, restoring on exit.
 
-    Save/restore the previous ``expand_syntax_force_off`` value so that
-    nested substitution calls compose correctly: an outer scope that has
+    Used by ``vm.substitution`` to disable {*} during ``subst`` (which
+    treats word expansion as inapplicable inside a word value).  The
+    override is thread-local so concurrent VM workers don't fight over a
+    shared flag.  Save/restore the previous force-off value so nested
+    ``substitute()`` calls compose correctly: an outer scope that has
     already forced expansion off stays off when an inner scope exits.
     """
     previous = getattr(_thread_local, "expand_syntax_force_off", False)
@@ -120,10 +108,11 @@ class TclLexer:
     raises :class:`TclParseError` for "extra characters after close-quote".
     The VM sets this flag during compilation; the LSP leaves it ``False``.
 
-    When :attr:`expand_syntax` is ``True`` (class-level flag), the lexer
-    recognises ``{*}`` at word start as the Tcl 8.5+ expansion prefix and
-    emits a :attr:`TokenType.EXPAND` token.  Disabled for Tcl 8.4 and
-    iRules dialects.
+    ``{*}`` word expansion is decided per-call by :func:`_expand_syntax_active`
+    — it reads the active dialect from the registry ContextVar and respects
+    the thread-local override that :func:`expand_syntax_disabled_scope`
+    sets during ``subst``.  No class attribute controls expansion any
+    more (was a mutable singleton pre-#407).
     """
 
     __slots__ = (
@@ -151,7 +140,6 @@ class TclLexer:
     # Retained as class attribute ONLY for backward-compat reads from non-VM
     # code; the VM always uses _thread_local.strict_quoting via the helper.
     strict_quoting: bool = False
-    expand_syntax: bool = True
     irules_brace_separator: bool = False
 
     def __init__(
