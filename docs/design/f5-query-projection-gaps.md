@@ -449,40 +449,40 @@ global-policy, zones, packet-filter); bundle 10b covers the
 remaining 39 (most of `dos.*`, `debug.*`, `datasync.*`, anti-fraud,
 blacklist-publisher, protocol-inspection sub-kinds, etc.).
 
-- [ ] `security analytics settings`
-- [ ] `security anti-fraud profile`
-- [ ] `security anti-fraud signatures-update`
-- [ ] `security blacklist-publisher category`
-- [ ] `security blacklist-publisher profile`
+- [x] `security analytics settings`
+- [x] `security anti-fraud profile`
+- [x] `security anti-fraud signatures-update`
+- [x] `security blacklist-publisher category`
+- [x] `security blacklist-publisher profile`
 - [x] `security bot-defense profile`
-- [ ] `security bot-defense signature`
-- [ ] `security bot-defense signature-category`
-- [ ] `security cloud-services connector`
-- [ ] `security datasync background-tasks`
-- [ ] `security datasync global-profile`
-- [ ] `security datasync local-profile`
-- [ ] `security debug drop-redirect-stats`
-- [ ] `security debug matcher`
-- [ ] `security debug register`
-- [ ] `security device device-context`
-- [ ] `security dos autodos-file-object`
-- [ ] `security dos behavioral-signature`
-- [ ] `security dos bot-signature`
-- [ ] `security dos bot-signature-category`
-- [ ] `security dos device-config`
-- [ ] `security dos dns-nxdomain-stat`
-- [ ] `security dos dos-signature`
-- [ ] `security dos dynamic-signatures`
-- [ ] `security dos ip-uncommon-protolist`
-- [ ] `security dos l4bdos-file-object`
-- [ ] `security dos network-whitelist`
+- [x] `security bot-defense signature`
+- [x] `security bot-defense signature-category`
+- [x] `security cloud-services connector`
+- [x] `security datasync background-tasks`
+- [x] `security datasync global-profile`
+- [x] `security datasync local-profile`
+- [x] `security debug drop-redirect-stats`
+- [x] `security debug matcher`
+- [x] `security debug register`
+- [x] `security device device-context`
+- [x] `security dos autodos-file-object`
+- [x] `security dos behavioral-signature`
+- [x] `security dos bot-signature`
+- [x] `security dos bot-signature-category`
+- [x] `security dos device-config`
+- [x] `security dos dns-nxdomain-stat`
+- [x] `security dos dos-signature`
+- [x] `security dos dynamic-signatures`
+- [x] `security dos ip-uncommon-protolist`
+- [x] `security dos l4bdos-file-object`
+- [x] `security dos network-whitelist`
 - [x] `security dos profile`
-- [ ] `security dos stress-stats`
-- [ ] `security dos udp-portlist`
-- [ ] `security dos virtual`
-- [ ] `security flowspec-route-injector profile`
+- [x] `security dos stress-stats`
+- [x] `security dos udp-portlist`
+- [x] `security dos virtual`
+- [x] `security flowspec-route-injector profile`
 - [x] `security http profile`
-- [ ] `security ip-intelligence blacklist-category`
+- [x] `security ip-intelligence blacklist-category`
 - [x] `security ip-intelligence feed-list`
 - [x] `security ip-intelligence global-policy` (singleton)
 - [x] `security log profile`
@@ -494,15 +494,24 @@ blacklist-publisher, protocol-inspection sub-kinds, etc.).
 - [x] `security packet-filter default-rules` (singleton)
 - [x] `security packet-filter policy`
 - [x] `security protected zone`
-- [ ] `security protocol-inspection common-config`
-- [ ] `security protocol-inspection learning-stats`
-- [ ] `security protocol-inspection profile`
-- [ ] `security protocol-inspection signature`
-- [ ] `security scrubber profile`
-- [ ] `security ssh ciphers`
+- [x] `security protocol-inspection common-config`
+- [x] `security protocol-inspection learning-stats`
+- [x] `security protocol-inspection profile`
+- [x] `security protocol-inspection signature`
+- [x] `security scrubber profile`
+- [x] `security ssh ciphers`
 - [x] `security ssh profile`
 - [x] `security zone` (single-word kind; `vlans` is a PathRef list
       into `net vlan`, `tunnels` into `net tunnels tunnel`)
+
+Bundle 10b shares ``BigipSecurityMinimalObject`` and
+``_SECURITY_MINIMAL_FIELDS`` for the 37 minimal kinds — every kind
+has its own ``BigipConfig`` attribute and its own ``_KIND_FIELD_MAPS``
+/ ``_MODULE_KINDS`` row so the dispatch routes correctly, but the
+dataclass + projection field map are reused.  Surfaces ``name``,
+``full-path``, ``kind``, and ``description`` only; richer fields
+land in dedicated dataclasses if and when there's a query-shape
+that needs them.
 
 ### Bundle 11 — `gtm monitor.*` (29)
 

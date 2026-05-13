@@ -109,6 +109,7 @@ from ..model import (
     BigipSecurityIpIntelligenceGlobalPolicy,
     BigipSecurityIpIntelligencePolicy,
     BigipSecurityLogProfile,
+    BigipSecurityMinimalObject,
     BigipSecurityNatDestinationTranslation,
     BigipSecurityNatPolicy,
     BigipSecurityNatSourceTranslation,
@@ -936,6 +937,14 @@ _SECURITY_BOT_DEFENSE_PROFILE_FIELDS: dict[str, FieldSpec] = {
     "template": FieldSpec("template"),
 }
 
+# Bundle 10b — shared field map for the 37 minimal security.* kinds.
+_SECURITY_MINIMAL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
+    "description": FieldSpec("description"),
+}
+
 
 _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
@@ -1627,6 +1636,80 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipSecurityBotDefenseProfile,
         _SECURITY_BOT_DEFENSE_PROFILE_FIELDS,
     ),
+    # Bundle 10b — minimal security.* kinds.  All 37 share
+    # ``BigipSecurityMinimalObject`` + ``_SECURITY_MINIMAL_FIELDS``
+    # but get distinct kind strings so the projection routes to
+    # the right ``BigipConfig`` attribute.
+    "security analytics settings": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security anti-fraud profile": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security anti-fraud signatures-update": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security blacklist-publisher category": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security blacklist-publisher profile": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security bot-defense signature": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security bot-defense signature-category": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security cloud-services connector": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security datasync background-tasks": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security datasync global-profile": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security datasync local-profile": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security debug drop-redirect-stats": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security debug matcher": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security debug register": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security device device-context": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos autodos-file-object": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos behavioral-signature": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos bot-signature": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos bot-signature-category": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security dos device-config": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos dns-nxdomain-stat": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos dos-signature": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos dynamic-signatures": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos ip-uncommon-protolist": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos l4bdos-file-object": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos network-whitelist": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos stress-stats": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos udp-portlist": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security dos virtual": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security flowspec-route-injector profile": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security ip-intelligence blacklist-category": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security protocol-inspection common-config": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security protocol-inspection learning-stats": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security protocol-inspection profile": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security protocol-inspection signature": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security scrubber profile": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security ssh ciphers": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
     "security ip-intelligence policy": (
         BigipSecurityIpIntelligencePolicy,
         _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS,
@@ -1881,6 +1964,134 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "security_bot_defense_profiles",
             "security bot-defense profile",
         ),
+        # Bundle 10b — minimal-shape security.* kinds (37).
+        "analytics-settings": ("security_analytics_settings", "security analytics settings"),
+        "anti-fraud-profile": (
+            "security_anti_fraud_profiles",
+            "security anti-fraud profile",
+        ),
+        "anti-fraud-signatures-update": (
+            "security_anti_fraud_signatures_update",
+            "security anti-fraud signatures-update",
+        ),
+        "blacklist-publisher-category": (
+            "security_blacklist_publisher_categories",
+            "security blacklist-publisher category",
+        ),
+        "blacklist-publisher-profile": (
+            "security_blacklist_publisher_profiles",
+            "security blacklist-publisher profile",
+        ),
+        "bot-defense-signature": (
+            "security_bot_defense_signatures",
+            "security bot-defense signature",
+        ),
+        "bot-defense-signature-category": (
+            "security_bot_defense_signature_categories",
+            "security bot-defense signature-category",
+        ),
+        "cloud-services-connector": (
+            "security_cloud_services_connectors",
+            "security cloud-services connector",
+        ),
+        "datasync-background-tasks": (
+            "security_datasync_background_tasks",
+            "security datasync background-tasks",
+        ),
+        "datasync-global-profile": (
+            "security_datasync_global_profiles",
+            "security datasync global-profile",
+        ),
+        "datasync-local-profile": (
+            "security_datasync_local_profiles",
+            "security datasync local-profile",
+        ),
+        "debug-drop-redirect-stats": (
+            "security_debug_drop_redirect_stats",
+            "security debug drop-redirect-stats",
+        ),
+        "debug-matcher": ("security_debug_matcher", "security debug matcher"),
+        "debug-register": ("security_debug_register", "security debug register"),
+        "device-device-context": (
+            "security_device_device_context",
+            "security device device-context",
+        ),
+        "dos-autodos-file-object": (
+            "security_dos_autodos_file_objects",
+            "security dos autodos-file-object",
+        ),
+        "dos-behavioral-signature": (
+            "security_dos_behavioral_signatures",
+            "security dos behavioral-signature",
+        ),
+        "dos-bot-signature": (
+            "security_dos_bot_signatures",
+            "security dos bot-signature",
+        ),
+        "dos-bot-signature-category": (
+            "security_dos_bot_signature_categories",
+            "security dos bot-signature-category",
+        ),
+        "dos-device-config": (
+            "security_dos_device_config",
+            "security dos device-config",
+        ),
+        "dos-dns-nxdomain-stat": (
+            "security_dos_dns_nxdomain_stat",
+            "security dos dns-nxdomain-stat",
+        ),
+        "dos-dos-signature": (
+            "security_dos_dos_signatures",
+            "security dos dos-signature",
+        ),
+        "dos-dynamic-signatures": (
+            "security_dos_dynamic_signatures",
+            "security dos dynamic-signatures",
+        ),
+        "dos-ip-uncommon-protolist": (
+            "security_dos_ip_uncommon_protolists",
+            "security dos ip-uncommon-protolist",
+        ),
+        "dos-l4bdos-file-object": (
+            "security_dos_l4bdos_file_objects",
+            "security dos l4bdos-file-object",
+        ),
+        "dos-network-whitelist": (
+            "security_dos_network_whitelists",
+            "security dos network-whitelist",
+        ),
+        "dos-stress-stats": ("security_dos_stress_stats", "security dos stress-stats"),
+        "dos-udp-portlist": ("security_dos_udp_portlists", "security dos udp-portlist"),
+        "dos-virtual": ("security_dos_virtuals", "security dos virtual"),
+        "flowspec-route-injector-profile": (
+            "security_flowspec_route_injector_profiles",
+            "security flowspec-route-injector profile",
+        ),
+        "ip-intelligence-blacklist-category": (
+            "security_ip_intelligence_blacklist_categories",
+            "security ip-intelligence blacklist-category",
+        ),
+        "protocol-inspection-common-config": (
+            "security_protocol_inspection_common_config",
+            "security protocol-inspection common-config",
+        ),
+        "protocol-inspection-learning-stats": (
+            "security_protocol_inspection_learning_stats",
+            "security protocol-inspection learning-stats",
+        ),
+        "protocol-inspection-profile": (
+            "security_protocol_inspection_profiles",
+            "security protocol-inspection profile",
+        ),
+        "protocol-inspection-signature": (
+            "security_protocol_inspection_signatures",
+            "security protocol-inspection signature",
+        ),
+        "scrubber-profile": (
+            "security_scrubber_profiles",
+            "security scrubber profile",
+        ),
+        "ssh-ciphers": ("security_ssh_ciphers", "security ssh ciphers"),
         "ip-intelligence-policy": (
             "security_ip_intelligence_policies",
             "security ip-intelligence policy",

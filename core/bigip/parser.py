@@ -116,6 +116,7 @@ from .model import (
     BigipSecurityIpIntelligenceGlobalPolicy,
     BigipSecurityIpIntelligencePolicy,
     BigipSecurityLogProfile,
+    BigipSecurityMinimalObject,
     BigipSecurityNatDestinationTranslation,
     BigipSecurityNatPolicy,
     BigipSecurityNatSourceTranslation,
@@ -565,6 +566,44 @@ _TWO_WORD_TYPES = frozenset(
         "ssh profile",
         "http profile",
         "bot-defense profile",
+        # bundle 10b — minimal security.* projections (37 kinds).
+        "analytics settings",
+        "anti-fraud profile",
+        "anti-fraud signatures-update",
+        "blacklist-publisher category",
+        "blacklist-publisher profile",
+        "bot-defense signature",
+        "bot-defense signature-category",
+        "cloud-services connector",
+        "datasync background-tasks",
+        "datasync global-profile",
+        "datasync local-profile",
+        "debug drop-redirect-stats",
+        "debug matcher",
+        "debug register",
+        "device device-context",
+        "dos autodos-file-object",
+        "dos behavioral-signature",
+        "dos bot-signature",
+        "dos bot-signature-category",
+        "dos device-config",
+        "dos dns-nxdomain-stat",
+        "dos dos-signature",
+        "dos dynamic-signatures",
+        "dos ip-uncommon-protolist",
+        "dos l4bdos-file-object",
+        "dos network-whitelist",
+        "dos stress-stats",
+        "dos udp-portlist",
+        "dos virtual",
+        "flowspec-route-injector profile",
+        "ip-intelligence blacklist-category",
+        "protocol-inspection common-config",
+        "protocol-inspection learning-stats",
+        "protocol-inspection profile",
+        "protocol-inspection signature",
+        "scrubber profile",
+        "ssh ciphers",
         "ip-intelligence policy",
         "protocol-inspection compliance-map",
         "protocol-inspection compliance-objects",
@@ -2473,6 +2512,76 @@ def _parse_security_bot_defense_profile(
     )
 
 
+def _parse_security_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipSecurityMinimalObject:
+    """Parser used for every bundle-10b security.* kind.
+
+    Surfaces only the identity tuple (``name`` / ``full_path``) plus
+    ``description``; the runtime / signature / stats kinds we
+    classify as minimal don't have addressable scalars beyond that.
+    The kind label is preserved on the dataclass so a query like
+    ``.security.dos-virtual[].kind`` returns ``"security dos virtual"``.
+    """
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipSecurityMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+# bundle-10b dispatch table — maps the in-config two-word obj_type
+# (e.g. ``"dos virtual"``) to the ``BigipConfig`` attribute that
+# stores it.  Used by the ``module == "security"`` block below.
+_SECURITY_MINIMAL_DISPATCH: dict[str, str] = {
+    "analytics settings": "security_analytics_settings",
+    "anti-fraud profile": "security_anti_fraud_profiles",
+    "anti-fraud signatures-update": "security_anti_fraud_signatures_update",
+    "blacklist-publisher category": "security_blacklist_publisher_categories",
+    "blacklist-publisher profile": "security_blacklist_publisher_profiles",
+    "bot-defense signature": "security_bot_defense_signatures",
+    "bot-defense signature-category": "security_bot_defense_signature_categories",
+    "cloud-services connector": "security_cloud_services_connectors",
+    "datasync background-tasks": "security_datasync_background_tasks",
+    "datasync global-profile": "security_datasync_global_profiles",
+    "datasync local-profile": "security_datasync_local_profiles",
+    "debug drop-redirect-stats": "security_debug_drop_redirect_stats",
+    "debug matcher": "security_debug_matcher",
+    "debug register": "security_debug_register",
+    "device device-context": "security_device_device_context",
+    "dos autodos-file-object": "security_dos_autodos_file_objects",
+    "dos behavioral-signature": "security_dos_behavioral_signatures",
+    "dos bot-signature": "security_dos_bot_signatures",
+    "dos bot-signature-category": "security_dos_bot_signature_categories",
+    "dos device-config": "security_dos_device_config",
+    "dos dns-nxdomain-stat": "security_dos_dns_nxdomain_stat",
+    "dos dos-signature": "security_dos_dos_signatures",
+    "dos dynamic-signatures": "security_dos_dynamic_signatures",
+    "dos ip-uncommon-protolist": "security_dos_ip_uncommon_protolists",
+    "dos l4bdos-file-object": "security_dos_l4bdos_file_objects",
+    "dos network-whitelist": "security_dos_network_whitelists",
+    "dos stress-stats": "security_dos_stress_stats",
+    "dos udp-portlist": "security_dos_udp_portlists",
+    "dos virtual": "security_dos_virtuals",
+    "flowspec-route-injector profile": "security_flowspec_route_injector_profiles",
+    "ip-intelligence blacklist-category": "security_ip_intelligence_blacklist_categories",
+    "protocol-inspection common-config": "security_protocol_inspection_common_config",
+    "protocol-inspection learning-stats": "security_protocol_inspection_learning_stats",
+    "protocol-inspection profile": "security_protocol_inspection_profiles",
+    "protocol-inspection signature": "security_protocol_inspection_signatures",
+    "scrubber profile": "security_scrubber_profiles",
+    "ssh ciphers": "security_ssh_ciphers",
+}
+
+
 def _parse_security_ip_intelligence_policy(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityIpIntelligencePolicy:
@@ -3877,6 +3986,21 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             elif obj_type == "bot-defense profile":
                 config.security_bot_defense_profiles[full_path] = (
                     _parse_security_bot_defense_profile(full_path, block.body, source_map, block)
+                )
+            elif obj_type in _SECURITY_MINIMAL_DISPATCH:
+                # Bundle 10b — minimal-shape security.* kinds that
+                # share one parser and one dataclass.  ``full_path``
+                # is "" for the singleton variants (``debug *``,
+                # ``dos device-config``, ``protocol-inspection
+                # common-config``, …) via the two-word singleton
+                # branch in ``_parse_header``.
+                attr = _SECURITY_MINIMAL_DISPATCH[obj_type]
+                getattr(config, attr)[full_path] = _parse_security_minimal(
+                    full_path,
+                    block.body,
+                    f"security {obj_type}",
+                    source_map,
+                    block,
                 )
             continue
 

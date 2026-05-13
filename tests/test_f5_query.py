@@ -4312,3 +4312,148 @@ def test_security_bot_defense_profile_projects_template():
     assert _run(
         '.security.bot-defense-profile["/Common/bot_p1"].template', _SEC10A_CONF
     ).values_per_file["mem://1"] == ["relaxed"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 10b — 37 minimal-shape security.* kinds (analytics, anti-fraud,
+# blacklist-publisher, bot-defense sig/cat, cloud-services, datasync,
+# debug, device-context, dos sub-kinds, flowspec, ip-intelligence
+# blacklist-category, protocol-inspection sub-kinds, scrubber, ssh ciphers).
+# All share BigipSecurityMinimalObject + _SECURITY_MINIMAL_FIELDS.
+# ---------------------------------------------------------------------------
+
+_SEC10B_CONF = """security analytics settings { description analytics }
+security anti-fraud profile /Common/af1 { description "anti-fraud" }
+security anti-fraud signatures-update /Common/afsu1 { description "afsu" }
+security blacklist-publisher category /Common/blc1 { description "bl cat" }
+security blacklist-publisher profile /Common/blp1 { description "bl prof" }
+security bot-defense signature /Common/botsig1 { description "bot sig" }
+security bot-defense signature-category /Common/botsigcat1 { description "bot sig cat" }
+security cloud-services connector /Common/cs1 { description "cs conn" }
+security datasync background-tasks { description "bg tasks" }
+security datasync global-profile /Common/dsgp1 { description "global ds" }
+security datasync local-profile /Common/dslp1 { description "local ds" }
+security debug drop-redirect-stats { description "drop stats" }
+security debug matcher { description matcher }
+security debug register { description register }
+security device device-context /Common/devctx1 { description "dev ctx" }
+security dos autodos-file-object /Common/adfo1 { description "adfo" }
+security dos behavioral-signature /Common/bs1 { description "bs" }
+security dos bot-signature /Common/dosbotsig1 { description "dos bot sig" }
+security dos bot-signature-category /Common/dosbotcat1 { description "dos bot cat" }
+security dos device-config { description "dev cfg" }
+security dos dns-nxdomain-stat { description "nxdomain" }
+security dos dos-signature /Common/dossig1 { description "dos sig" }
+security dos dynamic-signatures { description "dyn sigs" }
+security dos ip-uncommon-protolist /Common/iup1 { description "iup" }
+security dos l4bdos-file-object /Common/l4bdos1 { description "l4bdos" }
+security dos network-whitelist /Common/nwl1 { description "nwl" }
+security dos stress-stats { description "stress" }
+security dos udp-portlist /Common/dosupl1 { description "udp" }
+security dos virtual /Common/dosvs1 { description "dos virtual" }
+security flowspec-route-injector profile /Common/fri1 { description "fri" }
+security ip-intelligence blacklist-category /Common/ipbc1 { description "ip bc" }
+security protocol-inspection common-config { description "pi common" }
+security protocol-inspection learning-stats { description "pi learn" }
+security protocol-inspection profile /Common/pip1 { description "pi profile" }
+security protocol-inspection signature /Common/pisig1 { description "pi sig" }
+security scrubber profile /Common/scr1 { description "scrubber" }
+security ssh ciphers /Common/ciphers1 { description "ssh ciphers" }
+"""
+
+
+def test_security_minimal_each_kind_has_an_entry():
+    """37 minimal kinds — confirm every dispatch label routes to its
+    container and that the kind label round-trips through the
+    projection.
+    """
+    cases: list[tuple[str, str]] = [
+        ("analytics-settings", "security analytics settings"),
+        ("anti-fraud-profile", "security anti-fraud profile"),
+        ("anti-fraud-signatures-update", "security anti-fraud signatures-update"),
+        ("blacklist-publisher-category", "security blacklist-publisher category"),
+        ("blacklist-publisher-profile", "security blacklist-publisher profile"),
+        ("bot-defense-signature", "security bot-defense signature"),
+        ("bot-defense-signature-category", "security bot-defense signature-category"),
+        ("cloud-services-connector", "security cloud-services connector"),
+        ("datasync-background-tasks", "security datasync background-tasks"),
+        ("datasync-global-profile", "security datasync global-profile"),
+        ("datasync-local-profile", "security datasync local-profile"),
+        ("debug-drop-redirect-stats", "security debug drop-redirect-stats"),
+        ("debug-matcher", "security debug matcher"),
+        ("debug-register", "security debug register"),
+        ("device-device-context", "security device device-context"),
+        ("dos-autodos-file-object", "security dos autodos-file-object"),
+        ("dos-behavioral-signature", "security dos behavioral-signature"),
+        ("dos-bot-signature", "security dos bot-signature"),
+        ("dos-bot-signature-category", "security dos bot-signature-category"),
+        ("dos-device-config", "security dos device-config"),
+        ("dos-dns-nxdomain-stat", "security dos dns-nxdomain-stat"),
+        ("dos-dos-signature", "security dos dos-signature"),
+        ("dos-dynamic-signatures", "security dos dynamic-signatures"),
+        ("dos-ip-uncommon-protolist", "security dos ip-uncommon-protolist"),
+        ("dos-l4bdos-file-object", "security dos l4bdos-file-object"),
+        ("dos-network-whitelist", "security dos network-whitelist"),
+        ("dos-stress-stats", "security dos stress-stats"),
+        ("dos-udp-portlist", "security dos udp-portlist"),
+        ("dos-virtual", "security dos virtual"),
+        ("flowspec-route-injector-profile", "security flowspec-route-injector profile"),
+        ("ip-intelligence-blacklist-category", "security ip-intelligence blacklist-category"),
+        ("protocol-inspection-common-config", "security protocol-inspection common-config"),
+        ("protocol-inspection-learning-stats", "security protocol-inspection learning-stats"),
+        ("protocol-inspection-profile", "security protocol-inspection profile"),
+        ("protocol-inspection-signature", "security protocol-inspection signature"),
+        ("scrubber-profile", "security scrubber profile"),
+        ("ssh-ciphers", "security ssh ciphers"),
+    ]
+    for label, kind_str in cases:
+        res = _run(f".security.{label}[].kind", _SEC10B_CONF)
+        kinds = res.values_per_file["mem://1"]
+        assert kind_str in kinds, f"{label}: expected kind={kind_str!r}, got {kinds!r}"
+
+
+def test_security_minimal_singletons_resolve_via_empty_key():
+    """``debug *``, ``dos device-config``, ``dos dns-nxdomain-stat``,
+    ``dos dynamic-signatures``, ``dos stress-stats``, ``datasync
+    background-tasks``, ``protocol-inspection common-config``,
+    ``protocol-inspection learning-stats``, and ``analytics settings``
+    are 3-token singletons — they land under the empty-string key.
+    """
+    for label, expected_desc in [
+        ("debug-matcher", "matcher"),
+        ("debug-register", "register"),
+        ("debug-drop-redirect-stats", "drop stats"),
+        ("dos-device-config", "dev cfg"),
+        ("dos-dns-nxdomain-stat", "nxdomain"),
+        ("dos-dynamic-signatures", "dyn sigs"),
+        ("dos-stress-stats", "stress"),
+        ("datasync-background-tasks", "bg tasks"),
+        ("protocol-inspection-common-config", "pi common"),
+        ("protocol-inspection-learning-stats", "pi learn"),
+        ("analytics-settings", "analytics"),
+    ]:
+        res = _run(f'.security.{label}[""]."description"', _SEC10B_CONF)
+        assert res.values_per_file["mem://1"] == [expected_desc], (
+            f"{label}: expected {expected_desc!r}, got {res.values_per_file['mem://1']!r}"
+        )
+
+
+def test_security_minimal_path_keyed_kinds_resolve_by_full_path():
+    """Path-keyed minimal kinds (``dos virtual /Common/X`` etc.)
+    project the basename and full-path correctly.
+    """
+    for label, full_path, name in [
+        ("dos-virtual", "/Common/dosvs1", "dosvs1"),
+        ("dos-dos-signature", "/Common/dossig1", "dossig1"),
+        ("scrubber-profile", "/Common/scr1", "scr1"),
+        ("protocol-inspection-profile", "/Common/pip1", "pip1"),
+        ("flowspec-route-injector-profile", "/Common/fri1", "fri1"),
+        ("anti-fraud-profile", "/Common/af1", "af1"),
+        ("blacklist-publisher-profile", "/Common/blp1", "blp1"),
+        ("cloud-services-connector", "/Common/cs1", "cs1"),
+        ("ssh-ciphers", "/Common/ciphers1", "ciphers1"),
+    ]:
+        res = _run(f'.security.{label}["{full_path}"].name', _SEC10B_CONF)
+        assert res.values_per_file["mem://1"] == [name], (
+            f"{label}: got {res.values_per_file['mem://1']!r}"
+        )

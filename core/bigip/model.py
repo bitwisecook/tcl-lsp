@@ -1147,6 +1147,32 @@ class BigipSecurityBotDefenseProfile:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipSecurityMinimalObject:
+    """Shared dataclass for the bundle-10b ``security.*`` kinds that
+    surface only ``name`` / ``full_path`` / ``description``.
+
+    Includes the runtime-adjacent and signature-bag kinds (``debug
+    *``, ``dos signature``, ``datasync.*``, anti-fraud, blacklist-
+    publisher, protocol-inspection learning stats, etc.) where there
+    are no obviously addressable scalars beyond the identity tuple.
+    Each kind has its own dispatch entry on ``BigipConfig`` and its
+    own row in ``_KIND_FIELD_MAPS`` / ``_MODULE_KINDS``, but they
+    all share this dataclass so the v1 minimal-shape projection
+    doesn't need 37 near-identical dataclasses.
+
+    ``kind`` carries the TMSH module + sub-type (e.g. ``"security
+    dos virtual"``) so a query that reaches ``.security.dos-virtual
+    [].kind`` returns the kind string.
+    """
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BigipSecurityIpIntelligencePolicy:
     """A ``security ip-intelligence policy`` object.
 
@@ -2094,6 +2120,97 @@ class BigipConfig:
     security_bot_defense_profiles: dict[str, BigipSecurityBotDefenseProfile] = field(
         default_factory=dict
     )
+    # Bundle 10b — minimal security.* projections sharing
+    # ``BigipSecurityMinimalObject`` for shape uniformity.
+    security_analytics_settings: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_anti_fraud_profiles: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_anti_fraud_signatures_update: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_blacklist_publisher_categories: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_blacklist_publisher_profiles: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_bot_defense_signatures: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_bot_defense_signature_categories: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_cloud_services_connectors: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_datasync_background_tasks: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_datasync_global_profiles: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_datasync_local_profiles: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_debug_drop_redirect_stats: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_debug_matcher: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_debug_register: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_device_device_context: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_autodos_file_objects: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_behavioral_signatures: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_bot_signatures: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_dos_bot_signature_categories: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_device_config: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_dos_dns_nxdomain_stat: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_dos_signatures: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_dos_dynamic_signatures: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_ip_uncommon_protolists: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_l4bdos_file_objects: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_network_whitelists: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_dos_stress_stats: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_dos_udp_portlists: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_dos_virtuals: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_flowspec_route_injector_profiles: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_ip_intelligence_blacklist_categories: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_protocol_inspection_common_config: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_protocol_inspection_learning_stats: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_protocol_inspection_profiles: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_protocol_inspection_signatures: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_scrubber_profiles: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    security_ssh_ciphers: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
     security_ip_intelligence_policies: dict[str, BigipSecurityIpIntelligencePolicy] = field(
         default_factory=dict
     )
