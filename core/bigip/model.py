@@ -769,6 +769,43 @@ class BigipApiProtectionMinimalObject:
     range: Range | None = None
 
 
+# Audit follow-up minimal modules — kinds found in real BIG-IP
+# configs but absent from the projection-gaps doc.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipAsmMinimalObject:
+    """Generic asm.* minimal projection (Application Security Manager)."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipIlxMinimalObject:
+    """Generic ilx.* minimal projection (iRulesLX)."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipWomMinimalObject:
+    """Generic wom.* minimal projection (WAN Optimization Manager — legacy)."""
+
+    name: str
+    full_path: str
+    kind: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
@@ -3424,6 +3461,45 @@ class BigipConfig:
         default_factory=dict
     )
     api_protection_server: dict[str, BigipApiProtectionMinimalObject] = field(default_factory=dict)
+    # Audit follow-up — kinds found in real BIG-IP configs.
+    # ltm html-rule.* (7 subtypes).
+    ltm_html_rule_comment_raise_event: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_html_rule_comment_remove: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_html_rule_tag_append_html: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_html_rule_tag_prepend_html: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_html_rule_tag_raise_event: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_html_rule_tag_remove: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_html_rule_tag_remove_attribute: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    # security shared-objects.* (2).
+    security_shared_objects_port_lists: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    security_shared_objects_address_lists: dict[str, BigipSecurityMinimalObject] = field(
+        default_factory=dict
+    )
+    # security dos ipv6-ext-hdr (separate from bundle 10b dos kinds).
+    security_dos_ipv6_ext_hdr: dict[str, BigipSecurityMinimalObject] = field(default_factory=dict)
+    # sys.* follow-ons.
+    sys_ecm_cloud_provider: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_software_update: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_dynad_settings: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_compatibility_level: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    sys_diags_ihealth: dict[str, BigipSysMinimalObject] = field(default_factory=dict)
+    # apm follow-on.
+    apm_client_packaging: dict[str, BigipApmMinimalObject] = field(default_factory=dict)
+    # pem follow-on (irule, distinct from pem rule).
+    pem_irule_kinds: dict[str, BigipPemMinimalObject] = field(default_factory=dict)
+    # New module — asm.*  (Application Security Manager).
+    asm_policies: dict[str, BigipAsmMinimalObject] = field(default_factory=dict)
+    # New module — ilx.*  (iRulesLX).
+    ilx_global_settings: dict[str, BigipIlxMinimalObject] = field(default_factory=dict)
+    # New module — wom.*  (WAN Optimization Manager, legacy but in
+    # real configs).
+    wom_endpoint_discovery: dict[str, BigipWomMinimalObject] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:

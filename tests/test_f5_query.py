@@ -5476,3 +5476,91 @@ def test_bundles_33_to_45_dispatch():
         assert expected_kind in res.values_per_file["mem://1"], (
             f"{path}: expected {expected_kind!r}, got {res.values_per_file['mem://1']!r}"
         )
+
+
+# Audit follow-up — kinds found in real BIG-IP configs that the
+# projection-gaps doc didn't enumerate, plus dispatch bugs for
+# previously-registered monitor / profile subtypes that fell out
+# of the strict TWO_WORD_TYPES check.
+
+_AUDIT_FOLLOWUP_CONF = """ltm monitor diameter /Common/m_dia { interval 30 }
+ltm monitor dns /Common/m_dns { interval 30 }
+ltm monitor mqtt /Common/m_mqtt { interval 30 }
+ltm monitor smb /Common/m_smb { interval 30 }
+ltm monitor virtual-location /Common/m_vl { interval 30 }
+ltm profile analytics /Common/p_an { app-service none }
+ltm profile classification /Common/p_cl { app-service none }
+ltm profile ipother /Common/p_ip { app-service none }
+ltm profile request-log /Common/p_rl { app-service none }
+ltm profile tcp-analytics /Common/p_ta { app-service none }
+ltm html-rule comment-raise-event /Common/hr1 { description "h" }
+ltm html-rule tag-remove /Common/hr2 { description "h" }
+security shared-objects port-list /Common/sopl1 { description "spl" }
+security shared-objects address-list /Common/soal1 { description "sal" }
+security dos ipv6-ext-hdr /Common/dosipv6 { description "ipv6" }
+sys ecm cloud-provider /Common/aws-ec2 { description "aws" }
+sys software update { description "sw" }
+sys dynad settings { description "dynad" }
+sys compatibility-level { description "cl" }
+sys diags ihealth { description "diags" }
+apm client-packaging /Common/cp1 { description "cp" }
+pem irule /Common/pi1 { description "pi" }
+asm policy /Common/ap1 { description "asm" }
+ilx global-settings { description "ilx" }
+wom endpoint-discovery { description "wom" }
+"""
+
+
+def test_audit_followup_dispatch_bugs_resolved():
+    """The 11 missing ``ltm monitor`` subtypes and 5 missing
+    ``ltm profile`` subtypes were registered in
+    ``_KIND_FIELD_MAPS`` but ``_TWO_WORD_TYPES`` never listed
+    them, so the parser fell back to single-word ``monitor`` /
+    ``profile`` and the match-block ``case _ if obj_type.startswith
+    ("monitor "):`` never fired.  This test verifies the dispatch
+    now produces populated containers.
+    """
+    cfg = parse_query  # noqa: F841 — placeholder to keep imports stable
+    from core.bigip.parser import parse_bigip_conf
+
+    cfg = parse_bigip_conf(_AUDIT_FOLLOWUP_CONF)
+    monitor_types = sorted(m.monitor_type for m in cfg.monitors.values())
+    assert "diameter" in monitor_types
+    assert "dns" in monitor_types
+    assert "mqtt" in monitor_types
+    assert "virtual-location" in monitor_types
+    profile_paths = sorted(cfg.profiles.keys())
+    assert "/Common/p_an" in profile_paths
+    assert "/Common/p_cl" in profile_paths
+
+
+def test_audit_followup_new_kinds_dispatch():
+    """The 21 truly-unhandled kinds the audit found in real
+    BIG-IP configs (html-rule.*, shared-objects.*, sys ecm
+    cloud-provider, sys software update, dynad, compatibility-
+    level, diags ihealth, apm client-packaging, pem irule, plus
+    new modules asm/ilx/wom) all dispatch to typed containers.
+    """
+    from core.bigip.parser import parse_bigip_conf
+
+    cfg = parse_bigip_conf(_AUDIT_FOLLOWUP_CONF)
+    # ltm html-rule subtypes route to dedicated containers.
+    assert cfg.ltm_html_rule_comment_raise_event
+    assert cfg.ltm_html_rule_tag_remove
+    # security follow-ups.
+    assert cfg.security_shared_objects_port_lists
+    assert cfg.security_shared_objects_address_lists
+    assert cfg.security_dos_ipv6_ext_hdr
+    # sys follow-ups.
+    assert cfg.sys_ecm_cloud_provider
+    assert cfg.sys_software_update
+    assert cfg.sys_dynad_settings.get("")  # singleton
+    assert cfg.sys_compatibility_level.get("")  # singleton
+    assert cfg.sys_diags_ihealth.get("")  # singleton
+    # apm + pem follow-ups.
+    assert cfg.apm_client_packaging
+    assert cfg.pem_irule_kinds
+    # New modules.
+    assert cfg.asm_policies
+    assert cfg.ilx_global_settings.get("")  # singleton
+    assert cfg.wom_endpoint_discovery.get("")  # singleton

@@ -31,6 +31,7 @@ from ..model import (
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
+    BigipAsmMinimalObject,
     BigipAuthApmAuth,
     BigipAuthCertLdap,
     BigipAuthLdap,
@@ -71,6 +72,7 @@ from ..model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
+    BigipIlxMinimalObject,
     BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
@@ -176,6 +178,7 @@ from ..model import (
     BigipVcmpMinimalObject,
     BigipVirtualAddress,
     BigipVirtualServer,
+    BigipWomMinimalObject,
 )
 from .errors import EvalError
 from .values import FieldSlot, ObjectRef, PathRef, Root
@@ -685,6 +688,26 @@ _CLI_MINIMAL_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
 }
 _API_PROTECTION_MINIMAL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
+    "description": FieldSpec("description"),
+}
+
+# Audit follow-up modules.
+_ASM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
+    "description": FieldSpec("description"),
+}
+_ILX_MINIMAL_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "kind": FieldSpec("kind"),
+    "description": FieldSpec("description"),
+}
+_WOM_MINIMAL_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "kind": FieldSpec("kind"),
@@ -2138,6 +2161,34 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm tacdb customdb": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm tacdb customdb-file": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm tacdb licenseddb": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    # Audit follow-up — ltm html-rule subtypes (7).
+    "ltm html-rule comment-raise-event": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm html-rule comment-remove": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm html-rule tag-append-html": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm html-rule tag-prepend-html": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm html-rule tag-raise-event": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm html-rule tag-remove": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm html-rule tag-remove-attribute": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    # Audit follow-up — security shared-objects + dos.
+    "security shared-objects port-list": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    "security shared-objects address-list": (
+        BigipSecurityMinimalObject,
+        _SECURITY_MINIMAL_FIELDS,
+    ),
+    "security dos ipv6-ext-hdr": (BigipSecurityMinimalObject, _SECURITY_MINIMAL_FIELDS),
+    # Audit follow-up — sys.* extras.
+    "sys ecm cloud-provider": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
+    "sys software update": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
+    "sys dynad settings": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
+    "sys compatibility-level": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
+    "sys diags ihealth": (BigipSysMinimalObject, _SYS_MINIMAL_FIELDS),
+    # Audit follow-up — apm/pem.
+    "apm client-packaging": (BigipApmMinimalObject, _APM_MINIMAL_FIELDS),
+    "pem irule": (BigipPemMinimalObject, _PEM_MINIMAL_FIELDS),
+    # Audit follow-up — new modules.
+    "asm policy": (BigipAsmMinimalObject, _ASM_MINIMAL_FIELDS),
+    "ilx global-settings": (BigipIlxMinimalObject, _ILX_MINIMAL_FIELDS),
+    "wom endpoint-discovery": (BigipWomMinimalObject, _WOM_MINIMAL_FIELDS),
     # Bundle 21-26 — net.* minimal kinds.
     "net routing access-list": (BigipNetMinimalObject, _NET_MINIMAL_FIELDS),
     "net routing bfd": (BigipNetMinimalObject, _NET_MINIMAL_FIELDS),
@@ -2939,6 +2990,35 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "tacdb-customdb": ("ltm_tacdb_customdb", "ltm tacdb customdb"),
         "tacdb-customdb-file": ("ltm_tacdb_customdb_file", "ltm tacdb customdb-file"),
         "tacdb-licenseddb": ("ltm_tacdb_licenseddb", "ltm tacdb licenseddb"),
+        # Audit follow-up — ltm html-rule subtypes.
+        "html-rule-comment-raise-event": (
+            "ltm_html_rule_comment_raise_event",
+            "ltm html-rule comment-raise-event",
+        ),
+        "html-rule-comment-remove": (
+            "ltm_html_rule_comment_remove",
+            "ltm html-rule comment-remove",
+        ),
+        "html-rule-tag-append-html": (
+            "ltm_html_rule_tag_append_html",
+            "ltm html-rule tag-append-html",
+        ),
+        "html-rule-tag-prepend-html": (
+            "ltm_html_rule_tag_prepend_html",
+            "ltm html-rule tag-prepend-html",
+        ),
+        "html-rule-tag-raise-event": (
+            "ltm_html_rule_tag_raise_event",
+            "ltm html-rule tag-raise-event",
+        ),
+        "html-rule-tag-remove": (
+            "ltm_html_rule_tag_remove",
+            "ltm html-rule tag-remove",
+        ),
+        "html-rule-tag-remove-attribute": (
+            "ltm_html_rule_tag_remove_attribute",
+            "ltm html-rule tag-remove-attribute",
+        ),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),
@@ -3238,6 +3318,12 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "sys turboflex profile-config",
         ),
         "fpga-firmware-config": ("sys_fpga_firmware_config", "sys fpga firmware-config"),
+        # Audit follow-up.
+        "ecm-cloud-provider": ("sys_ecm_cloud_provider", "sys ecm cloud-provider"),
+        "software-update": ("sys_software_update", "sys software update"),
+        "dynad-settings": ("sys_dynad_settings", "sys dynad settings"),
+        "compatibility-level": ("sys_compatibility_level", "sys compatibility-level"),
+        "diags-ihealth": ("sys_diags_ihealth", "sys diags ihealth"),
     },
     "cm": {
         "cert": ("cm_certs", "cm cert"),
@@ -3461,6 +3547,8 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "apm_policy_windows_group_policy_file",
             "apm policy windows-group-policy-file",
         ),
+        # Audit follow-up.
+        "client-packaging": ("apm_client_packaging", "apm client-packaging"),
     },
     "security": {
         "firewall-port-list": (
@@ -3684,6 +3772,19 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
             "security scrubber profile",
         ),
         "ssh-ciphers": ("security_ssh_ciphers", "security ssh ciphers"),
+        # Audit follow-up.
+        "shared-objects-port-list": (
+            "security_shared_objects_port_lists",
+            "security shared-objects port-list",
+        ),
+        "shared-objects-address-list": (
+            "security_shared_objects_address_lists",
+            "security shared-objects address-list",
+        ),
+        "dos-ipv6-ext-hdr": (
+            "security_dos_ipv6_ext_hdr",
+            "security dos ipv6-ext-hdr",
+        ),
         "ip-intelligence-policy": (
             "security_ip_intelligence_policies",
             "security ip-intelligence policy",
@@ -3703,7 +3804,7 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
     },
     "pem": {
         "policy": ("pem_policies", "pem policy"),
-        "irule": ("pem_rules", "pem rule"),
+        "rule": ("pem_rules", "pem rule"),
         "listener": ("pem_listeners", "pem listener"),
         "forwarding-endpoint": (
             "pem_forwarding_endpoints",
@@ -3744,6 +3845,8 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "reporting-format-script": ("pem_reporting_format_script", "pem reporting format-script"),
         "subscriber": ("pem_subscriber", "pem subscriber"),
         "subscriber-attribute": ("pem_subscriber_attribute", "pem subscriber-attribute"),
+        # Audit follow-up — distinct from ``pem rule``.
+        "irule": ("pem_irule_kinds", "pem irule"),
     },
     "auth": {
         "partition": ("auth_partitions", "auth partition"),
@@ -3784,6 +3887,16 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         "response": ("api_protection_response", "api-protection response"),
         "server": ("api_protection_server", "api-protection server"),
+    },
+    # Audit follow-up modules.
+    "asm": {
+        "policy": ("asm_policies", "asm policy"),
+    },
+    "ilx": {
+        "global-settings": ("ilx_global_settings", "ilx global-settings"),
+    },
+    "wom": {
+        "endpoint-discovery": ("wom_endpoint_discovery", "wom endpoint-discovery"),
     },
 }
 

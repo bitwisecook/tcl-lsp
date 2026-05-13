@@ -37,6 +37,7 @@ from .model import (
     BigipApmPolicyCustomizationSource,
     BigipApmPolicyItem,
     BigipApmReportDefaultReport,
+    BigipAsmMinimalObject,
     BigipAuthApmAuth,
     BigipAuthCertLdap,
     BigipAuthLdap,
@@ -79,6 +80,7 @@ from .model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
+    BigipIlxMinimalObject,
     BigipLtmAuthObject,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
@@ -184,6 +186,7 @@ from .model import (
     BigipVcmpMinimalObject,
     BigipVirtualAddress,
     BigipVirtualServer,
+    BigipWomMinimalObject,
     DataGroupType,
     ProfileType,
 )
@@ -572,6 +575,24 @@ _TWO_WORD_TYPES = frozenset(
         "monitor gateway-icmp",
         "monitor inband",
         "monitor external",
+        # ltm monitor.* additional subtypes (audited from real configs).
+        "monitor diameter",
+        "monitor dns",
+        "monitor module-score",
+        "monitor mqtt",
+        "monitor rpc",
+        "monitor sasp",
+        "monitor smb",
+        "monitor snmp-dca",
+        "monitor snmp-dca-base",
+        "monitor tcp-echo",
+        "monitor virtual-location",
+        # ltm profile.* additional subtypes (audited from real configs).
+        "profile analytics",
+        "profile classification",
+        "profile ipother",
+        "profile request-log",
+        "profile tcp-analytics",
         # gtm monitor protocol variants (bundle 11) — 25 new types
         # beyond the ltm-shared http/https/tcp/udp/gateway-icmp/external.
         "monitor bigip",
@@ -843,6 +864,22 @@ _TWO_WORD_TYPES = frozenset(
         "alias shared",
         # Bundle 45 — api-protection profile.
         "profile apiprotection",
+        # Audit follow-ups — kinds found in real BIG-IP configs that
+        # the projection doc didn't enumerate.
+        "html-rule comment-raise-event",
+        "html-rule comment-remove",
+        "html-rule tag-append-html",
+        "html-rule tag-prepend-html",
+        "html-rule tag-raise-event",
+        "html-rule tag-remove",
+        "html-rule tag-remove-attribute",
+        "shared-objects port-list",
+        "shared-objects address-list",
+        "ecm cloud-provider",
+        "software update",
+        "dynad settings",
+        "dos ipv6-ext-hdr",
+        "diags ihealth",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -1928,6 +1965,14 @@ _LTM_MINIMAL_DISPATCH: dict[str, str] = {
     "tacdb customdb": "ltm_tacdb_customdb",
     "tacdb customdb-file": "ltm_tacdb_customdb_file",
     "tacdb licenseddb": "ltm_tacdb_licenseddb",
+    # Audit follow-up — ltm html-rule subtypes.
+    "html-rule comment-raise-event": "ltm_html_rule_comment_raise_event",
+    "html-rule comment-remove": "ltm_html_rule_comment_remove",
+    "html-rule tag-append-html": "ltm_html_rule_tag_append_html",
+    "html-rule tag-prepend-html": "ltm_html_rule_tag_prepend_html",
+    "html-rule tag-raise-event": "ltm_html_rule_tag_raise_event",
+    "html-rule tag-remove": "ltm_html_rule_tag_remove",
+    "html-rule tag-remove-attribute": "ltm_html_rule_tag_remove_attribute",
 }
 
 
@@ -2130,6 +2175,8 @@ _APM_MINIMAL_DISPATCH: dict[str, str] = {
     "policy customization-languages": "apm_policy_customization_languages",
     "policy image-file": "apm_policy_image_file",
     "policy windows-group-policy-file": "apm_policy_windows_group_policy_file",
+    # Audit follow-up — apm.* found in real BIG-IP configs.
+    "client-packaging": "apm_client_packaging",
 }
 
 
@@ -2169,6 +2216,8 @@ _PEM_MINIMAL_DISPATCH: dict[str, str] = {
     "reporting format-script": "pem_reporting_format_script",
     "subscriber": "pem_subscriber",
     "subscriber-attribute": "pem_subscriber_attribute",
+    # Audit follow-up — distinct from ``pem rule`` (also exists).
+    "irule": "pem_irule_kinds",
 }
 
 
@@ -2295,6 +2344,12 @@ _SYS_MINIMAL_DISPATCH: dict[str, str] = {
     "tmm-traffic": "sys_tmm_traffic",
     "turboflex profile-config": "sys_turboflex_profile_config",
     "fpga firmware-config": "sys_fpga_firmware_config",
+    # Audit follow-ups — kinds found in real BIG-IP configs.
+    "ecm cloud-provider": "sys_ecm_cloud_provider",
+    "software update": "sys_software_update",
+    "dynad settings": "sys_dynad_settings",
+    "compatibility-level": "sys_compatibility_level",
+    "diags ihealth": "sys_diags_ihealth",
 }
 
 
@@ -2407,6 +2462,74 @@ _API_PROTECTION_MINIMAL_DISPATCH: dict[str, str] = {
 }
 
 
+# Audit follow-up modules — asm.*, ilx.*, wom.*.
+_ASM_MINIMAL_DISPATCH: dict[str, str] = {
+    "policy": "asm_policies",
+}
+
+_ILX_MINIMAL_DISPATCH: dict[str, str] = {
+    "global-settings": "ilx_global_settings",
+}
+
+_WOM_MINIMAL_DISPATCH: dict[str, str] = {
+    "endpoint-discovery": "wom_endpoint_discovery",
+}
+
+
+def _parse_asm_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipAsmMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipAsmMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ilx_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipIlxMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipIlxMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_wom_minimal(
+    full_path: str,
+    body: str,
+    kind_label: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipWomMinimalObject:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipWomMinimalObject(
+        name=name,
+        full_path=full_path,
+        kind=kind_label,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 # Module -> (dispatch table, parser function).  Used by the generic
 # minimal-dispatch pre-pass in ``parse_bigip_conf`` so every
 # bundles 17-45 minimal kind routes through the same code path.
@@ -2442,6 +2565,10 @@ _MINIMAL_DISPATCH_BY_MODULE.update(
         "cm": (_CM_MINIMAL_DISPATCH, _parse_cm_minimal),
         "cli": (_CLI_MINIMAL_DISPATCH, _parse_cli_minimal),
         "api-protection": (_API_PROTECTION_MINIMAL_DISPATCH, _parse_api_protection_minimal),
+        # Audit follow-up modules.
+        "asm": (_ASM_MINIMAL_DISPATCH, _parse_asm_minimal),
+        "ilx": (_ILX_MINIMAL_DISPATCH, _parse_ilx_minimal),
+        "wom": (_WOM_MINIMAL_DISPATCH, _parse_wom_minimal),
     }
 )
 
@@ -4029,6 +4156,10 @@ _SECURITY_MINIMAL_DISPATCH: dict[str, str] = {
     "protocol-inspection signature": "security_protocol_inspection_signatures",
     "scrubber profile": "security_scrubber_profiles",
     "ssh ciphers": "security_ssh_ciphers",
+    # Audit follow-ups.
+    "shared-objects port-list": "security_shared_objects_port_lists",
+    "shared-objects address-list": "security_shared_objects_address_lists",
+    "dos ipv6-ext-hdr": "security_dos_ipv6_ext_hdr",
 }
 
 
