@@ -36,7 +36,7 @@ exactly the same content for one builtin.
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`referenced_by`](#referenced_by), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
-  - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`type`](#type)
+  - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`str`](#str), [`type`](#type)
 
 ## stream
 
@@ -1348,6 +1348,47 @@ Related: ``kind``, ``partition``, ``basename``.
 ```
 path(.ltm.virtual.web_vs)                # -> '/Common/web_vs'
 [.ltm.virtual[] | path(.)]               # collect every VS full-path
+```
+
+### `str`
+
+Convert any scalar to its string form.
+
+**Signatures**
+
+- `str(value: any) -> string`
+
+**Details**
+
+Coerces a scalar value to its string representation.  Useful for
+building report-style output where a number or boolean needs to
+appear next to text:
+``.ltm.pool[] | .name + ": " + str(count(.members)) + " members"``.
+
+The ``+`` operator also auto-coerces scalars when one side is
+already a string, so ``str()`` is typically only needed when
+both sides are non-strings (e.g. building a key out of two
+numbers).
+
+Rendering:
+
+- **string** / :class:`PathRef`: returned as-is (PathRef → full-path).
+- **integers** and **floats**: their decimal form.
+- **booleans**: ``"true"`` / ``"false"``.
+- **null**: ``"null"``.
+
+Raises ``BuiltinError`` for objects, lists, and streams — those
+have no single-line canonical form and the user should pick
+explicit fields instead.
+
+Related: ``+`` (string concat coerces scalars), ``length``,
+``basename``.
+
+**Examples**
+
+```
+.ltm.pool[] | .name + ": " + str(count(.members))
+str(42)
 ```
 
 ### `type`

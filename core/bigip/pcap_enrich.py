@@ -50,7 +50,7 @@ from typing import BinaryIO, cast
 
 from . import pcapng as _pcapng
 from .model import BigipConfig
-from .parser._impl import _extract_blocks, _parse_list_block, _parse_properties
+from .parser._helpers import _extract_blocks, _parse_list_block, _parse_properties
 from .pcap_remap import _find_ip_offset
 from .port_names import resolve_port
 
