@@ -6170,3 +6170,173 @@ def test_review_jq2_map_filters_with_select_drops_zero_outputs():
         source=src,
     ).values_per_file["mem://1"]
     assert out == [["a"]]
+
+
+# ---------------------------------------------------------------------------
+# IP/port manipulation builtins backed by the typed value layer
+# (``is_ipv4`` / ``is_ipv6`` / ``is_fqdn`` / ``is_private`` /
+# ``is_loopback`` / ``is_unspecified`` / ``is_wildcard_port`` /
+# ``prefix_length`` / ``subnet_of`` / ``overlaps`` / ``with_port`` /
+# ``with_host`` / ``folder`` / ``with_folder``).
+# ---------------------------------------------------------------------------
+
+
+def test_typed_ip_builtins_classify_address_family():
+    src = (
+        "ltm virtual /Common/vs4 { destination /Common/10.0.0.1:80 }\n"
+        "ltm virtual /Common/vs6 { destination /Common/[2001:db8::1].443 }\n"
+        "ltm pool /Common/p1 {\n"
+        "    members {\n"
+        "        /Common/host.example.com:443 { address host.example.com }\n"
+        "    }\n"
+        "}\n"
+    )
+    # IPv4 / IPv6 partitioning.
+    ipv4 = _run(
+        "[.ltm.virtual[] | select(is_ipv4(.destination)) | .name]",
+        source=src,
+    ).values_per_file["mem://1"][0]
+    ipv6 = _run(
+        "[.ltm.virtual[] | select(is_ipv6(.destination)) | .name]",
+        source=src,
+    ).values_per_file["mem://1"][0]
+    assert ipv4 == ["vs4"]
+    assert ipv6 == ["vs6"]
+    # FQDN pool members.
+    [is_fqdn] = _run(
+        'is_fqdn(.ltm.pool["/Common/p1"].members[].address)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert is_fqdn is True
+
+
+def test_typed_ip_classification_predicates():
+    src = (
+        "ltm virtual /Common/private_vs { destination /Common/10.0.0.1:80 }\n"
+        "ltm virtual /Common/public_vs { destination /Common/8.8.8.8:80 }\n"
+        "ltm virtual /Common/wildcard_vs { destination /Common/0.0.0.0:80 }\n"
+        "ltm virtual /Common/loopback_vs { destination /Common/127.0.0.1:80 }\n"
+    )
+    [private] = _run(
+        'is_private(.ltm.virtual["/Common/private_vs"].destination)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert private is True
+    [public] = _run(
+        'is_private(.ltm.virtual["/Common/public_vs"].destination)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert public is False
+    [wildcard] = _run(
+        'is_unspecified(.ltm.virtual["/Common/wildcard_vs"].destination)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert wildcard is True
+    [loopback] = _run(
+        'is_loopback(.ltm.virtual["/Common/loopback_vs"].destination)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert loopback is True
+
+
+def test_typed_is_wildcard_port():
+    src = (
+        "ltm virtual /Common/any_port { destination /Common/0.0.0.0:any }\n"
+        "ltm virtual /Common/http { destination /Common/10.0.0.1:80 }\n"
+    )
+    [any_port] = _run(
+        'is_wildcard_port(.ltm.virtual["/Common/any_port"].destination)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert any_port is True
+    [http_port] = _run(
+        'is_wildcard_port(.ltm.virtual["/Common/http"].destination)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert http_port is False
+
+
+def test_typed_prefix_length():
+    src = (
+        "net self /Common/self_24 { address 10.0.0.1/24 vlan /Common/v }\n"
+        "net self /Common/self_16 { address 10.0.0.1/16 vlan /Common/v }\n"
+    )
+    [twenty_four] = _run(
+        'prefix_length(.net.self["/Common/self_24"].address)',
+        source=src,
+    ).values_per_file["mem://1"]
+    [sixteen] = _run(
+        'prefix_length(.net.self["/Common/self_16"].address)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert twenty_four == 24
+    assert sixteen == 16
+
+
+def test_typed_subnet_of_and_overlaps():
+    src = "net self /Common/s1 { address 10.0.0.1/24 vlan /Common/v }\n"
+    [sub] = _run(
+        'subnet_of("10.1.0.0/16", "10.0.0.0/8")',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert sub is True
+    [not_sub] = _run(
+        'subnet_of("10.0.0.0/8", "10.0.0.0/16")',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert not_sub is False
+    # Different families never overlap.
+    [no_family_overlap] = _run(
+        'overlaps("10.0.0.0/24", "2001:db8::/32")',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert no_family_overlap is False
+
+
+def test_typed_with_port_round_trips_through_destination_shapes():
+    src = (
+        "ltm virtual /Common/vs4 { destination /Common/10.0.0.1:80 }\n"
+        "ltm virtual /Common/vs6 { destination /Common/[2001:db8::1].80 }\n"
+    )
+    [vs4] = _run(
+        'with_port(.ltm.virtual["/Common/vs4"].destination, 443)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert vs4 == "/Common/10.0.0.1:443"
+    # IPv6 keeps its bracket form and ``.``-port separator.
+    [vs6] = _run(
+        'with_port(.ltm.virtual["/Common/vs6"].destination, 443)',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert vs6 == "/Common/[2001:db8::1].443"
+
+
+def test_typed_with_host_switches_address_family():
+    src = "ltm virtual /Common/vs1 { destination /Common/10.0.0.1:443 }\n"
+    [swap] = _run(
+        'with_host(.ltm.virtual["/Common/vs1"].destination, "2001:db8::1")',
+        source=src,
+    ).values_per_file["mem://1"]
+    # Family switched to IPv6 — the canonical bare-IPv6 form drops
+    # brackets and uses ``:`` port separator (IPv4 default).
+    assert "2001:db8::1" in swap
+
+
+def test_typed_folder_and_with_folder():
+    src = "ltm pool /Common/web_pool { }\nltm pool /Common/iApps/Tenant.app/api_pool { }\n"
+    [root_folder] = _run(
+        'folder(.ltm.pool["/Common/web_pool"]."full-path")',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert root_folder == "/Common"
+    [nested_folder] = _run(
+        'folder(.ltm.pool["/Common/iApps/Tenant.app/api_pool"]."full-path")',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert nested_folder == "/Common/iApps/Tenant.app"
+    # ``with_folder`` swaps the prefix; the leaf is preserved.
+    [moved] = _run(
+        'with_folder("/Common/web_pool", "/Tenant_A")',
+        source=src,
+    ).values_per_file["mem://1"]
+    assert moved == "/Tenant_A/web_pool"

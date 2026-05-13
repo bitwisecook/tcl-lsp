@@ -32,7 +32,7 @@ exactly the same content for one builtin.
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
   - [`rename`](#rename), [`rename_partition`](#rename_partition)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`host`](#host), [`in_cidr`](#in_cidr), [`ip`](#ip), [`net`](#net), [`port`](#port), [`route_domain`](#route_domain), [`with_route_domain`](#with_route_domain)
+  - [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`referenced_by`](#referenced_by), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
@@ -928,6 +928,35 @@ rename_partition("staging", "prod")
 
 IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
 
+### `folder`
+
+Return the folder portion of a TMSH path (``/Common/Application_X``).
+
+**Signatures**
+
+- `folder(value: string) -> string`
+
+**Details**
+
+Extracts the folder path from a full BIG-IP object path.  Bare
+partition (``/Common/pool``) → ``"/Common"`` (just the
+partition root); nested-folder (``/Common/iApps/Tenant.app/p``)
+→ ``"/Common/iApps/Tenant.app"``.  Returns ``""`` for non-path
+input.
+
+Sibling to :func:`partition` (which returns just the partition
+name without the slash).
+
+Related: ``partition``, ``basename``, ``with_partition``,
+``with_folder``.
+
+**Examples**
+
+```
+folder(."full-path")
+.ltm.virtual[] | select(folder(."full-path") == "/Common/iApps/Tenant.app") | .name
+```
+
 ### `host`
 
 Return just the address half of a BIG-IP destination, stripping any partition prefix, route domain, and ``:port`` suffix.
@@ -1045,6 +1074,182 @@ ip("192.168.9.0/24", .destination)      # rebase, keep host bits
 ip("192.168.9.0/24", "10.10.0.5%5:443") # -> "192.168.9.5%5:443"
 ```
 
+### `is_fqdn`
+
+True when *value*'s host portion is an FQDN (not an IP).
+
+**Signatures**
+
+- `is_fqdn(value: string) -> boolean`
+
+**Details**
+
+Distinguishes FQDN pool members (``/Common/host.example.com:443``)
+from IP-based ones.  Returns ``false`` for IPv4 / IPv6 / empty
+/ unparseable input.
+
+Useful for branching when a pool has a mix of IP and FQDN
+members — typically the FQDN form needs DNS-resolution checks
+while IP-form members get straight reachability checks.
+
+Related: ``is_ipv4``, ``is_ipv6``.
+
+**Examples**
+
+```
+is_fqdn(.address)
+.ltm.pool[] | .members[] | select(is_fqdn(.address)) | .name
+```
+
+### `is_ipv4`
+
+True when *value* parses as an IPv4 address.
+
+**Signatures**
+
+- `is_ipv4(value: string) -> boolean`
+
+**Details**
+
+Accepts a bare IPv4 (``10.0.0.1``) or a destination string
+(``/Common/10.0.0.1:80`` — the host portion is extracted).
+Returns ``false`` for IPv6, FQDN, or unparseable input.
+
+Pairs with :func:`is_ipv6` to branch on address family without
+pattern-matching the string.
+
+Related: ``is_ipv6``, ``is_fqdn``, ``is_private``,
+``is_loopback``, ``is_unspecified``.
+
+**Examples**
+
+```
+is_ipv4(.destination)
+.ltm.virtual[] | select(is_ipv4(.destination)) | .name
+```
+
+### `is_ipv6`
+
+True when *value* parses as an IPv6 address.
+
+**Signatures**
+
+- `is_ipv6(value: string) -> boolean`
+
+**Details**
+
+Accepts every documented F5 spelling — bare (``2001:db8::1``),
+bracketed (``[2001:db8::1]``), with ``.``-port
+(``[2001:db8::1].80`` / ``2001:db8::1.80``), with ``:``-port
+(``[2001:db8::1]:80``), partition-prefixed, folder-nested.
+Returns ``false`` for IPv4 / FQDN / unparseable input.
+
+Related: ``is_ipv4``, ``is_fqdn``.
+
+**Examples**
+
+```
+is_ipv6(.destination)
+.ltm.virtual[] | select(is_ipv6(.destination)) | .name
+```
+
+### `is_loopback`
+
+True when *value* is a loopback address (``127.0.0.0/8`` / ``::1``).
+
+**Signatures**
+
+- `is_loopback(value: string) -> boolean`
+
+**Details**
+
+Returns ``false`` for non-loopback IPs, FQDNs, and unparseable
+input.
+
+Related: ``is_private``, ``is_unspecified``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_loopback(.destination)) | .name
+```
+
+### `is_private`
+
+True when *value* is an RFC-1918 / RFC-4193 private IP.
+
+**Signatures**
+
+- `is_private(value: string) -> boolean`
+
+**Details**
+
+Classifies through Python's ``ipaddress`` stdlib —
+``10.0.0.0/8``, ``172.16.0.0/12``, ``192.168.0.0/16`` for IPv4;
+``fc00::/7`` for IPv6 ULAs; plus a handful of other "non-global"
+ranges per the IANA registries.
+
+Returns ``false`` for FQDN, public IPs, and unparseable input.
+
+Related: ``is_loopback``, ``is_unspecified``, ``in_cidr``.
+
+**Examples**
+
+```
+is_private(.destination)
+.ltm.virtual[] | select(is_private(.destination)) | .name
+```
+
+### `is_unspecified`
+
+True when *value* is the unspecified-host wildcard (``0.0.0.0`` / ``::``).
+
+**Signatures**
+
+- `is_unspecified(value: string) -> boolean`
+
+**Details**
+
+F5 uses ``0.0.0.0`` / ``::`` as the listen-on-any host wildcard
+on virtual servers.  This predicate filters those out cleanly:
+
+``.ltm.virtual[] | select(is_unspecified(.destination)) | .name``
+
+Returns ``false`` for any non-wildcard IP, FQDN, or
+unparseable input.
+
+Related: ``is_wildcard_port`` (the partner for the port half),
+``is_loopback``, ``is_private``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_unspecified(.destination)) | .name
+```
+
+### `is_wildcard_port`
+
+True when *value*'s port portion is the wildcard (``any`` / ``*`` / ``0``).
+
+**Signatures**
+
+- `is_wildcard_port(value: string) -> boolean`
+
+**Details**
+
+F5 virtual-server destinations carrying port wildcards
+(``/Common/0.0.0.0:any`` / ``/Common/10.0.0.1:0``) match every
+incoming port; surface them with this predicate rather than
+matching a string suffix.
+
+Related: ``port``, ``is_unspecified`` (the host half).
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_wildcard_port(.destination)) | .name
+```
+
 ### `net`
 
 Return the network portion of an IP/CIDR string as ``addr/prefix``.
@@ -1074,6 +1279,31 @@ Related: ``ip``, ``in_cidr``, ``host``.
 net("192.168.9.0/24")           # -> "192.168.9.0/24"
 net("192.168.9.42/24")          # -> "192.168.9.0/24"
 net("2001:db8::42/64")          # -> "2001:db8::/64"
+```
+
+### `overlaps`
+
+True when two networks overlap (share at least one address).
+
+**Signatures**
+
+- `overlaps(net1: string, net2: string) -> boolean`
+
+**Details**
+
+Useful for finding self-IP / route-domain conflicts:
+``.net.self[] | combinations(2) | select(overlaps(.[0].address,
+.[1].address))``.
+
+IPv4 ↔ IPv6 comparison returns ``false``.
+
+Related: ``subnet_of``, ``in_cidr``.
+
+**Examples**
+
+```
+overlaps("10.0.0.0/24", "10.0.0.0/16")              # -> true
+overlaps("10.0.0.0/24", "10.1.0.0/24")              # -> false
 ```
 
 ### `port`
@@ -1107,6 +1337,32 @@ port("/Common/10.0.0.1%5:443")           # -> 443
 port("/Common/10.0.0.1")                 # -> null
 ```
 
+### `prefix_length`
+
+Return the CIDR prefix length of a network string.
+
+**Signatures**
+
+- `prefix_length(value: string) -> integer | null`
+
+**Details**
+
+Accepts both integer CIDR (``10.0.0.0/24``) and dotted-quad
+netmask (``10.0.0.0/255.255.255.0``) — both render the same
+prefix length.  Returns ``null`` for inputs that aren't
+networks.
+
+Pairs with :func:`subnet_of` for CIDR algebra.
+
+Related: ``in_cidr``, ``subnet_of``.
+
+**Examples**
+
+```
+prefix_length(.net.self[].address)
+.net.self[] | select(prefix_length(.address) >= 24) | .name
+```
+
 ### `route_domain`
 
 Return the route-domain number of a destination / address string (``10.0.0.1%5:80`` -> ``5``), or null when none is present.
@@ -1135,6 +1391,111 @@ Related: ``with_route_domain`` (set / replace / strip),
 route_domain(.destination)
 route_domain("10.0.0.1%5:80")            # -> "5"
 route_domain("/Common/10.0.0.1:80")      # -> null
+```
+
+### `subnet_of`
+
+True when *subnet* lies entirely inside *supernet*.
+
+**Signatures**
+
+- `subnet_of(subnet: string, supernet: string) -> boolean`
+
+**Details**
+
+Wraps ``ipaddress.IPv4Network.subnet_of`` /
+``IPv6Network.subnet_of``.  Both arguments must be networks
+(CIDR or dotted-quad netmask form).  IPv4 ↔ IPv6 comparison
+returns ``false`` rather than raising — different families are
+never subsets.
+
+Related: ``in_cidr`` (single-host membership), ``prefix_length``.
+
+**Examples**
+
+```
+subnet_of("10.1.0.0/16", "10.0.0.0/8")               # -> true
+subnet_of(.net.self[].address, "10.0.0.0/8")
+```
+
+### `with_folder`
+
+Return *path* with its folder portion replaced by *folder*.
+
+**Signatures**
+
+- `with_folder(path: string, folder: string) -> string`
+
+**Details**
+
+Replaces every segment from the leading slash up to (but not
+including) the leaf name.  ``folder`` may be a single
+partition (``/Common``) or a nested folder
+(``/Common/Application_X``); the leaf is kept exactly.
+
+Related: ``folder``, ``with_partition``, ``basename``.
+
+**Examples**
+
+```
+with_folder("/Common/web_pool", "/Tenant_A")              # -> "/Tenant_A/web_pool"
+with_folder("/Common/iApps/old.app/pool_1", "/Common/iApps/new.app")  # -> "/Common/iApps/new.app/pool_1"
+```
+
+### `with_host`
+
+Return *dest* with its host replaced by *host*.
+
+**Signatures**
+
+- `with_host(dest: string, host: string) -> string`
+
+**Details**
+
+Preserves the partition, folder, route-domain, port, and IPv6
+bracket form; replaces only the address.  ``host`` may be an
+IPv4, IPv6, or FQDN string.
+
+Inverse of :func:`host`; pairs with :func:`with_port` for full
+destination editing.
+
+Related: ``host``, ``with_port``, ``with_partition``.
+
+**Examples**
+
+```
+with_host(.destination, "10.0.0.2")
+with_host("/Common/10.0.0.1:80", "host.example.com")   # -> "/Common/host.example.com:80"
+```
+
+### `with_port`
+
+Return *dest* with its port replaced by *port*.
+
+**Signatures**
+
+- `with_port(dest: string, port: integer | string) -> string`
+
+**Details**
+
+Preserves every other component of the destination — partition,
+folder, address, route-domain, IPv6 brackets, and the
+``.``-vs-``:`` port separator.  ``port`` can be an integer
+(``443``), the wildcard string (``"any"`` / ``"*"`` / ``"0"``),
+or the empty string to strip the port entirely.
+
+Inverse of :func:`port`; pairs with ``with_partition`` /
+``with_route_domain`` for full destination editing.
+
+Related: ``port``, ``with_host``, ``with_partition``,
+``with_route_domain``.
+
+**Examples**
+
+```
+with_port(.destination, 8443)
+with_port("/Common/10.0.0.1:80", "any")              # -> "/Common/10.0.0.1:any"
+.ltm.virtual[] | .destination |= with_port(., 443)
 ```
 
 ### `with_route_domain`

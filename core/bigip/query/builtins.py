@@ -340,10 +340,46 @@ _DEST_RE = re.compile(
 def _split_destination(value: str) -> tuple[str, str, str, str]:
     """Return ``(partition_prefix, address, route_domain, port)``.
 
-    ``partition_prefix`` includes the surrounding slashes (``"/Common/"``)
-    or is empty.  Each of the other parts is the bare value (no ``%``,
-    no ``:``) or empty when absent.
+    Delegates to :class:`core.bigip.types.Destination` so every
+    documented F5 spelling — bracketed IPv6, unbracketed IPv6 with
+    ``.``-port, folder-nested paths, FQDN pool members, wildcard
+    ports — works the same way the model dataclasses' typed fields
+    do.  Falls back to the legacy regex match for non-destination
+    strings (bare addresses that don't fit any destination shape)
+    so the existing query surface stays stable for edge cases.
+
+    ``partition_prefix`` includes the surrounding slashes
+    (``"/Common/"``) or is empty.  Each of the other parts is the
+    bare value (no ``%``, no ``:``) or empty when absent.  When the
+    address is an IPv6 host, it's returned without brackets even
+    when the source spelt it as ``[::1]:80`` — callers that need
+    the bracket form can wrap it themselves.
     """
+    from ..types import Destination
+
+    dest = Destination.try_parse(value)
+    if dest is not None:
+        partition_prefix = ""
+        if dest.folder is not None:
+            # Render the folder portion + trailing slash so the
+            # ``partition_prefix`` includes every path segment up to
+            # the host.  ``Folder.__str__`` already handles the
+            # nested-folder case (``/Common/Application_X``).
+            partition_prefix = str(dest.folder) + "/"
+        addr_text = str(dest.address)
+        rd_text = (
+            ""
+            if dest.route_domain is None or dest.route_domain.is_default
+            else str(dest.route_domain.id)
+        )
+        port_text = ""
+        if not (dest.port.is_any and not dest.port.spelling):
+            port_text = str(dest.port.port) if not dest.port.is_any else dest.port.spelling
+        return partition_prefix, addr_text, rd_text, port_text
+
+    # Legacy regex fallback for inputs that don't parse as a full
+    # destination (e.g. just an IPv4 address with no port, or
+    # text-shaped tokens an iRule body might carry).
     m = _DEST_RE.match(value)
     if not m:
         return "", value, "", ""
@@ -807,6 +843,526 @@ def _builtin_with_route_domain(value: Any, rd: Any) -> str:
             f"with_route_domain: rd must be a string, integer, or null, got {_type_name(rd)}"
         )
     return _rebuild_destination(partition, addr, new_rd, port)
+
+
+# ---------------------------------------------------------------------------
+# IP / address classification (typed-layer helpers)
+# ---------------------------------------------------------------------------
+#
+# Every builtin below routes its input through ``core.bigip.types``
+# so IPv6 / FQDN / folder-nested destinations work without the
+# caller having to think about parsing.
+
+
+def _typed_address(value: Any, *, name: str, arg: int = 1):
+    """Coerce *value* to a typed :class:`Address` (``IPAddress`` |
+    ``FQDN``).
+
+    Strings flow through ``Destination.try_parse`` first (so
+    ``/Common/10.0.0.1:80`` extracts the host) and fall back to
+    ``parse_address`` for bare hosts.  Returns ``None`` for inputs
+    that can't be coerced.
+    """
+    from ..types import Destination, parse_address
+
+    if value is None:
+        return None
+    s = _as_str(value, name=name, arg=arg)
+    if not s:
+        return None
+    dest = Destination.try_parse(s)
+    if dest is not None:
+        return dest.address
+    try:
+        return parse_address(s)
+    except ValueError:
+        return None
+
+
+def _typed_network(value: Any, *, name: str, arg: int = 1):
+    """Coerce *value* to a typed :class:`Network`.
+
+    Accepts integer CIDR (``10.0.0.0/24``) and dotted-quad netmask
+    (``10.0.0.0/255.255.255.0``) — same shapes the parser does.
+    """
+    from ..types import Network
+
+    if value is None:
+        return None
+    s = _as_str(value, name=name, arg=arg)
+    if not s:
+        return None
+    return Network.try_parse(s)
+
+
+@_register(
+    "is_ipv4",
+    summary="True when *value* parses as an IPv4 address.",
+    signatures=("is_ipv4(value: string) -> boolean",),
+    details="""
+    Accepts a bare IPv4 (``10.0.0.1``) or a destination string
+    (``/Common/10.0.0.1:80`` — the host portion is extracted).
+    Returns ``false`` for IPv6, FQDN, or unparseable input.
+
+    Pairs with :func:`is_ipv6` to branch on address family without
+    pattern-matching the string.
+
+    Related: ``is_ipv6``, ``is_fqdn``, ``is_private``,
+    ``is_loopback``, ``is_unspecified``.
+    """,
+    examples=(
+        "is_ipv4(.destination)",
+        ".ltm.virtual[] | select(is_ipv4(.destination)) | .name",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_ipv4(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_ipv4")
+    return isinstance(a, IPAddress) and a.is_ipv4
+
+
+@_register(
+    "is_ipv6",
+    summary="True when *value* parses as an IPv6 address.",
+    signatures=("is_ipv6(value: string) -> boolean",),
+    details="""
+    Accepts every documented F5 spelling — bare (``2001:db8::1``),
+    bracketed (``[2001:db8::1]``), with ``.``-port
+    (``[2001:db8::1].80`` / ``2001:db8::1.80``), with ``:``-port
+    (``[2001:db8::1]:80``), partition-prefixed, folder-nested.
+    Returns ``false`` for IPv4 / FQDN / unparseable input.
+
+    Related: ``is_ipv4``, ``is_fqdn``.
+    """,
+    examples=(
+        "is_ipv6(.destination)",
+        ".ltm.virtual[] | select(is_ipv6(.destination)) | .name",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_ipv6(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_ipv6")
+    return isinstance(a, IPAddress) and a.is_ipv6
+
+
+@_register(
+    "is_fqdn",
+    summary="True when *value*'s host portion is an FQDN (not an IP).",
+    signatures=("is_fqdn(value: string) -> boolean",),
+    details="""
+    Distinguishes FQDN pool members (``/Common/host.example.com:443``)
+    from IP-based ones.  Returns ``false`` for IPv4 / IPv6 / empty
+    / unparseable input.
+
+    Useful for branching when a pool has a mix of IP and FQDN
+    members — typically the FQDN form needs DNS-resolution checks
+    while IP-form members get straight reachability checks.
+
+    Related: ``is_ipv4``, ``is_ipv6``.
+    """,
+    examples=(
+        "is_fqdn(.address)",
+        ".ltm.pool[] | .members[] | select(is_fqdn(.address)) | .name",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_fqdn(value: Any) -> bool:
+    from ..types import FQDN
+
+    return isinstance(_typed_address(value, name="is_fqdn"), FQDN)
+
+
+@_register(
+    "is_private",
+    summary="True when *value* is an RFC-1918 / RFC-4193 private IP.",
+    signatures=("is_private(value: string) -> boolean",),
+    details="""
+    Classifies through Python's ``ipaddress`` stdlib —
+    ``10.0.0.0/8``, ``172.16.0.0/12``, ``192.168.0.0/16`` for IPv4;
+    ``fc00::/7`` for IPv6 ULAs; plus a handful of other "non-global"
+    ranges per the IANA registries.
+
+    Returns ``false`` for FQDN, public IPs, and unparseable input.
+
+    Related: ``is_loopback``, ``is_unspecified``, ``in_cidr``.
+    """,
+    examples=(
+        "is_private(.destination)",
+        ".ltm.virtual[] | select(is_private(.destination)) | .name",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_private(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_private")
+    return isinstance(a, IPAddress) and a.is_private
+
+
+@_register(
+    "is_loopback",
+    summary="True when *value* is a loopback address (``127.0.0.0/8`` / ``::1``).",
+    signatures=("is_loopback(value: string) -> boolean",),
+    details="""
+    Returns ``false`` for non-loopback IPs, FQDNs, and unparseable
+    input.
+
+    Related: ``is_private``, ``is_unspecified``.
+    """,
+    examples=(".ltm.virtual[] | select(is_loopback(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_loopback(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_loopback")
+    return isinstance(a, IPAddress) and a.is_loopback
+
+
+@_register(
+    "is_unspecified",
+    summary="True when *value* is the unspecified-host wildcard (``0.0.0.0`` / ``::``).",
+    signatures=("is_unspecified(value: string) -> boolean",),
+    details="""
+    F5 uses ``0.0.0.0`` / ``::`` as the listen-on-any host wildcard
+    on virtual servers.  This predicate filters those out cleanly:
+
+    ``.ltm.virtual[] | select(is_unspecified(.destination)) | .name``
+
+    Returns ``false`` for any non-wildcard IP, FQDN, or
+    unparseable input.
+
+    Related: ``is_wildcard_port`` (the partner for the port half),
+    ``is_loopback``, ``is_private``.
+    """,
+    examples=(".ltm.virtual[] | select(is_unspecified(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_unspecified(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_unspecified")
+    return isinstance(a, IPAddress) and a.is_unspecified
+
+
+@_register(
+    "is_wildcard_port",
+    summary="True when *value*'s port portion is the wildcard (``any`` / ``*`` / ``0``).",
+    signatures=("is_wildcard_port(value: string) -> boolean",),
+    details="""
+    F5 virtual-server destinations carrying port wildcards
+    (``/Common/0.0.0.0:any`` / ``/Common/10.0.0.1:0``) match every
+    incoming port; surface them with this predicate rather than
+    matching a string suffix.
+
+    Related: ``port``, ``is_unspecified`` (the host half).
+    """,
+    examples=(".ltm.virtual[] | select(is_wildcard_port(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_wildcard_port(value: Any) -> bool:
+    from ..types import Destination
+
+    if value is None:
+        return False
+    s = _as_str(value, name="is_wildcard_port", arg=1)
+    dest = Destination.try_parse(s)
+    return dest is not None and dest.port.is_any
+
+
+@_register(
+    "prefix_length",
+    summary="Return the CIDR prefix length of a network string.",
+    signatures=("prefix_length(value: string) -> integer | null",),
+    details="""
+    Accepts both integer CIDR (``10.0.0.0/24``) and dotted-quad
+    netmask (``10.0.0.0/255.255.255.0``) — both render the same
+    prefix length.  Returns ``null`` for inputs that aren't
+    networks.
+
+    Pairs with :func:`subnet_of` for CIDR algebra.
+
+    Related: ``in_cidr``, ``subnet_of``.
+    """,
+    examples=(
+        "prefix_length(.net.self[].address)",
+        ".net.self[] | select(prefix_length(.address) >= 24) | .name",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_prefix_length(value: Any) -> int | None:
+    n = _typed_network(value, name="prefix_length")
+    if n is None:
+        return None
+    return n.prefix_length
+
+
+@_register(
+    "subnet_of",
+    summary="True when *subnet* lies entirely inside *supernet*.",
+    signatures=("subnet_of(subnet: string, supernet: string) -> boolean",),
+    details="""
+    Wraps ``ipaddress.IPv4Network.subnet_of`` /
+    ``IPv6Network.subnet_of``.  Both arguments must be networks
+    (CIDR or dotted-quad netmask form).  IPv4 ↔ IPv6 comparison
+    returns ``false`` rather than raising — different families are
+    never subsets.
+
+    Related: ``in_cidr`` (single-host membership), ``prefix_length``.
+    """,
+    examples=(
+        'subnet_of("10.1.0.0/16", "10.0.0.0/8")               # -> true',
+        'subnet_of(.net.self[].address, "10.0.0.0/8")',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_subnet_of(subnet: Any, supernet: Any) -> bool:
+    sub = _typed_network(subnet, name="subnet_of", arg=1)
+    sup = _typed_network(supernet, name="subnet_of", arg=2)
+    if sub is None or sup is None:
+        return False
+    try:
+        return sub.network.subnet_of(sup.network)
+    except TypeError:
+        # Different families (IPv4 vs IPv6).
+        return False
+
+
+@_register(
+    "overlaps",
+    summary="True when two networks overlap (share at least one address).",
+    signatures=("overlaps(net1: string, net2: string) -> boolean",),
+    details="""
+    Useful for finding self-IP / route-domain conflicts:
+    ``.net.self[] | combinations(2) | select(overlaps(.[0].address,
+    .[1].address))``.
+
+    IPv4 ↔ IPv6 comparison returns ``false``.
+
+    Related: ``subnet_of``, ``in_cidr``.
+    """,
+    examples=(
+        'overlaps("10.0.0.0/24", "10.0.0.0/16")              # -> true',
+        'overlaps("10.0.0.0/24", "10.1.0.0/24")              # -> false',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_overlaps(net1: Any, net2: Any) -> bool:
+    a = _typed_network(net1, name="overlaps", arg=1)
+    b = _typed_network(net2, name="overlaps", arg=2)
+    if a is None or b is None:
+        return False
+    try:
+        return a.network.overlaps(b.network)
+    except TypeError:
+        return False
+
+
+@_register(
+    "with_port",
+    summary="Return *dest* with its port replaced by *port*.",
+    signatures=("with_port(dest: string, port: integer | string) -> string",),
+    details="""
+    Preserves every other component of the destination — partition,
+    folder, address, route-domain, IPv6 brackets, and the
+    ``.``-vs-``:`` port separator.  ``port`` can be an integer
+    (``443``), the wildcard string (``"any"`` / ``"*"`` / ``"0"``),
+    or the empty string to strip the port entirely.
+
+    Inverse of :func:`port`; pairs with ``with_partition`` /
+    ``with_route_domain`` for full destination editing.
+
+    Related: ``port``, ``with_host``, ``with_partition``,
+    ``with_route_domain``.
+    """,
+    examples=(
+        "with_port(.destination, 8443)",
+        'with_port("/Common/10.0.0.1:80", "any")              # -> "/Common/10.0.0.1:any"',
+        ".ltm.virtual[] | .destination |= with_port(., 443)",
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_with_port(dest: Any, port: Any) -> str:
+    from ..types import Destination, Port
+
+    s = _as_str(dest, name="with_port", arg=1)
+    parsed = Destination.try_parse(s)
+    if parsed is None:
+        raise BuiltinError(f"with_port: cannot parse destination {s!r}")
+    if port is None or port == "":
+        new_port = Port(port=0, spelling="")
+    elif isinstance(port, bool):
+        raise BuiltinError("with_port: port cannot be a boolean")
+    elif isinstance(port, int):
+        if not 0 <= port <= 65535:
+            raise BuiltinError(f"with_port: port out of range ({port})")
+        new_port = Port(port=port, spelling=str(port))
+    elif isinstance(port, str):
+        new_port = Port.parse(port)
+    else:
+        raise BuiltinError(
+            f"with_port: port must be a string, integer, or null, got {_type_name(port)}"
+        )
+    return str(
+        Destination(
+            address=parsed.address,
+            port=new_port,
+            folder=parsed.folder,
+            route_domain=parsed.route_domain,
+            ipv6_brackets=parsed.ipv6_brackets,
+            port_separator=parsed.port_separator,
+        )
+    )
+
+
+@_register(
+    "with_host",
+    summary="Return *dest* with its host replaced by *host*.",
+    signatures=("with_host(dest: string, host: string) -> string",),
+    details="""
+    Preserves the partition, folder, route-domain, port, and IPv6
+    bracket form; replaces only the address.  ``host`` may be an
+    IPv4, IPv6, or FQDN string.
+
+    Inverse of :func:`host`; pairs with :func:`with_port` for full
+    destination editing.
+
+    Related: ``host``, ``with_port``, ``with_partition``.
+    """,
+    examples=(
+        'with_host(.destination, "10.0.0.2")',
+        'with_host("/Common/10.0.0.1:80", "host.example.com")   # -> "/Common/host.example.com:80"',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_with_host(dest: Any, host: Any) -> str:
+    from ..types import Destination, parse_address
+
+    s = _as_str(dest, name="with_host", arg=1)
+    h = _as_str(host, name="with_host", arg=2)
+    parsed = Destination.try_parse(s)
+    if parsed is None:
+        raise BuiltinError(f"with_host: cannot parse destination {s!r}")
+    try:
+        new_addr = parse_address(h)
+    except ValueError as exc:
+        raise BuiltinError(f"with_host: cannot parse host {h!r}: {exc}") from exc
+    # Switching IPv4 ↔ IPv6 — drop the bracket form and ``.``-port
+    # separator if it no longer applies.
+    from ..types import IPAddress
+
+    new_brackets = parsed.ipv6_brackets
+    new_separator = parsed.port_separator
+    if not (isinstance(new_addr, IPAddress) and new_addr.is_ipv6):
+        new_brackets = False
+        new_separator = ":"
+    return str(
+        Destination(
+            address=new_addr,
+            port=parsed.port,
+            folder=parsed.folder,
+            route_domain=parsed.route_domain,
+            ipv6_brackets=new_brackets,
+            port_separator=new_separator,
+        )
+    )
+
+
+@_register(
+    "folder",
+    summary="Return the folder portion of a TMSH path (``/Common/Application_X``).",
+    signatures=("folder(value: string) -> string",),
+    details="""
+    Extracts the folder path from a full BIG-IP object path.  Bare
+    partition (``/Common/pool``) → ``"/Common"`` (just the
+    partition root); nested-folder (``/Common/iApps/Tenant.app/p``)
+    → ``"/Common/iApps/Tenant.app"``.  Returns ``""`` for non-path
+    input.
+
+    Sibling to :func:`partition` (which returns just the partition
+    name without the slash).
+
+    Related: ``partition``, ``basename``, ``with_partition``,
+    ``with_folder``.
+    """,
+    examples=(
+        'folder(."full-path")',
+        '.ltm.virtual[] | select(folder(."full-path") == "/Common/iApps/Tenant.app") | .name',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_folder(value: Any) -> str:
+    from ..types import ObjectPath
+
+    s = _as_str(value, name="folder", arg=1)
+    obj = ObjectPath.try_parse(s)
+    if obj is None:
+        return ""
+    return str(obj.folder)
+
+
+@_register(
+    "with_folder",
+    summary="Return *path* with its folder portion replaced by *folder*.",
+    signatures=("with_folder(path: string, folder: string) -> string",),
+    details="""
+    Replaces every segment from the leading slash up to (but not
+    including) the leaf name.  ``folder`` may be a single
+    partition (``/Common``) or a nested folder
+    (``/Common/Application_X``); the leaf is kept exactly.
+
+    Related: ``folder``, ``with_partition``, ``basename``.
+    """,
+    examples=(
+        'with_folder("/Common/web_pool", "/Tenant_A")              # -> "/Tenant_A/web_pool"',
+        'with_folder("/Common/iApps/old.app/pool_1", "/Common/iApps/new.app")  # -> "/Common/iApps/new.app/pool_1"',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_with_folder(path: Any, folder: Any) -> str:
+    from ..types import Folder, ObjectPath
+
+    p = _as_str(path, name="with_folder", arg=1)
+    f = _as_str(folder, name="with_folder", arg=2)
+    obj = ObjectPath.try_parse(p)
+    if obj is None:
+        raise BuiltinError(f"with_folder: cannot parse path {p!r}")
+    new_folder = Folder.try_parse(f)
+    if new_folder is None:
+        raise BuiltinError(f"with_folder: cannot parse folder {f!r}")
+    return str(ObjectPath(folder=new_folder, name=obj.name))
 
 
 # ---------------------------------------------------------------------------
