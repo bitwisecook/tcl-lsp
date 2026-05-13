@@ -2930,3 +2930,153 @@ def test_pem_rating_group_quota_fields():
     assert qid.values_per_file["mem://1"] == ["100"]
     quota = _run(".pem.rating-group.rg1.default-quota", _PEM_CONF)
     assert quota.values_per_file["mem://1"] == ["1000"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 1 — cert/key metadata
+# ---------------------------------------------------------------------------
+
+_CERT_KEY_CONF = """cm cert /Common/dtca.crt {
+    cache-path "/config/big3d/client.crt"
+    revision 1
+    issuer "CN=Acme Root CA"
+    subject "CN=bigip-1.example.com"
+    subject-alternative-name "DNS:bigip-1.example.com,DNS:bigip-1"
+    expiration-date 2099012345
+    expiration-string "Jan 1 00:00:00 2099 GMT"
+    fingerprint "SHA256/AB:CD:EF"
+    serial-number 1001
+    version 3
+    key-type rsa-public
+    certificate-key-size 2048
+    is-bundle false
+    email "ops@example.com"
+    source-path "file:///config/big3d/client.crt"
+    system-path "/config/big3d/client.crt"
+    size 1234
+    mode 33188
+    create-time "2024-01-02T03:04:05Z"
+    created-by admin
+    last-update-time "2024-06-07T08:09:10Z"
+    updated-by ops
+}
+cm key /Common/dtca.key {
+    cache-path "/config/big3d/client.key"
+    revision 1
+    key-size 2048
+    key-type rsa-private
+    security-type normal
+    source-path "file:///config/big3d/client.key"
+    system-path "/config/big3d/client.key"
+    size 1675
+    mode 33184
+    create-time "2024-01-02T03:04:05Z"
+    created-by admin
+    last-update-time "2024-06-07T08:09:10Z"
+    updated-by ops
+}
+sys file ssl-cert /Common/example.crt {
+    source-path "file:///config/ssl/ssl.crt/example.crt"
+    revision 1
+    issuer "CN=Example CA"
+    subject "CN=www.example.com"
+    subject-alternative-name "DNS:www.example.com,DNS:example.com"
+    expiration-date 2099012345
+    expiration-string "Jan 1 00:00:00 2099 GMT"
+    fingerprint "SHA256/12:34:56"
+    key-size 2048
+    key-type rsa-public
+    is-bundle false
+    certificate-key-size 2048
+    issuer-cert /Common/root.crt
+    serial-number 1002
+    version 3
+    bundle-certificates { /Common/root.crt /Common/intermediate.crt }
+    cert-validation-options { ocsp }
+    cert-validators { /Common/ocsp1 }
+    checksum "SHA1:abcdef"
+    mode 33188
+    size 3210
+    create-time "2024-01-02T03:04:05Z"
+    created-by admin
+    last-update-time "2024-06-07T08:09:10Z"
+    updated-by ops
+}
+sys file ssl-cert /Common/root.crt {
+    source-path "file:///config/ssl/ssl.crt/root.crt"
+    issuer "CN=Example CA"
+}
+sys file ssl-key /Common/example.key {
+    source-path "file:///config/ssl/ssl.key/example.key"
+    revision 1
+    key-size 2048
+    key-type rsa-private
+    security-type normal
+    checksum "SHA1:fedcba"
+    mode 33184
+    size 1675
+    create-time "2024-01-02T03:04:05Z"
+    created-by admin
+    last-update-time "2024-06-07T08:09:10Z"
+    updated-by ops
+}
+"""
+
+
+def test_cm_cert_surfaces_issuer_subject_and_san():
+    issuer = _run('.cm.cert["/Common/dtca.crt"].issuer', _CERT_KEY_CONF)
+    assert issuer.values_per_file["mem://1"] == ["CN=Acme Root CA"]
+    subj = _run('.cm.cert["/Common/dtca.crt"].subject', _CERT_KEY_CONF)
+    assert subj.values_per_file["mem://1"] == ["CN=bigip-1.example.com"]
+    san = _run('.cm.cert["/Common/dtca.crt"].subject-alternative-name', _CERT_KEY_CONF)
+    assert san.values_per_file["mem://1"] == ["DNS:bigip-1.example.com,DNS:bigip-1"]
+
+
+def test_cm_cert_serial_version_and_keytype():
+    serial = _run('.cm.cert["/Common/dtca.crt"].serial-number', _CERT_KEY_CONF)
+    assert serial.values_per_file["mem://1"] == ["1001"]
+    version = _run('.cm.cert["/Common/dtca.crt"].version', _CERT_KEY_CONF)
+    assert version.values_per_file["mem://1"] == ["3"]
+    ktype = _run('.cm.cert["/Common/dtca.crt"].key-type', _CERT_KEY_CONF)
+    assert ktype.values_per_file["mem://1"] == ["rsa-public"]
+
+
+def test_cm_cert_audit_fields_round_trip():
+    ct = _run('.cm.cert["/Common/dtca.crt"].create-time', _CERT_KEY_CONF)
+    assert ct.values_per_file["mem://1"] == ["2024-01-02T03:04:05Z"]
+    cb = _run('.cm.cert["/Common/dtca.crt"].created-by', _CERT_KEY_CONF)
+    assert cb.values_per_file["mem://1"] == ["admin"]
+
+
+def test_cm_key_size_type_and_security():
+    sz = _run('.cm.key["/Common/dtca.key"].key-size', _CERT_KEY_CONF)
+    assert sz.values_per_file["mem://1"] == ["2048"]
+    sec = _run('.cm.key["/Common/dtca.key"].security-type', _CERT_KEY_CONF)
+    assert sec.values_per_file["mem://1"] == ["normal"]
+
+
+def test_sys_file_ssl_cert_issuer_cert_walks_via_path_ref():
+    result = _run('.sys.file-ssl-cert["/Common/example.crt"].issuer-cert.issuer', _CERT_KEY_CONF)
+    assert result.values_per_file["mem://1"] == ["CN=Example CA"]
+
+
+def test_sys_file_ssl_cert_bundle_certificates_listed():
+    bundle = _run('.sys.file-ssl-cert["/Common/example.crt"].bundle-certificates', _CERT_KEY_CONF)
+    [items] = bundle.values_per_file["mem://1"]
+    assert sorted(items) == ["/Common/intermediate.crt", "/Common/root.crt"]
+
+
+def test_sys_file_ssl_cert_validators_and_options():
+    opts = _run(
+        '.sys.file-ssl-cert["/Common/example.crt"].cert-validation-options',
+        _CERT_KEY_CONF,
+    )
+    [items] = opts.values_per_file["mem://1"]
+    assert items == ["ocsp"]
+
+
+def test_sys_file_ssl_key_checksum_and_audit_fields():
+    cs = _run('.sys.file-ssl-key["/Common/example.key"].checksum', _CERT_KEY_CONF)
+    assert cs.values_per_file["mem://1"] == ["SHA1:fedcba"]
+    ub = _run('.sys.file-ssl-key["/Common/example.key"].updated-by', _CERT_KEY_CONF)
+    assert ub.values_per_file["mem://1"] == ["ops"]

@@ -1632,6 +1632,16 @@ def _parse_sys_file_ssl_cert(
 ) -> BigipSysFileSslCert:
     props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
+    bundle_certificates: tuple[str, ...] = ()
+    if "bundle-certificates" in props:
+        bundle_certificates = tuple(_parse_list_block(props["bundle-certificates"]))
+    cert_validation_options: tuple[str, ...] = ()
+    if "cert-validation-options" in props:
+        raw = props["cert-validation-options"]
+        cert_validation_options = tuple(_parse_list_block(raw)) if raw.startswith("{") else (raw,)
+    cert_validators: tuple[str, ...] = ()
+    if "cert-validators" in props:
+        cert_validators = tuple(_parse_list_block(props["cert-validators"]))
     return BigipSysFileSslCert(
         name=name,
         full_path=full_path,
@@ -1642,8 +1652,26 @@ def _parse_sys_file_ssl_cert(
         issuer=_unquote(props.get("issuer", "")),
         subject=_unquote(props.get("subject", "")),
         expiration_string=_unquote(props.get("expiration-string", "")),
+        expiration_date=props.get("expiration-date", ""),
         fingerprint=props.get("fingerprint", ""),
         key_size=props.get("key-size", ""),
+        key_type=props.get("key-type", ""),
+        is_bundle=props.get("is-bundle", ""),
+        certificate_key_size=props.get("certificate-key-size", ""),
+        issuer_cert=props.get("issuer-cert", ""),
+        serial_number=props.get("serial-number", ""),
+        version=props.get("version", ""),
+        subject_alternative_name=_unquote(props.get("subject-alternative-name", "")),
+        bundle_certificates=bundle_certificates,
+        cert_validation_options=cert_validation_options,
+        cert_validators=cert_validators,
+        checksum=_unquote(props.get("checksum", "")),
+        mode=props.get("mode", ""),
+        size=props.get("size", ""),
+        create_time=_unquote(props.get("create-time", "")),
+        created_by=props.get("created-by", ""),
+        last_update_time=_unquote(props.get("last-update-time", "")),
+        updated_by=props.get("updated-by", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1664,6 +1692,13 @@ def _parse_sys_file_ssl_key(
         key_size=props.get("key-size", ""),
         key_type=props.get("key-type", ""),
         security_type=props.get("security-type", ""),
+        checksum=_unquote(props.get("checksum", "")),
+        mode=props.get("mode", ""),
+        size=props.get("size", ""),
+        create_time=_unquote(props.get("create-time", "")),
+        created_by=props.get("created-by", ""),
+        last_update_time=_unquote(props.get("last-update-time", "")),
+        updated_by=props.get("updated-by", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -1986,14 +2021,34 @@ def _parse_apm_report_default_report(
 def _parse_cm_cert(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipCmCert:
-    props = _parse_properties_with_spans(body)
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipCmCert(
         name=name,
         full_path=full_path,
-        cache_path=props["cache-path"].value if "cache-path" in props else "",
-        checksum=props["checksum"].value if "checksum" in props else "",
-        revision=props["revision"].value if "revision" in props else "",
+        cache_path=_unquote(props.get("cache-path", "")),
+        checksum=_unquote(props.get("checksum", "")),
+        revision=props.get("revision", ""),
+        issuer=_unquote(props.get("issuer", "")),
+        subject=_unquote(props.get("subject", "")),
+        subject_alternative_name=_unquote(props.get("subject-alternative-name", "")),
+        expiration_date=props.get("expiration-date", ""),
+        expiration_string=_unquote(props.get("expiration-string", "")),
+        fingerprint=_unquote(props.get("fingerprint", "")),
+        serial_number=props.get("serial-number", ""),
+        version=props.get("version", ""),
+        key_type=props.get("key-type", ""),
+        certificate_key_size=props.get("certificate-key-size", ""),
+        is_bundle=props.get("is-bundle", ""),
+        email=_unquote(props.get("email", "")),
+        source_path=_unquote(props.get("source-path", "")),
+        system_path=_unquote(props.get("system-path", "")),
+        size=props.get("size", ""),
+        mode=props.get("mode", ""),
+        create_time=_unquote(props.get("create-time", "")),
+        created_by=props.get("created-by", ""),
+        last_update_time=_unquote(props.get("last-update-time", "")),
+        updated_by=props.get("updated-by", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -2001,14 +2056,25 @@ def _parse_cm_cert(
 def _parse_cm_key(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipCmKey:
-    props = _parse_properties_with_spans(body)
+    props = _parse_properties(body)
     name = full_path.rsplit("/", 1)[-1]
     return BigipCmKey(
         name=name,
         full_path=full_path,
-        cache_path=props["cache-path"].value if "cache-path" in props else "",
-        checksum=props["checksum"].value if "checksum" in props else "",
-        revision=props["revision"].value if "revision" in props else "",
+        cache_path=_unquote(props.get("cache-path", "")),
+        checksum=_unquote(props.get("checksum", "")),
+        revision=props.get("revision", ""),
+        key_size=props.get("key-size", ""),
+        key_type=props.get("key-type", ""),
+        security_type=props.get("security-type", ""),
+        source_path=_unquote(props.get("source-path", "")),
+        system_path=_unquote(props.get("system-path", "")),
+        size=props.get("size", ""),
+        mode=props.get("mode", ""),
+        create_time=_unquote(props.get("create-time", "")),
+        created_by=props.get("created-by", ""),
+        last_update_time=_unquote(props.get("last-update-time", "")),
+        updated_by=props.get("updated-by", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 

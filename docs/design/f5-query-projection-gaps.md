@@ -54,71 +54,71 @@ Run `make ci-fast` before committing each bundle, and the broader
 
 ### `cm cert`
 
-- [ ] `issuer`
-- [ ] `subject`
-- [ ] `subject-alternative-name`
-- [ ] `expiration-date`
-- [ ] `expiration-string`
-- [ ] `fingerprint`
-- [ ] `serial-number`
-- [ ] `version`
-- [ ] `key-type`
-- [ ] `certificate-key-size`
-- [ ] `is-bundle`
-- [ ] `email`
-- [ ] `source-path`
-- [ ] `system-path`
-- [ ] `size`
-- [ ] `mode`
-- [ ] `create-time`
-- [ ] `created-by`
-- [ ] `last-update-time`
-- [ ] `updated-by`
+- [x] `issuer`
+- [x] `subject`
+- [x] `subject-alternative-name`
+- [x] `expiration-date`
+- [x] `expiration-string`
+- [x] `fingerprint`
+- [x] `serial-number`
+- [x] `version`
+- [x] `key-type`
+- [x] `certificate-key-size`
+- [x] `is-bundle`
+- [x] `email`
+- [x] `source-path`
+- [x] `system-path`
+- [x] `size`
+- [x] `mode`
+- [x] `create-time`
+- [x] `created-by`
+- [x] `last-update-time`
+- [x] `updated-by`
 
 ### `cm key`
 
-- [ ] `key-size`
-- [ ] `key-type`
-- [ ] `security-type`
-- [ ] `source-path`
-- [ ] `system-path`
-- [ ] `size`
-- [ ] `mode`
-- [ ] `create-time`
-- [ ] `created-by`
-- [ ] `last-update-time`
-- [ ] `updated-by`
+- [x] `key-size`
+- [x] `key-type`
+- [x] `security-type`
+- [x] `source-path`
+- [x] `system-path`
+- [x] `size`
+- [x] `mode`
+- [x] `create-time`
+- [x] `created-by`
+- [x] `last-update-time`
+- [x] `updated-by`
 
 ### `sys file ssl-cert` (extend)
 
-- [ ] `expiration-date`
-- [ ] `key-type`
-- [ ] `is-bundle`
-- [ ] `certificate-key-size`
-- [ ] `issuer-cert` → `sys file ssl-cert`
-- [ ] `serial-number`
-- [ ] `version`
-- [ ] `subject-alternative-name`
-- [ ] `bundle-certificates`
-- [ ] `cert-validation-options`
-- [ ] `cert-validators`
-- [ ] `checksum`
-- [ ] `mode`
-- [ ] `size`
-- [ ] `create-time`
-- [ ] `created-by`
-- [ ] `last-update-time`
-- [ ] `updated-by`
+- [x] `expiration-date`
+- [x] `key-type`
+- [x] `is-bundle`
+- [x] `certificate-key-size`
+- [x] `issuer-cert` → `sys file ssl-cert`
+- [x] `serial-number`
+- [x] `version`
+- [x] `subject-alternative-name`
+- [x] `bundle-certificates`
+- [x] `cert-validation-options`
+- [x] `cert-validators`
+- [x] `checksum`
+- [x] `mode`
+- [x] `size`
+- [x] `create-time`
+- [x] `created-by`
+- [x] `last-update-time`
+- [x] `updated-by`
 
 ### `sys file ssl-key` (extend)
 
-- [ ] `checksum`
-- [ ] `mode`
-- [ ] `size`
-- [ ] `create-time`
-- [ ] `created-by`
-- [ ] `last-update-time`
-- [ ] `updated-by`
+- [x] `checksum`
+- [x] `mode`
+- [x] `size`
+- [x] `create-time`
+- [x] `created-by`
+- [x] `last-update-time`
+- [x] `updated-by`
 
 ---
 

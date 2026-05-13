@@ -547,8 +547,26 @@ class BigipSysFileSslCert:
     issuer: str = ""
     subject: str = ""
     expiration_string: str = ""
+    expiration_date: str = ""
     fingerprint: str = ""
     key_size: str = ""
+    key_type: str = ""
+    is_bundle: str = ""
+    certificate_key_size: str = ""
+    issuer_cert: str = ""  # PathRef → sys file ssl-cert
+    serial_number: str = ""
+    version: str = ""
+    subject_alternative_name: str = ""
+    bundle_certificates: tuple[str, ...] = ()
+    cert_validation_options: tuple[str, ...] = ()
+    cert_validators: tuple[str, ...] = ()
+    checksum: str = ""
+    mode: str = ""
+    size: str = ""
+    create_time: str = ""
+    created_by: str = ""
+    last_update_time: str = ""
+    updated_by: str = ""
     range: Range | None = None
 
 
@@ -566,6 +584,13 @@ class BigipSysFileSslKey:
     key_size: str = ""
     key_type: str = ""
     security_type: str = ""
+    checksum: str = ""
+    mode: str = ""
+    size: str = ""
+    create_time: str = ""
+    created_by: str = ""
+    last_update_time: str = ""
+    updated_by: str = ""
     range: Range | None = None
 
 
@@ -794,6 +819,26 @@ class BigipCmCert:
     cache_path: str = ""
     checksum: str = ""
     revision: str = ""
+    issuer: str = ""
+    subject: str = ""
+    subject_alternative_name: str = ""
+    expiration_date: str = ""
+    expiration_string: str = ""
+    fingerprint: str = ""
+    serial_number: str = ""
+    version: str = ""
+    key_type: str = ""
+    certificate_key_size: str = ""
+    is_bundle: str = ""
+    email: str = ""
+    source_path: str = ""
+    system_path: str = ""
+    size: str = ""
+    mode: str = ""
+    create_time: str = ""
+    created_by: str = ""
+    last_update_time: str = ""
+    updated_by: str = ""
     range: Range | None = None
 
 
@@ -806,6 +851,17 @@ class BigipCmKey:
     cache_path: str = ""
     checksum: str = ""
     revision: str = ""
+    key_size: str = ""
+    key_type: str = ""
+    security_type: str = ""
+    source_path: str = ""
+    system_path: str = ""
+    size: str = ""
+    mode: str = ""
+    create_time: str = ""
+    created_by: str = ""
+    last_update_time: str = ""
+    updated_by: str = ""
     range: Range | None = None
 
 
