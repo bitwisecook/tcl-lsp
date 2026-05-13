@@ -95,6 +95,7 @@ from .model import (
     BigipSysNtp,
     BigipSysProvision,
     BigipSysSnmp,
+    BigipVirtualAddress,
     BigipVirtualServer,
     DataGroupType,
     ProfileType,
@@ -965,6 +966,34 @@ def _parse_node(full_path: str, body: str, source_map: DocumentBuffer, block: _B
         rate_limit=props.get("rate-limit", ""),
         ratio=props.get("ratio", ""),
         fqdn=fqdn,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_virtual_address(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipVirtualAddress:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipVirtualAddress(
+        name=name,
+        full_path=full_path,
+        address=props.get("address", ""),
+        mask=props.get("mask", ""),
+        arp=props.get("arp", ""),
+        icmp_echo=props.get("icmp-echo", ""),
+        auto_delete=props.get("auto-delete", ""),
+        connection_limit=props.get("connection-limit", ""),
+        traffic_group=props.get("traffic-group", ""),
+        inherited_traffic_group=props.get("inherited-traffic-group", ""),
+        route_advertisement=props.get("route-advertisement", ""),
+        server_scope=props.get("server-scope", ""),
+        spanning=props.get("spanning", ""),
+        unit=props.get("unit", ""),
+        description=_description(props),
+        state=_state_flag(props),
+        floating=props.get("floating", ""),
+        traffic_group_restored=props.get("traffic-group-restored", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -3151,6 +3180,10 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             case "virtual":
                 vs = _parse_virtual(full_path, block.body, source_map, block)
                 config.virtual_servers[full_path] = vs
+            case "virtual-address":
+                if module == "ltm":
+                    va = _parse_virtual_address(full_path, block.body, source_map, block)
+                    config.virtual_addresses[full_path] = va
             case "node":
                 node = _parse_node(full_path, block.body, source_map, block)
                 config.nodes[full_path] = node

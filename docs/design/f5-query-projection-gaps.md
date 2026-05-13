@@ -371,12 +371,13 @@ represents the listener IP itself (route advertisement, ARP, ICMP
 echo, connection-limit, traffic-group binding) and every `ltm
 virtual.destination` references one.
 
-- [ ] `ltm virtual-address`
+- [x] `ltm virtual-address`
 
   Fields: address, mask, arp, icmp-echo, auto-delete,
   connection-limit, traffic-group (PathRef → `cm traffic-group`),
-  route-advertisement, server-scope, spanning, unit, description,
-  enabled/disabled, floating, traffic-group-restored.
+  inherited-traffic-group, route-advertisement, server-scope,
+  spanning, unit, description, state (`enabled`/`disabled` bare
+  flag), floating, traffic-group-restored.
 
 ### Bundle 8 — `auth.*` (14)
 

@@ -280,6 +280,36 @@ class BigipVirtualServer:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipVirtualAddress:
+    """A ``ltm virtual-address`` object.
+
+    Distinct from ``ltm virtual``: this is the listener IP itself
+    (ARP / ICMP-echo / route-advertisement settings, traffic-group
+    binding).  Every ``ltm virtual.destination`` references one.
+    """
+
+    name: str
+    full_path: str
+    address: str = ""
+    mask: str = ""
+    arp: str = ""
+    icmp_echo: str = ""
+    auto_delete: str = ""
+    connection_limit: str = ""
+    traffic_group: str = ""  # PathRef → cm traffic-group
+    inherited_traffic_group: str = ""
+    route_advertisement: str = ""
+    server_scope: str = ""
+    spanning: str = ""
+    unit: str = ""
+    description: str = ""
+    state: str = ""  # ``enabled`` / ``disabled`` bare flag
+    floating: str = ""
+    traffic_group_restored: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BigipPolicyCondition:
     """A single ``conditions { N { … } }`` entry inside a policy rule.
 
@@ -1385,6 +1415,7 @@ class BigipConfig:
     data_groups: dict[str, BigipDataGroup] = field(default_factory=dict)
     pools: dict[str, BigipPool] = field(default_factory=dict)
     virtual_servers: dict[str, BigipVirtualServer] = field(default_factory=dict)
+    virtual_addresses: dict[str, BigipVirtualAddress] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

@@ -88,6 +88,7 @@ from ..model import (
     BigipSysNtp,
     BigipSysProvision,
     BigipSysSnmp,
+    BigipVirtualAddress,
     BigipVirtualServer,
 )
 from .errors import EvalError
@@ -268,6 +269,27 @@ _POOL_FIELDS: dict[str, FieldSpec] = {
     "address-family": FieldSpec("address_family"),
     "autopopulate": FieldSpec("autopopulate"),
     "profiles": FieldSpec("profiles", ref_kind="ltm profile", list_ref=True),
+}
+
+_VIRTUAL_ADDRESS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "address": FieldSpec("address"),
+    "mask": FieldSpec("mask"),
+    "arp": FieldSpec("arp"),
+    "icmp-echo": FieldSpec("icmp_echo"),
+    "auto-delete": FieldSpec("auto_delete"),
+    "connection-limit": FieldSpec("connection_limit"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
+    "inherited-traffic-group": FieldSpec("inherited_traffic_group"),
+    "route-advertisement": FieldSpec("route_advertisement"),
+    "server-scope": FieldSpec("server_scope"),
+    "spanning": FieldSpec("spanning"),
+    "unit": FieldSpec("unit"),
+    "description": FieldSpec("description"),
+    "state": FieldSpec("state"),
+    "floating": FieldSpec("floating"),
+    "traffic-group-restored": FieldSpec("traffic_group_restored"),
 }
 
 _NODE_FIELDS: dict[str, FieldSpec] = {
@@ -1076,6 +1098,7 @@ _PEM_RATING_GROUP_FIELDS: dict[str, FieldSpec] = {
 
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
+    "ltm virtual-address": (BigipVirtualAddress, _VIRTUAL_ADDRESS_FIELDS),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -1190,6 +1213,7 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
 _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
     "ltm": {
         "virtual": ("virtual_servers", "ltm virtual"),
+        "virtual-address": ("virtual_addresses", "ltm virtual-address"),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),

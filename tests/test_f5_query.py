@@ -3678,3 +3678,92 @@ def test_apm_policy_agent_extra_sub_types_are_recognised():
 def test_apm_policy_agent_hints_carry_through():
     hints = _run(".apm.policy-agent.ap1_minfo.hints", _APM_BUNDLE_CONF)
     assert hints.values_per_file["mem://1"] == ["session.client.os"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 7 — ltm virtual-address
+# ---------------------------------------------------------------------------
+
+_VIRTUAL_ADDRESS_CONF = """ltm virtual-address /Common/192.0.2.10 {
+    address 192.0.2.10
+    arp enabled
+    auto-delete true
+    connection-limit 1000
+    description "front-end VIP"
+    floating enabled
+    icmp-echo enabled
+    inherited-traffic-group true
+    mask 255.255.255.255
+    route-advertisement disabled
+    server-scope any
+    spanning disabled
+    traffic-group /Common/traffic-group-1
+    unit 1
+}
+ltm virtual-address /Common/198.51.100.20 {
+    address 198.51.100.20
+    arp disabled
+    disabled
+    icmp-echo disabled
+    mask 255.255.255.255
+    traffic-group /Common/traffic-group-1
+}
+cm traffic-group /Common/traffic-group-1 {
+    unit-id 1
+}
+"""
+
+
+def test_ltm_virtual_address_projects_core_scalars():
+    base = '.ltm.virtual-address["/Common/192.0.2.10"]'
+    assert _run(f"{base}.address", _VIRTUAL_ADDRESS_CONF).values_per_file["mem://1"] == [
+        "192.0.2.10"
+    ]
+    assert _run(f"{base}.mask", _VIRTUAL_ADDRESS_CONF).values_per_file["mem://1"] == [
+        "255.255.255.255"
+    ]
+    assert _run(f"{base}.arp", _VIRTUAL_ADDRESS_CONF).values_per_file["mem://1"] == ["enabled"]
+    assert _run(f'{base}."icmp-echo"', _VIRTUAL_ADDRESS_CONF).values_per_file["mem://1"] == [
+        "enabled"
+    ]
+    assert _run(f"{base}.floating", _VIRTUAL_ADDRESS_CONF).values_per_file["mem://1"] == ["enabled"]
+
+
+def test_ltm_virtual_address_state_flag_from_bare_keyword():
+    """``ltm virtual-address`` accepts bare ``enabled`` / ``disabled``
+    tokens just like ``ltm virtual`` / ``ltm node`` — surface as the
+    ``state`` field.
+    """
+    res = _run(".ltm.virtual-address[] | .state", _VIRTUAL_ADDRESS_CONF)
+    assert sorted(res.values_per_file["mem://1"]) == ["", "disabled"]
+
+
+def test_ltm_virtual_address_description_unquoted():
+    res = _run(
+        '.ltm.virtual-address["/Common/192.0.2.10"].description',
+        _VIRTUAL_ADDRESS_CONF,
+    )
+    assert res.values_per_file["mem://1"] == ["front-end VIP"]
+
+
+def test_ltm_virtual_address_traffic_group_is_pathref_into_cm():
+    """``traffic-group`` chains into ``cm traffic-group`` — quick
+    sanity-check that the cross-module PathRef resolves.
+    """
+    res = _run(
+        '.ltm.virtual-address["/Common/192.0.2.10"].traffic-group.unit-id',
+        _VIRTUAL_ADDRESS_CONF,
+    )
+    assert res.values_per_file["mem://1"] == ["1"]
+
+
+def test_ltm_virtual_address_route_advertisement_and_scope():
+    base = '.ltm.virtual-address["/Common/192.0.2.10"]'
+    conf = _VIRTUAL_ADDRESS_CONF
+    assert _run(f'{base}."route-advertisement"', conf).values_per_file["mem://1"] == ["disabled"]
+    assert _run(f'{base}."server-scope"', conf).values_per_file["mem://1"] == ["any"]
+    assert _run(f"{base}.spanning", conf).values_per_file["mem://1"] == ["disabled"]
+    assert _run(f"{base}.unit", conf).values_per_file["mem://1"] == ["1"]
+    assert _run(f'{base}."inherited-traffic-group"', conf).values_per_file["mem://1"] == ["true"]
+    assert _run(f'{base}."auto-delete"', conf).values_per_file["mem://1"] == ["true"]
+    assert _run(f'{base}."connection-limit"', conf).values_per_file["mem://1"] == ["1000"]
