@@ -279,6 +279,180 @@ class BigipVirtualServer:
     range: Range | None = None
 
 
+# Bundle 13 — ltm.* cross-cutting infra (cipher group/rule, nat,
+# snat, snat-translation, policy-strategy, traffic-class,
+# traffic-matching-criteria, ifile, eviction-policy).
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmCipherGroup:
+    """A ``ltm cipher group`` object — collection of cipher rules
+    with allow / require / exclude semantics."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    allow: tuple[str, ...] = ()  # PathRefs → ltm cipher rule
+    require: tuple[str, ...] = ()  # PathRefs → ltm cipher rule
+    exclude: tuple[str, ...] = ()  # PathRefs → ltm cipher rule
+    ordering: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmCipherRule:
+    """A ``ltm cipher rule`` object — a named cipher list."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    cipher: str = ""
+    dh_groups: str = ""
+    signature_algorithms: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmNat:
+    """A ``ltm nat`` object — 1:1 NAT mapping."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    translation_address: str = ""
+    originating_address: str = ""
+    traffic_group: str = ""  # PathRef → cm traffic-group
+    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
+    vlans_disabled: bool = False
+    vlans_enabled: bool = False
+    mirror: str = ""
+    arp: str = ""
+    state: str = ""  # enabled/disabled
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmSnat:
+    """A ``ltm snat`` object — Source NAT.
+
+    ``origins`` surfaces the top-level keys of the ``origins { … }``
+    sub-block (each key is an originating subnet); the SNAT can also
+    declare ``automap``, a translation IP, or a snatpool.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    origins: tuple[str, ...] = ()
+    translation: str = ""
+    snatpool: str = ""  # PathRef → ltm snatpool
+    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
+    vlans_disabled: bool = False
+    vlans_enabled: bool = False
+    automap: bool = False  # bare flag
+    mirror: str = ""
+    state: str = ""  # enabled/disabled
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmSnatTranslation:
+    """A ``ltm snat-translation`` object — a SNAT address pool entry."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    address: str = ""
+    inherited_traffic_group: str = ""
+    traffic_group: str = ""  # PathRef → cm traffic-group
+    connection_limit: str = ""
+    ip_idle_timeout: str = ""
+    tcp_idle_timeout: str = ""
+    udp_idle_timeout: str = ""
+    state: str = ""  # enabled/disabled
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmPolicyStrategy:
+    """A ``ltm policy-strategy`` object — operand-matching strategy
+    used by ``ltm policy``.  ``operands`` surfaces the top-level
+    indexed sub-block keys (the per-operand bodies are flattened in
+    v1; reach for ``--scf`` for the source view).
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    strategy: str = ""
+    operands: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmTrafficClass:
+    """A ``ltm traffic-class`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    classification: str = ""
+    match_method: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmTrafficMatchingCriteria:
+    """A ``ltm traffic-matching-criteria`` object.
+
+    Carries destination / source address / port matching used by VS
+    with traffic-matching-criteria (TMC-based virtuals).  Address +
+    port fields come in two forms: ``-list`` PathRefs into
+    ``security firewall address-list`` / ``security firewall
+    port-list``, or ``-inline`` literal values.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    destination_address_list: str = ""  # PathRef → security firewall address-list
+    destination_address_inline: str = ""
+    destination_port_list: str = ""  # PathRef → security firewall port-list
+    destination_port_inline: str = ""
+    source_address_list: str = ""  # PathRef → security firewall address-list
+    source_address_inline: str = ""
+    source_port_list: str = ""  # PathRef → security firewall port-list
+    source_port_inline: str = ""
+    protocol: str = ""
+    route_domain: str = ""  # PathRef → net route-domain
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmIfile:
+    """A ``ltm ifile`` object — iRule-accessible inline file."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    file_name: str = ""  # PathRef → sys file ifile
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmEvictionPolicy:
+    """A ``ltm eviction-policy`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    high_water_mark: str = ""
+    low_water_mark: str = ""
+    slow_flow_throttle: str = ""
+    slow_flow_monitoring: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
@@ -2164,6 +2338,19 @@ class BigipConfig:
     pools: dict[str, BigipPool] = field(default_factory=dict)
     virtual_servers: dict[str, BigipVirtualServer] = field(default_factory=dict)
     virtual_addresses: dict[str, BigipVirtualAddress] = field(default_factory=dict)
+    # Bundle 13 — ltm.* cross-cutting infra.
+    ltm_cipher_groups: dict[str, BigipLtmCipherGroup] = field(default_factory=dict)
+    ltm_cipher_rules: dict[str, BigipLtmCipherRule] = field(default_factory=dict)
+    ltm_nats: dict[str, BigipLtmNat] = field(default_factory=dict)
+    ltm_snats: dict[str, BigipLtmSnat] = field(default_factory=dict)
+    ltm_snat_translations: dict[str, BigipLtmSnatTranslation] = field(default_factory=dict)
+    ltm_policy_strategies: dict[str, BigipLtmPolicyStrategy] = field(default_factory=dict)
+    ltm_traffic_classes: dict[str, BigipLtmTrafficClass] = field(default_factory=dict)
+    ltm_traffic_matching_criteria: dict[str, BigipLtmTrafficMatchingCriteria] = field(
+        default_factory=dict
+    )
+    ltm_ifiles: dict[str, BigipLtmIfile] = field(default_factory=dict)
+    ltm_eviction_policies: dict[str, BigipLtmEvictionPolicy] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

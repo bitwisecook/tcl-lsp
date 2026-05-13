@@ -67,6 +67,16 @@ from ..model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
+    BigipLtmCipherGroup,
+    BigipLtmCipherRule,
+    BigipLtmEvictionPolicy,
+    BigipLtmIfile,
+    BigipLtmNat,
+    BigipLtmPolicyStrategy,
+    BigipLtmSnat,
+    BigipLtmSnatTranslation,
+    BigipLtmTrafficClass,
+    BigipLtmTrafficMatchingCriteria,
     BigipMonitor,
     BigipNetDnsResolver,
     BigipNetInterface,
@@ -342,6 +352,126 @@ _VIRTUAL_ADDRESS_FIELDS: dict[str, FieldSpec] = {
     "state": FieldSpec("state"),
     "floating": FieldSpec("floating"),
     "traffic-group-restored": FieldSpec("traffic_group_restored"),
+}
+
+# Bundle 13 — ltm.* cross-cutting infra.
+
+_LTM_CIPHER_GROUP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "allow": FieldSpec("allow", ref_kind="ltm cipher rule", list_ref=True),
+    "require": FieldSpec("require", ref_kind="ltm cipher rule", list_ref=True),
+    "exclude": FieldSpec("exclude", ref_kind="ltm cipher rule", list_ref=True),
+    "ordering": FieldSpec("ordering"),
+}
+
+_LTM_CIPHER_RULE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "cipher": FieldSpec("cipher"),
+    "dh-groups": FieldSpec("dh_groups"),
+    "signature-algorithms": FieldSpec("signature_algorithms"),
+}
+
+_LTM_NAT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "translation-address": FieldSpec("translation_address"),
+    "originating-address": FieldSpec("originating_address"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+    "vlans-disabled": FieldSpec("vlans_disabled"),
+    "vlans-enabled": FieldSpec("vlans_enabled"),
+    "mirror": FieldSpec("mirror"),
+    "arp": FieldSpec("arp"),
+    "state": FieldSpec("state"),
+}
+
+_LTM_SNAT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "origins": FieldSpec("origins"),
+    "translation": FieldSpec("translation"),
+    "snatpool": FieldSpec("snatpool", ref_kind="ltm snatpool"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+    "vlans-disabled": FieldSpec("vlans_disabled"),
+    "vlans-enabled": FieldSpec("vlans_enabled"),
+    "automap": FieldSpec("automap"),
+    "mirror": FieldSpec("mirror"),
+    "state": FieldSpec("state"),
+}
+
+_LTM_SNAT_TRANSLATION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "address": FieldSpec("address"),
+    "inherited-traffic-group": FieldSpec("inherited_traffic_group"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
+    "connection-limit": FieldSpec("connection_limit"),
+    "ip-idle-timeout": FieldSpec("ip_idle_timeout"),
+    "tcp-idle-timeout": FieldSpec("tcp_idle_timeout"),
+    "udp-idle-timeout": FieldSpec("udp_idle_timeout"),
+    "state": FieldSpec("state"),
+}
+
+_LTM_POLICY_STRATEGY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "strategy": FieldSpec("strategy"),
+    "operands": FieldSpec("operands"),
+}
+
+_LTM_TRAFFIC_CLASS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "classification": FieldSpec("classification"),
+    "match-method": FieldSpec("match_method"),
+}
+
+_LTM_TRAFFIC_MATCHING_CRITERIA_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "destination-address-list": FieldSpec(
+        "destination_address_list", ref_kind="security firewall address-list"
+    ),
+    "destination-address-inline": FieldSpec("destination_address_inline"),
+    "destination-port-list": FieldSpec(
+        "destination_port_list", ref_kind="security firewall port-list"
+    ),
+    "destination-port-inline": FieldSpec("destination_port_inline"),
+    "source-address-list": FieldSpec(
+        "source_address_list", ref_kind="security firewall address-list"
+    ),
+    "source-address-inline": FieldSpec("source_address_inline"),
+    "source-port-list": FieldSpec("source_port_list", ref_kind="security firewall port-list"),
+    "source-port-inline": FieldSpec("source_port_inline"),
+    "protocol": FieldSpec("protocol"),
+    "route-domain": FieldSpec("route_domain", ref_kind="net route-domain"),
+}
+
+_LTM_IFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "file-name": FieldSpec("file_name"),
+}
+
+_LTM_EVICTION_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "high-water-mark": FieldSpec("high_water_mark"),
+    "low-water-mark": FieldSpec("low_water_mark"),
+    "slow-flow-throttle": FieldSpec("slow_flow_throttle"),
+    "slow-flow-monitoring": FieldSpec("slow_flow_monitoring"),
 }
 
 _NODE_FIELDS: dict[str, FieldSpec] = {
@@ -1640,6 +1770,20 @@ _AUTH_APM_AUTH_FIELDS: dict[str, FieldSpec] = {
 _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm virtual": (BigipVirtualServer, _VS_FIELDS),
     "ltm virtual-address": (BigipVirtualAddress, _VIRTUAL_ADDRESS_FIELDS),
+    # Bundle 13 — ltm.* cross-cutting infra.
+    "ltm cipher group": (BigipLtmCipherGroup, _LTM_CIPHER_GROUP_FIELDS),
+    "ltm cipher rule": (BigipLtmCipherRule, _LTM_CIPHER_RULE_FIELDS),
+    "ltm nat": (BigipLtmNat, _LTM_NAT_FIELDS),
+    "ltm snat": (BigipLtmSnat, _LTM_SNAT_FIELDS),
+    "ltm snat-translation": (BigipLtmSnatTranslation, _LTM_SNAT_TRANSLATION_FIELDS),
+    "ltm policy-strategy": (BigipLtmPolicyStrategy, _LTM_POLICY_STRATEGY_FIELDS),
+    "ltm traffic-class": (BigipLtmTrafficClass, _LTM_TRAFFIC_CLASS_FIELDS),
+    "ltm traffic-matching-criteria": (
+        BigipLtmTrafficMatchingCriteria,
+        _LTM_TRAFFIC_MATCHING_CRITERIA_FIELDS,
+    ),
+    "ltm ifile": (BigipLtmIfile, _LTM_IFILE_FIELDS),
+    "ltm eviction-policy": (BigipLtmEvictionPolicy, _LTM_EVICTION_POLICY_FIELDS),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -1956,6 +2100,20 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
     "ltm": {
         "virtual": ("virtual_servers", "ltm virtual"),
         "virtual-address": ("virtual_addresses", "ltm virtual-address"),
+        # Bundle 13 — ltm.* cross-cutting infra.
+        "cipher-group": ("ltm_cipher_groups", "ltm cipher group"),
+        "cipher-rule": ("ltm_cipher_rules", "ltm cipher rule"),
+        "nat": ("ltm_nats", "ltm nat"),
+        "snat": ("ltm_snats", "ltm snat"),
+        "snat-translation": ("ltm_snat_translations", "ltm snat-translation"),
+        "policy-strategy": ("ltm_policy_strategies", "ltm policy-strategy"),
+        "traffic-class": ("ltm_traffic_classes", "ltm traffic-class"),
+        "traffic-matching-criteria": (
+            "ltm_traffic_matching_criteria",
+            "ltm traffic-matching-criteria",
+        ),
+        "ifile": ("ltm_ifiles", "ltm ifile"),
+        "eviction-policy": ("ltm_eviction_policies", "ltm eviction-policy"),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),

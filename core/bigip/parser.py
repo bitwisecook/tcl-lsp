@@ -74,6 +74,16 @@ from .model import (
     BigipGtmServer,
     BigipGtmTopology,
     BigipGtmWideip,
+    BigipLtmCipherGroup,
+    BigipLtmCipherRule,
+    BigipLtmEvictionPolicy,
+    BigipLtmIfile,
+    BigipLtmNat,
+    BigipLtmPolicyStrategy,
+    BigipLtmSnat,
+    BigipLtmSnatTranslation,
+    BigipLtmTrafficClass,
+    BigipLtmTrafficMatchingCriteria,
     BigipMonitor,
     BigipNetDnsResolver,
     BigipNetInterface,
@@ -569,6 +579,9 @@ _TWO_WORD_TYPES = frozenset(
         "global-settings load-balancing",
         "global-settings metrics",
         "global-settings metrics-exclusions",
+        # ltm bundle 13 — cipher group / cipher rule are two-word kinds.
+        "cipher group",
+        "cipher rule",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -1118,6 +1131,199 @@ def _parse_node(full_path: str, body: str, source_map: DocumentBuffer, block: _B
         rate_limit=props.get("rate-limit", ""),
         ratio=props.get("ratio", ""),
         fqdn=fqdn,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+# Bundle 13 parsers — ltm.* cross-cutting infra.
+
+
+def _parse_ltm_cipher_group(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmCipherGroup:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmCipherGroup(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        allow=_list_field(props, "allow"),
+        require=_list_field(props, "require"),
+        exclude=_list_field(props, "exclude"),
+        ordering=props.get("ordering", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_cipher_rule(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmCipherRule:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmCipherRule(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        cipher=props.get("cipher", ""),
+        dh_groups=props.get("dh-groups", ""),
+        signature_algorithms=props.get("signature-algorithms", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_nat(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmNat:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmNat(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        translation_address=props.get("translation-address", ""),
+        originating_address=props.get("originating-address", ""),
+        traffic_group=props.get("traffic-group", ""),
+        vlans=_list_field(props, "vlans"),
+        vlans_disabled="vlans-disabled" in props,
+        vlans_enabled="vlans-enabled" in props,
+        mirror=props.get("mirror", ""),
+        arp=props.get("arp", ""),
+        state=_state_flag(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_snat(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmSnat:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmSnat(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        origins=_list_field(props, "origins"),
+        translation=props.get("translation", ""),
+        snatpool=props.get("snatpool", ""),
+        vlans=_list_field(props, "vlans"),
+        vlans_disabled="vlans-disabled" in props,
+        vlans_enabled="vlans-enabled" in props,
+        automap="automap" in props,
+        mirror=props.get("mirror", ""),
+        state=_state_flag(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_snat_translation(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmSnatTranslation:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmSnatTranslation(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        address=props.get("address", ""),
+        inherited_traffic_group=props.get("inherited-traffic-group", ""),
+        traffic_group=props.get("traffic-group", ""),
+        connection_limit=props.get("connection-limit", ""),
+        ip_idle_timeout=props.get("ip-idle-timeout", ""),
+        tcp_idle_timeout=props.get("tcp-idle-timeout", ""),
+        udp_idle_timeout=props.get("udp-idle-timeout", ""),
+        state=_state_flag(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_policy_strategy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmPolicyStrategy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    # ``operands { 0 { ... } 1 { ... } ... }`` — surface the indexed
+    # operand keys; per-operand bodies are out of scope in v1.
+    operands = ()
+    if "operands" in props:
+        raw = props["operands"]
+        if raw.startswith("{"):
+            inner = _strip_outer_braces(raw)
+            operands = tuple(_parse_properties_with_spans(inner).keys())
+    return BigipLtmPolicyStrategy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        strategy=props.get("strategy", ""),
+        operands=operands,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_traffic_class(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmTrafficClass:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmTrafficClass(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        classification=props.get("classification", ""),
+        match_method=props.get("match-method", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_traffic_matching_criteria(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmTrafficMatchingCriteria:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmTrafficMatchingCriteria(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        destination_address_list=props.get("destination-address-list", ""),
+        destination_address_inline=props.get("destination-address-inline", ""),
+        destination_port_list=props.get("destination-port-list", ""),
+        destination_port_inline=props.get("destination-port-inline", ""),
+        source_address_list=props.get("source-address-list", ""),
+        source_address_inline=props.get("source-address-inline", ""),
+        source_port_list=props.get("source-port-list", ""),
+        source_port_inline=props.get("source-port-inline", ""),
+        protocol=props.get("protocol", ""),
+        route_domain=props.get("route-domain", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_ifile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmIfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmIfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        file_name=props.get("file-name", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_eviction_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmEvictionPolicy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmEvictionPolicy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        high_water_mark=props.get("high-water-mark", ""),
+        low_water_mark=props.get("low-water-mark", ""),
+        slow_flow_throttle=props.get("slow-flow-throttle", ""),
+        slow_flow_monitoring=props.get("slow-flow-monitoring", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -4475,6 +4681,59 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 if module == "ltm":
                     va = _parse_virtual_address(full_path, block.body, source_map, block)
                     config.virtual_addresses[full_path] = va
+            # Bundle 13 — ltm.* cross-cutting infra.
+            case "cipher group":
+                if module == "ltm":
+                    config.ltm_cipher_groups[full_path] = _parse_ltm_cipher_group(
+                        full_path, block.body, source_map, block
+                    )
+            case "cipher rule":
+                if module == "ltm":
+                    config.ltm_cipher_rules[full_path] = _parse_ltm_cipher_rule(
+                        full_path, block.body, source_map, block
+                    )
+            case "nat":
+                if module == "ltm":
+                    config.ltm_nats[full_path] = _parse_ltm_nat(
+                        full_path, block.body, source_map, block
+                    )
+            case "snat":
+                if module == "ltm":
+                    config.ltm_snats[full_path] = _parse_ltm_snat(
+                        full_path, block.body, source_map, block
+                    )
+            case "snat-translation":
+                if module == "ltm":
+                    config.ltm_snat_translations[full_path] = _parse_ltm_snat_translation(
+                        full_path, block.body, source_map, block
+                    )
+            case "policy-strategy":
+                if module == "ltm":
+                    config.ltm_policy_strategies[full_path] = _parse_ltm_policy_strategy(
+                        full_path, block.body, source_map, block
+                    )
+            case "traffic-class":
+                if module == "ltm":
+                    config.ltm_traffic_classes[full_path] = _parse_ltm_traffic_class(
+                        full_path, block.body, source_map, block
+                    )
+            case "traffic-matching-criteria":
+                if module == "ltm":
+                    config.ltm_traffic_matching_criteria[full_path] = (
+                        _parse_ltm_traffic_matching_criteria(
+                            full_path, block.body, source_map, block
+                        )
+                    )
+            case "ifile":
+                if module == "ltm":
+                    config.ltm_ifiles[full_path] = _parse_ltm_ifile(
+                        full_path, block.body, source_map, block
+                    )
+            case "eviction-policy":
+                if module == "ltm":
+                    config.ltm_eviction_policies[full_path] = _parse_ltm_eviction_policy(
+                        full_path, block.body, source_map, block
+                    )
             case "node":
                 node = _parse_node(full_path, block.body, source_map, block)
                 config.nodes[full_path] = node

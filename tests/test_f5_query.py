@@ -4742,3 +4742,165 @@ def test_gtm_global_settings_metrics_exclusions_singleton_projects_addresses():
     assert _run(".gtm.global-settings-metrics-exclusions[].addresses", _GTM12_CONF).values_per_file[
         "mem://1"
     ] == ["none"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 13 — ltm.* cross-cutting infra (cipher group/rule, nat, snat,
+# snat-translation, policy-strategy, traffic-class,
+# traffic-matching-criteria, ifile, eviction-policy — 10 kinds).
+# ---------------------------------------------------------------------------
+
+_LTM13_CONF = """ltm cipher rule /Common/cr_strong { cipher ECDHE:!RC4 }
+ltm cipher rule /Common/cr_legacy { cipher AES128-SHA }
+ltm cipher group /Common/cg_main {
+    description "main cipher group"
+    allow { /Common/cr_strong /Common/cr_legacy }
+    exclude { /Common/cr_legacy }
+    ordering strength
+}
+ltm nat /Common/nat_external {
+    translation-address 192.0.2.50
+    originating-address 10.0.0.5
+    arp enabled
+    vlans { /Common/vlan_inside }
+    vlans-disabled
+}
+ltm snatpool /Common/sp_main { members { /Common/snat_xlate_1 } }
+ltm snat /Common/snat_app {
+    description "app snat"
+    origins { 10.0.0.0/24 192.0.2.0/24 }
+    snatpool /Common/sp_main
+    vlans { /Common/vlan_inside }
+    mirror enabled
+}
+ltm snat-translation /Common/snat_xlate_1 {
+    address 192.0.2.55
+    inherited-traffic-group true
+    traffic-group /Common/traffic-group-1
+    connection-limit 0
+}
+ltm policy-strategy /Common/ps_best_match {
+    strategy best-match
+    operands {
+        0 { http-uri path }
+        1 { http-host host }
+    }
+}
+ltm traffic-class /Common/tc_1 {
+    classification web
+    match-method exact
+}
+security firewall address-list /Common/addrl_1 { addresses { 10.0.0.0/24 { } } }
+security firewall port-list /Common/portl_1 { ports { 443 { } } }
+ltm traffic-matching-criteria /Common/tmc_1 {
+    destination-address-list /Common/addrl_1
+    destination-port-list /Common/portl_1
+    source-address-inline 0.0.0.0
+    protocol tcp
+}
+ltm ifile /Common/ifile_1 {
+    file-name /Common/ifile_data
+}
+ltm eviction-policy /Common/ep_1 {
+    high-water-mark 95
+    low-water-mark 85
+    slow-flow-throttle enabled
+}
+"""
+
+
+def test_ltm_cipher_group_allow_walks_into_cipher_rule():
+    """``cipher group.allow[]`` is a PathRef list into
+    ``ltm cipher rule``; chaining ``.cipher`` walks to the cipher
+    string on each referenced rule.
+    """
+    res = _run('.ltm.cipher-group["/Common/cg_main"].allow[].cipher', _LTM13_CONF)
+    assert sorted(res.values_per_file["mem://1"]) == ["AES128-SHA", "ECDHE:!RC4"]
+
+
+def test_ltm_cipher_group_ordering_and_exclude():
+    base = '.ltm.cipher-group["/Common/cg_main"]'
+    assert _run(f"{base}.ordering", _LTM13_CONF).values_per_file["mem://1"] == ["strength"]
+    [excl] = _run(f"{base}.exclude", _LTM13_CONF).values_per_file["mem://1"]
+    assert [r.full_path for r in excl] == ["/Common/cr_legacy"]
+
+
+def test_ltm_cipher_rule_projects_cipher():
+    res = _run('.ltm.cipher-rule["/Common/cr_strong"].cipher', _LTM13_CONF)
+    assert res.values_per_file["mem://1"] == ["ECDHE:!RC4"]
+
+
+def test_ltm_nat_projects_addresses_arp_and_vlans():
+    base = '.ltm.nat["/Common/nat_external"]'
+    assert _run(f'{base}."translation-address"', _LTM13_CONF).values_per_file["mem://1"] == [
+        "192.0.2.50"
+    ]
+    assert _run(f'{base}."originating-address"', _LTM13_CONF).values_per_file["mem://1"] == [
+        "10.0.0.5"
+    ]
+    assert _run(f"{base}.arp", _LTM13_CONF).values_per_file["mem://1"] == ["enabled"]
+    assert _run(f'{base}."vlans-disabled"', _LTM13_CONF).values_per_file["mem://1"] == [True]
+
+
+def test_ltm_snat_origins_and_snatpool_pathref():
+    base = '.ltm.snat["/Common/snat_app"]'
+    [origins] = _run(f"{base}.origins", _LTM13_CONF).values_per_file["mem://1"]
+    assert sorted(origins) == ["10.0.0.0/24", "192.0.2.0/24"]
+    [pool] = _run(f"{base}.snatpool", _LTM13_CONF).values_per_file["mem://1"]
+    assert pool.full_path == "/Common/sp_main"
+
+
+def test_ltm_snat_translation_address_and_traffic_group():
+    base = '.ltm.snat-translation["/Common/snat_xlate_1"]'
+    assert _run(f"{base}.address", _LTM13_CONF).values_per_file["mem://1"] == ["192.0.2.55"]
+    [tg] = _run(f'{base}."traffic-group"', _LTM13_CONF).values_per_file["mem://1"]
+    assert tg.full_path == "/Common/traffic-group-1"
+
+
+def test_ltm_policy_strategy_surfaces_operand_indices():
+    base = '.ltm.policy-strategy["/Common/ps_best_match"]'
+    assert _run(f"{base}.strategy", _LTM13_CONF).values_per_file["mem://1"] == ["best-match"]
+    [operands] = _run(f"{base}.operands", _LTM13_CONF).values_per_file["mem://1"]
+    assert sorted(operands) == ["0", "1"]
+
+
+def test_ltm_traffic_class_classification_and_match_method():
+    base = '.ltm.traffic-class["/Common/tc_1"]'
+    assert _run(f"{base}.classification", _LTM13_CONF).values_per_file["mem://1"] == ["web"]
+    assert _run(f'{base}."match-method"', _LTM13_CONF).values_per_file["mem://1"] == ["exact"]
+
+
+def test_ltm_traffic_matching_criteria_destination_address_list_pathref_into_firewall():
+    """``destination-address-list`` is a PathRef into
+    ``security firewall address-list``; chaining ``.addresses``
+    walks the addresses list of the referenced firewall address list.
+    """
+    res = _run(
+        '.ltm.traffic-matching-criteria["/Common/tmc_1"]."destination-address-list".addresses',
+        _LTM13_CONF,
+    )
+    [addrs] = res.values_per_file["mem://1"]
+    assert list(addrs) == ["10.0.0.0/24"]
+
+
+def test_ltm_traffic_matching_criteria_inline_vs_list_fields():
+    base = '.ltm.traffic-matching-criteria["/Common/tmc_1"]'
+    assert _run(f'{base}."source-address-inline"', _LTM13_CONF).values_per_file["mem://1"] == [
+        "0.0.0.0"
+    ]
+    assert _run(f"{base}.protocol", _LTM13_CONF).values_per_file["mem://1"] == ["tcp"]
+
+
+def test_ltm_ifile_projects_file_name():
+    assert _run('.ltm.ifile["/Common/ifile_1"]."file-name"', _LTM13_CONF).values_per_file[
+        "mem://1"
+    ] == ["/Common/ifile_data"]
+
+
+def test_ltm_eviction_policy_projects_water_marks():
+    base = '.ltm.eviction-policy["/Common/ep_1"]'
+    assert _run(f'{base}."high-water-mark"', _LTM13_CONF).values_per_file["mem://1"] == ["95"]
+    assert _run(f'{base}."low-water-mark"', _LTM13_CONF).values_per_file["mem://1"] == ["85"]
+    assert _run(f'{base}."slow-flow-throttle"', _LTM13_CONF).values_per_file["mem://1"] == [
+        "enabled"
+    ]

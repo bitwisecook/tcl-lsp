@@ -572,17 +572,26 @@ collide); the new `gtm_monitors` container fixes that.
 
 ### Bundle 13 — `ltm.*` cross-cutting infra (10)
 
-- [ ] `ltm virtual-address` (also in Bundle 7 — pick one)
-- [ ] `ltm cipher group`
-- [ ] `ltm cipher rule`
-- [ ] `ltm nat`
-- [ ] `ltm snat`
-- [ ] `ltm snat-translation`
-- [ ] `ltm policy-strategy`
-- [ ] `ltm traffic-class`
-- [ ] `ltm traffic-matching-criteria`
-- [ ] `ltm ifile`
-- [ ] `ltm eviction-policy`
+- [x] `ltm virtual-address` (already done as bundle 7)
+- [x] `ltm cipher group`.  ``allow`` / ``require`` / ``exclude`` are
+      PathRef lists into ``ltm cipher rule`` so chains like
+      ``.ltm.cipher-group[].allow[].cipher`` walk through.
+- [x] `ltm cipher rule`
+- [x] `ltm nat`
+- [x] `ltm snat`.  ``snatpool`` is a PathRef into ``ltm snatpool``;
+      ``origins`` is a string list of originating subnets.
+- [x] `ltm snat-translation`
+- [x] `ltm policy-strategy`.  ``operands`` surfaces the indexed
+      sub-block keys; per-operand bodies are left to the source view.
+- [x] `ltm traffic-class`
+- [x] `ltm traffic-matching-criteria`.  ``destination-address-list``
+      / ``source-address-list`` are PathRefs into
+      ``security firewall address-list``;
+      ``destination-port-list`` / ``source-port-list`` into
+      ``security firewall port-list``; ``route-domain`` into
+      ``net route-domain``.
+- [x] `ltm ifile`
+- [x] `ltm eviction-policy`
 
 ### Bundle 14 — `ltm dns.*` (DNS Express, 13)
 
