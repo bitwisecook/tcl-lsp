@@ -62,14 +62,30 @@ def _other_kind_header_spans(source: str, old: str, kind_scope: str) -> list[tup
     {`` as the kind, then joins with the module to compare against
     *kind_scope* (e.g. ``"ltm pool"``).
     """
+    # Single-line anchored: ``\s+`` would let the regex span newlines
+    # and treat an inner attachment line like ``    /Common/foo { }``
+    # inside a ``profiles { ... }`` block as a phantom header.
+    # ``[ \t]+`` and ``[^\n]+?`` keep the match on one line.
     header_re = re.compile(
-        rf"^[ \t]*(\w+)\s+(.+?)\s+({re.escape(old)})\s*\{{",
+        rf"^[ \t]*(\w+)[ \t]+([^\n]+?)[ \t]+({re.escape(old)})[ \t]*\{{",
         re.MULTILINE,
     )
     spans: list[tuple[int, int]] = []
     for match in header_re.finditer(source):
         header_kind = f"{match.group(1)} {match.group(2).strip()}"
         if header_kind == kind_scope:
+            continue
+        # Family match — the projection collapses TMSH sub-kinds
+        # (``ltm profile tcp`` / ``ltm profile http`` / …) into a
+        # single navigable kind (``ltm profile``).  When a rename is
+        # scoped via ``.ltm.profile[X].name = Y`` the ObjectRef
+        # carries ``"ltm profile"`` but the on-disk header is
+        # ``ltm profile tcp …`` — treat the header as the same kind
+        # so the stanza name rewrites along with the references.
+        # Same pattern for ``ltm data-group internal|external``,
+        # ``ltm monitor <type>``, ``ltm persistence <type>``,
+        # ``gtm pool <record-type>``, ``gtm wideip <record-type>``.
+        if header_kind.startswith(kind_scope + " "):
             continue
         spans.append((match.start(3), match.end(3)))
     return spans

@@ -293,6 +293,22 @@ class _Parser:
                 self._consume()
                 return ListLiteral(inner=None, offset=tok.offset)
             inner_expr = self._parse_pipeline()
+            if self._peek().kind is TokenKind.COMMA:
+                # ``[a, b, c]`` is jq's array literal that collects
+                # multiple values, but our DSL doesn't expose ``,``
+                # as a pipeline operator (yet).  Give a more useful
+                # error than the generic "expected ']'" so the user
+                # knows what's wrong: the comma, not the bracket.
+                comma_tok = self._peek()
+                raise ParseError(
+                    "',' is not a pipeline operator in this DSL — list "
+                    "literals collect a single pipeline expression "
+                    "(``[stream | sort]``).  To build a list of "
+                    "discrete values, use a single pipeline that "
+                    "produces them (``[.ltm.virtual[].name]``) or "
+                    "explicit ``select`` / ``[]`` constructions.",
+                    comma_tok.offset,
+                )
             self._expect(TokenKind.RBRACKET, msg="expected ']' to close list literal")
             return ListLiteral(inner=inner_expr, offset=tok.offset)
 

@@ -66,7 +66,7 @@ Related: ``any``, ``select``, ``map``.
 **Examples**
 
 ```
-all(.rules | map(startswith(., "/Common/")))
+all(.ltm.virtual[].pool | startswith(., "/Common/"))
 all(.ltm.virtual[].pool | . != "")          # every VS has a default pool?
 ```
 
@@ -91,6 +91,13 @@ is "does any member's address lie in 10/8?".  The pipe iterates
 the stream of addresses (each becomes ``.``), produces a stream
 of booleans, and ``any`` collapses it.
 
+Note on ``map``: piping a stream into ``map(predicate)`` invokes
+``map`` once **per item** — each call returns a single-element
+list ``[predicate(item)]``.  ``any`` flattens one level of
+list-of-lists so ``any(stream | map(predicate))`` Just Works,
+but the predicate form (``any(stream | predicate)``) is the
+idiomatic shape.
+
 Short-circuits — stops at the first truthy item.
 
 Related: ``all``, ``select``, ``map``.
@@ -98,7 +105,7 @@ Related: ``all``, ``select``, ``map``.
 **Examples**
 
 ```
-any(.rules | map(. == "/Common/log"))
+any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))
 .ltm.virtual[] | select(any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))) | .name
 ```
 

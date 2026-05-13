@@ -224,6 +224,32 @@ def _as_sequence(value: object, *, name: str, arg: int) -> list[Any]:
     raise BuiltinError(f"{name}: argument {arg} must be a list or stream, got {_type_name(value)}")
 
 
+def _flatten_one_level(value: object, *, name: str) -> list[Any]:
+    """``_as_sequence`` plus one level of list-flattening.
+
+    Piping a stream into ``map(predicate)`` invokes ``map`` once per
+    item, and each call returns a single-element list
+    ``[predicate(item)]``.  When the result is then fed to ``any`` /
+    ``all`` / similar aggregates, the per-item list wrappers
+    confuse the truthiness check (``[False]`` is non-empty hence
+    truthy).  Flattening one level here recovers the "did the
+    predicate hold for any/all items?" semantics users expect from
+    ``any(stream | map(predicate))``.
+
+    Single-level: ``[a, b, c]`` stays ``[a, b, c]``.
+    Per-iteration ``map`` output ``[[a], [b], [c]]`` becomes
+    ``[a, b, c]``.  Mixed shapes are left untouched so callers
+    that actually want list-of-lists semantics keep working.
+    """
+    seq = _as_sequence(value, name=name, arg=1)
+    if seq and all(isinstance(item, list) for item in seq):
+        flat: list[Any] = []
+        for sub in seq:
+            flat.extend(sub)
+        return flat
+    return seq
+
+
 def _type_name(value: object) -> str:
     if value is None:
         return "null"
@@ -997,6 +1023,60 @@ def _builtin_length(value: Any) -> int:
 
 
 @_register(
+    "str",
+    summary="Convert any scalar to its string form.",
+    signatures=("str(value: any) -> string",),
+    details="""
+    Coerces a scalar value to its string representation.  Useful for
+    building report-style output where a number or boolean needs to
+    appear next to text:
+    ``.ltm.pool[] | .name + ": " + str(count(.members)) + " members"``.
+
+    The ``+`` operator also auto-coerces scalars when one side is
+    already a string, so ``str()`` is typically only needed when
+    both sides are non-strings (e.g. building a key out of two
+    numbers).
+
+    Rendering:
+
+    - **string** / :class:`PathRef`: returned as-is (PathRef → full-path).
+    - **integers** and **floats**: their decimal form.
+    - **booleans**: ``"true"`` / ``"false"``.
+    - **null**: ``"null"``.
+
+    Raises ``BuiltinError`` for objects, lists, and streams — those
+    have no single-line canonical form and the user should pick
+    explicit fields instead.
+
+    Related: ``+`` (string concat coerces scalars), ``length``,
+    ``basename``.
+    """,
+    examples=(
+        '.ltm.pool[] | .name + ": " + str(count(.members))',
+        "str(42)",
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_str(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, PathRef):
+        return value.full_path
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    raise BuiltinError(
+        f"str: cannot stringify {_type_name(value)} — pick a scalar field "
+        f"(e.g. ``.name`` / ``.full-path``) or use ``--json`` for full objects"
+    )
+
+
+@_register(
     "startswith",
     summary="Test whether a string starts with a prefix.",
     signatures=("startswith(value: string, prefix: string) -> boolean",),
@@ -1558,12 +1638,19 @@ def _builtin_sort(value: Any) -> list[Any]:
     the stream of addresses (each becomes ``.``), produces a stream
     of booleans, and ``any`` collapses it.
 
+    Note on ``map``: piping a stream into ``map(predicate)`` invokes
+    ``map`` once **per item** — each call returns a single-element
+    list ``[predicate(item)]``.  ``any`` flattens one level of
+    list-of-lists so ``any(stream | map(predicate))`` Just Works,
+    but the predicate form (``any(stream | predicate)``) is the
+    idiomatic shape.
+
     Short-circuits — stops at the first truthy item.
 
     Related: ``all``, ``select``, ``map``.
     """,
     examples=(
-        'any(.rules | map(. == "/Common/log"))',
+        'any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))',
         '.ltm.virtual[] | select(any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))) | .name',
     ),
     category="stream",
@@ -1571,7 +1658,7 @@ def _builtin_sort(value: Any) -> list[Any]:
     max_args=1,
 )
 def _builtin_any(value: Any) -> bool:
-    return any(_truthy(v) for v in _as_sequence(value, name="any", arg=1))
+    return any(_truthy(v) for v in _flatten_one_level(value, name="any"))
 
 
 @_register(
@@ -1591,7 +1678,7 @@ def _builtin_any(value: Any) -> bool:
     Related: ``any``, ``select``, ``map``.
     """,
     examples=(
-        'all(.rules | map(startswith(., "/Common/")))',
+        'all(.ltm.virtual[].pool | startswith(., "/Common/"))',
         'all(.ltm.virtual[].pool | . != "")          # every VS has a default pool?',
     ),
     category="stream",
@@ -1599,7 +1686,7 @@ def _builtin_any(value: Any) -> bool:
     max_args=1,
 )
 def _builtin_all(value: Any) -> bool:
-    return all(_truthy(v) for v in _as_sequence(value, name="all", arg=1))
+    return all(_truthy(v) for v in _flatten_one_level(value, name="all"))
 
 
 # ``select`` and ``map`` are special forms — they need to evaluate their

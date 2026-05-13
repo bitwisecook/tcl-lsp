@@ -201,7 +201,20 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
             return Stream(items=[])
         return _subscript_root(target, ctx)
     if isinstance(value, Container):
-        return list(value.entries().values())
+        entries = list(value.entries().values())
+        # ``.pem[]`` / ``.ltm[]`` / ``.sys[]`` etc. iterate a
+        # module-level container whose direct entries are the per-
+        # kind sub-containers, not addressable objects.  Flatten one
+        # level so the user gets a stream of objects across every
+        # kind in the module (``.pem[]`` → every PEM policy /
+        # listener / forwarding-endpoint / …) instead of opaque
+        # ``Container`` repr.
+        if entries and all(isinstance(e, Container) for e in entries):
+            flat: list[Any] = []
+            for sub in entries:
+                flat.extend(sub.entries().values())
+            return flat
+        return entries
     if isinstance(value, (list, Stream)):
         return value
     if isinstance(value, ObjectRef):
@@ -454,7 +467,31 @@ def _add(lhs: Any, rhs: Any) -> Any:
         if isinstance(rhs, list):
             return lhs + rhs
         return lhs + [rhs]
+    # str + scalar / scalar + str: coerce the non-string side to
+    # its scalar string form so report-style queries like
+    # ``.name + ": " + count(.members)`` Just Work without an
+    # explicit ``str()`` cast.  Bools render as ``true`` / ``false``
+    # to match the rest of the DSL's scalar rendering; ``None``
+    # renders as ``null``.
+    if isinstance(lhs, str) and _is_concat_scalar(rhs):
+        return lhs + _scalar_to_string(rhs)
+    if isinstance(rhs, str) and _is_concat_scalar(lhs):
+        return _scalar_to_string(lhs) + rhs
     raise EvalError(f"cannot add {_describe(lhs)} and {_describe(rhs)}")
+
+
+def _is_concat_scalar(value: Any) -> bool:
+    return isinstance(value, (int, float, bool, PathRef)) or value is None
+
+
+def _scalar_to_string(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, PathRef):
+        return value.full_path
+    return str(value)
 
 
 def _sub(lhs: Any, rhs: Any) -> Any:
