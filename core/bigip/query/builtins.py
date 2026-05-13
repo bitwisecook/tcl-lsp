@@ -1578,6 +1578,266 @@ def _builtin_rename_partition(old: Any, new: Any, *, ctx: Any) -> int:
     )
 
 
+@_register(
+    "rename_folder",
+    summary="Move every object from one folder path to another.",
+    details="""
+    The folder-level sibling of :func:`rename_partition`.  ``old``
+    and ``new`` are folder paths (``/Common/iApps/Tenant.app`` /
+    ``/Tenant_A/iApps/Tenant.app``) — every reference whose path
+    starts with ``<old>/`` is rewritten to start with ``<new>/``.
+
+    Cascades into every place a TMSH path appears in the source:
+
+    - object stanza headers (``ltm pool /Common/iApps/old.app/p1``);
+    - reference properties (``pool /Common/iApps/old.app/p1``);
+    - destinations that embed the folder
+      (``destination /Common/iApps/old.app/10.0.0.1:80``);
+    - iRule body literals.
+
+    Uses the same token-bounded prefix-cascade machinery
+    ``rename_partition`` uses — so an unrelated path
+    ``/Common/iApps/old.app.bak/p1`` doesn't accidentally match.
+
+    Pre-flight checks: both arguments must be parseable folder
+    paths (``/<partition>[/<segment>...]``); empty names raise
+    ``BuiltinError``.  ``old == new`` is a no-op.
+
+    Returns the count of textual matches the cascade landed on.
+
+    Related: ``rename_partition`` (partition-level),
+    ``rename`` (single-object), ``with_folder`` (string transform,
+    doesn't migrate references), ``folder`` (extract folder).
+    """,
+    signatures=("rename_folder(old: string, new: string) -> integer",),
+    examples=(
+        'rename_folder("/Common/iApps/old.app", "/Common/iApps/new.app")',
+        'rename_folder("/Common/iApps/Tenant.app", "/Tenant_A/iApps/Tenant.app")',
+    ),
+    category="rename",
+    min_args=2,
+    max_args=2,
+    with_ctx=True,
+)
+def _builtin_rename_folder(old: Any, new: Any, *, ctx: Any) -> int:
+    from ..types import Folder
+    from .edit_plan import PrefixRewrite
+
+    old_text = _as_str(old, name="rename_folder", arg=1).strip()
+    new_text = _as_str(new, name="rename_folder", arg=2).strip()
+    if not old_text or not new_text:
+        raise BuiltinError("rename_folder: folder paths must not be empty")
+    old_folder = Folder.try_parse(old_text)
+    new_folder = Folder.try_parse(new_text)
+    if old_folder is None:
+        raise BuiltinError(f"rename_folder: cannot parse old folder {old_text!r}")
+    if new_folder is None:
+        raise BuiltinError(f"rename_folder: cannot parse new folder {new_text!r}")
+    old_canonical = str(old_folder)
+    new_canonical = str(new_folder)
+    if old_canonical == new_canonical:
+        return 0
+
+    # Token-bounded: a longer folder path with the same prefix
+    # (``/Common/iApps/old.app.bak/...``) must not match.  The
+    # lookahead requires ``/`` (the next path segment) so we're
+    # only matching exact folder-path tokens followed by a sub-path.
+    prefix_pattern = re.compile(
+        rf"(?<![A-Za-z0-9_/.\-]){re.escape(old_canonical)}/(?=[A-Za-z0-9_])"
+    )
+    ctx.edits.add_prefix(
+        PrefixRewrite(
+            source_uri=ctx.root.uri,
+            label=f"folder {old_canonical}/",
+            pattern=prefix_pattern,
+            replacement=f"{new_canonical}/",
+            human_new=f"{new_canonical}/",
+        )
+    )
+    return len(prefix_pattern.findall(ctx.root.source))
+
+
+# ---------------------------------------------------------------------------
+# Object-path / graph predicates
+# ---------------------------------------------------------------------------
+#
+# The ``ObjectPath`` typed value layer underpins these — every input
+# parses through ``ObjectPath.try_parse`` first so folder-nested paths
+# work the same way as flat ones.
+
+
+@_register(
+    "with_name",
+    summary="Return *path* with its leaf name replaced by *name*.",
+    signatures=("with_name(path: string, name: string) -> string",),
+    details="""
+    Preserves the partition + every folder segment; replaces only
+    the final segment (the object's bare name).  Useful for
+    relocating an object inside its existing folder context:
+    ``with_name("/Common/iApps/Tenant.app/old_pool", "new_pool")``
+    → ``"/Common/iApps/Tenant.app/new_pool"``.
+
+    Related: ``basename`` (extract leaf), ``with_partition``,
+    ``with_folder``.
+    """,
+    examples=(
+        'with_name("/Common/old_pool", "new_pool")',
+        'with_name(."full-path", "renamed")',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_with_name(path: Any, name: Any) -> str:
+    from ..types import ObjectPath
+
+    p = _as_str(path, name="with_name", arg=1)
+    n = _as_str(name, name="with_name", arg=2).strip()
+    if not n:
+        raise BuiltinError("with_name: new name must not be empty")
+    obj = ObjectPath.try_parse(p)
+    if obj is None:
+        raise BuiltinError(f"with_name: cannot parse path {p!r}")
+    return str(ObjectPath(folder=obj.folder, name=n))
+
+
+@_register(
+    "in_partition",
+    summary="True when *path* belongs to *partition*.",
+    signatures=("in_partition(path: string, partition: string) -> boolean",),
+    details="""
+    Accepts both spellings of the partition argument: bare
+    (``"Common"``) and slash-prefixed (``"/Common"``).  Returns
+    ``false`` for inputs that aren't TMSH paths.
+
+    Symbolic alternative to ``partition(.) == "Common"`` — reads
+    better in filters and avoids the bare-name vs path-shape
+    pitfall.
+
+    Related: ``partition``, ``in_folder``.
+    """,
+    examples=(
+        '.ltm.pool[] | select(in_partition(."full-path", "Common")) | .name',
+        'in_partition("/Common/web_pool", "Common")',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_in_partition(path: Any, partition: Any) -> bool:
+    from ..types import ObjectPath, Partition
+
+    p = _as_str(path, name="in_partition", arg=1)
+    part_text = _as_str(partition, name="in_partition", arg=2)
+    obj = ObjectPath.try_parse(p)
+    if obj is None:
+        return False
+    target = Partition.try_parse(part_text)
+    if target is None:
+        return False
+    return obj.partition == target
+
+
+@_register(
+    "in_folder",
+    summary="True when *path* lives at-or-below *folder*.",
+    signatures=("in_folder(path: string, folder: string) -> boolean",),
+    details="""
+    Matches paths whose folder prefix equals *folder* OR has
+    *folder* as an ancestor.  ``in_folder(
+    "/Common/iApps/Tenant.app/pool_1", "/Common/iApps")`` →
+    ``true``; ``in_folder("/Common/web_pool",
+    "/Common/iApps")`` → ``false``.
+
+    Symbolic alternative to ``startswith(folder(.), "/Common/iApps")``
+    — does the right thing on folder boundaries (won't match
+    ``/Common/iApps_bak/...``).
+
+    Related: ``folder``, ``in_partition``, ``startswith``.
+    """,
+    examples=('.ltm.pool[] | select(in_folder(."full-path", "/Common/iApps")) | .name',),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_in_folder(path: Any, folder: Any) -> bool:
+    from ..types import Folder, ObjectPath
+
+    p = _as_str(path, name="in_folder", arg=1)
+    f = _as_str(folder, name="in_folder", arg=2)
+    obj = ObjectPath.try_parse(p)
+    target_folder = Folder.try_parse(f)
+    if obj is None or target_folder is None:
+        return False
+    # Match when target_folder is a prefix (incl. equal) of obj.folder.
+    if obj.folder.partition != target_folder.partition:
+        return False
+    target_segs = target_folder.segments
+    obj_segs = obj.folder.segments
+    if len(target_segs) > len(obj_segs):
+        return False
+    return obj_segs[: len(target_segs)] == target_segs
+
+
+@_register(
+    "references_to",
+    summary="Return every object in this config that references *path*.",
+    signatures=("references_to(path: string) -> list",),
+    details="""
+    Walks the parsed BIG-IP config for the current document and
+    returns every object whose body contains a token-bounded
+    reference to *path*.  Routes through the same engine
+    ``f5 grep`` uses, so the search picks up references in:
+
+    - property values (``pool /Common/p``);
+    - compound values (destination prefixes,
+      pool-member partition prefixes, profile attachment lists);
+    - iRule body command arguments (``pool $member`` /
+      ``class match …`` / ``persist …``).
+
+    Multi-file workspaces: only the current document's graph is
+    walked, mirroring the per-file semantics of mutating queries.
+
+    Related: ``refs``, ``referenced_by`` (object-relative graph
+    forms — pass an object value, get its forward / reverse
+    edges).
+    """,
+    examples=(
+        'references_to("/Common/web_pool")',
+        'count(references_to("/Common/log_irule"))',
+    ),
+    category="graph",
+    min_args=1,
+    max_args=1,
+    with_ctx=True,
+)
+def _builtin_references_to(path: Any, *, ctx: Any) -> list[str]:
+    from ..grep import compute_grep
+
+    target = _as_str(path, name="references_to", arg=1).strip()
+    if not target:
+        return []
+    report = compute_grep(
+        sources={ctx.root.uri: ctx.root.source},
+        configs={ctx.root.uri: ctx.root.config},
+        pattern=target,
+        use_regex=False,
+        use_cidr=False,
+        direction="reverse",
+        max_depth=1,
+        max_nodes=1024,
+        include_body=False,
+        recurse=True,
+    )
+    seen: list[str] = []
+    for node in report.related:
+        if node.full_path == target:
+            continue
+        if node.full_path not in seen:
+            seen.append(node.full_path)
+    return seen
+
+
 # ---------------------------------------------------------------------------
 # String helpers
 # ---------------------------------------------------------------------------

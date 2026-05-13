@@ -30,11 +30,11 @@ exactly the same content for one builtin.
 - **[path](#path)** — BIG-IP full-path string helpers — extract the partition or basename, swap a partition prefix.  These are *string* transforms; they don't move objects.  For object renames, reach for the **rename** category.
   - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with_partition)
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
-  - [`rename`](#rename), [`rename_partition`](#rename_partition)
+  - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
+  - [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
-  - [`referenced_by`](#referenced_by), [`refs`](#refs)
+  - [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
   - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`str`](#str), [`type`](#type)
 
@@ -862,6 +862,50 @@ rename("/Common/log_rule", "/Common/audit_rule")
 rename("/Common/old", "/Common/new") ; .ltm.pool["/Common/new"].monitor = "/Common/tcp"
 ```
 
+### `rename_folder`
+
+Move every object from one folder path to another.
+
+**Signatures**
+
+- `rename_folder(old: string, new: string) -> integer`
+
+**Details**
+
+The folder-level sibling of :func:`rename_partition`.  ``old``
+and ``new`` are folder paths (``/Common/iApps/Tenant.app`` /
+``/Tenant_A/iApps/Tenant.app``) — every reference whose path
+starts with ``<old>/`` is rewritten to start with ``<new>/``.
+
+Cascades into every place a TMSH path appears in the source:
+
+- object stanza headers (``ltm pool /Common/iApps/old.app/p1``);
+- reference properties (``pool /Common/iApps/old.app/p1``);
+- destinations that embed the folder
+  (``destination /Common/iApps/old.app/10.0.0.1:80``);
+- iRule body literals.
+
+Uses the same token-bounded prefix-cascade machinery
+``rename_partition`` uses — so an unrelated path
+``/Common/iApps/old.app.bak/p1`` doesn't accidentally match.
+
+Pre-flight checks: both arguments must be parseable folder
+paths (``/<partition>[/<segment>...]``); empty names raise
+``BuiltinError``.  ``old == new`` is a no-op.
+
+Returns the count of textual matches the cascade landed on.
+
+Related: ``rename_partition`` (partition-level),
+``rename`` (single-object), ``with_folder`` (string transform,
+doesn't migrate references), ``folder`` (extract folder).
+
+**Examples**
+
+```
+rename_folder("/Common/iApps/old.app", "/Common/iApps/new.app")
+rename_folder("/Common/iApps/Tenant.app", "/Tenant_A/iApps/Tenant.app")
+```
+
 ### `rename_partition`
 
 Rename a BIG-IP partition by rewriting every textual occurrence of the ``/<old>/`` prefix across the whole source.  Token-bounded and covers object headers, references in config properties, destination address prefixes, pool-member identifiers, iRule body literals, and the ``auth partition`` stanza header.
@@ -1023,6 +1067,61 @@ Related: ``ip``, ``net``, ``host``, ``route_domain``.
 in_cidr("10.0.0.5", "10.0.0.0/8")              # -> true
 in_cidr("/Common/10.0.0.5:80", "10.0.0.0/8")   # -> true
 .ltm.virtual[] | select(in_cidr(.destination, "10.0.0.0/8")) | .name
+```
+
+### `in_folder`
+
+True when *path* lives at-or-below *folder*.
+
+**Signatures**
+
+- `in_folder(path: string, folder: string) -> boolean`
+
+**Details**
+
+Matches paths whose folder prefix equals *folder* OR has
+*folder* as an ancestor.  ``in_folder(
+"/Common/iApps/Tenant.app/pool_1", "/Common/iApps")`` →
+``true``; ``in_folder("/Common/web_pool",
+"/Common/iApps")`` → ``false``.
+
+Symbolic alternative to ``startswith(folder(.), "/Common/iApps")``
+— does the right thing on folder boundaries (won't match
+``/Common/iApps_bak/...``).
+
+Related: ``folder``, ``in_partition``, ``startswith``.
+
+**Examples**
+
+```
+.ltm.pool[] | select(in_folder(."full-path", "/Common/iApps")) | .name
+```
+
+### `in_partition`
+
+True when *path* belongs to *partition*.
+
+**Signatures**
+
+- `in_partition(path: string, partition: string) -> boolean`
+
+**Details**
+
+Accepts both spellings of the partition argument: bare
+(``"Common"``) and slash-prefixed (``"/Common"``).  Returns
+``false`` for inputs that aren't TMSH paths.
+
+Symbolic alternative to ``partition(.) == "Common"`` — reads
+better in filters and avoids the bare-name vs path-shape
+pitfall.
+
+Related: ``partition``, ``in_folder``.
+
+**Examples**
+
+```
+.ltm.pool[] | select(in_partition(."full-path", "Common")) | .name
+in_partition("/Common/web_pool", "Common")
 ```
 
 ### `ip`
@@ -1468,6 +1567,32 @@ with_host(.destination, "10.0.0.2")
 with_host("/Common/10.0.0.1:80", "host.example.com")   # -> "/Common/host.example.com:80"
 ```
 
+### `with_name`
+
+Return *path* with its leaf name replaced by *name*.
+
+**Signatures**
+
+- `with_name(path: string, name: string) -> string`
+
+**Details**
+
+Preserves the partition + every folder segment; replaces only
+the final segment (the object's bare name).  Useful for
+relocating an object inside its existing folder context:
+``with_name("/Common/iApps/Tenant.app/old_pool", "new_pool")``
+→ ``"/Common/iApps/Tenant.app/new_pool"``.
+
+Related: ``basename`` (extract leaf), ``with_partition``,
+``with_folder``.
+
+**Examples**
+
+```
+with_name("/Common/old_pool", "new_pool")
+with_name(."full-path", "renamed")
+```
+
 ### `with_port`
 
 Return *dest* with its port replaced by *port*.
@@ -1569,6 +1694,41 @@ Related: ``refs`` (forward direction), ``count``, ``select``.
 ```
 referenced_by(.ltm.pool.web_pool)
 .ltm.pool[] | select(referenced_by(.) | count == 0) | .name  # orphan pools
+```
+
+### `references_to`
+
+Return every object in this config that references *path*.
+
+**Signatures**
+
+- `references_to(path: string) -> list`
+
+**Details**
+
+Walks the parsed BIG-IP config for the current document and
+returns every object whose body contains a token-bounded
+reference to *path*.  Routes through the same engine
+``f5 grep`` uses, so the search picks up references in:
+
+- property values (``pool /Common/p``);
+- compound values (destination prefixes,
+  pool-member partition prefixes, profile attachment lists);
+- iRule body command arguments (``pool $member`` /
+  ``class match …`` / ``persist …``).
+
+Multi-file workspaces: only the current document's graph is
+walked, mirroring the per-file semantics of mutating queries.
+
+Related: ``refs``, ``referenced_by`` (object-relative graph
+forms — pass an object value, get its forward / reverse
+edges).
+
+**Examples**
+
+```
+references_to("/Common/web_pool")
+count(references_to("/Common/log_irule"))
 ```
 
 ### `refs`
