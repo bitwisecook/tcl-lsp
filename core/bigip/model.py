@@ -453,6 +453,177 @@ class BigipLtmEvictionPolicy:
     range: Range | None = None
 
 
+# Bundle 14 — ltm dns.* (DNS Express).
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsNameserver:
+    """A ``ltm dns nameserver`` object — external DNS nameserver."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    address: str = ""
+    port: str = ""
+    tsig_key: str = ""  # PathRef → ltm dns tsig-key
+    route_domain: str = ""  # PathRef → net route-domain
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsTsigKey:
+    """A ``ltm dns tsig-key`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    algorithm: str = ""
+    secret: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsZone:
+    """A ``ltm dns zone`` object — DNS Express zone."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    dns_express_server: str = ""  # PathRef → ltm dns nameserver
+    dns_express_allow_notify: tuple[str, ...] = ()  # PathRefs → ltm dns nameserver
+    dns_express_enabled: str = ""
+    response_policy: str = ""
+    transfer_clients: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsDnssecKey:
+    """A ``ltm dns dnssec key`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    type_: str = ""  # zone-signing-key / key-signing-key
+    algorithm: str = ""
+    bit_width: str = ""
+    rollover_period: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsDnssecZone:
+    """A ``ltm dns dnssec zone`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    keys: tuple[str, ...] = ()  # PathRefs → ltm dns dnssec key
+    enable: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsCacheResolver:
+    """A ``ltm dns cache resolver`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    message_cache_size: str = ""
+    resolver_cache_size: str = ""
+    answer_default_zones: str = ""
+    forward_zones: tuple[str, ...] = ()
+    route_domain: str = ""  # PathRef → net route-domain
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsCacheTransparent:
+    """A ``ltm dns cache transparent`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    message_cache_size: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsCacheValidatingResolver:
+    """A ``ltm dns cache validating-resolver`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    message_cache_size: str = ""
+    resolver_cache_size: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsCacheGlobalSettings:
+    """The ``ltm dns cache global-settings`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    expiry_time: str = ""
+    nameserver_ttl: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsCacheRecord:
+    """A ``ltm dns cache records <kind>`` object.
+
+    ``record_kind`` distinguishes the five sub-kinds (``all``,
+    ``key``, ``msg``, ``nameserver``, ``rrset``); all share the
+    same shape (cache snapshot data).  These are normally
+    runtime / read-only kinds — we surface them so they're
+    queryable but don't model the per-kind cache record details.
+    """
+
+    name: str
+    full_path: str
+    record_kind: str = ""  # ``all`` / ``key`` / ``msg`` / ``nameserver`` / ``rrset``
+    description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsHpkeKey:
+    """A ``ltm dns hpke key`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    algorithm: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsHpkeProfile:
+    """A ``ltm dns hpke profile`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    defaults_from: str = ""  # PathRef → ltm dns hpke profile
+    keys: tuple[str, ...] = ()  # PathRefs → ltm dns hpke key
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmDnsAnalyticsGlobalSettings:
+    """The ``ltm dns analytics global-settings`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
     """A ``ltm virtual-address`` object.
@@ -2351,6 +2522,28 @@ class BigipConfig:
     )
     ltm_ifiles: dict[str, BigipLtmIfile] = field(default_factory=dict)
     ltm_eviction_policies: dict[str, BigipLtmEvictionPolicy] = field(default_factory=dict)
+    # Bundle 14 — ltm dns.* (DNS Express).
+    ltm_dns_nameservers: dict[str, BigipLtmDnsNameserver] = field(default_factory=dict)
+    ltm_dns_tsig_keys: dict[str, BigipLtmDnsTsigKey] = field(default_factory=dict)
+    ltm_dns_zones: dict[str, BigipLtmDnsZone] = field(default_factory=dict)
+    ltm_dns_dnssec_keys: dict[str, BigipLtmDnsDnssecKey] = field(default_factory=dict)
+    ltm_dns_dnssec_zones: dict[str, BigipLtmDnsDnssecZone] = field(default_factory=dict)
+    ltm_dns_cache_resolvers: dict[str, BigipLtmDnsCacheResolver] = field(default_factory=dict)
+    ltm_dns_cache_transparent: dict[str, BigipLtmDnsCacheTransparent] = field(default_factory=dict)
+    ltm_dns_cache_validating_resolvers: dict[str, BigipLtmDnsCacheValidatingResolver] = field(
+        default_factory=dict
+    )
+    ltm_dns_cache_global_settings: dict[str, BigipLtmDnsCacheGlobalSettings] = field(
+        default_factory=dict
+    )
+    # All five ``ltm dns cache records X`` sub-kinds merge into one
+    # container keyed by full-path; ``record_kind`` disambiguates.
+    ltm_dns_cache_records: dict[str, BigipLtmDnsCacheRecord] = field(default_factory=dict)
+    ltm_dns_hpke_keys: dict[str, BigipLtmDnsHpkeKey] = field(default_factory=dict)
+    ltm_dns_hpke_profiles: dict[str, BigipLtmDnsHpkeProfile] = field(default_factory=dict)
+    ltm_dns_analytics_global_settings: dict[str, BigipLtmDnsAnalyticsGlobalSettings] = field(
+        default_factory=dict
+    )
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

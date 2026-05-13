@@ -76,6 +76,19 @@ from .model import (
     BigipGtmWideip,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
+    BigipLtmDnsAnalyticsGlobalSettings,
+    BigipLtmDnsCacheGlobalSettings,
+    BigipLtmDnsCacheRecord,
+    BigipLtmDnsCacheResolver,
+    BigipLtmDnsCacheTransparent,
+    BigipLtmDnsCacheValidatingResolver,
+    BigipLtmDnsDnssecKey,
+    BigipLtmDnsDnssecZone,
+    BigipLtmDnsHpkeKey,
+    BigipLtmDnsHpkeProfile,
+    BigipLtmDnsNameserver,
+    BigipLtmDnsTsigKey,
+    BigipLtmDnsZone,
     BigipLtmEvictionPolicy,
     BigipLtmIfile,
     BigipLtmNat,
@@ -582,6 +595,10 @@ _TWO_WORD_TYPES = frozenset(
         # ltm bundle 13 — cipher group / cipher rule are two-word kinds.
         "cipher group",
         "cipher rule",
+        # ltm bundle 14 — DNS Express two-word kinds.
+        "dns nameserver",
+        "dns tsig-key",
+        "dns zone",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -757,7 +774,33 @@ _APM_POLICY_AGENT_TYPES = (
     "variable-assign",
 )
 
-_THREE_WORD_TYPES = frozenset(f"policy agent {t}" for t in _APM_POLICY_AGENT_TYPES)
+_THREE_WORD_TYPES = frozenset(
+    [
+        *(f"policy agent {t}" for t in _APM_POLICY_AGENT_TYPES),
+        # ltm dns bundle 14 — three-word kinds.
+        "dns dnssec key",
+        "dns dnssec zone",
+        "dns cache resolver",
+        "dns cache transparent",
+        "dns cache validating-resolver",
+        "dns cache global-settings",  # singleton — header has no identifier
+        "dns analytics global-settings",  # singleton
+        "dns hpke key",
+        "dns hpke profile",
+    ]
+)
+
+# Four-word kinds (header has 6 tokens: module + 4 kind tokens +
+# identifier).  Currently only ``ltm dns cache records *``.
+_FOUR_WORD_TYPES = frozenset(
+    [
+        "dns cache records all",
+        "dns cache records key",
+        "dns cache records msg",
+        "dns cache records nameserver",
+        "dns cache records rrset",
+    ]
+)
 
 
 def _parse_header(header: str) -> tuple[str, str, str] | None:
@@ -769,11 +812,21 @@ def _parse_header(header: str) -> tuple[str, str, str] | None:
     if len(parts) < 3:
         return None
     module = parts[0]
-    # Try three-word type first (apm policy agent <type> /Common/X).
+    # Four-word path (6 tokens: module + 4-word kind + identifier).
+    if len(parts) >= 6:
+        four_word = " ".join(parts[1:5])
+        if four_word in _FOUR_WORD_TYPES:
+            return (module, four_word, parts[5])
+    # Three-word path (5 tokens: module + 3-word kind + identifier).
     if len(parts) >= 5:
-        three_word = f"{parts[1]} {parts[2]} {parts[3]}"
+        three_word = " ".join(parts[1:4])
         if three_word in _THREE_WORD_TYPES:
             return (module, three_word, parts[4])
+    # Three-word singleton (4 tokens: module + 3-word kind, no identifier).
+    if len(parts) == 4:
+        three_word = " ".join(parts[1:4])
+        if three_word in _THREE_WORD_TYPES:
+            return (module, three_word, "")
     # Two-word singleton (``apm report default-report {``) — 3 tokens
     # total and parts[1..2] is a known two-word kind.
     if len(parts) == 3:
@@ -1324,6 +1377,212 @@ def _parse_ltm_eviction_policy(
         low_water_mark=props.get("low-water-mark", ""),
         slow_flow_throttle=props.get("slow-flow-throttle", ""),
         slow_flow_monitoring=props.get("slow-flow-monitoring", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+# Bundle 14 parsers — ltm dns.* (DNS Express).
+
+
+def _parse_ltm_dns_nameserver(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsNameserver:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsNameserver(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        address=props.get("address", ""),
+        port=props.get("port", ""),
+        tsig_key=props.get("tsig-key", ""),
+        route_domain=props.get("route-domain", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_tsig_key(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsTsigKey:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsTsigKey(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        algorithm=props.get("algorithm", ""),
+        secret=props.get("secret", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_zone(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsZone:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsZone(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        dns_express_server=props.get("dns-express-server", ""),
+        dns_express_allow_notify=_list_field(props, "dns-express-allow-notify"),
+        dns_express_enabled=props.get("dns-express-enabled", ""),
+        response_policy=props.get("response-policy", ""),
+        transfer_clients=_list_field(props, "transfer-clients"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_dnssec_key(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsDnssecKey:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsDnssecKey(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        type_=props.get("type", ""),
+        algorithm=props.get("algorithm", ""),
+        bit_width=props.get("bit-width", ""),
+        rollover_period=props.get("rollover-period", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_dnssec_zone(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsDnssecZone:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsDnssecZone(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        keys=_list_field(props, "keys"),
+        enable=props.get("enable", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_cache_resolver(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsCacheResolver:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    forward_zones = ()
+    if "forward-zones" in props:
+        raw = props["forward-zones"]
+        if raw.startswith("{"):
+            forward_zones = tuple(_parse_properties_with_spans(_strip_outer_braces(raw)).keys())
+    return BigipLtmDnsCacheResolver(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        message_cache_size=props.get("message-cache-size", ""),
+        resolver_cache_size=props.get("resolver-cache-size", ""),
+        answer_default_zones=props.get("answer-default-zones", ""),
+        forward_zones=forward_zones,
+        route_domain=props.get("route-domain", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_cache_transparent(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsCacheTransparent:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsCacheTransparent(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        message_cache_size=props.get("message-cache-size", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_cache_validating_resolver(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsCacheValidatingResolver:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsCacheValidatingResolver(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        message_cache_size=props.get("message-cache-size", ""),
+        resolver_cache_size=props.get("resolver-cache-size", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_cache_global_settings(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsCacheGlobalSettings:
+    props = _parse_properties(body)
+    return BigipLtmDnsCacheGlobalSettings(
+        description=_description(props),
+        expiry_time=props.get("expiry-time", ""),
+        nameserver_ttl=props.get("nameserver-ttl", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_cache_record(
+    full_path: str,
+    body: str,
+    record_kind: str,
+    source_map: DocumentBuffer,
+    block: _Block,
+) -> BigipLtmDnsCacheRecord:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1] if full_path else ""
+    return BigipLtmDnsCacheRecord(
+        name=name,
+        full_path=full_path,
+        record_kind=record_kind,
+        description=_description(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_hpke_key(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsHpkeKey:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsHpkeKey(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        algorithm=props.get("algorithm", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_hpke_profile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsHpkeProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmDnsHpkeProfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        defaults_from=props.get("defaults-from", ""),
+        keys=_list_field(props, "keys"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_ltm_dns_analytics_global_settings(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmDnsAnalyticsGlobalSettings:
+    props = _parse_properties(body)
+    return BigipLtmDnsAnalyticsGlobalSettings(
+        description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -4733,6 +4992,78 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 if module == "ltm":
                     config.ltm_eviction_policies[full_path] = _parse_ltm_eviction_policy(
                         full_path, block.body, source_map, block
+                    )
+            # Bundle 14 — ltm dns.* (DNS Express).
+            case "dns nameserver":
+                if module == "ltm":
+                    config.ltm_dns_nameservers[full_path] = _parse_ltm_dns_nameserver(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns tsig-key":
+                if module == "ltm":
+                    config.ltm_dns_tsig_keys[full_path] = _parse_ltm_dns_tsig_key(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns zone":
+                if module == "ltm":
+                    config.ltm_dns_zones[full_path] = _parse_ltm_dns_zone(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns dnssec key":
+                if module == "ltm":
+                    config.ltm_dns_dnssec_keys[full_path] = _parse_ltm_dns_dnssec_key(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns dnssec zone":
+                if module == "ltm":
+                    config.ltm_dns_dnssec_zones[full_path] = _parse_ltm_dns_dnssec_zone(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns cache resolver":
+                if module == "ltm":
+                    config.ltm_dns_cache_resolvers[full_path] = _parse_ltm_dns_cache_resolver(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns cache transparent":
+                if module == "ltm":
+                    config.ltm_dns_cache_transparent[full_path] = _parse_ltm_dns_cache_transparent(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns cache validating-resolver":
+                if module == "ltm":
+                    config.ltm_dns_cache_validating_resolvers[full_path] = (
+                        _parse_ltm_dns_cache_validating_resolver(
+                            full_path, block.body, source_map, block
+                        )
+                    )
+            case "dns cache global-settings":
+                if module == "ltm":
+                    # Singleton (empty full_path from the three-word
+                    # singleton branch in _parse_header).
+                    config.ltm_dns_cache_global_settings[""] = _parse_ltm_dns_cache_global_settings(
+                        block.body, source_map, block
+                    )
+            case _ if obj_type.startswith("dns cache records ") and module == "ltm":
+                # Four-word kind: all five record sub-kinds (all / key /
+                # msg / nameserver / rrset) merge into one container.
+                record_kind = obj_type.rsplit(" ", 1)[1]
+                config.ltm_dns_cache_records[full_path] = _parse_ltm_dns_cache_record(
+                    full_path, block.body, record_kind, source_map, block
+                )
+            case "dns hpke key":
+                if module == "ltm":
+                    config.ltm_dns_hpke_keys[full_path] = _parse_ltm_dns_hpke_key(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns hpke profile":
+                if module == "ltm":
+                    config.ltm_dns_hpke_profiles[full_path] = _parse_ltm_dns_hpke_profile(
+                        full_path, block.body, source_map, block
+                    )
+            case "dns analytics global-settings":
+                if module == "ltm":
+                    config.ltm_dns_analytics_global_settings[""] = (
+                        _parse_ltm_dns_analytics_global_settings(block.body, source_map, block)
                     )
             case "node":
                 node = _parse_node(full_path, block.body, source_map, block)

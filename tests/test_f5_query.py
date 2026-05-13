@@ -4904,3 +4904,138 @@ def test_ltm_eviction_policy_projects_water_marks():
     assert _run(f'{base}."slow-flow-throttle"', _LTM13_CONF).values_per_file["mem://1"] == [
         "enabled"
     ]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 14 — ltm dns.* (DNS Express).  17 kinds total, including
+# 3-word kinds (dns dnssec key/zone, dns cache resolver / transparent /
+# validating-resolver, dns hpke key/profile), 4-word kinds (dns cache
+# records all/key/msg/nameserver/rrset), and 3-word singletons (dns
+# cache global-settings, dns analytics global-settings).
+# ---------------------------------------------------------------------------
+
+_LTM14_CONF = """ltm dns nameserver /Common/ns1 {
+    address 192.0.2.53
+    port 53
+    tsig-key /Common/tsig1
+}
+ltm dns tsig-key /Common/tsig1 {
+    algorithm hmac-sha256
+    secret obscured
+}
+ltm dns zone /Common/example.test {
+    dns-express-server /Common/ns1
+    dns-express-allow-notify { /Common/ns1 }
+    dns-express-enabled yes
+}
+ltm dns dnssec key /Common/zsk1 {
+    type zone-signing-key
+    algorithm rsasha256
+    bit-width 1024
+}
+ltm dns dnssec zone /Common/example.test-dnssec {
+    keys { /Common/zsk1 }
+    enable yes
+}
+ltm dns cache resolver /Common/cr1 {
+    message-cache-size 1m
+    resolver-cache-size 10m
+    answer-default-zones yes
+    forward-zones {
+        example.test { }
+        internal.test { }
+    }
+}
+ltm dns cache transparent /Common/ct1 {
+    message-cache-size 1m
+}
+ltm dns cache validating-resolver /Common/cvr1 {
+    message-cache-size 1m
+    resolver-cache-size 10m
+}
+ltm dns cache global-settings {
+    expiry-time 0
+    nameserver-ttl 0
+}
+ltm dns cache records all /Common/cr_all { }
+ltm dns cache records key /Common/cr_key { }
+ltm dns cache records msg /Common/cr_msg { }
+ltm dns cache records nameserver /Common/cr_ns { }
+ltm dns cache records rrset /Common/cr_rrset { }
+ltm dns hpke key /Common/hpke_k1 {
+    algorithm hkdf-sha256
+}
+ltm dns hpke profile /Common/hpke_p1 {
+    keys { /Common/hpke_k1 }
+}
+ltm dns analytics global-settings { }
+"""
+
+
+def test_ltm_dns_nameserver_tsig_key_resolves_through_pathref():
+    """Two-word kind ``ltm dns nameserver``; ``tsig-key`` is a PathRef
+    into ``ltm dns tsig-key``."""
+    res = _run('.ltm.dns-nameserver["/Common/ns1"]."tsig-key".algorithm', _LTM14_CONF)
+    assert res.values_per_file["mem://1"] == ["hmac-sha256"]
+
+
+def test_ltm_dns_zone_dns_express_server_walks_into_nameserver():
+    res = _run('.ltm.dns-zone["/Common/example.test"]."dns-express-server".address', _LTM14_CONF)
+    assert res.values_per_file["mem://1"] == ["192.0.2.53"]
+
+
+def test_ltm_dns_dnssec_zone_keys_pathref_list_resolves():
+    """Three-word kind ``ltm dns dnssec key`` / ``ltm dns dnssec zone``;
+    ``keys[]`` is a PathRef list into ``ltm dns dnssec key``.
+    """
+    res = _run(".ltm.dns-dnssec-zone[].keys[].algorithm", _LTM14_CONF)
+    assert res.values_per_file["mem://1"] == ["rsasha256"]
+
+
+def test_ltm_dns_cache_resolver_surfaces_forward_zone_keys():
+    res = _run(".ltm.dns-cache-resolver[].forward-zones", _LTM14_CONF)
+    [zones] = res.values_per_file["mem://1"]
+    assert sorted(zones) == ["example.test", "internal.test"]
+
+
+def test_ltm_dns_cache_transparent_and_validating_resolver_share_shape():
+    base_t = '.ltm.dns-cache-transparent["/Common/ct1"]'
+    base_v = '.ltm.dns-cache-validating-resolver["/Common/cvr1"]'
+    assert _run(f'{base_t}."message-cache-size"', _LTM14_CONF).values_per_file["mem://1"] == ["1m"]
+    assert _run(f'{base_v}."message-cache-size"', _LTM14_CONF).values_per_file["mem://1"] == ["1m"]
+
+
+def test_ltm_dns_cache_global_settings_singleton_projects_expiry_time():
+    """Three-word singleton — 4-token header parsed via the new
+    `len(parts) == 4 and three_word in _THREE_WORD_TYPES` branch.
+    """
+    res = _run('.ltm.dns-cache-global-settings[]."expiry-time"', _LTM14_CONF)
+    assert res.values_per_file["mem://1"] == ["0"]
+
+
+def test_ltm_dns_cache_records_merges_all_five_subkinds():
+    """Four-word kind: ``ltm dns cache records {all,key,msg,
+    nameserver,rrset}``.  The parser collapses them into one
+    container keyed by full-path; ``record-kind`` disambiguates.
+    """
+    res = _run('.ltm.dns-cache-records[]."record-kind"', _LTM14_CONF)
+    assert sorted(res.values_per_file["mem://1"]) == [
+        "all",
+        "key",
+        "msg",
+        "nameserver",
+        "rrset",
+    ]
+
+
+def test_ltm_dns_hpke_profile_keys_pathref_into_hpke_key():
+    res = _run('.ltm.dns-hpke-profile["/Common/hpke_p1"].keys[].algorithm', _LTM14_CONF)
+    assert res.values_per_file["mem://1"] == ["hkdf-sha256"]
+
+
+def test_ltm_dns_analytics_global_settings_singleton_present():
+    """The empty ``ltm dns analytics global-settings { }`` singleton
+    still lands in the container with the empty-string key.
+    """
+    res = _run('.ltm.dns-analytics-global-settings[]."full-path"', _LTM14_CONF)
+    assert res.values_per_file["mem://1"] == [""]

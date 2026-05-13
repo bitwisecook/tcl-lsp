@@ -593,25 +593,37 @@ collide); the new `gtm_monitors` container fixes that.
 - [x] `ltm ifile`
 - [x] `ltm eviction-policy`
 
-### Bundle 14 — `ltm dns.*` (DNS Express, 13)
+### Bundle 14 — `ltm dns.*` (DNS Express, 17)
 
-- [ ] `ltm dns nameserver`
-- [ ] `ltm dns tsig-key`
-- [ ] `ltm dns zone`
-- [ ] `ltm dns dnssec key`
-- [ ] `ltm dns dnssec zone`
-- [ ] `ltm dns cache resolver`
-- [ ] `ltm dns cache transparent`
-- [ ] `ltm dns cache validating-resolver`
-- [ ] `ltm dns cache global-settings`
-- [ ] `ltm dns cache records all`
-- [ ] `ltm dns cache records key`
-- [ ] `ltm dns cache records msg`
-- [ ] `ltm dns cache records nameserver`
-- [ ] `ltm dns cache records rrset`
-- [ ] `ltm dns hpke key`
-- [ ] `ltm dns hpke profile`
-- [ ] `ltm dns analytics global-settings`
+Required the header parser to gain a fourth-word and a three-word-
+singleton arity branch.  ``_THREE_WORD_TYPES`` now carries dns
+kinds alongside the apm ``policy agent <type>`` family;
+``_FOUR_WORD_TYPES`` is new and currently exclusive to the
+``dns cache records *`` family.  Five sub-kinds of ``cache
+records`` merge into one container keyed by full-path, with
+``record-kind`` disambiguating them.
+
+- [x] `ltm dns nameserver` (``tsig-key`` PathRef → `ltm dns tsig-key`)
+- [x] `ltm dns tsig-key`
+- [x] `ltm dns zone` (``dns-express-server`` PathRef → `ltm dns
+      nameserver`; ``dns-express-allow-notify[]`` PathRef list)
+- [x] `ltm dns dnssec key`
+- [x] `ltm dns dnssec zone` (``keys[]`` PathRef list → `ltm dns
+      dnssec key`)
+- [x] `ltm dns cache resolver`
+- [x] `ltm dns cache transparent`
+- [x] `ltm dns cache validating-resolver`
+- [x] `ltm dns cache global-settings` (singleton — 3-word kind,
+      4-token header)
+- [x] `ltm dns cache records all`
+- [x] `ltm dns cache records key`
+- [x] `ltm dns cache records msg`
+- [x] `ltm dns cache records nameserver`
+- [x] `ltm dns cache records rrset`
+- [x] `ltm dns hpke key`
+- [x] `ltm dns hpke profile` (``keys[]`` PathRef list → `ltm dns
+      hpke key`)
+- [x] `ltm dns analytics global-settings` (singleton)
 
 ### Bundle 15 — `ltm message-routing.*` (25)
 

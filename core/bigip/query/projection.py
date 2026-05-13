@@ -69,6 +69,19 @@ from ..model import (
     BigipGtmWideip,
     BigipLtmCipherGroup,
     BigipLtmCipherRule,
+    BigipLtmDnsAnalyticsGlobalSettings,
+    BigipLtmDnsCacheGlobalSettings,
+    BigipLtmDnsCacheRecord,
+    BigipLtmDnsCacheResolver,
+    BigipLtmDnsCacheTransparent,
+    BigipLtmDnsCacheValidatingResolver,
+    BigipLtmDnsDnssecKey,
+    BigipLtmDnsDnssecZone,
+    BigipLtmDnsHpkeKey,
+    BigipLtmDnsHpkeProfile,
+    BigipLtmDnsNameserver,
+    BigipLtmDnsTsigKey,
+    BigipLtmDnsZone,
     BigipLtmEvictionPolicy,
     BigipLtmIfile,
     BigipLtmNat,
@@ -472,6 +485,119 @@ _LTM_EVICTION_POLICY_FIELDS: dict[str, FieldSpec] = {
     "low-water-mark": FieldSpec("low_water_mark"),
     "slow-flow-throttle": FieldSpec("slow_flow_throttle"),
     "slow-flow-monitoring": FieldSpec("slow_flow_monitoring"),
+}
+
+# Bundle 14 — ltm dns.* (DNS Express).
+
+_LTM_DNS_NAMESERVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "address": FieldSpec("address"),
+    "port": FieldSpec("port"),
+    "tsig-key": FieldSpec("tsig_key", ref_kind="ltm dns tsig-key"),
+    "route-domain": FieldSpec("route_domain", ref_kind="net route-domain"),
+}
+
+_LTM_DNS_TSIG_KEY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "algorithm": FieldSpec("algorithm"),
+    "secret": FieldSpec("secret"),
+}
+
+_LTM_DNS_ZONE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "dns-express-server": FieldSpec("dns_express_server", ref_kind="ltm dns nameserver"),
+    "dns-express-allow-notify": FieldSpec(
+        "dns_express_allow_notify", ref_kind="ltm dns nameserver", list_ref=True
+    ),
+    "dns-express-enabled": FieldSpec("dns_express_enabled"),
+    "response-policy": FieldSpec("response_policy"),
+    "transfer-clients": FieldSpec("transfer_clients"),
+}
+
+_LTM_DNS_DNSSEC_KEY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "type": FieldSpec("type_"),
+    "algorithm": FieldSpec("algorithm"),
+    "bit-width": FieldSpec("bit_width"),
+    "rollover-period": FieldSpec("rollover_period"),
+}
+
+_LTM_DNS_DNSSEC_ZONE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "keys": FieldSpec("keys", ref_kind="ltm dns dnssec key", list_ref=True),
+    "enable": FieldSpec("enable"),
+}
+
+_LTM_DNS_CACHE_RESOLVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "message-cache-size": FieldSpec("message_cache_size"),
+    "resolver-cache-size": FieldSpec("resolver_cache_size"),
+    "answer-default-zones": FieldSpec("answer_default_zones"),
+    "forward-zones": FieldSpec("forward_zones"),
+    "route-domain": FieldSpec("route_domain", ref_kind="net route-domain"),
+}
+
+_LTM_DNS_CACHE_TRANSPARENT_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "message-cache-size": FieldSpec("message_cache_size"),
+}
+
+_LTM_DNS_CACHE_VALIDATING_RESOLVER_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "message-cache-size": FieldSpec("message_cache_size"),
+    "resolver-cache-size": FieldSpec("resolver_cache_size"),
+}
+
+_LTM_DNS_CACHE_GLOBAL_SETTINGS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "expiry-time": FieldSpec("expiry_time"),
+    "nameserver-ttl": FieldSpec("nameserver_ttl"),
+}
+
+_LTM_DNS_CACHE_RECORD_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "record-kind": FieldSpec("record_kind"),
+    "description": FieldSpec("description"),
+}
+
+_LTM_DNS_HPKE_KEY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "algorithm": FieldSpec("algorithm"),
+}
+
+_LTM_DNS_HPKE_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="ltm dns hpke profile"),
+    "keys": FieldSpec("keys", ref_kind="ltm dns hpke key", list_ref=True),
+}
+
+_LTM_DNS_ANALYTICS_GLOBAL_SETTINGS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
 }
 
 _NODE_FIELDS: dict[str, FieldSpec] = {
@@ -1784,6 +1910,32 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     ),
     "ltm ifile": (BigipLtmIfile, _LTM_IFILE_FIELDS),
     "ltm eviction-policy": (BigipLtmEvictionPolicy, _LTM_EVICTION_POLICY_FIELDS),
+    # Bundle 14 — ltm dns.* (DNS Express).
+    "ltm dns nameserver": (BigipLtmDnsNameserver, _LTM_DNS_NAMESERVER_FIELDS),
+    "ltm dns tsig-key": (BigipLtmDnsTsigKey, _LTM_DNS_TSIG_KEY_FIELDS),
+    "ltm dns zone": (BigipLtmDnsZone, _LTM_DNS_ZONE_FIELDS),
+    "ltm dns dnssec key": (BigipLtmDnsDnssecKey, _LTM_DNS_DNSSEC_KEY_FIELDS),
+    "ltm dns dnssec zone": (BigipLtmDnsDnssecZone, _LTM_DNS_DNSSEC_ZONE_FIELDS),
+    "ltm dns cache resolver": (BigipLtmDnsCacheResolver, _LTM_DNS_CACHE_RESOLVER_FIELDS),
+    "ltm dns cache transparent": (
+        BigipLtmDnsCacheTransparent,
+        _LTM_DNS_CACHE_TRANSPARENT_FIELDS,
+    ),
+    "ltm dns cache validating-resolver": (
+        BigipLtmDnsCacheValidatingResolver,
+        _LTM_DNS_CACHE_VALIDATING_RESOLVER_FIELDS,
+    ),
+    "ltm dns cache global-settings": (
+        BigipLtmDnsCacheGlobalSettings,
+        _LTM_DNS_CACHE_GLOBAL_SETTINGS_FIELDS,
+    ),
+    "ltm dns cache records": (BigipLtmDnsCacheRecord, _LTM_DNS_CACHE_RECORD_FIELDS),
+    "ltm dns hpke key": (BigipLtmDnsHpkeKey, _LTM_DNS_HPKE_KEY_FIELDS),
+    "ltm dns hpke profile": (BigipLtmDnsHpkeProfile, _LTM_DNS_HPKE_PROFILE_FIELDS),
+    "ltm dns analytics global-settings": (
+        BigipLtmDnsAnalyticsGlobalSettings,
+        _LTM_DNS_ANALYTICS_GLOBAL_SETTINGS_FIELDS,
+    ),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -2114,6 +2266,32 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         ),
         "ifile": ("ltm_ifiles", "ltm ifile"),
         "eviction-policy": ("ltm_eviction_policies", "ltm eviction-policy"),
+        # Bundle 14 — ltm dns.* (DNS Express).
+        "dns-nameserver": ("ltm_dns_nameservers", "ltm dns nameserver"),
+        "dns-tsig-key": ("ltm_dns_tsig_keys", "ltm dns tsig-key"),
+        "dns-zone": ("ltm_dns_zones", "ltm dns zone"),
+        "dns-dnssec-key": ("ltm_dns_dnssec_keys", "ltm dns dnssec key"),
+        "dns-dnssec-zone": ("ltm_dns_dnssec_zones", "ltm dns dnssec zone"),
+        "dns-cache-resolver": ("ltm_dns_cache_resolvers", "ltm dns cache resolver"),
+        "dns-cache-transparent": (
+            "ltm_dns_cache_transparent",
+            "ltm dns cache transparent",
+        ),
+        "dns-cache-validating-resolver": (
+            "ltm_dns_cache_validating_resolvers",
+            "ltm dns cache validating-resolver",
+        ),
+        "dns-cache-global-settings": (
+            "ltm_dns_cache_global_settings",
+            "ltm dns cache global-settings",
+        ),
+        "dns-cache-records": ("ltm_dns_cache_records", "ltm dns cache records"),
+        "dns-hpke-key": ("ltm_dns_hpke_keys", "ltm dns hpke key"),
+        "dns-hpke-profile": ("ltm_dns_hpke_profiles", "ltm dns hpke profile"),
+        "dns-analytics-global-settings": (
+            "ltm_dns_analytics_global_settings",
+            "ltm dns analytics global-settings",
+        ),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),
