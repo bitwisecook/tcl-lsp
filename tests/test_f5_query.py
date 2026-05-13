@@ -4144,3 +4144,171 @@ def test_security_firewall_uuid_default_autogenerate_singleton_projects_setting(
 def test_security_firewall_config_change_log_singleton_projects_publisher():
     res = _run('.security.firewall-config-change-log[]."log-publisher"', _FW9_CONF)
     assert res.values_per_file["mem://1"] == ["/Common/local-db-publisher"]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 10a — high-value security.* outside firewall.*:
+# NAT policy + translations, log profile, DoS profile, IP intelligence
+# feed-list / global-policy, zone / protected zone, packet-filter,
+# SSH profile, HTTP profile, bot-defense profile (14 kinds).
+# ---------------------------------------------------------------------------
+
+_SEC10A_CONF = """security firewall rule-list /Common/rl_a { }
+security nat policy /Common/nat_main {
+    description "main nat policy"
+    rules {
+        binding_a { rule-list /Common/rl_a }
+    }
+}
+security nat source-translation /Common/sn_pool {
+    type dynamic-pat
+    addresses { 192.0.2.10 }
+    ports { 1024-65535 }
+    traffic-group /Common/traffic-group-1
+    egress-interfaces-disabled
+}
+security nat destination-translation /Common/dn_pool {
+    type static-pat
+    addresses { 192.0.2.20 }
+    ports { 8443 }
+}
+security log profile /Common/lp_default {
+    description "default log profile"
+}
+security dos profile /Common/dp_default {
+    description "default dos"
+    app-service none
+    threshold-sensitivity low
+}
+security ip-intelligence feed-list /Common/feeds_main {
+    description "main feeds"
+    feeds {
+        spamhaus_drop { }
+        torexit { }
+    }
+}
+security ip-intelligence global-policy {
+    description "global"
+    log-publisher /Common/local-db-publisher
+}
+net vlan /Common/vlan_inside { tag 100 }
+security zone /Common/zone_inside {
+    description "inside zone"
+    vlans { /Common/vlan_inside }
+}
+security protected zone /Common/pz_critical {
+    description "critical"
+}
+security packet-filter policy /Common/pf_main {
+    rules { allow_all { } deny_all { } }
+}
+security packet-filter default-rules {
+    action accept
+}
+security ssh profile /Common/ssh_p1 {
+    timeout 60
+}
+security http profile /Common/http_p1 {
+    description "http sec"
+    defaults_from /Common/http_default
+}
+security bot-defense profile /Common/bot_p1 {
+    description "bot"
+    template relaxed
+}
+cm traffic-group /Common/traffic-group-1 { unit-id 1 }
+"""
+
+
+def test_security_nat_policy_projects_rule_bindings_and_pathrefs():
+    base = '.security.nat-policy["/Common/nat_main"]'
+    [names] = _run(f"{base}.rules", _SEC10A_CONF).values_per_file["mem://1"]
+    assert list(names) == ["binding_a"]
+    [refs] = _run(f'{base}."rule-lists"', _SEC10A_CONF).values_per_file["mem://1"]
+    assert [r.full_path for r in refs] == ["/Common/rl_a"]
+
+
+def test_security_nat_source_translation_projects_addresses_and_traffic_group():
+    base = '.security.nat-source-translation["/Common/sn_pool"]'
+    assert _run(f"{base}.type", _SEC10A_CONF).values_per_file["mem://1"] == ["dynamic-pat"]
+    [addrs] = _run(f"{base}.addresses", _SEC10A_CONF).values_per_file["mem://1"]
+    assert list(addrs) == ["192.0.2.10"]
+    [tg] = _run(f'{base}."traffic-group"', _SEC10A_CONF).values_per_file["mem://1"]
+    assert tg.full_path == "/Common/traffic-group-1"
+    assert _run(f'{base}."egress-interfaces-disabled"', _SEC10A_CONF).values_per_file[
+        "mem://1"
+    ] == [True]
+
+
+def test_security_nat_destination_translation_projects_addresses_and_ports():
+    base = '.security.nat-destination-translation["/Common/dn_pool"]'
+    [ports] = _run(f"{base}.ports", _SEC10A_CONF).values_per_file["mem://1"]
+    assert list(ports) == ["8443"]
+    assert _run(f"{base}.type", _SEC10A_CONF).values_per_file["mem://1"] == ["static-pat"]
+
+
+def test_security_log_profile_projects_description():
+    res = _run(".security.log-profile[].description", _SEC10A_CONF)
+    assert res.values_per_file["mem://1"] == ["default log profile"]
+
+
+def test_security_dos_profile_projects_threshold_sensitivity():
+    res = _run('.security.dos-profile[]."threshold-sensitivity"', _SEC10A_CONF)
+    assert res.values_per_file["mem://1"] == ["low"]
+
+
+def test_security_ip_intelligence_feed_list_projects_feed_names():
+    [feeds] = _run(".security.ip-intelligence-feed-list[].feeds", _SEC10A_CONF).values_per_file[
+        "mem://1"
+    ]
+    assert sorted(feeds) == ["spamhaus_drop", "torexit"]
+
+
+def test_security_ip_intelligence_global_policy_singleton_projects_log_publisher():
+    res = _run('.security.ip-intelligence-global-policy[]."log-publisher"', _SEC10A_CONF)
+    assert res.values_per_file["mem://1"] == ["/Common/local-db-publisher"]
+
+
+def test_security_zone_vlans_walks_into_net_vlan():
+    """``security zone.vlans[]`` is a PathRef list into ``net vlan``;
+    chaining ``.tag`` pulls the VLAN tag.
+    """
+    res = _run(".security.zone[].vlans[].tag", _SEC10A_CONF)
+    assert res.values_per_file["mem://1"] == [100]
+
+
+def test_security_protected_zone_projects_description():
+    assert _run(".security.protected-zone[].description", _SEC10A_CONF).values_per_file[
+        "mem://1"
+    ] == ["critical"]
+
+
+def test_security_packet_filter_policy_surfaces_rule_keys():
+    [rules] = _run(
+        '.security.packet-filter-policy["/Common/pf_main"].rules', _SEC10A_CONF
+    ).values_per_file["mem://1"]
+    assert sorted(rules) == ["allow_all", "deny_all"]
+
+
+def test_security_packet_filter_default_rules_singleton_projects_action():
+    assert _run(".security.packet-filter-default-rules[].action", _SEC10A_CONF).values_per_file[
+        "mem://1"
+    ] == ["accept"]
+
+
+def test_security_ssh_profile_projects_timeout():
+    assert _run('.security.ssh-profile["/Common/ssh_p1"].timeout', _SEC10A_CONF).values_per_file[
+        "mem://1"
+    ] == ["60"]
+
+
+def test_security_http_profile_projects_description():
+    assert _run(
+        '.security.http-profile["/Common/http_p1"].description', _SEC10A_CONF
+    ).values_per_file["mem://1"] == ["http sec"]
+
+
+def test_security_bot_defense_profile_projects_template():
+    assert _run(
+        '.security.bot-defense-profile["/Common/bot_p1"].template', _SEC10A_CONF
+    ).values_per_file["mem://1"] == ["relaxed"]

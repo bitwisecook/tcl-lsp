@@ -85,7 +85,9 @@ from ..model import (
     BigipPoolMember,
     BigipProfile,
     BigipRule,
+    BigipSecurityBotDefenseProfile,
     BigipSecurityDeviceIdAttribute,
+    BigipSecurityDosProfile,
     BigipSecurityFirewallAddressList,
     BigipSecurityFirewallConfigChangeLog,
     BigipSecurityFirewallConfigEntityId,
@@ -102,9 +104,21 @@ from ..model import (
     BigipSecurityFirewallUserDomain,
     BigipSecurityFirewallUserList,
     BigipSecurityFirewallUuidDefaultAutogenerate,
+    BigipSecurityHttpProfile,
+    BigipSecurityIpIntelligenceFeedList,
+    BigipSecurityIpIntelligenceGlobalPolicy,
     BigipSecurityIpIntelligencePolicy,
+    BigipSecurityLogProfile,
+    BigipSecurityNatDestinationTranslation,
+    BigipSecurityNatPolicy,
+    BigipSecurityNatSourceTranslation,
+    BigipSecurityPacketFilterDefaultRules,
+    BigipSecurityPacketFilterPolicy,
+    BigipSecurityProtectedZone,
     BigipSecurityProtocolInspectionComplianceMap,
     BigipSecurityProtocolInspectionComplianceObject,
+    BigipSecuritySshProfile,
+    BigipSecurityZone,
     BigipSnatPool,
     BigipSysDns,
     BigipSysFileSslCert,
@@ -810,6 +824,119 @@ _SECURITY_FW_CONFIG_CHANGE_LOG_FIELDS: dict[str, FieldSpec] = {
     "log-publisher": FieldSpec("log_publisher"),
 }
 
+_SECURITY_NAT_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rules": FieldSpec("rules"),
+    "rule-lists": FieldSpec("rule_lists", ref_kind="security firewall rule-list", list_ref=True),
+}
+
+_SECURITY_NAT_SOURCE_TRANSLATION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "type": FieldSpec("type_"),
+    "addresses": FieldSpec("addresses"),
+    "ports": FieldSpec("ports"),
+    "traffic-group": FieldSpec("traffic_group", ref_kind="cm traffic-group"),
+    "egress-interfaces-disabled": FieldSpec("egress_interfaces_disabled"),
+}
+
+_SECURITY_NAT_DESTINATION_TRANSLATION_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "type": FieldSpec("type_"),
+    "addresses": FieldSpec("addresses"),
+    "ports": FieldSpec("ports"),
+}
+
+_SECURITY_LOG_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "application-data": FieldSpec("application_data"),
+    "network-data": FieldSpec("network_data"),
+}
+
+_SECURITY_DOS_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "app-service": FieldSpec("app_service"),
+    "threshold-sensitivity": FieldSpec("threshold_sensitivity"),
+}
+
+_SECURITY_IP_INTELLIGENCE_FEED_LIST_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "feeds": FieldSpec("feeds"),
+}
+
+_SECURITY_IP_INTELLIGENCE_GLOBAL_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "log-blacklist-category": FieldSpec("log_blacklist_category"),
+    "log-publisher": FieldSpec("log_publisher"),
+}
+
+_SECURITY_ZONE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "vlans": FieldSpec("vlans", ref_kind="net vlan", list_ref=True),
+    "tunnels": FieldSpec("tunnels", ref_kind="net tunnels tunnel", list_ref=True),
+    "interfaces": FieldSpec("interfaces"),
+}
+
+_SECURITY_PROTECTED_ZONE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "enabled": FieldSpec("enabled"),
+}
+
+_SECURITY_PACKET_FILTER_POLICY_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rules": FieldSpec("rules"),
+}
+
+_SECURITY_PACKET_FILTER_DEFAULT_RULES_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "action": FieldSpec("action"),
+}
+
+_SECURITY_SSH_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="security ssh profile"),
+    "timeout": FieldSpec("timeout"),
+}
+
+_SECURITY_HTTP_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "defaults-from": FieldSpec("defaults_from", ref_kind="security http profile"),
+}
+
+_SECURITY_BOT_DEFENSE_PROFILE_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "app-service": FieldSpec("app_service"),
+    "template": FieldSpec("template"),
+}
+
+
 _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
@@ -1465,6 +1592,41 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
         BigipSecurityFirewallConfigChangeLog,
         _SECURITY_FW_CONFIG_CHANGE_LOG_FIELDS,
     ),
+    "security nat policy": (BigipSecurityNatPolicy, _SECURITY_NAT_POLICY_FIELDS),
+    "security nat source-translation": (
+        BigipSecurityNatSourceTranslation,
+        _SECURITY_NAT_SOURCE_TRANSLATION_FIELDS,
+    ),
+    "security nat destination-translation": (
+        BigipSecurityNatDestinationTranslation,
+        _SECURITY_NAT_DESTINATION_TRANSLATION_FIELDS,
+    ),
+    "security log profile": (BigipSecurityLogProfile, _SECURITY_LOG_PROFILE_FIELDS),
+    "security dos profile": (BigipSecurityDosProfile, _SECURITY_DOS_PROFILE_FIELDS),
+    "security ip-intelligence feed-list": (
+        BigipSecurityIpIntelligenceFeedList,
+        _SECURITY_IP_INTELLIGENCE_FEED_LIST_FIELDS,
+    ),
+    "security ip-intelligence global-policy": (
+        BigipSecurityIpIntelligenceGlobalPolicy,
+        _SECURITY_IP_INTELLIGENCE_GLOBAL_POLICY_FIELDS,
+    ),
+    "security zone": (BigipSecurityZone, _SECURITY_ZONE_FIELDS),
+    "security protected zone": (BigipSecurityProtectedZone, _SECURITY_PROTECTED_ZONE_FIELDS),
+    "security packet-filter policy": (
+        BigipSecurityPacketFilterPolicy,
+        _SECURITY_PACKET_FILTER_POLICY_FIELDS,
+    ),
+    "security packet-filter default-rules": (
+        BigipSecurityPacketFilterDefaultRules,
+        _SECURITY_PACKET_FILTER_DEFAULT_RULES_FIELDS,
+    ),
+    "security ssh profile": (BigipSecuritySshProfile, _SECURITY_SSH_PROFILE_FIELDS),
+    "security http profile": (BigipSecurityHttpProfile, _SECURITY_HTTP_PROFILE_FIELDS),
+    "security bot-defense profile": (
+        BigipSecurityBotDefenseProfile,
+        _SECURITY_BOT_DEFENSE_PROFILE_FIELDS,
+    ),
     "security ip-intelligence policy": (
         BigipSecurityIpIntelligencePolicy,
         _SECURITY_IP_INTELLIGENCE_POLICY_FIELDS,
@@ -1683,6 +1845,41 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "firewall-config-change-log": (
             "security_firewall_config_change_log",
             "security firewall config-change-log",
+        ),
+        "nat-policy": ("security_nat_policies", "security nat policy"),
+        "nat-source-translation": (
+            "security_nat_source_translations",
+            "security nat source-translation",
+        ),
+        "nat-destination-translation": (
+            "security_nat_destination_translations",
+            "security nat destination-translation",
+        ),
+        "log-profile": ("security_log_profiles", "security log profile"),
+        "dos-profile": ("security_dos_profiles", "security dos profile"),
+        "ip-intelligence-feed-list": (
+            "security_ip_intelligence_feed_lists",
+            "security ip-intelligence feed-list",
+        ),
+        "ip-intelligence-global-policy": (
+            "security_ip_intelligence_global_policy",
+            "security ip-intelligence global-policy",
+        ),
+        "zone": ("security_zones", "security zone"),
+        "protected-zone": ("security_protected_zones", "security protected zone"),
+        "packet-filter-policy": (
+            "security_packet_filter_policies",
+            "security packet-filter policy",
+        ),
+        "packet-filter-default-rules": (
+            "security_packet_filter_default_rules",
+            "security packet-filter default-rules",
+        ),
+        "ssh-profile": ("security_ssh_profiles", "security ssh profile"),
+        "http-profile": ("security_http_profiles", "security http profile"),
+        "bot-defense-profile": (
+            "security_bot_defense_profiles",
+            "security bot-defense profile",
         ),
         "ip-intelligence-policy": (
             "security_ip_intelligence_policies",

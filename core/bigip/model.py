@@ -957,6 +957,195 @@ class BigipSecurityFirewallConfigChangeLog:
     range: Range | None = None
 
 
+# Bundle 10a — high-value security.* kinds outside firewall.*:
+# NAT policy + translations, log profile, DoS profile, IP
+# intelligence feed-list / global-policy, zone / protected zone,
+# packet-filter, SSH profile, HTTP profile, bot-defense profile.
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityNatPolicy:
+    """A ``security nat policy`` object — NAT rule-list bindings.
+
+    Sister to ``security firewall policy``: the ``rules`` sub-block
+    is keyed by rule-binding name; each binding carries a
+    ``rule-list /Common/...`` PathRef.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    rules: tuple[str, ...] = ()
+    rule_lists: tuple[str, ...] = ()  # PathRefs → security firewall rule-list
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityNatSourceTranslation:
+    """A ``security nat source-translation`` object — NAT source pool."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    type_: str = ""  # ``dynamic-pat`` / ``static-nat`` / ``napt`` / ``static-pat``
+    addresses: tuple[str, ...] = ()
+    ports: tuple[str, ...] = ()
+    traffic_group: str = ""  # PathRef → cm traffic-group
+    egress_interfaces_disabled: bool = False  # bare flag
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityNatDestinationTranslation:
+    """A ``security nat destination-translation`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    type_: str = ""
+    addresses: tuple[str, ...] = ()
+    ports: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityLogProfile:
+    """A ``security log profile`` object — AFM / ASM logging config."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    application_data: str = ""
+    network_data: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityDosProfile:
+    """A ``security dos profile`` object — DDoS profile.
+
+    The body is a deeply nested ``application`` / ``dos-network`` /
+    ``protocol-dns`` / ``protocol-sip`` block; in v1 we surface
+    only the identity scalars and let consumers reach further with
+    ``--scf`` for the source view.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    app_service: str = ""
+    threshold_sensitivity: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityIpIntelligenceFeedList:
+    """A ``security ip-intelligence feed-list`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    feeds: tuple[str, ...] = ()  # top-level keys of the ``feeds`` sub-block
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityIpIntelligenceGlobalPolicy:
+    """The ``security ip-intelligence global-policy`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    log_blacklist_category: str = ""
+    log_publisher: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityZone:
+    """A ``security zone`` object — security-zone definition.
+
+    Single-word kind (header ``security zone /Common/X``).  Lists
+    the VLANs and tunnels in the zone.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
+    tunnels: tuple[str, ...] = ()  # PathRefs → net tunnels tunnel
+    interfaces: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityProtectedZone:
+    """A ``security protected zone`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    enabled: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityPacketFilterPolicy:
+    """A ``security packet-filter policy`` object."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    rules: tuple[str, ...] = ()
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityPacketFilterDefaultRules:
+    """The ``security packet-filter default-rules`` singleton."""
+
+    name: str = ""
+    full_path: str = ""
+    description: str = ""
+    action: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecuritySshProfile:
+    """A ``security ssh profile`` object — SSH proxy profile."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    defaults_from: str = ""  # PathRef → security ssh profile
+    timeout: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityHttpProfile:
+    """A ``security http profile`` object — HTTP security profile."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    defaults_from: str = ""  # PathRef → security http profile
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipSecurityBotDefenseProfile:
+    """A ``security bot-defense profile`` object — bot defense profile."""
+
+    name: str
+    full_path: str
+    description: str = ""
+    app_service: str = ""
+    template: str = ""
+    range: Range | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class BigipSecurityIpIntelligencePolicy:
     """A ``security ip-intelligence policy`` object.
@@ -1874,6 +2063,35 @@ class BigipConfig:
         str, BigipSecurityFirewallUuidDefaultAutogenerate
     ] = field(default_factory=dict)
     security_firewall_config_change_log: dict[str, BigipSecurityFirewallConfigChangeLog] = field(
+        default_factory=dict
+    )
+    # Bundle 10a — high-value security.* outside firewall.*.
+    security_nat_policies: dict[str, BigipSecurityNatPolicy] = field(default_factory=dict)
+    security_nat_source_translations: dict[str, BigipSecurityNatSourceTranslation] = field(
+        default_factory=dict
+    )
+    security_nat_destination_translations: dict[str, BigipSecurityNatDestinationTranslation] = (
+        field(default_factory=dict)
+    )
+    security_log_profiles: dict[str, BigipSecurityLogProfile] = field(default_factory=dict)
+    security_dos_profiles: dict[str, BigipSecurityDosProfile] = field(default_factory=dict)
+    security_ip_intelligence_feed_lists: dict[str, BigipSecurityIpIntelligenceFeedList] = field(
+        default_factory=dict
+    )
+    security_ip_intelligence_global_policy: dict[str, BigipSecurityIpIntelligenceGlobalPolicy] = (
+        field(default_factory=dict)
+    )
+    security_zones: dict[str, BigipSecurityZone] = field(default_factory=dict)
+    security_protected_zones: dict[str, BigipSecurityProtectedZone] = field(default_factory=dict)
+    security_packet_filter_policies: dict[str, BigipSecurityPacketFilterPolicy] = field(
+        default_factory=dict
+    )
+    security_packet_filter_default_rules: dict[str, BigipSecurityPacketFilterDefaultRules] = field(
+        default_factory=dict
+    )
+    security_ssh_profiles: dict[str, BigipSecuritySshProfile] = field(default_factory=dict)
+    security_http_profiles: dict[str, BigipSecurityHttpProfile] = field(default_factory=dict)
+    security_bot_defense_profiles: dict[str, BigipSecurityBotDefenseProfile] = field(
         default_factory=dict
     )
     security_ip_intelligence_policies: dict[str, BigipSecurityIpIntelligencePolicy] = field(

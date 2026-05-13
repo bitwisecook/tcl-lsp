@@ -442,12 +442,19 @@ existing two-word singleton dispatch.
 
 ### Bundle 10 — `security` other (53)
 
+This bundle was split into two sub-bundles for review-size reasons.
+Bundle 10a covers the 14 highest-query-value kinds (NAT policies,
+log / DoS / SSH / HTTP / bot-defense profiles, IP-intel feed-list +
+global-policy, zones, packet-filter); bundle 10b covers the
+remaining 39 (most of `dos.*`, `debug.*`, `datasync.*`, anti-fraud,
+blacklist-publisher, protocol-inspection sub-kinds, etc.).
+
 - [ ] `security analytics settings`
 - [ ] `security anti-fraud profile`
 - [ ] `security anti-fraud signatures-update`
 - [ ] `security blacklist-publisher category`
 - [ ] `security blacklist-publisher profile`
-- [ ] `security bot-defense profile`
+- [x] `security bot-defense profile`
 - [ ] `security bot-defense signature`
 - [ ] `security bot-defense signature-category`
 - [ ] `security cloud-services connector`
@@ -469,30 +476,33 @@ existing two-word singleton dispatch.
 - [ ] `security dos ip-uncommon-protolist`
 - [ ] `security dos l4bdos-file-object`
 - [ ] `security dos network-whitelist`
-- [ ] `security dos profile`
+- [x] `security dos profile`
 - [ ] `security dos stress-stats`
 - [ ] `security dos udp-portlist`
 - [ ] `security dos virtual`
 - [ ] `security flowspec-route-injector profile`
-- [ ] `security http profile`
+- [x] `security http profile`
 - [ ] `security ip-intelligence blacklist-category`
-- [ ] `security ip-intelligence feed-list`
-- [ ] `security ip-intelligence global-policy`
-- [ ] `security log profile`
-- [ ] `security nat destination-translation`
-- [ ] `security nat policy`
-- [ ] `security nat source-translation`
-- [ ] `security packet-filter default-rules`
-- [ ] `security packet-filter policy`
-- [ ] `security protected zone`
+- [x] `security ip-intelligence feed-list`
+- [x] `security ip-intelligence global-policy` (singleton)
+- [x] `security log profile`
+- [x] `security nat destination-translation`
+- [x] `security nat policy` (sister to `security firewall policy`;
+      `rule-lists` is a PathRef list into
+      `security firewall rule-list`)
+- [x] `security nat source-translation`
+- [x] `security packet-filter default-rules` (singleton)
+- [x] `security packet-filter policy`
+- [x] `security protected zone`
 - [ ] `security protocol-inspection common-config`
 - [ ] `security protocol-inspection learning-stats`
 - [ ] `security protocol-inspection profile`
 - [ ] `security protocol-inspection signature`
 - [ ] `security scrubber profile`
 - [ ] `security ssh ciphers`
-- [ ] `security ssh profile`
-- [ ] `security zone`
+- [x] `security ssh profile`
+- [x] `security zone` (single-word kind; `vlans` is a PathRef list
+      into `net vlan`, `tunnels` into `net tunnels tunnel`)
 
 ### Bundle 11 — `gtm monitor.*` (29)
 

@@ -92,7 +92,9 @@ from .model import (
     BigipPoolMember,
     BigipProfile,
     BigipRule,
+    BigipSecurityBotDefenseProfile,
     BigipSecurityDeviceIdAttribute,
+    BigipSecurityDosProfile,
     BigipSecurityFirewallAddressList,
     BigipSecurityFirewallConfigChangeLog,
     BigipSecurityFirewallConfigEntityId,
@@ -109,9 +111,21 @@ from .model import (
     BigipSecurityFirewallUserDomain,
     BigipSecurityFirewallUserList,
     BigipSecurityFirewallUuidDefaultAutogenerate,
+    BigipSecurityHttpProfile,
+    BigipSecurityIpIntelligenceFeedList,
+    BigipSecurityIpIntelligenceGlobalPolicy,
     BigipSecurityIpIntelligencePolicy,
+    BigipSecurityLogProfile,
+    BigipSecurityNatDestinationTranslation,
+    BigipSecurityNatPolicy,
+    BigipSecurityNatSourceTranslation,
+    BigipSecurityPacketFilterDefaultRules,
+    BigipSecurityPacketFilterPolicy,
+    BigipSecurityProtectedZone,
     BigipSecurityProtocolInspectionComplianceMap,
     BigipSecurityProtocolInspectionComplianceObject,
+    BigipSecuritySshProfile,
+    BigipSecurityZone,
     BigipSnatPool,
     BigipSysDns,
     BigipSysFileSslCert,
@@ -537,6 +551,20 @@ _TWO_WORD_TYPES = frozenset(
         "firewall on-demand-rule-deploy",
         "firewall uuid-default-autogenerate",
         "firewall config-change-log",
+        # bundle 10a — high-value security.* outside firewall.*
+        "nat policy",
+        "nat source-translation",
+        "nat destination-translation",
+        "log profile",
+        "dos profile",
+        "ip-intelligence feed-list",
+        "ip-intelligence global-policy",
+        "protected zone",
+        "packet-filter policy",
+        "packet-filter default-rules",
+        "ssh profile",
+        "http profile",
+        "bot-defense profile",
         "ip-intelligence policy",
         "protocol-inspection compliance-map",
         "protocol-inspection compliance-objects",
@@ -2236,6 +2264,215 @@ def _parse_security_firewall_config_change_log(
     )
 
 
+# Bundle 10a parsers.
+
+
+def _parse_security_nat_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityNatPolicy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    rule_names, rule_refs = _firewall_rules_summary(props)
+    return BigipSecurityNatPolicy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        rules=rule_names,
+        rule_lists=rule_refs,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_nat_source_translation(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityNatSourceTranslation:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityNatSourceTranslation(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        type_=props.get("type", ""),
+        addresses=_list_field(props, "addresses"),
+        ports=_list_field(props, "ports"),
+        traffic_group=props.get("traffic-group", ""),
+        egress_interfaces_disabled="egress-interfaces-disabled" in props,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_nat_destination_translation(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityNatDestinationTranslation:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityNatDestinationTranslation(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        type_=props.get("type", ""),
+        addresses=_list_field(props, "addresses"),
+        ports=_list_field(props, "ports"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_log_profile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityLogProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityLogProfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        application_data=props.get("application", ""),
+        network_data=props.get("network", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_dos_profile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityDosProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityDosProfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        app_service=props.get("app-service", ""),
+        threshold_sensitivity=props.get("threshold-sensitivity", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_ip_intelligence_feed_list(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityIpIntelligenceFeedList:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityIpIntelligenceFeedList(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        feeds=_list_field(props, "feeds"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_ip_intelligence_global_policy(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityIpIntelligenceGlobalPolicy:
+    props = _parse_properties(body)
+    return BigipSecurityIpIntelligenceGlobalPolicy(
+        description=_description(props),
+        log_blacklist_category=props.get("log-blacklist-category", ""),
+        log_publisher=props.get("log-publisher", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_zone(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityZone:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityZone(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        vlans=_list_field(props, "vlans"),
+        tunnels=_list_field(props, "tunnels"),
+        interfaces=_list_field(props, "interfaces"),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_protected_zone(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityProtectedZone:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityProtectedZone(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        enabled=_state_flag(props),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_packet_filter_policy(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityPacketFilterPolicy:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    rule_names, _ = _firewall_rules_summary(props)
+    return BigipSecurityPacketFilterPolicy(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        rules=rule_names,
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_packet_filter_default_rules(
+    body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityPacketFilterDefaultRules:
+    props = _parse_properties(body)
+    return BigipSecurityPacketFilterDefaultRules(
+        description=_description(props),
+        action=props.get("action", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_ssh_profile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecuritySshProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecuritySshProfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        defaults_from=props.get("defaults-from", ""),
+        timeout=props.get("timeout", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_http_profile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityHttpProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityHttpProfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        defaults_from=props.get("defaults-from", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_security_bot_defense_profile(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipSecurityBotDefenseProfile:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipSecurityBotDefenseProfile(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        app_service=props.get("app-service", ""),
+        template=props.get("template", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 def _parse_security_ip_intelligence_policy(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityIpIntelligencePolicy:
@@ -3576,6 +3813,70 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             elif obj_type == "firewall config-change-log":
                 config.security_firewall_config_change_log[""] = (
                     _parse_security_firewall_config_change_log(block.body, source_map, block)
+                )
+            # bundle 10a — NAT / log / DoS / IP-intel / zones / packet-filter /
+            # SSH / HTTP / bot-defense profiles.  Singletons land with
+            # ``full_path == ""`` via the two-word singleton branch.
+            elif obj_type == "nat policy":
+                config.security_nat_policies[full_path] = _parse_security_nat_policy(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "nat source-translation":
+                config.security_nat_source_translations[full_path] = (
+                    _parse_security_nat_source_translation(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "nat destination-translation":
+                config.security_nat_destination_translations[full_path] = (
+                    _parse_security_nat_destination_translation(
+                        full_path, block.body, source_map, block
+                    )
+                )
+            elif obj_type == "log profile":
+                config.security_log_profiles[full_path] = _parse_security_log_profile(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "dos profile":
+                config.security_dos_profiles[full_path] = _parse_security_dos_profile(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "ip-intelligence feed-list":
+                config.security_ip_intelligence_feed_lists[full_path] = (
+                    _parse_security_ip_intelligence_feed_list(
+                        full_path, block.body, source_map, block
+                    )
+                )
+            elif obj_type == "ip-intelligence global-policy":
+                config.security_ip_intelligence_global_policy[""] = (
+                    _parse_security_ip_intelligence_global_policy(block.body, source_map, block)
+                )
+            elif obj_type == "zone":
+                # ``security zone /Common/X`` — single-word kind.
+                config.security_zones[full_path] = _parse_security_zone(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "protected zone":
+                config.security_protected_zones[full_path] = _parse_security_protected_zone(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "packet-filter policy":
+                config.security_packet_filter_policies[full_path] = (
+                    _parse_security_packet_filter_policy(full_path, block.body, source_map, block)
+                )
+            elif obj_type == "packet-filter default-rules":
+                config.security_packet_filter_default_rules[""] = (
+                    _parse_security_packet_filter_default_rules(block.body, source_map, block)
+                )
+            elif obj_type == "ssh profile":
+                config.security_ssh_profiles[full_path] = _parse_security_ssh_profile(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "http profile":
+                config.security_http_profiles[full_path] = _parse_security_http_profile(
+                    full_path, block.body, source_map, block
+                )
+            elif obj_type == "bot-defense profile":
+                config.security_bot_defense_profiles[full_path] = (
+                    _parse_security_bot_defense_profile(full_path, block.body, source_map, block)
                 )
             continue
 
