@@ -41,6 +41,10 @@ rules for the KCS/documentation split live in
   from the registry by
   [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py);
   do not edit by hand.
+- [f5-query-projection-gaps.md](f5-query-projection-gaps.md) —
+  working checklist of every authoritative TMSH property the
+  typed projection does not yet surface, grouped into numbered
+  bundles so each one can land as a focused commit.
 
 ## tclpkg package manager
 
