@@ -590,19 +590,33 @@ def _apply_merged_settings_now() -> None:
 
     # Per-folder PackageResolver configuration (issue #407).  Each folder
     # with its own ``tclLsp.libraryPaths`` gets a dedicated resolver
-    # configured with that folder's paths plus the workspace_roots.  This
-    # is invoked after FeatureConfig population so cfg.library_paths is up
-    # to date.
+    # configured with that folder's paths plus the workspace_roots.  Only
+    # spin one up when the folder's paths actually *differ* from the
+    # workspace fallback — VS Code typically returns folder configuration
+    # already merged with workspace values, so library_paths is populated
+    # for every folder even when no folder-level override exists.  Without
+    # this guard we'd end up with N duplicate resolvers all scanning the
+    # same set of paths.
     workspace_roots = _state.background_scanner.workspace_roots
+    fallback_paths = (
+        tuple(_state.feature_config.library_paths) if _state.feature_config.library_paths else ()
+    )
     for folder_uri in folder_uris:
         if folder_uri == "":
             continue
         folder_cfg = _state.get_or_init_folder_feature_config(folder_uri)
         if folder_cfg.library_paths is None:
             continue
-        folder_paths = list(folder_cfg.library_paths)
+        folder_paths = tuple(folder_cfg.library_paths)
+        if folder_paths == fallback_paths:
+            # Folder mirrors the workspace fallback — drop any stale
+            # per-folder resolver so ``package_resolver_for_uri`` falls
+            # back to the shared workspace resolver instead of
+            # double-scanning.
+            _state._per_folder_package_resolvers.pop(folder_uri, None)
+            continue
         folder_resolver = _state.get_or_init_folder_package_resolver(folder_uri)
-        folder_resolver.configure(search_paths=workspace_roots + folder_paths)
+        folder_resolver.configure(search_paths=workspace_roots + list(folder_paths))
 
     if not signatures_changed and not features_changed:
         return

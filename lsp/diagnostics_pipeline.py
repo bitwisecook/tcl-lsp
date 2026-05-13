@@ -317,7 +317,7 @@ async def _publish_diagnostics_inner(
     if did_analyse:
         is_fresh = state.analysis is None or force_reanalyse
         if is_fresh:
-            from core.common.dialect import active_dialect
+            from core.commands.registry.runtime import _dialect_var, _extra_commands_var
             from lsp.workspace.document_state import _analyse_document_fresh
 
             try:
@@ -331,11 +331,16 @@ async def _publish_diagnostics_inner(
                             source=source,
                             version=version,
                             line_length=line_length,
-                            dialect=active_dialect(),
+                            dialect=_dialect_var.get(),
                             uri=uri,
                             disabled_diagnostics=disabled_diagnostics,
                             disabled_optimisations=disabled_optimisations,
                             optimiser_enabled=optimiser_enabled,
+                            # Forward every per-request ContextVar value
+                            # so the subprocess sees the per-folder
+                            # dialect / extras / nonAscii (issue #407).
+                            extra_commands=_extra_commands_var.get(),
+                            non_ascii_mode=cfg.non_ascii_mode,
                         ),
                     ),
                     timeout=15.0,

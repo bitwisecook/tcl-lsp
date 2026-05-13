@@ -11,7 +11,8 @@ from pygls.lsp.server import LanguageServer
 
 import lsp.diagnostics_pipeline as _dp
 import lsp.state as _state
-from core.commands.registry.runtime import configure_signatures, is_irules_dialect
+from core.commands.registry.runtime import configure_signatures
+from core.common.dialect import active_dialect
 
 from .features.workspace_file_ops import compute_batch_rename_edits
 from .workspace.scanner import uri_to_path
@@ -45,12 +46,13 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     )
 
     folder_cfg = _state.config_for_uri(uri)
-    if not is_irules_dialect() and _dp._is_irules_source(uri):
-        # Per-folder auto-switch (issue #407): write the detected dialect to
-        # the folder's FeatureConfig so request handlers pick it up via
-        # ``dialect_scope_for_uri``.  Only escalate to the workspace-wide
-        # ``configure_signatures`` (which mutates the process default) when
-        # the folder hasn't been explicitly configured for some other dialect.
+    # Per-folder auto-switch (issue #407): the auto-switch only matters when
+    # *this folder's resolved dialect* is not already iRules.  Gating on
+    # ``is_irules_dialect()`` (the process default) produced spurious
+    # "Auto-switching to f5-irules" notifications for folders that were
+    # already explicitly configured for iRules.
+    folder_effective_dialect = folder_cfg.dialect or active_dialect()
+    if folder_effective_dialect != "f5-irules" and _dp._is_irules_source(uri):
         log.info("Auto-switching to f5-irules dialect (language_id=%r)", lang_id)
         if not folder_cfg.dialect_explicitly_set:
             folder_cfg.dialect = "f5-irules"
