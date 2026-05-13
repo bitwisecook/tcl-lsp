@@ -342,3 +342,774 @@ in the bundles above:
 - **`cm cert` / `sys file ssl-cert` audit fields** — `create-time`
   etc. are listed above; verify whether the parser receives them on
   a real save (TMSH may suppress them on `list` output).
+
+---
+
+## Phase 2 — kinds the audit flagged as entirely unmodelled
+
+The bundles above enrich kinds we already project. The kinds below
+are **not yet projected at all** — they need a new dataclass +
+parser + projection field map + dispatch, then a row in
+`_KIND_FIELD_MAPS` / `_MODULE_KINDS`.
+
+Each kind below has been verified to be a **persistent
+configuration object** in the TMSH option-set (it advertises
+`create` / `modify` / `delete`). Read-only / runtime / imperative
+kinds are not in this list — they appear in the *Explicitly
+skipped* section near the bottom.
+
+Bundles are grouped by module and ordered by likely query value.
+The number after the module name in each `## Bundle N — <module>`
+header is the count of unticked kinds in the bundle. Some modules
+have so many persistent kinds that they have been split across
+multiple bundles.
+
+### Bundle 7 — `ltm virtual-address` (1)
+
+`ltm virtual-address` is a distinct kind from `ltm virtual`: it
+represents the listener IP itself (route advertisement, ARP, ICMP
+echo, connection-limit, traffic-group binding) and every `ltm
+virtual.destination` references one.
+
+- [ ] `ltm virtual-address`
+
+  Fields: address, mask, arp, icmp-echo, auto-delete,
+  connection-limit, traffic-group (PathRef → `cm traffic-group`),
+  route-advertisement, server-scope, spanning, unit, description,
+  enabled/disabled, floating, traffic-group-restored.
+
+### Bundle 8 — `auth.*` (14)
+
+The `.auth` namespace does not exist in the projection at all.
+
+- [ ] `auth partition` (central admin partition; referenced from
+      virtually every full-path)
+- [ ] `auth user` (local users)
+- [ ] `auth password`
+- [ ] `auth password-policy`
+- [ ] `auth source`
+- [ ] `auth remote-role`
+- [ ] `auth remote-user`
+- [ ] `auth login-failures`
+- [ ] `auth ldap`
+- [ ] `auth radius`
+- [ ] `auth radius-server`
+- [ ] `auth tacacs`
+- [ ] `auth cert-ldap`
+- [ ] `auth apm-auth`
+
+### Bundle 9 — AFM `security firewall.*` core (12)
+
+The single most-requested AFM kind is `security firewall policy`
+— it carries the rules that drive the firewall.
+
+- [ ] `security firewall policy` (sister to `ltm policy`)
+- [ ] `security firewall address-list` (IP-list, sister to
+      `firewall port-list`)
+- [ ] `security firewall global-rules` (singleton)
+- [ ] `security firewall management-ip-rules` (singleton)
+- [ ] `security firewall schedule`
+- [ ] `security firewall user-list`
+- [ ] `security firewall user-domain`
+- [ ] `security firewall global-fqdn-policy`
+- [ ] `security firewall port-misuse-policy`
+- [ ] `security firewall on-demand-compilation`
+- [ ] `security firewall on-demand-rule-deploy`
+- [ ] `security firewall uuid-default-autogenerate`
+- [ ] `security firewall config-change-log`
+
+### Bundle 10 — `security` other (53)
+
+- [ ] `security analytics settings`
+- [ ] `security anti-fraud profile`
+- [ ] `security anti-fraud signatures-update`
+- [ ] `security blacklist-publisher category`
+- [ ] `security blacklist-publisher profile`
+- [ ] `security bot-defense profile`
+- [ ] `security bot-defense signature`
+- [ ] `security bot-defense signature-category`
+- [ ] `security cloud-services connector`
+- [ ] `security datasync background-tasks`
+- [ ] `security datasync global-profile`
+- [ ] `security datasync local-profile`
+- [ ] `security debug drop-redirect-stats`
+- [ ] `security debug matcher`
+- [ ] `security debug register`
+- [ ] `security device device-context`
+- [ ] `security dos autodos-file-object`
+- [ ] `security dos behavioral-signature`
+- [ ] `security dos bot-signature`
+- [ ] `security dos bot-signature-category`
+- [ ] `security dos device-config`
+- [ ] `security dos dns-nxdomain-stat`
+- [ ] `security dos dos-signature`
+- [ ] `security dos dynamic-signatures`
+- [ ] `security dos ip-uncommon-protolist`
+- [ ] `security dos l4bdos-file-object`
+- [ ] `security dos network-whitelist`
+- [ ] `security dos profile`
+- [ ] `security dos stress-stats`
+- [ ] `security dos udp-portlist`
+- [ ] `security dos virtual`
+- [ ] `security flowspec-route-injector profile`
+- [ ] `security http profile`
+- [ ] `security ip-intelligence blacklist-category`
+- [ ] `security ip-intelligence feed-list`
+- [ ] `security ip-intelligence global-policy`
+- [ ] `security log profile`
+- [ ] `security nat destination-translation`
+- [ ] `security nat policy`
+- [ ] `security nat source-translation`
+- [ ] `security packet-filter default-rules`
+- [ ] `security packet-filter policy`
+- [ ] `security protected zone`
+- [ ] `security protocol-inspection common-config`
+- [ ] `security protocol-inspection learning-stats`
+- [ ] `security protocol-inspection profile`
+- [ ] `security protocol-inspection signature`
+- [ ] `security scrubber profile`
+- [ ] `security ssh ciphers`
+- [ ] `security ssh profile`
+- [ ] `security zone`
+
+### Bundle 11 — `gtm monitor.*` (29)
+
+Analogue of `ltm monitor` — all per-protocol monitor variants get
+collapsed into a single `gtm monitor` container tagged by
+`monitor_type` (matches the LTM pattern).
+
+- [ ] `gtm monitor bigip`
+- [ ] `gtm monitor bigip-link`
+- [ ] `gtm monitor external`
+- [ ] `gtm monitor firepass`
+- [ ] `gtm monitor ftp`
+- [ ] `gtm monitor gateway-icmp`
+- [ ] `gtm monitor gtp`
+- [ ] `gtm monitor http`
+- [ ] `gtm monitor https`
+- [ ] `gtm monitor imap`
+- [ ] `gtm monitor ldap`
+- [ ] `gtm monitor mssql`
+- [ ] `gtm monitor mysql`
+- [ ] `gtm monitor nntp`
+- [ ] `gtm monitor oracle`
+- [ ] `gtm monitor pop3`
+- [ ] `gtm monitor postgresql`
+- [ ] `gtm monitor radius`
+- [ ] `gtm monitor radius-accounting`
+- [ ] `gtm monitor real-server`
+- [ ] `gtm monitor scripted`
+- [ ] `gtm monitor sip`
+- [ ] `gtm monitor smtp`
+- [ ] `gtm monitor snmp`
+- [ ] `gtm monitor snmp-link`
+- [ ] `gtm monitor soap`
+- [ ] `gtm monitor tcp`
+- [ ] `gtm monitor tcp-half-open`
+- [ ] `gtm monitor udp`
+- [ ] `gtm monitor wap`
+- [ ] `gtm monitor wmi`
+
+### Bundle 12 — `gtm` listeners / topology / settings (11)
+
+- [ ] `gtm listener` (DNS listener — the GTM equivalent of `ltm virtual`)
+- [ ] `gtm listener-doh-proxy`
+- [ ] `gtm listener-doh-server`
+- [ ] `gtm link`
+- [ ] `gtm topology`
+- [ ] `gtm distributed-app`
+- [ ] `gtm global-settings general`
+- [ ] `gtm global-settings load-balancing`
+- [ ] `gtm global-settings metrics`
+- [ ] `gtm global-settings metrics-exclusions`
+
+### Bundle 13 — `ltm.*` cross-cutting infra (10)
+
+- [ ] `ltm virtual-address` (also in Bundle 7 — pick one)
+- [ ] `ltm cipher group`
+- [ ] `ltm cipher rule`
+- [ ] `ltm nat`
+- [ ] `ltm snat`
+- [ ] `ltm snat-translation`
+- [ ] `ltm policy-strategy`
+- [ ] `ltm traffic-class`
+- [ ] `ltm traffic-matching-criteria`
+- [ ] `ltm ifile`
+- [ ] `ltm eviction-policy`
+
+### Bundle 14 — `ltm dns.*` (DNS Express, 13)
+
+- [ ] `ltm dns nameserver`
+- [ ] `ltm dns tsig-key`
+- [ ] `ltm dns zone`
+- [ ] `ltm dns dnssec key`
+- [ ] `ltm dns dnssec zone`
+- [ ] `ltm dns cache resolver`
+- [ ] `ltm dns cache transparent`
+- [ ] `ltm dns cache validating-resolver`
+- [ ] `ltm dns cache global-settings`
+- [ ] `ltm dns cache records all`
+- [ ] `ltm dns cache records key`
+- [ ] `ltm dns cache records msg`
+- [ ] `ltm dns cache records nameserver`
+- [ ] `ltm dns cache records rrset`
+- [ ] `ltm dns hpke key`
+- [ ] `ltm dns hpke profile`
+- [ ] `ltm dns analytics global-settings`
+
+### Bundle 15 — `ltm message-routing.*` (25)
+
+Five protocol families (Diameter, SIP, MQTT, Generic + their
+common router/route/peer/transport-config kinds). Almost
+mechanical; one shared dataclass shape per row, tagged by
+protocol.
+
+- [ ] `ltm message-routing diameter peer`
+- [ ] `ltm message-routing diameter route`
+- [ ] `ltm message-routing diameter profile router`
+- [ ] `ltm message-routing diameter profile session`
+- [ ] `ltm message-routing diameter transport-config`
+- [ ] `ltm message-routing sip peer`
+- [ ] `ltm message-routing sip route`
+- [ ] `ltm message-routing sip profile router`
+- [ ] `ltm message-routing sip profile session`
+- [ ] `ltm message-routing sip transport-config`
+- [ ] `ltm message-routing mqtt peer`
+- [ ] `ltm message-routing mqtt route`
+- [ ] `ltm message-routing mqtt profile router`
+- [ ] `ltm message-routing mqtt profile session`
+- [ ] `ltm message-routing mqtt transport-config`
+- [ ] `ltm message-routing generic peer`
+- [ ] `ltm message-routing generic protocol`
+- [ ] `ltm message-routing generic route`
+- [ ] `ltm message-routing generic router`
+- [ ] `ltm message-routing generic transport-config`
+
+### Bundle 16 — `ltm` auth profiles (12)
+
+- [ ] `ltm auth profile`
+- [ ] `ltm auth ldap`
+- [ ] `ltm auth radius`
+- [ ] `ltm auth radius-server`
+- [ ] `ltm auth tacacs`
+- [ ] `ltm auth crldp-server`
+- [ ] `ltm auth ocsp-responder`
+- [ ] `ltm auth kerberos-delegation`
+- [ ] `ltm auth ssl-cc-ldap`
+- [ ] `ltm auth ssl-crldp`
+- [ ] `ltm auth ssl-ocsp`
+
+### Bundle 17 — `ltm` CGNAT / LSN (3)
+
+- [ ] `ltm lsn-pool`
+- [ ] `ltm lsn-log-profile`
+- [ ] `ltm alg-log-profile`
+
+### Bundle 18 — `ltm` global-settings + misc singletons (5)
+
+- [ ] `ltm default-node-monitor`
+- [ ] `ltm global-settings connection`
+- [ ] `ltm global-settings general`
+- [ ] `ltm global-settings rule`
+- [ ] `ltm global-settings traffic-control`
+- [ ] `ltm rule-profiler`
+
+### Bundle 19 — `ltm classification.*` (URL DB, 10)
+
+- [ ] `ltm classification application`
+- [ ] `ltm classification auto-update settings`
+- [ ] `ltm classification category`
+- [ ] `ltm classification ce`
+- [ ] `ltm classification signature-update-schedule`
+- [ ] `ltm classification url-cat-policy`
+- [ ] `ltm classification url-category`
+- [ ] `ltm classification urldb-feed-list`
+- [ ] `ltm classification urldb-file`
+- [ ] `ltm clientssl ocsp-stapling-responses`
+- [ ] `ltm clientssl-proxy cached-certs`
+
+### Bundle 20 — `ltm tacdb.*` traffic-accel DB (3)
+
+- [ ] `ltm tacdb customdb`
+- [ ] `ltm tacdb customdb-file`
+- [ ] `ltm tacdb licenseddb`
+
+### Bundle 21 — `net.*` routing (10)
+
+- [ ] `net routing access-list`
+- [ ] `net routing bfd`
+- [ ] `net routing bgp`
+- [ ] `net routing community-list`
+- [ ] `net routing extcommunity-list`
+- [ ] `net routing prefix-list`
+- [ ] `net routing profile bgp`
+- [ ] `net routing route-map`
+- [ ] `net routing debug`
+- [ ] `net router-advertisement`
+
+### Bundle 22 — `net.*` tunnels family (14)
+
+- [ ] `net tunnels endpoint`
+- [ ] `net tunnels etherip`
+- [ ] `net tunnels fec`
+- [ ] `net tunnels geneve`
+- [ ] `net tunnels gre`
+- [ ] `net tunnels ipip`
+- [ ] `net tunnels ipsec`
+- [ ] `net tunnels lw4o6`
+- [ ] `net tunnels map`
+- [ ] `net tunnels ppp`
+- [ ] `net tunnels tcp-forward`
+- [ ] `net tunnels v6rd`
+- [ ] `net tunnels vxlan`
+- [ ] `net tunnels wccp`
+
+### Bundle 23 — `net.*` IPsec (5)
+
+- [ ] `net ipsec ike-daemon`
+- [ ] `net ipsec ike-peer`
+- [ ] `net ipsec ipsec-policy`
+- [ ] `net ipsec manual-security-association`
+- [ ] `net ipsec traffic-selector`
+
+### Bundle 24 — `net.*` BWC + rate-shaping + cos (12)
+
+- [ ] `net bwc policy`
+- [ ] `net bwc priority-group`
+- [ ] `net bwc traffic-group`
+- [ ] `net cos global-settings`
+- [ ] `net cos map-8021p`
+- [ ] `net cos map-dscp`
+- [ ] `net cos traffic-priority`
+- [ ] `net rate-shaping class`
+- [ ] `net rate-shaping color-policer`
+- [ ] `net rate-shaping drop-policy`
+- [ ] `net rate-shaping queue`
+- [ ] `net rate-shaping shaping-policy`
+
+### Bundle 25 — `net.*` packet-level + L2 + misc (19)
+
+- [ ] `net address-list`
+- [ ] `net arp`
+- [ ] `net dag-globals`
+- [ ] `net fdb tunnel`
+- [ ] `net fdb vlan`
+- [ ] `net interface-cos`
+- [ ] `net ipv6-subscriber-prefix-length`
+- [ ] `net lacp-globals`
+- [ ] `net lldp-globals`
+- [ ] `net multicast-globals`
+- [ ] `net ndp`
+- [ ] `net packet-filter`
+- [ ] `net packet-filter-trusted`
+- [ ] `net port-mirror`
+- [ ] `net rst-cause`
+- [ ] `net self-allow`
+- [ ] `net service-policy`
+- [ ] `net stp-globals`
+- [ ] `net timer-policy`
+- [ ] `net trunk`
+- [ ] `net vlan-group`
+- [ ] `net wccp`
+
+### Bundle 26 — `net.*` service-chain (3)
+
+- [ ] `net sfc chain`
+- [ ] `net sfc sf`
+
+### Bundle 27 — `apm aaa.*` providers (24)
+
+- [ ] `apm aaa active-directory`
+- [ ] `apm aaa active-directory-trusted-domains`
+- [ ] `apm aaa crldp`
+- [ ] `apm aaa endpoint-management-system`
+- [ ] `apm aaa f5-mfa-configuration`
+- [ ] `apm aaa f5-service-connector`
+- [ ] `apm aaa http`
+- [ ] `apm aaa http-connector-request`
+- [ ] `apm aaa http-connector-transport`
+- [ ] `apm aaa kerberos`
+- [ ] `apm aaa kerberos-keytab-file`
+- [ ] `apm aaa ldap`
+- [ ] `apm aaa oam`
+- [ ] `apm aaa oauth-provider`
+- [ ] `apm aaa oauth-request`
+- [ ] `apm aaa oauth-server`
+- [ ] `apm aaa ocsp`
+- [ ] `apm aaa okta-connector`
+- [ ] `apm aaa radius`
+- [ ] `apm aaa saml`
+- [ ] `apm aaa saml-idp-automation`
+- [ ] `apm aaa saml-idp-connector`
+- [ ] `apm aaa securid`
+- [ ] `apm aaa tacacsplus`
+
+### Bundle 28 — `apm profile.*` + `apm sso.*` (16)
+
+- [ ] `apm profile access`
+- [ ] `apm profile connectivity`
+- [ ] `apm profile exchange`
+- [ ] `apm profile oauth`
+- [ ] `apm profile vdi`
+- [ ] `apm sso basic`
+- [ ] `apm sso form-based`
+- [ ] `apm sso form-basedv2`
+- [ ] `apm sso kerberos`
+- [ ] `apm sso ntlmv1`
+- [ ] `apm sso ntlmv2`
+- [ ] `apm sso oauth-bearer`
+- [ ] `apm sso saml`
+- [ ] `apm sso saml-resource`
+- [ ] `apm sso saml-sp-automation`
+- [ ] `apm sso saml-sp-connector`
+
+### Bundle 29 — `apm resource.*` + remote-desktop (16)
+
+- [ ] `apm resource address-space`
+- [ ] `apm resource app-tunnel`
+- [ ] `apm resource client-rate-class`
+- [ ] `apm resource client-traffic-classifier`
+- [ ] `apm resource ipv6-leasepool`
+- [ ] `apm resource leasepool`
+- [ ] `apm resource network-access`
+- [ ] `apm resource portal-access`
+- [ ] `apm resource remote-desktop citrix`
+- [ ] `apm resource remote-desktop citrix-client-bundle`
+- [ ] `apm resource remote-desktop citrix-client-package-file`
+- [ ] `apm resource remote-desktop quest`
+- [ ] `apm resource remote-desktop rdp`
+- [ ] `apm resource remote-desktop vmware-view`
+- [ ] `apm resource sandbox`
+- [ ] `apm resource webtop`
+- [ ] `apm resource webtop-link`
+
+### Bundle 30 — `apm oauth.*` (7)
+
+- [ ] `apm oauth jwk-config`
+- [ ] `apm oauth jwt-config`
+- [ ] `apm oauth jwt-provider-list`
+- [ ] `apm oauth oauth-claim`
+- [ ] `apm oauth oauth-client-app`
+- [ ] `apm oauth oauth-resource-server`
+- [ ] `apm oauth oauth-scope`
+
+### Bundle 31 — `apm saml.*` + NTLM + ACL + others (15)
+
+- [ ] `apm saml artifact-resolution-service`
+- [ ] `apm saml attribute-consuming-service`
+- [ ] `apm saml auth-context-class-list`
+- [ ] `apm ntlm machine-account`
+- [ ] `apm ntlm ntlm-auth`
+- [ ] `apm acl`
+- [ ] `apm log-setting`
+- [ ] `apm url-filter`
+- [ ] `apm swg-scheme`
+- [ ] `apm client image`
+- [ ] `apm configuration captcha`
+- [ ] `apm epsec epsec-package`
+- [ ] `apm apm-avr-config`
+- [ ] `apm report custom-report-field`
+- [ ] `apm policy customization-group`
+- [ ] `apm policy customization-languages`
+- [ ] `apm policy image-file`
+- [ ] `apm policy windows-group-policy-file`
+
+### Bundle 32 — `pem.*` globals + protocol (9)
+
+- [ ] `pem global-settings analytics`
+- [ ] `pem global-settings gx`
+- [ ] `pem global-settings hsl-flow`
+- [ ] `pem global-settings hsl-report`
+- [ ] `pem global-settings insert-content`
+- [ ] `pem global-settings policy`
+- [ ] `pem global-settings quota-mgmt`
+- [ ] `pem global-settings session-mgmt-attributes`
+- [ ] `pem global-settings subscriber-activity-log`
+- [ ] `pem protocol diameter-avp`
+- [ ] `pem protocol radius-avp`
+- [ ] `pem protocol profile gx`
+- [ ] `pem protocol profile radius`
+- [ ] `pem reporting format-script`
+- [ ] `pem subscriber`
+- [ ] `pem subscriber-attribute`
+
+### Bundle 33 — `sys` core configuration kinds (17)
+
+- [ ] `sys ha-group` (referenced from `cm traffic-group.ha-group`)
+- [ ] `sys application service`
+- [ ] `sys application template`
+- [ ] `sys application apl-script`
+- [ ] `sys application custom-stat`
+- [ ] `sys autoscale-group`
+- [ ] `sys db`
+- [ ] `sys httpd`
+- [ ] `sys sshd`
+- [ ] `sys syslog`
+- [ ] `sys outbound-smtp`
+- [ ] `sys smtp-server`
+- [ ] `sys feature-module`
+- [ ] `sys console`
+- [ ] `sys log-rotate`
+- [ ] `sys ucs`
+- [ ] `sys url-db download-schedule`
+- [ ] `sys url-db url-category`
+
+### Bundle 34 — `sys file.*` referenceable file objects (7)
+
+- [ ] `sys file data-group`
+- [ ] `sys file external-monitor`
+- [ ] `sys file ifile`
+- [ ] `sys file rewrite-rule`
+- [ ] `sys file apache-ssl-cert`
+- [ ] `sys file ssl-crl`
+- [ ] `sys file lwtunneltbl`
+- [ ] `sys file browser-capabilities-db`
+- [ ] `sys file device-capabilities-db`
+
+### Bundle 35 — `sys log-config.*` HSL pipeline (12)
+
+- [ ] `sys log-config destination alertd`
+- [ ] `sys log-config destination arcsight`
+- [ ] `sys log-config destination ipfix`
+- [ ] `sys log-config destination local-database`
+- [ ] `sys log-config destination local-syslog`
+- [ ] `sys log-config destination management-port`
+- [ ] `sys log-config destination remote-high-speed-log`
+- [ ] `sys log-config destination remote-syslog`
+- [ ] `sys log-config destination splunk`
+- [ ] `sys log-config filter`
+- [ ] `sys log-config publisher`
+
+### Bundle 36 — `sys daemon-log-settings.*` (7)
+
+- [ ] `sys daemon-log-settings clusterd`
+- [ ] `sys daemon-log-settings csyncd`
+- [ ] `sys daemon-log-settings icr-eventd`
+- [ ] `sys daemon-log-settings icrd`
+- [ ] `sys daemon-log-settings lind`
+- [ ] `sys daemon-log-settings mcpd`
+- [ ] `sys daemon-log-settings tmm`
+
+### Bundle 37 — `sys crypto.*` (12)
+
+- [ ] `sys crypto cert`
+- [ ] `sys crypto key`
+- [ ] `sys crypto crl`
+- [ ] `sys crypto csr`
+- [ ] `sys crypto master-key`
+- [ ] `sys crypto cert-order-manager`
+- [ ] `sys crypto ca-bundle-manager`
+- [ ] `sys crypto cert-validator crl`
+- [ ] `sys crypto cert-validator ocsp`
+- [ ] `sys crypto cert-validation-response ocsp`
+- [ ] `sys crypto client`
+- [ ] `sys crypto server`
+- [ ] `sys crypto acceleration-strategy`
+- [ ] `sys crypto fips key`
+- [ ] `sys crypto fips external-hsm`
+
+### Bundle 38 — `sys ipfix.*` + `sys icall.*` (8)
+
+- [ ] `sys ipfix destination`
+- [ ] `sys ipfix element`
+- [ ] `sys ipfix irules`
+- [ ] `sys icall handler periodic`
+- [ ] `sys icall handler perpetual`
+- [ ] `sys icall handler triggered`
+- [ ] `sys icall script`
+- [ ] `sys icall istats-trigger`
+
+### Bundle 39 — `sys management*` + state-mirroring + sflow (10)
+
+- [ ] `sys management-dhcp`
+- [ ] `sys management-ip`
+- [ ] `sys management-ovsdb`
+- [ ] `sys management-proxy-config`
+- [ ] `sys state-mirroring`
+- [ ] `sys datastor`
+- [ ] `sys sflow receiver`
+- [ ] `sys sflow global-settings http`
+- [ ] `sys sflow global-settings interface`
+- [ ] `sys sflow global-settings system`
+- [ ] `sys sflow global-settings vlan`
+
+### Bundle 40 — `sys software*` (4)
+
+- [ ] `sys software hotfix`
+- [ ] `sys software image`
+- [ ] `sys software signature`
+- [ ] `sys software volume`
+
+### Bundle 41 — `sys` runtime-adjacent config (8)
+
+Includes the kinds whose man page says `create/modify` but that
+many sites treat as set-once or platform-driven.
+
+- [ ] `sys alert lcd`
+- [ ] `sys aom`
+- [ ] `sys appiq config`
+- [ ] `sys cluster`
+- [ ] `sys config`
+- [ ] `sys default-config`
+- [ ] `sys failover`
+- [ ] `sys internal-proxy`
+- [ ] `sys traffic`
+- [ ] `sys tmm-traffic`
+- [ ] `sys turboflex profile-config`
+- [ ] `sys fpga firmware-config`
+
+### Bundle 42 — `vcmp.*` (4)
+
+- [ ] `vcmp guest`
+- [ ] `vcmp traffic-profile`
+- [ ] `vcmp virtual-disk`
+- [ ] `vcmp virtual-disk-template`
+
+### Bundle 43 — `cm.*` follow-ons (2)
+
+- [ ] `cm ha-group` (would unblock `cm traffic-group.ha-group` as
+      a PathRef)
+- [ ] `cm config-sync` (singleton)
+
+### Bundle 44 — `cli.*` (8)
+
+Mostly per-user / per-session prefs. Low query value but small:
+
+- [ ] `cli admin-partitions`
+- [ ] `cli alias private`
+- [ ] `cli alias shared`
+- [ ] `cli global-settings`
+- [ ] `cli preference`
+- [ ] `cli script`
+- [ ] `cli transaction`
+- [ ] `cli version`
+
+### Bundle 45 — `api-protection.*` (3)
+
+- [ ] `api-protection profile apiprotection`
+- [ ] `api-protection response`
+- [ ] `api-protection server`
+
+---
+
+## Explicitly skipped (not modelled)
+
+The following are deliberately left out of the bundles above. They
+either have no persistent body, are runtime / read-only views,
+have a body so opaque or stats-shaped that a typed projection is
+not useful, or live in a deprecated module.
+
+### Runtime / display-only kinds (no persistent body)
+
+These advertise only `show` / `list` (no `create` / `modify`) and
+hold computed or fast-changing state. They would only be useful
+if the query DSL grows a "read runtime telemetry" mode, which is
+out of scope.
+
+- All `analytics.*` *report* and *scheduled-report* kinds — these
+  are reporting templates over runtime stats.
+- `apm access-info`, `apm epsec software-status`, `apm license`,
+  `apm oauth purged-entries`, `apm oauth token-details`,
+  `apm profile remote-desktop`, `apm session`, `apm swg-content-type`
+- `cm failover-status`, `cm sha1-fingerprint`, `cm sync-status`
+- `gtm iquery`, `gtm ldns`, `gtm monitor none`, `gtm path`,
+  `gtm persist`, `gtm traffic`
+- `ltm classification auto-update status`,
+  `ltm classification signature-definition`,
+  `ltm classification signature-version`, `ltm nat-stats`,
+  `ltm tacdb query`, `ltm urlcat-cloud-cache`,
+  `ltm urlcat-query`
+- `net f5optics`, `net interface-ddm`, `net ipsec ike-sa`,
+  `net ipsec ipsec-sa`, `net ipsec-stat`, `net lldp-neighbors`,
+  `net mroute`, `net sfc hop`, `net tunnels fec-stat`,
+  `net vlan-allowed`
+- `security` runtime read-outs: `bot-defense anomaly` family,
+  `dos auto-thresholds *`, `firewall fqdn-entity`,
+  `firewall fqdn-info`, `firewall ipi-category-info`,
+  `flowspec-route-injector flowspec-advertised-route-info`,
+  `http file-type`, `http mandatory-header`,
+  `ip-intelligence info`, `log *-storage-field`,
+  `log remote-format`, `malicious-sources *`,
+  `presentation tmui *`, `protocol-inspection auto-update *`,
+  `protocol-inspection compliance*`,
+  `protocol-inspection learning-suggestions`,
+  `protocol-inspection profile-status`,
+  `protocol-inspection service`,
+  `protocol-inspection staging`,
+  `protocol-inspection system`,
+  `protocol-inspection updates`,
+  `protocol-inspection virtual-servers`,
+  `scrubber dwbl-scrubber-stat`,
+  `protected-servers netflow-tmc-stat`,
+  `scrubber dwbl-scrubber-category-stats`,
+  `blacklist-publisher all-blacklist-publisher`,
+  `blacklist-publisher blacklist-publisher-stats`,
+  `blacklist-publisher by-addr`,
+  `blacklist-publisher by-category`,
+  `firewall container-stat`, `firewall context-stat`,
+  `firewall current-state`, `firewall matching-rule`,
+  `firewall rule-stat`, `packet-filter rule-stat`,
+  `datasync device-stats`, `dos spva-stats`
+- `sys air-filter-reset`, `sys availability`, `sys clock`,
+  `sys config-diff`, `sys cpu`, `sys crypto encrypted-attributes`,
+  `sys diags ihealth-request`, `sys diags ihealth-result`,
+  `sys dynad status`, `sys fix-connection`, `sys fpga info`,
+  `sys fpga turboflex-profile`, `sys ha-status`, `sys hardware`,
+  `sys host-info`, `sys hypervisor-info`, `sys iapp-restricted-key`,
+  `sys iapprestricted key`, `sys icall publisher`,
+  `sys ip-address`, `sys iprep-status`, `sys license`, `sys log`,
+  `sys mac-address`, `sys mcp-state`, `sys memory`,
+  `sys performance *`, `sys proc-info`, `sys raid disk`,
+  `sys ready`, `sys sflow data-source *`,
+  `sys software block-device-hotfix`,
+  `sys software block-device-image`, `sys software status`,
+  `sys software update-status`, `sys tmm-info`,
+  `sys turboflex features`, `sys turboflex profile all`,
+  `sys turboflex profile feature`, `sys turboflex warning`,
+  `sys url-db download-result`, `sys version`
+- `vcmp global`, `vcmp health *`
+- `wam roi-statistics`, `wom remote-route`
+- `asm device-sync`, `asm http-method`, `asm predefined-policy`,
+  `asm response-code`, `asm webapp-language`
+- `cli history`
+
+### Imperative / command-only kinds
+
+These have only `run` (no persistent body). They model tmsh
+commands rather than persistent objects, so a projection is
+meaningless.
+
+- `cm add-to-trust`, `cm remove-from-trust`,
+  `cm watch-devicegroup-device`, `cm watch-sys-device`,
+  `cm watch-trafficgroup-device`, `cm sniff-updates`
+- `gtm add`
+- `ltm classification update-signatures`,
+  `ltm classification updates`
+- `security anti-fraud engine-update`,
+  `security cloud-services cmd`, `security scrubber unredirect`
+- `wom diagnose-conn`, `wom verify-config`
+- The runtime / one-shot helpers that the man pages list as
+  `run` + `show`: `pem sessiondb`, `pem subscribers`,
+  `net packet-tester security`
+
+### Deprecated modules
+
+Entirely deprecated in current releases — no enrichment planned:
+
+- `wam.*` (Web Acceleration Manager)
+- `wom.*` (WAN Optimisation Manager)
+
+### Opaque / not query-friendly
+
+- `asm.*` (Application Security Manager) — configuration is held
+  in opaque nested XML / JSON policy bodies that don't fit the
+  scalar-property model.
+
+### To assess separately
+
+- `api-protection.*` — only three kinds, but the value depends on
+  whether this module sees real use in the configs we care about.
+- `analytics.*` *scheduled-report* — these are real persistent
+  config objects (`create` / `modify`) but they wrap stats
+  reporting. Skip unless someone needs to audit who has
+  configured which scheduled report.
