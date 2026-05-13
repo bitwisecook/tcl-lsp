@@ -708,6 +708,9 @@ _APM_OAUTH_DB_INSTANCE_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "description": FieldSpec("description"),
+    "db-name": FieldSpec("db_name"),
+    "purge-frequency": FieldSpec("purge_frequency"),
+    "purge-time": FieldSpec("purge_time"),
 }
 
 _APM_POLICY_ACCESS_POLICY_FIELDS: dict[str, FieldSpec] = {
@@ -740,6 +743,22 @@ _APM_POLICY_AGENT_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "agent-type": FieldSpec("agent_type"),
     "customization-group": FieldSpec("customization_group"),
+    "auth": FieldSpec("auth"),
+    "max-logon-attempt": FieldSpec("max_logon_attempt"),
+    "auth-max-logon-attempt": FieldSpec("auth_max_logon_attempt"),
+    "fetch-nested-groups": FieldSpec("fetch_nested_groups"),
+    "fetch-primary-groups": FieldSpec("fetch_primary_groups"),
+    "password-source": FieldSpec("password_source"),
+    "query": FieldSpec("query"),
+    "query-attrname": FieldSpec("query_attrname"),
+    "query-filter": FieldSpec("query_filter"),
+    "server": FieldSpec("server"),
+    "show-extended-error": FieldSpec("show_extended_error"),
+    "upn": FieldSpec("upn"),
+    "username-source": FieldSpec("username_source"),
+    "attribute-consuming-service": FieldSpec("attribute_consuming_service"),
+    "attr-consuming-service-session-var": FieldSpec("attr_consuming_service_session_var"),
+    "hints": FieldSpec("hints"),
 }
 
 _APM_REPORT_DEFAULT_REPORT_FIELDS: dict[str, FieldSpec] = {

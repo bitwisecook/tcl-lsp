@@ -852,6 +852,9 @@ class BigipApmOauthDbInstance:
     name: str
     full_path: str
     description: str = ""
+    db_name: str = ""
+    purge_frequency: str = ""
+    purge_time: str = ""
     range: Range | None = None
 
 
@@ -910,6 +913,22 @@ class BigipApmPolicyAgent:
     full_path: str
     agent_type: str = ""
     customization_group: str = ""
+    auth: str = ""
+    max_logon_attempt: str = ""
+    auth_max_logon_attempt: str = ""
+    fetch_nested_groups: str = ""
+    fetch_primary_groups: str = ""
+    password_source: str = ""
+    query: str = ""
+    query_attrname: str = ""
+    query_filter: str = ""
+    server: str = ""
+    show_extended_error: str = ""
+    upn: str = ""
+    username_source: str = ""
+    attribute_consuming_service: str = ""
+    attr_consuming_service_session_var: str = ""
+    hints: str = ""
     range: Range | None = None
 
 

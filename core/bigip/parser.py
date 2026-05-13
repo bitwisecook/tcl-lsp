@@ -530,13 +530,68 @@ _TWO_WORD_TYPES = frozenset(
 # Three-word stanza types (``apm policy agent <type>``, …).  Extracted
 # the same way as two-word: matched against ``parts[1..3]`` and the
 # identifier comes from ``parts[4]``.
-_THREE_WORD_TYPES = frozenset(
-    {
-        "policy agent ending-allow",
-        "policy agent ending-deny",
-        "policy agent kerberos",
-    }
+# ``apm policy agent <type>`` covers ~50 sub-types — list each one so
+# the header parser recognises the three-word kind and the dispatch
+# below routes every variant into ``apm_policy_agents``.
+_APM_POLICY_AGENT_TYPES = (
+    "aaa-active-directory",
+    "aaa-client-cert",
+    "aaa-crldp",
+    "aaa-http",
+    "aaa-ldap",
+    "aaa-oauth",
+    "aaa-ocsp",
+    "aaa-radius",
+    "aaa-saml",
+    "aaa-securid",
+    "acct-radius",
+    "acct-tacacsplus",
+    "api-authentication",
+    "api-server-selection",
+    "decision-box",
+    "dynamic-acl",
+    "ending-allow",
+    "ending-deny",
+    "ending-redirect",
+    "endpoint-check-machine-cert",
+    "endpoint-check-software",
+    "endpoint-linux-check-file",
+    "endpoint-linux-check-process",
+    "endpoint-mac-check-file",
+    "endpoint-mac-check-process",
+    "endpoint-machine-info",
+    "endpoint-windows-browser-cache-cleaner",
+    "endpoint-windows-check-file",
+    "endpoint-windows-check-process",
+    "endpoint-windows-check-registry",
+    "endpoint-windows-group-policy",
+    "endpoint-windows-info-os",
+    "endpoint-windows-protected-workspace",
+    "external-logon-page",
+    "http-header-modify",
+    "ip-geolocation-lookup",
+    "ip-reputation-lookup",
+    "irule-event",
+    "kerberos",
+    "l7-protocol-lookup",
+    "logging",
+    "logon-page",
+    "message-box",
+    "oam",
+    "oauth-authz",
+    "request-classification",
+    "resource-assign",
+    "response-selection",
+    "route-domain-selection",
+    "server-cert-response-control",
+    "server-cert-status",
+    "session-check",
+    "ssl-check",
+    "tacacsplus",
+    "variable-assign",
 )
+
+_THREE_WORD_TYPES = frozenset(f"policy agent {t}" for t in _APM_POLICY_AGENT_TYPES)
 
 
 def _parse_header(header: str) -> tuple[str, str, str] | None:
@@ -2064,11 +2119,15 @@ def _parse_apm_oauth_db_instance(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipApmOauthDbInstance:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipApmOauthDbInstance(
         name=name,
         full_path=full_path,
-        description=_strip_quotes(props["description"].value) if "description" in props else "",
+        description=_strip_quotes(plain.get("description", "")),
+        db_name=_strip_quotes(plain.get("db-name", "")),
+        purge_frequency=plain.get("purge-frequency", ""),
+        purge_time=_strip_quotes(plain.get("purge-time", "")),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -2131,14 +2190,29 @@ def _parse_apm_policy_agent(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block, agent_type: str
 ) -> BigipApmPolicyAgent:
     props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     return BigipApmPolicyAgent(
         name=name,
         full_path=full_path,
         agent_type=agent_type,
-        customization_group=(
-            props["customization-group"].value if "customization-group" in props else ""
-        ),
+        customization_group=plain.get("customization-group", ""),
+        auth=plain.get("auth", ""),
+        max_logon_attempt=plain.get("max-logon-attempt", ""),
+        auth_max_logon_attempt=plain.get("auth-max-logon-attempt", ""),
+        fetch_nested_groups=plain.get("fetch-nested-groups", ""),
+        fetch_primary_groups=plain.get("fetch-primary-groups", ""),
+        password_source=plain.get("password-source", ""),
+        query=_strip_quotes(plain.get("query", "")),
+        query_attrname=plain.get("query-attrname", ""),
+        query_filter=_strip_quotes(plain.get("query-filter", "")),
+        server=plain.get("server", ""),
+        show_extended_error=plain.get("show-extended-error", ""),
+        upn=plain.get("upn", ""),
+        username_source=plain.get("username-source", ""),
+        attribute_consuming_service=plain.get("attribute-consuming-service", ""),
+        attr_consuming_service_session_var=plain.get("attr-consuming-service-session-var", ""),
+        hints=_strip_quotes(plain.get("hints", "")),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -2931,11 +3005,7 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                 config.apm_policy_items[full_path] = _parse_apm_policy_item(
                     full_path, block.body, source_map, block
                 )
-            elif obj_type in (
-                "policy agent ending-allow",
-                "policy agent ending-deny",
-                "policy agent kerberos",
-            ):
+            elif obj_type.startswith("policy agent "):
                 # ``policy agent <type>`` — surface every variant in the
                 # same container, classified by ``agent_type``.
                 agent_type = obj_type.rsplit(" ", 1)[-1]

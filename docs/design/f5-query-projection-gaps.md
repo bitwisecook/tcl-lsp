@@ -282,9 +282,9 @@ Run `make ci-fast` before committing each bundle, and the broader
 
 ### `apm oauth db-instance`
 
-- [ ] `db-name`
-- [ ] `purge-frequency`
-- [ ] `purge-time`
+- [x] `db-name`
+- [x] `purge-frequency`
+- [x] `purge-time`
 
 ### `apm policy agent`
 
@@ -293,21 +293,26 @@ only. Each agent sub-type carries its own grammar; the items below
 are the meaningful, addressable properties that occur across the
 common AAA / ending / Kerberos sub-types.
 
-- [ ] `auth` (bool flag — e.g. on AAA agents)
-- [ ] `auth-max-logon-attempt` / `max-logon-attempt`
-- [ ] `fetch-nested-groups`
-- [ ] `fetch-primary-groups`
-- [ ] `password-source`
-- [ ] `query`
-- [ ] `query-attrname`
-- [ ] `query-filter`
-- [ ] `server` → `apm aaa <type>` (no projected kind yet)
-- [ ] `show-extended-error`
-- [ ] `upn`
-- [ ] `username-source`
-- [ ] `attribute-consuming-service`
-- [ ] `attr-consuming-service-session-var`
-- [ ] `hints`
+- [x] `auth` (bool flag — e.g. on AAA agents)
+- [x] `auth-max-logon-attempt` / `max-logon-attempt`
+- [x] `fetch-nested-groups`
+- [x] `fetch-primary-groups`
+- [x] `password-source`
+- [x] `query`
+- [x] `query-attrname`
+- [x] `query-filter`
+- [x] `server` → `apm aaa <type>` (no projected kind yet — kept as a plain string)
+- [x] `show-extended-error`
+- [x] `upn`
+- [x] `username-source`
+- [x] `attribute-consuming-service`
+- [x] `attr-consuming-service-session-var`
+- [x] `hints`
+
+Additionally, the parser now recognises all ~50 documented
+`policy agent <type>` sub-kinds (AAA, accounting, endpoint, logon,
+ending, OAuth, SAML, …) — previously only `ending-allow`,
+`ending-deny`, and `kerberos` were dispatched.
 
 ---
 

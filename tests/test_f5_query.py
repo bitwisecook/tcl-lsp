@@ -3578,3 +3578,103 @@ def test_net_stp_priority_path_cost_and_vlans():
     assert ec.values_per_file["mem://1"] == ["20000"]
     vlans = _run(".net.stp.cist1.vlans[].tag", _NET_ENRICH_CONF)
     assert sorted(vlans.values_per_file["mem://1"]) == [10, 20]
+
+
+# ---------------------------------------------------------------------------
+# Bundle 6 — apm enrichments (oauth db-instance + policy agent)
+# ---------------------------------------------------------------------------
+
+_APM_BUNDLE_CONF = """apm oauth db-instance /Common/oauth_db {
+    description "primary oauth db"
+    db-name oauth
+    purge-frequency 86400
+    purge-time "03:00"
+}
+apm policy agent aaa-active-directory /Common/ap1_act_ad_ag {
+    customization-group /Common/ap1_act_ad_cg
+    server /Common/ad_aaa
+    fetch-nested-groups true
+    fetch-primary-groups true
+    show-extended-error true
+    upn enabled
+    max-logon-attempt 3
+}
+apm policy agent aaa-radius /Common/ap1_rad_ag {
+    customization-group /Common/ap1_rad_cg
+    server /Common/radius_aaa
+    password-source session.radius.password
+    username-source session.logon.last.username
+    auth-max-logon-attempt 5
+}
+apm policy agent aaa-saml /Common/ap1_saml_ag {
+    attribute-consuming-service /Common/acs1
+    attr-consuming-service-session-var session.saml.acs
+}
+apm policy agent ending-allow /Common/ap1_allow { }
+apm policy agent endpoint-machine-info /Common/ap1_minfo {
+    hints "session.client.os"
+}
+apm policy agent ip-geolocation-lookup /Common/ap1_geo { }
+"""
+
+
+def test_apm_oauth_db_instance_db_name_and_purge():
+    db = _run(".apm.oauth-db-instance.oauth_db.db-name", _APM_BUNDLE_CONF)
+    assert db.values_per_file["mem://1"] == ["oauth"]
+    pf = _run(".apm.oauth-db-instance.oauth_db.purge-frequency", _APM_BUNDLE_CONF)
+    assert pf.values_per_file["mem://1"] == ["86400"]
+    pt = _run(".apm.oauth-db-instance.oauth_db.purge-time", _APM_BUNDLE_CONF)
+    assert pt.values_per_file["mem://1"] == ["03:00"]
+
+
+def test_apm_policy_agent_ad_fetch_and_upn():
+    fn = _run(".apm.policy-agent.ap1_act_ad_ag.fetch-nested-groups", _APM_BUNDLE_CONF)
+    assert fn.values_per_file["mem://1"] == ["true"]
+    fp = _run(".apm.policy-agent.ap1_act_ad_ag.fetch-primary-groups", _APM_BUNDLE_CONF)
+    assert fp.values_per_file["mem://1"] == ["true"]
+    upn = _run(".apm.policy-agent.ap1_act_ad_ag.upn", _APM_BUNDLE_CONF)
+    assert upn.values_per_file["mem://1"] == ["enabled"]
+
+
+def test_apm_policy_agent_max_logon_attempt_variants():
+    a = _run(".apm.policy-agent.ap1_act_ad_ag.max-logon-attempt", _APM_BUNDLE_CONF)
+    assert a.values_per_file["mem://1"] == ["3"]
+    b = _run(".apm.policy-agent.ap1_rad_ag.auth-max-logon-attempt", _APM_BUNDLE_CONF)
+    assert b.values_per_file["mem://1"] == ["5"]
+
+
+def test_apm_policy_agent_password_and_username_source():
+    ps = _run(".apm.policy-agent.ap1_rad_ag.password-source", _APM_BUNDLE_CONF)
+    assert ps.values_per_file["mem://1"] == ["session.radius.password"]
+    us = _run(".apm.policy-agent.ap1_rad_ag.username-source", _APM_BUNDLE_CONF)
+    assert us.values_per_file["mem://1"] == ["session.logon.last.username"]
+
+
+def test_apm_policy_agent_saml_attribute_consuming_service():
+    acs = _run(
+        ".apm.policy-agent.ap1_saml_ag.attribute-consuming-service",
+        _APM_BUNDLE_CONF,
+    )
+    assert acs.values_per_file["mem://1"] == ["/Common/acs1"]
+    var = _run(
+        ".apm.policy-agent.ap1_saml_ag.attr-consuming-service-session-var",
+        _APM_BUNDLE_CONF,
+    )
+    assert var.values_per_file["mem://1"] == ["session.saml.acs"]
+
+
+def test_apm_policy_agent_extra_sub_types_are_recognised():
+    result = _run(".apm.policy-agent[] | .agent-type", _APM_BUNDLE_CONF)
+    assert sorted(result.values_per_file["mem://1"]) == [
+        "aaa-active-directory",
+        "aaa-radius",
+        "aaa-saml",
+        "ending-allow",
+        "endpoint-machine-info",
+        "ip-geolocation-lookup",
+    ]
+
+
+def test_apm_policy_agent_hints_carry_through():
+    hints = _run(".apm.policy-agent.ap1_minfo.hints", _APM_BUNDLE_CONF)
+    assert hints.values_per_file["mem://1"] == ["session.client.os"]
