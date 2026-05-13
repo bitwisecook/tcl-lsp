@@ -40,7 +40,7 @@ and ``str()``-able to its canonical F5 spelling.
 
 from __future__ import annotations
 
-from ._address import FQDN, Address, IPAddress
+from ._address import FQDN, Address, IPAddress, parse_address, try_parse_address
 from ._destination import Destination
 from ._folder import Folder, ObjectPath
 from ._network import Network
@@ -60,4 +60,6 @@ __all__ = [
     "Port",
     "PortRange",
     "RouteDomain",
+    "parse_address",
+    "try_parse_address",
 ]

@@ -423,3 +423,108 @@ class TestObjectPath:
             ObjectPath.parse("/Common")  # leaf missing
         with pytest.raises(ValueError):
             ObjectPath.parse("web_pool")  # partition missing
+
+
+# ---------------------------------------------------------------------------
+# Typed accessor properties on model dataclasses
+# ---------------------------------------------------------------------------
+
+
+class TestPoolMemberTypedAccessors:
+    def test_ipv4_address_resolves_to_ipaddress(self):
+        from core.bigip.model import BigipPoolMember
+
+        m = BigipPoolMember(name="/Common/10.0.0.1:80", address="10.0.0.1", port=80)
+        typed = m.address_typed
+        assert isinstance(typed, IPAddress)
+        assert typed.is_ipv4
+
+    def test_fqdn_address_resolves_to_fqdn(self):
+        from core.bigip.model import BigipPoolMember
+
+        m = BigipPoolMember(
+            name="/Common/host.example.com:443", address="host.example.com", port=443
+        )
+        typed = m.address_typed
+        assert isinstance(typed, FQDN)
+
+    def test_empty_address_returns_none(self):
+        from core.bigip.model import BigipPoolMember
+
+        m = BigipPoolMember(name="/Common/x", address="")
+        assert m.address_typed is None
+
+    def test_name_typed_decomposes_destination(self):
+        from core.bigip.model import BigipPoolMember
+
+        m = BigipPoolMember(name="/Common/10.0.0.1:80", address="10.0.0.1", port=80)
+        dest = m.name_typed
+        assert isinstance(dest, Destination)
+        assert dest.partition is not None and dest.partition.short_name == "Common"
+        assert dest.port.port == 80
+
+
+class TestVirtualServerTypedAccessors:
+    def test_destination_resolves_to_destination(self):
+        from core.bigip.model import BigipVirtualServer
+
+        vs = BigipVirtualServer(
+            name="vs1", full_path="/Common/vs1", destination="/Common/10.0.0.1:443"
+        )
+        d = vs.destination_typed
+        assert isinstance(d, Destination)
+        assert d.port.port == 443
+        assert isinstance(d.address, IPAddress) and d.address.is_ipv4
+
+    def test_ipv6_destination_with_brackets(self):
+        from core.bigip.model import BigipVirtualServer
+
+        vs = BigipVirtualServer(
+            name="vs2",
+            full_path="/Common/vs2",
+            destination="/Common/[2001:db8::1].443",
+        )
+        d = vs.destination_typed
+        assert isinstance(d, Destination)
+        assert d.ipv6_brackets
+        assert isinstance(d.address, IPAddress) and d.address.is_ipv6
+
+
+class TestNetSelfTypedAccessor:
+    def test_self_address_resolves_to_network(self):
+        from core.bigip.model import BigipNetSelf
+
+        s = BigipNetSelf(name="self1", full_path="/Common/self1", address="10.0.0.1/24")
+        n = s.address_typed
+        assert isinstance(n, Network)
+        assert n.is_ipv4
+        assert n.prefix_length == 24
+
+
+class TestNetRouteTypedAccessor:
+    def test_network_resolves(self):
+        from core.bigip.model import BigipNetRoute
+
+        r = BigipNetRoute(
+            name="r1", full_path="/Common/r1", network="10.0.0.0/8", gw="192.168.1.1"
+        )
+        assert isinstance(r.network_typed, Network)
+        assert isinstance(r.gw_typed, IPAddress)
+
+    def test_default_route_has_no_typed_network(self):
+        from core.bigip.model import BigipNetRoute
+
+        r = BigipNetRoute(name="default", full_path="/Common/default", network="default")
+        assert r.network_typed is None
+
+
+class TestVirtualAddressTypedAccessors:
+    def test_host_address_plus_mask_becomes_network(self):
+        from core.bigip.model import BigipVirtualAddress
+
+        va = BigipVirtualAddress(
+            name="va1", full_path="/Common/va1", address="10.0.0.1", mask="255.255.255.0"
+        )
+        assert isinstance(va.address_typed, IPAddress)
+        assert isinstance(va.network_typed, Network)
+        assert va.network_typed.prefix_length == 24

@@ -29,6 +29,29 @@ class BigipNetRoute:
     interface: str = ""  # PathRef → net vlan when set
     range: Range | None = None
 
+    @property
+    def network_typed(self):
+        """The :attr:`network` field as a typed :class:`Network`.
+
+        Returns ``None`` for the special ``"default"`` route and any
+        other un-parseable value (a route with ``pool`` gateway has
+        no CIDR; callers should check before depending on this).
+        """
+        from ..types import Network
+
+        if not self.network or self.network == "default":
+            return None
+        return Network.try_parse(self.network)
+
+    @property
+    def gw_typed(self):
+        """The :attr:`gw` field as a typed :class:`IPAddress`."""
+        from ..types import IPAddress
+
+        if not self.gw:
+            return None
+        return IPAddress.try_parse(self.gw)
+
 
 @dataclass(frozen=True, slots=True)
 class BigipNetVlan:
@@ -77,6 +100,19 @@ class BigipNetSelf:
     inherited_traffic_group: str = ""
     address_source: str = ""
     range: Range | None = None
+
+    @property
+    def address_typed(self):
+        """The :attr:`address` field as a typed :class:`Network`.
+
+        ``net self`` carries the address in CIDR form (``10.0.0.1/24``).
+        Returns ``None`` for empty / un-parseable input.
+        """
+        from ..types import Network
+
+        if not self.address:
+            return None
+        return Network.try_parse(self.address)
 
 
 @dataclass(frozen=True, slots=True)

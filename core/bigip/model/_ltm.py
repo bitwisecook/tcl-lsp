@@ -55,6 +55,38 @@ class BigipPoolMember:
     connection_limit: str = ""
     rate_limit: str = ""
 
+    @property
+    def address_typed(self):
+        """The :attr:`address` field as a typed :class:`Address`.
+
+        ``IPAddress`` for IPv4 / IPv6 hosts, :class:`FQDN` for
+        FQDN-based pool members.  Returns ``None`` when the raw
+        ``address`` field is empty or doesn't parse — callers that
+        need typed access should branch on ``None`` rather than
+        treating an empty string as a valid input.
+        """
+        from ..types import try_parse_address
+
+        if not self.address:
+            return None
+        return try_parse_address(self.address)
+
+    @property
+    def name_typed(self):
+        """The :attr:`name` field as a typed :class:`Destination`.
+
+        Pool-member names embed ``[partition/]address[:port]`` — a
+        :class:`Destination` decomposes it.  ``None`` when the raw
+        name doesn't parse (rare: the parser only stores names that
+        the BIG-IP parser already accepted, but defensive code is
+        cheap).
+        """
+        from ..types import Destination
+
+        if not self.name:
+            return None
+        return Destination.try_parse(self.name)
+
 
 @dataclass(frozen=True, slots=True)
 class BigipPool:
@@ -112,6 +144,24 @@ class BigipNode:
     ratio: str = ""
     fqdn: str = ""  # FQDN sub-block ``name`` value, when present
     range: Range | None = None
+
+    @property
+    def address_typed(self):
+        """The :attr:`address` field as a typed :class:`Address`."""
+        from ..types import try_parse_address
+
+        if not self.address:
+            return None
+        return try_parse_address(self.address)
+
+    @property
+    def fqdn_typed(self):
+        """The :attr:`fqdn` field as a typed :class:`FQDN`."""
+        from ..types import FQDN
+
+        if not self.fqdn:
+            return None
+        return FQDN.try_parse(self.fqdn)
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,6 +303,23 @@ class BigipVirtualServer:
     pool_range: Range | None = None
     range: Range | None = None
 
+    @property
+    def destination_typed(self):
+        """The :attr:`destination` field as a typed :class:`Destination`.
+
+        Decomposes the full ``[/partition[/folder...]/]addr[%rd][:port]``
+        triple — partition, folder, address (IPv4 / IPv6 / FQDN),
+        route-domain, port (or wildcard), bracket form, port
+        separator — into a structured value the rest of the
+        codebase can introspect without re-parsing the string.
+        ``None`` when the destination is empty or doesn't parse.
+        """
+        from ..types import Destination
+
+        if not self.destination:
+            return None
+        return Destination.try_parse(self.destination)
+
 
 @dataclass(frozen=True, slots=True)
 class BigipVirtualAddress:
@@ -282,6 +349,38 @@ class BigipVirtualAddress:
     floating: str = ""
     traffic_group_restored: str = ""
     range: Range | None = None
+
+    @property
+    def address_typed(self):
+        """The :attr:`address` field as a typed :class:`IPAddress`.
+
+        ``ltm virtual-address`` stores just the host IP (no port, no
+        prefix) — :attr:`mask` is the matching netmask.  Use
+        :attr:`network_typed` for the combined CIDR.
+        """
+        from ..types import IPAddress
+
+        if not self.address:
+            return None
+        return IPAddress.try_parse(self.address)
+
+    @property
+    def network_typed(self):
+        """The :attr:`address` + :attr:`mask` combined as a typed
+        :class:`Network` (CIDR).
+
+        Some virtual-addresses are wildcard-mask listeners
+        (``0.0.0.0/0``); :meth:`Network.try_parse` handles both
+        host-mask and CIDR notation.
+        """
+        from ..types import Network
+
+        if not self.address:
+            return None
+        if self.mask:
+            return Network.try_parse(f"{self.address}/{self.mask}")
+        # No mask — treat the address as a /32 (IPv4) or /128 (IPv6) host.
+        return Network.try_parse(self.address)
 
 
 @dataclass(frozen=True, slots=True)
