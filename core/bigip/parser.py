@@ -614,6 +614,11 @@ _TWO_WORD_TYPES = frozenset(
         "auth ssl-cc-ldap",
         "auth ssl-crldp",
         "auth ssl-ocsp",
+        # ltm bundle 18 — global-settings singletons (the ``general``
+        # one is shared with gtm bundle 12).
+        "global-settings connection",
+        "global-settings rule",
+        "global-settings traffic-control",
         # net.* — multi-word kinds.
         "tunnels tunnel",
         # sys.* — multi-word kinds.
@@ -1637,6 +1642,13 @@ _LTM_MINIMAL_DISPATCH: dict[str, str] = {
     "lsn-pool": "ltm_lsn_pools",
     "lsn-log-profile": "ltm_lsn_log_profiles",
     "alg-log-profile": "ltm_alg_log_profiles",
+    # Bundle 18 — ltm global-settings + misc singletons.
+    "default-node-monitor": "ltm_default_node_monitor",
+    "global-settings connection": "ltm_global_settings_connection",
+    "global-settings general": "ltm_global_settings_general",
+    "global-settings rule": "ltm_global_settings_rule",
+    "global-settings traffic-control": "ltm_global_settings_traffic_control",
+    "rule-profiler": "ltm_rule_profiler",
 }
 
 
@@ -4570,6 +4582,21 @@ def parse_bigip_conf(source: str) -> BigipConfig:
                         config.sys_global_settings[""] = _parse_sys_global_settings(
                             block.body, source_map, block
                         )
+                elif (
+                    module_g == "ltm" and identifier_g == "" and obj_type_g in _LTM_MINIMAL_DISPATCH
+                ):
+                    # Bare-singleton ltm.* kinds (e.g. ``ltm default-
+                    # node-monitor {`` is a 2-token header that the
+                    # strict header parser rejects).  Route via the
+                    # shared minimal dispatch.
+                    attr = _LTM_MINIMAL_DISPATCH[obj_type_g]
+                    getattr(config, attr)[""] = _parse_ltm_minimal(
+                        "",
+                        block.body,
+                        f"ltm {obj_type_g}",
+                        source_map,
+                        block,
+                    )
                 elif module_g == "auth" and identifier_g == "":
                     # ``auth password``, ``auth password-policy``, ``auth
                     # source``, ``auth remote-role``, ``auth remote-user``,

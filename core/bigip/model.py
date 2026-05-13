@@ -2656,6 +2656,15 @@ class BigipConfig:
     ltm_lsn_pools: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     ltm_lsn_log_profiles: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     ltm_alg_log_profiles: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    # Bundle 18 — ltm global-settings + misc singletons.
+    ltm_default_node_monitor: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_global_settings_connection: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_global_settings_general: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_global_settings_rule: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
+    ltm_global_settings_traffic_control: dict[str, BigipLtmMinimalObject] = field(
+        default_factory=dict
+    )
+    ltm_rule_profiler: dict[str, BigipLtmMinimalObject] = field(default_factory=dict)
     nodes: dict[str, BigipNode] = field(default_factory=dict)
     profiles: dict[str, BigipProfile] = field(default_factory=dict)
     monitors: dict[str, BigipMonitor] = field(default_factory=dict)

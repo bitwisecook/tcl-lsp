@@ -682,14 +682,14 @@ administrative ``auth.*`` namespace projected in bundle 8.
 - [x] `ltm lsn-log-profile`
 - [x] `ltm alg-log-profile`
 
-### Bundle 18 — `ltm` global-settings + misc singletons (5)
+### Bundle 18 — `ltm` global-settings + misc singletons (6)
 
-- [ ] `ltm default-node-monitor`
-- [ ] `ltm global-settings connection`
-- [ ] `ltm global-settings general`
-- [ ] `ltm global-settings rule`
-- [ ] `ltm global-settings traffic-control`
-- [ ] `ltm rule-profiler`
+- [x] `ltm default-node-monitor`
+- [x] `ltm global-settings connection`
+- [x] `ltm global-settings general`
+- [x] `ltm global-settings rule`
+- [x] `ltm global-settings traffic-control`
+- [x] `ltm rule-profiler`
 
 ### Bundle 19 — `ltm classification.*` (URL DB, 10)
 

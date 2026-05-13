@@ -5223,3 +5223,27 @@ def test_ltm_bundle_17_lsn_kinds_dispatch():
     ]:
         res = _run(f".ltm.{label}[].kind", _LTM17_CONF)
         assert kind_str in res.values_per_file["mem://1"], f"{label}"
+
+
+# Bundle 18 — ltm global-settings + misc singletons (6 kinds).
+
+_LTM18_CONF = """ltm default-node-monitor { rule none }
+ltm global-settings connection { description "conn" }
+ltm global-settings general { description "general" }
+ltm global-settings rule { description "rule" }
+ltm global-settings traffic-control { description "tc" }
+ltm rule-profiler { description "profiler" }
+"""
+
+
+def test_ltm_bundle_18_global_settings_dispatch():
+    for label, kind_str in [
+        ("default-node-monitor", "ltm default-node-monitor"),
+        ("global-settings-connection", "ltm global-settings connection"),
+        ("global-settings-general", "ltm global-settings general"),
+        ("global-settings-rule", "ltm global-settings rule"),
+        ("global-settings-traffic-control", "ltm global-settings traffic-control"),
+        ("rule-profiler", "ltm rule-profiler"),
+    ]:
+        res = _run(f".ltm.{label}[].kind", _LTM18_CONF)
+        assert kind_str in res.values_per_file["mem://1"], f"{label}"

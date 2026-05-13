@@ -2052,6 +2052,13 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm lsn-pool": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm lsn-log-profile": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm alg-log-profile": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    # Bundle 18 — ltm global-settings + misc singletons.
+    "ltm default-node-monitor": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm global-settings connection": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm global-settings general": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm global-settings rule": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm global-settings traffic-control": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
+    "ltm rule-profiler": (BigipLtmMinimalObject, _LTM_MINIMAL_FIELDS),
     "ltm pool": (BigipPool, _POOL_FIELDS),
     "ltm node": (BigipNode, _NODE_FIELDS),
     "ltm rule": (BigipRule, _RULE_FIELDS),
@@ -2496,6 +2503,22 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "lsn-pool": ("ltm_lsn_pools", "ltm lsn-pool"),
         "lsn-log-profile": ("ltm_lsn_log_profiles", "ltm lsn-log-profile"),
         "alg-log-profile": ("ltm_alg_log_profiles", "ltm alg-log-profile"),
+        # Bundle 18 — ltm global-settings + misc singletons.
+        "default-node-monitor": ("ltm_default_node_monitor", "ltm default-node-monitor"),
+        "global-settings-connection": (
+            "ltm_global_settings_connection",
+            "ltm global-settings connection",
+        ),
+        "global-settings-general": (
+            "ltm_global_settings_general",
+            "ltm global-settings general",
+        ),
+        "global-settings-rule": ("ltm_global_settings_rule", "ltm global-settings rule"),
+        "global-settings-traffic-control": (
+            "ltm_global_settings_traffic_control",
+            "ltm global-settings traffic-control",
+        ),
+        "rule-profiler": ("ltm_rule_profiler", "ltm rule-profiler"),
         "pool": ("pools", "ltm pool"),
         "node": ("nodes", "ltm node"),
         "rule": ("rules", "ltm rule"),
