@@ -3,27 +3,35 @@
 ## What this file is
 
 A working checklist of properties that the authoritative TMSH option
-set documents on a configured object but the typed projection in
-`core/bigip/query/projection.py` does not surface today. Each line
-names one property; the corresponding field needs to be parsed in
-`core/bigip/parser.py` (after the dataclass in `core/bigip/model.py`
-gains the field) and exposed via the per-kind field map in
-`core/bigip/query/projection.py`.
+set documents on a configured object but the typed projection
+exposed by `core.bigip.query.projection` (now split across
+`core/bigip/query/projection/_classes.py` and
+`core/bigip/query/projection/_data.py`) does not surface today. Each
+line names one property; the corresponding field needs to be parsed
+in `core/bigip/parser/_parsers.py` (after the dataclass in
+`core/bigip/model/` gains the field) and exposed via the per-kind
+field map in `core/bigip/query/projection/_data.py`.
 
 ## How to work through it
 
 1. Pick a bundle (a top-level `##` header below).
 2. For every unticked field in the bundle:
    - Add the field (with an empty / default value) to the relevant
-     dataclass in `core/bigip/model.py`.
+     dataclass in `core/bigip/model/` (split per-module:
+     `_ltm.py`, `_gtm.py`, `_security.py`, `_net.py`, etc.).
    - Populate it in the relevant `_parse_*` function in
-     `core/bigip/parser.py`. Use `_description` / `_unquote` /
-     `_state_flag` where appropriate. Flag-style options (`internal`,
-     `ip-forward`, …) live in `props` with an empty string value;
-     surface them as `bool` via `"<flag>" in props`.
+     `core/bigip/parser/_parsers.py`. Use `_description` /
+     `_unquote` / `_state_flag` where appropriate. Flag-style
+     options (`internal`, `ip-forward`, …) live in `props` with an
+     empty string value; surface them as `bool` via `"<flag>" in
+     props`.
    - Add an entry to the per-kind `_*_FIELDS` map in
-     `core/bigip/query/projection.py`. Promote to `ref_kind=` when
-     the field references another projected kind.
+     `core/bigip/query/projection/_data.py`. Promote to `ref_kind=`
+     when the field references another projected kind, or register
+     the property via the pilot table
+     (`core/bigip/registry/pilot.py`) when it benefits from a
+     compound value spec (monitor expression / SNAT mode / firewall
+     rule body / policy rule / cert-key-chain / etc.).
 3. Add at least one test in `tests/test_f5_query.py` covering the new
    field (and any new `PathRef` chain it enables).
 4. Tick the line in this file.

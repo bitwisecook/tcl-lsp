@@ -278,9 +278,11 @@ JQ COMPATIBILITY
       as a field-access separator).
     * Regex matching has a dedicated subscript form ``["~pattern"]``
       rather than the ``test`` builtin.
-    * No object-literal ``{ ... }`` or string-interpolation ``"\(.x)"``
-      in v1 — use ``--json`` to render whole objects as structured
-      output.
+    * Object-literal ``{ ... }`` constructors are supported (jq style:
+      ``{ name, destination: .dest }`` builds a dict per input,
+      ``{name}`` shorthand promotes ``.name``); string-interpolation
+      ``"\(.x)"`` is not in v1 — use ``--json`` to render whole
+      objects as structured output.
 
 See also:
   --help-builtins      every function this DSL exposes

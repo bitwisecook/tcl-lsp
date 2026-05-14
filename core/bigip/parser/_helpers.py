@@ -237,7 +237,16 @@ def _split_inline_keys(value: str, *, known_keys: tuple[str, ...]) -> dict[str, 
         return out
     current_key: str | None = None
     current_value: list[str] = [tokens[0]]
+    brace_depth = 0
     for tok in tokens[1:]:
+        # Track brace depth so braced sub-block contents (keyed-list
+        # bodies like ``profiles { /Common/clientssl { context
+        # clientside } }``) don't have their inner tokens mistaken
+        # for sibling keys at the outer level.
+        if brace_depth > 0:
+            current_value.append(tok)
+            brace_depth += tok.count("{") - tok.count("}")
+            continue
         if tok in key_set:
             # Capture the accumulated value under the *previous* key
             # and start collecting the next one.
@@ -249,6 +258,7 @@ def _split_inline_keys(value: str, *, known_keys: tuple[str, ...]) -> dict[str, 
             current_value = []
             continue
         current_value.append(tok)
+        brace_depth += tok.count("{") - tok.count("}")
     if current_key is None:
         return out
     out[current_key] = " ".join(current_value)

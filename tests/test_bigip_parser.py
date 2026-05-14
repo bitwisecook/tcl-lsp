@@ -153,6 +153,38 @@ ltm virtual /Common/my_vs {
     assert "/Common/cookie" in vs.persist
 
 
+def test_parse_virtual_server_compact_keyed_list_bodies():
+    """Compact one-line keyed-list bodies (``/Common/clientssl
+    { context clientside }``) must survive the compact-stanza
+    inline-key splitter without losing siblings.  The splitter
+    treats ``context`` / ``default`` / etc. as ltm-virtual keys
+    for the genuine compact form (``destination X pool Y``), but
+    those tokens must NOT be promoted to outer properties when
+    they live inside a braced sub-block.  Regression for the
+    review's high-severity finding."""
+    source = """\
+ltm virtual /Common/v_compact {
+    destination /Common/10.0.0.1:443
+    profiles {
+        /Common/clientssl { context clientside }
+        /Common/http { }
+        /Common/serverssl { context serverside }
+    }
+    persist {
+        /Common/cookie { default yes }
+    }
+}
+"""
+    config = parse_bigip_conf(source)
+    vs = config.virtual_servers["/Common/v_compact"]
+    assert vs.profiles == (
+        "/Common/clientssl",
+        "/Common/http",
+        "/Common/serverssl",
+    )
+    assert vs.persist == ("/Common/cookie",)
+
+
 def test_parse_virtual_server_source_addr_translation():
     source = """\
 ltm virtual /Common/snat_vs {

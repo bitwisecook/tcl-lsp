@@ -153,10 +153,23 @@ class MonitorExpression:
         return self.monitors
 
     def __str__(self) -> str:
-        # Prefer the original spelling when the value parsed from text
-        # so a no-op round trip keeps comments / spacing.
+        # Prefer the original spelling when the value parsed from
+        # text and the structured fields still match — that preserves
+        # spacing / comments on no-op round trips.  A
+        # ``dataclasses.replace`` that mutates ``monitors`` /
+        # ``mode`` / ``minimum`` would leave raw stale, so we
+        # re-parse raw and compare to the current structured shape;
+        # any mismatch falls through to the canonical render so the
+        # change is reflected in the output.
         if self.raw:
-            return self.raw
+            reparsed = MonitorExpression.try_parse(self.raw)
+            if (
+                reparsed is not None
+                and reparsed.mode == self.mode
+                and reparsed.monitors == self.monitors
+                and reparsed.minimum == self.minimum
+            ):
+                return self.raw
         if self.mode == "default":
             return "default"
         if self.mode == "none":

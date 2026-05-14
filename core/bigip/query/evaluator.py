@@ -422,7 +422,7 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
 
 
 def _regex_subscript(value: Any, pattern: str, ctx: EvalContext):
-    import re as _re
+    from .builtins import BuiltinError, _safe_regex_compile
 
     if isinstance(value, PathRef):
         target = _resolve_pathref(value, ctx)
@@ -442,11 +442,14 @@ def _regex_subscript(value: Any, pattern: str, ctx: EvalContext):
         # pattern is anchored via :func:`re.search` (not ``fullmatch``)
         # so substring-style searches (``"~app3"``) work as users
         # would expect from the kind-level subscript form
-        # (``.ltm.pool["~app3"]`` is also a substring search).
+        # (``.ltm.pool["~app3"]`` is also a substring search).  Route
+        # through the shared length / catastrophic-backtracking guards
+        # so MCP / chat surfaces can't feed a pathological pattern
+        # into this branch and hang the engine.
         try:
-            rx = _re.compile(pattern)
-        except _re.error as exc:
-            raise EvalError(f"regex subscript {pattern!r}: {exc}") from exc
+            rx = _safe_regex_compile(pattern, name="regex subscript")
+        except BuiltinError as exc:
+            raise EvalError(str(exc)) from exc
         return [value] if rx.search(value.full_path) else []
     raise EvalError(f"regex subscript not supported on {_describe(value)}")
 

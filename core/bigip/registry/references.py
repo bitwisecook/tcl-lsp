@@ -69,10 +69,39 @@ def references_via_spec(
         owner_path=owner_path,
         source_uri=source_uri,
     )
-    if isinstance(spec.value, ListSpec) and isinstance(value, (tuple, list)):
-        return _references_via_list_spec(spec.value, value, ctx, module, object_type, owner_path)
+    if isinstance(spec.value, ListSpec):
+        items = _materialise_list_items(spec.value, value)
+        return _references_via_list_spec(spec.value, items, ctx, module, object_type, owner_path)
     typed = _coerce_to_typed(value, spec.value, module, object_type, owner_path)
     return tuple(spec.value.references(typed, ctx))
+
+
+def _materialise_list_items(list_spec: ListSpec, value: Any) -> tuple:
+    """Coerce *value* into the per-element view a ListSpec expects.
+
+    Pre-typed tuples / lists pass through unchanged.  Raw strings —
+    which the link-extract pass hands in when the source is a
+    ``{ /Common/a /Common/b }`` style block — are tokenised through
+    the parser helpers: space-separated list bodies via
+    :func:`_parse_list_block`, keyed-block bodies via
+    :func:`_parse_keyed_block_entries`.  The decision uses the inner
+    spec's ``is_structured`` flag because keyed-block lists carry
+    item bodies that need a structured parse (firewall rules, policy
+    rules, cert-key-chain entries, ...) while plain list-of-refs
+    lists just want the bare tokens.
+    """
+    if value is None or value == "":
+        return ()
+    if isinstance(value, (tuple, list)):
+        return tuple(value)
+    if not isinstance(value, str):
+        return (value,)
+    from ..parser._helpers import _parse_keyed_block_entries, _parse_list_block
+
+    if list_spec.item is not None and list_spec.item.is_structured:
+        entries = _parse_keyed_block_entries(value)
+        return tuple(f"{name} {{ {body} }}" for name, body in entries)
+    return tuple(_parse_list_block(value))
 
 
 def _references_via_list_spec(

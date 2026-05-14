@@ -533,6 +533,83 @@ def test_profile_attachment_parses_context_clientside():
     ]
 
 
+def test_monitor_expression_str_invalidates_raw_on_field_mutation():
+    """``__str__`` returns the canonical render — not stale ``raw``
+    — once a structured field changes via ``dataclasses.replace``.
+    Regression for the review's "raw-preserving render can make
+    future transforms stale" finding."""
+    import dataclasses
+
+    from core.bigip.types import MonitorExpression
+
+    expr = MonitorExpression.try_parse("min 2 of { /Common/http /Common/tcp /Common/https }")
+    assert expr is not None
+    # No-op round trip keeps the original spelling.
+    assert str(expr) == "min 2 of { /Common/http /Common/tcp /Common/https }"
+    # Drop one monitor — the canonical render kicks in.
+    pruned = dataclasses.replace(expr, monitors=("/Common/http", "/Common/https"))
+    assert str(pruned) == "min 2 of { /Common/http /Common/https }"
+
+
+def test_profile_attachment_str_invalidates_raw_on_field_mutation():
+    """Same stale-raw guard for :class:`ProfileAttachment` — a
+    ``context`` change via ``dataclasses.replace`` must render the
+    new value instead of returning the original raw text."""
+    import dataclasses
+
+    from core.bigip.types import ProfileAttachment
+
+    p = ProfileAttachment.from_raw("/Common/clientssl", "context clientside")
+    assert "context clientside" in str(p)
+    flipped = dataclasses.replace(p, context="serverside")
+    assert "serverside" in str(flipped)
+    assert "clientside" not in str(flipped)
+
+
+def test_persistence_attachment_str_invalidates_raw_on_field_mutation():
+    """And for :class:`PersistenceAttachment` — a ``default``
+    change clears the raw spelling so the render reflects the new
+    structured value."""
+    import dataclasses
+
+    from core.bigip.types import PersistenceAttachment
+
+    pe = PersistenceAttachment.from_raw("/Common/cookie", "default yes")
+    assert "default yes" in str(pe)
+    cleared = dataclasses.replace(pe, default=False)
+    assert "default yes" not in str(cleared)
+
+
+def test_profile_attachment_rejects_stray_context_token():
+    """``ProfileAttachment.from_raw`` must only honour the strict
+    ``context <value>`` pair — a bare ``clientside`` token sitting
+    elsewhere in the body (or one nested in a sub-block) must NOT
+    leak into the structured field.  Regression for the review's
+    "attachment parsing is too loose for structured semantics"
+    finding."""
+    from core.bigip.types import ProfileAttachment
+
+    # Stray token without the ``context`` key — must not become
+    # the structured context value.
+    stray = ProfileAttachment.from_raw("/Common/p", "app-service /Common/clientside")
+    assert stray.context == ""
+    # Nested sub-block — even though ``context clientside`` lives
+    # inside, the outer attachment's context stays empty.
+    nested = ProfileAttachment.from_raw("/Common/p", "nested { context clientside }")
+    assert nested.context == ""
+
+
+def test_persistence_attachment_rejects_nested_default_token():
+    """``PersistenceAttachment.from_raw`` must not pick up a
+    ``default yes`` pair that's nested inside a sub-block.  Same
+    "attachment parsing too loose" regression on the persistence
+    side."""
+    from core.bigip.types import PersistenceAttachment
+
+    nested = PersistenceAttachment.from_raw("/Common/p", "nested { default yes }")
+    assert nested.default is False
+
+
 def test_profile_attachment_parses_empty_body():
     from core.bigip.registry import ProfileAttachmentSpec
     from core.bigip.types import ProfileAttachment
@@ -1390,3 +1467,83 @@ def test_firewall_rule_list_parser_populates_rule_objects():
     assert first.destination.ports == ("443",)
     assert second.name == "delegated"
     assert second.rule_list == "/Common/_sys_self_allow_defaults"
+
+
+# ---------------------------------------------------------------------------
+# Reference.target_kind normalisation
+# ---------------------------------------------------------------------------
+
+
+def test_candidate_registry_kinds_for_display_resolves_exact():
+    """Display-form kinds (``"ltm pool"`` / ``"security firewall
+    address-list"``) map to the underscored registry keys so the
+    graph resolver can look them up in ``OBJECT_KIND_SPECS``
+    without each consumer rebuilding the mapping."""
+    from core.bigip.registry import candidate_registry_kinds_for_display
+
+    assert candidate_registry_kinds_for_display("ltm pool") == ("ltm_pool",)
+    assert candidate_registry_kinds_for_display("ltm rule") == ("ltm_rule",)
+    assert candidate_registry_kinds_for_display("security firewall address-list") == (
+        "security_firewall_address_list",
+    )
+    assert candidate_registry_kinds_for_display("security firewall rule-list") == (
+        "security_firewall_rule_list",
+    )
+
+
+def test_candidate_registry_kinds_for_display_fans_out_monitor_family():
+    """``MonitorExpressionSpec`` yields ``Reference(target_kind="ltm
+    monitor")`` without naming a specific monitor type — the
+    graph resolver needs every ``ltm_monitor_*`` candidate to look
+    up the path against."""
+    from core.bigip.registry import candidate_registry_kinds_for_display
+
+    kinds = candidate_registry_kinds_for_display("ltm monitor")
+    assert "ltm_monitor_http" in kinds
+    assert "ltm_monitor_tcp" in kinds
+    assert "ltm_monitor_https" in kinds
+    # gtm_monitor_* kinds must NOT be in the ltm fan-out.
+    assert not any(k.startswith("gtm_") for k in kinds)
+
+
+def test_monitor_expression_spec_rejects_zero_threshold():
+    """``min 0 of { ... }`` is grammatically valid but BIG-IP refuses
+    it at validation — the spec should emit a diagnostic so editors
+    surface it before the user pushes the config."""
+    from core.bigip.registry import MonitorExpressionSpec
+
+    spec = MonitorExpressionSpec(ref_kinds=("ltm monitor",))
+    parsed = spec.parse("min 0 of { /Common/http }", ParseContext())
+    assert parsed.value is not None
+    assert any(d.severity == "error" and "at least 1" in d.message for d in parsed.diagnostics)
+
+
+def test_monitor_expression_spec_rejects_threshold_above_listed_count():
+    """``min 99 of { /Common/http }`` parses but is unsatisfiable —
+    BIG-IP needs the threshold to be ≤ the number of listed
+    monitors.  The spec emits a diagnostic so the editor flags it."""
+    from core.bigip.registry import MonitorExpressionSpec
+
+    spec = MonitorExpressionSpec(ref_kinds=("ltm monitor",))
+    parsed = spec.parse("min 99 of { /Common/http }", ParseContext())
+    assert parsed.value is not None
+    assert any(d.severity == "error" and "exceeds the 1" in d.message for d in parsed.diagnostics)
+
+
+def test_monitor_expression_spec_accepts_valid_threshold_silently():
+    """A well-formed ``min 2 of { a b c }`` produces no diagnostics."""
+    from core.bigip.registry import MonitorExpressionSpec
+
+    spec = MonitorExpressionSpec(ref_kinds=("ltm monitor",))
+    parsed = spec.parse("min 2 of { /Common/http /Common/tcp /Common/https }", ParseContext())
+    assert parsed.value is not None
+    assert parsed.diagnostics == ()
+
+
+def test_candidate_registry_kinds_for_display_empty_for_unknown():
+    """Unrecognised display strings return an empty tuple so callers
+    fall through to the legacy grep path without a special case."""
+    from core.bigip.registry import candidate_registry_kinds_for_display
+
+    assert candidate_registry_kinds_for_display("") == ()
+    assert candidate_registry_kinds_for_display("bogus xyzzy") == ()

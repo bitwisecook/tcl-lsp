@@ -64,21 +64,28 @@ class ProfileAttachment:
         *body* is the brace body content (without the surrounding
         ``{`` / ``}``) — it may be empty when the attachment is
         bare.  Recognises the ``context <clientside|serverside|all>``
-        property; other property tokens are preserved through the
+        property as a strict ``key <value>`` pair (brace-aware so
+        a nested ``{ ... }`` sub-block in the body doesn't taint
+        the parse); other property tokens are preserved through the
         ``raw`` field but not surfaced as structured fields here.
         """
         context = ""
-        for token in body.split():
-            if token == "context":
-                continue
-            if context == "" and token in ("clientside", "serverside", "all"):
-                context = token
-                continue
+        tokens = _iter_top_level_tokens(body)
+        for idx, tok in enumerate(tokens):
+            if tok == "context" and idx + 1 < len(tokens):
+                candidate = tokens[idx + 1]
+                if candidate in ("clientside", "serverside", "all"):
+                    context = candidate
+                    break
         return cls(path=path, context=context, raw=body.strip())
 
     def __str__(self) -> str:
-        if self.raw:
-            return f"{self.path} {{ {self.raw} }}" if self.raw else f"{self.path} {{ }}"
+        # Prefer raw only when the structured field still reflects
+        # what raw parsed to — a ``dataclasses.replace(context=...)``
+        # otherwise leaves raw stale and silently renders the
+        # pre-change body.
+        if self.raw and ProfileAttachment.from_raw(self.path, self.raw).context == self.context:
+            return f"{self.path} {{ {self.raw} }}"
         if self.context:
             return f"{self.path} {{ context {self.context} }}"
         return f"{self.path} {{ }}"
@@ -107,25 +114,60 @@ class PersistenceAttachment:
     def from_raw(cls, path: str, body: str) -> "PersistenceAttachment":
         """Build an attachment from the keyed-block parser output.
 
-        Recognises the ``default <yes|no>`` property.  Defaults to
-        ``False`` when omitted (matching the F5 default: a
-        persistence profile is only the fall-back when explicitly
-        marked).
+        Recognises the ``default <yes|no>`` property as a strict
+        ``key <value>`` pair (brace-aware so nested sub-blocks
+        can't taint the parse).  Defaults to ``False`` when
+        omitted (matching the F5 default: a persistence profile is
+        only the fall-back when explicitly marked).
         """
         default = False
-        parts = body.split()
-        for i, token in enumerate(parts):
-            if token == "default" and i + 1 < len(parts):
-                value = parts[i + 1].lower()
-                default = value == "yes" or value == "true"
+        tokens = _iter_top_level_tokens(body)
+        for idx, tok in enumerate(tokens):
+            if tok == "default" and idx + 1 < len(tokens):
+                value = tokens[idx + 1].lower()
+                default = value in ("yes", "true")
+                break
         return cls(path=path, default=default, raw=body.strip())
 
     def __str__(self) -> str:
-        if self.raw:
+        # Stale-raw guard: re-parse to confirm ``default`` still
+        # matches; mutations via ``dataclasses.replace`` otherwise
+        # render the pre-change body.
+        if self.raw and PersistenceAttachment.from_raw(self.path, self.raw).default == self.default:
             return f"{self.path} {{ {self.raw} }}"
         if self.default:
             return f"{self.path} {{ default yes }}"
         return f"{self.path} {{ }}"
+
+
+def _iter_top_level_tokens(body: str) -> list[str]:
+    """Return *body*'s top-level tokens, skipping nested ``{ ... }``.
+
+    The attachment parsers want to see ``context clientside`` /
+    ``default yes`` at the top level only — nested sub-blocks
+    (rare in attachments today, but valid syntactically) must not
+    contribute tokens that could be mistaken for keys at the outer
+    level.  ``{`` and ``}`` are themselves emitted so callers that
+    care about brace markers can still see them; the common
+    ``zip(tokens, tokens[1:])`` style consumer skips them
+    naturally because they aren't recognised keys.
+    """
+    out: list[str] = []
+    depth = 0
+    for tok in body.split():
+        if tok == "{":
+            depth += 1
+            out.append(tok)
+            continue
+        if tok == "}":
+            if depth > 0:
+                depth -= 1
+            out.append(tok)
+            continue
+        if depth > 0:
+            continue
+        out.append(tok)
+    return out
 
 
 __all__ = ["PersistenceAttachment", "ProfileAttachment"]

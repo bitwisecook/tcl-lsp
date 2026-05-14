@@ -352,3 +352,39 @@ def test_extract_linked_objects_source_origin_annotation() -> None:
     assert origin_by_header["ltm virtual /Common/www_vs"] == "synced"
     assert origin_by_header["ltm pool /Common/web_pool"] == "base"
     assert origin_by_header.get("ltm rule /Common/my_rule") == "script"
+
+
+def test_extract_linked_objects_finds_firewall_rule_address_list_via_registry() -> None:
+    """The graph builder routes registered properties through the
+    pilot value-specs.  ``security firewall rule-list.rules``
+    carries typed :class:`FirewallRule` bodies whose destination /
+    source address-list refs need to surface as graph edges so
+    ``references_to(/Common/web_servers)`` returns the rule-list —
+    the review's high-severity finding that proved the registry
+    references were not yet graph-visible."""
+    source = textwrap.dedent(
+        """\
+        security firewall address-list /Common/web_servers { }
+        security firewall rule-list /Common/rl_web {
+            rules {
+                allow_https {
+                    action accept
+                    destination { address-lists { /Common/web_servers } }
+                }
+            }
+        }
+        """
+    )
+    uri = "file:///bigip.conf"
+    cfg = parse_bigip_conf(source)
+    offset = source.index("security firewall address-list /Common/web_servers") + 5
+    result = extract_linked_bigip_objects(
+        uri=uri,
+        offset=offset,
+        sources={uri: source},
+        configs={uri: cfg},
+        max_depth=4,
+    )
+    assert result is not None
+    headers = {node["header"] for node in result["nodes"]}
+    assert "security firewall rule-list /Common/rl_web" in headers

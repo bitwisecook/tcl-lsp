@@ -76,6 +76,66 @@ def property_spec_for(
     return PROPERTY_SPECS_BY_TYPE.get((module, object_type), {}).get(property_name)
 
 
+def candidate_registry_kinds_for_display(display_kind: str) -> tuple[str, ...]:
+    """Map a ``Reference.target_kind`` display string to registry-key kinds.
+
+    Reference dispatch yields display-style kinds like ``"ltm monitor"``,
+    ``"security firewall address-list"``, or ``"ltm pool"``.  The graph
+    / object resolver indexes objects under registry keys such as
+    ``"ltm_monitor_http"`` / ``"security_firewall_address_list"`` /
+    ``"ltm_pool"``.  This helper normalises display → registry keys so
+    consumers of :class:`Reference` can resolve targets without each
+    rebuilding the mapping.
+
+    Returns:
+
+    - A single-element tuple for a one-to-one mapping
+      (``"ltm pool"`` → ``("ltm_pool",)`` /
+      ``"security firewall address-list"`` →
+      ``("security_firewall_address_list",)``).
+    - A multi-element tuple when the display kind is a generic family
+      prefix without a specific sub-type (``"ltm monitor"`` →
+      every ``"ltm_monitor_*"`` key) so the resolver can fan out.
+    - Empty tuple when the display string doesn't match any kind.
+
+    The mapping uses the ``HEADER_KIND_MAP`` for an exact lookup first
+    (``(module, object_type)`` → kind), then falls back to enumerating
+    ``OBJECT_KIND_SPECS`` for prefix matches.  Callers that already
+    have ``(module, object_type)`` pairs in hand should use
+    ``HEADER_KIND_MAP`` directly.
+    """
+    if not display_kind:
+        return ()
+    parts = display_kind.split(" ", 1)
+    if len(parts) == 1:
+        module = parts[0]
+        object_type = ""
+    else:
+        module, object_type = parts[0], parts[1]
+    # Exact-match lookup via HEADER_KIND_MAP.
+    direct = HEADER_KIND_MAP.get((module, object_type))
+    if direct is not None:
+        return (direct,)
+    # Generic-prefix fan-out: ``"ltm monitor"`` matches every
+    # ``ltm monitor *`` entry.  Walk HEADER_KIND_MAP because it keys on
+    # the actual ``object_type`` string the parser sees (preserving the
+    # ``-`` / ``_`` and word ordering), so a prefix match here lines
+    # up with what callers expect.
+    prefix = (object_type + " ") if object_type else ""
+    matches: list[str] = []
+    for (mod, obj), kind in HEADER_KIND_MAP.items():
+        if mod != module:
+            continue
+        if prefix and not obj.startswith(prefix):
+            continue
+        if not prefix and " " in obj:
+            # ``module`` alone — only single-word object types match
+            # (we don't want ``ltm`` alone to match every ltm.*).
+            continue
+        matches.append(kind)
+    return tuple(matches)
+
+
 def list_operator_for(
     module: str,
     object_type: str,

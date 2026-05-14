@@ -18,13 +18,22 @@ Concrete specs (``StringSpec``, ``IntSpec``, ``EnumSpec``,
 ``BoolSpec``, ``ObjectRefSpec``, ``ListSpec``, ``DestinationSpec``,
 ``NetworkSpec``, ``AddressSpec``, ``PortSpec``) plug into this
 protocol.  Compound specs (``MonitorExpressionSpec``,
-``ProfileAttachmentSpec``, ``SnatModeSpec``, ...) come in later phases
-once the foundation is in place.
+``ProfileAttachmentSpec``, ``PersistenceAttachmentSpec``,
+``SnatModeSpec``, ``DataGroupRecordSpec``, ``GtmRegionMemberSpec``,
+``CertKeyChainSpec``, ``LtmPolicyConditionSpec``,
+``LtmPolicyActionSpec``, ``LtmPolicyRuleSpec``, ``FirewallRuleSpec``,
+``NatRuleSpec``) round out the catalogue.
 
-This file is **introduced without behaviour change** in Phase 1.  The
-existing parser / projection / edit-plan paths continue to read the
-older ``BigipPropertySpec`` data; Phase 2 onward starts routing each
-stage through ``ValueSpec`` for the properties that have migrated.
+Phases 1–6 of the rearchitecture have all landed: every dispatch
+stage (projection / edit rendering / parser / references) routes
+migrated properties through ``ValueSpec``; the pilot migration
+table in :mod:`core.bigip.registry.pilot` ships the property-level
+opt-ins (destination, monitor expressions on every pool/node/GTM
+kind, SNAT mode, ltm-virtual list attachments, data-group records,
+GTM region rows, cert-key-chains, ltm policy rules, firewall
+rule-list bodies, firewall policy rule-lists, address-list
+nesting).  Unmigrated properties keep the legacy
+``BigipPropertySpec`` path unchanged.
 """
 
 from __future__ import annotations
@@ -655,7 +664,33 @@ class MonitorExpressionSpec(_BaseSpec):
                     ),
                 ),
             )
-        return ParsedValue(value=parsed, raw=raw)
+        diagnostics: list[Diagnostic] = []
+        if parsed.mode == "min-of" and parsed.minimum is not None:
+            total = len(parsed.monitors)
+            if parsed.minimum < 1:
+                diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        message=(
+                            f"monitor ``min {parsed.minimum} of`` threshold "
+                            "must be at least 1; BIG-IP rejects 0-of "
+                            "expressions at validation"
+                        ),
+                    )
+                )
+            elif total > 0 and parsed.minimum > total:
+                diagnostics.append(
+                    Diagnostic(
+                        severity="error",
+                        message=(
+                            f"monitor ``min {parsed.minimum} of`` threshold "
+                            f"exceeds the {total} listed monitor"
+                            f"{'' if total == 1 else 's'} — BIG-IP would "
+                            "never satisfy the rule"
+                        ),
+                    )
+                )
+        return ParsedValue(value=parsed, raw=raw, diagnostics=tuple(diagnostics))
 
     def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
         # Legacy parity: the existing projection layer surfaces the
