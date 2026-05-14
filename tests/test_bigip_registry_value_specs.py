@@ -334,3 +334,41 @@ def test_destination_write_rejects_unparseable_input():
     # guard caught it downstream; both produce a clear error to the
     # operator.
     assert "destination" in str(exc.value).lower() or "scf" in str(exc.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: parser populates typed fields via the registry spec
+# ---------------------------------------------------------------------------
+
+
+def test_destination_parse_routes_through_spec():
+    """The virtual server parser now consults the migrated
+    :class:`DestinationSpec` for ``destination``.  End-to-end test:
+    parsing a virtual produces the same typed Destination value the
+    legacy hand-rolled path produced."""
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.types import Destination
+
+    src = "ltm virtual /Common/v {\n    destination /Common/10.0.0.10:80\n}\n"
+    cfg = parse_bigip_conf(src)
+    vs = cfg.virtual_servers["/Common/v"]
+    assert isinstance(vs.destination, Destination)
+    assert str(vs.destination) == "/Common/10.0.0.10:80"
+
+
+def test_phase4_dispatch_helper_returns_none_for_empty_raw():
+    """The ``_parse_typed_field`` helper short-circuits on empty
+    input so a parser asking about a missing property doesn't have
+    to special-case it.  This is the same shape every legacy
+    typed-field block (``if raw_text else None``) was using before
+    the migration."""
+    from core.bigip.parser._parsers import _parse_typed_field
+
+    out = _parse_typed_field(
+        module="ltm",
+        object_type="virtual",
+        property_name="destination",
+        raw="",
+        legacy_factory=lambda raw: "should-not-be-called",
+    )
+    assert out is None

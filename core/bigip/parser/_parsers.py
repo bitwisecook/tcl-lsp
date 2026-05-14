@@ -1208,9 +1208,22 @@ def _parse_virtual(
     if cp_block:
         clone_pools = tuple(_parse_list_block(cp_block))
 
-    from ..types import Destination
+    from ..types import Destination as _Destination
 
-    destination_typed = Destination.try_parse(destination) if destination else None
+    # Phase 4: route the destination parse through the migrated
+    # :class:`DestinationSpec` when the pilot table has the entry;
+    # otherwise fall back to the hand-rolled ``Destination.try_parse``
+    # path so behaviour stays identical for un-migrated configs.
+    # The spec parse runs through the same ``Destination.try_parse``
+    # under the hood so the typed value shape is preserved.
+    destination_parsed = _parse_typed_field(
+        module="ltm",
+        object_type="virtual",
+        property_name="destination",
+        raw=destination,
+        legacy_factory=_legacy_parse_destination,
+    )
+    destination_typed = destination_parsed if isinstance(destination_parsed, _Destination) else None
     return BigipVirtualServer(
         name=name,
         full_path=full_path,
@@ -2779,6 +2792,60 @@ def _parse_policy(
 
 
 # ── net.* parsers ────────────────────────────────────────────────────
+
+
+def _parse_typed_field(
+    *,
+    module: str,
+    object_type: str,
+    property_name: str,
+    raw: str,
+    legacy_factory,
+) -> object:
+    """Parse one typed field via the migrated registry spec, with
+    a legacy fallback.
+
+    Phase 4 dispatch: when a :class:`PropertySpec` for ``(module,
+    object_type, property_name)`` is present in
+    :data:`core.bigip.registry.pilot.PILOT_PROPERTY_SPECS`, run the
+    raw text through ``spec.value.parse(...)`` and return the
+    structured ``value``.  Unmigrated properties fall back to
+    *legacy_factory* — a one-shot callable that handles whatever the
+    pre-Phase-4 code did (typically ``Destination.try_parse`` /
+    ``Network.try_parse`` / ``IPAddress.try_parse`` / ...).
+
+    Returns ``None`` when *raw* is empty.  Spec error-diagnostics are
+    swallowed at this layer — the per-stanza parser is best-effort
+    and a malformed property must still produce a model object so
+    the rest of the parsed config (siblings, downstream queries)
+    remains usable.  The Phase 5 reference layer can surface the
+    spec diagnostics via the diagnostics channel separately.
+    """
+    if not raw:
+        return None
+    from ..registry.pilot import pilot_property_spec_for
+    from ..registry.value_specs import ParseContext
+
+    spec = pilot_property_spec_for(module, object_type, property_name)
+    if spec is None:
+        return legacy_factory(raw)
+    parsed = spec.value.parse(raw, ParseContext(module=module, object_type=object_type))
+    return parsed.value
+
+
+def _legacy_parse_destination(raw: str) -> object:
+    """Legacy fallback for the ``destination`` property.
+
+    Phase 4 routes the migrated path through
+    :class:`DestinationSpec.parse`; unmigrated configurations
+    (none today, but worth keeping for back-compat) hit this
+    shim, which is the original pre-Phase-4 logic moved out of
+    :func:`_parse_virtual` so the dispatch helper has a clean
+    callable to invoke.
+    """
+    from ..types import Destination
+
+    return Destination.try_parse(raw)
 
 
 def _split_compact_props(body: str, *, known_keys: tuple[str, ...]) -> dict[str, str]:
