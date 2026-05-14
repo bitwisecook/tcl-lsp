@@ -372,3 +372,49 @@ def test_phase4_dispatch_helper_returns_none_for_empty_raw():
         legacy_factory=lambda raw: "should-not-be-called",
     )
     assert out is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: reference dispatch through the registry
+# ---------------------------------------------------------------------------
+
+
+def test_references_via_spec_returns_none_for_unmigrated_property():
+    """The dispatch helper returns ``None`` when the property
+    hasn't been migrated — the caller falls back to the legacy
+    grep-based path so untouched properties continue to work."""
+    from core.bigip.registry import references_via_spec
+
+    out = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="this-property-does-not-exist",
+        value="/Common/anything",
+    )
+    assert out is None
+
+
+def test_iter_object_references_yields_from_migrated_specs_only():
+    """Walking a property bag pulls references from every migrated
+    spec and silently skips the unmigrated ones.  Phase 6 will add
+    enough migrated reference-shaped properties for this to start
+    returning real edges; today the destination spec doesn't carry
+    references (it's a value, not a ref) so the iteration is empty
+    even though the property is migrated."""
+    from core.bigip.registry import iter_object_references
+
+    refs = list(
+        iter_object_references(
+            module="ltm",
+            object_type="virtual",
+            properties=[
+                ("destination", "/Common/10.0.0.1:80"),
+                ("pool", "/Common/web_pool"),  # not migrated yet
+            ],
+            owner_path="/Common/v",
+        )
+    )
+    # Destination spec yields no references (it's a value type, not
+    # a ref).  Pool isn't migrated so iter_object_references skips
+    # it entirely.  Combined: no edges yet — Phase 6 changes that.
+    assert refs == []

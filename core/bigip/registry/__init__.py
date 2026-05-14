@@ -21,6 +21,10 @@ from .properties import (
     ObjectSpec,
     PropertySpec,
 )
+from .references import (
+    iter_object_references,
+    references_via_spec,
+)
 from .value_specs import (
     AddressSpec,
     BoolSpec,
@@ -67,6 +71,9 @@ __all__ = [
     "NetworkSpec",
     "AddressSpec",
     "PortSpec",
+    # Phase 5 reference dispatch
+    "iter_object_references",
+    "references_via_spec",
     # Legacy shape (still in use across every spec file under specs/)
     "BigipObjectSpec",
     "BigipObjectKindSpec",
