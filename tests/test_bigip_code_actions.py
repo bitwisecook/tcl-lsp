@@ -32,8 +32,11 @@ def test_rename_action_for_object_at_cursor():
 
 
 def test_rename_partition_action_on_partition_stanza():
-    """``auth partition`` stanzas get an extra ``Rename partition
-    …`` action that produces a preview WorkspaceEdit."""
+    """``auth partition`` stanzas get an extra ``Rename partition …``
+    action that triggers a command (so the user enters the new name
+    interactively); the actual cascade flows through the query
+    engine via :func:`run_rename_partition`, not a pre-baked
+    placeholder edit on the code-action itself."""
     source = "auth partition Tenant_A { default-route-domain 0 }\nltm pool /Tenant_A/web_pool { }\n"
     actions = get_bigip_code_actions(source, uri="file:///t.conf", range_=_range(0))
     partition_action = next(
@@ -41,18 +44,55 @@ def test_rename_partition_action_on_partition_stanza():
         None,
     )
     assert partition_action is not None
-    assert partition_action.edit is not None
-    # Narrow ``edit.changes`` so the type checker can confirm the
-    # lookup is safe.
-    changes = partition_action.edit.changes
-    assert changes is not None
-    # The preview rewrites every ``/Tenant_A`` token.
-    rewritten = changes["file:///t.conf"][0].new_text
-    assert "/Tenant_A_renamed" in rewritten
-    # Both the stanza header and the pool's partition prefix get
-    # cascaded.
-    assert "auth partition Tenant_A_renamed" in rewritten
-    assert "/Tenant_A_renamed/web_pool" in rewritten
+    # No pre-baked workspace edit — the action triggers a command
+    # that pops the rename UI, so the user supplies the real name
+    # rather than accepting a placeholder.
+    assert partition_action.edit is None
+    assert partition_action.command is not None
+    assert partition_action.command.command == "f5.renamePartition"
+    assert partition_action.command.arguments == ["file:///t.conf", "Tenant_A"]
+
+
+def test_run_rename_partition_drives_through_query_engine():
+    """``run_rename_partition`` builds the WorkspaceEdit by running
+    ``rename_partition(...)`` through the query engine, so its
+    cascade and post-rewrite parse guard fire here too."""
+    from lsp.features._bigip_code_actions import run_rename_partition
+
+    source = "auth partition Tenant_A { default-route-domain 0 }\nltm pool /Tenant_A/web_pool { }\n"
+    edit = run_rename_partition(
+        source=source,
+        old_partition="Tenant_A",
+        new_partition="Tenant_B",
+        uri="file:///t.conf",
+    )
+    assert edit is not None and edit.changes is not None
+    rewritten = edit.changes["file:///t.conf"][0].new_text
+    assert "auth partition Tenant_B" in rewritten
+    assert "/Tenant_B/web_pool" in rewritten
+    assert "Tenant_A" not in rewritten
+
+
+def test_run_rename_partition_refuses_common_renames():
+    """``rename_partition`` refuses to rename ``/Common`` (the F5
+    visibility rules make that always unsafe); the LSP entry point
+    surfaces the underlying ``BuiltinError`` rather than applying
+    an edit, so an editor command handler can show the refusal as
+    a user-visible error notification."""
+    import pytest
+
+    from core.bigip.query.errors import BuiltinError
+    from lsp.features._bigip_code_actions import run_rename_partition
+
+    source = "auth partition Common { description default }\n"
+    with pytest.raises(BuiltinError) as exc:
+        run_rename_partition(
+            source=source,
+            old_partition="Common",
+            new_partition="Tenant_X",
+            uri="file:///t.conf",
+        )
+    assert "Common" in str(exc.value)
 
 
 def test_no_actions_when_cursor_outside_any_stanza():

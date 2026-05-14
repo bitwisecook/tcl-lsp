@@ -126,7 +126,7 @@ $ f5 query '.ltm.virtual[] | .destination |= ip("192.168.9.0/24", .)' bigip.conf
 ### Migrate every object in a partition
 
 ```
-$ f5 query 'rename_partition("Common", "Tenant_A")' bigip.conf
+$ f5 query 'rename_partition("Tenant_A", "Tenant_B")' bigip.conf
 --- bigip.conf
 +++ bigip.conf (modified)
 @@ -1,4 +1,4 @@
@@ -207,8 +207,8 @@ A `renamed /Common/web_pool -> /Common/app_pool (3 occurrence(s))` line is also 
 ## Out of scope
 
 - General command-argument rewriting inside iRule bodies is deferred to v2.  In v1 the only writable slots inside an iRule are the reference lists `.refs.pools[]`, `.refs.persists[]`, and `.refs.data-groups[]`, which are rewritten via the same token-bounded engine `f5 rename` uses.
-- Compound property values (sub-blocks like `members { ... }`) are not writable in v1.  Add or remove members by editing the pool object directly, or pipe through `f5 cleanup` after a query that emits SCF stanzas.
-- The DSL is intentionally minimal — there are no user-defined functions, no variable bindings, and no stream-comma operator.  Each of those is a deliberate non-goal; chain `f5 query` with the rest of the verbs or compose multiple statements with `;` instead.
+- Compound property values are partially writable.  Per-member fields on a pool member (`.ltm.pool[].members[].address` and siblings) carry real byte-offset slots and accept field edits in place; other sub-block compound values (e.g. policy rule actions, persistence body) are still v2.  Add or remove pool members by editing the pool object directly, or pipe through `f5 cleanup` after a query that emits SCF stanzas.
+- The DSL has lexical variable bindings — `expr as $name | body` (jq-flavoured) — and a top-level `$name` form addressing each loaded source by its filename stem.  There is no user-defined-function syntax and no stream-comma operator; both stay non-goals.  Compose with `;`-separated statements or with explicit `[...]` collectors when you want to fan a stream into a list.
 
 ## Related
 

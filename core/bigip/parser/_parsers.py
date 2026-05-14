@@ -180,6 +180,7 @@ from ._helpers import (
     _parse_properties_with_spans,
     _range_from_offsets,
     _range_from_token_offsets,
+    _split_inline_keys,
     _state_flag,
     _unquote,
 )
@@ -1127,8 +1128,18 @@ def _parse_virtual(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipVirtualServer:
     """Parse a ``ltm virtual`` block."""
+    from ..registry import property_names_for
+
     props_with_spans = _parse_properties_with_spans(body)
-    props = {key: prop.value for key, prop in props_with_spans.items()}
+    # Re-split inline siblings on compact one-line stanzas using the
+    # registry's known property names for ``ltm virtual``.  Without
+    # this, ``{ destination /Common/0.0.0.0:80 pool /Common/p }``
+    # leaves ``destination`` carrying ``"/Common/0.0.0.0:80 pool
+    # /Common/p"`` and ``pool`` undefined.  The span-aware props
+    # stay the source of truth for byte ranges (which the edit
+    # planner still uses for field rewrites — compact-stanza
+    # field-edits aren't yet supported).
+    props = _split_compact_props(body, known_keys=property_names_for("ltm", "virtual"))
     name = full_path.rsplit("/", 1)[-1]
 
     pool = props.get("pool", "")
@@ -2275,9 +2286,10 @@ _LTM_MESSAGE_ROUTING_DISPATCH: dict[str, str] = {
 def _parse_virtual_address(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipVirtualAddress:
+    from ..registry import property_names_for
     from ..types import IPAddress
 
-    props = _parse_properties(body)
+    props = _split_compact_props(body, known_keys=property_names_for("ltm", "virtual-address"))
     name = full_path.rsplit("/", 1)[-1]
     addr_raw = props.get("address", "")
     addr_typed = IPAddress.try_parse(addr_raw) if addr_raw else None
@@ -2769,12 +2781,50 @@ def _parse_policy(
 # ── net.* parsers ────────────────────────────────────────────────────
 
 
+def _split_compact_props(body: str, *, known_keys: tuple[str, ...]) -> dict[str, str]:
+    """Parse *body*'s top-level properties, splitting inline sibling pairs.
+
+    Wraps :func:`_parse_properties` and, when a captured value
+    contains additional ``<known-key> <token>`` pairs (the compact
+    single-line stanza shape such as ``network 10.0.0.0/8 gw
+    192.168.1.1``), splits each one out into its own property.  Other
+    multi-token values (legacy ``network ADDR MASK``,
+    ``last-resort-pool TYPE PATH``, descriptions) stay attached to
+    their owning key because their trailing tokens aren't sibling
+    keys.
+
+    The schema list (*known_keys*) lives with each typed parser
+    rather than the generic property parser so the read-to-newline
+    rule the rest of the codebase relies on stays intact for every
+    non-compact-stanza caller.
+    """
+    props = _parse_properties(body)
+    out = dict(props)
+    for key, value in list(props.items()):
+        if not value or " " not in value:
+            continue
+        inline = _split_inline_keys(value, known_keys=known_keys)
+        if not inline:
+            continue
+        head = inline.pop("__head__", None)
+        if head is not None:
+            out[key] = head
+        for inline_key, inline_value in inline.items():
+            # Don't clobber an explicit later value on a multi-line
+            # body (where the same key appears again on a later
+            # line); existing entries win because the line-based
+            # parser saw them as their own properties.
+            out.setdefault(inline_key, inline_value)
+    return out
+
+
 def _parse_net_route(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetRoute:
+    from ..registry import property_names_for
     from ..types import IPAddress, Network
 
-    props = _parse_properties(body)
+    props = _split_compact_props(body, known_keys=property_names_for("net", "route"))
     name = full_path.rsplit("/", 1)[-1]
     network_raw = props.get("network", "")
     gw_raw = props.get("gw", "")
@@ -2842,8 +2892,10 @@ def _parse_net_vlan(
 def _parse_net_self(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipNetSelf:
+    from ..registry import property_names_for
+
     props = _parse_properties_with_spans(body)
-    plain = {key: prop.value for key, prop in props.items()}
+    plain = _split_compact_props(body, known_keys=property_names_for("net", "self"))
     name = full_path.rsplit("/", 1)[-1]
     allow_service: tuple[str, ...] = ()
     if "allow-service" in props:

@@ -49,12 +49,16 @@ def forward_refs(obj: ObjectRef) -> list[str]:
     from ..grep import compute_grep
 
     sources, configs = _grep_inputs(obj)
+    # Exact-path seed: ``refs(/Common/p)`` must not also match
+    # ``/Common/p2`` and inflate the result with edges from a
+    # different object.
     report = compute_grep(
         sources=sources,
         configs=configs,
         pattern=obj.full_path,
         use_regex=False,
         use_cidr=False,
+        use_exact=True,
         direction="forward",
         max_depth=1,
         max_nodes=1024,
@@ -73,12 +77,15 @@ def reverse_refs(obj: ObjectRef) -> list[str]:
     from ..grep import compute_grep
 
     sources, configs = _grep_inputs(obj)
+    # Exact-path seed: ``referenced_by(/Common/p)`` returns only
+    # referrers of /Common/p, not of /Common/p2.
     report = compute_grep(
         sources=sources,
         configs=configs,
         pattern=obj.full_path,
         use_regex=False,
         use_cidr=False,
+        use_exact=True,
         direction="reverse",
         max_depth=1,
         max_nodes=1024,

@@ -81,7 +81,7 @@ _EPILOG = (
     "\n"
     "  # Explicit naming via --name N=PATH (overrides the stem default).\n"
     "  f5 query --name pri=tier1.conf --name sec=tier2.conf \\\n"
-    "    '$pri.ltm.pool[].name, $sec.ltm.pool[].name' tier1.conf tier2.conf\n"
+    "    '$pri.ltm.pool[].name' tier1.conf tier2.conf\n"
     "\n"
     "  # --merge unifies every loaded config into one namespace; .x.y\n"
     "  # iterates across all sources and refs cross files (a GTM pool\n"

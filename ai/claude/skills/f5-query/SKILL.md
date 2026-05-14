@@ -97,7 +97,8 @@ The important divergences from jq:
 | Stream concat ``,`` | yes | not present — use ``[ ... ]`` lists or ``;`` statements |
 | ``test()`` | rich match objects | ``match()`` is boolean (the DSL has no rich-match equivalent — use ``sub`` / ``gsub`` for capture groups) |
 | Truthiness | only ``false`` and ``null`` are falsey | also empty string / list / stream / PathRef / numeric 0 |
-| Object literals ``{...}`` | yes | not in v1 — use ``--json`` output |
+| Object literals ``{...}`` | yes | yes — ``{name, dest: .destination}`` (bareword key desugars to ``key: .key``; stream-valued fields broadcast element-wise into one row per item) |
+| ``expr as $x \| body`` | yes | yes — streams iterate, plain lists bind whole |
 | String interpolation | yes | not in v1 — concat with ``+`` (auto-coerces scalars) |
 | Comma operator inside ``[...]`` | yes | not in v1 — see error message at parse time |
 
@@ -126,7 +127,7 @@ The important divergences from jq:
 | User asks | Query |
 |---|---|
 | "rename pool old to new" | ``rename("/Common/old", "/Common/new")`` |
-| "move every object from /Common to /Tenant_A" | ``rename_partition("Common", "Tenant_A")`` |
+| "move every object from /Tenant_A to /Tenant_B" | ``rename_partition("Tenant_A", "Tenant_B")`` |
 | "set vs1's description" | ``.ltm.virtual["/Common/vs1"].description = "production HTTPS"`` |
 | "attach iRule X to every VS in /Common" | ``.ltm.virtual[] \| select(partition(."full-path") == "Common") \| .rules += "/Common/X"`` |
 | "remove iRule Y from vs1" | ``.ltm.virtual["/Common/vs1"].rules -= "/Common/Y"`` |

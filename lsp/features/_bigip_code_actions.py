@@ -76,11 +76,14 @@ def get_bigip_code_actions(
     )
 
     # Partition rename action — only when the cursor is on an
-    # ``auth partition`` stanza.  Cascades the prefix rewrite via
-    # the same engine ``f5 query 'rename_partition(...)'`` uses.
-    # ``BigipAuthPartition.full_path`` is stored as the bare name
-    # (``"Tenant_A"``), not with a leading slash, so the check
-    # below matches the stanza identity rather than path shape.
+    # ``auth partition`` stanza.  Routes through the query engine
+    # (``rename_partition``) so the same partition-visibility
+    # refusal rules the CLI uses fire here too: renames of
+    # ``/Common`` (or into ``/Common`` from a tenant) raise
+    # ``BuiltinError`` and the action is suppressed rather than
+    # applying an unsafe edit.  ``BigipAuthPartition.full_path``
+    # is stored as the bare name (``"Tenant_A"``) without a
+    # leading slash.
     for part_path, part_obj in config.auth_partitions.items():
         if part_path != obj_path:
             continue
@@ -88,26 +91,83 @@ def get_bigip_code_actions(
         if rng is None or not (rng.start.line <= cursor_line <= rng.end.line):
             continue
         partition_short = obj_path.lstrip("/")
-        renamed_short = f"{partition_short}_renamed"
-        preview = _build_rename_partition_preview(
-            source,
-            old_partition=partition_short,
-            new_partition=renamed_short,
-            uri=uri,
-        )
-        if preview is not None:
-            actions.append(
-                types.CodeAction(
-                    title=(
-                        f"Rename partition {partition_short!r} → "
-                        f"{renamed_short!r} (preview only — adjust in DSL)"
-                    ),
-                    kind=types.CodeActionKind.RefactorRewrite,
-                    edit=preview,
-                )
+        # Offer the action as a command that triggers the standard
+        # rename UI rather than as a pre-baked WorkspaceEdit with a
+        # placeholder name.  The previous behaviour applied a
+        # ``<partition>_renamed`` workspace edit on accept, which
+        # contradicted the "preview only" title and could land an
+        # unintended placeholder on disk; this command opens the
+        # rename dialog where the user supplies the real new name,
+        # and the rename then flows through the same code path the
+        # CLI uses for ``f5 query 'rename_partition(...)'``.
+        actions.append(
+            types.CodeAction(
+                title=f"Rename partition {partition_short!r}…",
+                kind=types.CodeActionKind.RefactorRewrite,
+                command=types.Command(
+                    title="Rename partition",
+                    command="f5.renamePartition",
+                    arguments=[uri, partition_short],
+                ),
             )
+        )
 
     return actions
+
+
+def run_rename_partition(
+    *,
+    source: str,
+    old_partition: str,
+    new_partition: str,
+    uri: str,
+) -> types.WorkspaceEdit | None:
+    """Drive ``rename_partition(old, new)`` through the query engine.
+
+    The shared entry point the editor command (and any future
+    code action that wants to apply a partition rename) calls
+    after collecting the new name from the user.  Returns
+    ``None`` when:
+
+    - the query engine refuses the rename (partition-visibility
+      guards reject any rename involving ``/Common``);
+    - the cascade produces zero matches (no-op);
+    - the post-rewrite source fails to reparse (defence in
+      depth — the same guard the CLI applies).
+
+    On success, returns a single-file :class:`WorkspaceEdit`
+    rewriting the full text so the editor previews the diff
+    normally.  Partition-visibility refusal raises
+    :class:`core.bigip.query.errors.BuiltinError`, which the
+    caller (LSP command handler) can surface as a user-visible
+    error notification rather than a silent no-op.
+    """
+    from core.bigip.query.errors import BuiltinError
+    from core.bigip.query.runner import run_query
+
+    if old_partition == new_partition:
+        return None
+    expression = f'rename_partition("{old_partition}", "{new_partition}")'
+    try:
+        result = run_query(expression, {uri: source})
+    except BuiltinError:
+        raise
+    applied = result.edits_per_file.get(uri)
+    if applied is None or applied.new_source == applied.original:
+        return None
+    try:
+        parse_bigip_conf(applied.new_source)
+    except Exception:  # noqa: BLE001
+        return None
+    lines = source.split("\n")
+    last_line = len(lines) - 1
+    full_range = types.Range(
+        start=types.Position(line=0, character=0),
+        end=types.Position(line=last_line, character=len(lines[-1])),
+    )
+    return types.WorkspaceEdit(
+        changes={uri: [types.TextEdit(range=full_range, new_text=applied.new_source)]},
+    )
 
 
 def _object_at_cursor(config, cursor_line: int) -> str | None:
@@ -132,56 +192,3 @@ def _object_at_cursor(config, cursor_line: int) -> str | None:
             if rng.start.line <= cursor_line <= rng.end.line:
                 return full_path
     return None
-
-
-def _build_rename_partition_preview(
-    source: str,
-    *,
-    old_partition: str,
-    new_partition: str,
-    uri: str,
-) -> types.WorkspaceEdit | None:
-    """Construct a workspace edit cascading the full partition rename.
-
-    Drives the same two token-bounded regex rewrites the
-    ``rename_partition(old, new)`` query DSL builtin uses:
-
-    - ``/Old/...`` → ``/New/...`` for every path-prefixed reference
-      (object headers, refs in compound values, iRule body
-      literals).  Token-bounded so ``/OldExt/...`` doesn't match.
-    - ``auth partition Old { ... }`` → ``auth partition New { ... }``
-      for the partition stanza header itself.
-
-    Then post-rewrite-parses the result to confirm the cascade
-    produced valid SCF — same defence-in-depth the
-    ``rename_partition`` builtin gets via the edit-plan applier.
-    Returns ``None`` if the rewrite produced 0 occurrences or
-    invalid SCF.
-    """
-    import re
-
-    prefix_pattern = re.compile(
-        rf"(?<![A-Za-z0-9_/.\-])/{re.escape(old_partition)}/(?=[A-Za-z0-9_])"
-    )
-    header_pattern = re.compile(
-        rf"(?<![A-Za-z0-9_/.\-])(auth\s+partition\s+){re.escape(old_partition)}"
-        rf"(?![A-Za-z0-9_/.\-])"
-    )
-    new_source, prefix_n = prefix_pattern.subn(f"/{new_partition}/", source)
-    new_source, header_n = header_pattern.subn(rf"\g<1>{new_partition}", new_source)
-    if prefix_n + header_n == 0:
-        return None
-    # Defence-in-depth: refuse the preview when it doesn't reparse.
-    try:
-        parse_bigip_conf(new_source)
-    except Exception:  # noqa: BLE001
-        return None
-    lines = source.split("\n")
-    last_line = len(lines) - 1
-    full_range = types.Range(
-        start=types.Position(line=0, character=0),
-        end=types.Position(line=last_line, character=len(lines[-1])),
-    )
-    return types.WorkspaceEdit(
-        changes={uri: [types.TextEdit(range=full_range, new_text=new_source)]},
-    )

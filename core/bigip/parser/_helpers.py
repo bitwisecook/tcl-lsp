@@ -120,7 +120,17 @@ def _parse_properties_with_spans(body: str) -> dict[str, _Property]:
     """Parse top-level ``key value`` properties from a block body.
 
     Returns ``{key: _Property}`` where each property includes its value span
-    relative to *body*. Sub-blocks (``key { ... }``) retain braced text.
+    relative to *body*.  Sub-blocks (``key { ... }``) retain braced text.
+
+    Each value extends from the key's whitespace separator to the next
+    newline.  That's correct for the multi-line shape every well-known
+    TMSH property uses (one property per line; multi-token values like
+    legacy ``network ADDR MASK`` or ``last-resort-pool TYPE PATH`` are
+    kept together as one value).  When the body is a compact one-line
+    stanza (``{ key1 v1 key2 v2 }``) the read-to-newline rule swallows
+    every property after the first; typed parsers that need to support
+    compact bodies should re-split the captured value via
+    :func:`_split_inline_keys` once they know the sibling key set.
     """
     props: dict[str, _Property] = {}
     pos = 0
@@ -196,6 +206,58 @@ def _parse_properties_with_spans(body: str) -> dict[str, _Property]:
             )
 
     return props
+
+
+def _split_inline_keys(value: str, *, known_keys: tuple[str, ...]) -> dict[str, str]:
+    """Re-split a read-to-EOL value containing inline sibling properties.
+
+    Compact one-line TMSH stanzas like
+
+        net route /Common/r1 { network 10.0.0.0/8 gw 192.168.1.1 }
+
+    leave ``_parse_properties_with_spans`` with ``network`` carrying the
+    rest of the line — ``10.0.0.0/8 gw 192.168.1.1`` — because the
+    line-based reader has no schema to know that ``gw`` is the next
+    key.  Typed parsers that DO know their sibling-key set call this
+    helper to pull the inline pairs back apart.
+
+    Returns a flat ``{key: value}`` map.  The original key gets its
+    real first-token value; every recognised inline ``<known-key>
+    <token>`` pair lands as an additional entry.  Tokens that aren't
+    one of *known_keys* stay attached to the preceding value (so
+    legacy ``network 10.0.0.0 255.255.255.0`` keeps the dotted-quad
+    netmask glued onto ``network``).  Returns an empty dict when the
+    value has no embedded sibling — caller can fall back to the
+    original single value.
+    """
+    out: dict[str, str] = {}
+    key_set = set(known_keys)
+    tokens = value.split()
+    if not tokens:
+        return out
+    current_key: str | None = None
+    current_value: list[str] = [tokens[0]]
+    for tok in tokens[1:]:
+        if tok in key_set:
+            # Capture the accumulated value under the *previous* key
+            # and start collecting the next one.
+            if current_key is None:
+                out["__first__"] = " ".join(current_value)
+            else:
+                out[current_key] = " ".join(current_value)
+            current_key = tok
+            current_value = []
+            continue
+        current_value.append(tok)
+    if current_key is None:
+        return out
+    out[current_key] = " ".join(current_value)
+    # Preserve the head value the caller already has under its
+    # original key; surface only the additional inline pairs.
+    head = out.pop("__first__", None)
+    if head is not None:
+        out["__head__"] = head
+    return out
 
 
 def _parse_properties(body: str) -> dict[str, str]:

@@ -166,6 +166,18 @@ def run_query(
     if merge:
         return _run_query_merged(program, sources, names)
 
+    # When every top-level statement is rooted at a ``$name``
+    # variable rather than the bare identity ``.``, the query has no
+    # per-primary semantics — running it once per source would only
+    # duplicate the same result into every URI bucket.  Evaluate
+    # once against the first source so the result lands under one
+    # URI; the named-source binding map is built against all loaded
+    # sources so ``$ltm`` / ``$gtm`` still resolve.  Edits route via
+    # ``target.obj.config_uri`` so the rewritten source still lands
+    # on the originating file.
+    if sources and _is_purely_variable_rooted(program):
+        return _run_query_variable_rooted(program, sources, names)
+
     # Per-file iteration (default).  Each source takes its turn as the
     # primary input; variables bind to every loaded source so ``$other``
     # remains reachable from inside each iteration.
@@ -405,6 +417,170 @@ def _run_merge_statements(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _is_purely_variable_rooted(program) -> bool:
+    """True when every statement reaches its input only through ``$name``.
+
+    Walks the program AST looking for any reference to the bare
+    identity (the implicit ``.`` input that ``.field`` /
+    ``.x.y[]`` / bare-builtin calls flow through).  If every
+    statement is rooted at a ``$name`` variable instead — directly
+    or as the LHS of a pipe — the query has no per-primary
+    semantics and the runner should evaluate it once rather than
+    once per loaded source.
+
+    Conservative: any unresolved reference (``Identity`` /
+    ``PathExpr`` without a leading ``$name`` / bare-builtin call /
+    object literal entry resolving against ``.``) makes the whole
+    program "primary-dependent" and the runner falls back to the
+    historical per-file loop.
+    """
+    from .ast import (
+        Assignment,
+        BinOp,
+        Call,
+        Identity,
+        LetBinding,
+        ListLiteral,
+        Literal,
+        ObjectLiteral,
+        PathExpr,
+        Pipe,
+        UnaryOp,
+        Variable,
+    )
+
+    def _uses_primary(node) -> bool:
+        if isinstance(node, Variable):
+            return False
+        if isinstance(node, Literal):
+            return False
+        if isinstance(node, Identity):
+            return True
+        if isinstance(node, PathExpr):
+            # A PathExpr with no preceding ``$name`` reads from ``.``.
+            return True
+        if isinstance(node, Pipe):
+            # ``$ltm.x | <body>`` — body runs against the LHS, not
+            # against ``.``.  Recurse only into the LHS.
+            return _uses_primary(node.lhs)
+        if isinstance(node, Call):
+            # ``length(.x)`` uses primary; ``length($x)`` doesn't.
+            # Bare-builtin form (no args) is short for ``f(.)`` so
+            # it always reads primary.  ``with_ctx`` builtins —
+            # ``rename`` / ``rename_partition`` / ``rename_prefix`` /
+            # ``rename_folder`` / ``check_partition_visibility`` —
+            # also operate on the active root by design, so a query
+            # whose top-level call is one of these depends on the
+            # primary source even when its args are literals.
+            if not node.args:
+                return True
+            from . import builtins as _builtins
+
+            spec = _builtins.lookup(node.name)
+            if spec is not None and spec.with_ctx:
+                return True
+            return any(_uses_primary(a) for a in node.args)
+        if isinstance(node, BinOp):
+            return _uses_primary(node.lhs) or _uses_primary(node.rhs)
+        if isinstance(node, UnaryOp):
+            return _uses_primary(node.operand)
+        if isinstance(node, ListLiteral):
+            return node.inner is not None and _uses_primary(node.inner)
+        if isinstance(node, ObjectLiteral):
+            return any(_uses_primary(v) for _, v in node.entries)
+        if isinstance(node, LetBinding):
+            # The source is evaluated against ``.``; the body runs
+            # in the let-binding's scope but ``.`` remains the outer
+            # input, so a primary reference in either still counts.
+            return _uses_primary(node.source) or _uses_primary(node.body)
+        if isinstance(node, Assignment):
+            # ``$x.path = expr`` — assignment LHS is rooted at $x
+            # (parser sets ``source``); rhs may read primary.
+            target_uses_primary = node.source is None
+            return target_uses_primary or _uses_primary(node.rhs)
+        return True  # unknown shape: be conservative
+
+    return not any(_uses_primary(stmt) for stmt in program.statements)
+
+
+def _run_query_variable_rooted(
+    program, sources: dict[str, str], names: dict[str, str] | None
+) -> "QueryResult":
+    """Evaluate a fully ``$name``-rooted program once against all loaded sources.
+
+    Result values are attributed to the first source URI by
+    convention (the program never referenced ``.`` so there's no
+    "primary" to pick); edits route via ``target.obj.config_uri``
+    so the rewritten source lands on the file the named root came
+    from regardless of which URI hosts the values bucket.
+
+    Each statement still re-projects the named roots against the
+    post-edit text so a ``$ltm.x = a; $ltm.x = b`` chain sees the
+    intermediate state on the second statement.
+    """
+    from ..rewrite import RenameReport
+    from .edit_plan import apply
+
+    result = QueryResult()
+    current_sources = dict(sources)
+    primary_uri = next(iter(sources))
+    accumulated_renames_per_uri: dict[str, list[RenameReport]] = {u: [] for u in sources}
+    accumulated_field_edits_per_uri: dict[str, int] = {u: 0 for u in sources}
+    last_values: list[Any] = []
+    attempted_mutation = False
+
+    for index, stmt in enumerate(program.statements):
+        # Rebuild roots against the post-edit text so $name reads
+        # see the same coherent state the per-file loop would.
+        step_roots = {uri: _build_root(uri, current_sources[uri]) for uri in sources}
+        step_named_roots = _build_named_roots(
+            sources=current_sources, names=names, prebuilt=step_roots
+        )
+        primary_root = step_roots[primary_uri]
+        ctx = EvalContext(
+            root=primary_root,
+            named_roots=step_named_roots,
+        )
+        with _active_roots(step_roots):
+            values = evaluate_statement(stmt, ctx)
+        if index == len(program.statements) - 1:
+            last_values = values
+        if ctx.edits.has_edits():
+            attempted_mutation = True
+            applied_per = apply(ctx.edits, current_sources)
+            for uri, applied in applied_per.items():
+                current_sources[uri] = applied.new_source
+                for rep in applied.rename_reports:
+                    accumulated_renames_per_uri[uri].append(
+                        RenameReport(
+                            old=rep.old,
+                            new=rep.new,
+                            occurrences=rep.occurrences,
+                            new_source="",
+                        )
+                    )
+                accumulated_field_edits_per_uri[uri] += applied.field_edits
+
+    result.values_per_file[primary_uri] = last_values
+    if attempted_mutation:
+        result.has_mutation = True
+        for uri in sources:
+            if (
+                current_sources[uri] == sources[uri]
+                and not accumulated_renames_per_uri[uri]
+                and accumulated_field_edits_per_uri[uri] == 0
+            ):
+                continue
+            result.edits_per_file[uri] = AppliedSource(
+                uri=uri,
+                original=sources[uri],
+                new_source=current_sources[uri],
+                rename_reports=tuple(accumulated_renames_per_uri[uri]),
+                field_edits=accumulated_field_edits_per_uri[uri],
+            )
+    return result
 
 
 def _filename_stem(uri: str) -> str:

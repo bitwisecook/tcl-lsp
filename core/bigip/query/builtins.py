@@ -1195,9 +1195,12 @@ def _builtin_subnet_of(subnet: Any, supernet: Any) -> bool:
     summary="True when two networks overlap (share at least one address).",
     signatures=("overlaps(net1: string, net2: string) -> boolean",),
     details="""
-    Useful for finding self-IP / route-domain conflicts:
-    ``.net.self[] | combinations(2) | select(overlaps(.[0].address,
-    .[1].address))``.
+    Useful for finding self-IP / route-domain conflicts.  The DSL
+    doesn't ship a pairwise-combinations primitive yet, so the
+    natural pattern uses a let-binding to cross the stream against
+    itself: ``[.net.self[]] as $all | .net.self[] as $a | $all[]
+    | select(. != $a) | select(overlaps($a.address, .address))
+    | $a.name + " ↔ " + .name``.
 
     IPv4 ↔ IPv6 comparison returns ``false``.
 
@@ -1492,12 +1495,17 @@ def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
     old_path = ObjectPath.try_parse(old_s)
     new_path = ObjectPath.try_parse(new_s)
     if old_path is not None and new_path is not None and old_path.partition != new_path.partition:
+        # ``use_exact=True``: a rename of ``/Tenant_A/p`` must not
+        # be falsely refused because ``/Tenant_A/p2`` has a referrer
+        # that wouldn't see the new partition.  Identity-shaped
+        # safety checks need exact-path matching.
         report = compute_grep(
             sources={ctx.root.uri: ctx.root.source},
             configs={ctx.root.uri: ctx.root.config},
             pattern=old_s,
             use_regex=False,
             use_cidr=False,
+            use_exact=True,
             direction="reverse",
             max_depth=1,
             max_nodes=1024,
@@ -1599,7 +1607,7 @@ def _builtin_rename(old: Any, new: Any, *, ctx: Any) -> int:
     """,
     signatures=("rename_partition(old: string, new: string) -> integer",),
     examples=(
-        'rename_partition("Common", "Tenant_A")',
+        'rename_partition("Tenant_A", "Tenant_B")',
         'rename_partition("staging", "prod")',
     ),
     category="rename",
@@ -1826,6 +1834,24 @@ def _builtin_rename_prefix(old: Any, new: Any, *, ctx: Any) -> int:
     new_text = _as_str(new, name="rename_prefix", arg=2).strip()
     if not old_text or not new_text:
         raise BuiltinError("rename_prefix: prefixes must not be empty")
+    # Both arguments must be BIG-IP-path prefixes (start with ``/``)
+    # — the docs and the "path migration" framing only make sense
+    # for token-bounded path rewrites.  Without this guard, calls
+    # like ``rename_prefix("pool", "X")`` would build a broad
+    # textual rewrite that the token-bounded regex catches but
+    # which has no clean migration semantics.  Refuse rather than
+    # silently rewrite.
+    if not old_text.startswith("/"):
+        raise BuiltinError(
+            f"rename_prefix: old prefix must start with '/' "
+            f"(BIG-IP full paths) — got {old_text!r}.  Use ``rename`` "
+            "for individual-object renames or ``sub``/``gsub`` for "
+            "free-form text rewrites."
+        )
+    if not new_text.startswith("/"):
+        raise BuiltinError(
+            f"rename_prefix: new prefix must start with '/' (BIG-IP full paths) — got {new_text!r}."
+        )
     if old_text == new_text:
         return 0
     # Token-bounded: the prefix must start on a path-segment
@@ -2024,12 +2050,17 @@ def _builtin_references_to(path: Any, *, ctx: Any) -> list[str]:
     target = _as_str(path, name="references_to", arg=1).strip()
     if not target:
         return []
+    # ``use_exact=True`` so ``/Common/p`` doesn't also match
+    # ``/Common/p2``; ``references_to`` is an identity-shaped query
+    # and substring seeding produces false positives that
+    # downstream renames / partition guards then misbehave on.
     report = compute_grep(
         sources={ctx.root.uri: ctx.root.source},
         configs={ctx.root.uri: ctx.root.config},
         pattern=target,
         use_regex=False,
         use_cidr=False,
+        use_exact=True,
         direction="reverse",
         max_depth=1,
         max_nodes=1024,
@@ -2062,10 +2093,12 @@ def _builtin_references_to(path: Any, *, ctx: Any) -> list[str]:
 
     Use this predicate to validate that a proposed rename or
     cross-config reference is legal *before* applying it.  Example:
-    "find every iRule reference that would break partition
-    visibility":
+    "find every iRule that references a pool whose partition the
+    rule itself can't see" (uses a let-binding to carry the rule's
+    full path into the per-reference stream — the DSL has no jq
+    ``..`` parent operator):
 
-    ``.ltm.rule[] | .refs.pools[] | select(not can_see(.., .))``
+    ``.ltm.rule[] as $r | $r.refs.pools[] | select(not can_see($r."full-path", .))``
 
     Related: ``partition``, ``in_partition``,
     ``check_partition_visibility``.
@@ -2139,12 +2172,15 @@ def _builtin_check_partition_visibility(*, ctx: Any) -> list[str]:
             referrer = ObjectPath.try_parse(referrer_path)
             if referrer is None:
                 continue
+            # Exact match: ``/Common/p`` traverse-out edges must come
+            # from /Common/p itself, not from /Common/p2.
             report = compute_grep(
                 sources={ctx.root.uri: ctx.root.source},
                 configs={ctx.root.uri: ctx.root.config},
                 pattern=referrer_path,
                 use_regex=False,
                 use_cidr=False,
+                use_exact=True,
                 direction="forward",
                 max_depth=1,
                 max_nodes=1024,

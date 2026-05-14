@@ -24,14 +24,14 @@ How do I compose multi-step transformations — readdressing **and** renaming **
 
 ```
 $ f5 query --in-place '
-  rename_partition("Common", "Tenant_A") ;
+  rename_partition("Tenant_A", "Tenant_B") ;
   .ltm.virtual["~^/Tenant_A/"]
     | select(not contains(.rules, "/Tenant_A/audit_rule"))
     | .rules += "/Tenant_A/audit_rule"
 ' bigip.conf
 ```
 
-1. **Statement 1**: `rename_partition("Common", "Tenant_A")` cascades through every object header, every reference, every destination prefix and pool-member identifier, and the `auth partition` stanza.  After this statement the in-memory source has every `/Common/` replaced with `/Tenant_A/`.
+1. **Statement 1**: `rename_partition("Tenant_A", "Tenant_B")` cascades through every object header, every reference, every destination prefix and pool-member identifier, and the `auth partition` stanza.  After this statement the in-memory source has every `/Common/` replaced with `/Tenant_A/`.
 2. **Statement 2** runs against the post-rewrite source, so the regex subscript already finds the renamed VSes under `/Tenant_A/` and the audit-rule path also lives there.  `+=` appends to the `rules` list field; the dedup `select(not contains(...))` keeps the operation idempotent.
 
 ### Readdress and rename in one pass
@@ -62,8 +62,8 @@ For anything more than three steps, put the query in a file and use `-f`:
 
 ```
 # tenant-migration.fq
-# 1. Move every object out of /Common/ into /Tenant_A/.
-rename_partition("Common", "Tenant_A") ;
+# 1. Move every object from /Tenant_A/ into /Tenant_B/.
+rename_partition("Tenant_A", "Tenant_B") ;
 
 # 2. Standardise pool names.
 .ltm.pool["~^/Tenant_A/old_"]

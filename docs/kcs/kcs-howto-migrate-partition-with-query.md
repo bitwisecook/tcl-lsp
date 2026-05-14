@@ -26,7 +26,7 @@ How do I migrate every object from one partition into another — including the 
 Use `rename_partition(old, new)` when the partition itself is moving:
 
 ```
-f5 query 'rename_partition("Common", "Tenant_A")' bigip.conf
+f5 query 'rename_partition("Tenant_A", "Tenant_B")' bigip.conf
 ```
 
 This applies a token-bounded prefix rewrite across the entire source: every `/Common/<name>` reference — including the structural prefix on destination addresses (`destination /Common/10.10.0.5:443`), pool-member identifiers (`/Common/n1:80`), and iRule body literals (`pool /Common/web_pool`) — moves to `/Tenant_A/<name>`.  The bare `auth partition Common` stanza header is renamed too.  Route domains and ports are preserved through the move.

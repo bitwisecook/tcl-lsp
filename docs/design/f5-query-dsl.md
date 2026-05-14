@@ -120,9 +120,11 @@ Deliberate divergences:
 | Stream concat `,` | yes | not present — use lists or `;` statements |
 | Regex test | `test("pat")` builtin | `["~pat"]` subscript form, **and** `match()` builtin (jq's `match()` returns match objects; ours returns boolean — equivalent to jq's `test()`) |
 | Identifier hyphens | quoted only | bareword (`source-address-translation`) |
-| Object literals `{...}` | yes | not present in v1 — use `--json` output |
+| Object literals `{...}` | yes | yes — `{name, dest: .destination}` bareword keys desugar to `key: .key`; stream-valued fields broadcast element-wise into one row per item |
+| `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain Python lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
+| `$name` variable | yes (let-binding only) | also names each loaded source — `$ltm`, `$gtm`, ... — for cross-config queries.  Auto-named from filename stem; `--name N=PATH` overrides |
 | String interpolation `"\(.x)"` | yes | not present in v1 |
-| `//` / `?` / `try-catch` / `as` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
+| `//` / `?` / `try-catch` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
 | Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
 | Assignment + pipe | `path \|= f` binds tight via custom precedence | `\|=` is a pipe-stage trailing operator, so `a \| b \|= c` parses as `a \| (b \|= c)` |
 | `--format` flag | not applicable | `--format scf` (default) emits the rewritten config; `--format tmsh` emits a `tmsh modify` script suitable for piping to a live device.  Refused with `--in-place` (would silently overwrite SCF with a different file format) |
@@ -615,12 +617,21 @@ valid JSON):
 Single-file `--json` invocations stay flat — just the values array,
 no envelope — so the simple case keeps the expected shape.
 
-Edits are applied per file; identity renames do not propagate across
-files — both `f5 rename` and `f5 query` operate on one source at a
-time.  To perform a rename across a fan-out of partition files,
-either concatenate them first with `f5 merge` (or `cat`) and run the
-rename once over the combined SCF, or run `f5 rename` separately
-against each file (a shell loop is enough).
+Edits route back to the source the rewritten object came from.  In
+the default per-file iteration mode the runner walks each loaded
+config in turn as the primary input and applies edits to that
+source.  Cross-file behaviour comes in two shapes:
+
+- **`$name` variable** — load several configs and address a specific
+  one by its filename-stem name (or an explicit `--name N=PATH`).
+  `$ltm.ltm.virtual[].destination = "..."` writes to the source
+  bound under `$ltm`, regardless of which source was iterating.
+- **`--merge`** — every loaded source becomes one logical namespace.
+  `.ltm.virtual[]` returns virtuals from every input and `refs` /
+  `referenced_by` walk references across files; edits still route
+  back to the originating source.  Refuses to merge when two
+  sources define the same `(kind, full-path)` — namespace or
+  redact the inputs first.
 
 ## Exit codes
 

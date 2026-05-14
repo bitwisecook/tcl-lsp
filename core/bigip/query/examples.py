@@ -98,13 +98,16 @@ _EXAMPLES: tuple[Example, ...] = (
         ),
     ),
     Example(
-        title="Migrate every object from /Common/ into /Tenant_A/",
-        query='rename_partition("Common", "Tenant_A")',
+        title="Migrate every object from /Tenant_A/ into /Tenant_B/",
+        query='rename_partition("Tenant_A", "Tenant_B")',
         comment=(
             "Token-bounded prefix rewrite — every object header and "
             "every reference (including destination addresses, pool "
             "members, and iRule body literals) moves together.  "
-            "Renames the `auth partition Common` stanza too."
+            "Renames the `auth partition Tenant_A` stanza too.  "
+            "The visibility model refuses renames involving "
+            "`/Common` (every tenant sees `/Common` one-way) so "
+            "examples stay tenant→tenant."
         ),
     ),
     Example(

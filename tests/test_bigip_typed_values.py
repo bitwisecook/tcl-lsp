@@ -108,10 +108,16 @@ class TestNetwork:
         assert n.is_ipv6
         assert n.prefix_length == 32
 
-    def test_parse_loose_normalises_host_bits(self):
-        # ``10.0.0.5/24`` has host bits set; loose parse normalises.
+    def test_parse_loose_keeps_original_spelling(self):
+        # Loose parse stores the canonical (host-bits-masked) form on
+        # ``.network`` so membership / supernet checks flow through
+        # the stdlib, but ``str()`` and ``.original`` preserve the
+        # user's spelling — ``203.0.113.5/24`` round-trips intact on
+        # net-self interface addresses where the host bits matter.
         n = Network.parse("10.0.0.5/24")
-        assert str(n) == "10.0.0.0/24"
+        assert n.network.with_prefixlen == "10.0.0.0/24"
+        assert n.original == "10.0.0.5/24"
+        assert str(n) == "10.0.0.5/24"
 
     def test_parse_strict_rejects_host_bits(self):
         with pytest.raises(ValueError):
@@ -124,12 +130,16 @@ class TestNetwork:
 
     def test_parse_dotted_quad_netmask(self):
         # F5 ``net route`` / ``net self`` configs sometimes spell the
-        # mask as a dotted quad rather than a prefix length.  Both
-        # spellings must round-trip to the canonical prefix form.
+        # mask as a dotted quad rather than a prefix length.  Loose
+        # parse keeps the original spelling on ``.original`` so the
+        # rewritten config re-emits the same form, while
+        # ``.network.with_prefixlen`` gives the canonical CIDR for
+        # membership / supernet logic.
         n = Network.parse("10.0.0.0/255.255.255.0")
         assert n.is_ipv4
         assert n.prefix_length == 24
-        assert str(n) == "10.0.0.0/24"
+        assert n.network.with_prefixlen == "10.0.0.0/24"
+        assert n.original == "10.0.0.0/255.255.255.0"
 
     def test_parse_space_separated_addr_mask(self):
         # ``net route`` style: ``ADDR MASK`` with a space separator.
@@ -137,9 +147,10 @@ class TestNetwork:
         assert n.is_ipv4
         assert n.prefix_length == 16
 
-    def test_parse_dotted_quad_netmask_normalises_host_bits(self):
+    def test_parse_dotted_quad_netmask_keeps_host_bits(self):
         n = Network.parse("10.0.0.5/255.255.255.0")
-        assert str(n) == "10.0.0.0/24"
+        assert n.network.with_prefixlen == "10.0.0.0/24"
+        assert n.original == "10.0.0.5/255.255.255.0"
 
 
 # ---------------------------------------------------------------------------
@@ -649,7 +660,14 @@ class TestNetRouteTypedField:
         src = "net route /Common/default_route { network default gw 192.168.1.1 }\n"
         config = parse_bigip_conf(src)
         r = config.net_routes["/Common/default_route"]
-        assert r.network is None
+        # ``Network`` now understands the ``default`` keyword
+        # directly and preserves the original spelling so DSL output
+        # re-emits ``default`` instead of ``0.0.0.0/0``; the bool
+        # ``is_default_route`` stays on the model for predicate use.
+        assert isinstance(r.network, Network)
+        assert r.network.is_default
+        assert r.network.original == "default"
+        assert str(r.network) == "default"
         assert r.is_default_route
         assert isinstance(r.gw, IPAddress)
 
@@ -660,7 +678,13 @@ class TestNetRouteTypedField:
         config = parse_bigip_conf(src)
         s = config.net_selves["/Common/self1"]
         assert isinstance(s.address, Network)
-        assert str(s.address) == "10.0.0.0/24"  # canonical CIDR
+        # ``net self`` addresses carry an interface host plus prefix
+        # (the host bits matter); ``str()`` preserves the original
+        # spelling so DSL queries and round-trip emission show the
+        # real interface IP, while ``.network`` still gives the
+        # canonical CIDR for subnet membership / supernet checks.
+        assert str(s.address) == "10.0.0.1/24"
+        assert s.address.network.with_prefixlen == "10.0.0.0/24"
         assert s.vlan == "/Common/internal"  # still a string ref
 
     def test_dsl_renders_typed_fields_as_strings(self):

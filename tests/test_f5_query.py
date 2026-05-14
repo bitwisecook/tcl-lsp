@@ -6606,3 +6606,157 @@ def test_named_variable_without_assignment_still_reads_post_edit_self():
     assert "/Common/renamed" in applied.new_source
     all_values = [v for vals in result.values_per_file.values() for v in vals]
     assert "renamed" in all_values
+
+
+# ---------------------------------------------------------------------------
+# Code-review follow-up: direct tests for object literal, as $x list binding,
+# rename_prefix validation, tmsh-delta ordering, and $name single-eval.
+# ---------------------------------------------------------------------------
+
+
+def test_object_literal_bareword_shorthand_desugars_to_field_access():
+    """``{name, destination}`` desugars to ``{name: .name, destination: .destination}``."""
+    result = _run("[.ltm.virtual[] | {name, destination}]")
+    [rows] = result.values_per_file["mem://1"]
+    assert isinstance(rows, list)
+    assert {"name", "destination"} == set(rows[0].keys())
+    assert rows[0]["name"] in ("web_vs", "api_vs")
+
+
+def test_object_literal_explicit_key_value_pairs():
+    result = _run("[.ltm.virtual[] | {vs: .name, dest: .destination}]")
+    [rows] = result.values_per_file["mem://1"]
+    assert {"vs", "dest"} == set(rows[0].keys())
+
+
+def test_object_literal_stream_field_broadcasts_one_row_per_item():
+    """A stream-valued field expands into one dict per stream item;
+    scalar siblings replicate."""
+    src = (
+        "ltm pool /Common/p {\n"
+        "    members {\n"
+        "        /Common/m1:80 { address 10.0.0.1 }\n"
+        "        /Common/m2:80 { address 10.0.0.2 }\n"
+        "    }\n"
+        "}\n"
+        "ltm virtual /Common/v { destination /Common/0.0.0.0:80 pool /Common/p }\n"
+    )
+    result = run_query(
+        ".ltm.virtual[] | {name, member: .pool.members[].address}",
+        {"m": src},
+    )
+    rows = result.values_per_file["m"]
+    addresses = sorted(r["member"] for r in rows)
+    assert addresses == ["10.0.0.1", "10.0.0.2"]
+    assert all(r["name"] == "v" for r in rows)
+
+
+def test_as_binding_list_collects_whole_value():
+    """``[.x[].name] as $names | $names`` binds the whole array
+    rather than iterating per element (jq's array-constructor +
+    let semantics)."""
+    src = "ltm virtual /Common/v1 { }\nltm virtual /Common/v2 { }\n"
+    result = run_query("[.ltm.virtual[].name] as $names | $names", {"m": src})
+    [names] = result.values_per_file["m"]
+    assert isinstance(names, list)
+    assert sorted(names) == ["v1", "v2"]
+
+
+def test_as_binding_stream_iterates_per_item():
+    """A stream source still iterates one body call per item."""
+    src = "ltm virtual /Common/v1 { }\nltm virtual /Common/v2 { }\n"
+    result = run_query(".ltm.virtual[] as $vs | $vs.name", {"m": src})
+    assert sorted(result.values_per_file["m"]) == ["v1", "v2"]
+
+
+def test_rename_prefix_refuses_non_path_inputs():
+    """``rename_prefix("pool", "X")`` raises rather than producing a
+    broad textual rewrite — path-prefix migration only makes sense
+    when both arguments are BIG-IP full-path prefixes."""
+    from core.bigip.query.errors import BuiltinError
+
+    src = "ltm pool /Common/p { }\n"
+    with pytest.raises(BuiltinError) as exc:
+        run_query('rename_prefix("pool", "X")', {"m": src})
+    assert "must start with '/'" in str(exc.value)
+    with pytest.raises(BuiltinError):
+        run_query('rename_prefix("/Common/p", "X")', {"m": src})
+
+
+def test_rename_prefix_accepts_valid_path_prefix():
+    src = "ltm pool /Common/app3_pool { }\nltm virtual /Common/app3_vs { pool /Common/app3_pool }\n"
+    result = run_query(
+        'rename_prefix("/Common/app3", "/Tenant_A/app3")',
+        {"m": src},
+    )
+    applied = result.edits_per_file["m"]
+    assert "/Tenant_A/app3_pool" in applied.new_source
+    assert "/Tenant_A/app3_vs" in applied.new_source
+
+
+def test_tmsh_delta_emits_deletes_before_creates():
+    """Rename-shaped diffs (delete old object + create same-name new)
+    must emit the delete first so a unique listener/destination on
+    the target device frees up before the create lands."""
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.tmsh_emit import emit_tmsh_delta
+
+    old_source = "ltm pool /Common/old_pool {\n    monitor /Common/http\n}\n"
+    new_source = "ltm pool /Common/new_pool {\n    monitor /Common/http\n}\n"
+    old_cfg = parse_bigip_conf(old_source)
+    new_cfg = parse_bigip_conf(new_source)
+    script = emit_tmsh_delta(old_cfg, new_cfg, old_source=old_source, new_source=new_source)
+    text = script.text
+    delete_idx = text.find("tmsh delete ltm pool /Common/old_pool")
+    create_idx = text.find("tmsh create ltm pool /Common/new_pool")
+    assert delete_idx >= 0
+    assert create_idx >= 0
+    assert delete_idx < create_idx, (
+        "rename-shaped delta must delete the old object before creating "
+        "the new one so unique-listener constraints on the device don't "
+        "collide.  Got order:\n" + text
+    )
+
+
+def test_name_rooted_query_evaluates_once_not_per_source():
+    """``$ltm.x`` runs once and attributes output to a single bucket,
+    not duplicated into every loaded source's values_per_file."""
+    src_ltm = "ltm virtual /Common/v { }\n"
+    src_gtm = "gtm pool a /Common/g { }\n"
+    result = run_query(
+        "$ltm.ltm.virtual[].name",
+        {"gtm.conf": src_gtm, "ltm.conf": src_ltm},
+    )
+    # Total unique values across every bucket must be the LTM
+    # virtual count, not double-counted.
+    flat = [v for vals in result.values_per_file.values() for v in vals]
+    assert flat == ["v"]
+
+
+def test_compact_one_line_net_route_populates_typed_fields():
+    """Compact stanza ``net route /Common/r { network 10.0.0.0/8 gw 1.2.3.4 }``
+    now produces a typed Network and IPAddress rather than swallowing
+    everything into the ``network`` value."""
+    from core.bigip.parser import parse_bigip_conf
+
+    src = "net route /Common/r { network 10.0.0.0/8 gw 192.168.1.1 }\n"
+    cfg = parse_bigip_conf(src)
+    r = cfg.net_routes["/Common/r"]
+    assert r.network is not None
+    assert str(r.network) == "10.0.0.0/8"
+    assert r.gw is not None
+    assert str(r.gw) == "192.168.1.1"
+
+
+def test_references_to_uses_exact_path_not_substring():
+    """``references_to("/Common/p")`` must not also return referrers of
+    ``/Common/p2`` — exact-path identity matching, not substring."""
+    src = (
+        "ltm pool /Common/p { }\n"
+        "ltm pool /Common/p2 { }\n"
+        "ltm virtual /Common/v1 { pool /Common/p }\n"
+        "ltm virtual /Common/v2 { pool /Common/p2 }\n"
+    )
+    result = run_query('references_to("/Common/p")', {"m": src})
+    [refs] = result.values_per_file["m"]
+    assert refs == ["/Common/v1"]

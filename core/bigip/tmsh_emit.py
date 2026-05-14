@@ -196,11 +196,27 @@ def emit_tmsh_delta(
     byte-identical the object is treated as unchanged and dropped.
     Falls back to dataclass equality when neither source is supplied.
 
-    Order matches :func:`emit_tmsh`: foundation objects first so
-    creates and modifies always have their dependencies in place.
-    Deletes follow the inverse: virtuals → rules → pools → ... so a
-    delete of a referenced object doesn't fire before its referrers
-    have been removed.
+    Order:
+
+    1. **Modifies** for every kind (in dependency order: nodes →
+       monitors → ... → virtuals).  Modifies typically rewire
+       references away from objects that are about to be deleted,
+       so they fire first.
+    2. **Deletes** for every kind (in reverse dependency order:
+       virtuals → rules → pools → ...).  Running deletes before
+       creates is the rename-shaped diff fix: a renamed virtual
+       (delete old / create new sharing the same destination)
+       would collide on the device's unique-listener constraint if
+       we created the new stanza while the old was still bound.
+       Now the old listener releases first.
+    3. **Creates** for every kind (in dependency order).  By this
+       point any uniqueness collisions with old objects have been
+       resolved and any references the new objects need are
+       already in place (foundation creates come first).
+
+    Foundation modifies / deletes are interleaved at the right ends
+    of phases 1-3 so partition / vlan / route-domain creates
+    precede any LTM creates that reference them.
     """
     new_blocks = _index_blocks(new_source)
     old_blocks = _index_blocks(old_source)
@@ -216,18 +232,7 @@ def emit_tmsh_delta(
         lines.append(line)
         count += 1
 
-    # ── creates / modifies, in dependency order ────────────────────
-    if "generic-foundation" in include:
-        for ident, obj in new_cfg.generic_objects.items():
-            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
-                continue
-            key = (obj.module, obj.object_type, obj.identifier)
-            old = old_cfg.generic_objects.get(ident)
-            if old is None:
-                _add(_render_generic("create", obj, new_blocks))
-            elif _changed(key):
-                _add(_render_generic("modify", obj, new_blocks))
-    for kind_name, container_attr, render_fn, render_needs_source in (
+    kind_table = (
         ("node", "nodes", _render_node, False),
         ("monitor", "monitors", _render_monitor, True),
         ("data-group", "data_groups", _render_data_group, False),
@@ -237,21 +242,31 @@ def emit_tmsh_delta(
         ("pool", "pools", _render_pool, False),
         ("rule", "rules", _render_rule, False),
         ("virtual", "virtual_servers", _render_virtual, False),
-    ):
+    )
+
+    # ── 1. Modifies (foundation first, then dependency order) ─────
+    if "generic-foundation" in include:
+        for ident, obj in new_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            key = (obj.module, obj.object_type, obj.identifier)
+            old = old_cfg.generic_objects.get(ident)
+            if old is not None and _changed(key):
+                _add(_render_generic("modify", obj, new_blocks))
+    for kind_name, container_attr, render_fn, _src in kind_table:
         if kind_name not in include:
             continue
         new_container = getattr(new_cfg, container_attr)
         old_container = getattr(old_cfg, container_attr)
         for full_path, obj in new_container.items():
-            key = _block_key_for(kind_name, obj)
             old_obj = old_container.get(full_path)
             if old_obj is None:
-                _add(_dispatch_render("create", render_fn, obj, new_source, new_blocks))
-                continue
+                continue  # creates handled in phase 3
+            key = _block_key_for(kind_name, obj)
             if _changed(key):
                 _add(_dispatch_render("modify", render_fn, obj, new_source, new_blocks))
 
-    # ── deletes (inverse order) ────────────────────────────────────
+    # ── 2. Deletes (reverse dependency order) ─────────────────────
     delete_kinds = [k for k in reversed(include) if k not in ("generic-foundation",)]
     for kind_name in delete_kinds:
         container_attr = {
@@ -273,8 +288,8 @@ def emit_tmsh_delta(
             if full_path in new_container:
                 continue
             _add(_delete_command(kind_name, old_obj))
-    # Generic foundation deletes (deferred to end so they don't strand
-    # references in objects deleted above).
+    # Generic foundation deletes (deferred to end of phase 2 so
+    # they don't strand references in objects deleted above).
     if "generic-foundation" in include:
         for ident, obj in old_cfg.generic_objects.items():
             if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
@@ -282,6 +297,28 @@ def emit_tmsh_delta(
             if ident in new_cfg.generic_objects:
                 continue
             _add(f"tmsh delete {obj.module} {obj.object_type} {obj.identifier}")
+
+    # ── 3. Creates (foundation first, then dependency order) ─────
+    # All uniqueness collisions with old objects are gone now —
+    # phase 2 cleared the old stanzas, so the rename-shaped diff's
+    # ``create new virtual same destination`` lands without a
+    # listener collision.
+    if "generic-foundation" in include:
+        for ident, obj in new_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            if ident in old_cfg.generic_objects:
+                continue
+            _add(_render_generic("create", obj, new_blocks))
+    for kind_name, container_attr, render_fn, _src in kind_table:
+        if kind_name not in include:
+            continue
+        new_container = getattr(new_cfg, container_attr)
+        old_container = getattr(old_cfg, container_attr)
+        for full_path, obj in new_container.items():
+            if full_path in old_container:
+                continue  # modify, already emitted in phase 1
+            _add(_dispatch_render("create", render_fn, obj, new_source, new_blocks))
 
     text = "\n".join(lines) + ("\n" if lines else "")
     return TmshScript(text=text, command_count=count)

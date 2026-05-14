@@ -558,7 +558,7 @@ Note `legacy1` (the node) is *not* renamed — the prefix
 match. Choose the prefix to fit the boundary you want.
 
 For whole-partition moves (every object under `/Common/`), use
-`rename_partition("Common", "Tenant_A")` instead.
+`rename_partition("Tenant_A", "Tenant_B")` instead.
 
 ## L19. `--strict` — fail on zero-match writes
 

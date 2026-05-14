@@ -268,23 +268,37 @@ def _eval_let_binding(node: LetBinding, current: Any, ctx: EvalContext) -> Any:
     """Evaluate ``expr as $name | body``.
 
     The source expression is evaluated once against the current
-    input.  For each value it produces, the body is evaluated with
-    ``$name`` bound to that value.  The current input (``.``) is
-    *not* rebound — the body still sees the outer ``.``, matching
-    jq's semantics so let-bindings compose naturally:
+    input.  Only :class:`Stream` source values iterate — one body
+    call per item, matching jq's generator semantics:
 
         .ltm.virtual[] as $vs | $vs.pool.members[] | $vs.name + ...
 
-    Streams iterate one body call per item; non-stream values run the
-    body once.  The binding frame is shallow-copied per iteration so
-    nested let-bindings of the same name shadow correctly and a
-    body's edits to the bindings dict (none currently possible, but
-    future-proof) don't leak between iterations.
+    Plain Python lists (the result of an explicit ``[ ... ]`` array
+    constructor) bind as a single value, matching jq's array
+    constructor + binding model: ``[.ltm.virtual[].name] as $names |
+    $names`` binds the whole collected list to ``$names`` and runs
+    the body once.  Other scalar values (numbers, strings,
+    :class:`ObjectRef`, :class:`PathRef`, dicts, ...) also bind once.
+
+    The current input (``.``) is *not* rebound — the body still sees
+    the outer ``.``, so let-bindings compose with the surrounding
+    pipeline.  The binding frame is shallow-copied per iteration so
+    nested let-bindings of the same name shadow correctly.
     """
     source_value = _eval(node.source, current, ctx)
-    items = _stream_items(source_value)
+    # Only Streams iterate; lists/scalars bind once.  Without this
+    # split, ``[.x[].name] as $names | $names`` would explode the
+    # collected list back into N body calls and produce a stream of
+    # names rather than binding the list itself, contradicting jq's
+    # array constructor semantics.
+    if isinstance(source_value, Stream):
+        items = list(source_value.items)
+        is_iterating = True
+    else:
+        items = [source_value]
+        is_iterating = False
+
     out: list[Any] = []
-    is_stream = isinstance(source_value, Stream)
     for item in items:
         prior = ctx.bindings.get(node.name, _UNBOUND)
         ctx.bindings[node.name] = item
@@ -296,7 +310,7 @@ def _eval_let_binding(node: LetBinding, current: Any, ctx: EvalContext) -> Any:
             else:
                 ctx.bindings[node.name] = prior
         out.extend(_flatten(result))
-    if is_stream or len(items) != 1:
+    if is_iterating or len(items) != 1:
         return Stream(items=out)
     if not out:
         return Stream(items=[])

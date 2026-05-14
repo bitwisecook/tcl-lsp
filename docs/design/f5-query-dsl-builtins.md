@@ -1035,7 +1035,7 @@ transform, doesn't migrate references).
 **Examples**
 
 ```
-rename_partition("Common", "Tenant_A")
+rename_partition("Tenant_A", "Tenant_B")
 rename_partition("staging", "prod")
 ```
 
@@ -1119,10 +1119,12 @@ F5 partition visibility is **directional**:
 
 Use this predicate to validate that a proposed rename or
 cross-config reference is legal *before* applying it.  Example:
-"find every iRule reference that would break partition
-visibility":
+"find every iRule that references a pool whose partition the
+rule itself can't see" (uses a let-binding to carry the rule's
+full path into the per-reference stream — the DSL has no jq
+``..`` parent operator):
 
-``.ltm.rule[] | .refs.pools[] | select(not can_see(.., .))``
+``.ltm.rule[] as $r | $r.refs.pools[] | select(not can_see($r."full-path", .))``
 
 Related: ``partition``, ``in_partition``,
 ``check_partition_visibility``.
@@ -1553,9 +1555,12 @@ True when two networks overlap (share at least one address).
 
 **Details**
 
-Useful for finding self-IP / route-domain conflicts:
-``.net.self[] | combinations(2) | select(overlaps(.[0].address,
-.[1].address))``.
+Useful for finding self-IP / route-domain conflicts.  The DSL
+doesn't ship a pairwise-combinations primitive yet, so the
+natural pattern uses a let-binding to cross the stream against
+itself: ``[.net.self[]] as $all | .net.self[] as $a | $all[]
+| select(. != $a) | select(overlaps($a.address, .address))
+| $a.name + " ↔ " + .name``.
 
 IPv4 ↔ IPv6 comparison returns ``false``.
 
