@@ -57,9 +57,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="request-log-error-protocol",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("tcp", "udp", "none"),
+                enum_values=("tcp", "udp"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="request-log-error-template", value_type="string"),
             BigipPropertySpec(
@@ -70,9 +71,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="request-log-protocol",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("tcp", "udp", "none"),
+                enum_values=("tcp", "udp"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="request-log-template", value_type="string"),
             BigipPropertySpec(
@@ -86,9 +88,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="response-log-error-protocol",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("tcp", "udp", "none"),
+                enum_values=("tcp", "udp"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="response-log-error-template", value_type="string"),
             BigipPropertySpec(
@@ -99,9 +102,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="response-log-protocol",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("tcp", "udp", "none"),
+                enum_values=("tcp", "udp"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="response-log-template", value_type="string"),
             BigipPropertySpec(

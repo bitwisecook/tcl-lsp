@@ -21,8 +21,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="blacklist-categories",
-                value_type="enum",
-                enum_values=("add", "default", "delete", "replace-all-with"),
+                value_type="reference",
+                enum_values=("default",),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="action",
@@ -56,9 +57,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="feed-lists",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
-                enum_values=("add", "default", "delete", "replace-all-with"),
+                enum_values=("default",),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="default-action", value_type="enum", enum_values=("accept", "drop")

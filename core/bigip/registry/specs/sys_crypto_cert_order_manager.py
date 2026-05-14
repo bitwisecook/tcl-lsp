@@ -26,7 +26,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="auto-renew", value_type="enum", enum_values=("yes", "no")),
             BigipPropertySpec(
-                name="base-url", value_type="enum", allow_none=True, enum_values=("url", "none")
+                name="base-url",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("url",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="ca-cert", value_type="string"),
             BigipPropertySpec(name="client-cert", value_type="boolean", allow_none=True),
@@ -38,9 +42,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="order-info", value_type="string"),
             BigipPropertySpec(
                 name="validity-days",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("days", "none"),
+                enum_values=("days",),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

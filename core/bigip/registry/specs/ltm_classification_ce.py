@@ -26,12 +26,15 @@ def register_spec() -> BigipObjectSpec:
                 name="analyze-ssl-serverside", value_type="enum", enum_values=("on", "off")
             ),
             BigipPropertySpec(name="flow-bundling", value_type="enum", enum_values=("on", "off")),
-            BigipPropertySpec(name="cache-results", value_type="enum", enum_values=("on", "off")),
+            BigipPropertySpec(
+                name="cache-results", value_type="reference", enum_values=("on", "off")
+            ),
             BigipPropertySpec(
                 name="policies",
                 value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "default", "replace-all-with", "none"),
+                enum_values=("default",),
+                list_operators=frozenset(("add", "delete", "replace-all-with", "none")),
                 references=("ltm_policy",),
             ),
         ),

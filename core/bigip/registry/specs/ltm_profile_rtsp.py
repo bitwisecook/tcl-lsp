@@ -33,9 +33,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="proxy",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("external", "internal", "none"),
+                enum_values=("external", "internal"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="proxy-header", value_type="boolean", allow_none=True),
             BigipPropertySpec(

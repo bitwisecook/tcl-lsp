@@ -32,8 +32,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="slow-timer", value_type="integer"),
             BigipPropertySpec(
                 name="multihop-peer",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="interval",
@@ -53,7 +53,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="vlan",
                 value_type="reference",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
                 references=("net_vlan",),
             ),
             BigipPropertySpec(

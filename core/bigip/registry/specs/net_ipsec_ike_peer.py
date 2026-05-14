@@ -62,9 +62,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="peers-cert-file", value_type="string"),
             BigipPropertySpec(
                 name="peers-cert-type",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("certfile", "none"),
+                enum_values=("certfile",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="peers-id-type",
@@ -157,9 +158,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="verify-cert", value_type="enum", enum_values=("true", "false")),
             BigipPropertySpec(
                 name="version",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
         ),
     )

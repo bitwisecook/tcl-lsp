@@ -21,14 +21,14 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="rules",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="actions",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("rules",),
-                enum_values=("add", "delete", "modify"),
+                list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(
                 name="shell-action",
@@ -116,19 +116,23 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="identity-users",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="identity-groups",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="actions", value_type="enum", enum_values=("add", "delete", "modify")
+                name="actions",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(
-                name="auth-info", value_type="enum", enum_values=("add", "delete", "modify")
+                name="auth-info",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(
                 name="proxy-server-auth", value_type="string", in_sections=("auth-info",)
@@ -157,9 +161,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(
                 name="lang-env-tolerance",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("any", "common", "default-value", "none"),
+                enum_values=("any", "common", "default-value"),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

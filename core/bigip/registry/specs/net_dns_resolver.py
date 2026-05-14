@@ -25,14 +25,14 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="forward-zones",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="nameservers",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("forward-zones",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="nameserver-ttl", value_type="integer"),
             BigipPropertySpec(name="nameserver-min-rtt", value_type="integer"),

@@ -41,9 +41,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="sip-info",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("call-id", "from", "none", "sip-etag", "subject", "to"),
+                enum_values=("call-id", "from", "sip-etag", "subject", "to"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="timeout", value_type="integer"),
         ),

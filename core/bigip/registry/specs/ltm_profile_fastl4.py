@@ -54,9 +54,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="mss-override", value_type="integer"),
             BigipPropertySpec(
                 name="pva-acceleration",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("full", "none", "partial", "dedicated"),
+                enum_values=("full", "partial", "dedicated"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="pva-dynamic-client-packets", value_type="integer"),
             BigipPropertySpec(name="pva-dynamic-server-packets", value_type="integer"),
@@ -128,9 +129,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="syn-cookie-dsr-flow-reset-by",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("bigip", "client", "none"),
+                enum_values=("bigip", "client"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="syn-cookie-enable", value_type="enum", enum_values=("disabled", "enabled")

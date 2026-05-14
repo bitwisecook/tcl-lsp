@@ -27,13 +27,13 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="request-options",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="send-options",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="supersede-options", value_type="boolean", allow_none=True),
         ),

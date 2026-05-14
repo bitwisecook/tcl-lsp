@@ -20,9 +20,9 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="application",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="bot-defense", value_type="string", in_sections=("application",)
@@ -41,11 +41,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="external-domains",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("bot-defense",),
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="grace-period", value_type="integer", in_sections=("application",)
@@ -58,18 +58,18 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="site-domains",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("application",),
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="url-whitelist",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="browser-legit-enabled", value_type="enum", enum_values=("enabled", "disabled")
@@ -80,10 +80,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="bot-signatures", value_type="string"),
             BigipPropertySpec(
                 name="categories",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("bot-signatures",),
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="action", value_type="string", in_sections=("categories",)),
             BigipPropertySpec(
@@ -94,10 +94,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="disabled-signatures",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("bot-signatures",),
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="captcha-response", value_type="string"),
             BigipPropertySpec(
@@ -120,9 +120,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="geolocations",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="heavy-urls", value_type="string"),
             BigipPropertySpec(
@@ -133,25 +133,25 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="exclude",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("heavy-urls",),
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="include",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="include-list",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="latency-threshold", value_type="integer"),
             BigipPropertySpec(
@@ -159,9 +159,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="ip-whitelist",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="stress-based", value_type="string"),
             BigipPropertySpec(
@@ -385,10 +385,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="mitigation-mode",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("behavioral",),
                 allow_none=True,
-                enum_values=("none", "conservative", "standard", "aggressive"),
+                enum_values=("conservative", "standard", "aggressive"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="signatures",
@@ -658,9 +659,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="fastl4-acceleration-profile", value_type="string"),
             BigipPropertySpec(
                 name="custom-signatures",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="name", value_type="string", in_sections=("custom-signatures",)),
             BigipPropertySpec(
@@ -684,9 +685,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="dos-network",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="dynamic-signatures", value_type="string", in_sections=("dos-network",)
@@ -699,10 +700,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="mitigation",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("dynamic-signatures",),
                 allow_none=True,
-                enum_values=("none", "low", "medium", "high", "manual-multiplier"),
+                enum_values=("low", "medium", "high", "manual-multiplier"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="scrubber-advertisement-period",
@@ -725,10 +727,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="network-attack-vector",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("dos-network",),
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="attack-type", value_type="string", in_sections=("network-attack-vector",)
@@ -911,16 +913,16 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="protocol-dns",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="dns-query-vector",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("protocol-dns",),
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="query-type", value_type="string", in_sections=("dns-query-vector",)
@@ -1045,10 +1047,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="valid-domains",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("dns-query-vector",),
                 allow_none=True,
-                enum_values=("none", "add", "delete"),
+                list_operators=frozenset(("none", "add", "delete")),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
@@ -1065,9 +1067,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="protocol-sip",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
@@ -1091,10 +1093,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="sip-attack-vector",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("protocol-sip",),
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="type", value_type="string", in_sections=("sip-attack-vector",)),
             BigipPropertySpec(

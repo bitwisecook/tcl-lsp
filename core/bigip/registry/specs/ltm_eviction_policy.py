@@ -75,9 +75,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="countries",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("low-priority-geographies",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="enabled",
@@ -100,9 +100,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="ports",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("low-priority-port",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="port-number", value_type="integer", in_sections=("ports",)),
             BigipPropertySpec(
@@ -120,9 +120,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="names",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("low-priority-route-domain",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="low-priority-virtual-server", value_type="string"),
             BigipPropertySpec(
@@ -133,9 +133,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="names",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("low-priority-virtual-server",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

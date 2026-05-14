@@ -41,9 +41,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="password",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "password"),
+                enum_values=("password",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="recv", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="recv-disable", value_type="boolean", allow_none=True),

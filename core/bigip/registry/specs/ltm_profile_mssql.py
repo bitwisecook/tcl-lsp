@@ -38,9 +38,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="user-list",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="write-persist-timer", value_type="string"),
             BigipPropertySpec(name="write-pool", value_type="reference", references=("ltm_pool",)),

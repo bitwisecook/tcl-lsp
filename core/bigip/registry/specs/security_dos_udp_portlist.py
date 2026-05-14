@@ -25,15 +25,18 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("exclude-listed-ports", "include-listed-ports"),
             ),
             BigipPropertySpec(
-                name="entries", value_type="enum", enum_values=("modify", "replace-all-with")
+                name="entries",
+                value_type="reference",
+                list_operators=frozenset(("modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="description", value_type="string", in_sections=("entries",)),
             BigipPropertySpec(
                 name="match-direction",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("entries",),
                 allow_none=True,
-                enum_values=("both", "dst", "none", "src"),
+                enum_values=("both", "dst", "src"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="port-number", value_type="string", in_sections=("entries",)),
             BigipPropertySpec(name="security", value_type="string"),

@@ -21,14 +21,14 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="events",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="contexts",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("events",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

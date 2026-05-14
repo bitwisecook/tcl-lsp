@@ -23,9 +23,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="disk-ratio", value_type="integer"),
             BigipPropertySpec(
                 name="level",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("custom", "dedicated", "minimum", "nominal", "none"),
+                enum_values=("custom", "dedicated", "minimum", "nominal"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="memory-ratio", value_type="integer"),
             BigipPropertySpec(name="swg", value_type="list", repeated=True),

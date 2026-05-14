@@ -181,8 +181,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="view", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
                 name="address-family",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="auto-summary",
@@ -204,9 +204,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="aggregate-address",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("address-family",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
                 pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
             ),
             BigipPropertySpec(
@@ -223,8 +223,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="redistribute",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="route-map",
@@ -234,8 +234,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="distance",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="access-list", value_type="boolean", in_sections=("distance",), allow_none=True
@@ -243,8 +243,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="distance", value_type="integer", in_sections=("distance",)),
             BigipPropertySpec(
                 name="neighbor",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="advertisement-interval", value_type="integer", in_sections=("neighbor",)
@@ -368,9 +368,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="address-family",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("neighbor",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="activate",
@@ -541,8 +541,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="network",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="backdoor",
@@ -555,8 +555,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="peer-group",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="advertisement-interval", value_type="integer", in_sections=("peer-group",)
@@ -642,9 +642,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="version", value_type="integer", in_sections=("peer-group",)),
             BigipPropertySpec(
                 name="address-family",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("peer-group",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

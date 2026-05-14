@@ -20,8 +20,8 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="actions",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="definition", value_type="string", in_sections=("actions",)),
             BigipPropertySpec(name="html-help", value_type="string", in_sections=("definition",)),
@@ -33,16 +33,16 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="role-acl",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("definition",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="run-as", value_type="string", in_sections=("definition",)),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="requires-modules",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="requires-bigip-version-max", value_type="string"),
             BigipPropertySpec(name="requires-bigip-version-min", value_type="string"),

@@ -20,7 +20,11 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="bind-dn", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="bind-pw", value_type="enum", allow_none=True, enum_values=("none", "password")
+                name="bind-pw",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("password",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="bind-timeout", value_type="integer"),
             BigipPropertySpec(
@@ -49,7 +53,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="search-base-dn", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="search-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="servers", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="servers",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="ssl", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(name="ssl-ca-cert-file", value_type="boolean", allow_none=True),

@@ -22,8 +22,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="instance-id", value_type="integer"),
             BigipPropertySpec(
                 name="interfaces",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="external-path-cost", value_type="integer", in_sections=("interfaces",)
@@ -35,8 +35,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="priority", value_type="integer"),
             BigipPropertySpec(
                 name="trunks",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="external-path-cost", value_type="integer", in_sections=("trunks",)
@@ -48,7 +48,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="vlans",
                 value_type="reference",
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
                 references=("net_vlan",),
             ),
         ),

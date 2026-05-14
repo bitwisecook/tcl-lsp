@@ -29,9 +29,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="domain-name-check",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("allow-underscore", "none"),
+                enum_values=("allow-underscore",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="drain-persistent-requests", value_type="enum", enum_values=("no", "yes")

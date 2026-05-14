@@ -1156,3 +1156,44 @@ def test_firewall_address_list_nested_lists_migration_yields_refs():
             "/Common/datacenter_ranges",
         ),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Registry-wide audit: no spec abuses enum_values for tmsh operators
+# ---------------------------------------------------------------------------
+
+
+def test_no_spec_encodes_operators_in_enum_values():
+    """tmsh list operators (``add`` / ``delete`` / ``modify`` /
+    ``replace-all-with`` / ``none``) belong on
+    ``BigipPropertySpec.list_operators``, not ``enum_values``.  The
+    legacy abuse was a sentinel for "this property is list-valued"
+    that the new ``list_operators`` field replaces cleanly.  This
+    audit pins the contract so a new spec contribution can't
+    accidentally reintroduce the old shape.
+
+    The audit allows ``default`` inside an enum because a few F5
+    properties accept ``default`` as a value (not as an operator),
+    and ``none`` is only flagged when paired with another operator
+    (the value ``none`` is legitimately an enum in many specs).
+    """
+    from core.bigip.registry.specs import OBJECT_SPECS
+
+    OPERATOR_TOKENS = {"add", "delete", "modify", "replace-all-with"}
+    offenders: list[str] = []
+    for spec in OBJECT_SPECS:
+        for prop in spec.properties:
+            if not prop.enum_values:
+                continue
+            values = set(prop.enum_values)
+            if OPERATOR_TOKENS & values:
+                # Operator tokens appear — flag this property.
+                offenders.append(f"{spec.kind_spec.kind}.{prop.name}: {prop.enum_values}")
+    if offenders:
+        joined = "\n  - ".join(offenders)
+        raise AssertionError(
+            "Spec files still encode tmsh list operators in "
+            "enum_values.  Migrate each one to "
+            "`list_operators=frozenset((...))` and switch "
+            '`value_type="enum"` to `value_type="reference"`:\n  - ' + joined
+        )

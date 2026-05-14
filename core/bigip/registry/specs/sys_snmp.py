@@ -20,16 +20,16 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="agent-addresses",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="agent-trap", value_type="enum", enum_values=("enabled", "disabled")
             ),
             BigipPropertySpec(
                 name="allowed-addresses",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="auth-trap", value_type="enum", enum_values=("enabled", "disabled")
@@ -39,8 +39,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="communities",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="access",
@@ -65,8 +65,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="disk-monitors",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="description", value_type="string", in_sections=("disk-monitors",)
@@ -84,16 +84,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="include", value_type="string"),
             BigipPropertySpec(
                 name="l2forward-vlan",
-                value_type="enum",
-                enum_values=("all", "add", "delete", "replace-all-with"),
+                value_type="reference",
+                enum_values=("all",),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="load-max1", value_type="integer"),
             BigipPropertySpec(name="load-max5", value_type="integer"),
             BigipPropertySpec(name="load-max15", value_type="integer"),
             BigipPropertySpec(
                 name="process-monitors",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="description", value_type="string", in_sections=("process-monitors",)
@@ -120,16 +121,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="trap-source", value_type="string"),
             BigipPropertySpec(
                 name="traps",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="auth-password", value_type="string", in_sections=("traps",)),
             BigipPropertySpec(
                 name="auth-protocol",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("traps",),
                 allow_none=True,
-                enum_values=("md5", "sha", "none"),
+                enum_values=("md5", "sha"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="community", value_type="string", in_sections=("traps",)),
             BigipPropertySpec(name="description", value_type="string", in_sections=("traps",)),
@@ -152,10 +154,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="privacy-password", value_type="string", in_sections=("traps",)),
             BigipPropertySpec(
                 name="privacy-protocol",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("traps",),
                 allow_none=True,
-                enum_values=("aes", "des", "none"),
+                enum_values=("aes", "des"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="security-level",
@@ -172,8 +175,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="users",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="access", value_type="enum", in_sections=("users",), enum_values=("ro", "rw")
@@ -181,20 +184,22 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="auth-password", value_type="string", in_sections=("users",)),
             BigipPropertySpec(
                 name="auth-protocol",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("users",),
                 allow_none=True,
-                enum_values=("md5", "sha", "none"),
+                enum_values=("md5", "sha"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="description", value_type="string", in_sections=("users",)),
             BigipPropertySpec(name="oid-subset", value_type="string", in_sections=("users",)),
             BigipPropertySpec(name="privacy-password", value_type="string", in_sections=("users",)),
             BigipPropertySpec(
                 name="privacy-protocol",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("users",),
                 allow_none=True,
-                enum_values=("aes", "des", "none"),
+                enum_values=("aes", "des"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="security-level",
@@ -210,8 +215,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="v1-traps",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="community", value_type="string", in_sections=("v1-traps",)),
             BigipPropertySpec(name="description", value_type="string", in_sections=("v1-traps",)),
@@ -230,8 +235,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="v2-traps",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="community", value_type="string", in_sections=("v2-traps",)),
             BigipPropertySpec(name="description", value_type="string", in_sections=("v2-traps",)),

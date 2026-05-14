@@ -21,8 +21,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="rules",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="action",
@@ -33,15 +33,15 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string", in_sections=("rules",)),
             BigipPropertySpec(
                 name="ipv6-extension-headers",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("rules",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("ipv6-extension-headers",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="log", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(

@@ -21,9 +21,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="cache-aging-rate", value_type="integer"),
             BigipPropertySpec(
                 name="cache-client-cache-control-mode",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("all", "max-age", "none"),
+                enum_values=("all", "max-age"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="cache-insert-age-header",

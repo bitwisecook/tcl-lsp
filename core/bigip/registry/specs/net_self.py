@@ -31,9 +31,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="allow-service",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("all", "default", "none"),
+                enum_values=("all", "default"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(

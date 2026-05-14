@@ -31,9 +31,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="flooding-type",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "multipoint"),
+                enum_values=("multipoint",),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

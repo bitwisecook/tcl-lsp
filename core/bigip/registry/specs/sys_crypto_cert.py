@@ -35,9 +35,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="install", value_type="string"),
             BigipPropertySpec(
                 name="cert-validation-options",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "ocsp"),
+                enum_values=("ocsp",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="cert-validators", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="from-local-file", value_type="string"),

@@ -20,10 +20,10 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="bypass-list",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("add", "delete", "replace-all-with", "none"),
+                list_operators=frozenset(("add", "delete", "replace-all-with", "none")),
             ),
             BigipPropertySpec(
                 name="client-caching-type",
@@ -48,19 +48,19 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="rewrite-list",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("add", "delete", "replace-all-with", "none"),
+                list_operators=frozenset(("add", "delete", "replace-all-with", "none")),
             ),
             BigipPropertySpec(
                 name="rewrite-mode", value_type="enum", enum_values=("portal", "uri-translation")
             ),
             BigipPropertySpec(
                 name="set-cookie-rules",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "replace-all-with", "none"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with", "none")),
             ),
             BigipPropertySpec(
                 name="client", value_type="string", in_sections=("set-cookie-rules",)
@@ -80,9 +80,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="uri-rules",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "replace-all-with", "none"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with", "none")),
             ),
             BigipPropertySpec(name="client", value_type="string", in_sections=("uri-rules",)),
             BigipPropertySpec(name="scheme", value_type="string", in_sections=("client",)),

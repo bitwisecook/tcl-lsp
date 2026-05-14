@@ -20,9 +20,10 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="encrypted-connection",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "tls", "ssl"),
+                enum_values=("tls", "ssl"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="local-host-name", value_type="string"),
             BigipPropertySpec(name="smtp-server-host-name", value_type="string"),

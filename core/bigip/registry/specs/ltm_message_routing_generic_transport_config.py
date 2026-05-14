@@ -22,7 +22,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="profiles",
                 value_type="reference",
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
                 references=(
                     "ltm_profile_analytics",
                     "ltm_profile_certificate_authority",
@@ -127,10 +127,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="type",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("source-address-translation",),
                 allow_none=True,
-                enum_values=("automap", "snat", "none"),
+                enum_values=("automap", "snat"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="source-port", value_type="integer", min_value=0, max_value=65535

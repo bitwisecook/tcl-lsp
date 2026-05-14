@@ -20,9 +20,9 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="alerts",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="name", value_type="string", in_sections=("alerts",)),
             BigipPropertySpec(name="granularity", value_type="string", in_sections=("name",)),
@@ -155,17 +155,23 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="subnet", value_type="string", in_sections=("name",)),
             BigipPropertySpec(
                 name="countries-for-stat-collection",
-                value_type="enum",
-                enum_values=("add", "delete"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete")),
             ),
             BigipPropertySpec(
-                name="ips-for-stat-collection", value_type="enum", enum_values=("add", "delete")
+                name="ips-for-stat-collection",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete")),
             ),
             BigipPropertySpec(
-                name="subnets-for-stat-collection", value_type="enum", enum_values=("add", "delete")
+                name="subnets-for-stat-collection",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete")),
             ),
             BigipPropertySpec(
-                name="urls-for-stat-collection", value_type="enum", enum_values=("add", "delete")
+                name="urls-for-stat-collection",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete")),
             ),
             BigipPropertySpec(name="traffic-capture", value_type="boolean", allow_none=True),
             BigipPropertySpec(
@@ -184,9 +190,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="node-addresses", value_type="boolean", allow_none=True),
             BigipPropertySpec(
                 name="request-captured-parts",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("all", "body", "headers", "none"),
+                enum_values=("all", "body", "headers"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="request-content-filter-search-part", value_type="string"),
             BigipPropertySpec(name="none", value_type="string"),
@@ -195,9 +202,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="response-captured-parts",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("all", "body", "headers", "none"),
+                enum_values=("all", "body", "headers"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="response-codes", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="response-content-filter-search-part", value_type="string"),

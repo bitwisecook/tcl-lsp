@@ -99,10 +99,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="persist-type",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("persistence",),
                 allow_none=True,
-                enum_values=("session", "none"),
+                enum_values=("session",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="enable-sip-firewall", value_type="enum", enum_values=("no", "yes")

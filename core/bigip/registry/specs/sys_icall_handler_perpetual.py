@@ -25,17 +25,17 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="subscriptions",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="event-name", value_type="string", in_sections=("subscriptions",)
             ),
             BigipPropertySpec(
                 name="filters",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("subscriptions",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="value", value_type="string", in_sections=("filters",)),
             BigipPropertySpec(

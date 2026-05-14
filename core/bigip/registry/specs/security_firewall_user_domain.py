@@ -21,8 +21,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="domain", value_type="string"),
             BigipPropertySpec(
                 name="ifmap-service",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="description", value_type="string"),
         ),

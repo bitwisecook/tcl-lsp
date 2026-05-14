@@ -30,9 +30,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="elements",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("start-control-channel",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="end-control-channel", value_type="string"),
             BigipPropertySpec(
@@ -43,9 +43,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="elements",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("end-control-channel",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="start-data-channel", value_type="string"),
             BigipPropertySpec(
@@ -56,9 +56,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="elements",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("start-data-channel",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="end-data-channel", value_type="string"),
             BigipPropertySpec(
@@ -69,9 +69,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="elements",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("end-data-channel",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="inbound-transaction", value_type="string"),
             BigipPropertySpec(

@@ -410,9 +410,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="reselect-tries", value_type="integer"),
             BigipPropertySpec(
                 name="service-down-action",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("drop", "none", "reselect", "reset"),
+                enum_values=("drop", "reselect", "reset"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="slow-ramp-time", value_type="integer"),
             BigipPropertySpec(name="reset-stats", value_type="string"),

@@ -21,9 +21,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
             BigipPropertySpec(
                 name="dns-express-allow-notify",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="dns-express-enabled", value_type="enum", enum_values=("yes", "no")
@@ -41,9 +41,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="server-tsig-key", value_type="boolean", allow_none=True),
             BigipPropertySpec(
                 name="transfer-clients",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="reset-stats", value_type="string"),
         ),

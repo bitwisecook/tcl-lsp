@@ -26,8 +26,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="severity-level", value_type="integer"),
             BigipPropertySpec(
                 name="urls",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

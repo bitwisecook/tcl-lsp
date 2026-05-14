@@ -26,8 +26,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="msg-cache-size", value_type="integer"),
             BigipPropertySpec(
                 name="response-policy-zones",
-                value_type="enum",
-                enum_values=("add", "delete", "modify"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(
                 name="action",
@@ -41,9 +41,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="rrset-cache-size", value_type="integer"),
             BigipPropertySpec(
                 name="rrset-rotate",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "query-id"),
+                enum_values=("query-id",),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

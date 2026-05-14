@@ -22,8 +22,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="include", value_type="string"),
             BigipPropertySpec(
                 name="restrict",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="address",
@@ -122,7 +122,9 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("enabled", "disable"),
             ),
             BigipPropertySpec(
-                name="servers", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="servers",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="timezone", value_type="string"),
         ),

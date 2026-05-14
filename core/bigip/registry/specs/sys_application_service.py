@@ -28,8 +28,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="execute-action", value_type="string"),
             BigipPropertySpec(
                 name="lists",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="value", value_type="list", in_sections=("lists",), repeated=True
@@ -45,8 +45,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="tables",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="column-names", value_type="list", in_sections=("tables",), repeated=True
@@ -67,8 +67,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="variables",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="value", value_type="string", in_sections=("variables",)),
             BigipPropertySpec(

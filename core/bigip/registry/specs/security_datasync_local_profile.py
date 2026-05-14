@@ -21,9 +21,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="buf-size", value_type="integer"),
             BigipPropertySpec(
                 name="ds-area",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "asm", "fps"),
+                enum_values=("asm", "fps"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="rows-bulk", value_type="integer"),
             BigipPropertySpec(name="gen-timeout-sec", value_type="integer"),

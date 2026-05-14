@@ -26,7 +26,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="retries", value_type="integer"),
             BigipPropertySpec(
-                name="servers", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="servers",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="service-type", value_type="string"),
             BigipPropertySpec(name="callback-framed", value_type="string"),

@@ -34,7 +34,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="members", value_type="enum", allow_none=True, enum_values=("default", "none")
+                name="members",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("default",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="migration-keepalive", value_type="enum", enum_values=("disabled", "enabled")
@@ -46,9 +50,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="proxy-excludes",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("default", "none"),
+                enum_values=("default",),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

@@ -83,8 +83,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="remote-host",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="addr", value_type="string", in_sections=("remote-host",)),
             BigipPropertySpec(

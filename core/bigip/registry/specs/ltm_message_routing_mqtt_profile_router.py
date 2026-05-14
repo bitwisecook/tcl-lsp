@@ -29,9 +29,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="route",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "default", "delete", "none", "replace-all-with"),
+                enum_values=("default",),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="traffic-group",

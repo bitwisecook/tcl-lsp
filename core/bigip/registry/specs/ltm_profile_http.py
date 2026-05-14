@@ -31,9 +31,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="encrypt-cookie-secret",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "passphrase"),
+                enum_values=("passphrase",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="encrypt-cookies", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="enforcement", value_type="string"),
@@ -122,9 +123,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="redirect-rewrite",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("all", "matching", "nodes", "none"),
+                enum_values=("all", "matching", "nodes"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="request-chunking", value_type="enum", enum_values=("rechunk", "sustain")

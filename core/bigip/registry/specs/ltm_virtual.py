@@ -96,10 +96,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="mask", value_type="list", repeated=True),
             BigipPropertySpec(
                 name="mirror",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("disabled", "enabled", "none"),
+                enum_values=("disabled", "enabled"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="nat64", value_type="enum", enum_values=("enabled", "disabled")),
             BigipPropertySpec(
@@ -284,9 +285,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="service-down-immediate-action",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "drop", "reset"),
+                enum_values=("drop", "reset"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="service-policy",
@@ -295,7 +297,11 @@ def register_spec() -> BigipObjectSpec:
                 references=("security_firewall_policy", "ltm_policy"),
             ),
             BigipPropertySpec(
-                name="snat", value_type="enum", allow_none=True, enum_values=("automap", "none")
+                name="snat",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("automap",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="snatpool", value_type="reference", references=("ltm_snatpool",)
@@ -311,10 +317,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="type",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("source-address-translation",),
                 allow_none=True,
-                enum_values=("automap", "lsn", "snat", "none"),
+                enum_values=("automap", "lsn", "snat"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="source-port",

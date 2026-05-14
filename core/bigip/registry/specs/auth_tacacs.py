@@ -35,9 +35,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="protocol",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "protocol"),
+                enum_values=("protocol",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="secret", value_type="string"),
             BigipPropertySpec(name="service", value_type="boolean", allow_none=True),

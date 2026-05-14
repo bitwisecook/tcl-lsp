@@ -57,10 +57,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="ttl", value_type="integer", in_sections=("generation",)),
             BigipPropertySpec(
                 name="use-fips",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("generation",),
                 allow_none=True,
-                enum_values=("external", "internal", "none"),
+                enum_values=("external", "internal"),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

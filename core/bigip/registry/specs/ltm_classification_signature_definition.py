@@ -35,9 +35,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="message", value_type="string"),
             BigipPropertySpec(
                 name="progress-status",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "success", "failure", "in-progress"),
+                enum_values=("success", "failure", "in-progress"),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

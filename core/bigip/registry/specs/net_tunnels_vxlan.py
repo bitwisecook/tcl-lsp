@@ -23,9 +23,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="port", value_type="integer", min_value=0, max_value=65535),
             BigipPropertySpec(
                 name="flooding-type",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "multicast", "multipoint", "replicator"),
+                enum_values=("multicast", "multipoint", "replicator"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="encapsulation-type", value_type="enum", enum_values=("vxlan", "vxlan-gpe")

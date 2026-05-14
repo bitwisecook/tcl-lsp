@@ -36,9 +36,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="source-mask", value_type="string"),
             BigipPropertySpec(
                 name="limit-type",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "idle", "strict"),
+                enum_values=("idle", "strict"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="reset-stats", value_type="string"),
         ),

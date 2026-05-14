@@ -22,9 +22,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="max-flowspec-routes-limit", value_type="integer"),
             BigipPropertySpec(
                 name="neighbor",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="adj-out",
@@ -65,9 +65,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="router-id", value_type="integer", in_sections=("neighbor",)),
             BigipPropertySpec(
                 name="rules",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="action", value_type="string", in_sections=("rules",)),
             BigipPropertySpec(name="dscp-value", value_type="integer", in_sections=("action",)),

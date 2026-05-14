@@ -22,7 +22,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="connection-timeout", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="servers", value_type="enum", allow_none=True, enum_values=("default", "none")
+                name="servers",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("default",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="update-interval", value_type="integer"),
             BigipPropertySpec(

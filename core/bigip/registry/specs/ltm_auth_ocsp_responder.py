@@ -51,7 +51,11 @@ def register_spec() -> BigipObjectSpec:
                 name="trust-other", value_type="enum", enum_values=("disabled", "enabled")
             ),
             BigipPropertySpec(
-                name="url", value_type="enum", allow_none=True, enum_values=("none", "url")
+                name="url",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("url",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="va-file", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="validity-period", value_type="integer"),

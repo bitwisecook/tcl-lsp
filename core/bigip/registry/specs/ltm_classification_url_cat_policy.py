@@ -20,7 +20,10 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="feed-lists", value_type="enum", repeated=True, enum_values=("add", "delete")
+                name="feed-lists",
+                value_type="reference",
+                repeated=True,
+                list_operators=frozenset(("add", "delete")),
             ),
         ),
     )

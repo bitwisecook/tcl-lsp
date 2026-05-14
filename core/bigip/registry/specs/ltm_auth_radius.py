@@ -44,7 +44,11 @@ def register_spec() -> BigipObjectSpec:
                 ),
             ),
             BigipPropertySpec(
-                name="servers", value_type="enum", allow_none=True, enum_values=("default", "none")
+                name="servers",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("default",),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

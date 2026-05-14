@@ -27,8 +27,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
             BigipPropertySpec(
                 name="filters",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="description", value_type="boolean", in_sections=("filters",), allow_none=True
@@ -53,10 +53,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="cmp-operator",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("condition-pattern-1",),
                 allow_none=True,
-                enum_values=("contains", "ends-with", "equal", "none", "not-equal", "starts-with"),
+                enum_values=("contains", "ends-with", "equal", "not-equal", "starts-with"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="field-name",
@@ -75,10 +76,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="cmp-operator",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("condition-pattern-2",),
                 allow_none=True,
-                enum_values=("contains", "ends-with", "equal", "none", "not-equal", "starts-with"),
+                enum_values=("contains", "ends-with", "equal", "not-equal", "starts-with"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="field-name",
@@ -97,10 +99,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="cmp-operator",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("condition-pattern-3",),
                 allow_none=True,
-                enum_values=("contains", "ends-with", "equal", "none", "not-equal", "starts-with"),
+                enum_values=("contains", "ends-with", "equal", "not-equal", "starts-with"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="field-name",
@@ -119,10 +122,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="cmp-operator",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("condition-pattern-4",),
                 allow_none=True,
-                enum_values=("contains", "ends-with", "equal", "none", "not-equal", "starts-with"),
+                enum_values=("contains", "ends-with", "equal", "not-equal", "starts-with"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="field-name",

@@ -33,9 +33,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="mode-of-op", value_type="string"),
             BigipPropertySpec(
                 name="rsa-exp",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "rsa-3", "rsa-f4", "default"),
+                enum_values=("rsa-3", "rsa-f4", "default"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="rsa-bits", value_type="integer", allow_none=True),
             BigipPropertySpec(name="params", value_type="string"),

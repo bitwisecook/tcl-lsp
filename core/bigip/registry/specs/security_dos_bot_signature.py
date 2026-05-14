@@ -21,10 +21,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="category", value_type="string"),
             BigipPropertySpec(
                 name="domains",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("none", "add", "delete", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="risk", value_type="enum", enum_values=("high", "low", "medium")

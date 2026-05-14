@@ -26,10 +26,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="mirror",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
                 allow_none=True,
-                enum_values=("disabled", "enabled", "none"),
+                enum_values=("disabled", "enabled"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="snatpool", value_type="reference", references=("ltm_snatpool",)
@@ -46,7 +47,8 @@ def register_spec() -> BigipObjectSpec:
                 name="vlans",
                 value_type="reference",
                 allow_none=True,
-                enum_values=("default", "none"),
+                enum_values=("default",),
+                list_operators=frozenset(("none",)),
                 references=("net_vlan",),
             ),
             BigipPropertySpec(name="value", value_type="string"),

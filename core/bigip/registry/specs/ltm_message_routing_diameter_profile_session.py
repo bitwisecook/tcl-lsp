@@ -35,9 +35,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="dest-realm-rewrite", value_type="string"),
             BigipPropertySpec(
                 name="disconnect-peer-action",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("disable", "force-offline", "none"),
+                enum_values=("disable", "force-offline"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="dynamic-route-insertion",
@@ -76,9 +77,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="persist-timeout", value_type="integer"),
             BigipPropertySpec(
                 name="persist-type",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("avp", "custom", "none"),
+                enum_values=("avp", "custom"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="product-name", value_type="string"),
             BigipPropertySpec(

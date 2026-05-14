@@ -25,14 +25,14 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
             BigipPropertySpec(
                 name="forward-zones",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="nameservers",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("forward-zones",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="local-zones", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="max-concurrent-queries", value_type="integer"),
@@ -49,8 +49,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="outbound-msg-retry", value_type="integer"),
             BigipPropertySpec(
                 name="response-policy-zones",
-                value_type="enum",
-                enum_values=("add", "delete", "modify"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(
                 name="action",
@@ -68,9 +68,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="rrset-cache-size", value_type="integer"),
             BigipPropertySpec(
                 name="rrset-rotate",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "query-id"),
+                enum_values=("query-id",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="unwanted-query-reply-threshold", value_type="integer"),
             BigipPropertySpec(name="use-ipv4", value_type="enum", enum_values=("yes", "no")),

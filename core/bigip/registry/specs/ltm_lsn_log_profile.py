@@ -30,9 +30,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="elements",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("start-outbound-session",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="end-outbound-session", value_type="string"),
             BigipPropertySpec(
@@ -43,9 +43,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="elements",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("end-outbound-session",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="start-inbound-session", value_type="string"),
             BigipPropertySpec(

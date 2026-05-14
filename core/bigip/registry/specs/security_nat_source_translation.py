@@ -20,23 +20,24 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="addresses",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="client-connection-limit", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="exclude-addresses",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="exclude-address-lists",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "default", "delete", "none", "replace-all-with"),
+                enum_values=("default",),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="hairpin-mode", value_type="enum", enum_values=("enabled", "disabled")
@@ -46,9 +47,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="inbound-mode",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("endpoint-independent-filtering", "explicit", "none"),
+                enum_values=("endpoint-independent-filtering", "explicit"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="eif-timeout", value_type="integer"),
             BigipPropertySpec(
@@ -63,9 +65,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="ports",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="proxy-arp", value_type="enum", enum_values=("enabled", "disabled")
@@ -81,10 +83,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="mapping", value_type="string"),
             BigipPropertySpec(
                 name="mode",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("mapping",),
                 allow_none=True,
-                enum_values=("address-pooling-paired", "endpoint-independent-mapping", "none"),
+                enum_values=("address-pooling-paired", "endpoint-independent-mapping"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="timeout", value_type="integer", in_sections=("mapping",)),
             BigipPropertySpec(name="port-block-allocation", value_type="string"),

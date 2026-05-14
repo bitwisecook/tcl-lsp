@@ -22,7 +22,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="vlans",
                 value_type="reference",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
                 references=("net_vlan",),
             ),
         ),

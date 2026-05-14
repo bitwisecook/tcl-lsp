@@ -48,11 +48,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("file-types",),
                 repeated=True,
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="http-rfc", value_type="string"),
             BigipPropertySpec(
@@ -169,11 +169,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("mandatory-headers",),
                 repeated=True,
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="maximum-length", value_type="string"),
             BigipPropertySpec(
@@ -213,11 +213,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("methods",),
                 repeated=True,
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(name="response", value_type="string"),
             BigipPropertySpec(

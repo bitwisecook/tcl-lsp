@@ -70,9 +70,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="ipcomp",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("deflate", "none", "null"),
+                enum_values=("deflate", "null"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="mode", value_type="enum", enum_values=("transport", "tunnel", "interface")

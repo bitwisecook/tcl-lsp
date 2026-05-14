@@ -27,9 +27,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="custom-signatures",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="name", value_type="string", in_sections=("custom-signatures",)),
             BigipPropertySpec(
@@ -138,9 +138,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="packet-types",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("dos-device-vector",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="dns-any-query", value_type="string", in_sections=("packet-types",)
@@ -241,9 +241,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="valid-domains",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("packet-types",),
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="dynamic-signatures", value_type="string"),
             BigipPropertySpec(
@@ -254,10 +254,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="mitigation",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("dynamic-signatures",),
                 allow_none=True,
-                enum_values=("none", "low", "medium", "high"),
+                enum_values=("low", "medium", "high"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="scrubber-advertisement-period",
@@ -284,10 +285,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="mitigation",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("network",),
                 allow_none=True,
-                enum_values=("none", "low", "medium", "high", "manual-multiplier"),
+                enum_values=("low", "medium", "high", "manual-multiplier"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="scrubber-advertisement-period", value_type="integer", in_sections=("network",)
@@ -310,10 +312,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="mitigation",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("dns",),
                 allow_none=True,
-                enum_values=("none", "low", "medium", "high", "manual-multiplier"),
+                enum_values=("low", "medium", "high", "manual-multiplier"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="dns-dos-mitigation-percentage", value_type="integer"),
             BigipPropertySpec(name="log-publisher", value_type="string"),
@@ -321,9 +324,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="sip-dos-mitigation-percentage", value_type="integer"),
             BigipPropertySpec(
                 name="syn-cookie-dsr-flow-reset-by",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("bigip", "client", "none"),
+                enum_values=("bigip", "client"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="syn-cookie-whitelist", value_type="enum", enum_values=("disabled", "enabled")

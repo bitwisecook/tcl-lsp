@@ -20,9 +20,10 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="dependency-level",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("datacenter", "link", "none", "server", "wideip"),
+                enum_values=("datacenter", "link", "server", "wideip"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="disabled-contexts", value_type="boolean", allow_none=True),
@@ -33,7 +34,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="persist-cidr-ipv6", value_type="integer"),
             BigipPropertySpec(name="ttl-persistence", value_type="integer"),
             BigipPropertySpec(
-                name="wideips", value_type="enum", allow_none=True, enum_values=("default", "none")
+                name="wideips",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("default",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="reset-stats", value_type="string"),
         ),

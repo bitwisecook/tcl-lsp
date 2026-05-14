@@ -21,9 +21,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="advertisement-ttl", value_type="integer"),
             BigipPropertySpec(
                 name="scrubber-categories",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="advertisement-method",
@@ -72,9 +72,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="scrubber-netflow-protected-server",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="advertisement-method",
@@ -131,9 +131,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="scrubber-rt-domain",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="absolute-threshold", value_type="integer", in_sections=("scrubber-rt-domain",)
@@ -190,10 +190,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="scrubber-rd-network-prefix",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("scrubber-rt-domain",),
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="bgp-flowspec-advertisement-action",
@@ -227,15 +227,15 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="excluded-vlans",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="scrubber-virtual-server",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("add", "delete", "modify", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="absolute-threshold",

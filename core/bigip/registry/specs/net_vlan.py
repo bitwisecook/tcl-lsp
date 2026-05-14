@@ -35,9 +35,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="failsafe-timeout", value_type="integer"),
             BigipPropertySpec(
                 name="fwd-mode",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("l3", "passive", "virtual-wire", "none"),
+                enum_values=("l3", "passive", "virtual-wire"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="tag-mode", value_type="boolean", allow_none=True),
             BigipPropertySpec(name="interfaces", value_type="boolean", allow_none=True),
@@ -77,9 +78,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="ipv6-prefix-len", value_type="integer"),
             BigipPropertySpec(
                 name="dag-adjustment",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "bit-roll", "xor-5mid-xor-5low", "nibble-roll"),
+                enum_values=("bit-roll", "xor-5mid-xor-5low", "nibble-roll"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="dag-round-robin", value_type="enum", enum_values=("disabled", "enabled")

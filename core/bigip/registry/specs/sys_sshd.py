@@ -19,7 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "sshd"),),
         properties=(
             BigipPropertySpec(
-                name="allow", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="allow",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="banner", value_type="enum", enum_values=("disabled", "enabled")

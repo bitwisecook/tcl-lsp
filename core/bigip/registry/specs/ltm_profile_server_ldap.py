@@ -27,15 +27,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="activation-mode",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "allow", "require"),
+                enum_values=("allow", "require"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="ss-activation-mode",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "allow", "require"),
+                enum_values=("allow", "require"),
+                list_operators=frozenset(("none",)),
             ),
         ),
     )

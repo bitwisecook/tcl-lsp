@@ -30,9 +30,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="log-level", value_type="string"),
             BigipPropertySpec(
                 name="logical-routing-type",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "backhaul"),
+                enum_values=("backhaul",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="port", value_type="integer", min_value=0, max_value=65535),
             BigipPropertySpec(name="tunnel-floating-addresses", value_type="string"),

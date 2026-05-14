@@ -41,9 +41,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="server-scope",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("all", "any", "none"),
+                enum_values=("all", "any"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="spanning", value_type="enum", enum_values=("enabled", "disabled")

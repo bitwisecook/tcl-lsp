@@ -37,7 +37,11 @@ def register_spec() -> BigipObjectSpec:
                 pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
             ),
             BigipPropertySpec(
-                name="service", value_type="enum", allow_none=True, enum_values=("none", "port")
+                name="service",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("port",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="time-until-up", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),

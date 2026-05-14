@@ -36,13 +36,18 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="password",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("none", "password"),
+                enum_values=("password",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="probe-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="secret", value_type="enum", allow_none=True, enum_values=("none", "secret")
+                name="secret",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("secret",),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(

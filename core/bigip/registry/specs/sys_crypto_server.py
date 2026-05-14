@@ -21,16 +21,16 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="addr", value_type="string"),
             BigipPropertySpec(
                 name="clients",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="port", value_type="integer", min_value=0, max_value=65535),
             BigipPropertySpec(
                 name="profiles",
-                value_type="enum",
+                value_type="reference",
                 repeated=True,
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
         ),
     )

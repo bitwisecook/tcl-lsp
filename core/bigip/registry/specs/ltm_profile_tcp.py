@@ -141,9 +141,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="push-flag",
-                value_type="enum",
+                value_type="reference",
                 allow_none=True,
-                enum_values=("default", "none", "one", "auto"),
+                enum_values=("default", "one", "auto"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(
                 name="ip-df-mode", value_type="enum", enum_values=("preserve", "set", "clear")

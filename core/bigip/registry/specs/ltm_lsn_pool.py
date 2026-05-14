@@ -55,10 +55,11 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="mode",
-                value_type="enum",
+                value_type="reference",
                 in_sections=("persistence",),
                 allow_none=True,
-                enum_values=("none", "address", "address-port"),
+                enum_values=("address", "address-port"),
+                list_operators=frozenset(("none",)),
             ),
             BigipPropertySpec(name="timeout", value_type="integer", in_sections=("persistence",)),
             BigipPropertySpec(name="pcp", value_type="string"),
