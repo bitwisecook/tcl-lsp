@@ -743,3 +743,82 @@ def test_policy_action_redirect_captures_location_and_status():
     assert parsed.value.verb == "redirect"
     assert parsed.value.redirect_location == "https://example.com/new"
     assert parsed.value.status == 301
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 batch 5: FirewallRule / NatRule
+# ---------------------------------------------------------------------------
+
+
+def test_firewall_rule_parses_inline_classifier():
+    from core.bigip.registry import FirewallRuleSpec, ReferenceContext
+    from core.bigip.types import FirewallRule
+
+    spec = FirewallRuleSpec()
+    parsed = spec.parse(
+        (
+            "allow_https {"
+            "    action accept"
+            "    ip-protocol tcp"
+            "    log"
+            "    destination {"
+            "        port-lists { /Common/_sys_self_allow_tcp_defaults }"
+            "        ports { 443 }"
+            "        address-lists { /Common/web_servers }"
+            "    }"
+            "    source {"
+            "        address-lists { /Common/trusted_clients }"
+            "        ports { 1024-65535 }"
+            "    }"
+            "}"
+        ),
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, FirewallRule)
+    assert parsed.value.name == "allow_https"
+    assert parsed.value.action == "accept"
+    assert parsed.value.ip_protocol == "tcp"
+    assert parsed.value.log is True
+    assert parsed.value.destination.ports == ("443",)
+    assert parsed.value.destination.port_lists == ("/Common/_sys_self_allow_tcp_defaults",)
+    assert parsed.value.destination.address_lists == ("/Common/web_servers",)
+    assert parsed.value.source.address_lists == ("/Common/trusted_clients",)
+    assert parsed.value.source.ports == ("1024-65535",)
+
+    refs = list(spec.references(parsed.value, ReferenceContext()))
+    # Every port-list + address-list shows up as a typed edge so
+    # references_to /Common/web_servers finds this rule.
+    paths = [(r.target_kind, r.target_path) for r in refs]
+    assert ("security firewall port-list", "/Common/_sys_self_allow_tcp_defaults") in paths
+    assert ("security firewall address-list", "/Common/web_servers") in paths
+    assert ("security firewall address-list", "/Common/trusted_clients") in paths
+
+
+def test_firewall_rule_captures_rule_list_reference():
+    """``rule-list <full-path>`` rules link to another rule-list
+    instead of defining the classifier inline.  The reference
+    surfaces through the graph layer the same way every other
+    list link does."""
+    from core.bigip.registry import FirewallRuleSpec, ReferenceContext
+    from core.bigip.types import FirewallRule
+
+    spec = FirewallRuleSpec()
+    parsed = spec.parse(
+        "delegated { rule-list /Common/_sys_self_allow_defaults }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, FirewallRule)
+    assert parsed.value.rule_list == "/Common/_sys_self_allow_defaults"
+    refs = list(spec.references(parsed.value, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("security firewall rule-list", "/Common/_sys_self_allow_defaults"),
+    ]
+
+
+def test_nat_rule_spec_is_alias_of_firewall_rule_spec():
+    """NAT rules share the firewall rule grammar — modelling them
+    twice would duplicate the parser.  The spec is a thin alias
+    so registry consumers see the same dispatch contract."""
+    from core.bigip.registry import FirewallRuleSpec, NatRuleSpec
+
+    assert NatRuleSpec is FirewallRuleSpec

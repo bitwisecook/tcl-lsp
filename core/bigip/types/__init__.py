@@ -45,6 +45,7 @@ from ._attachments import PersistenceAttachment, ProfileAttachment
 from ._cert_key_chain import CertKeyChain
 from ._data_group_record import DataGroupRecord
 from ._destination import Destination
+from ._firewall_rule import FirewallEndpoint, FirewallRule, NatRule
 from ._folder import Folder, ObjectPath
 from ._gtm_region_member import GtmRegionMember
 from ._monitor_expression import MonitorExpression, MonitorMode
@@ -61,6 +62,8 @@ __all__ = [
     "DataGroupRecord",
     "Destination",
     "FQDN",
+    "FirewallEndpoint",
+    "FirewallRule",
     "Folder",
     "GtmRegionMember",
     "IPAddress",
@@ -68,6 +71,7 @@ __all__ = [
     "LtmPolicyCondition",
     "MonitorExpression",
     "MonitorMode",
+    "NatRule",
     "Network",
     "ObjectPath",
     "Partition",

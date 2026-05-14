@@ -1122,6 +1122,66 @@ class LtmPolicyActionSpec(_BaseSpec):
         return True
 
 
+@dataclass(frozen=True, slots=True)
+class FirewallRuleSpec(_BaseSpec):
+    """One rule inside a security firewall rule-list / policy.
+
+    The structured value exposes action / ip-protocol / source +
+    destination endpoints / log / rule-list reference so safety
+    queries can ask things like "which rules are any/any/accept?"
+    or "what rules reference port-list X?" without rebuilding the
+    body parser each time.  References surface every port-list /
+    address-list / nested rule-list edge for the graph layer.
+    """
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import FirewallRule
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=FirewallRule(name=text), raw=raw)
+        name = text[:brace].strip()
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=FirewallRule.from_raw(name=name, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        from ..types import FirewallRule
+
+        if value is None or not isinstance(value, FirewallRule):
+            return ""
+        return value.name
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        from ..types import FirewallRule
+
+        if value is None or not isinstance(value, FirewallRule):
+            return ()
+        return tuple(
+            Reference(target_kind=kind, target_path=path) for kind, path in value.references()
+        )
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
+# NAT rules reuse the firewall rule shape entirely; the spec is a
+# thin alias so the registry's dispatch keeps them at the same
+# layer even though the SCF stanza header differs.  Dedicated
+# kind-specific behaviour can branch off here as it surfaces.
+NatRuleSpec = FirewallRuleSpec
+
+
 # Public re-exports.
 __all__ = [
     "AddressSpec",
@@ -1131,12 +1191,14 @@ __all__ = [
     "DestinationSpec",
     "Diagnostic",
     "EnumSpec",
+    "FirewallRuleSpec",
     "GtmRegionMemberSpec",
     "IntSpec",
     "ListSpec",
     "LtmPolicyActionSpec",
     "LtmPolicyConditionSpec",
     "MonitorExpressionSpec",
+    "NatRuleSpec",
     "NetworkSpec",
     "ObjectRefSpec",
     "ParseContext",
