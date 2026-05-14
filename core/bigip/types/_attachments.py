@@ -56,6 +56,13 @@ class ProfileAttachment:
         """Bare leaf name of the referenced profile."""
         return self.path.rsplit("/", 1)[-1] if self.path else ""
 
+    @property
+    def full_path(self) -> str:
+        """Alias for ``path`` so DSL queries that historically asked
+        ``.profiles[].full-path`` (the legacy PathRef contract) keep
+        working with the structured projection."""
+        return self.path
+
     @classmethod
     def from_raw(cls, path: str, body: str) -> "ProfileAttachment":
         """Build an attachment from the keyed-block parser output.
@@ -109,6 +116,11 @@ class PersistenceAttachment:
     @property
     def name(self) -> str:
         return self.path.rsplit("/", 1)[-1] if self.path else ""
+
+    @property
+    def full_path(self) -> str:
+        """Alias for ``path`` — PathRef back-compat."""
+        return self.path
 
     @classmethod
     def from_raw(cls, path: str, body: str) -> "PersistenceAttachment":

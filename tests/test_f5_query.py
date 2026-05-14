@@ -2408,6 +2408,88 @@ def test_pool_member_monitor_chains_through_pathref():
     assert result.values_per_file["mem://1"] == ["/Common/http"]
 
 
+def test_pool_monitor_exposes_structured_mode_and_monitors():
+    """The monitor expression projects as a structured value; the
+    DSL can ask ``.mode`` / ``.monitors[]`` / ``.minimum``
+    directly on a pool's ``monitor`` field."""
+    result = _run(".ltm.pool.web_pool.monitor.mode", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == ["single"]
+    result = _run(".ltm.pool.web_pool.monitor.monitors", _ENRICH_LTM_CONF)
+    assert result.values_per_file["mem://1"] == [("/Common/http",)]
+
+
+def test_virtual_profiles_expose_structured_context_field():
+    """``.ltm.virtual[].profiles[]`` projects ProfileAttachment
+    values with a ``.context`` field so the review's example
+    ``.profiles[] | select(.context == "clientside") | .name``
+    works without per-query string parsing."""
+    src = (
+        "ltm virtual /Common/v_ssl {\n"
+        "    destination /Common/0.0.0.0:443\n"
+        "    profiles {\n"
+        "        /Common/clientssl { context clientside }\n"
+        "        /Common/serverssl { context serverside }\n"
+        "        /Common/http { }\n"
+        "    }\n"
+        "}\n"
+    )
+    # Filter by context.
+    result = _run(
+        '.ltm.virtual.v_ssl.profiles[] | select(.context == "clientside") | .name',
+        src,
+    )
+    assert result.values_per_file["mem://1"] == ["clientssl"]
+    # ``.full-path`` alias still works (PathRef back-compat).
+    result = _run(".ltm.virtual.v_ssl.profiles[].full-path", src)
+    assert sorted(result.values_per_file["mem://1"]) == [
+        "/Common/clientssl",
+        "/Common/http",
+        "/Common/serverssl",
+    ]
+
+
+def test_virtual_persist_exposes_structured_default_flag():
+    """``.persist[] | select(.default) | .name`` filters down to
+    the default persistence profile via the typed structured
+    field."""
+    src = (
+        "ltm virtual /Common/v_persist {\n"
+        "    destination /Common/0.0.0.0:80\n"
+        "    persist {\n"
+        "        /Common/cookie { default yes }\n"
+        "        /Common/source_addr { }\n"
+        "    }\n"
+        "}\n"
+    )
+    result = _run(
+        ".ltm.virtual.v_persist.persist[] | select(.default) | .name",
+        src,
+    )
+    assert result.values_per_file["mem://1"] == ["cookie"]
+
+
+def test_pool_with_multi_monitor_exposes_list_view():
+    """Multi-monitor expressions expose every referenced monitor
+    via ``.monitor.monitors[]`` with the correct ``.mode``
+    and ``.minimum`` fields populated for ``min N of`` forms."""
+    src = (
+        "ltm pool /Common/p_all {\n"
+        "    monitor /Common/http and /Common/tcp\n"
+        "}\n"
+        "ltm pool /Common/p_min {\n"
+        "    monitor min 2 of { /Common/http /Common/tcp /Common/https }\n"
+        "}\n"
+    )
+    result = _run(".ltm.pool.p_all.monitor.mode", src)
+    assert result.values_per_file["mem://1"] == ["all"]
+    result = _run(".ltm.pool.p_all.monitor.monitors", src)
+    assert sorted(result.values_per_file["mem://1"][0]) == ["/Common/http", "/Common/tcp"]
+    result = _run(".ltm.pool.p_min.monitor.mode", src)
+    assert result.values_per_file["mem://1"] == ["min-of"]
+    result = _run(".ltm.pool.p_min.monitor.minimum", src)
+    assert result.values_per_file["mem://1"] == [2]
+
+
 def test_node_state_and_monitor_are_projected():
     result = _run(".ltm.node.n1.state", _ENRICH_LTM_CONF)
     assert result.values_per_file["mem://1"] == ["disabled"]

@@ -1167,14 +1167,28 @@ def _parse_virtual(
         rules = _parse_list_block(rules_block)
 
     profiles: list[str] = []
+    profile_attachments = None
     profiles_block = props.get("profiles")
     if profiles_block:
         profiles = _parse_list_block(profiles_block)
+        # Also build the typed BigipList of ProfileAttachment items
+        # so the projection / reference dispatch can expose
+        # ``.profiles[].context`` to the DSL.  Lazy import to avoid
+        # adding the registry import cost to every parse call.
+        from ..registry.value_specs import ListSpec, ParseContext, ProfileAttachmentSpec
+
+        _spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
+        profile_attachments = _spec.parse(profiles_block, ParseContext()).value
 
     persist: list[str] = []
+    persist_attachments = None
     persist_block = props.get("persist")
     if persist_block:
         persist = _parse_list_block(persist_block)
+        from ..registry.value_specs import ListSpec, ParseContext, PersistenceAttachmentSpec
+
+        _spec = ListSpec(item=PersistenceAttachmentSpec(), syntax="keyed-block")
+        persist_attachments = _spec.parse(persist_block, ParseContext()).value
 
     policies: list[str] = []
     policies_block = props.get("policies")
@@ -1232,7 +1246,9 @@ def _parse_virtual(
         pool=pool,
         rules=tuple(rules),
         profiles=tuple(profiles),
+        profile_attachments=profile_attachments,
         persist=tuple(persist),
+        persist_attachments=persist_attachments,
         policies=tuple(policies),
         snatpool=snatpool,
         source_address_translation=source_addr_translation,

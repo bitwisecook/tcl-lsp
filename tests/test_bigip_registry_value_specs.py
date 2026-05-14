@@ -1090,10 +1090,10 @@ def test_virtual_vlans_migration_yields_per_element_refs():
     ]
 
 
-def test_virtual_profile_projection_keeps_legacy_pathref_list():
-    """Existing queries that walk ``.profiles[]`` use the legacy
-    PathRef-tuple projection; the migration's ``project_via_legacy``
-    flag keeps that surface intact so no downstream queries break."""
+def test_virtual_profile_projection_exposes_structured_attachments():
+    """``.profiles[]`` projects as the typed BigipList view so DSL
+    queries can ask ``.context`` / ``.full_path`` on each item
+    (the back-compat PathRef alias)."""
     from core.bigip.query import run_query
 
     src = (
@@ -1102,12 +1102,11 @@ def test_virtual_profile_projection_keeps_legacy_pathref_list():
         "    profiles { /Common/http { } /Common/tcp { } }\n"
         "}\n"
     )
-    result = run_query('.ltm.virtual["/Common/v"].profiles', {"m": src})
-    [profiles] = result.values_per_file["m"]
-    # Tuple/list of PathRefs whose str() is the full-path — the
-    # legacy projection's exact shape.
-    paths = [str(p) for p in profiles]
-    assert paths == ["/Common/http", "/Common/tcp"]
+    # ``.full-path`` alias resolves the path string for each
+    # ProfileAttachment, matching what the legacy PathRef projection
+    # surfaced for ``.profiles[].full-path``.
+    result = run_query('.ltm.virtual["/Common/v"].profiles[].full-path', {"m": src})
+    assert sorted(result.values_per_file["m"]) == ["/Common/http", "/Common/tcp"]
 
 
 # ---------------------------------------------------------------------------
@@ -1547,3 +1546,146 @@ def test_candidate_registry_kinds_for_display_empty_for_unknown():
 
     assert candidate_registry_kinds_for_display("") == ()
     assert candidate_registry_kinds_for_display("bogus xyzzy") == ()
+
+
+# ---------------------------------------------------------------------------
+# BigipList / ListSpec — own parse / project / render / references
+# ---------------------------------------------------------------------------
+
+
+def test_list_spec_parse_braced_space_separated_returns_bigip_list():
+    """A flat ``{ /Common/a /Common/b }`` parses into a BigipList of
+    typed item values (here ObjectRef refs)."""
+    from core.bigip.types import BigipList
+
+    spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"))
+    parsed = spec.parse("{ /Common/r1 /Common/r2 }", ParseContext())
+    assert isinstance(parsed.value, BigipList)
+    assert parsed.value.syntax == "braced-space-separated"
+    assert len(parsed.value) == 2
+    # Iteration yields typed item values.
+    assert list(parsed.value) == ["/Common/r1", "/Common/r2"]
+
+
+def test_list_spec_parse_keyed_block_returns_typed_items():
+    """A keyed-block list (``profiles { /Common/clientssl { context
+    clientside } }``) parses into BigipList items whose ``value`` is
+    the inner spec's typed value and whose ``key`` / ``body`` carry
+    the lexical halves."""
+    from core.bigip.registry import ProfileAttachmentSpec
+    from core.bigip.types import BigipList, ProfileAttachment
+
+    spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
+    parsed = spec.parse(
+        "{ /Common/clientssl { context clientside } /Common/http { } }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, BigipList)
+    assert parsed.value.syntax == "keyed-block"
+    assert len(parsed.value) == 2
+    first, second = parsed.value.items
+    assert first.key == "/Common/clientssl"
+    assert isinstance(first.value, ProfileAttachment)
+    assert first.value.context == "clientside"
+    assert second.key == "/Common/http"
+
+
+def test_list_spec_render_roundtrips_keyed_block():
+    """Render a BigipList back to TMSH text — keyed-block syntax
+    keeps the per-item brace bodies."""
+    from core.bigip.registry import ProfileAttachmentSpec
+
+    spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
+    parsed = spec.parse(
+        "{ /Common/clientssl { context clientside } /Common/http { } }",
+        ParseContext(),
+    )
+    rendered = spec.render(parsed.value, None)  # type: ignore[arg-type]
+    assert "/Common/clientssl" in rendered
+    assert "context clientside" in rendered
+    assert "/Common/http" in rendered
+
+
+def test_list_spec_references_walks_each_item():
+    """The list spec's ``references`` enumerates one Reference per
+    item by delegating to the inner item spec — no caller code has
+    to know that ``profiles`` is a list."""
+    from core.bigip.registry import ProfileAttachmentSpec
+
+    spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
+    parsed = spec.parse(
+        "{ /Common/clientssl { context clientside } /Common/http { } }",
+        ParseContext(),
+    )
+    refs = list(spec.references(parsed.value, ReferenceContext()))
+    paths = {r.target_path for r in refs}
+    assert "/Common/clientssl" in paths
+    assert "/Common/http" in paths
+
+
+def test_list_spec_populates_per_item_ranges():
+    """``ListSpec.parse`` records per-item source spans so LSP
+    features (document links, rename, semantic tokens) get exact
+    byte coordinates without re-scanning the source."""
+    from core.bigip.registry import ProfileAttachmentSpec
+    from core.bigip.types import BigipList
+
+    spec = ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block")
+    raw = "{ /Common/clientssl { context clientside } /Common/http { } }"
+    parsed = spec.parse(raw, ParseContext(base_offset=100))
+    assert isinstance(parsed.value, BigipList)
+    items = parsed.value.items
+    assert len(items) == 2
+    # ``key_range`` brackets just the key token.
+    assert items[0].key == "/Common/clientssl"
+    assert items[0].key_range is not None
+    key_text = raw[items[0].key_range.start - 100 : items[0].key_range.end - 100]
+    assert key_text == "/Common/clientssl"
+    # ``range`` brackets the whole keyed item.
+    assert items[0].range is not None
+    assert items[0].range.start <= items[0].key_range.start
+
+
+def test_references_via_spec_propagates_ranges():
+    """End-to-end: a list-shaped property exposes per-reference
+    source ranges through ``references_via_spec`` so the link
+    extractor / LSP have byte-accurate edges out of the box."""
+    from core.bigip.registry import references_via_spec
+
+    src = (
+        "ltm virtual /Common/v {\n"
+        "    profiles {\n"
+        "        /Common/clientssl { context clientside }\n"
+        "        /Common/http { }\n"
+        "    }\n"
+        "}\n"
+    )
+    # Compute the offset of the ``profiles { ... }`` value body.
+    val_start = src.index("{", src.index("profiles"))
+    val_end = src.index("}", src.index("/Common/http")) + 1
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="profiles",
+        value=src[val_start : val_end + 1],
+        owner_path="/Common/v",
+        base_offset=val_start,
+    )
+    assert refs is not None
+    by_path = {r.target_path: r for r in refs}
+    css = by_path["/Common/clientssl"]
+    assert css.range is not None
+    assert src[css.range.start : css.range.end] == "/Common/clientssl"
+    http = by_path["/Common/http"]
+    assert http.range is not None
+    assert src[http.range.start : http.range.end] == "/Common/http"
+
+
+def test_list_spec_empty_input_returns_empty_list():
+    spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"))
+    parsed = spec.parse("", ParseContext())
+    from core.bigip.types import BigipList
+
+    assert isinstance(parsed.value, BigipList)
+    assert len(parsed.value) == 0
+    assert spec.render(parsed.value, None) == "{ }"  # type: ignore[arg-type]

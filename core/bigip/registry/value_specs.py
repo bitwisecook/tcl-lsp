@@ -456,14 +456,26 @@ class ListSpec(_BaseSpec):
     """A list-valued property.
 
     *item* is the value spec describing each list element.  ``syntax``
-    selects the lexical shape (per the design doc's list taxonomy);
-    Phase 1 only honours ``SPACE_SEPARATED`` / ``BRACED_SPACE_SEPARATED``
-    / ``KEYED_BLOCK`` since those cover every list in the existing
-    renderer, and adds the others in Phase 6.
+    selects the lexical shape (per the design doc's list taxonomy):
+
+    - ``"space-separated"`` — unbraced scalar lists.
+    - ``"braced-space-separated"`` — ``{ a b c }`` of scalar refs.
+    - ``"keyed-block"`` — ``{ /Common/p { ... } /Common/q { ... } }``
+      with per-item metadata bodies (profiles, persist, records,
+      cert-key-chain, region-members, ...).
+    - ``"named-rule-block"`` — ``{ name { action accept ... } }`` for
+      structured rule bodies (firewall rules, policy rules).
 
     *list_operators* mirrors :attr:`BigipPropertySpec.list_operators`
     so the tmsh emitter can keep consulting the spec for the
     operator without having to thread two parallel registries.
+
+    The spec owns parse / project / render / references: callers
+    hand it raw text or a :class:`BigipList` and get back the
+    appropriate shape for each pipeline stage.  Per-item references
+    are enumerated via the inner ``item`` spec so a list of
+    :class:`FirewallRule` bodies surfaces every nested address-list
+    / port-list edge through one dispatch.
     """
 
     item: ValueSpec | None = None
@@ -472,9 +484,269 @@ class ListSpec(_BaseSpec):
     keyed: bool = False
     allow_empty_item_body: bool = True
 
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:
+        """Tokenise *raw* into a :class:`BigipList` of typed items.
+
+        Discriminates on ``syntax`` (with a fallback derived from
+        ``item.is_structured`` so unmigrated pilot entries that
+        leave the default keep working): keyed-block / named-rule
+        forms route through :func:`_parse_keyed_block_entries` and
+        feed each ``(key, body)`` pair to the inner spec; flat list
+        forms route through :func:`_parse_list_block` and feed each
+        token to the inner spec.
+
+        Local byte offsets are captured into ``ListItem.range`` /
+        ``key_range`` / ``body_range`` so the LSP layer can compute
+        document links and rename ranges directly from the parsed
+        value.  Offsets are absolute when ``ctx.base_offset`` is
+        non-zero (the parser threads the property value's offset
+        into the wider source).
+        """
+        from ..parser._helpers import (
+            _parse_keyed_block_entries_with_offsets,
+            _parse_list_block_with_offsets,
+        )
+        from ..types import BigipList, ListItem, SourceSpan
+
+        if raw is None:
+            return ParsedValue(value=None, raw=raw)
+        if not raw.strip():
+            return ParsedValue(
+                value=BigipList(syntax=self._effective_syntax(), raw=""),
+                raw=raw,
+            )
+        syntax = self._effective_syntax()
+        base = ctx.base_offset
+        items: list[ListItem] = []
+        diagnostics: list[Diagnostic] = []
+        if syntax in ("keyed-block", "named-rule-block"):
+            entries = _parse_keyed_block_entries_with_offsets(raw)
+            for (
+                key,
+                body,
+                key_start,
+                key_end,
+                body_start,
+                body_end,
+                item_start,
+                item_end,
+            ) in entries:
+                parsed_item = (
+                    self.item.parse(_keyed_item_text(key, body), ctx)
+                    if self.item is not None
+                    else ParsedValue(value=key, raw=key)
+                )
+                if parsed_item.diagnostics:
+                    diagnostics.extend(parsed_item.diagnostics)
+                items.append(
+                    ListItem(
+                        value=parsed_item.value,
+                        key=key,
+                        body=body,
+                        raw=_keyed_item_text(key, body),
+                        range=SourceSpan(base + item_start, base + item_end),
+                        key_range=SourceSpan(base + key_start, base + key_end),
+                        body_range=SourceSpan(base + body_start, base + body_end)
+                        if body_end > body_start
+                        else None,
+                    )
+                )
+        else:
+            tokens = _parse_list_block_with_offsets(raw)
+            for tok, tok_start, tok_end in tokens:
+                parsed_item = (
+                    self.item.parse(tok, ctx)
+                    if self.item is not None
+                    else ParsedValue(value=tok, raw=tok)
+                )
+                if parsed_item.diagnostics:
+                    diagnostics.extend(parsed_item.diagnostics)
+                items.append(
+                    ListItem(
+                        value=parsed_item.value,
+                        raw=tok,
+                        range=SourceSpan(base + tok_start, base + tok_end),
+                    )
+                )
+        value = BigipList(
+            items=tuple(items),
+            syntax=syntax,
+            raw=raw.strip(),
+            range=SourceSpan(start=base, end=base + len(raw)) if base else None,
+        )
+        return ParsedValue(value=value, raw=raw, diagnostics=tuple(diagnostics))
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:
+        """Project as a :class:`BigipList` so DSL queries can ask
+        ``.profiles[]`` and ``.profiles[] | select(.context ==
+        "clientside")``.  Legacy ``tuple`` / ``list`` values
+        coming off the model are wrapped: each element parses
+        through the inner item spec, so the structured fields
+        (``.context``, ``.default``, ``.cert``, ...) materialise
+        even when the model still stores bare path strings.
+        """
+        from ..types import BigipList, ListItem
+
+        if value is None:
+            return ()
+        if isinstance(value, BigipList):
+            return value
+        if isinstance(value, (tuple, list)):
+            items: list[ListItem] = []
+            for v in value:
+                if isinstance(v, ListItem):
+                    items.append(v)
+                    continue
+                if self.item is not None and isinstance(v, str):
+                    parsed = self.item.parse(v, ParseContext())
+                    items.append(ListItem(value=parsed.value, raw=v))
+                else:
+                    items.append(ListItem(value=v))
+            return BigipList(items=tuple(items), syntax=self._effective_syntax())
+        return value
+
+    def render(self, value: object, ctx: RenderContext) -> str:
+        """Render *value* back to TMSH text.
+
+        Accepts :class:`BigipList`, tuples/lists, or strings (the
+        latter being the original raw text passed through verbatim
+        as a last resort).  The output respects the configured
+        ``syntax`` so keyed-block lists keep their per-item brace
+        bodies and flat lists keep their bare-token shape.
+        """
+        from ..types import BigipList
+
+        if value is None:
+            return ""
+        if isinstance(value, BigipList):
+            syntax = value.syntax or self._effective_syntax()
+            if syntax in ("keyed-block", "named-rule-block"):
+                parts = []
+                for item in value.items:
+                    body = (item.body or "").strip()
+                    if body:
+                        parts.append(f"{item.key} {{ {body} }}")
+                    else:
+                        parts.append(f"{item.key} {{ }}")
+                inner = " ".join(parts)
+                return f"{{ {inner} }}" if inner else "{ }"
+            inner = " ".join(self._render_item(it.value, ctx) for it in value.items)
+            return f"{{ {inner} }}" if inner else "{ }"
+        if isinstance(value, (tuple, list)):
+            inner = " ".join(self._render_item(v, ctx) for v in value)
+            return f"{{ {inner} }}" if inner else "{ }"
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        """Walk every item and yield its references.
+
+        Each yielded :class:`Reference` carries a span when the
+        item carries one: the key range when the reference's target
+        path matches the item's key (the common keyed-block shape
+        where the path IS the key); otherwise the item range as the
+        fallback granularity.  Inner item specs may also populate
+        ``range`` directly — those values pass through unchanged so
+        compound specs with body-internal offset tracking aren't
+        clobbered."""
+        from ..types import BigipList
+
+        if value is None or self.item is None:
+            return ()
+        if isinstance(value, BigipList):
+            iterable = value.items
+        elif isinstance(value, (tuple, list)):
+            iterable = [_LegacyListItem(item) if not _is_listitem(item) else item for item in value]
+        else:
+            return ()
+        out: list[Reference] = []
+        for li in iterable:
+            v = li.value if hasattr(li, "value") else li
+            for ref in self.item.references(v, ctx) or ():
+                if ref.range is None:
+                    fallback = _pick_item_range(li, ref.target_path)
+                    if fallback is not None:
+                        ref = Reference(
+                            target_kind=ref.target_kind,
+                            target_path=ref.target_path,
+                            range=fallback,
+                        )
+                out.append(ref)
+        return tuple(out)
+
+    def _effective_syntax(self) -> str:
+        """Resolve a concrete syntax string for parse/render.
+
+        Honours an explicit ``syntax`` first; otherwise infers
+        keyed-block when the inner item spec is structured (the
+        compound specs that carry per-item bodies)."""
+        if self.syntax and self.syntax != "braced-space-separated":
+            return self.syntax
+        if self.item is not None and getattr(self.item, "is_structured", False):
+            # ObjectRefSpec is structured but produces scalar refs,
+            # not keyed-block bodies — keep the braced-space-separated
+            # default for it specifically.
+            if isinstance(self.item, ObjectRefSpec):
+                return "braced-space-separated"
+            return "keyed-block"
+        return "braced-space-separated"
+
+    def _render_item(self, value: object, ctx: RenderContext) -> str:
+        if self.item is None:
+            return str(value)
+        return self.item.render(value, ctx) or str(value)
+
     @property
     def is_structured(self) -> bool:
         return True
+
+
+def _keyed_item_text(key: str, body: str) -> str:
+    """Re-glue a ``(key, body)`` pair into the per-item source the
+    inner spec's ``parse`` consumes (``"<key> { <body> }"``)."""
+    body = (body or "").strip()
+    if not body:
+        return f"{key} {{ }}"
+    return f"{key} {{ {body} }}"
+
+
+class _LegacyListItem:
+    """Lightweight stand-in so ``ListSpec.references`` can walk a
+    plain tuple of typed values via the same code path it uses for
+    :class:`ListItem` records.  Used during the migration window
+    while the model still stores raw tuples for some properties."""
+
+    __slots__ = ("value", "range")
+
+    def __init__(self, value: object) -> None:
+        self.value = value
+        self.range = None
+
+
+def _is_listitem(value: object) -> bool:
+    from ..types import ListItem
+
+    return isinstance(value, ListItem)
+
+
+def _pick_item_range(item: object, target_path: str) -> SourceRange | None:
+    """Pick the most specific :class:`SourceRange` for *target_path*
+    against a :class:`ListItem` (or legacy adapter).
+
+    When the item's ``key`` is the same path as the reference's
+    target (the common ``profiles { /Common/clientssl { ... } }``
+    shape), use the narrower ``key_range``.  For body-internal
+    references (cert-key-chain ``cert`` / firewall rule
+    ``address-lists`` / etc.) we fall back to the broader item
+    range.  Returns ``None`` when no span info is available.
+    """
+    key = getattr(item, "key", "")
+    key_range = getattr(item, "key_range", None)
+    item_range = getattr(item, "range", None)
+    if key and key == target_path and key_range is not None:
+        return SourceRange(start=key_range.start, end=key_range.end)
+    if item_range is not None:
+        return SourceRange(start=item_range.start, end=item_range.end)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -693,15 +965,24 @@ class MonitorExpressionSpec(_BaseSpec):
         return ParsedValue(value=parsed, raw=raw, diagnostics=tuple(diagnostics))
 
     def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
-        # Legacy parity: the existing projection layer surfaces the
-        # monitor as its canonical string.  Phase 6+ can layer
-        # ``.monitor.mode`` / ``.monitor.monitors[]`` /
-        # ``.monitor.minimum`` structured children on top later; until
-        # then we keep the string surface so existing queries against
-        # ``.monitor`` still work.
+        # Project as the structured :class:`MonitorExpression` so DSL
+        # queries can ask ``.monitor.mode`` / ``.monitor.monitors[]``
+        # / ``.monitor.minimum`` directly.  The typed value carries
+        # ``.full_path`` / ``.name`` properties so the historical
+        # ``.monitor.full-path`` queries against a single-monitor
+        # expression keep returning the path (PathRef back-compat).
+        from ..types import MonitorExpression
+
         if value is None:
             return ""
-        return str(value)
+        if isinstance(value, MonitorExpression):
+            return value
+        if isinstance(value, str):
+            if not value.strip():
+                return ""
+            parsed = MonitorExpression.try_parse(value)
+            return parsed if parsed is not None else value
+        return value
 
     def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
         if value is None:

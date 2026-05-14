@@ -226,6 +226,18 @@ def _build_forward_edges(
                 # while the migration is in flight — duplicate
                 # edges are filtered by ``seen``.
                 if pilot_property_spec_for(node.module, node.object_type, key) is not None:
+                    # Absolute byte offset of ``prop.value`` in the
+                    # source: ``node.start_offset`` is the position of
+                    # the block's opening ``{``, so body starts at
+                    # ``+ 1`` and ``prop.value_start`` is the local
+                    # offset within the body.  Threading this through
+                    # lets the spec layer populate ``Reference.range``
+                    # for downstream LSP features.
+                    value_base = (
+                        node.start_offset + 1 + (prop.value_start or 0)
+                        if prop.value_start is not None
+                        else 0
+                    )
                     spec_refs = references_via_spec(
                         module=node.module,
                         object_type=node.object_type,
@@ -235,6 +247,7 @@ def _build_forward_edges(
                         if not node.identifier.startswith("/")
                         else node.identifier,
                         source_uri=node.uri,
+                        base_offset=value_base,
                     )
                     for spec_ref in spec_refs or ():
                         candidate_kinds = candidate_registry_kinds_for_display(spec_ref.target_kind)

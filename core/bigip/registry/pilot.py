@@ -129,14 +129,11 @@ _MONITOR_PROPERTY = PropertySpec(
     attr="monitor",
     value=MonitorExpressionSpec(ref_kinds=_MONITOR_REF_KINDS),
     writable=True,
-    # The legacy projection wraps ``monitor`` as a ``PathRef`` for
-    # ref_kind="ltm monitor" so ``.monitor.full-path`` works.  Stay
-    # on that surface until the projection layer can route
-    # MonitorExpression through a structured container that still
-    # quacks like a PathRef for single-monitor expressions.  The
-    # spec owns parse / edit / references which is what the
-    # migration was for.
-    project_via_legacy=True,
+    # Project the typed :class:`MonitorExpression` directly.  The
+    # type carries ``.full_path`` / ``.name`` properties so the
+    # historical ``.monitor.full-path`` PathRef-style queries keep
+    # working, plus structured fields (``.mode`` / ``.monitors[]`` /
+    # ``.minimum``) the new design surfaces for richer DSL access.
 )
 
 # Phase 6 migration: source-address-translation as the SNAT mode sum
@@ -157,20 +154,23 @@ _PILOT_LTM_VIRTUAL_SNAT = PropertySpec(
 # (``profiles { /Common/clientssl { context clientside } }`` /
 # ``persist { /Common/cookie { default yes } }``) and the
 # references dispatch unwinds the list to yield one Reference per
-# element.  Projection stays on the legacy ``list_ref`` PathRef
-# tuple surface so existing queries that walk ``.profiles[]`` keep
-# working unchanged.
+# element.  Projection is the typed :class:`BigipList`-of-
+# ``ProfileAttachment`` (or ``PersistenceAttachment``) view so DSL
+# queries can ask ``.profiles[] | select(.context == "clientside")``
+# or ``.persist[] | select(.default) | .name`` directly; the typed
+# values expose ``.full_path`` aliases for back-compat with the
+# legacy PathRef contract (``.profiles[].full-path``).
 _PILOT_LTM_VIRTUAL_PROFILES = PropertySpec(
-    attr="profiles",
-    value=ListSpec(item=ProfileAttachmentSpec()),
+    attr="profile_attachments",  # typed BigipList on the model
+    value=ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block"),
     writable=True,
-    project_via_legacy=True,
+    tmsh_name="profiles",
 )
 _PILOT_LTM_VIRTUAL_PERSIST = PropertySpec(
-    attr="persist",
-    value=ListSpec(item=PersistenceAttachmentSpec()),
+    attr="persist_attachments",
+    value=ListSpec(item=PersistenceAttachmentSpec(), syntax="keyed-block"),
     writable=True,
-    project_via_legacy=True,
+    tmsh_name="persist",
 )
 # ``rules`` is a plain ref-list (no per-attachment metadata) so the
 # inner spec is the simpler ObjectRefSpec.  Migrating it here lets

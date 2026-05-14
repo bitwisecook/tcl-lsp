@@ -34,6 +34,8 @@ def references_via_spec(
     value: Any,
     owner_path: str = "",
     source_uri: str = "",
+    base_offset: int = 0,
+    source_text: str = "",
 ) -> tuple[Reference, ...] | None:
     """Enumerate outbound references from a single property's value.
 
@@ -69,58 +71,68 @@ def references_via_spec(
         owner_path=owner_path,
         source_uri=source_uri,
     )
+    parse_ctx = ParseContext(
+        module=module,
+        object_type=object_type,
+        object_path=owner_path,
+        source_uri=source_uri,
+        source_text=source_text,
+        base_offset=base_offset,
+    )
     if isinstance(spec.value, ListSpec):
-        items = _materialise_list_items(spec.value, value)
-        return _references_via_list_spec(spec.value, items, ctx, module, object_type, owner_path)
-    typed = _coerce_to_typed(value, spec.value, module, object_type, owner_path)
+        list_value = _materialise_bigip_list(
+            spec.value, value, module, object_type, owner_path, parse_ctx
+        )
+        return tuple(spec.value.references(list_value, ctx))
+    typed = _coerce_to_typed(value, spec.value, module, object_type, owner_path, parse_ctx)
     return tuple(spec.value.references(typed, ctx))
 
 
-def _materialise_list_items(list_spec: ListSpec, value: Any) -> tuple:
-    """Coerce *value* into the per-element view a ListSpec expects.
-
-    Pre-typed tuples / lists pass through unchanged.  Raw strings —
-    which the link-extract pass hands in when the source is a
-    ``{ /Common/a /Common/b }`` style block — are tokenised through
-    the parser helpers: space-separated list bodies via
-    :func:`_parse_list_block`, keyed-block bodies via
-    :func:`_parse_keyed_block_entries`.  The decision uses the inner
-    spec's ``is_structured`` flag because keyed-block lists carry
-    item bodies that need a structured parse (firewall rules, policy
-    rules, cert-key-chain entries, ...) while plain list-of-refs
-    lists just want the bare tokens.
-    """
-    if value is None or value == "":
-        return ()
-    if isinstance(value, (tuple, list)):
-        return tuple(value)
-    if not isinstance(value, str):
-        return (value,)
-    from ..parser._helpers import _parse_keyed_block_entries, _parse_list_block
-
-    if list_spec.item is not None and list_spec.item.is_structured:
-        entries = _parse_keyed_block_entries(value)
-        return tuple(f"{name} {{ {body} }}" for name, body in entries)
-    return tuple(_parse_list_block(value))
-
-
-def _references_via_list_spec(
+def _materialise_bigip_list(
     list_spec: ListSpec,
-    items: Any,
-    ctx: ReferenceContext,
+    value: Any,
     module: str,
     object_type: str,
     owner_path: str,
-) -> tuple[Reference, ...]:
-    """Walk every element of a list-shaped value through the inner item
-    spec and concatenate the resulting references."""
-    if list_spec.item is None:
-        return ()
-    out: list[Reference] = []
-    for item in items:
-        typed = _coerce_to_typed(item, list_spec.item, module, object_type, owner_path)
-        out.extend(list_spec.item.references(typed, ctx))
-    return tuple(out)
+    parse_ctx: ParseContext | None = None,
+) -> Any:
+    """Coerce *value* into a :class:`BigipList` (or pass through one).
+
+    - Pre-typed :class:`BigipList` values flow through unchanged.
+    - Tuples / lists of typed item values wrap each element as a
+      :class:`ListItem`; the ListSpec's ``references`` walker yields
+      one Reference per item.
+    - Raw strings parse through :meth:`ListSpec.parse`, which
+      tokenises and feeds each token to the inner item spec.
+    """
+    from ..types import BigipList, ListItem
+
+    if value is None or value == "":
+        return BigipList(syntax=list_spec.syntax, raw="")
+    if isinstance(value, BigipList):
+        return value
+    if isinstance(value, (tuple, list)):
+        # Walk each element through the inner item spec so raw
+        # strings stored on the legacy model parse into typed values
+        # before reference dispatch.  Pre-typed items pass through
+        # via _coerce_to_typed's no-op branch.
+        items: list[ListItem] = []
+        for v in value:
+            if isinstance(v, ListItem):
+                items.append(v)
+                continue
+            typed = _coerce_to_typed(v, list_spec.item, module, object_type, owner_path)
+            items.append(ListItem(value=typed))
+        return BigipList(items=tuple(items), syntax=list_spec.syntax)
+    if isinstance(value, str):
+        ctx_to_use = parse_ctx or ParseContext(
+            module=module, object_type=object_type, object_path=owner_path
+        )
+        parsed = list_spec.parse(value, ctx_to_use)
+        if isinstance(parsed.value, BigipList):
+            return parsed.value
+        return BigipList(syntax=list_spec.syntax, raw=value)
+    return value
 
 
 def _coerce_to_typed(
@@ -129,6 +141,7 @@ def _coerce_to_typed(
     module: str,
     object_type: str,
     owner_path: str,
+    parse_ctx: ParseContext | None = None,
 ) -> Any:
     """Run *value* through ``value_spec.parse`` when it's still raw text.
 
@@ -142,14 +155,12 @@ def _coerce_to_typed(
     if value is None or value == "":
         return value
     if isinstance(value, str):
-        parsed = value_spec.parse(
-            value,
-            ParseContext(
-                module=module,
-                object_type=object_type,
-                object_path=owner_path,
-            ),
+        ctx_to_use = parse_ctx or ParseContext(
+            module=module,
+            object_type=object_type,
+            object_path=owner_path,
         )
+        parsed = value_spec.parse(value, ctx_to_use)
         return parsed.value
     return value
 

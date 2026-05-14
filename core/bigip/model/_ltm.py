@@ -231,7 +231,16 @@ class BigipVirtualServer:
     pool: str = ""  # default pool path
     rules: tuple[str, ...] = ()  # attached iRule paths
     profiles: tuple[str, ...] = ()  # attached profile paths
+    # Typed per-attachment view of ``profiles``: each ListItem
+    # carries a ``ProfileAttachment`` value (``.path``, ``.context``)
+    # so DSL queries can ask ``.profiles[] | select(.context ==
+    # "clientside")``.  Populated alongside ``profiles`` by the
+    # parser; ``None`` when the legacy back-compat path is enough.
+    profile_attachments: object = None  # BigipList | None
     persist: tuple[str, ...] = ()  # persistence profile paths
+    # Sister field to ``profile_attachments`` for persistence
+    # attachments — surfaces ``.default`` to the DSL.
+    persist_attachments: object = None  # BigipList | None
     policies: tuple[str, ...] = ()  # ltm policy paths attached to this VS
     snatpool: str = ""
     source_address_translation: str = ""

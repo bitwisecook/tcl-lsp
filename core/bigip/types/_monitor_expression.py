@@ -141,6 +141,51 @@ class MonitorExpression:
     def is_none(self) -> bool:
         return self.mode == "none"
 
+    @property
+    def full_path(self) -> str:
+        """Canonical scalar spelling of the expression.
+
+        For ``mode="single"`` this is the bare monitor path (so
+        ``.monitor.full-path`` queries against a single-monitor
+        expression keep returning the path, the historical PathRef
+        contract).  For multi-monitor expressions it returns the
+        full canonical render (``"/Common/http and /Common/tcp"``,
+        ``"min 2 of { ... }"``) — the same string a user sees in
+        the TMSH config.
+        """
+        if self.mode == "single" and self.monitors:
+            return self.monitors[0]
+        if self.mode == "default":
+            return "default"
+        if self.mode == "none":
+            return "none"
+        return str(self)
+
+    @property
+    def name(self) -> str:
+        """Leaf name of the (first) referenced monitor — convenience
+        for ``.monitor.name`` queries that want the short form."""
+        if not self.monitors:
+            return ""
+        return self.monitors[0].rsplit("/", 1)[-1]
+
+    def __iter__(self):
+        """Iterating the expression yields each referenced monitor
+        path — so ``.monitor[]`` in the query DSL produces one item
+        per monitor in the expression (empty for ``default`` /
+        ``none`` modes)."""
+        return iter(self.monitors)
+
+    def __len__(self) -> int:
+        return len(self.monitors)
+
+    def __bool__(self) -> bool:
+        # Empty / default / none modes still behave as truthy values
+        # when the user explicitly compares against them; falsey-ness
+        # is reserved for the empty-string case the projection emits
+        # when ``monitor`` was unset on the model.
+        return self.mode != "default" or bool(self.raw)
+
     def references(self) -> tuple[str, ...]:
         """Return the full-paths this expression references.
 

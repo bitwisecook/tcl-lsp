@@ -456,6 +456,124 @@ def _parse_keyed_block_entries(braced: str) -> list[tuple[str, str]]:
     return entries
 
 
+def _parse_list_block_with_offsets(braced: str) -> list[tuple[str, int, int]]:
+    """Tokenise a ``{ a b c }`` list and return ``(token, start, end)``.
+
+    Sister to :func:`_parse_list_block` but preserves each token's
+    half-open byte span inside *braced* so the registry's
+    :class:`ListSpec.parse` can build ``ListItem`` records with
+    populated ranges for LSP features.  Offsets are relative to the
+    input string; callers add ``ctx.base_offset`` to get absolute
+    positions in the originating source.
+    """
+    out: list[tuple[str, int, int]] = []
+    pos = 0
+    length = len(braced)
+    # Skip any opening brace + leading whitespace.
+    if pos < length and braced[pos] == "{":
+        pos += 1
+    while pos < length:
+        loop_start = pos
+        while pos < length and braced[pos] in " \t\n\r":
+            pos += 1
+        if pos >= length:
+            break
+        if braced[pos] == "}":
+            break
+        tok_start = pos
+        while pos < length and braced[pos] not in " \t\n\r}":
+            if braced[pos] == "\\" and pos + 1 < length:
+                pos += 2
+                continue
+            pos += 1
+        token = braced[tok_start:pos]
+        if token:
+            out.append((token, tok_start, pos))
+        if pos == loop_start:
+            break
+    return out
+
+
+def _parse_keyed_block_entries_with_offsets(
+    braced: str,
+) -> list[tuple[str, str, int, int, int, int, int, int]]:
+    """Like :func:`_parse_keyed_block_entries` but returns offsets.
+
+    Each entry is ``(key, body, key_start, key_end, body_start,
+    body_end, item_start, item_end)``.  ``item_start`` / ``item_end``
+    bracket the entire ``key { body }`` span; ``key_start`` /
+    ``key_end`` bracket just the key; ``body_start`` / ``body_end``
+    bracket the body bytes inside the inner ``{ ... }`` (without
+    the braces).  All offsets are relative to *braced*.
+    """
+    out: list[tuple[str, str, int, int, int, int, int, int]] = []
+    pos = 0
+    length = len(braced)
+    # Find the first ``{`` so item offsets reference the surrounding
+    # body (which is what callers want for source-map fidelity).
+    if pos < length and braced[pos] == "{":
+        pos += 1
+    while pos < length:
+        loop_start = pos
+        while pos < length and braced[pos] in " \t\n\r":
+            pos += 1
+        if pos >= length:
+            break
+        if braced[pos] == "}":
+            break
+        item_start = pos
+        key_start = pos
+        while pos < length and braced[pos] not in " \t\n\r{}":
+            if braced[pos] == "\\" and pos + 1 < length:
+                pos += 2
+                continue
+            pos += 1
+        key_end = pos
+        name = braced[key_start:key_end].strip()
+        # Skip horizontal whitespace before optional ``{``.
+        while pos < length and braced[pos] in " \t":
+            pos += 1
+        body = ""
+        body_start = pos
+        body_end = pos
+        if pos < length and braced[pos] == "{":
+            body_start = pos + 1
+            pos += 1
+            depth = 1
+            while pos < length and depth > 0:
+                ch = braced[pos]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                elif ch == "\\" and pos + 1 < length:
+                    pos += 1
+                pos += 1
+            body_end = pos
+            body = braced[body_start:body_end]
+            if pos < length:
+                pos += 1  # consume closing ``}``
+        item_end = pos
+        if name and name not in ("{", "}"):
+            out.append(
+                (
+                    name,
+                    body,
+                    key_start,
+                    key_end,
+                    body_start,
+                    body_end,
+                    item_start,
+                    item_end,
+                )
+            )
+        if pos == loop_start:
+            break
+    return out
+
+
 def _range_from_offsets(source_map: DocumentBuffer, start: int, end: int) -> Range:
     return source_map.range_from_offsets(start, end)
 

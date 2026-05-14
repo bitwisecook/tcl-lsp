@@ -388,6 +388,15 @@ def _field_step(value: Any, step: Field, ctx: EvalContext):
         if name not in value:
             raise EvalError(f"no field {name!r}")
         return (value[name],)
+    # Typed-value fallback: dataclasses like MonitorExpression /
+    # BigipList / FirewallRule expose structured fields directly.
+    # The DSL spells fields with ``-`` (``.full-path``) while Python
+    # uses ``_`` so map between them.  Private / dunder names stay
+    # off-limits to keep introspection from leaking implementation
+    # details into queries.
+    attr = name.replace("-", "_")
+    if not attr.startswith("_") and hasattr(value, attr):
+        return (getattr(value, attr),)
     raise EvalError(f"cannot read field {name!r} on {_describe(value)}")
 
 
@@ -418,6 +427,13 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
         return value
     if isinstance(value, ObjectRef):
         return list(value.fields.values())
+    # Iterable typed values (BigipList / MonitorExpression / …)
+    # implement ``__iter__`` directly; honour it so DSL ``[]``
+    # subscripts work without registering every concrete type
+    # here.  Strings are excluded because the DSL never iterates
+    # character-by-character.
+    if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
+        return list(iter(value))
     raise EvalError(f"cannot iterate {_describe(value)}")
 
 

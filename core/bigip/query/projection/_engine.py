@@ -100,7 +100,7 @@ def _build_object_ref(
     _, field_map = _KIND_FIELD_MAPS[kind]
     fields: dict[str, Any] = {}
     for tmsh_name, spec in field_map.items():
-        value = _project_field(kind, obj, spec, root)
+        value = _project_field(kind, obj, spec, root, tmsh_name=tmsh_name)
         fields[tmsh_name] = value
     field_slots = _collect_field_slots(kind, obj, field_map, root)
 
@@ -135,6 +135,8 @@ def _project_field(
     obj: object,
     spec: FieldSpec,
     root: Root,
+    *,
+    tmsh_name: str = "",
 ) -> Any:
     # Synthesised fields first.
     if spec.attr == "__refs__":
@@ -154,7 +156,20 @@ def _project_field(
     # during the migration.  ``DestinationSpec.project`` returns the
     # canonical string just like the legacy ``typed=True`` branch
     # does, so observable behaviour stays identical for the pilot.
-    pilot_value = _project_via_pilot_spec(kind, spec.attr, raw, root)
+    #
+    # The pilot lookup keys by TMSH name (``"source-address-
+    # translation"``, ``"profiles"``) which can differ from the
+    # model attribute spelling (``"source_address_translation"``,
+    # ``"profile_attachments"``).  Pass both: lookup uses
+    # *tmsh_name* when supplied; the engine falls back to
+    # *spec.attr* otherwise.  When the pilot has its own ``attr``
+    # field different from the FieldSpec's, fetch from THAT model
+    # attribute so the spec sees the typed value the parser wrote
+    # there (rather than the legacy back-compat tuple stored under
+    # the FieldSpec attr).
+    lookup_name = tmsh_name or spec.attr
+    pilot_raw, used_pilot_attr = _resolve_pilot_value(kind, lookup_name, obj, raw)
+    pilot_value = _project_via_pilot_spec(kind, lookup_name, pilot_raw, root)
     if pilot_value is not _PILOT_MISS:
         return pilot_value
 
@@ -184,6 +199,35 @@ def _project_field(
 # typed field — only the explicit miss falls through to the legacy
 # dispatch.
 _PILOT_MISS = object()
+
+
+def _resolve_pilot_value(
+    kind: str, tmsh_name: str, obj: object, fallback_raw: object
+) -> tuple[object, str | None]:
+    """Resolve the model value the pilot wants for *tmsh_name*.
+
+    The pilot for one TMSH property may target a different model
+    attribute than the FieldSpec (e.g. ``"profiles"`` →
+    ``profile_attachments`` typed :class:`BigipList`).  This helper
+    looks up the pilot for *tmsh_name*, prefers its ``attr`` when
+    that attribute exists on *obj*, and falls back to the value the
+    engine already fetched via the FieldSpec.  Returns ``(value,
+    used_attr_name)`` so callers can record which model attribute
+    they actually consumed.
+    """
+    if " " not in kind:
+        return fallback_raw, None
+    module, _, object_type = kind.partition(" ")
+    from ...registry.pilot import pilot_property_spec_for
+
+    spec = pilot_property_spec_for(module, object_type, tmsh_name)
+    if spec is None or not spec.attr:
+        return fallback_raw, None
+    if hasattr(obj, spec.attr):
+        candidate = getattr(obj, spec.attr)
+        if candidate is not None and candidate != "":
+            return candidate, spec.attr
+    return fallback_raw, None
 
 
 def _project_via_pilot_spec(kind: str, attr: str, raw: object, root: Root) -> object:

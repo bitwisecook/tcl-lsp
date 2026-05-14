@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from ._address import FQDN, Address, IPAddress, parse_address, try_parse_address
 from ._attachments import PersistenceAttachment, ProfileAttachment
+from ._bigip_list import BigipList, ListItem, ListSyntax, SourceSpan
 from ._cert_key_chain import CertKeyChain
 from ._data_group_record import DataGroupRecord
 from ._destination import Destination
@@ -58,6 +59,7 @@ from ._snat_mode import SnatMode, SnatModeKind
 
 __all__ = [
     "Address",
+    "BigipList",
     "CertKeyChain",
     "DataGroupRecord",
     "Destination",
@@ -67,6 +69,8 @@ __all__ = [
     "Folder",
     "GtmRegionMember",
     "IPAddress",
+    "ListItem",
+    "ListSyntax",
     "LtmPolicyAction",
     "LtmPolicyCondition",
     "MonitorExpression",
@@ -82,6 +86,7 @@ __all__ = [
     "RouteDomain",
     "SnatMode",
     "SnatModeKind",
+    "SourceSpan",
     "parse_address",
     "try_parse_address",
 ]
