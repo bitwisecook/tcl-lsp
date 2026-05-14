@@ -44,6 +44,7 @@ from .model import (
     BigipNode,
     BigipPersistence,
     BigipPool,
+    BigipPoolMember,
     BigipProfile,
     BigipRule,
     BigipSnatPool,
@@ -263,8 +264,24 @@ def emit_tmsh_delta(
             if old_obj is None:
                 continue  # creates handled in phase 3
             key = _block_key_for(kind_name, obj)
-            if _changed(key):
-                _add(_dispatch_render("modify", render_fn, obj, new_source, new_blocks))
+            if not _changed(key):
+                continue
+            # Pools: emit granular member add/delete/modify commands
+            # when only the members list changed (the common case for
+            # backend-server churn).  Falls back to a full-body
+            # ``tmsh modify`` when other pool properties also changed
+            # or when there's no member-level diff to express.  This
+            # keeps live connections to unchanged members from being
+            # torn down by an unconditional replace-all.
+            if kind_name == "pool":
+                member_lines = _emit_pool_member_delta(old_obj, obj)
+                if member_lines is not None:
+                    for line in member_lines:
+                        _add(line)
+                    # If only members changed, no other modify needed.
+                    if not _pool_non_member_changed(old_obj, obj):
+                        continue
+            _add(_dispatch_render("modify", render_fn, obj, new_source, new_blocks))
 
     # ── 2. Deletes (reverse dependency order) ─────────────────────
     delete_kinds = [k for k in reversed(include) if k not in ("generic-foundation",)]
@@ -331,6 +348,111 @@ def _index_blocks(source: str) -> dict[tuple[str, str, str], str]:
     for bs in iter_blocks_with_source(source):
         out[(bs.module, bs.object_type, bs.identifier)] = bs.text
     return out
+
+
+def _emit_pool_member_delta(old_pool: BigipPool, new_pool: BigipPool) -> list[str] | None:
+    """Return granular ``tmsh modify ltm pool X members <op> { ... }`` lines.
+
+    Compares the old and new member lists and emits one command per
+    operation kind:
+
+    - ``members add { /Common/m:80 { address ... } }`` for members in
+      the new pool but not the old one;
+    - ``members delete { /Common/m:80 }`` for members in the old pool
+      but not the new one;
+    - ``members modify { /Common/m:80 { address ... } }`` for members
+      present in both whose per-member body changed (address /
+      monitor / ratio / state etc.).
+
+    The granular operators leave unchanged members untouched, so
+    backend connections to a healthy member don't drop when a sibling
+    member is added or removed.  Returns ``None`` when the member
+    list is identical between old and new (the caller skips the
+    member-delta path entirely and the regular full-body modify
+    handles whatever non-member field changed).
+    """
+    old_by_name = {m.name: m for m in old_pool.members}
+    new_by_name = {m.name: m for m in new_pool.members}
+
+    added = [new_by_name[name] for name in new_by_name if name not in old_by_name]
+    removed = [old_by_name[name] for name in old_by_name if name not in new_by_name]
+    modified: list[BigipPoolMember] = []
+    for name, new_m in new_by_name.items():
+        old_m = old_by_name.get(name)
+        if old_m is None:
+            continue
+        if _pool_member_body(old_m) != _pool_member_body(new_m):
+            modified.append(new_m)
+
+    if not (added or removed or modified):
+        return None
+
+    head = f"tmsh modify ltm pool {new_pool.full_path}"
+    lines: list[str] = []
+    if added:
+        body = " ".join(_render_member_with_body(m) for m in added)
+        lines.append(f"{head} members add {{ {body} }}")
+    if removed:
+        names = " ".join(m.name for m in removed)
+        lines.append(f"{head} members delete {{ {names} }}")
+    if modified:
+        body = " ".join(_render_member_with_body(m) for m in modified)
+        lines.append(f"{head} members modify {{ {body} }}")
+    return lines
+
+
+def _render_member_with_body(member: BigipPoolMember) -> str:
+    """Render one member's name + ``{ ... }`` body for tmsh list ops."""
+    parts: list[str] = []
+    if member.address:
+        parts.append(f"address {member.address}")
+    if member.monitor:
+        parts.append(f"monitor {_quote(member.monitor)}")
+    if member.state and member.state not in ("enabled", ""):
+        parts.append(f"state {member.state}")
+    if member.ratio:
+        parts.append(f"ratio {member.ratio}")
+    if member.priority_group:
+        parts.append(f"priority-group {member.priority_group}")
+    if member.connection_limit:
+        parts.append(f"connection-limit {member.connection_limit}")
+    if member.rate_limit:
+        parts.append(f"rate-limit {member.rate_limit}")
+    body = " ".join(parts)
+    return f"{member.name} {{ {body} }}" if body else f"{member.name} {{ }}"
+
+
+def _pool_member_body(member: BigipPoolMember) -> tuple:
+    """Hashable representation of a member's body for change detection."""
+    return (
+        str(member.address) if member.address else "",
+        member.monitor,
+        member.state,
+        member.ratio,
+        member.priority_group,
+        member.connection_limit,
+        member.rate_limit,
+        member.description,
+    )
+
+
+def _pool_non_member_changed(old_pool: BigipPool, new_pool: BigipPool) -> bool:
+    """True when any non-``members`` pool field differs between old and new.
+
+    Lets the delta emitter decide whether the member-level commands
+    are sufficient or whether a separate full-body modify is also
+    needed for the pool's other properties (monitor, load-balancing
+    mode, description, ...).
+    """
+    skip = {"members", "range"}
+    from dataclasses import fields
+
+    for fld in fields(old_pool):
+        if fld.name in skip:
+            continue
+        if getattr(old_pool, fld.name) != getattr(new_pool, fld.name):
+            return True
+    return False
 
 
 def _block_key_for(kind_name: str, obj: object) -> tuple[str, str, str]:
@@ -431,7 +553,17 @@ def _render_pool(verb: str, pool: BigipPool) -> str:
                 inner.append(f"monitor {_quote(m.monitor)}")
             inner_str = " ".join(inner)
             member_lines.append(f"{m.name} {{ {inner_str} }}" if inner_str else f"{m.name} {{ }}")
-        fields.append("members { " + " ".join(member_lines) + " }")
+        # ``members`` is a list-valued property on tmsh; ``modify``
+        # rejects a bare ``members { ... }`` body with "list of items
+        # must be 'add', 'modify', 'delete', 'replace-all-with',
+        # 'none'", so list fields always need an explicit operator.
+        # ``replace-all-with`` is the correct semantic for a full-
+        # body emit (this renderer is the "write the whole object"
+        # path; the delta emitter routes through granular add /
+        # delete / modify operators when it can).  ``create``
+        # accepts the same operator and treats it as the initial
+        # set, so the same spelling works for both verbs.
+        fields.append("members replace-all-with { " + " ".join(member_lines) + " }")
     body = " ".join(fields)
     return f"tmsh {verb} ltm pool {pool.full_path}" + (f" {{ {body} }}" if body else "")
 
@@ -462,7 +594,8 @@ def _render_data_group(verb: str, dg: BigipDataGroup) -> str:
         parts.append(f"type {dg.value_type}")
     if dg.records:
         record_block = " ".join(f"{r} {{ }}" for r in dg.records)
-        parts.append(f"records {{ {record_block} }}")
+        # List-valued field — needs an operator for tmsh modify.
+        parts.append(f"records replace-all-with {{ {record_block} }}")
     body = " ".join(parts)
     head = f"tmsh {verb} ltm data-group {kind} {dg.full_path}"
     return head + (f" {{ {body} }}" if body else "")
@@ -483,7 +616,8 @@ def _render_profile(
 def _render_snatpool(verb: str, sp: BigipSnatPool) -> str:
     body = ""
     if sp.members:
-        body = "members { " + " ".join(sp.members) + " }"
+        # List-valued field — operator required on ``modify``.
+        body = "members replace-all-with { " + " ".join(sp.members) + " }"
     return f"tmsh {verb} ltm snatpool {sp.full_path}" + (f" {{ {body} }}" if body else "")
 
 
@@ -518,12 +652,23 @@ def _render_virtual(verb: str, vs: BigipVirtualServer) -> str:
         fields.append(f"destination {vs.destination}")
     if vs.pool:
         fields.append(f"pool {vs.pool}")
+    # ``profiles`` / ``persist`` / ``rules`` are list-valued — tmsh
+    # modify rejects a bare ``foo { ... }`` body for these properties
+    # and requires an explicit ``add`` / ``delete`` / ``modify`` /
+    # ``replace-all-with`` / ``none`` operator.  This full-body
+    # renderer uses ``replace-all-with`` to set the complete list;
+    # the delta emitter wires granular operators when only some
+    # entries change.
     if vs.profiles:
-        fields.append("profiles { " + " ".join(f"{p} {{ }}" for p in vs.profiles) + " }")
+        fields.append(
+            "profiles replace-all-with { " + " ".join(f"{p} {{ }}" for p in vs.profiles) + " }"
+        )
     if vs.rules:
-        fields.append("rules { " + " ".join(vs.rules) + " }")
+        fields.append("rules replace-all-with { " + " ".join(vs.rules) + " }")
     if vs.persist:
-        fields.append("persist { " + " ".join(f"{p} {{ }}" for p in vs.persist) + " }")
+        fields.append(
+            "persist replace-all-with { " + " ".join(f"{p} {{ }}" for p in vs.persist) + " }"
+        )
     if vs.snatpool:
         fields.append(f"snatpool {vs.snatpool}")
     if vs.source_address_translation:

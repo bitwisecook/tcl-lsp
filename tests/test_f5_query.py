@@ -6760,3 +6760,128 @@ def test_references_to_uses_exact_path_not_substring():
     result = run_query('references_to("/Common/p")', {"m": src})
     [refs] = result.values_per_file["m"]
     assert refs == ["/Common/v1"]
+
+
+# ---------------------------------------------------------------------------
+# tmsh-delta: granular member-level add / delete / modify
+# ---------------------------------------------------------------------------
+
+
+def test_tmsh_delta_pool_member_add():
+    """Adding a pool member emits ``members add { ... }`` so existing
+    members keep their connections."""
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.tmsh_emit import emit_tmsh_delta
+
+    old = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
+    new = (
+        "ltm pool /Common/p {\n"
+        "    members {\n"
+        "        /Common/m1:80 { address 10.0.0.1 }\n"
+        "        /Common/m2:80 { address 10.0.0.2 }\n"
+        "    }\n"
+        "}\n"
+    )
+    old_cfg = parse_bigip_conf(old)
+    new_cfg = parse_bigip_conf(new)
+    text = emit_tmsh_delta(old_cfg, new_cfg, old_source=old, new_source=new).text
+    assert "members add { /Common/m2:80 { address 10.0.0.2 } }" in text
+    # No full-body modify when only members changed.
+    assert "members modify" not in text
+    assert "members delete" not in text
+
+
+def test_tmsh_delta_pool_member_delete():
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.tmsh_emit import emit_tmsh_delta
+
+    old = (
+        "ltm pool /Common/p {\n"
+        "    members {\n"
+        "        /Common/m1:80 { address 10.0.0.1 }\n"
+        "        /Common/m2:80 { address 10.0.0.2 }\n"
+        "    }\n"
+        "}\n"
+    )
+    new = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
+    old_cfg = parse_bigip_conf(old)
+    new_cfg = parse_bigip_conf(new)
+    text = emit_tmsh_delta(old_cfg, new_cfg, old_source=old, new_source=new).text
+    assert "members delete { /Common/m2:80 }" in text
+
+
+def test_tmsh_delta_pool_member_modify():
+    """Address churn on a single member emits ``members modify``."""
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.tmsh_emit import emit_tmsh_delta
+
+    old = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
+    new = "ltm pool /Common/p {\n    members { /Common/m1:80 { address 10.0.0.99 } }\n}\n"
+    old_cfg = parse_bigip_conf(old)
+    new_cfg = parse_bigip_conf(new)
+    text = emit_tmsh_delta(old_cfg, new_cfg, old_source=old, new_source=new).text
+    assert "members modify { /Common/m1:80 { address 10.0.0.99 } }" in text
+
+
+def test_tmsh_delta_pool_non_member_change_falls_back_to_full_body():
+    """When a non-member field changes (monitor / lb-mode / ...) the
+    delta falls back to a full-body modify since the granular
+    member-list operators don't cover non-member properties."""
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.tmsh_emit import emit_tmsh_delta
+
+    old = "ltm pool /Common/p {\n    monitor /Common/http\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
+    new = "ltm pool /Common/p {\n    monitor /Common/https\n    members { /Common/m1:80 { address 10.0.0.1 } }\n}\n"
+    old_cfg = parse_bigip_conf(old)
+    new_cfg = parse_bigip_conf(new)
+    text = emit_tmsh_delta(old_cfg, new_cfg, old_source=old, new_source=new).text
+    assert "monitor /Common/https" in text
+    # No granular member ops since the member list is identical.
+    assert "members add" not in text
+    assert "members delete" not in text
+    assert "members modify {" not in text
+
+
+def test_tmsh_full_body_uses_replace_all_with_for_list_fields():
+    """``tmsh modify ltm pool X { members { ... } }`` is rejected by
+    the device — list-valued fields require an explicit operator
+    (``add`` / ``delete`` / ``modify`` / ``replace-all-with`` /
+    ``none``).  The full-body renderer uses ``replace-all-with``
+    so the emitted script lands cleanly on every supported BIG-IP
+    version."""
+    from core.bigip.parser import parse_bigip_conf
+    from core.bigip.tmsh_emit import emit_tmsh
+
+    src = (
+        "ltm pool /Common/p {\n"
+        "    members { /Common/m1:80 { address 10.0.0.1 } }\n"
+        "    monitor /Common/http\n"
+        "}\n"
+        "ltm virtual /Common/v {\n"
+        "    pool /Common/p\n"
+        "    rules { /Common/r1 }\n"
+        "    profiles { /Common/http { } }\n"
+        "    persist { /Common/cookie { } }\n"
+        "}\n"
+    )
+    cfg = parse_bigip_conf(src)
+    text = emit_tmsh(cfg, source=src, use_modify_for_existing=True).text
+    # Every list-valued field uses replace-all-with on the full-body
+    # renderer.  Operators leave bare key+brace bodies behind only
+    # for the granular member-delta path, never for the whole-object
+    # modify.
+    assert "members replace-all-with {" in text
+    assert "profiles replace-all-with {" in text
+    assert "rules replace-all-with {" in text
+    assert "persist replace-all-with {" in text
+    # And no plain ``members { ... }`` / etc. at the top level of an
+    # object body — those would error on the device.
+    for op in ("members", "profiles", "rules", "persist"):
+        bare = f"{op} {{"
+        # The bare brace only appears in our test source comment;
+        # the emitted script must always use ``<op> replace-all-with {``.
+        for line in text.splitlines():
+            if line.startswith("tmsh") and bare in line:
+                assert f"{op} replace-all-with {{" in line, (
+                    f"emitted line missing replace-all-with for {op}: {line}"
+                )
