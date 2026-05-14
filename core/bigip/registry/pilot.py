@@ -38,6 +38,7 @@ from .value_specs import (
     DestinationSpec,
     GtmRegionMemberSpec,
     ListSpec,
+    LtmPolicyRuleSpec,
     MonitorExpressionSpec,
     ObjectRefSpec,
     PersistenceAttachmentSpec,
@@ -258,6 +259,20 @@ _PILOT_SECURITY_FW_ADDRESS_LIST_NESTED = PropertySpec(
     project_via_legacy=True,
 )
 
+# ``ltm policy.rules`` — each rule has its own typed body
+# (BigipPolicyRule with actions[] / conditions[]).  The
+# LtmPolicyRuleSpec walks the nested actions / conditions and
+# yields every reference each carries — today that's pool refs
+# from ``forward select pool <path>`` actions.  Projection stays
+# on the legacy tuple surface because the rules are objects, not
+# scalar refs.
+_PILOT_LTM_POLICY_RULES = PropertySpec(
+    attr="rules",
+    value=ListSpec(item=LtmPolicyRuleSpec()),
+    writable=True,
+    project_via_legacy=True,
+)
+
 
 # (module, object_type, property_name) -> PropertySpec
 PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
@@ -279,6 +294,10 @@ PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("gtm", "region", "region-members"): _PILOT_GTM_REGION_MEMBERS,
     ("ltm", "profile client-ssl", "cert-key-chain"): _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN,
     ("ltm", "profile server-ssl", "cert-key-chain"): _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN,
+    # ltm policy.rules — each entry walks its actions/conditions
+    # via LtmPolicyRuleSpec, surfacing every pool ref the policy
+    # forwards to.
+    ("ltm", "policy", "rules"): _PILOT_LTM_POLICY_RULES,
     # Security firewall list-of-refs migrations.  Body-level rule
     # introspection waits for the model refactor that promotes
     # tuple-of-names to tuple-of-FirewallRule.

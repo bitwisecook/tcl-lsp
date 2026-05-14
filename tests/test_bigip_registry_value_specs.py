@@ -1222,3 +1222,80 @@ def test_every_pilot_property_has_a_known_value_spec():
             )
         # ``is_structured`` should be exposed via the value spec.
         assert hasattr(spec.value, "is_structured")
+
+
+# ---------------------------------------------------------------------------
+# ltm policy rules — walk nested actions/conditions through the registry
+# ---------------------------------------------------------------------------
+
+
+def test_policy_action_spec_accepts_legacy_bigip_policy_action():
+    """The reference dispatch tolerates either the new
+    :class:`LtmPolicyAction` or the legacy
+    :class:`BigipPolicyAction` (from :mod:`core.bigip.model._ltm`)
+    so the migration can land without rewriting the policy
+    dataclasses."""
+    from core.bigip.model import BigipPolicyAction
+    from core.bigip.registry import LtmPolicyActionSpec, ReferenceContext
+
+    spec = LtmPolicyActionSpec()
+    legacy = BigipPolicyAction(index=0, target="request", verb="forward", pool="/Common/web_pool")
+    refs = list(spec.references(legacy, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm pool", "/Common/web_pool"),
+    ]
+
+
+def test_policy_rule_spec_walks_nested_actions():
+    """``LtmPolicyRuleSpec`` walks ``rule.actions[]`` and yields
+    every reference each action carries — the bridge that lets
+    the registry surface pool refs from policy forward actions
+    without a model rewrite."""
+    from core.bigip.model import BigipPolicyAction, BigipPolicyRule
+    from core.bigip.registry import LtmPolicyRuleSpec, ReferenceContext
+
+    spec = LtmPolicyRuleSpec()
+    rule = BigipPolicyRule(
+        name="route_to_web",
+        ordinal=0,
+        actions=(
+            BigipPolicyAction(index=0, target="request", verb="forward", pool="/Common/web_pool"),
+            BigipPolicyAction(index=1, target="request", verb="log"),  # no pool ref
+        ),
+    )
+    refs = list(spec.references(rule, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm pool", "/Common/web_pool"),
+    ]
+
+
+def test_policy_rules_migration_unwinds_nested_pool_refs():
+    """End-to-end: walking ``ltm policy.rules`` via the registry
+    yields every pool ref forwarded to by any action of any rule —
+    addressing the design doc's "find every policy forwarding to a
+    pool" example query."""
+    from core.bigip.model import BigipPolicyAction, BigipPolicyRule
+    from core.bigip.registry import references_via_spec
+
+    rules = (
+        BigipPolicyRule(
+            name="route_a",
+            actions=(BigipPolicyAction(index=0, verb="forward", pool="/Common/a_pool"),),
+        ),
+        BigipPolicyRule(
+            name="route_b",
+            actions=(
+                BigipPolicyAction(index=0, verb="forward", pool="/Common/b_pool"),
+                BigipPolicyAction(index=1, verb="log"),
+            ),
+        ),
+    )
+    refs = references_via_spec(
+        module="ltm",
+        object_type="policy",
+        property_name="rules",
+        value=rules,
+        owner_path="/Common/site_policy",
+    )
+    assert refs is not None
+    assert [r.target_path for r in refs] == ["/Common/a_pool", "/Common/b_pool"]

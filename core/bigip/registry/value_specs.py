@@ -30,7 +30,7 @@ stage through ``ValueSpec`` for the properties that have migrated.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 # ---------------------------------------------------------------------------
@@ -1111,11 +1111,73 @@ class LtmPolicyActionSpec(_BaseSpec):
     def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
         from ..types import LtmPolicyAction
 
-        if value is None or not isinstance(value, LtmPolicyAction):
+        if value is None:
             return ()
-        return tuple(
-            Reference(target_kind=kind, target_path=path) for kind, path in value.references()
-        )
+        # Accept both the new ``LtmPolicyAction`` typed value and the
+        # legacy ``BigipPolicyAction`` model dataclass — they overlap
+        # heavily on the reference-bearing fields (``verb`` /
+        # ``pool``), and bridging both lets the registry migration
+        # consume the legacy model without rewriting it.  A policy
+        # action that forwards to a pool yields the same edge in
+        # either shape.
+        if isinstance(value, LtmPolicyAction):
+            edges = value.references()
+        else:
+            edges = _references_from_legacy_policy_action(value)
+        return tuple(Reference(target_kind=kind, target_path=path) for kind, path in edges)
+
+
+def _references_from_legacy_policy_action(value: object) -> tuple[tuple[str, str], ...]:
+    """Adapt the legacy ``BigipPolicyAction`` dataclass to the
+    reference-yielding contract.
+
+    The legacy class lives in :mod:`core.bigip.model._ltm` and
+    predates :class:`LtmPolicyAction`; field names match closely
+    enough that we can read the same edges without bridging the
+    dataclasses themselves.  Duck-typing on ``verb`` and ``pool``
+    keeps this safe against unrelated objects (anything without
+    both attributes yields nothing).
+    """
+    verb = getattr(value, "verb", "")
+    pool = getattr(value, "pool", "")
+    if verb == "forward" and pool:
+        return (("ltm pool", pool),)
+    return ()
+
+
+@dataclass(frozen=True, slots=True)
+class LtmPolicyRuleSpec(_BaseSpec):
+    """One rule inside an ltm policy's ``rules { ... }`` block.
+
+    The rule's value is itself a compound: ordered ``conditions``
+    plus ordered ``actions``, each with its own structured shape.
+    The spec walks both lists and yields the union of every
+    reference each item carries — today that's pool refs from
+    ``forward select pool <path>`` actions, with room for the
+    rest of the action vocabulary as future migrations land
+    (``insert ... profile X``, ``rewrite uri /Common/policy_X``,
+    etc.).
+
+    Accepts both the new typed value shape (a ``BigipPolicyRule``
+    from the model, which carries tuples of ``BigipPolicyAction``
+    /``BigipPolicyCondition``) and any duck-compatible object
+    exposing ``actions`` / ``conditions`` attributes — so a
+    callsite passing one rule's structured projection still flows
+    through the same path.
+    """
+
+    action_spec: LtmPolicyActionSpec = field(default_factory=lambda: LtmPolicyActionSpec())
+    condition_spec: LtmPolicyConditionSpec = field(default_factory=lambda: LtmPolicyConditionSpec())
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        if value is None:
+            return ()
+        out: list[Reference] = []
+        for action in getattr(value, "actions", ()) or ():
+            out.extend(self.action_spec.references(action, ctx))
+        for condition in getattr(value, "conditions", ()) or ():
+            out.extend(self.condition_spec.references(condition, ctx))
+        return tuple(out)
 
     @property
     def is_structured(self) -> bool:
@@ -1197,6 +1259,7 @@ __all__ = [
     "ListSpec",
     "LtmPolicyActionSpec",
     "LtmPolicyConditionSpec",
+    "LtmPolicyRuleSpec",
     "MonitorExpressionSpec",
     "NatRuleSpec",
     "NetworkSpec",
