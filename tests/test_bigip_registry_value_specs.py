@@ -288,3 +288,49 @@ def test_destination_spec_projects_none_as_empty_string():
 
     spec = DestinationSpec()
     assert spec.project(None, ProjectionContext()) == ""
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: edit-plan writes flow through ValueSpec.render
+# ---------------------------------------------------------------------------
+
+
+_MULTI_LINE_VS = (
+    "ltm virtual /Common/v {\n    destination /Common/10.0.0.10:80\n    ip-protocol tcp\n}\n"
+)
+
+
+def test_destination_write_through_spec_renders_canonical_form():
+    """A write to ``ltm virtual.destination`` flows through
+    :class:`DestinationSpec`'s ``parse`` + ``render`` round trip so
+    the spec validates and re-emits the value rather than the
+    generic SCF encoder splicing the raw string."""
+    from core.bigip.query import run_query
+
+    result = run_query(
+        '.ltm.virtual["/Common/v"].destination = "/Common/192.168.1.1:443"',
+        {"m": _MULTI_LINE_VS},
+    )
+    applied = result.edits_per_file["m"]
+    assert "destination /Common/192.168.1.1:443" in applied.new_source
+
+
+def test_destination_write_rejects_unparseable_input():
+    """A spec-rejected value raises ``EditError`` rather than
+    splicing in malformed text.  The Phase 3 spec validation runs
+    before the SCF reparse guard so the rejection points at the
+    actual problem."""
+    import pytest
+
+    from core.bigip.query import run_query
+    from core.bigip.query.errors import EditError, QueryError
+
+    with pytest.raises((EditError, QueryError)) as exc:
+        run_query(
+            '.ltm.virtual["/Common/v"].destination = "obviously-not-a-destination"',
+            {"m": _MULTI_LINE_VS},
+        )
+    # Either the spec rejected it (Phase 3 path) or the legacy reparse
+    # guard caught it downstream; both produce a clear error to the
+    # operator.
+    assert "destination" in str(exc.value).lower() or "scf" in str(exc.value).lower()

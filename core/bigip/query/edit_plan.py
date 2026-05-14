@@ -303,11 +303,24 @@ def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
     placed: list[tuple[int, int, str, EditOp]] = []
     for op in ops:
         if op.field_slot is not None:
-            new_text = _format_value(
-                op.new_value,
-                original_raw=op.field_slot.raw_text,
-                field_name=op.field_name,
-            )
+            # Phase 3 of the registry rearchitecture: when the
+            # property has been migrated to a new-shape
+            # :class:`PropertySpec`, route the write through
+            # ``spec.value.render()`` so the spec validates and
+            # encodes the value the same way it parses it.  The
+            # spec also rejects shape-incorrect inputs that the
+            # generic encoder would otherwise let through (e.g. a
+            # destination missing its port, an FQDN where an IP is
+            # required).  Unmigrated properties keep flowing
+            # through ``_format_value`` so the rest of the surface
+            # area stays unchanged.
+            new_text = _format_value_via_spec(op) if op.field_slot else None
+            if new_text is None:
+                new_text = _format_value(
+                    op.new_value,
+                    original_raw=op.field_slot.raw_text,
+                    field_name=op.field_name,
+                )
             placed.append((op.field_slot.start, op.field_slot.end, new_text, op))
             continue
         # No field_slot — see if we can materialise a fresh compound block.
@@ -358,6 +371,52 @@ def _splice_edits(source: str, ops: list[EditOp], uri: str) -> str:
         raise EditError(f"field edit produced invalid SCF in {uri}: {exc}") from exc
 
     return new_source
+
+
+def _format_value_via_spec(op: "EditOp") -> str | None:
+    """Render *op*'s new value through the migrated registry spec.
+
+    Returns ``None`` when the property hasn't been migrated yet (the
+    caller falls back to the generic encoder).  When migrated, the
+    spec's ``render()`` produces the SCF text; ``parse()`` runs first
+    to validate that the supplied value fits the spec's shape — any
+    error diagnostic raises :class:`EditError` rather than splicing
+    a malformed token into the source.
+
+    Phase 3 keeps the dispatch additive: every existing edit path
+    still works because unmigrated properties go through the generic
+    encoder; migrated properties get the spec-aware path.
+    """
+    from ..registry.pilot import pilot_property_spec_for
+    from ..registry.value_specs import ParseContext, RenderContext
+
+    if " " not in op.object_kind:
+        return None
+    module, _, object_type = op.object_kind.partition(" ")
+    spec = pilot_property_spec_for(module, object_type, op.field_name)
+    if spec is None:
+        return None
+    raw = "" if op.new_value is None else str(op.new_value)
+    parse_ctx = ParseContext(
+        module=module,
+        object_type=object_type,
+        object_path=op.object_path,
+    )
+    parsed = spec.value.parse(raw, parse_ctx)
+    for diag in parsed.diagnostics:
+        if diag.severity == "error":
+            raise EditError(f"{op.field_name!r} on {op.object_path!r}: {diag.message}")
+    if parsed.value is None and raw:
+        # Spec produced no structured value but the input wasn't
+        # empty — treat that as an implicit validation failure even
+        # when no diagnostic was emitted.
+        raise EditError(
+            f"{op.field_name!r} on {op.object_path!r}: cannot encode {raw!r} for the new-shape spec"
+        )
+    render_ctx = RenderContext(
+        original_text=op.field_slot.raw_text if op.field_slot is not None else "",
+    )
+    return spec.value.render(parsed.value, render_ctx)
 
 
 def _format_value(value: Any, *, original_raw: str, field_name: str = "") -> str:
