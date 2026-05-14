@@ -876,13 +876,158 @@ class SnatModeSpec(_BaseSpec):
         return True
 
 
+@dataclass(frozen=True, slots=True)
+class DataGroupRecordSpec(_BaseSpec):
+    """One record inside a data-group's records list.
+
+    Records are keyed by their lookup name (a string, CIDR, or
+    integer depending on the data-group's ``type``).  The spec
+    parses the key + body shape; the broader records container is
+    handled by the keyed-block list parser.
+    """
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import DataGroupRecord
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=DataGroupRecord(key=text), raw=raw)
+        key = text[:brace].strip()
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=DataGroupRecord.from_raw(key=key, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        from ..types import DataGroupRecord
+
+        if value is None or not isinstance(value, DataGroupRecord):
+            return ""
+        return value.key
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        from ..types import DataGroupRecord
+
+        if value is None or not isinstance(value, DataGroupRecord):
+            return ""
+        return str(value)
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class GtmRegionMemberSpec(_BaseSpec):
+    """One row inside a GTM region's ``region-members`` list.
+
+    Surfaces the parsed (kind, value, negated) triple so topology
+    queries can filter by clause type and negation without re-
+    parsing the row text.
+    """
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import GtmRegionMember
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        parsed = GtmRegionMember.try_parse(text)
+        if parsed is None:
+            return ParsedValue(
+                value=None,
+                raw=raw,
+                diagnostics=(
+                    Diagnostic(
+                        severity="error",
+                        message=f"not a valid GTM region member: {raw!r}",
+                    ),
+                ),
+            )
+        return ParsedValue(value=parsed, raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class CertKeyChainSpec(_BaseSpec):
+    """One ``cert-key-chain`` entry on a client/server SSL profile.
+
+    Each entry carries up to three reference sub-fields (cert, key,
+    chain) plus an optional passphrase.  The spec exposes all three
+    references through ``ValueSpec.references()`` so the graph
+    layer sees every SSL cert / key / CA bundle the profile
+    depends on.
+    """
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import CertKeyChain
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=CertKeyChain(name=text), raw=raw)
+        name = text[:brace].strip()
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=CertKeyChain.from_raw(name=name, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        from ..types import CertKeyChain
+
+        if value is None or not isinstance(value, CertKeyChain):
+            return ""
+        return value.name
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        from ..types import CertKeyChain
+
+        if value is None or not isinstance(value, CertKeyChain):
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        from ..types import CertKeyChain
+
+        if value is None or not isinstance(value, CertKeyChain):
+            return ()
+        return tuple(
+            Reference(target_kind=kind, target_path=path) for kind, path in value.references()
+        )
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
 # Public re-exports.
 __all__ = [
     "AddressSpec",
     "BoolSpec",
+    "CertKeyChainSpec",
+    "DataGroupRecordSpec",
     "DestinationSpec",
     "Diagnostic",
     "EnumSpec",
+    "GtmRegionMemberSpec",
     "IntSpec",
     "ListSpec",
     "MonitorExpressionSpec",

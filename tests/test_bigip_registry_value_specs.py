@@ -601,3 +601,71 @@ def test_snat_mode_rejects_snat_without_pool():
     parsed = spec.parse("{ type snat }", ParseContext())
     assert parsed.value is None
     assert any("SNAT mode" in d.message for d in parsed.diagnostics)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 batch 3: DataGroupRecord / GtmRegionMember / CertKeyChain
+# ---------------------------------------------------------------------------
+
+
+def test_data_group_record_parses_keyed_value():
+    from core.bigip.registry import DataGroupRecordSpec
+    from core.bigip.types import DataGroupRecord
+
+    spec = DataGroupRecordSpec()
+    parsed = spec.parse("host1.example.com { data 10.0.0.1 }", ParseContext())
+    assert isinstance(parsed.value, DataGroupRecord)
+    assert parsed.value.key == "host1.example.com"
+    assert parsed.value.data == "10.0.0.1"
+
+
+def test_data_group_record_handles_bare_entry():
+    from core.bigip.registry import DataGroupRecordSpec
+    from core.bigip.types import DataGroupRecord
+
+    spec = DataGroupRecordSpec()
+    parsed = spec.parse("prod-allowed { }", ParseContext())
+    assert isinstance(parsed.value, DataGroupRecord)
+    assert parsed.value.key == "prod-allowed"
+    assert parsed.value.data == ""
+
+
+def test_gtm_region_member_parses_negation_and_kind():
+    from core.bigip.registry import GtmRegionMemberSpec
+    from core.bigip.types import GtmRegionMember
+
+    spec = GtmRegionMemberSpec()
+    plain = spec.parse("subnet 10.10.1.0/24 { }", ParseContext())
+    assert isinstance(plain.value, GtmRegionMember)
+    assert plain.value.kind == "subnet"
+    assert plain.value.value == "10.10.1.0/24"
+    assert plain.value.negated is False
+
+    negated = spec.parse("not country JP { }", ParseContext())
+    assert isinstance(negated.value, GtmRegionMember)
+    assert negated.value.kind == "country"
+    assert negated.value.value == "JP"
+    assert negated.value.negated is True
+
+
+def test_cert_key_chain_parses_full_entry_and_yields_refs():
+    from core.bigip.registry import CertKeyChainSpec, ReferenceContext
+    from core.bigip.types import CertKeyChain
+
+    spec = CertKeyChainSpec()
+    parsed = spec.parse(
+        "cert_a { cert /Common/cert_a.crt key /Common/cert_a.key chain /Common/ca_bundle.crt }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, CertKeyChain)
+    assert parsed.value.name == "cert_a"
+    assert parsed.value.cert == "/Common/cert_a.crt"
+    assert parsed.value.key == "/Common/cert_a.key"
+    assert parsed.value.chain == "/Common/ca_bundle.crt"
+    refs = list(spec.references(parsed.value, ReferenceContext()))
+    # cert + key + chain all surface as edges
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("sys file ssl-cert", "/Common/cert_a.crt"),
+        ("sys file ssl-key", "/Common/cert_a.key"),
+        ("sys file ssl-cert", "/Common/ca_bundle.crt"),
+    ]
