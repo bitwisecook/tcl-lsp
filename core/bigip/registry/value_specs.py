@@ -918,7 +918,9 @@ class MonitorExpressionSpec(_BaseSpec):
             return self.ref_kinds
         return (self.ref_kind,) if self.ref_kind else ()
 
-    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:
+        from dataclasses import replace as _dc_replace
+
         from ..types import MonitorExpression
 
         text = raw.strip()
@@ -934,6 +936,21 @@ class MonitorExpressionSpec(_BaseSpec):
                         severity="error",
                         message=f"not a valid monitor expression: {raw!r}",
                     ),
+                ),
+            )
+        # Lift the per-monitor spans onto absolute offsets.  Local
+        # offsets are relative to ``text`` (the stripped raw text);
+        # ``ctx.base_offset`` lives at the START of *raw* (which
+        # may have leading whitespace), so adjust by the leading
+        # stripped length so callers get exact byte spans inside the
+        # original source.
+        if parsed.monitor_spans and (ctx.base_offset or raw != text):
+            lead = len(raw) - len(raw.lstrip())
+            shift = ctx.base_offset + lead
+            parsed = _dc_replace(
+                parsed,
+                monitor_spans=tuple(
+                    (start + shift, end + shift) for start, end in parsed.monitor_spans
                 ),
             )
         diagnostics: list[Diagnostic] = []
@@ -991,12 +1008,12 @@ class MonitorExpressionSpec(_BaseSpec):
 
     def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
         # The monitor expression already enumerates its own
-        # references; the spec attributes each to the first
-        # declared target kind so unresolved monitor refs at least
-        # land on a single kind for graph traversal.  Phase 6 can
-        # widen this (a ``ltm monitor http`` reference is also
-        # findable as ``ltm monitor``, etc.) when the kind-resolver
-        # API is in place.
+        # references; the spec attributes each to the first declared
+        # target kind so unresolved monitor refs at least land on a
+        # single kind for graph traversal.  Per-monitor source spans
+        # come from :class:`MonitorExpression.monitor_spans` (local
+        # offsets in ``raw``); the ListSpec / call site adds the
+        # absolute base offset when threading ``Reference.range``.
         if value is None:
             return ()
         from ..types import MonitorExpression
@@ -1007,7 +1024,15 @@ class MonitorExpressionSpec(_BaseSpec):
         if not targets:
             return ()
         kind = targets[0]
-        return tuple(Reference(target_kind=kind, target_path=path) for path in value.references())
+        out: list[Reference] = []
+        spans = value.monitor_spans or ()
+        for idx, path in enumerate(value.monitors):
+            rng = None
+            if idx < len(spans):
+                start, end = spans[idx]
+                rng = SourceRange(start=start, end=end)
+            out.append(Reference(target_kind=kind, target_path=path, range=rng))
+        return tuple(out)
 
     @property
     def is_structured(self) -> bool:

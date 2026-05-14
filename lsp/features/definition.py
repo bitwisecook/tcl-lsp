@@ -17,7 +17,18 @@ from core.bigip.object_registry import (
     resolve_kind_in_configs,
 )
 from core.bigip.parser import parse_bigip_conf
+from core.bigip.parser._helpers import (
+    _extract_blocks,
+    _parse_generic_header,
+    _parse_properties_with_spans,
+)
+from core.bigip.registry import (
+    candidate_registry_kinds_for_display,
+    references_via_spec,
+)
+from core.bigip.registry.pilot import pilot_property_spec_for
 from core.common.alias import lookup_alias_for_word
+from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import find_var_in_scopes, to_lsp_location
 from core.common.position import position_in_range
 
@@ -87,6 +98,79 @@ def get_definition(
                 return [to_lsp_location(uri, proc_def.name_range)]
 
     return []
+
+
+def _bigip_definition_via_registry(
+    source: str,
+    self_uri: str,
+    line: int,
+    character: int,
+    configs: dict[str, BigipConfig],
+) -> list[types.Location]:
+    """Find a definition target by scanning every migrated property
+    for a reference whose source span covers the cursor.
+
+    Uses the value-spec dispatch (:func:`references_via_spec`) so
+    any property the registry's pilot table covers — including
+    nested references inside keyed-block lists (firewall rules'
+    destination address-lists, profile attachments, cert-key-chain
+    cert refs, ...) — gets exact-byte navigation without per-feature
+    regex seeding.
+    """
+    buffer = DocumentBuffer.from_source(source)
+    try:
+        cursor_offset = _line_character_to_offset(buffer, line, character)
+    except ValueError:
+        return []
+    for block in _extract_blocks(source):
+        if not (block.start_offset <= cursor_offset <= block.end_offset):
+            continue
+        generic = _parse_generic_header(block.header)
+        if generic is None:
+            continue
+        module, object_type, identifier = generic
+        body_base = block.start_offset + 1
+        prop_map = _parse_properties_with_spans(block.body)
+        for key, prop in prop_map.items():
+            if pilot_property_spec_for(module, object_type, key) is None:
+                continue
+            if prop.value_start is None:
+                continue
+            base = body_base + prop.value_start
+            refs = references_via_spec(
+                module=module,
+                object_type=object_type,
+                property_name=key,
+                value=prop.value,
+                owner_path=identifier,
+                source_uri=self_uri,
+                base_offset=base,
+                source_text=source,
+            )
+            for ref in refs or ():
+                if ref.range is None:
+                    continue
+                if not (ref.range.start <= cursor_offset <= ref.range.end):
+                    continue
+                for kind in candidate_registry_kinds_for_display(ref.target_kind):
+                    resolved = resolve_kind_in_configs(
+                        kind, ref.target_path, configs, preferred_module=module
+                    )
+                    if resolved is not None:
+                        target_uri, target_range = resolved
+                        return [to_lsp_location(target_uri, target_range)]
+    return []
+
+
+def _line_character_to_offset(buffer: DocumentBuffer, line: int, character: int) -> int:
+    """Map an LSP ``(line, character)`` to an absolute byte offset.
+
+    Raises :class:`ValueError` when the position is out of range so
+    callers fall back to legacy paths."""
+    line_starts = buffer.line_starts
+    if line < 0 or line >= len(line_starts):
+        raise ValueError(f"line {line} out of range")
+    return line_starts[line] + character
 
 
 def _resolve_pool_across_configs(
@@ -278,6 +362,15 @@ def get_bigip_definition(
         return []
     line_text = lines[line]
     token_info = _extract_token_at_cursor(line_text, character)
+
+    # Registry-first dispatch: ask the value-spec layer if any
+    # migrated property's reference covers the cursor.  Falls through
+    # to the legacy regex / candidate_kinds_for_key path when no
+    # registered spec owns the cursor position (so unmigrated
+    # properties keep working unchanged).
+    registry_hit = _bigip_definition_via_registry(source, uri, line, character, configs)
+    if registry_hit:
+        return registry_hit
 
     # Fast-path for virtual default-pool using parser-provided token span.
     for vs in current_config.virtual_servers.values():

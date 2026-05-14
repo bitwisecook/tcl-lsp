@@ -68,6 +68,58 @@ class TestBigipDocumentLinks:
         assert links[0].target is None
         assert links[0].tooltip and "no definition" in links[0].tooltip
 
+    def test_property_value_emits_link_to_target_object(self):
+        """Migrated TMSH properties expose document links pointing at
+        the exact reference token (not the whole property line) so
+        editor click-to-navigate lands precisely on the path."""
+        from lsp.features._bigip_links import get_bigip_document_links
+
+        source = (
+            "ltm monitor http /Common/http_probe { }\n"
+            "ltm pool /Common/web_pool {\n"
+            "    monitor /Common/http_probe\n"
+            "}\n"
+        )
+        links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
+        # The pool's ``monitor`` property contributes a link.
+        targets = [link.target for link in links if link.target is not None]
+        assert any("/tmp/x.conf" in t for t in targets)
+        # The link range is bounded — not the whole line.
+        link = next(
+            link
+            for link in links
+            if link.target is not None and link.tooltip and "/Common/http_probe" in link.tooltip
+        )
+        assert link.range.start.character > 0
+        # ``to_lsp_range`` adds +1 to end column (inclusive → exclusive),
+        # so the LSP range spans len + 1.
+        assert (
+            link.range.end.character - link.range.start.character == len("/Common/http_probe") + 1
+        )
+
+    def test_property_value_link_inside_keyed_list_item(self):
+        """References inside a keyed-block list item (``profiles {
+        /Common/clientssl { ... } }``) get individual links — the
+        ListSpec records per-item ranges that the link layer
+        consumes directly."""
+        from lsp.features._bigip_links import get_bigip_document_links
+
+        source = (
+            "ltm virtual /Common/v {\n"
+            "    destination /Common/0.0.0.0:443\n"
+            "    profiles {\n"
+            "        /Common/clientssl { context clientside }\n"
+            "        /Common/http { }\n"
+            "    }\n"
+            "}\n"
+            "ltm profile client-ssl /Common/clientssl { }\n"
+            "ltm profile http /Common/http { }\n"
+        )
+        links = get_bigip_document_links(source, uri="file:///tmp/x.conf", workspace_configs={})
+        tooltips = {link.tooltip for link in links if link.tooltip}
+        assert "Go to /Common/clientssl" in tooltips
+        assert "Go to /Common/http" in tooltips
+
     def test_no_irule_no_links(self):
         from lsp.features._bigip_links import get_bigip_document_links
 

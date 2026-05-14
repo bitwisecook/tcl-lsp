@@ -2,21 +2,24 @@
 
 Tcl files already get ``source`` / ``package require`` links via
 :mod:`document_links`.  This module is the BIG-IP sibling: every
-object reference inside an ``ltm rule`` body becomes a clickable
-:class:`types.DocumentLink` pointing at the target object's stanza
-header in the same workspace.
+object reference inside an ``ltm rule`` body, every TMSH property
+value that resolves to another object (``pool /Common/p``,
+``defaults-from /Common/parent``, ``profiles { /Common/clientssl
+{ ... } }``), and every nested reference inside a structured value
+(firewall rule destination address-lists, cert-key-chain cert
+refs, ...) becomes a clickable :class:`types.DocumentLink` pointing
+at the target object's stanza in the same workspace.
 
-Driven by :func:`extract_irules_object_references` — the same
-iRule scanner ``f5 grep`` and the cleanup linter use — so the
-link set always matches the rest of the BIG-IP-aware tooling.
+Driven by two engines:
 
-Property-value links (``pool /Common/p``, ``defaults-from
-/Common/parent`` on the property line itself) are a follow-up:
-the parser's :class:`FieldSlot` only carries byte offsets, so
-turning a slot into an LSP range needs a per-document
-:class:`SourceMap` plumbed through.  For now the iRule-body
-coverage already addresses the highest-value case (clicking
-through every reference inside a Tcl rule body).
+- :func:`extract_irules_object_references` — the iRule scanner
+  ``f5 grep`` and the cleanup linter share — covers Tcl-body
+  references inside an ``ltm rule``.
+- :func:`core.bigip.registry.references_via_spec` — the registry's
+  value-spec dispatch — covers property-value references on every
+  migrated property, with byte-accurate :class:`SourceRange`
+  spans so each link points at the exact reference token (not the
+  surrounding property line).
 """
 
 from __future__ import annotations
@@ -28,6 +31,17 @@ from core.bigip.irules_refs import extract_irules_object_references
 from core.bigip.model import BigipConfig
 from core.bigip.object_registry import resolve_kind_in_configs
 from core.bigip.parser import parse_bigip_conf
+from core.bigip.parser._helpers import (
+    _extract_blocks,
+    _parse_generic_header,
+    _parse_properties_with_spans,
+)
+from core.bigip.registry import (
+    candidate_registry_kinds_for_display,
+    references_via_spec,
+)
+from core.bigip.registry.pilot import pilot_property_spec_for
+from core.common.document_buffer import DocumentBuffer
 from core.common.lsp import to_lsp_range
 
 
@@ -52,7 +66,86 @@ def get_bigip_document_links(
     configs = dict(workspace_configs or {})
     configs.setdefault(uri, config)
 
-    return _links_from_irule_bodies(config, uri, configs)
+    out: list[types.DocumentLink] = []
+    out.extend(_links_from_irule_bodies(config, uri, configs))
+    out.extend(_links_from_registry_refs(source, uri, configs))
+    return out
+
+
+def _links_from_registry_refs(
+    source: str,
+    self_uri: str,
+    configs: dict[str, BigipConfig],
+) -> list[types.DocumentLink]:
+    """Emit links from every migrated property's references.
+
+    Walks the source's top-level stanzas, tokenises each into
+    ``(key, value)`` properties, and asks the registry's pilot
+    dispatch which references each carries.  Each yielded
+    :class:`Reference` arrives with an absolute :class:`SourceRange`
+    so the link points at the exact reference token — no per-line
+    approximation."""
+    out: list[types.DocumentLink] = []
+    buffer = DocumentBuffer.from_source(source)
+    for block in _extract_blocks(source):
+        generic = _parse_generic_header(block.header)
+        if generic is None:
+            continue
+        module, object_type, identifier = generic
+        prop_map = _parse_properties_with_spans(block.body)
+        # Absolute offset of the body's first byte in source.
+        body_base = block.start_offset + 1
+        for key, prop in prop_map.items():
+            if pilot_property_spec_for(module, object_type, key) is None:
+                continue
+            if prop.value_start is None:
+                continue
+            base = body_base + prop.value_start
+            refs = references_via_spec(
+                module=module,
+                object_type=object_type,
+                property_name=key,
+                value=prop.value,
+                owner_path=identifier,
+                source_uri=self_uri,
+                base_offset=base,
+                source_text=source,
+            )
+            for ref in refs or ():
+                target = _resolve_via_kinds(ref.target_kind, ref.target_path, configs)
+                if target is None:
+                    continue
+                if ref.range is None:
+                    continue
+                rng = buffer.range_from_offsets(ref.range.start, ref.range.end)
+                out.append(
+                    types.DocumentLink(
+                        range=to_lsp_range(rng),
+                        tooltip=f"Go to {ref.target_path}",
+                        target=target,
+                    )
+                )
+    return out
+
+
+def _resolve_via_kinds(
+    display_kind: str,
+    target_path: str,
+    configs: dict[str, BigipConfig],
+) -> str | None:
+    """Resolve *display_kind* + *target_path* into a ``uri#L<line>``.
+
+    Display kinds (``"ltm pool"``, ``"ltm monitor"``,
+    ``"security firewall address-list"``) fan out via
+    :func:`candidate_registry_kinds_for_display` to one or more
+    registry keys — the resolver tries each until one finds the
+    object."""
+    for kind in candidate_registry_kinds_for_display(display_kind):
+        resolved = resolve_kind_in_configs(kind, target_path, configs, preferred_module="")
+        if resolved is not None:
+            target_uri, target_range = resolved
+            return f"{target_uri}#L{target_range.start.line + 1}"
+    return None
 
 
 def _links_from_irule_bodies(

@@ -59,6 +59,12 @@ class MonitorExpression:
     monitors: tuple[str, ...] = ()
     minimum: int | None = None
     raw: str = ""
+    # Per-monitor byte spans inside *raw* (local offsets — callers
+    # add a base offset for absolute positions).  Each tuple is
+    # ``(start, end)`` for one monitor in ``monitors``, in the same
+    # order.  ``()`` when the value wasn't parsed from text or the
+    # parser couldn't pin spans.
+    monitor_spans: tuple[tuple[int, int], ...] = ()
 
     @classmethod
     def try_parse(cls, text: str) -> "MonitorExpression | None":
@@ -93,8 +99,8 @@ class MonitorExpression:
     def _parse_min_of(cls, text: str) -> "MonitorExpression | None":
         # Strip the leading ``min`` keyword and the trailing braced
         # list; extract N from between.
-        rest = text[len("min ") :].lstrip()
-        # ``rest`` looks like ``N of { M1 M2 ... }``.
+        rest_start = len("min ")
+        rest = text[rest_start:].lstrip()
         of_idx = rest.find(" of ")
         if of_idx < 0:
             return None
@@ -102,36 +108,83 @@ class MonitorExpression:
             minimum = int(rest[:of_idx].strip())
         except ValueError:
             return None
-        body = rest[of_idx + len(" of ") :].lstrip()
+        body_start_in_rest = of_idx + len(" of ")
+        body = rest[body_start_in_rest:].lstrip()
         if not body.startswith("{") or not body.rstrip().endswith("}"):
             return None
-        inner = body.strip()[1:-1].strip()
-        monitors = tuple(tok for tok in inner.split() if tok)
+        # Compute offset of the opening ``{`` inside *text*.
+        leading_skipped = len(text) - rest_start - len(rest.lstrip())
+        body_start_in_text = (
+            rest_start + leading_skipped + body_start_in_rest + (len(body) - len(body.lstrip()))
+        )
+        inner_open = text.index("{", body_start_in_text - 1)
+        # Walk *text* to find each monitor token between { and }.
+        monitors: list[str] = []
+        spans: list[tuple[int, int]] = []
+        i = inner_open + 1
+        length = len(text)
+        while i < length and text[i] != "}":
+            if text[i].isspace():
+                i += 1
+                continue
+            tok_start = i
+            while i < length and not text[i].isspace() and text[i] != "}":
+                i += 1
+            monitors.append(text[tok_start:i])
+            spans.append((tok_start, i))
         if not monitors:
             return None
-        return cls(mode="min-of", monitors=monitors, minimum=minimum, raw=text)
+        return cls(
+            mode="min-of",
+            monitors=tuple(monitors),
+            minimum=minimum,
+            raw=text,
+            monitor_spans=tuple(spans),
+        )
 
     @classmethod
     def _parse_and_chain(cls, text: str) -> "MonitorExpression | None":
-        # Split on whitespace-delimited ``and`` tokens.  TMSH never
-        # quotes monitor paths so a token-level split is safe (paths
-        # contain ``/``, ``_``, ``-`` but never spaces).
-        parts = text.split()
+        # Walk text recording each non-``and`` token with its byte
+        # span so the references layer can emit per-monitor source
+        # ranges.
         monitors: list[str] = []
-        for i, token in enumerate(parts):
-            if i % 2 == 1:
-                # Expect ``and`` between every pair of monitor refs.
+        spans: list[tuple[int, int]] = []
+        length = len(text)
+        i = 0
+        expect_monitor = True
+        while i < length:
+            if text[i].isspace():
+                i += 1
+                continue
+            tok_start = i
+            while i < length and not text[i].isspace():
+                i += 1
+            token = text[tok_start:i]
+            if expect_monitor:
+                if not token:
+                    return None
+                monitors.append(token)
+                spans.append((tok_start, i))
+                expect_monitor = False
+            else:
                 if token != "and":
                     return None
-                continue
-            if not token:
-                return None
-            monitors.append(token)
-        if not monitors:
+                expect_monitor = True
+        if not monitors or expect_monitor and len(monitors) != len(spans):
             return None
         if len(monitors) == 1:
-            return cls(mode="single", monitors=tuple(monitors), raw=text)
-        return cls(mode="all", monitors=tuple(monitors), raw=text)
+            return cls(
+                mode="single",
+                monitors=tuple(monitors),
+                raw=text,
+                monitor_spans=tuple(spans),
+            )
+        return cls(
+            mode="all",
+            monitors=tuple(monitors),
+            raw=text,
+            monitor_spans=tuple(spans),
+        )
 
     @property
     def is_default(self) -> bool:
