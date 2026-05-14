@@ -237,7 +237,11 @@ def _split_inline_keys(value: str, *, known_keys: tuple[str, ...]) -> dict[str, 
         return out
     current_key: str | None = None
     current_value: list[str] = [tokens[0]]
-    brace_depth = 0
+    # Seed brace_depth from tokens[0] so a value that BEGINS with a
+    # braced sub-block (``source-address-translation { type snat pool
+    # /Common/X }``) keeps every inner token attached to the outer
+    # key instead of promoting ``type`` / ``pool`` to siblings.
+    brace_depth = tokens[0].count("{") - tokens[0].count("}")
     for tok in tokens[1:]:
         # Track brace depth so braced sub-block contents (keyed-list
         # bodies like ``profiles { /Common/clientssl { context

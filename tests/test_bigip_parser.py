@@ -145,7 +145,7 @@ ltm virtual /Common/my_vs {
     vs = config.virtual_servers["/Common/my_vs"]
     assert vs.name == "my_vs"
     assert vs.pool == "/Common/web_pool"
-    assert vs.destination == "/Common/10.0.0.1:443"
+    assert str(vs.destination) == "/Common/10.0.0.1:443"
     assert "/Common/my_irule" in vs.rules
     assert "/Common/my_other_irule" in vs.rules
     assert "/Common/http" in vs.profiles
@@ -249,7 +249,7 @@ ltm node /Common/web1 {
 """
     config = parse_bigip_conf(source)
     assert "/Common/web1" in config.nodes
-    assert config.nodes["/Common/web1"].address == "10.0.1.10"
+    assert str(config.nodes["/Common/web1"].address) == "10.0.1.10"
 
 
 def test_parse_monitor():
