@@ -204,6 +204,14 @@ def _project_via_pilot_spec(kind: str, attr: str, raw: object, root: Root) -> ob
     spec = pilot_property_spec_for(module, object_type, attr)
     if spec is None:
         return _PILOT_MISS
+    if spec.project_via_legacy:
+        # The migration owns parse / edit / references for this
+        # property but wants the projection to stay on the legacy
+        # ``FieldSpec`` branches — typically because the legacy
+        # projection wraps the value in a ``PathRef`` whose
+        # back-compat shape the value spec can't reproduce without
+        # a ``Root`` reference.
+        return _PILOT_MISS
     if raw is None:
         # The legacy ``typed=True`` branch returned ``""`` for
         # ``None`` typed values so falsey-truthiness stayed

@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from .pilot import pilot_property_spec_for
-from .value_specs import Reference, ReferenceContext
+from .value_specs import ParseContext, Reference, ReferenceContext
 
 
 def references_via_spec(
@@ -46,6 +46,12 @@ def references_via_spec(
     The reference context carries the owning object's identity so
     cross-partition visibility checks downstream have the data they
     need without each caller threading it manually.
+
+    Auto-coerces *value* via ``spec.value.parse`` when the model
+    field still stores raw text (the legacy ``BigipPool.monitor:
+    str`` shape, etc.).  This lets a property migrate to a structured
+    spec without simultaneously rewriting the dataclass field — the
+    spec sees a typed value either way.
     """
     spec = pilot_property_spec_for(module, object_type, property_name)
     if spec is None:
@@ -55,7 +61,39 @@ def references_via_spec(
         owner_path=owner_path,
         source_uri=source_uri,
     )
-    return tuple(spec.value.references(value, ctx))
+    typed = _coerce_to_typed(value, spec, module, object_type, owner_path)
+    return tuple(spec.value.references(typed, ctx))
+
+
+def _coerce_to_typed(
+    value: Any,
+    spec: Any,
+    module: str,
+    object_type: str,
+    owner_path: str,
+) -> Any:
+    """Run *value* through ``spec.value.parse`` when it's still raw text.
+
+    The reference / edit / projection dispatch wants the structured
+    typed value (``MonitorExpression`` / ``Destination`` / etc.) but
+    a property still carrying its legacy ``str`` shape on the model
+    arrives here as a string.  Parse first so the spec's methods see
+    a uniform input.  Tuples / lists / pre-typed instances pass
+    through unchanged.
+    """
+    if value is None or value == "":
+        return value
+    if isinstance(value, str):
+        parsed = spec.value.parse(
+            value,
+            ParseContext(
+                module=module,
+                object_type=object_type,
+                object_path=owner_path,
+            ),
+        )
+        return parsed.value
+    return value
 
 
 def iter_object_references(

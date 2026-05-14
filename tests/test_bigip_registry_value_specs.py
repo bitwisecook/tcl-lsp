@@ -822,3 +822,97 @@ def test_nat_rule_spec_is_alias_of_firewall_rule_spec():
     from core.bigip.registry import FirewallRuleSpec, NatRuleSpec
 
     assert NatRuleSpec is FirewallRuleSpec
+
+
+# ---------------------------------------------------------------------------
+# Migration batch 1: monitor expressions migrate to MonitorExpressionSpec
+# ---------------------------------------------------------------------------
+
+
+def test_pool_monitor_migration_enumerates_refs_via_spec():
+    """``ltm pool.monitor`` is migrated to MonitorExpressionSpec; the
+    reference dispatch parses the raw string through the spec and
+    yields one Reference per monitor in the expression."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="pool",
+        property_name="monitor",
+        value="/Common/http and /Common/tcp",
+        owner_path="/Common/web_pool",
+    )
+    assert refs is not None
+    targets = [(r.target_kind, r.target_path) for r in refs]
+    assert targets == [
+        ("ltm monitor", "/Common/http"),
+        ("ltm monitor", "/Common/tcp"),
+    ]
+
+
+def test_node_monitor_migration_handles_min_of():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="node",
+        property_name="monitor",
+        value="min 2 of { /Common/gateway_icmp /Common/http /Common/http2 }",
+        owner_path="/Common/n1",
+    )
+    assert refs is not None
+    assert {r.target_path for r in refs} == {
+        "/Common/gateway_icmp",
+        "/Common/http",
+        "/Common/http2",
+    }
+
+
+def test_virtual_source_address_translation_migration_yields_snat_pool_ref():
+    """``ltm virtual.source-address-translation`` is migrated to
+    SnatModeSpec; the reference dispatch parses the body and yields
+    one Reference to the snat pool when the mode is ``snat``."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="source-address-translation",
+        value="{ type snat pool /Common/snatpool_x }",
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm snatpool", "/Common/snatpool_x"),
+    ]
+
+
+def test_automap_snat_yields_no_refs():
+    """Automap doesn't reference a SNAT pool, so the migration
+    correctly yields zero refs."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="source-address-translation",
+        value="{ type automap }",
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    assert refs == ()
+
+
+def test_monitor_projection_stays_on_legacy_pathref_surface():
+    """The migration opts out of the projection dispatch so
+    ``.ltm.pool["X"].monitor.full-path`` keeps working through the
+    legacy ``ref_kind="ltm monitor"`` PathRef projection.  Phase 6+
+    can introduce a structured MonitorExpression container later;
+    for now back-compat is the priority."""
+    from core.bigip.query import run_query
+
+    src = "ltm pool /Common/web_pool {\n    monitor /Common/http\n}\n"
+    result = run_query('.ltm.pool["/Common/web_pool"].monitor', {"m": src})
+    [monitor] = result.values_per_file["m"]
+    # PathRef surface: full_path attribute, string-like equality.
+    assert str(monitor) == "/Common/http"

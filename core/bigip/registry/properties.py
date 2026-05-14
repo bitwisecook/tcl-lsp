@@ -73,6 +73,15 @@ class PropertySpec:
     default: object = ""
     tmsh_name: str = ""
     docs: str = ""
+    # Phase 6 back-compat opt-out for migrations that own the parser /
+    # edit / reference dispatch but want to leave projection on the
+    # legacy ``FieldSpec`` branches.  Useful when the legacy
+    # projection wraps the value in a context-aware container
+    # (``PathRef`` for ``ref_kind`` fields) that the value-spec
+    # ``project()`` method can't replicate without a ``Root``
+    # reference.  The migration table opts in only the projection
+    # paths that match the legacy surface exactly.
+    project_via_legacy: bool = False
 
     @property
     def name(self) -> str:

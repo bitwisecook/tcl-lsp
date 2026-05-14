@@ -32,7 +32,62 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from .properties import PropertySpec
-from .value_specs import DestinationSpec
+from .value_specs import (
+    DestinationSpec,
+    MonitorExpressionSpec,
+    SnatModeSpec,
+)
+
+# All "ltm monitor *" kinds a pool / node / GTM-pool / GTM-server
+# monitor can point at.  Used by MonitorExpressionSpec so the graph
+# layer surfaces the right target kinds when walking pool monitor
+# references.  Kept in one place so adding a new monitor type only
+# touches this list — every property that references a monitor
+# inherits the broader set.
+_MONITOR_REF_KINDS = (
+    "ltm monitor",
+    "ltm monitor diameter",
+    "ltm monitor dns",
+    "ltm monitor external",
+    "ltm monitor firepass",
+    "ltm monitor ftp",
+    "ltm monitor gateway-icmp",
+    "ltm monitor http",
+    "ltm monitor http2",
+    "ltm monitor https",
+    "ltm monitor icmp",
+    "ltm monitor imap",
+    "ltm monitor inband",
+    "ltm monitor ldap",
+    "ltm monitor module-score",
+    "ltm monitor mqtt",
+    "ltm monitor mssql",
+    "ltm monitor mysql",
+    "ltm monitor nntp",
+    "ltm monitor oracle",
+    "ltm monitor pop3",
+    "ltm monitor postgresql",
+    "ltm monitor radius",
+    "ltm monitor radius-accounting",
+    "ltm monitor real-server",
+    "ltm monitor rpc",
+    "ltm monitor sasp",
+    "ltm monitor scripted",
+    "ltm monitor sip",
+    "ltm monitor smb",
+    "ltm monitor smtp",
+    "ltm monitor snmp-dca",
+    "ltm monitor snmp-dca-base",
+    "ltm monitor soap",
+    "ltm monitor tcp",
+    "ltm monitor tcp-echo",
+    "ltm monitor tcp-half-open",
+    "ltm monitor udp",
+    "ltm monitor virtual-location",
+    "ltm monitor wap",
+    "ltm monitor wmi",
+)
+
 
 # Phase 2 seed: ltm virtual.destination flowing through DestinationSpec.
 # Keeping the spec's parameters identical to what the doc's pilot
@@ -52,10 +107,51 @@ _PILOT_LTM_VIRTUAL_DESTINATION = PropertySpec(
     writable=True,
 )
 
+# Phase 6 migrations: monitor expressions across every kind whose
+# ``monitor`` property accepts the expression grammar.  Pool / node /
+# GTM server / GTM pool all route through the same spec.  The
+# projection still returns the canonical string (back-compat), but
+# the reference layer now enumerates every monitor reference via
+# ``MonitorExpression.references`` so ``references_to /Common/http``
+# finds every pool / node / GTM object that uses the monitor —
+# exact-path matching that the legacy grep substring seeding could
+# only approximate.
+_MONITOR_PROPERTY = PropertySpec(
+    attr="monitor",
+    value=MonitorExpressionSpec(ref_kinds=_MONITOR_REF_KINDS),
+    writable=True,
+    # The legacy projection wraps ``monitor`` as a ``PathRef`` for
+    # ref_kind="ltm monitor" so ``.monitor.full-path`` works.  Stay
+    # on that surface until the projection layer can route
+    # MonitorExpression through a structured container that still
+    # quacks like a PathRef for single-monitor expressions.  The
+    # spec owns parse / edit / references which is what the
+    # migration was for.
+    project_via_legacy=True,
+)
+
+# Phase 6 migration: source-address-translation as the SNAT mode sum
+# type.  The legacy representation kept the body as a string; the
+# new spec parses it into a structured value so queries can filter
+# by mode (``select(.snat_mode.is_automap)``) and ``references_to
+# /Common/snatpool_x`` finds every virtual that uses it.
+_PILOT_LTM_VIRTUAL_SNAT = PropertySpec(
+    attr="source_address_translation",
+    value=SnatModeSpec(),
+    writable=True,
+    tmsh_name="source-address-translation",
+)
+
 
 # (module, object_type, property_name) -> PropertySpec
 PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("ltm", "virtual", "destination"): _PILOT_LTM_VIRTUAL_DESTINATION,
+    # ``monitor`` migrations — same spec, four kinds.
+    ("ltm", "pool", "monitor"): _MONITOR_PROPERTY,
+    ("ltm", "node", "monitor"): _MONITOR_PROPERTY,
+    ("gtm", "pool", "monitor"): _MONITOR_PROPERTY,
+    ("gtm", "server", "monitor"): _MONITOR_PROPERTY,
+    ("ltm", "virtual", "source-address-translation"): _PILOT_LTM_VIRTUAL_SNAT,
 }
 
 
