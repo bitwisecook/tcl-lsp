@@ -1197,3 +1197,28 @@ def test_no_spec_encodes_operators_in_enum_values():
             "`list_operators=frozenset((...))` and switch "
             '`value_type="enum"` to `value_type="reference"`:\n  - ' + joined
         )
+
+
+# ---------------------------------------------------------------------------
+# Pilot-table parity sweep
+# ---------------------------------------------------------------------------
+
+
+def test_every_pilot_property_has_a_known_value_spec():
+    """The pilot table only registers specs the value-spec module
+    exports.  This audit prevents a typo / orphaned entry from
+    landing — the dispatch contract requires that every registered
+    property points at a callable spec."""
+    from core.bigip.registry import PropertySpec
+    from core.bigip.registry.pilot import PILOT_PROPERTY_SPECS
+
+    for key, spec in PILOT_PROPERTY_SPECS.items():
+        assert isinstance(spec, PropertySpec), f"{key}: not a PropertySpec"
+        # ``value`` must implement the protocol — sanity-check the
+        # required methods are present.
+        for method in ("parse", "project", "render", "references"):
+            assert callable(getattr(spec.value, method, None)), (
+                f"{key}: spec.value missing {method}()"
+            )
+        # ``is_structured`` should be exposed via the value spec.
+        assert hasattr(spec.value, "is_structured")
