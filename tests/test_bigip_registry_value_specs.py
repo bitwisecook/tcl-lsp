@@ -418,3 +418,94 @@ def test_iter_object_references_yields_from_migrated_specs_only():
     # a ref).  Pool isn't migrated so iter_object_references skips
     # it entirely.  Combined: no edges yet — Phase 6 changes that.
     assert refs == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: MonitorExpressionSpec
+# ---------------------------------------------------------------------------
+
+
+def test_monitor_expression_parses_default_keyword():
+    from core.bigip.registry import MonitorExpressionSpec
+    from core.bigip.types import MonitorExpression
+
+    spec = MonitorExpressionSpec()
+    parsed = spec.parse("default", ParseContext())
+    assert isinstance(parsed.value, MonitorExpression)
+    assert parsed.value.is_default
+    assert parsed.value.references() == ()
+    assert str(parsed.value) == "default"
+
+
+def test_monitor_expression_parses_single_monitor():
+    from core.bigip.registry import MonitorExpressionSpec
+    from core.bigip.types import MonitorExpression
+
+    spec = MonitorExpressionSpec()
+    parsed = spec.parse("/Common/http", ParseContext())
+    assert isinstance(parsed.value, MonitorExpression)
+    assert parsed.value.mode == "single"
+    assert parsed.value.monitors == ("/Common/http",)
+    assert parsed.value.references() == ("/Common/http",)
+
+
+def test_monitor_expression_parses_and_chain():
+    from core.bigip.registry import MonitorExpressionSpec
+    from core.bigip.types import MonitorExpression
+
+    spec = MonitorExpressionSpec()
+    parsed = spec.parse("/Common/http and /Common/tcp", ParseContext())
+    assert isinstance(parsed.value, MonitorExpression)
+    assert parsed.value.mode == "all"
+    assert parsed.value.monitors == ("/Common/http", "/Common/tcp")
+    # ``str()`` round-trips because we kept the raw spelling.
+    assert str(parsed.value) == "/Common/http and /Common/tcp"
+
+
+def test_monitor_expression_parses_min_of():
+    from core.bigip.registry import MonitorExpressionSpec
+    from core.bigip.types import MonitorExpression
+
+    spec = MonitorExpressionSpec()
+    parsed = spec.parse(
+        "min 2 of { /Common/gateway_icmp /Common/http /Common/http2 }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, MonitorExpression)
+    assert parsed.value.mode == "min-of"
+    assert parsed.value.minimum == 2
+    assert parsed.value.monitors == (
+        "/Common/gateway_icmp",
+        "/Common/http",
+        "/Common/http2",
+    )
+
+
+def test_monitor_expression_spec_emits_references_for_graph():
+    """The Phase 6 dispatch surfaces every monitor reference so the
+    query graph / LSP layer can navigate to each one — this was the
+    review's biggest "regex seed matching wouldn't be precise here"
+    case.  Each parsed monitor becomes one :class:`Reference`."""
+    from core.bigip.registry import MonitorExpressionSpec, ReferenceContext
+    from core.bigip.types import MonitorExpression
+
+    spec = MonitorExpressionSpec(ref_kind="ltm monitor")
+    value = MonitorExpression(
+        mode="all",
+        monitors=("/Common/http", "/Common/tcp"),
+        raw="/Common/http and /Common/tcp",
+    )
+    refs = list(spec.references(value, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm monitor", "/Common/http"),
+        ("ltm monitor", "/Common/tcp"),
+    ]
+
+
+def test_monitor_expression_rejects_garbage():
+    from core.bigip.registry import MonitorExpressionSpec
+
+    spec = MonitorExpressionSpec()
+    parsed = spec.parse("min hello of { /Common/http }", ParseContext())
+    assert parsed.value is None
+    assert any("monitor expression" in d.message for d in parsed.diagnostics)

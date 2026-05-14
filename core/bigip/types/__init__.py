@@ -43,6 +43,7 @@ from __future__ import annotations
 from ._address import FQDN, Address, IPAddress, parse_address, try_parse_address
 from ._destination import Destination
 from ._folder import Folder, ObjectPath
+from ._monitor_expression import MonitorExpression, MonitorMode
 from ._network import Network
 from ._partition import Partition
 from ._port import Port, PortRange
@@ -54,6 +55,8 @@ __all__ = [
     "FQDN",
     "Folder",
     "IPAddress",
+    "MonitorExpression",
+    "MonitorMode",
     "Network",
     "ObjectPath",
     "Partition",

@@ -606,6 +606,98 @@ class PortSpec(_BaseSpec):
         return True
 
 
+# ---------------------------------------------------------------------------
+# Phase 6: compound value specs
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class MonitorExpressionSpec(_BaseSpec):
+    """A pool / node / GTM-server ``monitor`` expression.
+
+    Wraps the :class:`core.bigip.types.MonitorExpression` typed value
+    in a value spec so the registry can route monitor parsing,
+    projection, edit rendering, and reference enumeration through
+    one consistent surface.  ``ref_kind`` (or the wider ``ref_kinds``
+    set, for properties that accept any of many monitor types) gives
+    the LSP / graph layers the target kind so navigation, document
+    links, and rename eligibility all see the same edges as the
+    parsed expression's :meth:`MonitorExpression.references`.
+
+    Phase 6 wires this spec; ``ltm pool.monitor`` and friends migrate
+    to it as the rest of the rearchitecture catches up.
+    """
+
+    ref_kind: str = "ltm monitor"
+    ref_kinds: tuple[str, ...] = ()
+
+    @property
+    def target_kinds(self) -> tuple[str, ...]:
+        if self.ref_kinds:
+            return self.ref_kinds
+        return (self.ref_kind,) if self.ref_kind else ()
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import MonitorExpression
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        parsed = MonitorExpression.try_parse(text)
+        if parsed is None:
+            return ParsedValue(
+                value=None,
+                raw=raw,
+                diagnostics=(
+                    Diagnostic(
+                        severity="error",
+                        message=f"not a valid monitor expression: {raw!r}",
+                    ),
+                ),
+            )
+        return ParsedValue(value=parsed, raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        # Legacy parity: the existing projection layer surfaces the
+        # monitor as its canonical string.  Phase 6+ can layer
+        # ``.monitor.mode`` / ``.monitor.monitors[]`` /
+        # ``.monitor.minimum`` structured children on top later; until
+        # then we keep the string surface so existing queries against
+        # ``.monitor`` still work.
+        if value is None:
+            return ""
+        return str(value)
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        # The monitor expression already enumerates its own
+        # references; the spec attributes each to the first
+        # declared target kind so unresolved monitor refs at least
+        # land on a single kind for graph traversal.  Phase 6 can
+        # widen this (a ``ltm monitor http`` reference is also
+        # findable as ``ltm monitor``, etc.) when the kind-resolver
+        # API is in place.
+        if value is None:
+            return ()
+        from ..types import MonitorExpression
+
+        if not isinstance(value, MonitorExpression):
+            return ()
+        targets = self.target_kinds
+        if not targets:
+            return ()
+        kind = targets[0]
+        return tuple(Reference(target_kind=kind, target_path=path) for path in value.references())
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
 # Public re-exports.
 __all__ = [
     "AddressSpec",
@@ -615,6 +707,7 @@ __all__ = [
     "EnumSpec",
     "IntSpec",
     "ListSpec",
+    "MonitorExpressionSpec",
     "NetworkSpec",
     "ObjectRefSpec",
     "ParseContext",
