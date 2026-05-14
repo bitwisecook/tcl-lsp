@@ -164,5 +164,20 @@ def register_spec() -> BigipObjectSpec:
                 shape_kind="boolean",
             ),
             BigipPropertySpec(name="value", value_type="string", in_sections=("variables",)),
+            BigipPropertySpec(
+                name="inherited-devicegroup",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="inherited-traffic-group",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="template-modified",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

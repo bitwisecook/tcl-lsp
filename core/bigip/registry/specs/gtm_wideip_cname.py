@@ -131,5 +131,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="ttl-persistence", value_type="integer", default="3600"),
             BigipPropertySpec(name="value", value_type="string"),
+            BigipPropertySpec(
+                name="disabled",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

@@ -62,5 +62,31 @@ def register_spec() -> BigipObjectSpec:
                 default="enabled",
             ),
             BigipPropertySpec(name="port", value_type="integer", default="22"),
+            BigipPropertySpec(
+                name="LoginGraceTime",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="MACs",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="MaxAuthTries",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="MaxStartups",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="Protocol",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(name='"', value_type="string", usage_flags=frozenset(("read_only",))),
         ),
     )

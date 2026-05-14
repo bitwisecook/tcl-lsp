@@ -66,5 +66,10 @@ def register_spec() -> BigipObjectSpec:
                     "sys_file_rewrite_rule",
                 ),
             ),
+            BigipPropertySpec(
+                name="type",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

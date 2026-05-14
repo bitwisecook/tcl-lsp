@@ -39,5 +39,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="scramble-alg", value_type="string"),
             BigipPropertySpec(name="table", value_type="reference"),
+            BigipPropertySpec(
+                name="create-timestamp",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

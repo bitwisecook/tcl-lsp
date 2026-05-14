@@ -26,8 +26,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="categories",
-                value_type="list",
+                value_type="block",
                 required=True,
+                shape_kind="list",
                 block=(
                     BigipPropertySpec(
                         name="ip-tos",
@@ -123,6 +124,11 @@ def register_spec() -> BigipObjectSpec:
                 name="traffic-priority-map",
                 value_type="string",
                 usage_flags=frozenset(("optional",)),
+            ),
+            BigipPropertySpec(
+                name="partition",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
             ),
         ),
     )

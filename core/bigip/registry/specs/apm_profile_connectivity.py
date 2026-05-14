@@ -1161,5 +1161,15 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 default="none",
             ),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="fec-name",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

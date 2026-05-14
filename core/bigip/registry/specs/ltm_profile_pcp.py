@@ -90,5 +90,20 @@ def register_spec() -> BigipObjectSpec:
                 shape_kind="boolean",
                 default="disabled",
             ),
+            BigipPropertySpec(
+                name="listening-port",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="multicast-port",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="peer-oper-allowed",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

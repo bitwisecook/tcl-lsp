@@ -30,5 +30,20 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="log-publisher", value_type="string"),
             BigipPropertySpec(name="preset", value_type="string"),
             BigipPropertySpec(name="urlcat", value_type="enum", enum_values=("off", "on")),
+            BigipPropertySpec(
+                name="avr-publisher",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="avr-stat-collect",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="log-unclassified-domain",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

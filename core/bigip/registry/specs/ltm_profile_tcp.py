@@ -413,5 +413,25 @@ def register_spec() -> BigipObjectSpec:
                 value_type="integer",
                 default="20000 milliseconds",
             ),
+            BigipPropertySpec(
+                name="ip-ttl-v4",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="ip-ttl-v6",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="mptcp-idle-timeout",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="tcp-options",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

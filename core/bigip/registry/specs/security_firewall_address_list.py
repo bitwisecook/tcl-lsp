@@ -37,5 +37,10 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
+            BigipPropertySpec(
+                name="address-lists",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

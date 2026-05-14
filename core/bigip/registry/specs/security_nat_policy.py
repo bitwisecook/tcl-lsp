@@ -489,5 +489,10 @@ def register_spec() -> BigipObjectSpec:
                     "sys_sflow_data_source_vlan",
                 ),
             ),
+            BigipPropertySpec(
+                name="traffic-group",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

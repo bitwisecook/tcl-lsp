@@ -64,5 +64,25 @@ def register_spec() -> BigipObjectSpec:
                 default="enabled",
             ),
             BigipPropertySpec(name="stp-reset", value_type="unknown"),
+            BigipPropertySpec(
+                name="cfg-mbr-count",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="id",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="media",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="working-mbr-count",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

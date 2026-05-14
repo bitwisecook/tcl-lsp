@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from ..models import (
+    BigipObjectKindSpec,
+    BigipObjectSpec,
+)
+from ._base import register
+
+
+@register
+def register_spec() -> BigipObjectSpec:
+    return BigipObjectSpec(
+        kind_spec=BigipObjectKindSpec(
+            "ltm_html_rule_tag_remove_attribute",
+            module="ltm",
+            object_types=("html-rule tag-remove-attribute",),
+        ),
+        header_types=(("ltm", "html-rule tag-remove-attribute"),),
+        properties=(),
+    )

@@ -972,5 +972,25 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("whitelist",),
             ),
             BigipPropertySpec(name="url", value_type="string", in_sections=("whitelist",)),
+            BigipPropertySpec(
+                name="allow-browser-access",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="browser-mitigation-action",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="honeypot-page",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="redirect-to-pool-name",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

@@ -472,5 +472,10 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("dynamic-pat", "static-nat", "static-pat"),
             ),
+            BigipPropertySpec(
+                name="traffic-group",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

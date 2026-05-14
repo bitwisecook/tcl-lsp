@@ -107,7 +107,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="cert-extension-includes",
-                value_type="list",
+                value_type="block",
+                shape_kind="list",
                 default="none",
                 block=(
                     BigipPropertySpec(
@@ -450,7 +451,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="options",
-                value_type="list",
+                value_type="block",
+                shape_kind="list",
                 default="dont-insert-empty-fragments no-tlsv1",
                 block=(
                     BigipPropertySpec(
@@ -632,6 +634,16 @@ def register_spec() -> BigipObjectSpec:
                 required=True,
                 enum_values=("disabled", "enabled"),
                 shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="inherit-certkeychain",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="inherit-ca-certkeychain",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
             ),
         ),
     )

@@ -35,5 +35,10 @@ def register_spec() -> BigipObjectSpec:
                 shape_kind="boolean",
                 default="no",
             ),
+            BigipPropertySpec(
+                name="include-url",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

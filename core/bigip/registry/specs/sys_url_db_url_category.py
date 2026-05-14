@@ -33,5 +33,25 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
+            BigipPropertySpec(
+                name="cat-id",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="cat-number",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="default-action",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="f5-id",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

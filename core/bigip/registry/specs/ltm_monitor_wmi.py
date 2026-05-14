@@ -50,5 +50,20 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 default="none",
             ),
+            BigipPropertySpec(
+                name="destination",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="method",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="post",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

@@ -120,5 +120,15 @@ def register_spec() -> BigipObjectSpec:
                 value_type="string",
                 in_sections=("user-agent",),
             ),
+            BigipPropertySpec(
+                name="factory-rule",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="user-defined",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

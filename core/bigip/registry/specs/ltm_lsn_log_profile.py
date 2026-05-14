@@ -97,7 +97,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="errors",
-                value_type="list",
+                value_type="block",
+                shape_kind="list",
                 block=(
                     BigipPropertySpec(
                         name="action",

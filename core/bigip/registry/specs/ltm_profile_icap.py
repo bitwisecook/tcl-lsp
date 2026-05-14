@@ -31,5 +31,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="referer", value_type="string"),
             BigipPropertySpec(name="uri", value_type="string"),
             BigipPropertySpec(name="user-agent", value_type="string"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

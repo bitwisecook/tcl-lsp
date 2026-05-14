@@ -268,5 +268,10 @@ def register_spec() -> BigipObjectSpec:
                 shape_kind="boolean",
                 default="enabled",
             ),
+            BigipPropertySpec(
+                name="disabled",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

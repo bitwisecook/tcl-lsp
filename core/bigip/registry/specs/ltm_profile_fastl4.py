@@ -327,5 +327,20 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("disconnect", "fallback"),
             ),
+            BigipPropertySpec(
+                name="ip-ttl-v4",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="ip-ttl-v6",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="tcp-generate-isn",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

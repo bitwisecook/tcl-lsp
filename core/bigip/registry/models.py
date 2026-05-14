@@ -21,6 +21,7 @@ class ValueKind(str, Enum):
     ENUM = "enum"
     REFERENCE = "reference"
     LIST = "list"
+    BLOCK = "block"
     UNKNOWN = "unknown"
     IP_ADDRESS = "ip-address"
     ENDPOINT = "endpoint"

@@ -153,5 +153,10 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("no", "yes"),
                 shape_kind="boolean",
             ),
+            BigipPropertySpec(
+                name="avr-dnsstat-sample-rate",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

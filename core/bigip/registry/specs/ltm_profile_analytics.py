@@ -549,5 +549,15 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 list_operators=frozenset(("add", "delete")),
             ),
+            BigipPropertySpec(
+                name="session-timeout",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="collect-os-and-browser",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

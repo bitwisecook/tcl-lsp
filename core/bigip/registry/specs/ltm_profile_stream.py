@@ -41,5 +41,10 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="source", value_type="string", default="none"),
             BigipPropertySpec(name="target", value_type="string", default="none"),
+            BigipPropertySpec(
+                name="chunking",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

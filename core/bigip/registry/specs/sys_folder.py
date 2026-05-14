@@ -38,5 +38,20 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 references=("cm_traffic_group",),
             ),
+            BigipPropertySpec(
+                name="hidden",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="inherited-devicegroup",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="inherited-traffic-group",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

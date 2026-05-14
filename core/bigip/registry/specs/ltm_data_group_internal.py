@@ -36,5 +36,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="data", value_type="unknown", in_sections=("records",)),
             BigipPropertySpec(name="type", value_type="string", required=True, default="ip"),
+            BigipPropertySpec(
+                name="BracketStart",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

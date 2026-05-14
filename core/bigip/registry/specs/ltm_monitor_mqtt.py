@@ -70,5 +70,10 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 default="none",
             ),
+            BigipPropertySpec(
+                name="debug",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

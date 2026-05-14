@@ -402,7 +402,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="header-insert", value_type="string", default="none"),
             BigipPropertySpec(
                 name="hsts",
-                value_type="list",
+                value_type="block",
+                shape_kind="list",
                 block=(
                     BigipPropertySpec(
                         name="include-subdomains",

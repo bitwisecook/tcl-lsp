@@ -32,7 +32,7 @@ def register_spec() -> BigipObjectSpec:
                 shape_kind="boolean",
                 default="no, which will try a IPv4 lookup before a IPv6",
             ),
-            BigipPropertySpec(name="protocol-versions", value_type="list"),
+            BigipPropertySpec(name="protocol-versions", value_type="block", shape_kind="list"),
             BigipPropertySpec(
                 name="route-domain",
                 value_type="unknown",

@@ -43,5 +43,10 @@ def register_spec() -> BigipObjectSpec:
                 references=("cm_traffic_group",),
             ),
             BigipPropertySpec(name="udp-idle-timeout", value_type="integer", default="indefinite"),
+            BigipPropertySpec(
+                name="inherited-traffic-group",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

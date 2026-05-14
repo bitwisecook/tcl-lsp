@@ -29,5 +29,15 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="prompt-for-password", value_type="unknown"),
             BigipPropertySpec(name="session-limit", value_type="integer"),
             BigipPropertySpec(name="shell", value_type="reference"),
+            BigipPropertySpec(
+                name="encrypted-password",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="partition",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

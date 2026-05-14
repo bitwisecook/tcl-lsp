@@ -582,20 +582,103 @@ def _range_from_offsets(source_map: DocumentBuffer, start: int, end: int) -> Ran
     return source_map.range_from_offsets(start, end)
 
 
-def _parse_generic_header(header: str) -> tuple[str, str, str] | None:
-    """Parse a stanza header into ``(module, type, identifier)``.
+def _tokenise_header(header: str) -> list[str]:
+    """Split *header* on whitespace, honouring ``"..."`` quoted spans.
 
-    Works for both named and singleton stanzas, including non-LTM modules.
+    BIG-IP allows quoted names with embedded spaces — e.g.
+    ``security bot-defense signature "/Common/Microsoft Access"`` —
+    so a plain ``str.split()`` mis-segments the identifier.  Quotes
+    are stripped from the returned tokens; backslash escapes inside a
+    quoted span are honoured.
     """
-    parts = header.split()
+    tokens: list[str] = []
+    buf: list[str] = []
+    in_quote = False
+    escape = False
+    for ch in header:
+        if escape:
+            buf.append(ch)
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_quote = not in_quote
+            continue
+        if ch.isspace() and not in_quote:
+            if buf:
+                tokens.append("".join(buf))
+                buf.clear()
+            continue
+        buf.append(ch)
+    if buf:
+        tokens.append("".join(buf))
+    return tokens
+
+
+def _parse_generic_header(header: str) -> tuple[str, str, str] | None:
+    """Parse a stanza header into ``(module, object_type, identifier)``.
+
+    Works for named and singleton stanzas across every module.  Quoted
+    names with embedded spaces are preserved as a single identifier
+    token (``security bot-defense signature "/Common/Microsoft Access"``
+    parses to identifier ``/Common/Microsoft Access``).
+
+    When the registry is available, the longest matching
+    ``(module, object_type)`` prefix is preferred so multi-word object
+    types (``ltm message-routing diameter route``,
+    ``security protocol-inspection compliance-objects``) are recognised
+    before falling back to the heuristic "everything between the module
+    word and the identifier is the object type".
+    """
+    parts = _tokenise_header(header)
     if len(parts) < 2:
         return None
     module = parts[0]
     if len(parts) == 2:
         return (module, parts[1], "")
+
+    # Try the longest-prefix match against the registry first.
+    known = _known_object_types(module)
+    if known:
+        for prefix_len in range(len(parts) - 1, 1, -1):
+            candidate = " ".join(parts[1:prefix_len])
+            if candidate in known:
+                identifier = " ".join(parts[prefix_len:])
+                return (module, candidate, identifier)
+        # Whole tail is a known type with no identifier (singleton).
+        whole = " ".join(parts[1:])
+        if whole in known:
+            return (module, whole, "")
+
+    # Fall back to the original heuristic.
     identifier = parts[-1]
     object_type = " ".join(parts[1:-1]).strip()
     if not object_type:
         object_type = parts[1]
         identifier = parts[2] if len(parts) >= 3 else ""
     return (module, object_type, identifier)
+
+
+def _known_object_types(module: str) -> frozenset[str]:
+    """Return the set of registered ``object_type`` strings for *module*.
+
+    Cached at first call; the registry is import-time data so this is
+    a pure lookup.  Falls back to an empty set when the registry isn't
+    importable (early bootstrap, tests with a stubbed core).
+    """
+    cached = _OBJECT_TYPES_CACHE.get(module)
+    if cached is not None:
+        return cached
+    try:
+        from .._registry_header_index import header_object_types_by_module
+    except Exception:
+        result = frozenset()
+    else:
+        result = header_object_types_by_module().get(module, frozenset())
+    _OBJECT_TYPES_CACHE[module] = result
+    return result
+
+
+_OBJECT_TYPES_CACHE: dict[str, frozenset[str]] = {}

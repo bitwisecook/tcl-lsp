@@ -65,7 +65,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="c3d-cert-extension-custom-oids", value_type="string"),
             BigipPropertySpec(
                 name="c3d-cert-extension-includes",
-                value_type="list",
+                value_type="block",
+                shape_kind="list",
                 default="{ basic-constraints extended-key-usage key-usage subject-alternative-name }",
                 block=(
                     BigipPropertySpec(
@@ -258,7 +259,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="options",
-                value_type="list",
+                value_type="block",
+                shape_kind="list",
                 default="dont-insert-empty-fragments no-tlsv1",
                 block=(
                     BigipPropertySpec(

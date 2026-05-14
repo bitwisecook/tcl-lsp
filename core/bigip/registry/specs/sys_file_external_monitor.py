@@ -25,5 +25,10 @@ def register_spec() -> BigipObjectSpec:
                 default="none",
             ),
             BigipPropertySpec(name="source-path", value_type="unknown"),
+            BigipPropertySpec(
+                name="system-path",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

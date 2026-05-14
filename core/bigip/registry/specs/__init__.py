@@ -55,6 +55,7 @@ from . import (
     apm_aaa_kerberos,  # noqa: F401
     apm_aaa_kerberos_keytab_file,  # noqa: F401
     apm_aaa_ldap,  # noqa: F401
+    apm_aaa_localdb,  # noqa: F401
     apm_aaa_oam,  # noqa: F401
     apm_aaa_oauth_provider,  # noqa: F401
     apm_aaa_oauth_request,  # noqa: F401
@@ -70,7 +71,9 @@ from . import (
     apm_acl,  # noqa: F401
     apm_apm_avr_config,  # noqa: F401
     apm_client_image,  # noqa: F401
+    apm_client_packaging,  # noqa: F401
     apm_configuration_captcha,  # noqa: F401
+    apm_ephemeral_auth_ssh_security_config,  # noqa: F401
     apm_epsec_epsec_package,  # noqa: F401
     apm_log_setting,  # noqa: F401
     apm_ntlm_machine_account,  # noqa: F401
@@ -83,11 +86,13 @@ from . import (
     apm_oauth_oauth_client_app,  # noqa: F401
     apm_oauth_oauth_resource_server,  # noqa: F401
     apm_oauth_oauth_scope,  # noqa: F401
+    apm_policy_access_policy,  # noqa: F401
     apm_policy_agent_aaa_active_directory,  # noqa: F401
     apm_policy_agent_aaa_client_cert,  # noqa: F401
     apm_policy_agent_aaa_crldp,  # noqa: F401
     apm_policy_agent_aaa_http,  # noqa: F401
     apm_policy_agent_aaa_ldap,  # noqa: F401
+    apm_policy_agent_aaa_localdb,  # noqa: F401
     apm_policy_agent_aaa_oauth,  # noqa: F401
     apm_policy_agent_aaa_radius,  # noqa: F401
     apm_policy_agent_aaa_saml,  # noqa: F401
@@ -137,11 +142,19 @@ from . import (
     apm_policy_agent_ssl_check,  # noqa: F401
     apm_policy_agent_tacacsplus,  # noqa: F401
     apm_policy_agent_variable_assign,  # noqa: F401
+    apm_policy_customization_group,  # noqa: F401
+    apm_policy_customization_source,  # noqa: F401
+    apm_policy_policy_item,  # noqa: F401
     apm_profile_access,  # noqa: F401
     apm_profile_connectivity,  # noqa: F401
+    apm_profile_eca,  # noqa: F401
     apm_profile_exchange,  # noqa: F401
     apm_profile_oauth,  # noqa: F401
+    apm_profile_oauthplugin,  # noqa: F401
+    apm_profile_ping_access,  # noqa: F401
+    apm_profile_remote_desktop,  # noqa: F401
     apm_profile_vdi,  # noqa: F401
+    apm_report,  # noqa: F401
     apm_report_custom_report_field,  # noqa: F401
     apm_resource_address_space,  # noqa: F401
     apm_resource_app_tunnel,  # noqa: F401
@@ -179,6 +192,7 @@ from . import (
     apm_url_filter,  # noqa: F401
     asm_httpclass_asm,  # noqa: F401
     asm_policy,  # noqa: F401
+    asm_predefined_policy,  # noqa: F401
     auth_apm_auth,  # noqa: F401
     auth_cert_ldap,  # noqa: F401
     auth_ldap,  # noqa: F401
@@ -200,6 +214,7 @@ from . import (
     cli_script,  # noqa: F401
     cli_transaction,  # noqa: F401
     cli_version,  # noqa: F401
+    cm_cert,  # noqa: F401
     cm_device,  # noqa: F401
     cm_device_group,  # noqa: F401
     cm_ha_group,  # noqa: F401
@@ -321,6 +336,13 @@ from . import (
     ltm_global_settings_general,  # noqa: F401
     ltm_global_settings_rule,  # noqa: F401
     ltm_global_settings_traffic_control,  # noqa: F401
+    ltm_html_rule_comment_raise_event,  # noqa: F401
+    ltm_html_rule_comment_remove,  # noqa: F401
+    ltm_html_rule_tag_append_html,  # noqa: F401
+    ltm_html_rule_tag_prepend_html,  # noqa: F401
+    ltm_html_rule_tag_raise_event,  # noqa: F401
+    ltm_html_rule_tag_remove,  # noqa: F401
+    ltm_html_rule_tag_remove_attribute,  # noqa: F401
     ltm_ifile,  # noqa: F401
     ltm_lsn_log_profile,  # noqa: F401
     ltm_lsn_pool,  # noqa: F401
@@ -386,6 +408,7 @@ from . import (
     ltm_monitor_wmi,  # noqa: F401
     ltm_nat,  # noqa: F401
     ltm_node,  # noqa: F401
+    ltm_node2,  # noqa: F401
     ltm_persistence_cookie,  # noqa: F401
     ltm_persistence_dest_addr,  # noqa: F401
     ltm_persistence_global_settings,  # noqa: F401
@@ -398,6 +421,7 @@ from . import (
     ltm_persistence_ssl,  # noqa: F401
     ltm_persistence_universal,  # noqa: F401
     ltm_policy,  # noqa: F401
+    ltm_policy_strategy,  # noqa: F401
     ltm_pool,  # noqa: F401
     ltm_profile_analytics,  # noqa: F401
     ltm_profile_certificate_authority,  # noqa: F401
@@ -409,6 +433,7 @@ from . import (
     ltm_profile_dhcpv6,  # noqa: F401
     ltm_profile_diameter,  # noqa: F401
     ltm_profile_dns,  # noqa: F401
+    ltm_profile_dns_acceleration,  # noqa: F401
     ltm_profile_dns_logging,  # noqa: F401
     ltm_profile_doh_proxy,  # noqa: F401
     ltm_profile_doh_server,  # noqa: F401
@@ -423,6 +448,7 @@ from . import (
     ltm_profile_http2,  # noqa: F401
     ltm_profile_http3,  # noqa: F401
     ltm_profile_http_compression,  # noqa: F401
+    ltm_profile_http_proxy_connect,  # noqa: F401
     ltm_profile_httprouter,  # noqa: F401
     ltm_profile_icap,  # noqa: F401
     ltm_profile_iiop,  # noqa: F401
@@ -431,15 +457,18 @@ from . import (
     ltm_profile_ipother,  # noqa: F401
     ltm_profile_ipsecalg,  # noqa: F401
     ltm_profile_json,  # noqa: F401
+    ltm_profile_map_t,  # noqa: F401
     ltm_profile_mapt,  # noqa: F401
     ltm_profile_mblb,  # noqa: F401
     ltm_profile_mqtt,  # noqa: F401
     ltm_profile_mr_ratelimit,  # noqa: F401
     ltm_profile_mr_ratelimit_action,  # noqa: F401
     ltm_profile_mssql,  # noqa: F401
+    ltm_profile_nat_stats,  # noqa: F401
     ltm_profile_netflow,  # noqa: F401
     ltm_profile_ntlm,  # noqa: F401
     ltm_profile_ocsp,  # noqa: F401
+    ltm_profile_ocsp_stapling_params,  # noqa: F401
     ltm_profile_one_connect,  # noqa: F401
     ltm_profile_pcp,  # noqa: F401
     ltm_profile_pop3,  # noqa: F401
@@ -456,6 +485,7 @@ from . import (
     ltm_profile_sctp,  # noqa: F401
     ltm_profile_server_ldap,  # noqa: F401
     ltm_profile_server_ssl,  # noqa: F401
+    ltm_profile_service,  # noqa: F401
     ltm_profile_sip,  # noqa: F401
     ltm_profile_smtp,  # noqa: F401
     ltm_profile_smtps,  # noqa: F401
@@ -530,6 +560,7 @@ from . import (
     net_route_domain,  # noqa: F401
     net_router_advertisement,  # noqa: F401
     net_routing_access_list,  # noqa: F401
+    net_routing_as_path,  # noqa: F401
     net_routing_bfd,  # noqa: F401
     net_routing_bgp,  # noqa: F401
     net_routing_community_list,  # noqa: F401
@@ -600,6 +631,7 @@ from . import (
     security_anti_fraud_signatures_update,  # noqa: F401
     security_blacklist_publisher_category,  # noqa: F401
     security_blacklist_publisher_profile,  # noqa: F401
+    security_bot_defense_asm_profile,  # noqa: F401
     security_bot_defense_profile,  # noqa: F401
     security_bot_defense_signature,  # noqa: F401
     security_bot_defense_signature_category,  # noqa: F401
@@ -607,6 +639,7 @@ from . import (
     security_datasync_background_tasks,  # noqa: F401
     security_datasync_global_profile,  # noqa: F401
     security_datasync_local_profile,  # noqa: F401
+    security_datasync_update_file,  # noqa: F401
     security_debug_matcher,  # noqa: F401
     security_debug_register,  # noqa: F401
     security_device_device_context,  # noqa: F401
@@ -619,12 +652,14 @@ from . import (
     security_dos_dos_signature,  # noqa: F401
     security_dos_dynamic_signatures,  # noqa: F401
     security_dos_ip_uncommon_protolist,  # noqa: F401
+    security_dos_ipv6_ext_hdr,  # noqa: F401
     security_dos_l4bdos_file_object,  # noqa: F401
     security_dos_network_whitelist,  # noqa: F401
     security_dos_profile,  # noqa: F401
     security_dos_udp_portlist,  # noqa: F401
     security_firewall_address_list,  # noqa: F401
     security_firewall_config_change_log,  # noqa: F401
+    security_firewall_config_entity_id,  # noqa: F401
     security_firewall_global_fqdn_policy,  # noqa: F401
     security_firewall_global_rules,  # noqa: F401
     security_firewall_management_ip_rules,  # noqa: F401
@@ -652,10 +687,14 @@ from . import (
     security_packet_filter_policy,  # noqa: F401
     security_protected_zone,  # noqa: F401
     security_protocol_inspection_common_config,  # noqa: F401
+    security_protocol_inspection_compliance_map,  # noqa: F401
+    security_protocol_inspection_compliance_objects,  # noqa: F401
     security_protocol_inspection_learning_stats,  # noqa: F401
     security_protocol_inspection_profile,  # noqa: F401
     security_protocol_inspection_signature,  # noqa: F401
     security_scrubber_profile,  # noqa: F401
+    security_shared_objects_address_list,  # noqa: F401
+    security_shared_objects_port_list,  # noqa: F401
     security_ssh_ciphers,  # noqa: F401
     security_ssh_profile,  # noqa: F401
     security_zone,  # noqa: F401
@@ -667,10 +706,12 @@ from . import (
     sys_autoscale_group,  # noqa: F401
     sys_clock,  # noqa: F401
     sys_cluster,  # noqa: F401
+    sys_compatibility_level,  # noqa: F401
     sys_config,  # noqa: F401
     sys_connection,  # noqa: F401
     sys_console,  # noqa: F401
     sys_core,  # noqa: F401
+    sys_crypto,  # noqa: F401
     sys_crypto_allow_key_export,  # noqa: F401
     sys_crypto_ca_bundle_manager,  # noqa: F401
     sys_crypto_cert,  # noqa: F401
@@ -704,6 +745,7 @@ from . import (
     sys_dynad_key,  # noqa: F401
     sys_dynad_rpm,  # noqa: F401
     sys_dynad_settings,  # noqa: F401
+    sys_ecm_cloud_provider,  # noqa: F401
     sys_ecm_config,  # noqa: F401
     sys_feature_module,  # noqa: F401
     sys_file_apache_ssl_cert,  # noqa: F401
@@ -797,6 +839,7 @@ from . import (
     wom_profile_cifs,  # noqa: F401
     wom_profile_isession,  # noqa: F401
     wom_profile_mapi,  # noqa: F401
+    wom_profile_passthru_woc_plugin,  # noqa: F401
     wom_remote_endpoint,  # noqa: F401
     wom_server_discovery,  # noqa: F401
 )
@@ -807,11 +850,11 @@ def bigip_object_specs() -> tuple:
     return tuple(_REGISTRY)
 
 
-# Apply curated property overrides (e.g. force ``replace-all-with``
-# onto ``ltm virtual.rules`` and the GTM ``wideip *.rules`` family
-# where the generator drops the operators) before sealing the
-# registry into :data:`OBJECT_SPECS`.
+# Apply curated post-processing overrides — the ``_base``
+# module hosts a small allowlist of list_operators / value_type
+# corrections that survive a spec regeneration.
 normalise_registry()
+
 OBJECT_SPECS = bigip_object_specs()
 
 __all__ = ["OBJECT_SPECS", "bigip_object_specs"]

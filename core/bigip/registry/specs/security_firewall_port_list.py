@@ -25,5 +25,10 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
+            BigipPropertySpec(
+                name="port-lists",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

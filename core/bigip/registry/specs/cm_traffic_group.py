@@ -135,5 +135,10 @@ def register_spec() -> BigipObjectSpec:
                 ),
                 shape_kind="object",
             ),
+            BigipPropertySpec(
+                name="unit-id",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )
