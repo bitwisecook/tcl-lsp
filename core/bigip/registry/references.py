@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from .pilot import pilot_property_spec_for
-from .value_specs import ParseContext, Reference, ReferenceContext
+from .value_specs import ListSpec, ParseContext, Reference, ReferenceContext
 
 
 def references_via_spec(
@@ -47,11 +47,19 @@ def references_via_spec(
     cross-partition visibility checks downstream have the data they
     need without each caller threading it manually.
 
-    Auto-coerces *value* via ``spec.value.parse`` when the model
-    field still stores raw text (the legacy ``BigipPool.monitor:
-    str`` shape, etc.).  This lets a property migrate to a structured
-    spec without simultaneously rewriting the dataclass field — the
-    spec sees a typed value either way.
+    Three input shapes are handled:
+
+    - **Scalar typed value** (``Destination`` / ``MonitorExpression`` /
+      ...): passed straight through to ``spec.value.references``.
+    - **Raw string**: auto-coerced via ``spec.value.parse`` so a
+      property still carrying its legacy ``str`` shape on the model
+      flows into the spec uniformly.
+    - **Tuple / list**: each element parses through the spec's
+      ``ListSpec.item`` (when the spec is a list) and yields its own
+      references.  Properties whose model still stores
+      ``tuple[str, ...]`` (the legacy profile / persist / rules /
+      vlans shape) migrate to ``ListSpec`` and get per-element refs
+      without a model rewrite.
     """
     spec = pilot_property_spec_for(module, object_type, property_name)
     if spec is None:
@@ -61,18 +69,39 @@ def references_via_spec(
         owner_path=owner_path,
         source_uri=source_uri,
     )
-    typed = _coerce_to_typed(value, spec, module, object_type, owner_path)
+    if isinstance(spec.value, ListSpec) and isinstance(value, (tuple, list)):
+        return _references_via_list_spec(spec.value, value, ctx, module, object_type, owner_path)
+    typed = _coerce_to_typed(value, spec.value, module, object_type, owner_path)
     return tuple(spec.value.references(typed, ctx))
+
+
+def _references_via_list_spec(
+    list_spec: ListSpec,
+    items: Any,
+    ctx: ReferenceContext,
+    module: str,
+    object_type: str,
+    owner_path: str,
+) -> tuple[Reference, ...]:
+    """Walk every element of a list-shaped value through the inner item
+    spec and concatenate the resulting references."""
+    if list_spec.item is None:
+        return ()
+    out: list[Reference] = []
+    for item in items:
+        typed = _coerce_to_typed(item, list_spec.item, module, object_type, owner_path)
+        out.extend(list_spec.item.references(typed, ctx))
+    return tuple(out)
 
 
 def _coerce_to_typed(
     value: Any,
-    spec: Any,
+    value_spec: Any,
     module: str,
     object_type: str,
     owner_path: str,
 ) -> Any:
-    """Run *value* through ``spec.value.parse`` when it's still raw text.
+    """Run *value* through ``value_spec.parse`` when it's still raw text.
 
     The reference / edit / projection dispatch wants the structured
     typed value (``MonitorExpression`` / ``Destination`` / etc.) but
@@ -84,7 +113,7 @@ def _coerce_to_typed(
     if value is None or value == "":
         return value
     if isinstance(value, str):
-        parsed = spec.value.parse(
+        parsed = value_spec.parse(
             value,
             ParseContext(
                 module=module,

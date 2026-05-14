@@ -34,7 +34,11 @@ from collections.abc import Iterable
 from .properties import PropertySpec
 from .value_specs import (
     DestinationSpec,
+    ListSpec,
     MonitorExpressionSpec,
+    ObjectRefSpec,
+    PersistenceAttachmentSpec,
+    ProfileAttachmentSpec,
     SnatModeSpec,
 )
 
@@ -143,6 +147,51 @@ _PILOT_LTM_VIRTUAL_SNAT = PropertySpec(
 )
 
 
+# Phase 6 migrations: list-valued attachment properties on
+# ``ltm virtual``.  Each list element is a keyed-block attachment
+# (``profiles { /Common/clientssl { context clientside } }`` /
+# ``persist { /Common/cookie { default yes } }``) and the
+# references dispatch unwinds the list to yield one Reference per
+# element.  Projection stays on the legacy ``list_ref`` PathRef
+# tuple surface so existing queries that walk ``.profiles[]`` keep
+# working unchanged.
+_PILOT_LTM_VIRTUAL_PROFILES = PropertySpec(
+    attr="profiles",
+    value=ListSpec(item=ProfileAttachmentSpec()),
+    writable=True,
+    project_via_legacy=True,
+)
+_PILOT_LTM_VIRTUAL_PERSIST = PropertySpec(
+    attr="persist",
+    value=ListSpec(item=PersistenceAttachmentSpec()),
+    writable=True,
+    project_via_legacy=True,
+)
+# ``rules`` is a plain ref-list (no per-attachment metadata) so the
+# inner spec is the simpler ObjectRefSpec.  Migrating it here lets
+# the reference dispatch hand the graph the same edges the legacy
+# ``ref_kind`` + ``list_ref=True`` projection produces, but via the
+# value-spec surface that downstream LSP / docs can also consume.
+_PILOT_LTM_VIRTUAL_RULES = PropertySpec(
+    attr="rules",
+    value=ListSpec(item=ObjectRefSpec(kind="ltm rule")),
+    writable=True,
+    project_via_legacy=True,
+)
+_PILOT_LTM_VIRTUAL_POLICIES = PropertySpec(
+    attr="policies",
+    value=ListSpec(item=ObjectRefSpec(kind="ltm policy")),
+    writable=True,
+    project_via_legacy=True,
+)
+_PILOT_LTM_VIRTUAL_VLANS = PropertySpec(
+    attr="vlans",
+    value=ListSpec(item=ObjectRefSpec(kind="net vlan")),
+    writable=True,
+    project_via_legacy=True,
+)
+
+
 # (module, object_type, property_name) -> PropertySpec
 PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("ltm", "virtual", "destination"): _PILOT_LTM_VIRTUAL_DESTINATION,
@@ -152,6 +201,12 @@ PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("gtm", "pool", "monitor"): _MONITOR_PROPERTY,
     ("gtm", "server", "monitor"): _MONITOR_PROPERTY,
     ("ltm", "virtual", "source-address-translation"): _PILOT_LTM_VIRTUAL_SNAT,
+    # List-valued attachments / refs on ltm virtual.
+    ("ltm", "virtual", "profiles"): _PILOT_LTM_VIRTUAL_PROFILES,
+    ("ltm", "virtual", "persist"): _PILOT_LTM_VIRTUAL_PERSIST,
+    ("ltm", "virtual", "rules"): _PILOT_LTM_VIRTUAL_RULES,
+    ("ltm", "virtual", "policies"): _PILOT_LTM_VIRTUAL_POLICIES,
+    ("ltm", "virtual", "vlans"): _PILOT_LTM_VIRTUAL_VLANS,
 }
 
 

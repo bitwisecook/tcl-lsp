@@ -916,3 +916,118 @@ def test_monitor_projection_stays_on_legacy_pathref_surface():
     [monitor] = result.values_per_file["m"]
     # PathRef surface: full_path attribute, string-like equality.
     assert str(monitor) == "/Common/http"
+
+
+# ---------------------------------------------------------------------------
+# Migration batch 3: list-valued migrations on ltm virtual
+# ---------------------------------------------------------------------------
+
+
+def test_virtual_profiles_migration_yields_per_element_refs():
+    """``ltm virtual.profiles`` is migrated to a ListSpec; the
+    reference dispatch unwinds the tuple and yields one Reference
+    per profile attachment."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="profiles",
+        value=("/Common/http", "/Common/tcp", "/Common/clientssl"),
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    paths = [r.target_path for r in refs]
+    assert paths == ["/Common/http", "/Common/tcp", "/Common/clientssl"]
+    # Every reference points at ``ltm profile`` (the ProfileAttachmentSpec's
+    # default ref_kind); kind-narrowing can come later via per-profile
+    # type tracking on the model.
+    assert all(r.target_kind == "ltm profile" for r in refs)
+
+
+def test_virtual_persist_migration_yields_per_element_refs():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="persist",
+        value=("/Common/cookie", "/Common/source_addr"),
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    assert [r.target_path for r in refs] == [
+        "/Common/cookie",
+        "/Common/source_addr",
+    ]
+    assert all(r.target_kind == "ltm persistence" for r in refs)
+
+
+def test_virtual_rules_migration_yields_per_element_refs():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="rules",
+        value=("/Common/log_rule", "/Common/rewrite_rule"),
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm rule", "/Common/log_rule"),
+        ("ltm rule", "/Common/rewrite_rule"),
+    ]
+
+
+def test_virtual_policies_migration_yields_per_element_refs():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="policies",
+        value=("/Common/host_policy",),
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm policy", "/Common/host_policy"),
+    ]
+
+
+def test_virtual_vlans_migration_yields_per_element_refs():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="virtual",
+        property_name="vlans",
+        value=("/Common/external", "/Common/internal"),
+        owner_path="/Common/v",
+    )
+    assert refs is not None
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("net vlan", "/Common/external"),
+        ("net vlan", "/Common/internal"),
+    ]
+
+
+def test_virtual_profile_projection_keeps_legacy_pathref_list():
+    """Existing queries that walk ``.profiles[]`` use the legacy
+    PathRef-tuple projection; the migration's ``project_via_legacy``
+    flag keeps that surface intact so no downstream queries break."""
+    from core.bigip.query import run_query
+
+    src = (
+        "ltm virtual /Common/v {\n"
+        "    destination /Common/10.0.0.10:80\n"
+        "    profiles { /Common/http { } /Common/tcp { } }\n"
+        "}\n"
+    )
+    result = run_query('.ltm.virtual["/Common/v"].profiles', {"m": src})
+    [profiles] = result.values_per_file["m"]
+    # Tuple/list of PathRefs whose str() is the full-path — the
+    # legacy projection's exact shape.
+    paths = [str(p) for p in profiles]
+    assert paths == ["/Common/http", "/Common/tcp"]
