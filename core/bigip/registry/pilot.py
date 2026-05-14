@@ -33,7 +33,10 @@ from collections.abc import Iterable
 
 from .properties import PropertySpec
 from .value_specs import (
+    CertKeyChainSpec,
+    DataGroupRecordSpec,
     DestinationSpec,
+    GtmRegionMemberSpec,
     ListSpec,
     MonitorExpressionSpec,
     ObjectRefSpec,
@@ -191,6 +194,42 @@ _PILOT_LTM_VIRTUAL_VLANS = PropertySpec(
     project_via_legacy=True,
 )
 
+# ``ltm data-group internal.records`` — a keyed-block list where
+# each record carries a key (the lookup name) + optional ``data``
+# value.  Model stores tuple[str, ...] of keys; the spec parses
+# each into a typed record so the references dispatch can surface
+# any record-level edges (today none — records don't reference
+# other objects — but the spec is in place when future record
+# types do).
+_PILOT_LTM_DATA_GROUP_RECORDS = PropertySpec(
+    attr="records",
+    value=ListSpec(item=DataGroupRecordSpec()),
+    writable=True,
+    project_via_legacy=True,
+)
+
+# ``gtm region.region-members`` — a list of topology rows.
+_PILOT_GTM_REGION_MEMBERS = PropertySpec(
+    attr="region_members",
+    value=ListSpec(item=GtmRegionMemberSpec()),
+    writable=True,
+    tmsh_name="region-members",
+    project_via_legacy=True,
+)
+
+# Client/server-SSL ``cert-key-chain`` — keyed-block list with up
+# to three sub-references per entry (cert, key, chain).  The
+# references dispatch surfaces every SSL artifact the profile
+# depends on, addressing the design doc's "find every profile
+# that references a given cert" goal.
+_PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN = PropertySpec(
+    attr="cert_key_chain",
+    value=ListSpec(item=CertKeyChainSpec()),
+    writable=True,
+    tmsh_name="cert-key-chain",
+    project_via_legacy=True,
+)
+
 
 # (module, object_type, property_name) -> PropertySpec
 PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
@@ -207,6 +246,11 @@ PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("ltm", "virtual", "rules"): _PILOT_LTM_VIRTUAL_RULES,
     ("ltm", "virtual", "policies"): _PILOT_LTM_VIRTUAL_POLICIES,
     ("ltm", "virtual", "vlans"): _PILOT_LTM_VIRTUAL_VLANS,
+    # Data-group records, GTM region rows, SSL cert chains.
+    ("ltm", "data-group internal", "records"): _PILOT_LTM_DATA_GROUP_RECORDS,
+    ("gtm", "region", "region-members"): _PILOT_GTM_REGION_MEMBERS,
+    ("ltm", "profile client-ssl", "cert-key-chain"): _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN,
+    ("ltm", "profile server-ssl", "cert-key-chain"): _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN,
 }
 
 

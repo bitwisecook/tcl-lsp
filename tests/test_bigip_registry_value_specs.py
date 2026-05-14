@@ -1031,3 +1031,79 @@ def test_virtual_profile_projection_keeps_legacy_pathref_list():
     # legacy projection's exact shape.
     paths = [str(p) for p in profiles]
     assert paths == ["/Common/http", "/Common/tcp"]
+
+
+# ---------------------------------------------------------------------------
+# Migration batch 4: data-group records / GTM region rows / cert-key-chain
+# ---------------------------------------------------------------------------
+
+
+def test_data_group_records_migration_parses_each_entry():
+    """``ltm data-group internal.records`` migrates to a ListSpec; the
+    reference dispatch unwinds each record through DataGroupRecordSpec.
+    Records don't reference other objects so we get an empty edge list,
+    but the dispatch confirms it found the migrated spec (returns
+    ``()`` not ``None``)."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="data-group internal",
+        property_name="records",
+        value=("host1.example.com", "host2.example.com"),
+        owner_path="/Common/hosts",
+    )
+    # Found the migrated spec (not None); records don't ref anything.
+    assert refs == ()
+
+
+def test_gtm_region_members_migration_routes_through_spec():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="gtm",
+        object_type="region",
+        property_name="region-members",
+        value=("subnet 10.10.1.0/24", "not country JP"),
+        owner_path="/Common/us_east",
+    )
+    # Region rows don't reference other objects either.
+    assert refs == ()
+
+
+def test_cert_key_chain_migration_surfaces_ssl_artifact_refs():
+    """``cert-key-chain`` items carry cert + key + chain references —
+    each yields a typed edge so the graph layer finds every SSL
+    profile depending on a given cert / key / CA bundle."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="profile client-ssl",
+        property_name="cert-key-chain",
+        value=(
+            "cert_a { cert /Common/cert_a.crt key /Common/cert_a.key chain /Common/ca_bundle.crt }",
+            "cert_b { cert /Common/cert_b.crt key /Common/cert_b.key }",
+        ),
+        owner_path="/Common/clientssl_app",
+    )
+    assert refs is not None
+    targets = [(r.target_kind, r.target_path) for r in refs]
+    # First entry: cert + key + chain.  Second entry: cert + key
+    # only (no chain).  Five edges total.
+    assert ("sys file ssl-cert", "/Common/cert_a.crt") in targets
+    assert ("sys file ssl-key", "/Common/cert_a.key") in targets
+    assert ("sys file ssl-cert", "/Common/ca_bundle.crt") in targets
+    assert ("sys file ssl-cert", "/Common/cert_b.crt") in targets
+    assert ("sys file ssl-key", "/Common/cert_b.key") in targets
+    assert len(targets) == 5
+
+
+def test_server_ssl_cert_key_chain_shares_one_spec():
+    """Client-SSL and server-SSL cert-key-chain entries share the
+    same spec — both kinds dispatch to ``CertKeyChainSpec``."""
+    from core.bigip.registry.pilot import pilot_property_spec_for
+
+    client = pilot_property_spec_for("ltm", "profile client-ssl", "cert-key-chain")
+    server = pilot_property_spec_for("ltm", "profile server-ssl", "cert-key-chain")
+    assert client is server
