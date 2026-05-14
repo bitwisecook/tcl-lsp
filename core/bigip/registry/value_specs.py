@@ -519,6 +519,50 @@ class ListSpec(_BaseSpec):
         base = ctx.base_offset
         items: list[ListItem] = []
         diagnostics: list[Diagnostic] = []
+        operator: str | None = None
+        # Operator-prefixed shape: ``{ replace-all-with { /Common/a } }``
+        # / ``{ add { /Common/b } }`` — peel the leading operator off
+        # and parse the inner braced body via the same flat-list
+        # token walker so the items come through cleanly.  Multi-op
+        # bodies (``{ add { … } delete { … } }``) keep only the
+        # first operator and merge subsequent items into the same
+        # list; the rendered output reflects whichever single
+        # operator the caller set via ``BigipList.operator``.
+        if syntax == "operator-prefixed":
+            operator, inner_raw, inner_offset = _peel_operator_prefix(raw)
+            if operator is not None:
+                tokens = _parse_list_block_with_offsets(inner_raw)
+                for tok, tok_start, tok_end in tokens:
+                    parsed_item = (
+                        self.item.parse(tok, ctx)
+                        if self.item is not None
+                        else ParsedValue(value=tok, raw=tok)
+                    )
+                    if parsed_item.diagnostics:
+                        diagnostics.extend(parsed_item.diagnostics)
+                    items.append(
+                        ListItem(
+                            value=parsed_item.value,
+                            raw=tok,
+                            range=SourceSpan(
+                                base + inner_offset + tok_start,
+                                base + inner_offset + tok_end,
+                            ),
+                        )
+                    )
+                value = BigipList(
+                    items=tuple(items),
+                    syntax=syntax,
+                    operator=operator,
+                    raw=raw.strip(),
+                    range=SourceSpan(start=base, end=base + len(raw)) if base else None,
+                )
+                return ParsedValue(value=value, raw=raw, diagnostics=tuple(diagnostics))
+            # No recognised operator prefix — fall through to the
+            # bare-list parse so a property declared as
+            # ``operator-prefixed`` still produces a usable
+            # BigipList when the input happens to be the
+            # bare-braced shape.
         if syntax in ("keyed-block", "named-rule-block"):
             entries = _parse_keyed_block_entries_with_offsets(raw)
             for (
@@ -630,6 +674,13 @@ class ListSpec(_BaseSpec):
                         parts.append(f"{item.key} {{ }}")
                 inner = " ".join(parts)
                 return f"{{ {inner} }}" if inner else "{ }"
+            if syntax == "operator-prefixed" and value.operator:
+                # ``{ <operator> { items } }`` — the tmsh-modify edit
+                # form where the verb lives inside the property's
+                # braced body.
+                inner_items = " ".join(self._render_item(it.value, ctx) for it in value.items)
+                inner_body = f"{{ {inner_items} }}" if inner_items else "{ }"
+                return f"{{ {value.operator} {inner_body} }}"
             inner = " ".join(self._render_item(it.value, ctx) for it in value.items)
             return f"{{ {inner} }}" if inner else "{ }"
         if isinstance(value, (tuple, list)):
@@ -698,6 +749,57 @@ class ListSpec(_BaseSpec):
     @property
     def is_structured(self) -> bool:
         return True
+
+
+_LIST_OPERATOR_PREFIXES: tuple[str, ...] = (
+    "replace-all-with",
+    "add",
+    "delete",
+    "modify",
+    "none",
+)
+
+
+def _peel_operator_prefix(raw: str) -> tuple[str | None, str, int]:
+    """Recognise a leading tmsh operator inside a braced list body.
+
+    Accepts ``{ replace-all-with { /Common/a } }`` /
+    ``{ add { /Common/b } }`` shapes and returns
+    ``(operator, inner_braced_text, inner_offset_in_raw)`` so the
+    caller can re-parse *inner_braced_text* through the regular
+    list tokeniser while keeping the leading operator name on the
+    returned :class:`BigipList`.  Returns ``(None, raw, 0)`` when
+    no operator prefix matches — caller falls back to the bare
+    flat-list parse.
+
+    *inner_offset_in_raw* is the byte offset of the inner ``{``
+    inside *raw* so per-item :class:`SourceSpan`\\ s land at the
+    correct absolute positions when the spec threads
+    ``base_offset`` from :class:`ParseContext`.
+    """
+    text = raw.strip()
+    leading_skipped = len(raw) - len(raw.lstrip())
+    if not text.startswith("{") or not text.endswith("}"):
+        return None, raw, 0
+    inner = text[1:-1].strip()
+    # Skip leading whitespace inside the outer braces.
+    inner_leading = (len(text) - 1) - len(text[1:].lstrip())
+    for op in _LIST_OPERATOR_PREFIXES:
+        if inner.startswith(op):
+            after = inner[len(op) :]
+            if not after or after[0] not in " \t\n\r{":
+                continue
+            rest = after.lstrip()
+            if not rest.startswith("{"):
+                continue
+            inner_open_in_inner = inner.index("{", len(op))
+            inner_close_in_inner = inner.rfind("}")
+            if inner_close_in_inner < inner_open_in_inner:
+                continue
+            inner_body = inner[inner_open_in_inner : inner_close_in_inner + 1]
+            inner_offset = leading_skipped + 1 + inner_leading + inner_open_in_inner
+            return op, inner_body, inner_offset
+    return None, raw, 0
 
 
 def _keyed_item_text(key: str, body: str) -> str:

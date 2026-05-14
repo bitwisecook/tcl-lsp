@@ -1673,6 +1673,59 @@ def test_list_spec_references_walks_each_item():
     assert "/Common/http" in paths
 
 
+def test_list_spec_parses_operator_prefixed_replace_all_with():
+    """``{ replace-all-with { /Common/r1 /Common/r2 } }`` — the
+    tmsh-modify edit form where the verb nests inside the
+    property body — parses into a :class:`BigipList` whose
+    ``operator`` carries the verb and whose items are the inner
+    paths."""
+    from core.bigip.types import BigipList
+
+    spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
+    parsed = spec.parse("{ replace-all-with { /Common/r1 /Common/r2 } }", ParseContext())
+    assert isinstance(parsed.value, BigipList)
+    assert parsed.value.operator == "replace-all-with"
+    assert [it.value for it in parsed.value.items] == ["/Common/r1", "/Common/r2"]
+
+
+def test_list_spec_parses_operator_prefixed_add_and_delete_forms():
+    """The ``add`` / ``delete`` / ``modify`` / ``none`` verbs are
+    recognised the same way ``replace-all-with`` is."""
+    from core.bigip.types import BigipList
+
+    spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
+    for op in ("add", "delete", "modify", "none"):
+        raw = f"{{ {op} {{ /Common/x }} }}"
+        parsed = spec.parse(raw, ParseContext())
+        assert isinstance(parsed.value, BigipList)
+        assert parsed.value.operator == op
+        assert [it.value for it in parsed.value.items] == ["/Common/x"]
+
+
+def test_list_spec_renders_operator_prefixed_roundtrip():
+    """Render a parsed operator-prefixed BigipList back to its TMSH
+    text — the verb stays inside the property body, no operator
+    leaks outside."""
+    spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
+    raw = "{ replace-all-with { /Common/r1 /Common/r2 } }"
+    parsed = spec.parse(raw, ParseContext())
+    assert spec.render(parsed.value, None) == raw  # type: ignore[arg-type]
+
+
+def test_list_spec_operator_prefixed_falls_back_to_bare_list_when_no_verb():
+    """An ``operator-prefixed`` spec given a bare braced list
+    (``{ /Common/a /Common/b }``) — no leading verb — falls
+    through to the flat-list parse so the caller still gets a
+    usable :class:`BigipList`, just with ``operator=None``."""
+    from core.bigip.types import BigipList
+
+    spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"), syntax="operator-prefixed")
+    parsed = spec.parse("{ /Common/r1 /Common/r2 }", ParseContext())
+    assert isinstance(parsed.value, BigipList)
+    assert parsed.value.operator is None
+    assert [it.value for it in parsed.value.items] == ["/Common/r1", "/Common/r2"]
+
+
 def test_list_spec_populates_per_item_ranges():
     """``ListSpec.parse`` records per-item source spans so LSP
     features (document links, rename, semantic tokens) get exact
@@ -1767,3 +1820,29 @@ def test_hand_maintained_kinds_are_explicit_allowlist():
     # Conversely, no truly dead kinds should sneak in.  The pruned
     # ``gtm_add`` kind in particular must stay out.
     assert "gtm_add" not in OBJECT_KIND_SPECS
+
+
+def test_force_replace_all_with_pins_known_list_properties():
+    """The curated override layer in
+    :data:`core.bigip.registry.specs._base._FORCE_REPLACE_ALL_WITH`
+    pins ``list_operators`` onto every list property whose
+    full-body ``tmsh modify`` would otherwise emit a bare
+    ``<prop> { ... }`` body (rejected by the device).
+
+    Every entry in the allowlist must resolve to an actual property
+    in the registry — stale entries trip CI rather than silently
+    failing to apply on a regenerated spec set."""
+    from core.bigip.registry import list_operator_for, property_spec_for
+    from core.bigip.registry.specs._base import _FORCE_REPLACE_ALL_WITH
+
+    for module, object_type, prop_name in _FORCE_REPLACE_ALL_WITH:
+        spec = property_spec_for(module, object_type, prop_name)
+        assert spec is not None, (
+            f"override entry {(module, object_type, prop_name)!r} does "
+            "not resolve to a registered property; either the property "
+            "name changed in a spec regen or the allowlist is stale"
+        )
+        assert "replace-all-with" in spec.list_operators, (
+            f"override layer failed to pin replace-all-with on {module} {object_type}.{prop_name}"
+        )
+        assert list_operator_for(module, object_type, prop_name) == "replace-all-with"

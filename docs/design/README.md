@@ -49,6 +49,11 @@ rules for the KCS/documentation split live in
   registry contract for object kinds, value specs (parse / project
   / render / references), source-range fidelity, and the pilot
   migration table that opts properties into the typed dispatch.
+- [bigip-list-operator-audit.md](bigip-list-operator-audit.md) —
+  every list-valued property without ``list_operators``, classified
+  by emission style (real list / sub-block / uncertain), backing
+  the curated override layer in
+  ``core/bigip/registry/specs/_base.py``.
 
 ## tclpkg package manager
 

@@ -41,20 +41,20 @@ discriminated by :class:`ListSyntax`:
   (firewall rules, policy rules — the body is a structured
   classifier rather than scalar metadata).
 
-Two further shapes are intentionally *not* in :class:`ListSyntax`
-today and are tracked as follow-up work rather than vapourware
-options the caller might pick by accident:
+- ``operator-prefixed`` — ``{ replace-all-with { /Common/a } }`` /
+  ``{ add { /Common/b } }`` — the tmsh edit verbs nest INSIDE the
+  property's braced body.  The ``operator`` field on
+  :class:`BigipList` carries the verb so the renderer can re-emit
+  the same shape.
+
+One further shape is intentionally *not* in :class:`ListSyntax`
+today:
 
 - *monitor-expression* — handled by
   :class:`core.bigip.types.MonitorExpression` as a dedicated typed
   value (``mode`` / ``monitors`` / ``minimum`` plus per-monitor
   source spans).  Lives outside :class:`BigipList` because the
   ``min N of`` + ``and``-chain grammar isn't a flat list.
-- *operator-prefixed* — the tmsh edit forms (``{ add { … } delete
-  { … } replace-all-with { … } }``).  No spec uses this syntax
-  yet; a future migration that wants tmsh edit forms in
-  :class:`BigipList` needs to add parse / project / render /
-  references coverage alongside the new syntax tag.
 """
 
 from __future__ import annotations
@@ -67,6 +67,7 @@ ListSyntax = Literal[
     "braced-space-separated",
     "keyed-block",
     "named-rule-block",
+    "operator-prefixed",
 ]
 
 

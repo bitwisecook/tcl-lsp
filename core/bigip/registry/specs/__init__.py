@@ -800,13 +800,18 @@ from . import (
     wom_remote_endpoint,  # noqa: F401
     wom_server_discovery,  # noqa: F401
 )
-from ._base import _REGISTRY
+from ._base import _REGISTRY, normalise_registry
 
 
 def bigip_object_specs() -> tuple:
     return tuple(_REGISTRY)
 
 
+# Apply curated property overrides (e.g. force ``replace-all-with``
+# onto ``ltm virtual.rules`` and the GTM ``wideip *.rules`` family
+# where the generator drops the operators) before sealing the
+# registry into :data:`OBJECT_SPECS`.
+normalise_registry()
 OBJECT_SPECS = bigip_object_specs()
 
 __all__ = ["OBJECT_SPECS", "bigip_object_specs"]
