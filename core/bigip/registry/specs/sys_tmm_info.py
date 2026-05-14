@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("tmm-info",),
         ),
         header_types=(("sys", "tmm-info"),),
+        properties=(),
     )

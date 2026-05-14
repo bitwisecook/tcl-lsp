@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("file rewrite-rule",),
         ),
         header_types=(("sys", "file rewrite-rule"),),
-        properties=(BigipPropertySpec(name="local-path", value_type="string"),),
+        properties=(BigipPropertySpec(name="local-path", value_type="unknown"),),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("fpga turboflex-profile",),
         ),
         header_types=(("sys", "fpga turboflex-profile"),),
+        properties=(),
     )

@@ -22,6 +22,6 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="peer-addr", value_type="string"),
             BigipPropertySpec(name="secondary-addr", value_type="string"),
             BigipPropertySpec(name="secondary-peer-addr", value_type="string"),
-            BigipPropertySpec(name="state", value_type="enum", enum_values=("enabled", "disabled")),
+            BigipPropertySpec(name="state", value_type="enum", enum_values=("disabled", "enabled")),
         ),
     )

@@ -17,5 +17,8 @@ def register_spec() -> BigipObjectSpec:
             object_types=("remove-from-trust",),
         ),
         header_types=(("cm", "remove-from-trust"),),
-        properties=(BigipPropertySpec(name="device-name", value_type="string"),),
+        properties=(
+            BigipPropertySpec(name="device-name", value_type="string"),
+            BigipPropertySpec(name="run", value_type="unknown"),
+        ),
     )

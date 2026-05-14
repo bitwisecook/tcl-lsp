@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto acceleration-strategy",),
         ),
         header_types=(("sys", "crypto acceleration-strategy"),),
+        properties=(),
     )

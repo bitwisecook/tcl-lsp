@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dynad status",),
         ),
         header_types=(("sys", "dynad status"),),
+        properties=(),
     )

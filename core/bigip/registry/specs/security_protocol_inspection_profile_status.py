@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("protocol-inspection profile-status",),
         ),
         header_types=(("security", "protocol-inspection profile-status"),),
+        properties=(),
     )

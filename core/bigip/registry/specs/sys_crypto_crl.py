@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,10 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto crl",),
         ),
         header_types=(("sys", "crypto crl"),),
-        properties=(
-            BigipPropertySpec(name="install", value_type="string"),
-            BigipPropertySpec(name="ca-file", value_type="string"),
-            BigipPropertySpec(name="from-local-file", value_type="string"),
-            BigipPropertySpec(name="from-url", value_type="string"),
-        ),
+        properties=(),
     )

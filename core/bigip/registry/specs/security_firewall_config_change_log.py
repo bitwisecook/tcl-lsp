@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("firewall config-change-log",),
         ),
         header_types=(("security", "firewall config-change-log"),),
+        properties=(),
     )

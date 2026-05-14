@@ -1,0 +1,35 @@
+from __future__ import annotations
+
+from ..models import (
+    BigipObjectKindSpec,
+    BigipObjectSpec,
+    BigipPropertySpec,
+)
+from ._base import register
+
+
+@register
+def register_spec() -> BigipObjectSpec:
+    return BigipObjectSpec(
+        kind_spec=BigipObjectKindSpec(
+            "apm_resource_ipv6_leasepool",
+            module="apm",
+            object_types=("resource ipv6-leasepool",),
+        ),
+        header_types=(("apm", "resource ipv6-leasepool"),),
+        properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="location-specific",
+                value_type="enum",
+                enum_values=("false", "true"),
+            ),
+            BigipPropertySpec(
+                name="members",
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+            ),
+            BigipPropertySpec(name="options", value_type="unknown"),
+        ),
+    )

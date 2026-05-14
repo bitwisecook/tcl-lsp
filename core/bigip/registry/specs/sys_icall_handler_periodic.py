@@ -18,14 +18,22 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "icall handler periodic"),),
         properties=(
-            BigipPropertySpec(name="arguments", value_type="string"),
-            BigipPropertySpec(name="name", value_type="string", in_sections=("arguments",)),
+            BigipPropertySpec(name="arguments", value_type="list"),
             BigipPropertySpec(name="value", value_type="string", in_sections=("arguments",)),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="first-occurrence", value_type="string"),
+            BigipPropertySpec(name="first-occurrence", value_type="unknown"),
             BigipPropertySpec(name="interval", value_type="integer"),
-            BigipPropertySpec(name="last-occurrence", value_type="string"),
-            BigipPropertySpec(name="script", value_type="string"),
+            BigipPropertySpec(name="last-occurrence", value_type="unknown"),
+            BigipPropertySpec(
+                name="script",
+                value_type="reference",
+                references=(
+                    "cli_script",
+                    "pem_reporting_format_script",
+                    "sys_application_apl_script",
+                    "sys_icall_script",
+                ),
+            ),
             BigipPropertySpec(name="status", value_type="enum", enum_values=("active", "inactive")),
         ),
     )

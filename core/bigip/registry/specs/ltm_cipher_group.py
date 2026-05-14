@@ -18,15 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "cipher group"),),
         properties=(
-            BigipPropertySpec(
-                name="allow", value_type="reference", repeated=True, references=("ltm_rule",)
-            ),
+            BigipPropertySpec(name="allow", value_type="list", list_operators=frozenset(("add",))),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="exclude", value_type="reference", repeated=True, references=("ltm_rule",)
+                name="exclude",
+                value_type="list",
+                list_operators=frozenset(("add",)),
             ),
             BigipPropertySpec(
-                name="require", value_type="reference", repeated=True, references=("ltm_rule",)
+                name="require",
+                value_type="list",
+                list_operators=frozenset(("add",)),
             ),
         ),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("datasync device-stats",),
         ),
         header_types=(("security", "datasync device-stats"),),
+        properties=(),
     )

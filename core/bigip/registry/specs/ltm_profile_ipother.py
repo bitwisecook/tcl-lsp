@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile ipother"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -25,7 +26,10 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_ipother",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="idle-timeout", value_type="integer"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(
+                name="idle-timeout",
+                value_type="integer",
+                enum_values=("immediate", "indefinite"),
+            ),
         ),
     )

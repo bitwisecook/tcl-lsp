@@ -17,12 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("tunnels endpoint",),
         ),
         header_types=(("net", "tunnels endpoint"),),
-        properties=(
-            BigipPropertySpec(
-                name="remote-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
-        ),
+        properties=(BigipPropertySpec(name="remote-address", value_type="string"),),
     )

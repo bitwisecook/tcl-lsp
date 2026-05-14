@@ -26,7 +26,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(
-                name="ignore-down-response", value_type="enum", enum_values=("enabled", "disabled")
+                name="ignore-down-response",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(name="probe-attempts", value_type="integer"),
@@ -34,7 +36,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="probe-timeout", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(
-                name="transparent", value_type="enum", enum_values=("disabled", "enabled")
+                name="transparent",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
         ),
     )

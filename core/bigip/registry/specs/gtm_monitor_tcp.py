@@ -19,23 +19,31 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("gtm", "monitor tcp"),),
         properties=(
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("gtm_monitor_tcp",)
+                name="defaults-from",
+                value_type="reference",
+                references=("gtm_monitor_tcp",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(
-                name="ignore-down-response", value_type="enum", enum_values=("enabled", "disabled")
+                name="ignore-down-response",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(name="probe-timeout", value_type="integer"),
-            BigipPropertySpec(name="recv", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="recv", value_type="string"),
             BigipPropertySpec(
-                name="reverse", value_type="enum", enum_values=("enabled", "disabled")
+                name="reverse",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="send", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="send", value_type="string"),
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(
-                name="transparent", value_type="enum", enum_values=("disabled", "enabled")
+                name="transparent",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
         ),
     )

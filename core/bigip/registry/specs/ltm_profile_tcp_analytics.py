@@ -19,6 +19,46 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile tcp-analytics"),),
         properties=(
             BigipPropertySpec(
+                name="collect-city",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-continent",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-country",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-nexthop",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-post-code",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-region",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-remote-host-ip",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="collect-remote-host-subnet",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
                 name="collected-by-client-side",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
@@ -35,34 +75,6 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="collected-stats-internal-logging",
-                value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="collect-city", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-continent", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-country", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-nexthop", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-post-code", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-region", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="collect-remote-host-ip",
-                value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="collect-remote-host-subnet",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),

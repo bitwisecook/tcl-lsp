@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("cpu",),
         ),
         header_types=(("sys", "cpu"),),
+        properties=(),
     )

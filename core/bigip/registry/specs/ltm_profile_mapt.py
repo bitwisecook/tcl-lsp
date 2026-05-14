@@ -18,6 +18,8 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile mapt"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="br-prefix", value_type="string"),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -25,10 +27,9 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_mapt",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="ip6-prefix", value_type="string"),
-            BigipPropertySpec(name="ip4-prefix", value_type="string"),
             BigipPropertySpec(name="ea-bits-length", value_type="integer"),
+            BigipPropertySpec(name="ip4-prefix", value_type="string"),
+            BigipPropertySpec(name="ip6-prefix", value_type="string"),
             BigipPropertySpec(name="port-offset", value_type="integer"),
-            BigipPropertySpec(name="br-prefix", value_type="string"),
         ),
     )

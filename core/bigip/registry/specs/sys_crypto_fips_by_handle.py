@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto fips by-handle",),
         ),
         header_types=(("sys", "crypto fips by-handle"),),
+        properties=(),
     )

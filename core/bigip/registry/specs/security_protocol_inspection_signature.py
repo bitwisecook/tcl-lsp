@@ -19,35 +19,48 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "protocol-inspection signature"),),
         properties=(
             BigipPropertySpec(
-                name="accuracy", value_type="enum", enum_values=("high", "low", "medium")
-            ),
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="last-updated", value_type="string"),
-            BigipPropertySpec(name="reference-links", value_type="string"),
-            BigipPropertySpec(name="service", value_type="string"),
-            BigipPropertySpec(
-                name="action", value_type="enum", enum_values=("accept", "drop", "reject")
+                name="accuracy",
+                value_type="enum",
+                enum_values=("high", "low", "medium"),
             ),
             BigipPropertySpec(
-                name="direction", value_type="enum", enum_values=("any", "to-client", "to-server")
+                name="action",
+                value_type="enum",
+                enum_values=("accept", "drop", "reject"),
             ),
-            BigipPropertySpec(name="log", value_type="enum", enum_values=("yes", "no")),
-            BigipPropertySpec(name="references", value_type="string"),
-            BigipPropertySpec(name="sig", value_type="boolean"),
-            BigipPropertySpec(name="documentation", value_type="string"),
-            BigipPropertySpec(
-                name="performance-impact", value_type="enum", enum_values=("high", "low", "medium")
-            ),
-            BigipPropertySpec(name="revision", value_type="integer"),
-            BigipPropertySpec(name="systems", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string"),
             BigipPropertySpec(name="attack-type", value_type="string"),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="direction",
+                value_type="enum",
+                enum_values=("any", "to-client", "to-server"),
+            ),
+            BigipPropertySpec(name="documentation", value_type="string"),
             BigipPropertySpec(name="id", value_type="integer"),
+            BigipPropertySpec(name="last-updated", value_type="unknown"),
+            BigipPropertySpec(name="log", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="protocol", value_type="enum", enum_values=("any", "tcp", "udp")
+                name="performance-impact",
+                value_type="enum",
+                enum_values=("high", "low", "medium"),
             ),
             BigipPropertySpec(
-                name="risk", value_type="enum", enum_values=("critical", "high", "low", "medium")
+                name="protocol",
+                value_type="enum",
+                enum_values=("any", "tcp", "udp"),
             ),
-            BigipPropertySpec(name="user-defined", value_type="enum", enum_values=("yes", "no")),
+            BigipPropertySpec(name="reference-links", value_type="string"),
+            BigipPropertySpec(name="references", value_type="string"),
+            BigipPropertySpec(name="revision", value_type="integer"),
+            BigipPropertySpec(
+                name="risk",
+                value_type="enum",
+                enum_values=("critical", "high", "low", "medium"),
+            ),
+            BigipPropertySpec(name="service", value_type="string"),
+            BigipPropertySpec(name="sig", value_type="unknown"),
+            BigipPropertySpec(name="systems", value_type="string"),
+            BigipPropertySpec(name="user-defined", value_type="enum", enum_values=("no", "yes")),
         ),
     )

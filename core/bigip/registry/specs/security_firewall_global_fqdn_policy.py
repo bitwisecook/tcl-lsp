@@ -18,8 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall global-fqdn-policy"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="reference"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="dns-resolver", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="dns-resolver",
+                value_type="reference",
+                allow_none=True,
+                references=(
+                    "analytics_dns_cache_resolver_report",
+                    "ltm_dns_cache_resolver",
+                    "ltm_dns_cache_validating_resolver",
+                    "net_dns_resolver",
+                ),
+            ),
+            BigipPropertySpec(name="recursive", value_type="unknown"),
             BigipPropertySpec(name="refresh-interval", value_type="integer"),
         ),
     )

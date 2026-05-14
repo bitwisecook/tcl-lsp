@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("ldns",),
         ),
         header_types=(("gtm", "ldns"),),
+        properties=(),
     )

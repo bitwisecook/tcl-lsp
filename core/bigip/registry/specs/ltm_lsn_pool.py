@@ -18,56 +18,53 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "lsn-pool"),),
         properties=(
-            BigipPropertySpec(name="client-connection-limit", value_type="integer"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="backup-members", value_type="unknown"),
+            BigipPropertySpec(name="client-connection-limit", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="egress-interfaces", value_type="unknown"),
+            BigipPropertySpec(name="egress-interfaces-disabled", value_type="unknown"),
+            BigipPropertySpec(name="egress-interfaces-enabled", value_type="unknown"),
             BigipPropertySpec(
-                name="hairpin-mode", value_type="enum", enum_values=("enabled", "disabled")
+                name="hairpin-mode",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="icmp-echo", value_type="enum", enum_values=("enabled", "disabled")
+                name="icmp-echo",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="inbound-connections",
                 value_type="enum",
-                enum_values=("automatic", "explicit", "disabled"),
-            ),
-            BigipPropertySpec(name="log-publisher", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="log-profile", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="mode", value_type="enum", enum_values=("deterministic", "napt", "pba")
+                enum_values=("automatic", "disabled", "explicit"),
             ),
             BigipPropertySpec(
-                name="persistence",
+                name="log-profile",
                 value_type="reference",
-                references=(
-                    "ltm_persistence_cookie",
-                    "ltm_persistence_dest_addr",
-                    "ltm_persistence_global_settings",
-                    "ltm_persistence_hash",
-                    "ltm_persistence_host",
-                    "ltm_persistence_msrdp",
-                    "ltm_persistence_persist_records",
-                    "ltm_persistence_sip",
-                    "ltm_persistence_source_addr",
-                    "ltm_persistence_ssl",
-                    "ltm_persistence_universal",
-                ),
+                allow_none=True,
+                enum_values=("none",),
             ),
+            BigipPropertySpec(
+                name="log-publisher",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(name="members", value_type="unknown"),
             BigipPropertySpec(
                 name="mode",
-                value_type="reference",
-                in_sections=("persistence",),
-                allow_none=True,
-                enum_values=("address", "address-port"),
-                list_operators=frozenset(("none",)),
+                value_type="enum",
+                enum_values=("deterministic", "napt", "pba"),
             ),
-            BigipPropertySpec(name="timeout", value_type="integer", in_sections=("persistence",)),
-            BigipPropertySpec(name="pcp", value_type="string"),
+            BigipPropertySpec(name="pcp", value_type="unknown"),
             BigipPropertySpec(
                 name="profile",
                 value_type="reference",
                 in_sections=("pcp",),
                 allow_none=True,
+                enum_values=("none",),
                 references=(
                     "ltm_profile_analytics",
                     "ltm_profile_certificate_authority",
@@ -150,19 +147,36 @@ def register_spec() -> BigipObjectSpec:
                 ),
             ),
             BigipPropertySpec(
-                name="selfip", value_type="boolean", in_sections=("pcp",), allow_none=True
+                name="selfip",
+                value_type="reference",
+                in_sections=("pcp",),
+                allow_none=True,
+                enum_values=("none",),
             ),
-            BigipPropertySpec(name="port-block-allocation", value_type="string"),
+            BigipPropertySpec(name="persistence", value_type="unknown"),
+            BigipPropertySpec(
+                name="mode",
+                value_type="enum",
+                in_sections=("persistence",),
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(name="timeout", value_type="integer", in_sections=("persistence",)),
+            BigipPropertySpec(name="port-block-allocation", value_type="unknown"),
             BigipPropertySpec(
                 name="block-idle-timeout",
                 value_type="integer",
                 in_sections=("port-block-allocation",),
             ),
             BigipPropertySpec(
-                name="block-lifetime", value_type="integer", in_sections=("port-block-allocation",)
+                name="block-lifetime",
+                value_type="integer",
+                in_sections=("port-block-allocation",),
             ),
             BigipPropertySpec(
-                name="block-size", value_type="integer", in_sections=("port-block-allocation",)
+                name="block-size",
+                value_type="integer",
+                in_sections=("port-block-allocation",),
             ),
             BigipPropertySpec(
                 name="client-block-limit",
@@ -170,12 +184,15 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("port-block-allocation",),
             ),
             BigipPropertySpec(
-                name="zombie-timeout", value_type="integer", in_sections=("port-block-allocation",)
+                name="zombie-timeout",
+                value_type="integer",
+                in_sections=("port-block-allocation",),
             ),
             BigipPropertySpec(
-                name="route-advertisement", value_type="enum", enum_values=("enabled", "disabled")
+                name="route-advertisement",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="translation-port-range", value_type="integer"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

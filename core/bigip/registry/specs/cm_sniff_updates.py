@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("sniff-updates",),
         ),
         header_types=(("cm", "sniff-updates"),),
+        properties=(),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("tacdb query",),
         ),
         header_types=(("ltm", "tacdb query"),),
+        properties=(),
     )

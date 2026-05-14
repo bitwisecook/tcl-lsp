@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("turboflex profile all",),
         ),
         header_types=(("sys", "turboflex profile all"),),
+        properties=(),
     )

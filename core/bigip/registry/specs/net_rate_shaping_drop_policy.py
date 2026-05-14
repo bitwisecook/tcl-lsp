@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "rate-shaping drop-policy"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="average-packet-size", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="fred-max-active", value_type="integer"),

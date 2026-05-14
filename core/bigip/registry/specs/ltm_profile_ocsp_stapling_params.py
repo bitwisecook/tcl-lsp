@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("profile ocsp-stapling-params",),
         ),
         header_types=(("ltm", "profile ocsp-stapling-params"),),
+        properties=(),
     )

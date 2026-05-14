@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("performance system",),
         ),
         header_types=(("sys", "performance system"),),
+        properties=(),
     )

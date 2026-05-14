@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("performance dnssec",),
         ),
         header_types=(("sys", "performance dnssec"),),
+        properties=(),
     )

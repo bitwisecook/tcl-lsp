@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("classification signature-version",),
         ),
         header_types=(("ltm", "classification signature-version"),),
+        properties=(),
     )

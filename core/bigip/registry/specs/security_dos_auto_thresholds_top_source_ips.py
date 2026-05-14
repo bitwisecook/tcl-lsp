@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dos auto-thresholds top-source-ips",),
         ),
         header_types=(("security", "dos auto-thresholds top-source-ips"),),
+        properties=(),
     )

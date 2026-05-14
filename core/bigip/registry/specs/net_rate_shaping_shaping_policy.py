@@ -18,11 +18,26 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "rate-shaping shaping-policy"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="ceiling-percentage", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="drop-policy", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="drop-policy",
+                value_type="reference",
+                allow_none=True,
+                references=("net_rate_shaping_drop_policy",),
+            ),
             BigipPropertySpec(name="max-burst", value_type="integer"),
-            BigipPropertySpec(name="queue", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="queue",
+                value_type="reference",
+                allow_none=True,
+                references=(
+                    "net_rate_shaping_queue",
+                    "sys_nethsm_async_queue_stat",
+                    "sys_nethsm_sync_queue_stat",
+                ),
+            ),
             BigipPropertySpec(name="rate-percentage", value_type="integer"),
         ),
     )

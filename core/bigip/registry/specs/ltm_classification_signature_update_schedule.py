@@ -21,7 +21,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="auto-update-interval",
                 value_type="enum",
-                enum_values=("daily", "weekly", "monthly"),
+                enum_values=("daily", "monthly", "weekly"),
             ),
         ),
     )

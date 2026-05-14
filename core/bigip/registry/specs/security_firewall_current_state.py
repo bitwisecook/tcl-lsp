@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("firewall current-state",),
         ),
         header_types=(("security", "firewall current-state"),),
+        properties=(),
     )

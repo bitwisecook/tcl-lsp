@@ -18,16 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile socks"),),
         properties=(
-            BigipPropertySpec(name="protocol-versions", value_type="string"),
-            BigipPropertySpec(name="dns-resolver", value_type="string"),
+            BigipPropertySpec(
+                name="default-connect-handling",
+                value_type="enum",
+                enum_values=("allow", "deny"),
+            ),
+            BigipPropertySpec(name="dns-resolver", value_type="unknown"),
             BigipPropertySpec(name="ipv6", value_type="enum", enum_values=("no", "yes")),
-            BigipPropertySpec(name="tunnel-name", value_type="string"),
+            BigipPropertySpec(name="protocol-versions", value_type="list"),
             BigipPropertySpec(
-                name="route-domain", value_type="reference", references=("net_route_domain",)
+                name="route-domain",
+                value_type="unknown",
+                references=("net_route_domain",),
             ),
-            BigipPropertySpec(
-                name="default-connect-handling", value_type="enum", enum_values=("deny", "allow")
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="tunnel-name", value_type="unknown"),
         ),
     )

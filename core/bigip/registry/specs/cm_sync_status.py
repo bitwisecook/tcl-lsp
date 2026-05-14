@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("sync-status",),
         ),
         header_types=(("cm", "sync-status"),),
+        properties=(),
     )

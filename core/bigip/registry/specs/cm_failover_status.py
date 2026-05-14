@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("failover-status",),
         ),
         header_types=(("cm", "failover-status"),),
+        properties=(),
     )

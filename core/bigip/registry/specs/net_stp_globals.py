@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "stp-globals"),),
         properties=(
-            BigipPropertySpec(name="config-name", value_type="string"),
+            BigipPropertySpec(name="config-name", value_type="reference"),
             BigipPropertySpec(name="config-revision", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="fwd-delay", value_type="integer"),

@@ -18,22 +18,30 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "fdb tunnel"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="records",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                in_sections=("records",),
+                allow_none=True,
             ),
             BigipPropertySpec(name="description", value_type="string", in_sections=("records",)),
             BigipPropertySpec(name="endpoint", value_type="string", in_sections=("records",)),
             BigipPropertySpec(
                 name="endpoints",
-                value_type="reference",
+                value_type="list",
                 in_sections=("records",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="replicators",
-                value_type="reference",
+                value_type="list",
                 in_sections=("records",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),

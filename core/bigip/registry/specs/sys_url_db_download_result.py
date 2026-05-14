@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,8 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("url-db download-result",),
         ),
         header_types=(("sys", "url-db download-result"),),
-        properties=(
-            BigipPropertySpec(name="db-version", value_type="integer"),
-            BigipPropertySpec(name="ret-code", value_type="string"),
-        ),
+        properties=(),
     )

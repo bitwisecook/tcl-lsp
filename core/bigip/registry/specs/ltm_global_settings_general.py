@@ -18,21 +18,27 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "global-settings general"),),
         properties=(
-            BigipPropertySpec(name="gratuitous-arp-rate", value_type="integer"),
+            BigipPropertySpec(name="gratuitous-arp-rate", value_type="unknown"),
             BigipPropertySpec(name="l2-cache-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="maintenance-mode", value_type="enum", enum_values=("disabled", "enabled")
+                name="maintenance-mode",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="mgmt-auto-lasthop", value_type="enum", enum_values=("disabled", "enabled")
+                name="mgmt-auto-lasthop",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="share-single-mac",
                 value_type="enum",
-                enum_values=("unique", "global", "vmw-compat"),
+                enum_values=("unique", "vmw-compat"),
             ),
             BigipPropertySpec(
-                name="snat-packet-forward", value_type="enum", enum_values=("disabled", "enabled")
+                name="snat-packet-forward",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
         ),
     )

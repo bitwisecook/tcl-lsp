@@ -18,40 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall schedule"),),
         properties=(
-            BigipPropertySpec(name="daily-hour-end", value_type="string"),
-            BigipPropertySpec(name="daily-hour-start", value_type="string"),
-            BigipPropertySpec(name="date-valid-end", value_type="string"),
-            BigipPropertySpec(name="date-valid-start", value_type="string"),
-            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="daily-hour-end", value_type="unknown"),
+            BigipPropertySpec(name="daily-hour-start", value_type="unknown"),
+            BigipPropertySpec(name="date-valid-end", value_type="integer"),
+            BigipPropertySpec(name="date-valid-start", value_type="unknown"),
             BigipPropertySpec(
                 name="days-of-week",
                 value_type="enum",
-                repeated=True,
                 enum_values=(
-                    "monday",
-                    "tuesday",
-                    "wednesday",
-                    "thursday",
                     "friday",
+                    "monday",
                     "saturday",
                     "sunday",
+                    "thursday",
+                    "tuesday",
+                    "wednesday",
                 ),
             ),
-            BigipPropertySpec(name="security", value_type="string"),
-            BigipPropertySpec(
-                name="daily-hour-end", value_type="string", in_sections=("security",)
-            ),
-            BigipPropertySpec(
-                name="daily-hour-start", value_type="string", in_sections=("security",)
-            ),
-            BigipPropertySpec(
-                name="date-valid-end", value_type="string", in_sections=("security",)
-            ),
-            BigipPropertySpec(
-                name="date-valid-start", value_type="string", in_sections=("security",)
-            ),
-            BigipPropertySpec(
-                name="days-of-week", value_type="list", in_sections=("security",), repeated=True
-            ),
+            BigipPropertySpec(name="description", value_type="unknown"),
         ),
     )

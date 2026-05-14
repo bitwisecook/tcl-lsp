@@ -20,15 +20,25 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="alert-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="allow-non-ssl", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
                 name="allow-dynamic-record-sizing",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="authenticate", value_type="enum", enum_values=("always", "once")
+                name="allow-expired-crl",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="allow-non-ssl",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="authenticate",
+                value_type="enum",
+                enum_values=("always", "once"),
             ),
             BigipPropertySpec(name="authenticate-depth", value_type="integer"),
             BigipPropertySpec(
@@ -42,91 +52,242 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="c3d-client-fallback-cert", value_type="boolean", allow_none=True
+                name="c3d-client-fallback-cert",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
             ),
             BigipPropertySpec(
                 name="c3d-drop-unknown-ocsp-status",
                 value_type="enum",
                 enum_values=("drop", "ignore"),
             ),
-            BigipPropertySpec(name="c3d-ocsp", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="ca-file", value_type="string"),
+            BigipPropertySpec(name="c3d-ocsp", value_type="reference", allow_none=True),
+            BigipPropertySpec(name="ca-file", value_type="reference"),
             BigipPropertySpec(name="cache-size", value_type="integer"),
             BigipPropertySpec(name="cache-timeout", value_type="integer"),
-            BigipPropertySpec(name="cert", value_type="string"),
-            BigipPropertySpec(name="cert-extension-includes", value_type="string"),
             BigipPropertySpec(
-                name="none", value_type="string", in_sections=("cert-extension-includes",)
+                name="cert",
+                value_type="reference",
+                references=(
+                    "apm_policy_agent_aaa_client_cert",
+                    "apm_policy_agent_endpoint_check_machine_cert",
+                    "apm_policy_agent_server_cert_response_control",
+                    "apm_policy_agent_server_cert_status",
+                    "auth_cert_ldap",
+                    "cm_cert",
+                    "sys_crypto_cert",
+                    "sys_crypto_cert_order_manager",
+                    "sys_crypto_cert_validation_response_ocsp",
+                    "sys_crypto_cert_validator_crl",
+                    "sys_crypto_cert_validator_ocsp",
+                    "sys_crypto_check_cert",
+                    "sys_file_apache_ssl_cert",
+                    "sys_file_ssl_cert",
+                ),
+            ),
+            BigipPropertySpec(name="cert-extension-includes", value_type="list"),
+            BigipPropertySpec(
+                name="key-usage",
+                value_type="unknown",
+                in_sections=("cert-extension-includes",),
             ),
             BigipPropertySpec(
-                name="key-usage", value_type="string", in_sections=("cert-extension-includes",)
+                name="none",
+                value_type="unknown",
+                in_sections=("cert-extension-includes",),
+            ),
+            BigipPropertySpec(
+                name="subject-directory-attribute",
+                value_type="unknown",
+                in_sections=("cert-extension-includes",),
             ),
             BigipPropertySpec(
                 name="cert-key-chain",
-                value_type="reference",
+                value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="cert", value_type="boolean", in_sections=("cert-key-chain",), allow_none=True
-            ),
-            BigipPropertySpec(
-                name="chain", value_type="boolean", in_sections=("cert-key-chain",), allow_none=True
-            ),
-            BigipPropertySpec(name="key", value_type="string", in_sections=("cert-key-chain",)),
-            BigipPropertySpec(
-                name="passphrase",
-                value_type="boolean",
+                name="cert",
+                value_type="reference",
                 in_sections=("cert-key-chain",),
                 allow_none=True,
+                enum_values=("none",),
+                references=(
+                    "apm_policy_agent_aaa_client_cert",
+                    "apm_policy_agent_endpoint_check_machine_cert",
+                    "apm_policy_agent_server_cert_response_control",
+                    "apm_policy_agent_server_cert_status",
+                    "auth_cert_ldap",
+                    "cm_cert",
+                    "sys_crypto_cert",
+                    "sys_crypto_cert_order_manager",
+                    "sys_crypto_cert_validation_response_ocsp",
+                    "sys_crypto_cert_validator_crl",
+                    "sys_crypto_cert_validator_ocsp",
+                    "sys_crypto_check_cert",
+                    "sys_file_apache_ssl_cert",
+                    "sys_file_ssl_cert",
+                ),
+            ),
+            BigipPropertySpec(
+                name="chain",
+                value_type="reference",
+                in_sections=("cert-key-chain",),
+                allow_none=True,
+                enum_values=("none",),
+                references=("net_sfc_chain", "pem_service_chain_endpoint"),
+            ),
+            BigipPropertySpec(
+                name="key",
+                value_type="reference",
+                in_sections=("cert-key-chain",),
+                references=(
+                    "cm_key",
+                    "ltm_dns_cache_records_key",
+                    "ltm_dns_dnssec_key",
+                    "ltm_dns_hpke_key",
+                    "ltm_dns_tsig_key",
+                    "sys_crypto_allow_key_export",
+                    "sys_crypto_fips_key",
+                    "sys_crypto_key",
+                    "sys_crypto_master_key",
+                    "sys_dynad_key",
+                    "sys_file_ssl_key",
+                    "sys_iapp_restricted_key",
+                    "sys_iapprestricted_key",
+                ),
+            ),
+            BigipPropertySpec(
+                name="passphrase",
+                value_type="string",
+                in_sections=("cert-key-chain",),
             ),
             BigipPropertySpec(
                 name="usage",
                 value_type="enum",
                 in_sections=("cert-key-chain",),
-                enum_values=("server", "ca"),
+                enum_values=("CA", "SERVER"),
             ),
             BigipPropertySpec(name="cert-lifespan", value_type="integer"),
             BigipPropertySpec(
                 name="cert-lookup-by-ipaddr-port",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
-                min_value=0,
-                max_value=65535,
-            ),
-            BigipPropertySpec(name="chain", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="cipher-group", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="ciphers", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="client-cert-ca", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="crl-file", value_type="string"),
-            BigipPropertySpec(
-                name="allow-expired-crl", value_type="enum", enum_values=("enabled", "disabled")
             ),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_profile_client_ssl",)
+                name="chain",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+                references=("net_sfc_chain", "pem_service_chain_endpoint"),
+            ),
+            BigipPropertySpec(
+                name="cipher-group",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(
+                name="ciphers",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+                references=("ltm_cipher_group", "ltm_cipher_rule"),
+            ),
+            BigipPropertySpec(
+                name="client-cert-ca",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(name="crl-file", value_type="reference"),
+            BigipPropertySpec(
+                name="data-0rtt",
+                value_type="enum",
+                enum_values=("disabled", "enabled-no-anti-replay", "enabled-with-anti-replay"),
+            ),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_profile_client_ssl",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="destination-ip-blacklist", value_type="string"),
-            BigipPropertySpec(name="destination-ip-whitelist", value_type="string"),
+            BigipPropertySpec(name="destination-ip-blacklist", value_type="reference"),
+            BigipPropertySpec(name="destination-ip-whitelist", value_type="reference"),
             BigipPropertySpec(
                 name="forward-proxy-bypass-default-action",
                 value_type="enum",
-                enum_values=("intercept", "bypass"),
+                enum_values=("bypass", "intercept"),
             ),
             BigipPropertySpec(
-                name="generic-alert", value_type="enum", enum_values=("disabled", "enabled")
+                name="generic-alert",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="handshake-timeout", value_type="integer"),
-            BigipPropertySpec(name="hostname-blacklist", value_type="string"),
-            BigipPropertySpec(name="hostname-whitelist", value_type="string"),
-            BigipPropertySpec(name="key", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="log-publisher", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="log-ssl-c3d-events", value_type="boolean"),
-            BigipPropertySpec(name="log-ssl-client-authentication-events", value_type="boolean"),
-            BigipPropertySpec(name="log-ssl-forward-proxy-events", value_type="boolean"),
-            BigipPropertySpec(name="log-ssl-handshake-events", value_type="boolean"),
+            BigipPropertySpec(name="hello-extension-includes", value_type="list"),
+            BigipPropertySpec(
+                name="none",
+                value_type="unknown",
+                in_sections=("hello-extension-includes",),
+            ),
+            BigipPropertySpec(name="hostname-blacklist", value_type="reference"),
+            BigipPropertySpec(name="hostname-whitelist", value_type="reference"),
+            BigipPropertySpec(
+                name="key",
+                value_type="reference",
+                allow_none=True,
+                references=(
+                    "cm_key",
+                    "ltm_dns_cache_records_key",
+                    "ltm_dns_dnssec_key",
+                    "ltm_dns_hpke_key",
+                    "ltm_dns_tsig_key",
+                    "sys_crypto_allow_key_export",
+                    "sys_crypto_fips_key",
+                    "sys_crypto_key",
+                    "sys_crypto_master_key",
+                    "sys_dynad_key",
+                    "sys_file_ssl_key",
+                    "sys_iapp_restricted_key",
+                    "sys_iapprestricted_key",
+                ),
+            ),
+            BigipPropertySpec(
+                name="log-publisher",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(
+                name="log-ssl-c3d-events",
+                value_type="enum",
+                enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+            ),
+            BigipPropertySpec(
+                name="log-ssl-client-authentication-events",
+                value_type="enum",
+                enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+            ),
+            BigipPropertySpec(
+                name="log-ssl-forward-proxy-events",
+                value_type="enum",
+                enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+            ),
+            BigipPropertySpec(
+                name="log-ssl-handshake-events",
+                value_type="enum",
+                enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+            ),
+            BigipPropertySpec(name="max-active-handshakes", value_type="integer"),
+            BigipPropertySpec(name="max-aggregate-renegotiation-per-minute", value_type="integer"),
+            BigipPropertySpec(name="max-renegotiations-per-minute", value_type="integer"),
             BigipPropertySpec(name="maximum-record-size", value_type="integer"),
             BigipPropertySpec(
-                name="mod-ssl-methods", value_type="enum", enum_values=("disabled", "enabled")
+                name="mod-ssl-methods",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="mode", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
@@ -135,69 +296,83 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="ocsp-stapling", value_type="enum", enum_values=("disabled", "enabled")
+                name="ocsp-stapling",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="options", value_type="string"),
-            BigipPropertySpec(name="none", value_type="string", in_sections=("options",)),
+            BigipPropertySpec(name="options", value_type="list"),
             BigipPropertySpec(
                 name="no-session-resumption-on-renegotiation",
-                value_type="boolean",
+                value_type="unknown",
                 in_sections=("options",),
             ),
-            BigipPropertySpec(name="no-tls", value_type="boolean", in_sections=("options",)),
-            BigipPropertySpec(
-                name="single-dh-use", value_type="list", in_sections=("options",), repeated=True
-            ),
-            BigipPropertySpec(name="passphrase", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="no-tls", value_type="unknown", in_sections=("options",)),
+            BigipPropertySpec(name="none", value_type="unknown", in_sections=("options",)),
+            BigipPropertySpec(name="single-dh-use", value_type="unknown", in_sections=("options",)),
+            BigipPropertySpec(name="passphrase", value_type="string"),
             BigipPropertySpec(
                 name="peer-cert-mode",
                 value_type="enum",
                 enum_values=("auto", "ignore", "request", "require"),
             ),
             BigipPropertySpec(name="peer-no-renegotiate-timeout", value_type="integer"),
-            BigipPropertySpec(
-                name="proxy-ssl", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="proxy-ssl-passthrough", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="proxy-ca-cert", value_type="string"),
-            BigipPropertySpec(name="proxy-ca-key", value_type="string"),
+            BigipPropertySpec(name="proxy-ca-cert", value_type="reference"),
+            BigipPropertySpec(name="proxy-ca-key", value_type="reference"),
             BigipPropertySpec(name="proxy-ca-lifespan", value_type="integer"),
             BigipPropertySpec(name="proxy-ca-passphrase", value_type="string"),
+            BigipPropertySpec(
+                name="proxy-ssl",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="proxy-ssl-passthrough",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
             BigipPropertySpec(name="renegotiate-max-record-delay", value_type="integer"),
             BigipPropertySpec(name="renegotiate-period", value_type="integer"),
             BigipPropertySpec(name="renegotiate-size", value_type="integer"),
             BigipPropertySpec(
-                name="renegotiation", value_type="enum", enum_values=("disabled", "enabled")
+                name="renegotiation",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="retain-certificate", value_type="enum", enum_values=("true", "false")
+                name="retain-certificate",
+                value_type="enum",
+                enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="secure-renegotiation",
                 value_type="enum",
                 enum_values=("request", "require", "require-strict"),
             ),
-            BigipPropertySpec(name="max-renegotiations-per-minute", value_type="integer"),
-            BigipPropertySpec(name="max-aggregate-renegotiation-per-minute", value_type="integer"),
-            BigipPropertySpec(name="server-name", value_type="string"),
+            BigipPropertySpec(name="server-name", value_type="reference"),
             BigipPropertySpec(
-                name="session-mirroring", value_type="enum", enum_values=("disabled", "enabled")
+                name="session-mirroring",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="session-ticket", value_type="enum", enum_values=("disabled", "enabled")
+                name="session-ticket",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="session-ticket-timeout", value_type="integer"),
-            BigipPropertySpec(name="sni-default", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="sni-require", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="source-ip-blacklist", value_type="string"),
-            BigipPropertySpec(name="source-ip-whitelist", value_type="string"),
+            BigipPropertySpec(name="sni-default", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(name="sni-require", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(name="source-ip-blacklist", value_type="reference"),
+            BigipPropertySpec(name="source-ip-whitelist", value_type="reference"),
             BigipPropertySpec(
-                name="ssl-c3d", value_type="enum", enum_values=("disabled", "enabled")
+                name="ssl-c3d",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="ssl-forward-proxy", value_type="enum", enum_values=("disabled", "enabled")
+                name="ssl-forward-proxy",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="ssl-forward-proxy-bypass",
@@ -209,27 +384,20 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="hello-extension-includes", value_type="string"),
-            BigipPropertySpec(
-                name="none", value_type="string", in_sections=("hello-extension-includes",)
-            ),
-            BigipPropertySpec(
-                name="strict-resume", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="unclean-shutdown", value_type="enum", enum_values=("disabled", "enabled")
-            ),
             BigipPropertySpec(
                 name="ssl-sign-hash",
                 value_type="enum",
                 enum_values=("any", "sha1", "sha256", "sha384"),
             ),
-            BigipPropertySpec(name="max-active-handshakes", value_type="integer"),
             BigipPropertySpec(
-                name="data-0rtt",
+                name="strict-resume",
                 value_type="enum",
-                enum_values=("disabled", "enabled-with-anti-replay", "enabled-no-anti-replay"),
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(
+                name="unclean-shutdown",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
         ),
     )

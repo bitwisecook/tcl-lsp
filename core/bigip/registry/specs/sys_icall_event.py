@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,11 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("icall event",),
         ),
         header_types=(("sys", "icall event"),),
-        properties=(
-            BigipPropertySpec(name="generate", value_type="string"),
-            BigipPropertySpec(name="name", value_type="string"),
-            BigipPropertySpec(name="context", value_type="string"),
-            BigipPropertySpec(name="name", value_type="string", in_sections=("context",)),
-            BigipPropertySpec(name="value", value_type="string", in_sections=("context",)),
-        ),
+        properties=(),
     )

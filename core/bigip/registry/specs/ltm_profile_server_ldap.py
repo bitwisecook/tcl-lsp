@@ -19,6 +19,13 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile server-ldap"),),
         properties=(
             BigipPropertySpec(
+                name="activation-mode",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("allow", "none", "require"),
+            ),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
@@ -26,18 +33,10 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="activation-mode",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("allow", "require"),
-                list_operators=frozenset(("none",)),
-            ),
-            BigipPropertySpec(
                 name="ss-activation-mode",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("allow", "require"),
-                list_operators=frozenset(("none",)),
+                enum_values=("allow", "none", "require"),
             ),
         ),
     )

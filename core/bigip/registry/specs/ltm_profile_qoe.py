@@ -18,11 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile qoe"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_profile_qoe",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_profile_qoe",),
             ),
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="video", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(name="video", value_type="enum", enum_values=("false", "true")),
         ),
     )

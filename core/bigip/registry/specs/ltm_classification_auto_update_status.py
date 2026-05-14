@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("classification auto-update status",),
         ),
         header_types=(("ltm", "classification auto-update status"),),
+        properties=(),
     )

@@ -18,12 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall user-domain"),),
         properties=(
-            BigipPropertySpec(name="domain", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="domain", value_type="unknown"),
             BigipPropertySpec(
                 name="ifmap-service",
-                value_type="reference",
+                value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="description", value_type="string"),
         ),
     )

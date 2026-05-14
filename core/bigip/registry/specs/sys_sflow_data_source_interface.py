@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("sflow data-source interface",),
         ),
         header_types=(("sys", "sflow data-source interface"),),
+        properties=(),
     )

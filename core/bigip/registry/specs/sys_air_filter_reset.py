@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("air-filter-reset",),
         ),
         header_types=(("sys", "air-filter-reset"),),
+        properties=(),
     )

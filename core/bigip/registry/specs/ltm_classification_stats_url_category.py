@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("classification stats url-category",),
         ),
         header_types=(("ltm", "classification stats url-category"),),
+        properties=(),
     )

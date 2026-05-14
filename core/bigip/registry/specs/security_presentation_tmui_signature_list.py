@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("presentation tmui signature-list",),
         ),
         header_types=(("security", "presentation tmui signature-list"),),
+        properties=(),
     )

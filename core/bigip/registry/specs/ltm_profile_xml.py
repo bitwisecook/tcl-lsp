@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile xml"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -25,12 +26,17 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_xml",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="namespace-mappings", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="xpath-queries", value_type="boolean", allow_none=True),
             BigipPropertySpec(
                 name="multiple-query-matches",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="namespace-mappings", value_type="list"),
+            BigipPropertySpec(
+                name="xpath-queries",
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete")),
             ),
         ),
     )

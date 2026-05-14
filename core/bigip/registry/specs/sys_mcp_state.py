@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("mcp-state",),
         ),
         header_types=(("sys", "mcp-state"),),
+        properties=(),
     )

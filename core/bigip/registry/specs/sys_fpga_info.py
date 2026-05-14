@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("fpga info",),
         ),
         header_types=(("sys", "fpga info"),),
+        properties=(),
     )

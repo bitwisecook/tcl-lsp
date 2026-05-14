@@ -18,9 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile sctp"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="cookie-expiration", value_type="integer"),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_profile_sctp",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_profile_sctp",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="heartbeat-interval", value_type="integer"),
@@ -36,11 +39,15 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="proxy-buffer-low", value_type="integer"),
             BigipPropertySpec(name="receive-chunks", value_type="integer"),
             BigipPropertySpec(
-                name="receive-ordered", value_type="enum", enum_values=("disabled", "enabled")
+                name="receive-ordered",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="receive-window-size", value_type="integer"),
             BigipPropertySpec(
-                name="reset-on-timeout", value_type="enum", enum_values=("disabled", "enabled")
+                name="reset-on-timeout",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="rto-initial", value_type="integer"),
             BigipPropertySpec(name="rto-max", value_type="integer"),
@@ -50,12 +57,15 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="send-buffer-size", value_type="integer"),
             BigipPropertySpec(name="send-max-retries", value_type="integer"),
             BigipPropertySpec(
-                name="send-partial", value_type="enum", enum_values=("disabled", "enabled")
+                name="send-partial",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="tcp-shutdown", value_type="enum", enum_values=("disabled", "enabled")
+                name="tcp-shutdown",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="transmit-chunks", value_type="integer"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

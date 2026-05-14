@@ -19,9 +19,15 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "failover"),),
         properties=(
             BigipPropertySpec(name="device", value_type="string"),
+            BigipPropertySpec(name="no-persist", value_type="unknown"),
+            BigipPropertySpec(name="offline", value_type="unknown"),
+            BigipPropertySpec(name="online", value_type="unknown"),
+            BigipPropertySpec(name="persist", value_type="unknown"),
+            BigipPropertySpec(name="run", value_type="unknown"),
+            BigipPropertySpec(name="standby", value_type="unknown"),
             BigipPropertySpec(
                 name="traffic-group",
-                value_type="reference",
+                value_type="string",
                 allow_none=True,
                 references=("cm_traffic_group",),
             ),

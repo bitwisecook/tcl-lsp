@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("sflow data-source vlan",),
         ),
         header_types=(("sys", "sflow data-source vlan"),),
+        properties=(),
     )

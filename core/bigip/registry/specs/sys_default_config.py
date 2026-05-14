@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("default-config",),
         ),
         header_types=(("sys", "default-config"),),
-        properties=(BigipPropertySpec(name="load", value_type="string"),),
+        properties=(BigipPropertySpec(name="load", value_type="unknown"),),
     )

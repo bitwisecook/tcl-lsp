@@ -19,17 +19,24 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("gtm", "global-settings metrics"),),
         properties=(
             BigipPropertySpec(name="default-probe-limit", value_type="integer"),
-            BigipPropertySpec(name="hops-ttl", value_type="integer"),
             BigipPropertySpec(name="hops-packet-length", value_type="integer"),
             BigipPropertySpec(name="hops-sample-count", value_type="integer"),
             BigipPropertySpec(name="hops-timeout", value_type="integer"),
+            BigipPropertySpec(name="hops-ttl", value_type="integer"),
             BigipPropertySpec(name="inactive-ldns-ttl", value_type="integer"),
-            BigipPropertySpec(name="ldns-update-interval", value_type="integer"),
             BigipPropertySpec(name="inactive-paths-ttl", value_type="integer"),
+            BigipPropertySpec(name="ldns-update-interval", value_type="integer"),
             BigipPropertySpec(name="max-synchronous-monitor-requests", value_type="integer"),
-            BigipPropertySpec(name="metrics-caching", value_type="integer"),
             BigipPropertySpec(
-                name="metrics-collection-protocols", value_type="boolean", allow_none=True
+                name="metrics-caching",
+                value_type="integer",
+                min_value=0,
+                max_value=604800,
+            ),
+            BigipPropertySpec(
+                name="metrics-collection-protocols",
+                value_type="unknown",
+                allow_none=True,
             ),
             BigipPropertySpec(name="path-ttl", value_type="integer"),
             BigipPropertySpec(name="paths-retry", value_type="integer"),

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("malicious-sources device-ids",),
         ),
         header_types=(("security", "malicious-sources device-ids"),),
+        properties=(),
     )

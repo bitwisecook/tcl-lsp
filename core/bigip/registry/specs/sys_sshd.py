@@ -20,18 +20,34 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="allow",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="banner", value_type="enum", enum_values=("disabled", "enabled")
+                name="banner",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="banner-text", value_type="string"),
             BigipPropertySpec(name="inactivity-timeout", value_type="integer"),
             BigipPropertySpec(name="include", value_type="string"),
+            BigipPropertySpec(
+                name="log-level",
+                value_type="enum",
+                enum_values=(
+                    "debug",
+                    "debug1",
+                    "debug2",
+                    "debug3",
+                    "error",
+                    "fatal",
+                    "info",
+                    "quiet",
+                    "verbose",
+                ),
+            ),
             BigipPropertySpec(name="login", value_type="enum", enum_values=("disabled", "enabled")),
-            BigipPropertySpec(name="log-level", value_type="string"),
-            BigipPropertySpec(name="info", value_type="string"),
-            BigipPropertySpec(name="port", value_type="integer", min_value=0, max_value=65535),
+            BigipPropertySpec(name="port", value_type="integer"),
         ),
     )

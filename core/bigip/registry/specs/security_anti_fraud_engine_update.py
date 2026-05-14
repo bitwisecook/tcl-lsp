@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,8 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("anti-fraud engine-update",),
         ),
         header_types=(("security", "anti-fraud engine-update"),),
-        properties=(
-            BigipPropertySpec(name="load", value_type="string"),
-            BigipPropertySpec(name="file", value_type="string"),
-        ),
+        properties=(),
     )

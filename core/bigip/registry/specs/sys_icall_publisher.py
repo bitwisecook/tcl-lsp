@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("icall publisher",),
         ),
         header_types=(("sys", "icall publisher"),),
+        properties=(),
     )

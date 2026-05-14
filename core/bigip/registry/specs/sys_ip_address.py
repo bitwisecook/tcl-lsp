@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("ip-address",),
         ),
         header_types=(("sys", "ip-address"),),
+        properties=(),
     )

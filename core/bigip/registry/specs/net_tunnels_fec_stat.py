@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("tunnels fec-stat",),
         ),
         header_types=(("net", "tunnels fec-stat"),),
+        properties=(),
     )

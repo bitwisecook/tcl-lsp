@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,11 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("policy-strategy",),
         ),
         header_types=(("ltm", "policy-strategy"),),
-        properties=(
-            BigipPropertySpec(
-                name="operands",
-                value_type="reference",
-                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
-            ),
-        ),
+        properties=(),
     )

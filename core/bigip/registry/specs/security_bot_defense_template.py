@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("bot-defense template",),
         ),
         header_types=(("security", "bot-defense template"),),
+        properties=(),
     )

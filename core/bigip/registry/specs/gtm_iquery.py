@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("iquery",),
         ),
         header_types=(("gtm", "iquery"),),
+        properties=(),
     )

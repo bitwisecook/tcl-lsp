@@ -19,9 +19,10 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("cm", "add-to-trust"),),
         properties=(
             BigipPropertySpec(name="device", value_type="string"),
-            BigipPropertySpec(name="port", value_type="integer", min_value=0, max_value=65535),
             BigipPropertySpec(name="device-name", value_type="string"),
             BigipPropertySpec(name="password", value_type="string"),
-            BigipPropertySpec(name="username", value_type="reference", references=("auth_user",)),
+            BigipPropertySpec(name="port", value_type="unknown"),
+            BigipPropertySpec(name="run", value_type="unknown"),
+            BigipPropertySpec(name="username", value_type="string"),
         ),
     )

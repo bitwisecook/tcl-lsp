@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor tcp-half-open"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -27,14 +28,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(
-                name="manual-resume", value_type="enum", enum_values=("enabled", "disabled")
+                name="manual-resume",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="time-until-up", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(
-                name="transparent", value_type="enum", enum_values=("disabled", "enabled")
+                name="transparent",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="up-interval", value_type="integer"),
-            BigipPropertySpec(name="stop", value_type="string"),
         ),
     )

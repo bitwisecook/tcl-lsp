@@ -20,10 +20,9 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="defaults",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("all",),
-                list_operators=frozenset(("none",)),
+                enum_values=("all", "none"),
             ),
         ),
     )

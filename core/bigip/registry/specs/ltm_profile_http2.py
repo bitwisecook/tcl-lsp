@@ -18,12 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile http2"),),
         properties=(
-            BigipPropertySpec(
-                name="activation-modes",
-                value_type="enum",
-                repeated=True,
-                enum_values=("alpn", "always"),
-            ),
+            BigipPropertySpec(name="activation-modes", value_type="list"),
             BigipPropertySpec(name="concurrent-streams-per-connection", value_type="integer"),
             BigipPropertySpec(name="connection-idle-timeout", value_type="integer"),
             BigipPropertySpec(
@@ -33,18 +28,20 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_http2",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="frame-size", value_type="integer"),
-            BigipPropertySpec(
-                name="insert-header", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="insert-header-name", value_type="string"),
-            BigipPropertySpec(name="receive-window", value_type="integer"),
-            BigipPropertySpec(name="write-size", value_type="integer"),
-            BigipPropertySpec(name="header-table-size", value_type="integer"),
             BigipPropertySpec(
                 name="enforce-tls-requirements",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
+            BigipPropertySpec(name="frame-size", value_type="integer"),
+            BigipPropertySpec(name="header-table-size", value_type="integer"),
+            BigipPropertySpec(
+                name="insert-header",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="insert-header-name", value_type="unknown"),
+            BigipPropertySpec(name="receive-window", value_type="integer"),
+            BigipPropertySpec(name="write-size", value_type="integer"),
         ),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("fix-connection",),
         ),
         header_types=(("sys", "fix-connection"),),
+        properties=(),
     )

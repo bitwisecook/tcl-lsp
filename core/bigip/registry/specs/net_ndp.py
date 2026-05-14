@@ -19,15 +19,7 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "ndp"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="ip-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(
-                name="mac-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
+            BigipPropertySpec(name="ip-address", value_type="string"),
+            BigipPropertySpec(name="mac-address", value_type="unknown"),
         ),
     )

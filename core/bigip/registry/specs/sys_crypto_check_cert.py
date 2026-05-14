@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,18 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto check-cert",),
         ),
         header_types=(("sys", "crypto check-cert"),),
-        properties=(
-            BigipPropertySpec(
-                name="ignore-large-cert-bundles",
-                value_type="enum",
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(name="log", value_type="enum", enum_values=("enabled", "disabled")),
-            BigipPropertySpec(
-                name="stdout", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-            BigipPropertySpec(
-                name="verbose", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-        ),
+        properties=(),
     )

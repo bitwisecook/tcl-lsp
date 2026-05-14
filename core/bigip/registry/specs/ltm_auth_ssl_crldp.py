@@ -23,14 +23,15 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="servers",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("default",),
-                list_operators=frozenset(("none",)),
+                enum_values=("default", "none"),
             ),
             BigipPropertySpec(name="update-interval", value_type="integer"),
             BigipPropertySpec(
-                name="use-issuer", value_type="enum", enum_values=("disabled", "enabled")
+                name="use-issuer",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
         ),
     )

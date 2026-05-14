@@ -18,7 +18,8 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "file ssl-key"),),
         properties=(
-            BigipPropertySpec(name="source-path", value_type="string"),
-            BigipPropertySpec(name="passphrase", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="passphrase", value_type="unknown"),
+            BigipPropertySpec(name="source-path", value_type="unknown"),
         ),
     )

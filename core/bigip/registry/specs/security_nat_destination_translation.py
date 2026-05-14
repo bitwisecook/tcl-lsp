@@ -20,19 +20,22 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="addresses",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="ports",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("add", "delete", "modify", "none", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="type", value_type="enum", enum_values=("static-nat", "static-pat")
+                name="type",
+                value_type="enum",
+                enum_values=("static-nat", "static-pat"),
             ),
         ),
     )

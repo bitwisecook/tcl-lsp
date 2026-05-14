@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("lldp-neighbors",),
         ),
         header_types=(("net", "lldp-neighbors"),),
+        properties=(),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("log protocol-sip-storage-field",),
         ),
         header_types=(("security", "log protocol-sip-storage-field"),),
+        properties=(),
     )

@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile fix"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -28,21 +29,26 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="error-action",
                 value_type="enum",
-                enum_values=("drop_connection", "dont_forward"),
+                enum_values=("dont_forward", "drop_connection"),
             ),
             BigipPropertySpec(
-                name="full-logon-parsing", value_type="enum", enum_values=("true", "false")
+                name="full-logon-parsing",
+                value_type="enum",
+                enum_values=("false", "true"),
             ),
-            BigipPropertySpec(name="message-log-publisher", value_type="string"),
+            BigipPropertySpec(name="message-log-publisher", value_type="unknown"),
             BigipPropertySpec(
-                name="quick-parsing", value_type="enum", enum_values=("true", "false")
+                name="quick-parsing",
+                value_type="enum",
+                enum_values=("false", "true"),
             ),
+            BigipPropertySpec(name="report-log-publisher", value_type="unknown"),
+            BigipPropertySpec(
+                name="response-parsing",
+                value_type="enum",
+                enum_values=("false", "true"),
+            ),
+            BigipPropertySpec(name="sender-tag-class", value_type="list"),
             BigipPropertySpec(name="statistics-sample-interval", value_type="integer"),
-            BigipPropertySpec(name="report-log-publisher", value_type="string"),
-            BigipPropertySpec(
-                name="response-parsing", value_type="enum", enum_values=("true", "false")
-            ),
-            BigipPropertySpec(name="sender-tag-class", value_type="list", repeated=True),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

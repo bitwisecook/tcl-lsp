@@ -18,13 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile web-acceleration"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="cache-aging-rate", value_type="integer"),
             BigipPropertySpec(
                 name="cache-client-cache-control-mode",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("all", "max-age"),
-                list_operators=frozenset(("none",)),
+                enum_values=("all", "max-age", "none"),
             ),
             BigipPropertySpec(
                 name="cache-insert-age-header",
@@ -36,12 +36,14 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="cache-object-max-size", value_type="integer"),
             BigipPropertySpec(name="cache-object-min-size", value_type="integer"),
             BigipPropertySpec(name="cache-size", value_type="integer"),
-            BigipPropertySpec(name="cache-uri-exclude", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="cache-uri-include", value_type="string"),
+            BigipPropertySpec(name="cache-uri-exclude", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="cache-uri-include", value_type="unknown"),
             BigipPropertySpec(
-                name="cache-uri-include-override", value_type="boolean", allow_none=True
+                name="cache-uri-include-override",
+                value_type="unknown",
+                allow_none=True,
             ),
-            BigipPropertySpec(name="cache-uri-pinned", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="cache-uri-pinned", value_type="unknown", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -49,6 +51,5 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_web_acceleration",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

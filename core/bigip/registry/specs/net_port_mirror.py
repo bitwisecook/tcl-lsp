@@ -18,12 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "port-mirror"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="interfaces",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("default",),
-                list_operators=frozenset(("none",)),
+                enum_values=("default", "none"),
             ),
         ),
     )

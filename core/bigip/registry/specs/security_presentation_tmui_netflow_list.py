@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("presentation tmui netflow-list",),
         ),
         header_types=(("security", "presentation tmui netflow-list"),),
+        properties=(),
     )

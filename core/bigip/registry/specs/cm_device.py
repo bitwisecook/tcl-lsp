@@ -19,44 +19,38 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("cm", "device"),),
         properties=(
             BigipPropertySpec(name="comment", value_type="string"),
-            BigipPropertySpec(name="configsync-ip", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="configsync-ip",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("none",),
+            ),
             BigipPropertySpec(name="contact", value_type="string"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="ha-capacity", value_type="integer"),
             BigipPropertySpec(name="location", value_type="string"),
             BigipPropertySpec(
-                name="mgmt-unicast-mode", value_type="enum", enum_values=("both", "ipv4", "ipv6")
+                name="mgmt-unicast-mode",
+                value_type="enum",
+                enum_values=("both", "ipv4", "ipv6"),
             ),
-            BigipPropertySpec(name="mirror-ip", value_type="string"),
-            BigipPropertySpec(name="mirror-secondary-ip", value_type="string"),
+            BigipPropertySpec(name="mirror-ip", value_type="enum", enum_values=("any6",)),
+            BigipPropertySpec(name="mirror-secondary-ip", value_type="enum", enum_values=("any6",)),
             BigipPropertySpec(name="multicast-interface", value_type="string"),
             BigipPropertySpec(name="multicast-ip", value_type="string"),
+            BigipPropertySpec(name="multicast-port", value_type="integer"),
+            BigipPropertySpec(name="unicast-address", value_type="list", allow_none=True),
             BigipPropertySpec(
-                name="multicast-port", value_type="integer", min_value=0, max_value=65535
-            ),
-            BigipPropertySpec(
-                name="unicast-address",
-                value_type="boolean",
-                allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(name="ip", value_type="string", in_sections=("unicast-address",)),
-            BigipPropertySpec(
-                name="port",
-                value_type="integer",
+                name="effective-ip",
+                value_type="string",
                 in_sections=("unicast-address",),
-                min_value=0,
-                max_value=65535,
-            ),
-            BigipPropertySpec(
-                name="effective-ip", value_type="string", in_sections=("unicast-address",)
             ),
             BigipPropertySpec(
                 name="effective-port",
-                value_type="integer",
+                value_type="unknown",
                 in_sections=("unicast-address",),
-                min_value=0,
-                max_value=65535,
             ),
+            BigipPropertySpec(name="ip", value_type="string", in_sections=("unicast-address",)),
+            BigipPropertySpec(name="port", value_type="unknown", in_sections=("unicast-address",)),
         ),
     )

@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "persistence dest-addr"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -25,25 +26,35 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="hash-algorithm", value_type="enum", enum_values=("carp", "default")
+                name="hash-algorithm",
+                value_type="enum",
+                enum_values=("carp", "default"),
             ),
-            BigipPropertySpec(name="mask", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="mask", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="match-across-pools", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-            BigipPropertySpec(
-                name="match-across-services", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-            BigipPropertySpec(
-                name="match-across-virtuals", value_type="enum", enum_values=("enabled", "disabled")
+                name="match-across-pools",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="mirror", value_type="enum", enum_values=("enabled", "disabled")
+                name="match-across-services",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="match-across-virtuals",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="mirror",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="override-connection-limit",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="timeout", value_type="integer"),
         ),

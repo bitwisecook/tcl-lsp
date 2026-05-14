@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dos auto-thresholds heavy-urls",),
         ),
         header_types=(("security", "dos auto-thresholds heavy-urls"),),
+        properties=(),
     )

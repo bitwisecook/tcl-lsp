@@ -19,12 +19,26 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "daemon-ha"),),
         properties=(
             BigipPropertySpec(
-                name="heartbeat", value_type="enum", enum_values=("enabled", "disabled")
+                name="heartbeat",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="heartbeat-action", value_type="string"),
-            BigipPropertySpec(name="go-offline-restart", value_type="string"),
             BigipPropertySpec(
-                name="running", value_type="enum", enum_values=("enabled", "disabled")
+                name="heartbeat-action",
+                value_type="enum",
+                enum_values=(
+                    "go-offline",
+                    "go-offline-downlinks-restart",
+                    "go-offline-restart",
+                    "reboot",
+                    "restart",
+                    "restart-all",
+                ),
+            ),
+            BigipPropertySpec(
+                name="running",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
         ),
     )

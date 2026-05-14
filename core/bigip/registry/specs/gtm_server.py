@@ -18,16 +18,28 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "server"),),
         properties=(
-            BigipPropertySpec(name="datacenter", value_type="string"),
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="explicit-link-name", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="translation", value_type="string"),
+            BigipPropertySpec(name="addresses", value_type="unknown"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="expose-route-domains", value_type="enum", enum_values=("no", "yes")
+                name="datacenter",
+                value_type="reference",
+                references=("gtm_datacenter",),
+            ),
+            BigipPropertySpec(name="depends-on", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="destination", value_type="string"),
+            BigipPropertySpec(name="devices", value_type="unknown"),
+            BigipPropertySpec(name="explicit-link-name", value_type="reference"),
+            BigipPropertySpec(
+                name="expose-route-domains",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(name="iq-allow-path", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="iq-allow-service-check", value_type="enum", enum_values=("no", "yes")
+                name="iq-allow-service-check",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(name="iq-allow-snmp", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(name="iquery-cipher-list", value_type="string"),
@@ -38,15 +50,11 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="limit-mem-avail", value_type="integer"),
-            BigipPropertySpec(
-                name="limit-mem-avail-status",
-                value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
             BigipPropertySpec(name="limit-max-bps", value_type="integer"),
             BigipPropertySpec(
-                name="limit-max-bps-status", value_type="enum", enum_values=("disabled", "enabled")
+                name="limit-max-bps-status",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="limit-max-connections", value_type="integer"),
             BigipPropertySpec(
@@ -56,18 +64,26 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="limit-max-pps", value_type="integer"),
             BigipPropertySpec(
-                name="limit-max-pps-status", value_type="enum", enum_values=("disabled", "enabled")
+                name="limit-max-pps-status",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="limit-mem-avail", value_type="integer"),
+            BigipPropertySpec(
+                name="limit-mem-avail-status",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="link-discovery", value_type="enum", enum_values=("disabled", "enabled")
+                name="link-discovery",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="value", value_type="string"),
-            BigipPropertySpec(name="persist", value_type="enum", enum_values=("true", "false")),
+            BigipPropertySpec(name="ltm-name", value_type="reference"),
+            BigipPropertySpec(name="metadata", value_type="unknown"),
             BigipPropertySpec(
                 name="monitor",
-                value_type="reference",
-                repeated=True,
-                allow_none=True,
+                value_type="unknown",
                 references=(
                     "gtm_monitor_bigip",
                     "gtm_monitor_bigip_link",
@@ -103,48 +119,42 @@ def register_spec() -> BigipObjectSpec:
                     "gtm_monitor_wmi",
                 ),
             ),
+            BigipPropertySpec(name="persist", value_type="enum", enum_values=("false", "true")),
             BigipPropertySpec(
                 name="prober-fallback",
                 value_type="enum",
                 allow_none=True,
                 enum_values=(
-                    "inherit",
                     "any-available",
+                    "inherit",
                     "inside-datacenter",
+                    "none",
                     "outside-datacenter",
                     "pool",
-                    "none",
                 ),
             ),
             BigipPropertySpec(
                 name="prober-pool",
                 value_type="reference",
                 allow_none=True,
-                references=("ltm_pool",),
+                enum_values=("none",),
+                references=("gtm_prober_pool",),
             ),
             BigipPropertySpec(
                 name="prober-preference",
                 value_type="enum",
                 enum_values=("inherit", "inside-datacenter", "outside-datacenter", "pool"),
             ),
-            BigipPropertySpec(name="product", value_type="string"),
+            BigipPropertySpec(name="product", value_type="reference"),
+            BigipPropertySpec(name="translation", value_type="string"),
+            BigipPropertySpec(name="translation-address", value_type="string"),
+            BigipPropertySpec(name="translation-port", value_type="reference"),
+            BigipPropertySpec(name="value", value_type="string"),
             BigipPropertySpec(
                 name="virtual-server-discovery",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="virtual-servers", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="depends-on", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="destination", value_type="string"),
-            BigipPropertySpec(name="ltm-name", value_type="string"),
-            BigipPropertySpec(
-                name="translation-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(
-                name="translation-port", value_type="integer", min_value=0, max_value=65535
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="virtual-servers", value_type="unknown", allow_none=True),
         ),
     )

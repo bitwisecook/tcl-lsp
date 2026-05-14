@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("cert",),
         ),
         header_types=(("cm", "cert"),),
+        properties=(),
     )

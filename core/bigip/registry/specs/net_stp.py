@@ -18,38 +18,61 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "stp"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="instance-id", value_type="integer"),
             BigipPropertySpec(
                 name="interfaces",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="external-path-cost", value_type="integer", in_sections=("interfaces",)
+                name="app-service",
+                value_type="string",
+                in_sections=("interfaces",),
+                allow_none=True,
             ),
             BigipPropertySpec(
-                name="internal-path-cost", value_type="integer", in_sections=("interfaces",)
+                name="external-path-cost",
+                value_type="integer",
+                in_sections=("interfaces",),
+            ),
+            BigipPropertySpec(
+                name="internal-path-cost",
+                value_type="integer",
+                in_sections=("interfaces",),
             ),
             BigipPropertySpec(name="priority", value_type="integer", in_sections=("interfaces",)),
             BigipPropertySpec(name="priority", value_type="integer"),
             BigipPropertySpec(
                 name="trunks",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="external-path-cost", value_type="integer", in_sections=("trunks",)
+                name="app-service",
+                value_type="string",
+                in_sections=("trunks",),
+                allow_none=True,
             ),
             BigipPropertySpec(
-                name="internal-path-cost", value_type="integer", in_sections=("trunks",)
+                name="external-path-cost",
+                value_type="integer",
+                in_sections=("trunks",),
+            ),
+            BigipPropertySpec(
+                name="internal-path-cost",
+                value_type="integer",
+                in_sections=("trunks",),
             ),
             BigipPropertySpec(name="priority", value_type="integer", in_sections=("trunks",)),
             BigipPropertySpec(
                 name="vlans",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
-                references=("net_vlan",),
             ),
         ),
     )

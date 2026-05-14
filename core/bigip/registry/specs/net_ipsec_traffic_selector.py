@@ -18,29 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "ipsec traffic-selector"),),
         properties=(
-            BigipPropertySpec(name="action", value_type="string"),
+            BigipPropertySpec(name="action", value_type="unknown"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="destination-address", value_type="string"),
+            BigipPropertySpec(name="destination-port", value_type="unknown"),
             BigipPropertySpec(
-                name="destination-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                name="direction",
+                value_type="enum",
+                enum_values=("both", "in", "out"),
             ),
+            BigipPropertySpec(name="ip-protocol", value_type="unknown"),
             BigipPropertySpec(
-                name="destination-port", value_type="integer", min_value=0, max_value=65535
+                name="ipsec-policy",
+                value_type="reference",
+                references=("net_ipsec_ipsec_policy",),
             ),
-            BigipPropertySpec(
-                name="direction", value_type="enum", enum_values=("both", "in", "out")
-            ),
-            BigipPropertySpec(name="ipsec-policy", value_type="string"),
-            BigipPropertySpec(name="ip-protocol", value_type="string"),
             BigipPropertySpec(name="order", value_type="integer"),
-            BigipPropertySpec(
-                name="source-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(
-                name="source-port", value_type="integer", min_value=0, max_value=65535
-            ),
+            BigipPropertySpec(name="source-address", value_type="string"),
+            BigipPropertySpec(name="source-port", value_type="unknown"),
         ),
     )

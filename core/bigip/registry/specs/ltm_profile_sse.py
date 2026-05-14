@@ -18,14 +18,15 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile sse"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_sse",),
             ),
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="max-field-name-size", value_type="integer"),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="max-buffered-msg-bytes", value_type="integer"),
+            BigipPropertySpec(name="max-field-name-size", value_type="integer"),
         ),
     )

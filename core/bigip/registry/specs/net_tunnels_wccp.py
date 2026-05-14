@@ -18,13 +18,22 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels wccp"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                references=("net_tunnels_wccp",),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="rx-csum", value_type="enum", enum_values=("disabled", "enabled")
+                name="rx-csum",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="tx-csum", value_type="enum", enum_values=("disabled", "enabled")
+                name="tx-csum",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="wccp-version", value_type="enum", enum_values=("1", "2")),
         ),

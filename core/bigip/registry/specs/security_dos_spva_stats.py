@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dos spva-stats",),
         ),
         header_types=(("security", "dos spva-stats"),),
+        properties=(),
     )

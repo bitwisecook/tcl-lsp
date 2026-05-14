@@ -18,14 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "log-config destination ipfix"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="pool-name", value_type="string"),
             BigipPropertySpec(
-                name="protocol-version", value_type="enum", enum_values=("ipfix", "netflow-9")
+                name="protocol-version",
+                value_type="enum",
+                enum_values=("ipfix", "netflow-9"),
             ),
+            BigipPropertySpec(name="serverssl-profile", value_type="reference"),
             BigipPropertySpec(name="template-delete-delay", value_type="integer"),
             BigipPropertySpec(name="template-retransmit-interval", value_type="integer"),
-            BigipPropertySpec(name="transport-profile", value_type="string"),
-            BigipPropertySpec(name="serverssl-profile", value_type="string"),
+            BigipPropertySpec(name="transport-profile", value_type="reference"),
         ),
     )

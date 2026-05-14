@@ -18,13 +18,14 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile json"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_json",),
             ),
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="maximum-bytes", value_type="integer"),
             BigipPropertySpec(name="maximum-entries", value_type="integer"),
             BigipPropertySpec(name="maximum-non-json-bytes", value_type="integer"),

@@ -18,43 +18,29 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "interface"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="flow-control", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="force-gigabit-fiber", value_type="enum", enum_values=("enabled", "disabled")
+                name="bundle",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="bundle-speed", value_type="enum", enum_values=("100G", "40G")),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="flow-control", value_type="unknown"),
+            BigipPropertySpec(
+                name="force-gigabit-fiber",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="forward-error-correction",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(name="media", value_type="string"),
-            BigipPropertySpec(name="media-fixed", value_type="string"),
-            BigipPropertySpec(name="media-sfp", value_type="string"),
-            BigipPropertySpec(name="none", value_type="boolean"),
-            BigipPropertySpec(
-                name="port-fwd-mode",
-                value_type="enum",
-                enum_values=("l3", "passive", "virtual-wire"),
-            ),
-            BigipPropertySpec(
-                name="prefer-port",
-                value_type="enum",
-                enum_values=("fixed", "sfp"),
-                min_value=0,
-                max_value=65535,
-            ),
-            BigipPropertySpec(name="sflow", value_type="string"),
-            BigipPropertySpec(name="poll-interval", value_type="integer", in_sections=("sflow",)),
-            BigipPropertySpec(
-                name="poll-interval-global",
-                value_type="enum",
-                in_sections=("sflow",),
-                enum_values=("no", "yes"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="lacp-port-priority", value_type="integer"),
             BigipPropertySpec(
-                name="link-traps-enabled", value_type="enum", enum_values=("false", "true")
+                name="link-traps-enabled",
+                value_type="enum",
+                enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="lldp-admin",
@@ -62,34 +48,51 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disable", "rxonly", "txonly", "txrx"),
             ),
             BigipPropertySpec(name="lldp-tlvmap", value_type="integer"),
+            BigipPropertySpec(name="media", value_type="enum", enum_values=("auto", "no-phy")),
+            BigipPropertySpec(
+                name="media-fixed",
+                value_type="enum",
+                enum_values=("auto", "no-phy"),
+            ),
+            BigipPropertySpec(
+                name="media-sfp",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("auto", "no-phy", "none"),
+            ),
+            BigipPropertySpec(name="no-mgmt", value_type="unknown"),
+            BigipPropertySpec(
+                name="port-fwd-mode",
+                value_type="enum",
+                enum_values=("l3", "passive", "virtual-wire"),
+            ),
+            BigipPropertySpec(name="prefer-port", value_type="enum", enum_values=("fixed", "sfp")),
+            BigipPropertySpec(name="qinq-ethertype", value_type="string"),
+            BigipPropertySpec(name="sflow", value_type="unknown"),
+            BigipPropertySpec(name="poll-interval", value_type="integer", in_sections=("sflow",)),
+            BigipPropertySpec(
+                name="poll-interval-global",
+                value_type="enum",
+                in_sections=("sflow",),
+                enum_values=("no", "yes"),
+            ),
+            BigipPropertySpec(name="span-mode", value_type="enum", enum_values=("false", "true")),
             BigipPropertySpec(name="stp", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
                 name="stp-auto-edge-port",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
-                min_value=0,
-                max_value=65535,
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="stp-edge-port",
                 value_type="enum",
                 enum_values=("false", "true"),
-                min_value=0,
-                max_value=65535,
             ),
             BigipPropertySpec(
-                name="stp-link-type", value_type="enum", enum_values=("auto", "p2p", "shared")
-            ),
-            BigipPropertySpec(name="span-mode", value_type="enum", enum_values=("false", "true")),
-            BigipPropertySpec(name="qinq-ethertype", value_type="string"),
-            BigipPropertySpec(
-                name="bundle",
+                name="stp-link-type",
                 value_type="enum",
-                enum_values=("disabled", "enabled", "not-supported"),
+                enum_values=("auto", "p2p", "shared"),
             ),
-            BigipPropertySpec(
-                name="bundle-speed", value_type="enum", enum_values=("100g", "40g", "not-supported")
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="stp-reset", value_type="unknown"),
         ),
     )

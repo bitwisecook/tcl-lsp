@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("protected-servers netflow-tmc-stat",),
         ),
         header_types=(("security", "protected-servers netflow-tmc-stat"),),
+        properties=(),
     )

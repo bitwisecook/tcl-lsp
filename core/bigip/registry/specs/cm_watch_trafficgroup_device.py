@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("watch-trafficgroup-device",),
         ),
         header_types=(("cm", "watch-trafficgroup-device"),),
+        properties=(),
     )

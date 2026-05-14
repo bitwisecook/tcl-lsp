@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile one-connect"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -25,22 +26,24 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="idle-timeout-override", value_type="enum", enum_values=("disabled", "enabled")
+                name="idle-timeout-override",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="share-pools", value_type="enum", enum_values=("disabled", "enabled")
+                name="limit-type",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("idle", "none", "strict"),
             ),
             BigipPropertySpec(name="max-age", value_type="integer"),
             BigipPropertySpec(name="max-reuse", value_type="integer"),
             BigipPropertySpec(name="max-size", value_type="integer"),
-            BigipPropertySpec(name="source-mask", value_type="string"),
             BigipPropertySpec(
-                name="limit-type",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("idle", "strict"),
-                list_operators=frozenset(("none",)),
+                name="share-pools",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="source-mask", value_type="string"),
         ),
     )

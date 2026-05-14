@@ -18,13 +18,15 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "data-group internal"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="records",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="data", value_type="string", in_sections=("records",)),
-            BigipPropertySpec(name="type", value_type="integer"),
+            BigipPropertySpec(name="data", value_type="unknown", in_sections=("records",)),
+            BigipPropertySpec(name="type", value_type="string"),
         ),
     )

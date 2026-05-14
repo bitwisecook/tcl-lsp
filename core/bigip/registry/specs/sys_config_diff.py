@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("config-diff",),
         ),
         header_types=(("sys", "config-diff"),),
+        properties=(),
     )

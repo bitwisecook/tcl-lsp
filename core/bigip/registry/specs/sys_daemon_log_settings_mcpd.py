@@ -23,7 +23,20 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("all", "disabled", "enabled", "verbose"),
             ),
-            BigipPropertySpec(name="log-level", value_type="string"),
-            BigipPropertySpec(name="informational", value_type="boolean"),
+            BigipPropertySpec(
+                name="log-level",
+                value_type="enum",
+                enum_values=(
+                    "alert",
+                    "critical",
+                    "debug",
+                    "emergency",
+                    "error",
+                    "informational",
+                    "notice",
+                    "panic",
+                    "warning",
+                ),
+            ),
         ),
     )

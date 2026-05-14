@@ -18,9 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "fdb vlan"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="trunk", value_type="string"),
-            BigipPropertySpec(name="interface", value_type="string"),
-            BigipPropertySpec(name="records", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="interface",
+                value_type="reference",
+                references=(
+                    "net_interface",
+                    "net_interface_cos",
+                    "net_interface_ddm",
+                    "sys_sflow_data_source_interface",
+                    "sys_sflow_global_settings_interface",
+                ),
+            ),
+            BigipPropertySpec(name="records", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="trunk", value_type="reference", references=("net_trunk",)),
         ),
     )

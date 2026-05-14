@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,5 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("geoip",),
         ),
         header_types=(("sys", "geoip"),),
-        properties=(BigipPropertySpec(name="load", value_type="string"),),
+        properties=(),
     )

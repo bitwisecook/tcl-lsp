@@ -18,30 +18,38 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "vlan-group"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="auto-lasthop",
                 value_type="enum",
-                enum_values=("default", "enabled", "disabled"),
+                enum_values=("default", "disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="bridge-in-standby", value_type="enum", enum_values=("disabled", "enabled")
+                name="bridge-in-standby",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="bridge-multicast", value_type="enum", enum_values=("disabled", "enabled")
+                name="bridge-multicast",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="bridge-traffic", value_type="enum", enum_values=("disabled", "enabled")
+                name="bridge-traffic",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="members",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("default",),
-                list_operators=frozenset(("none",)),
+                enum_values=("default", "none"),
             ),
             BigipPropertySpec(
-                name="migration-keepalive", value_type="enum", enum_values=("disabled", "enabled")
+                name="migration-keepalive",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="mode",
@@ -50,10 +58,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="proxy-excludes",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("default",),
-                list_operators=frozenset(("none",)),
+                enum_values=("default", "none"),
             ),
         ),
     )

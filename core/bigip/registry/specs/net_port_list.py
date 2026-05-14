@@ -18,16 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "port-list"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="ports",
-                value_type="reference",
+                value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="net", value_type="string"),
-            BigipPropertySpec(name="ports", value_type="string", in_sections=("net",)),
-            BigipPropertySpec(name="description", value_type="string", in_sections=("ports",)),
-            BigipPropertySpec(name="http", value_type="list", in_sections=("net",), repeated=True),
-            BigipPropertySpec(name="https", value_type="list", in_sections=("net",), repeated=True),
         ),
     )

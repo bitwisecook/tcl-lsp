@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("crypto encrypted-attributes",),
         ),
         header_types=(("sys", "crypto encrypted-attributes"),),
+        properties=(),
     )

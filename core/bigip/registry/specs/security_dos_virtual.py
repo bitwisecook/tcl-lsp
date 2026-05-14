@@ -17,8 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dos virtual",),
         ),
         header_types=(("security", "dos virtual"),),
-        properties=(
-            BigipPropertySpec(name="query-valid-domain", value_type="string"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
-        ),
+        properties=(BigipPropertySpec(name="dns-nxdomain-stat", value_type="unknown"),),
     )

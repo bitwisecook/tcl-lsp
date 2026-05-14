@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("memory",),
         ),
         header_types=(("sys", "memory"),),
+        properties=(),
     )

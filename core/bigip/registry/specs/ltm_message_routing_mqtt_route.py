@@ -18,8 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing mqtt route"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="peer", value_type="string"),
-            BigipPropertySpec(name="virtual-server", value_type="string"),
+            BigipPropertySpec(
+                name="peer",
+                value_type="reference",
+                references=(
+                    "ltm_message_routing_diameter_peer",
+                    "ltm_message_routing_generic_peer",
+                    "ltm_message_routing_mqtt_peer",
+                    "ltm_message_routing_sip_peer",
+                    "net_ipsec_ike_peer",
+                ),
+            ),
+            BigipPropertySpec(name="virtual-server", value_type="reference"),
         ),
     )

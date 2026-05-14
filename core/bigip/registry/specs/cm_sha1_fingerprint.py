@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("sha1-fingerprint",),
         ),
         header_types=(("cm", "sha1-fingerprint"),),
+        properties=(),
     )

@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("device-id attribute",),
         ),
         header_types=(("security", "device-id attribute"),),
-        properties=(BigipPropertySpec(name="collect", value_type="string"),),
+        properties=(BigipPropertySpec(name="collect", value_type="unknown"),),
     )

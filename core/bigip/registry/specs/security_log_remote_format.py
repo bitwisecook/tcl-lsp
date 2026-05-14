@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("log remote-format",),
         ),
         header_types=(("security", "log remote-format"),),
+        properties=(),
     )

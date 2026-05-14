@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("login-failures",),
         ),
         header_types=(("auth", "login-failures"),),
-        properties=(BigipPropertySpec(name="reset-stats", value_type="string"),),
+        properties=(BigipPropertySpec(name="username", value_type="unknown"),),
     )

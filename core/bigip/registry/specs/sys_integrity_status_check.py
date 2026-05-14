@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("integrity status-check",),
         ),
         header_types=(("sys", "integrity status-check"),),
+        properties=(),
     )

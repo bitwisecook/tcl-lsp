@@ -18,9 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "datacenter"),),
         properties=(
-            BigipPropertySpec(name="contact", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="contact", value_type="reference", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="location", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="location", value_type="unknown"),
+            BigipPropertySpec(name="metadata", value_type="unknown"),
+            BigipPropertySpec(name="persist", value_type="enum", enum_values=("false", "true")),
             BigipPropertySpec(
                 name="prober-fallback",
                 value_type="enum",
@@ -28,16 +31,17 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=(
                     "any-available",
                     "inside-datacenter",
+                    "none",
                     "outside-datacenter",
                     "pool",
-                    "none",
                 ),
             ),
             BigipPropertySpec(
                 name="prober-pool",
                 value_type="reference",
                 allow_none=True,
-                references=("ltm_pool",),
+                enum_values=("none",),
+                references=("gtm_prober_pool",),
             ),
             BigipPropertySpec(
                 name="prober-preference",
@@ -45,7 +49,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("inside-datacenter", "outside-datacenter", "pool"),
             ),
             BigipPropertySpec(name="value", value_type="string"),
-            BigipPropertySpec(name="persist", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

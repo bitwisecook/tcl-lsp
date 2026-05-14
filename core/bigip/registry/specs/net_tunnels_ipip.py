@@ -18,9 +18,14 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels ipip"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                references=("net_tunnels_ipip",),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="proto", value_type="enum", enum_values=("ipv4", "ipv6")),
-            BigipPropertySpec(name="ds-lite", value_type="string"),
+            BigipPropertySpec(name="ds-lite", value_type="unknown"),
+            BigipPropertySpec(name="proto", value_type="enum", enum_values=("IPv4", "IPv6")),
         ),
     )

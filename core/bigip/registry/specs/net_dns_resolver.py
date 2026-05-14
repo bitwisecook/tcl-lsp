@@ -19,34 +19,43 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "dns-resolver"),),
         properties=(
             BigipPropertySpec(
-                name="answer-default-zones", value_type="enum", enum_values=("yes", "no")
+                name="answer-default-zones",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="cache-size", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="forward-zones",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="nameservers",
-                value_type="reference",
+                value_type="list",
                 in_sections=("forward-zones",),
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="nameserver-ttl", value_type="integer"),
             BigipPropertySpec(name="nameserver-min-rtt", value_type="integer"),
-            BigipPropertySpec(
-                name="randomize-query-name-case", value_type="enum", enum_values=("yes", "no")
-            ),
-            BigipPropertySpec(name="prefetch", value_type="enum", enum_values=("yes", "no")),
+            BigipPropertySpec(name="nameserver-ttl", value_type="integer"),
             BigipPropertySpec(name="outbound-msg-retry", value_type="integer"),
+            BigipPropertySpec(name="prefetch", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="route-domain", value_type="reference", references=("net_route_domain",)
+                name="randomize-query-name-case",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
-            BigipPropertySpec(name="use-ipv4", value_type="enum", enum_values=("yes", "no")),
-            BigipPropertySpec(name="use-ipv6", value_type="enum", enum_values=("yes", "no")),
-            BigipPropertySpec(name="use-tcp", value_type="enum", enum_values=("yes", "no")),
-            BigipPropertySpec(name="use-udp", value_type="enum", enum_values=("yes", "no")),
+            BigipPropertySpec(
+                name="route-domain",
+                value_type="reference",
+                references=("net_route_domain",),
+            ),
+            BigipPropertySpec(name="use-ipv4", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(name="use-ipv6", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(name="use-tcp", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(name="use-udp", value_type="enum", enum_values=("no", "yes")),
         ),
     )

@@ -25,10 +25,12 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="ignore-down-response", value_type="enum", enum_values=("enabled", "disabled")
+                name="ignore-down-response",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="interval", value_type="integer"),
-            BigipPropertySpec(name="metrics", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="metrics", value_type="unknown", allow_none=True),
             BigipPropertySpec(name="probe-timeout", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
         ),

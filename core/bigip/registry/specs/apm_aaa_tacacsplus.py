@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+from ..models import (
+    BigipObjectKindSpec,
+    BigipObjectSpec,
+    BigipPropertySpec,
+)
+from ._base import register
+
+
+@register
+def register_spec() -> BigipObjectSpec:
+    return BigipObjectSpec(
+        kind_spec=BigipObjectKindSpec(
+            "apm_aaa_tacacsplus",
+            module="apm",
+            object_types=("aaa tacacsplus",),
+        ),
+        header_types=(("apm", "aaa tacacsplus"),),
+        properties=(
+            BigipPropertySpec(name="address", value_type="unknown"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="auth-service",
+                value_type="enum",
+                allow_none=True,
+                enum_values=(
+                    "arap",
+                    "enable",
+                    "fwproxy",
+                    "login",
+                    "nasi",
+                    "none",
+                    "ppp",
+                    "pt",
+                    "rcmd",
+                    "x25",
+                ),
+            ),
+            BigipPropertySpec(
+                name="auth-type",
+                value_type="enum",
+                enum_values=("arap", "ascii", "chap", "mschap", "pap"),
+            ),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="encrypt",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="location-specific",
+                value_type="enum",
+                enum_values=("false", "true"),
+            ),
+            BigipPropertySpec(
+                name="pool",
+                value_type="string",
+                allow_none=True,
+                references=(
+                    "analytics_lsn_pool_report",
+                    "analytics_lsn_pool_scheduled_report",
+                    "analytics_pool_traffic_report",
+                    "analytics_pool_traffic_scheduled_report",
+                    "gtm_pool_a",
+                    "gtm_pool_aaaa",
+                    "gtm_pool_cname",
+                    "gtm_pool_https",
+                    "gtm_pool_mx",
+                    "gtm_pool_naptr",
+                    "gtm_pool_srv",
+                    "gtm_pool_svcb",
+                    "gtm_prober_pool",
+                    "ltm_lsn_pool",
+                    "ltm_pool",
+                ),
+            ),
+            BigipPropertySpec(name="port", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="priv-lvl",
+                value_type="enum",
+                enum_values=("max", "min", "user"),
+            ),
+            BigipPropertySpec(
+                name="protocol",
+                value_type="enum",
+                enum_values=(
+                    "atalk",
+                    "deccp",
+                    "ftp",
+                    "http",
+                    "ip",
+                    "ipx",
+                    "lat",
+                    "lcp",
+                    "osicp",
+                    "pad",
+                    "rlogin",
+                    "telnet",
+                    "tn3270",
+                    "unknown",
+                    "vines",
+                    "vpdn",
+                    "xremote",
+                ),
+            ),
+            BigipPropertySpec(name="secret", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="service",
+                value_type="enum",
+                allow_none=True,
+                enum_values=(
+                    "arap",
+                    "connection",
+                    "firewall",
+                    "none",
+                    "ppp",
+                    "shell",
+                    "slip",
+                    "system",
+                    "tty-daemon",
+                ),
+            ),
+            BigipPropertySpec(name="use-pool", value_type="string", allow_none=True),
+        ),
+    )

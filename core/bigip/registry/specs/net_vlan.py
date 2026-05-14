@@ -18,14 +18,35 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "vlan"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="auto-lasthop",
                 value_type="enum",
-                enum_values=("default", "enabled", "disabled"),
+                enum_values=("default", "disabled", "enabled"),
             ),
+            BigipPropertySpec(
+                name="cmp-hash",
+                value_type="enum",
+                enum_values=("default", "dst-ip", "src-ip"),
+            ),
+            BigipPropertySpec(name="customer-tag", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="dag-adjustment",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("bit-roll", "nibble-roll", "none", "xor-5mid-xor-5low"),
+            ),
+            BigipPropertySpec(
+                name="dag-round-robin",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="dag-tunnel", value_type="enum", enum_values=("inner", "outer")),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="failsafe", value_type="enum", enum_values=("disabled", "enabled")
+                name="failsafe",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="failsafe-action",
@@ -35,13 +56,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="failsafe-timeout", value_type="integer"),
             BigipPropertySpec(
                 name="fwd-mode",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("l3", "passive", "virtual-wire"),
-                list_operators=frozenset(("none",)),
+                enum_values=("l3", "none", "passive", "virtual-wire"),
             ),
-            BigipPropertySpec(name="tag-mode", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="interfaces", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="hardware-syncookie",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="interfaces", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="ipv6-prefix-len", value_type="integer"),
             BigipPropertySpec(
                 name="learning",
                 value_type="enum",
@@ -49,7 +74,7 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="mtu", value_type="integer"),
             BigipPropertySpec(name="nti", value_type="integer"),
-            BigipPropertySpec(name="sflow", value_type="string"),
+            BigipPropertySpec(name="sflow", value_type="unknown"),
             BigipPropertySpec(name="poll-interval", value_type="integer", in_sections=("sflow",)),
             BigipPropertySpec(
                 name="poll-interval-global",
@@ -65,31 +90,18 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
-                name="source-checking", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="tag", value_type="integer"),
-            BigipPropertySpec(name="customer-tag", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="cmp-hash",
+                name="source-checking",
                 value_type="enum",
-                enum_values=("default", "dst-ip", "src-ip", "ipport"),
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="dag-tunnel", value_type="enum", enum_values=("outer", "inner")),
-            BigipPropertySpec(name="ipv6-prefix-len", value_type="integer"),
-            BigipPropertySpec(
-                name="dag-adjustment",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("bit-roll", "xor-5mid-xor-5low", "nibble-roll"),
-                list_operators=frozenset(("none",)),
-            ),
-            BigipPropertySpec(
-                name="dag-round-robin", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="hardware-syncookie", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="syncache-threshold", value_type="integer"),
             BigipPropertySpec(name="syn-flood-rate-limit", value_type="integer"),
+            BigipPropertySpec(name="syncache-threshold", value_type="integer"),
+            BigipPropertySpec(name="tag", value_type="enum", enum_values=("4096",)),
+            BigipPropertySpec(
+                name="tag-mode",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("customer", "double", "none", "service"),
+            ),
         ),
     )

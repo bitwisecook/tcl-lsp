@@ -18,10 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "rate-shaping color-policer"),),
         properties=(
-            BigipPropertySpec(name="action", value_type="string"),
+            BigipPropertySpec(name="action", value_type="unknown"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="committed-burst-size", value_type="integer"),
-            BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="committed-information-rate", value_type="integer"),
+            BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="excess-burst-size", value_type="integer"),
         ),
     )

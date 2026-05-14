@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("sfc hop",),
         ),
         header_types=(("net", "sfc hop"),),
+        properties=(),
     )

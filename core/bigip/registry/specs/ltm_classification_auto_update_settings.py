@@ -23,6 +23,6 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("daily", "monthly", "weekly"),
             ),
-            BigipPropertySpec(name="enabled", value_type="enum", enum_values=("yes", "no")),
+            BigipPropertySpec(name="enabled", value_type="enum", enum_values=("no", "yes")),
         ),
     )

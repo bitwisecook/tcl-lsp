@@ -18,13 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor bigip-link"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("gtm_monitor_bigip_link",)
+                name="defaults-from",
+                value_type="reference",
+                references=("gtm_monitor_bigip_link",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(
-                name="ignore-down-response", value_type="enum", enum_values=("enabled", "disabled")
+                name="ignore-down-response",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),

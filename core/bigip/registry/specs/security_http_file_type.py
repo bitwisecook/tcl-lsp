@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("http file-type",),
         ),
         header_types=(("security", "http file-type"),),
+        properties=(),
     )

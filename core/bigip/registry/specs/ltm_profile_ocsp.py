@@ -25,6 +25,6 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_ocsp",),
             ),
             BigipPropertySpec(name="max-age", value_type="integer"),
-            BigipPropertySpec(name="nonce", value_type="enum", enum_values=("enabled", "disabled")),
+            BigipPropertySpec(name="nonce", value_type="enum", enum_values=("disabled", "enabled")),
         ),
     )

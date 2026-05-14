@@ -18,11 +18,15 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "link"),),
         properties=(
-            BigipPropertySpec(name="cost-segments", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="cost-segments", value_type="list"),
             BigipPropertySpec(name="datacenter", value_type="string"),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="device-name", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="duplex-billing", value_type="enum", enum_values=("disabled", "enabled")
+                name="duplex-billing",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="limit-max-inbound-bps", value_type="integer"),
             BigipPropertySpec(
@@ -45,9 +49,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="link-ratio", value_type="integer"),
             BigipPropertySpec(
                 name="monitor",
-                value_type="reference",
-                repeated=True,
-                allow_none=True,
+                value_type="unknown",
                 references=(
                     "gtm_monitor_bigip",
                     "gtm_monitor_bigip_link",
@@ -84,17 +86,14 @@ def register_spec() -> BigipObjectSpec:
                 ),
             ),
             BigipPropertySpec(name="prepaid-segment", value_type="integer"),
-            BigipPropertySpec(name="device-name", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="router-addresses", value_type="unknown"),
+            BigipPropertySpec(name="service-provider", value_type="reference"),
             BigipPropertySpec(
-                name="translation", value_type="enum", enum_values=("disabled", "enabled")
+                name="translation",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="service-provider", value_type="string"),
-            BigipPropertySpec(
-                name="uplink-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
+            BigipPropertySpec(name="uplink-address", value_type="string"),
             BigipPropertySpec(name="weighting", value_type="enum", enum_values=("price", "ratio")),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

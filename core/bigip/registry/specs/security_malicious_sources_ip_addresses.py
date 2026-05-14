@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("malicious-sources ip-addresses",),
         ),
         header_types=(("security", "malicious-sources ip-addresses"),),
+        properties=(),
     )

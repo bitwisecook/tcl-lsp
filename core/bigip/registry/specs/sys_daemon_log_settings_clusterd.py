@@ -17,5 +17,11 @@ def register_spec() -> BigipObjectSpec:
             object_types=("daemon-log-settings clusterd",),
         ),
         header_types=(("sys", "daemon-log-settings clusterd"),),
-        properties=(BigipPropertySpec(name="log-level", value_type="boolean"),),
+        properties=(
+            BigipPropertySpec(
+                name="log-level",
+                value_type="enum",
+                enum_values=("critical", "debug", "error", "informational", "notice", "warning"),
+            ),
+        ),
     )

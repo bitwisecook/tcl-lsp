@@ -19,7 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "routing profile bgp"),),
         properties=(
             BigipPropertySpec(
-                name="adj-out", value_type="enum", enum_values=("disabled", "enabled")
+                name="adj-out",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="aggregate-nexthop-check",
@@ -28,12 +30,21 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="as-local-count", value_type="integer"),
             BigipPropertySpec(
-                name="bgp-multiple-instance", value_type="enum", enum_values=("disabled", "enabled")
+                name="bgp-multiple-instance",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="boolean",
+                allow_none=True,
+                references=("net_routing_profile_bgp",),
+            ),
             BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="extended-asn-cap", value_type="enum", enum_values=("disabled", "enabled")
+                name="extended-asn-cap",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="max-paths", value_type="string"),
             BigipPropertySpec(name="ebgp", value_type="integer", in_sections=("max-paths",)),

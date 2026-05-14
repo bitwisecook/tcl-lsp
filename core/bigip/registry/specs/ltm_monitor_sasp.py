@@ -18,31 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor sasp"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_monitor_sasp",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_monitor_sasp",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(name="mode", value_type="enum", enum_values=("pull", "push")),
-            BigipPropertySpec(
-                name="primary-address",
-                value_type="string",
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
+            BigipPropertySpec(name="primary-address", value_type="string"),
             BigipPropertySpec(name="protocol", value_type="enum", enum_values=("tcp", "udp")),
-            BigipPropertySpec(
-                name="secondary-address",
-                value_type="boolean",
-                allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(
-                name="service",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("port",),
-                list_operators=frozenset(("none",)),
-            ),
+            BigipPropertySpec(name="secondary-address", value_type="string", allow_none=True),
+            BigipPropertySpec(name="service", value_type="unknown"),
             BigipPropertySpec(name="time-until-up", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
         ),

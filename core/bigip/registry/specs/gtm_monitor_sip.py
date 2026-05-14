@@ -18,44 +18,48 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "monitor sip"),),
         properties=(
-            BigipPropertySpec(name="cert", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="cipherlist", value_type="string"),
+            BigipPropertySpec(name="cert", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="cipherlist", value_type="unknown"),
             BigipPropertySpec(
-                name="compatibility", value_type="enum", enum_values=("enabled", "disabled")
+                name="compatibility",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="debug", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("gtm_monitor_sip",)
+                name="defaults-from",
+                value_type="reference",
+                references=("gtm_monitor_sip",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(
                 name="filter",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("any", "status"),
-                list_operators=frozenset(("none",)),
+                enum_values=("any", "none", "status"),
             ),
             BigipPropertySpec(
                 name="filter-neg",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("any", "status"),
-                list_operators=frozenset(("none",)),
+                enum_values=("any", "none", "status"),
             ),
-            BigipPropertySpec(name="headers", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="headers", value_type="unknown", allow_none=True),
             BigipPropertySpec(
-                name="ignore-down-response", value_type="enum", enum_values=("enabled", "disabled")
+                name="ignore-down-response",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="interval", value_type="integer"),
-            BigipPropertySpec(name="key", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="key", value_type="unknown", allow_none=True),
             BigipPropertySpec(
-                name="mode", value_type="enum", enum_values=("sips", "tcp", "tls", "udp")
+                name="mode",
+                value_type="enum",
+                enum_values=("sips", "tcp", "tls", "udp"),
             ),
             BigipPropertySpec(name="probe-timeout", value_type="integer"),
-            BigipPropertySpec(name="request", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="username", value_type="reference", allow_none=True, references=("auth_user",)
-            ),
+            BigipPropertySpec(name="request", value_type="string"),
+            BigipPropertySpec(name="username", value_type="reference", allow_none=True),
         ),
     )

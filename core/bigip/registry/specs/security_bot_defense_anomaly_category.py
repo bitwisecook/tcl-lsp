@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("bot-defense anomaly-category",),
         ),
         header_types=(("security", "bot-defense anomaly-category"),),
+        properties=(),
     )

@@ -22,46 +22,36 @@ def register_spec() -> BigipObjectSpec:
                 name="algorithm",
                 value_type="enum",
                 enum_values=(
+                    "ecdsap256sha256",
+                    "ecdsap384sha384",
                     "rsasha1",
                     "rsasha256",
                     "rsasha512",
-                    "ecdsap256sha256",
-                    "ecdsap384sha384",
                 ),
             ),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="bitwidth", value_type="enum", enum_values=("512", "1024", "2048", "4096")
+                name="bitwidth",
+                value_type="enum",
+                enum_values=("1024", "2048", "4096", "512"),
             ),
             BigipPropertySpec(name="certificate-file", value_type="string"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="expiration-period", value_type="integer"),
-            BigipPropertySpec(name="generation", value_type="string"),
-            BigipPropertySpec(name="expiration", value_type="string", in_sections=("generation",)),
-            BigipPropertySpec(name="rollover", value_type="string", in_sections=("generation",)),
-            BigipPropertySpec(name="key-file", value_type="string", in_sections=("generation",)),
-            BigipPropertySpec(
-                name="key-type",
-                value_type="enum",
-                in_sections=("generation",),
-                enum_values=("ksk", "zsk"),
-            ),
-            BigipPropertySpec(
-                name="rollover-period", value_type="integer", in_sections=("generation",)
-            ),
-            BigipPropertySpec(
-                name="signature-pub-period", value_type="integer", in_sections=("generation",)
-            ),
-            BigipPropertySpec(
-                name="signature-valid-period", value_type="integer", in_sections=("generation",)
-            ),
-            BigipPropertySpec(name="ttl", value_type="integer", in_sections=("generation",)),
+            BigipPropertySpec(name="generation", value_type="unknown"),
+            BigipPropertySpec(name="expiration", value_type="unknown", in_sections=("generation",)),
+            BigipPropertySpec(name="rollover", value_type="unknown", in_sections=("generation",)),
+            BigipPropertySpec(name="key-file", value_type="string"),
+            BigipPropertySpec(name="key-type", value_type="enum", enum_values=("ksk", "zsk")),
+            BigipPropertySpec(name="rollover-period", value_type="integer"),
+            BigipPropertySpec(name="signature-pub-period", value_type="integer"),
+            BigipPropertySpec(name="signature-valid-period", value_type="integer"),
+            BigipPropertySpec(name="ttl", value_type="integer"),
             BigipPropertySpec(
                 name="use-fips",
-                value_type="reference",
-                in_sections=("generation",),
+                value_type="enum",
                 allow_none=True,
-                enum_values=("external", "internal"),
-                list_operators=frozenset(("none",)),
+                enum_values=("external", "internal", "none"),
             ),
         ),
     )

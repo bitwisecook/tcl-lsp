@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("traffic",),
         ),
         header_types=(("gtm", "traffic"),),
+        properties=(),
     )

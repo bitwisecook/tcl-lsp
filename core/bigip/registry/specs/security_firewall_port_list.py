@@ -18,41 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall port-list"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="reference"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="ports",
-                value_type="reference",
+                value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
-            ),
-            BigipPropertySpec(name="security", value_type="string"),
-            BigipPropertySpec(name="ports", value_type="string", in_sections=("security",)),
-            BigipPropertySpec(
-                name="domain", value_type="list", in_sections=("ports",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="f5-iquery", value_type="list", in_sections=("ports",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="https", value_type="list", in_sections=("ports",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="snmp", value_type="list", in_sections=("ports",), repeated=True
-            ),
-            BigipPropertySpec(name="ssh", value_type="list", in_sections=("ports",), repeated=True),
-            BigipPropertySpec(
-                name="cap", value_type="list", in_sections=("security",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="domain", value_type="list", in_sections=("security",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="f5-iquery", value_type="list", in_sections=("security",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="snmp", value_type="list", in_sections=("security",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="http", value_type="list", in_sections=("ports",), repeated=True
             ),
         ),
     )

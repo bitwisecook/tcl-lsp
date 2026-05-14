@@ -21,20 +21,24 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="failure-rcode",
                 value_type="enum",
-                enum_values=("noerror", "formerr", "servfail", "nxdomain", "notimpl", "refused"),
+                enum_values=("formerr", "noerror", "notimpl", "nxdomain", "refused", "servfail"),
             ),
-            BigipPropertySpec(name="failure-rcode-ttl", value_type="integer"),
             BigipPropertySpec(
                 name="failure-rcode-response",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
+            BigipPropertySpec(name="failure-rcode-ttl", value_type="integer"),
             BigipPropertySpec(name="ignore-path-ttl", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="respect-fallback-dependency", value_type="enum", enum_values=("no", "yes")
+                name="respect-fallback-dependency",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
-                name="topology-longest-match", value_type="enum", enum_values=("no", "yes")
+                name="topology-longest-match",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
                 name="topology-prefer-edns0-client-subnet",
@@ -42,7 +46,9 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="verify-vs-availability", value_type="enum", enum_values=("no", "yes")
+                name="verify-vs-availability",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
         ),
     )

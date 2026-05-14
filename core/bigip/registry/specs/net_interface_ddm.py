@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("interface-ddm",),
         ),
         header_types=(("net", "interface-ddm"),),
+        properties=(),
     )

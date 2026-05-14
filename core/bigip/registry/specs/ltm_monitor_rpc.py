@@ -18,15 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor rpc"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="debug", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_monitor_rpc",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_monitor_rpc",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(
-                name="manual-resume", value_type="enum", enum_values=("enabled", "disabled")
+                name="manual-resume",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="mode", value_type="enum", enum_values=("tcp", "udp")),
             BigipPropertySpec(name="program-number", value_type="integer", allow_none=True),
@@ -34,6 +39,5 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(name="up-interval", value_type="integer"),
             BigipPropertySpec(name="version-number", value_type="integer", allow_none=True),
-            BigipPropertySpec(name="stop", value_type="string"),
         ),
     )

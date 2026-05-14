@@ -18,22 +18,29 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile radius"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="clients",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_profile_radius",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_profile_radius",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="pem-protocol-profile-radius",
+                value_type="reference",
+                allow_none=True,
+            ),
             BigipPropertySpec(name="persist-avp", value_type="integer", allow_none=True),
             BigipPropertySpec(
-                name="pem-protocol-profile-radius", value_type="boolean", allow_none=True
+                name="subscriber-discovery",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(
-                name="subscriber-discovery", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

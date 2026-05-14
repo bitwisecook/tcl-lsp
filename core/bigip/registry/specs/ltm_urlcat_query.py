@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("urlcat-query",),
         ),
         header_types=(("ltm", "urlcat-query"),),
+        properties=(),
     )

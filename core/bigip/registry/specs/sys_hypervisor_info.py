@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("hypervisor-info",),
         ),
         header_types=(("sys", "hypervisor-info"),),
+        properties=(),
     )

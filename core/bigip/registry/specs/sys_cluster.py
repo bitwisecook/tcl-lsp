@@ -20,30 +20,30 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="address",
-                value_type="boolean",
+                value_type="enum",
                 allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                enum_values=("none",),
             ),
             BigipPropertySpec(
                 name="alt-address",
-                value_type="boolean",
+                value_type="enum",
                 allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                enum_values=("none",),
             ),
-            BigipPropertySpec(name="members", value_type="string"),
+            BigipPropertySpec(name="members", value_type="list"),
             BigipPropertySpec(
                 name="address",
-                value_type="boolean",
+                value_type="enum",
                 in_sections=("members",),
                 allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                enum_values=("none",),
             ),
             BigipPropertySpec(
                 name="alt-address",
-                value_type="boolean",
+                value_type="enum",
                 in_sections=("members",),
                 allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                enum_values=("none",),
             ),
             BigipPropertySpec(
                 name="priming",
@@ -53,7 +53,9 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="min-up-members", value_type="integer"),
             BigipPropertySpec(
-                name="min-up-members-enabled", value_type="enum", enum_values=("no", "yes")
+                name="min-up-members-enabled",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
         ),
     )

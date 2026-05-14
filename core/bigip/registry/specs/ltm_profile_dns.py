@@ -18,6 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile dns"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="cache", value_type="string"),
             BigipPropertySpec(
                 name="defaults-from",
@@ -26,31 +27,35 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_dns",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="dns-security", value_type="string"),
             BigipPropertySpec(
                 name="dns64",
                 value_type="enum",
-                enum_values=("disabled", "secondary", "immediate", "v4-only"),
+                enum_values=("disabled", "immediate", "secondary", "v4-only"),
             ),
             BigipPropertySpec(
                 name="dns64-additional-section-rewrite",
                 value_type="enum",
-                enum_values=("disabled", "v6-only", "v4-only", "any"),
+                enum_values=("any", "disabled", "v4-only", "v6-only"),
             ),
             BigipPropertySpec(name="dns64-prefix", value_type="string"),
-            BigipPropertySpec(name="dns-security", value_type="string"),
             BigipPropertySpec(
                 name="edns0-client-subnet-insert",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="enable-cache", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(
+                name="enable-dns-express",
+                value_type="enum",
+                enum_values=("no", "yes"),
+            ),
+            BigipPropertySpec(
+                name="enable-dns-firewall",
+                value_type="enum",
+                enum_values=("no", "yes"),
+            ),
             BigipPropertySpec(name="enable-dnssec", value_type="enum", enum_values=("no", "yes")),
-            BigipPropertySpec(
-                name="enable-dns-express", value_type="enum", enum_values=("no", "yes")
-            ),
-            BigipPropertySpec(
-                name="enable-dns-firewall", value_type="enum", enum_values=("no", "yes")
-            ),
             BigipPropertySpec(name="enable-gtm", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
                 name="enable-hardware-query-validation",
@@ -58,14 +63,18 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
-                name="enable-hardware-response-cache", value_type="enum", enum_values=("no", "yes")
+                name="enable-hardware-response-cache",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(name="enable-logging", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(name="enable-odoh", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="enable-rapid-response", value_type="enum", enum_values=("no", "yes")
+                name="enable-rapid-response",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
-            BigipPropertySpec(name="log-profile", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="log-profile", value_type="reference", allow_none=True),
             BigipPropertySpec(name="process-rd", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(name="process-xfr", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
@@ -79,6 +88,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("allow", "drop", "hint", "noerror", "reject"),
             ),
             BigipPropertySpec(name="use-local-bind", value_type="enum", enum_values=("no", "yes")),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

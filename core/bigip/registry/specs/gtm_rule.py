@@ -18,7 +18,8 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "rule"),),
         properties=(
+            BigipPropertySpec(name="metadata", value_type="unknown"),
+            BigipPropertySpec(name="persist", value_type="enum", enum_values=("false", "true")),
             BigipPropertySpec(name="value", value_type="string"),
-            BigipPropertySpec(name="persist", value_type="enum", enum_values=("true", "false")),
         ),
     )

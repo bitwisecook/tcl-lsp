@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("urlcat-cloud-cache",),
         ),
         header_types=(("ltm", "urlcat-cloud-cache"),),
+        properties=(),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("scrubber dwbl-scrubber-stat",),
         ),
         header_types=(("security", "scrubber dwbl-scrubber-stat"),),
+        properties=(),
     )

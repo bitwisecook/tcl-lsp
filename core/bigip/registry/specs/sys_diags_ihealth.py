@@ -3,6 +3,7 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
+    BigipPropertySpec,
 )
 from ._base import register
 
@@ -16,4 +17,11 @@ def register_spec() -> BigipObjectSpec:
             object_types=("diags ihealth",),
         ),
         header_types=(("sys", "diags ihealth"),),
+        properties=(
+            BigipPropertySpec(name="expiration", value_type="unknown"),
+            BigipPropertySpec(name="no-ihealth", value_type="unknown"),
+            BigipPropertySpec(name="options", value_type="unknown"),
+            BigipPropertySpec(name="password", value_type="unknown"),
+            BigipPropertySpec(name="user", value_type="unknown"),
+        ),
     )

@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("log network-storage-field",),
         ),
         header_types=(("security", "log network-storage-field"),),
+        properties=(),
     )

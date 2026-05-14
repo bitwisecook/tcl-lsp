@@ -19,10 +19,15 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "service-policy"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="port-misuse-policy", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="timer-policy", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="net", value_type="string"),
-            BigipPropertySpec(name="timer-policy", value_type="string", in_sections=("net",)),
-            BigipPropertySpec(name="port-misuse-policy", value_type="string", in_sections=("net",)),
+            BigipPropertySpec(
+                name="port-misuse-policy",
+                value_type="reference",
+                references=("security_firewall_port_misuse_policy",),
+            ),
+            BigipPropertySpec(
+                name="timer-policy",
+                value_type="reference",
+                references=("net_timer_policy",),
+            ),
         ),
     )

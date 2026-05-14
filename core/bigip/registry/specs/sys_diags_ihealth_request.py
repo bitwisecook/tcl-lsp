@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("diags ihealth-request",),
         ),
         header_types=(("sys", "diags ihealth-request"),),
+        properties=(),
     )

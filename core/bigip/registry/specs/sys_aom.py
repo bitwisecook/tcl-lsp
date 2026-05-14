@@ -17,5 +17,19 @@ def register_spec() -> BigipObjectSpec:
             object_types=("aom",),
         ),
         header_types=(("sys", "aom"),),
-        properties=(BigipPropertySpec(name="aom", value_type="string"),),
+        properties=(
+            BigipPropertySpec(
+                name="aom",
+                value_type="enum",
+                enum_values=(
+                    "disabled",
+                    "enabled",
+                    "ipmi",
+                    "media-redirection",
+                    "readonly",
+                    "vkvm",
+                    "webui",
+                ),
+            ),
+        ),
     )

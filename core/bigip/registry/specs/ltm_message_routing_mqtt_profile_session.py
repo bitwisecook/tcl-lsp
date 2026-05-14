@@ -18,8 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing mqtt profile session"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                allow_none=True,
+                references=("ltm_message_routing_mqtt_profile_session",),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

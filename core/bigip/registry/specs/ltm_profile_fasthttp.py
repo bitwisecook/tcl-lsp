@@ -18,13 +18,16 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile fasthttp"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="client-close-timeout", value_type="integer"),
             BigipPropertySpec(name="connpool-idle-timeout-override", value_type="integer"),
             BigipPropertySpec(name="connpool-max-reuse", value_type="integer"),
             BigipPropertySpec(name="connpool-max-size", value_type="integer"),
             BigipPropertySpec(name="connpool-min-size", value_type="integer"),
             BigipPropertySpec(
-                name="connpool-replenish", value_type="enum", enum_values=("disabled", "enabled")
+                name="connpool-replenish",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="connpool-step", value_type="integer"),
             BigipPropertySpec(
@@ -40,9 +43,11 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="hardware-syn-cookie", value_type="enum", enum_values=("disabled", "enabled")
+                name="hardware-syn-cookie",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="header-insert", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="header-insert", value_type="string"),
             BigipPropertySpec(
                 name="http-11-close-workarounds",
                 value_type="enum",
@@ -50,28 +55,39 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="idle-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="insert-xforwarded-for", value_type="enum", enum_values=("disabled", "enabled")
+                name="insert-xforwarded-for",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="layer-7", value_type="enum", enum_values=("disabled", "enabled")
+                name="layer-7",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="max-header-size", value_type="integer"),
             BigipPropertySpec(name="max-requests", value_type="integer"),
             BigipPropertySpec(name="mss-override", value_type="integer"),
-            BigipPropertySpec(name="receive-window-size", value_type="string"),
+            BigipPropertySpec(name="receive-window-size", value_type="unknown"),
             BigipPropertySpec(
-                name="reset-on-timeout", value_type="enum", enum_values=("disabled", "enabled")
+                name="reset-on-timeout",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="server-close-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="server-sack", value_type="enum", enum_values=("disabled", "enabled")
+                name="server-sack",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="server-timestamp", value_type="enum", enum_values=("disabled", "enabled")
+                name="server-timestamp",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="unclean-shutdown", value_type="enum", enum_values=("disabled", "enabled")
+                name="unclean-shutdown",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

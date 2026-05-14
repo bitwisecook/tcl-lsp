@@ -20,57 +20,68 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="alias", value_type="string"),
             BigipPropertySpec(
+                name="app-service",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(
                 name="approval-state",
                 value_type="enum",
-                enum_values=("unapproved", "manually-approved"),
+                enum_values=("manually-approved", "unapproved"),
             ),
-            BigipPropertySpec(
-                name="parent-context-type",
-                value_type="enum",
-                enum_values=("device", "virtual-server", "device-netflow"),
-            ),
-            BigipPropertySpec(name="parent-context", value_type="string"),
-            BigipPropertySpec(name="parent-profile", value_type="string"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="family", value_type="enum", enum_values=("dns", "network", "http", "tls")
+                name="family",
+                value_type="enum",
+                enum_values=("dns", "http", "network", "tls"),
             ),
             BigipPropertySpec(
-                name="hardware-offload", value_type="enum", enum_values=("disabled", "enabled")
+                name="hardware-offload",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="manual-detection-threshold", value_type="integer"),
             BigipPropertySpec(name="manual-mitigation-threshold", value_type="integer"),
             BigipPropertySpec(name="multiplier-mitigation-percentage", value_type="integer"),
             BigipPropertySpec(
                 name="origin",
-                value_type="reference",
+                value_type="enum",
                 enum_values=("dynamic-bdos", "user-defined"),
-                references=("auth_user",),
             ),
-            BigipPropertySpec(name="predicates", value_type="string"),
+            BigipPropertySpec(name="parent-context", value_type="string"),
+            BigipPropertySpec(
+                name="parent-context-type",
+                value_type="enum",
+                enum_values=("device", "device-netflow", "virtual-server"),
+            ),
+            BigipPropertySpec(name="parent-profile", value_type="string"),
+            BigipPropertySpec(name="predicates", value_type="unknown"),
             BigipPropertySpec(
                 name="shareability-state",
                 value_type="enum",
-                enum_values=("not-shareable", "fully-shareable"),
+                enum_values=("fully-shareable", "not-shareable"),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                enum_values=("disabled", "learn-only", "detect-only", "mitigate"),
+                enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
-            BigipPropertySpec(name="tags", value_type="string"),
+            BigipPropertySpec(name="tags", value_type="unknown"),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
                 enum_values=(
+                    "fully-automatic",
                     "manual",
                     "manual-multiplier-mitigation",
                     "stress-based-mitigation",
-                    "fully-automatic",
                 ),
             ),
             BigipPropertySpec(
-                name="type", value_type="enum", enum_values=("dynamic", "persistent")
+                name="type",
+                value_type="enum",
+                enum_values=("dynamic", "persistent"),
             ),
         ),
     )

@@ -23,6 +23,6 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
             ),
-            BigipPropertySpec(name="max-script-run-time", value_type="string"),
+            BigipPropertySpec(name="max-script-run-time", value_type="unknown"),
         ),
     )

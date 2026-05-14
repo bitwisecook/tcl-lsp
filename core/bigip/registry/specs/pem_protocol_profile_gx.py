@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+from ..models import (
+    BigipObjectKindSpec,
+    BigipObjectSpec,
+    BigipPropertySpec,
+)
+from ._base import register
+
+
+@register
+def register_spec() -> BigipObjectSpec:
+    return BigipObjectSpec(
+        kind_spec=BigipObjectKindSpec(
+            "pem_protocol_profile_gx",
+            module="pem",
+            object_types=("protocol profile gx",),
+        ),
+        header_types=(("pem", "protocol profile gx"),),
+        properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="cp",
+                value_type="reference",
+                references=(
+                    "auth_source",
+                    "ltm_persistence_source_addr",
+                    "security_dos_auto_thresholds_top_source_ips",
+                    "security_nat_destination_translation",
+                    "security_nat_source_translation",
+                    "sys_ipfix_destination",
+                    "sys_log_config_destination_alertd",
+                    "sys_log_config_destination_arcsight",
+                    "sys_log_config_destination_ipfix",
+                    "sys_log_config_destination_local_database",
+                    "sys_log_config_destination_local_syslog",
+                    "sys_log_config_destination_management_port",
+                    "sys_log_config_destination_remote_high_speed_log",
+                    "sys_log_config_destination_remote_syslog",
+                    "sys_log_config_destination_splunk",
+                    "sys_sflow_data_source_http",
+                    "sys_sflow_data_source_interface",
+                    "sys_sflow_data_source_system",
+                    "sys_sflow_data_source_vlan",
+                ),
+            ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="messages",
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+            ),
+            BigipPropertySpec(
+                name="avps",
+                value_type="list",
+                in_sections=("messages",),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+            ),
+            BigipPropertySpec(
+                name="diameter-avp",
+                value_type="reference",
+                in_sections=("messages", "avps"),
+                allow_none=True,
+                references=("pem_protocol_diameter_avp",),
+            ),
+            BigipPropertySpec(
+                name="flag-mandatory",
+                value_type="enum",
+                in_sections=("messages", "avps"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="flag-protected",
+                value_type="enum",
+                in_sections=("messages", "avps"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="flag-vendor-specific",
+                value_type="enum",
+                in_sections=("messages", "avps"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="interim-message-include",
+                value_type="enum",
+                in_sections=("messages", "avps"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="parent-label",
+                value_type="string",
+                in_sections=("messages", "avps"),
+            ),
+            BigipPropertySpec(
+                name="reporting-message-include",
+                value_type="enum",
+                in_sections=("messages", "avps"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="subscriber-attr",
+                value_type="reference",
+                in_sections=("messages", "avps"),
+                allow_none=True,
+                references=("pem_subscriber_attribute",),
+            ),
+            BigipPropertySpec(
+                name="direction",
+                value_type="enum",
+                in_sections=("messages",),
+                enum_values=("any", "in", "out"),
+            ),
+            BigipPropertySpec(
+                name="message-type",
+                value_type="enum",
+                in_sections=("messages",),
+                enum_values=("cca-i", "cca-u", "ccr-i", "ccr-t", "ccr-u", "raa", "rar"),
+            ),
+            BigipPropertySpec(name="subscriber-id", value_type="unknown"),
+            BigipPropertySpec(
+                name="avp",
+                value_type="reference",
+                in_sections=("subscriber-id",),
+                allow_none=True,
+                references=("pem_protocol_diameter_avp",),
+            ),
+            BigipPropertySpec(
+                name="type",
+                value_type="enum",
+                in_sections=("subscriber-id",),
+                enum_values=("e164", "imsi", "nai", "private"),
+            ),
+            BigipPropertySpec(
+                name="type-avp",
+                value_type="reference",
+                in_sections=("subscriber-id",),
+                allow_none=True,
+                references=("pem_protocol_diameter_avp",),
+            ),
+        ),
+    )

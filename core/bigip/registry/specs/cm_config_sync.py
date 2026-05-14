@@ -18,7 +18,10 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("cm", "config-sync"),),
         properties=(
-            BigipPropertySpec(name="from-group", value_type="string"),
-            BigipPropertySpec(name="to-group", value_type="string"),
+            BigipPropertySpec(name="force-full-load-push", value_type="unknown"),
+            BigipPropertySpec(name="from-group", value_type="unknown"),
+            BigipPropertySpec(name="recover-sync", value_type="unknown"),
+            BigipPropertySpec(name="run", value_type="unknown"),
+            BigipPropertySpec(name="to-group", value_type="unknown"),
         ),
     )

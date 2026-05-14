@@ -18,7 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels tcp-forward"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                allow_none=True,
+                references=("net_tunnels_tcp_forward",),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
         ),
     )

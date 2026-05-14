@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("performance ramcache",),
         ),
         header_types=(("sys", "performance ramcache"),),
+        properties=(),
     )

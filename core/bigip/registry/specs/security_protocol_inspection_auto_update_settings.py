@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,10 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("protocol-inspection auto-update settings",),
         ),
         header_types=(("security", "protocol-inspection auto-update settings"),),
-        properties=(
-            BigipPropertySpec(
-                name="auto-update-interval", value_type="reference", references=("auth_partition",)
-            ),
-            BigipPropertySpec(name="enabled", value_type="string"),
-        ),
+        properties=(),
     )

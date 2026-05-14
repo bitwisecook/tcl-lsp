@@ -18,7 +18,8 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "ifile"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="file-name", value_type="string"),
+            BigipPropertySpec(name="file-name", value_type="reference"),
         ),
     )

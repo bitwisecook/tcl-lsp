@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("vlan-allowed",),
         ),
         header_types=(("net", "vlan-allowed"),),
+        properties=(),
     )

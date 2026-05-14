@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("password",),
         ),
         header_types=(("auth", "password"),),
+        properties=(),
     )

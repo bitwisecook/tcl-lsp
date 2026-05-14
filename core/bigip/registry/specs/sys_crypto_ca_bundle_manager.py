@@ -19,13 +19,11 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "crypto ca-bundle-manager"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="proxy-port", value_type="unknown"),
             BigipPropertySpec(name="proxy-server", value_type="string"),
-            BigipPropertySpec(
-                name="proxy-port", value_type="integer", min_value=0, max_value=65535
-            ),
-            BigipPropertySpec(name="trusted-ca-bundle", value_type="string"),
-            BigipPropertySpec(name="update-interval", value_type="string"),
-            BigipPropertySpec(name="time-out", value_type="string"),
-            BigipPropertySpec(name="update-now", value_type="enum", enum_values=("yes", "no")),
+            BigipPropertySpec(name="time-out", value_type="unknown"),
+            BigipPropertySpec(name="trusted-ca-bundle", value_type="unknown"),
+            BigipPropertySpec(name="update-interval", value_type="unknown"),
+            BigipPropertySpec(name="update-now", value_type="enum", enum_values=("no", "yes")),
         ),
     )

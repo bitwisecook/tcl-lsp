@@ -18,36 +18,33 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "dos device-config"),),
         properties=(
-            BigipPropertySpec(name="auto-threshold-sensitivity", value_type="string"),
-            BigipPropertySpec(name="ip-uncommon-protolist", value_type="string"),
-            BigipPropertySpec(
-                name="threshold-sensitivity",
-                value_type="enum",
-                enum_values=("low", "medium", "high"),
-            ),
+            BigipPropertySpec(name="auto-threshold-sensitivity", value_type="unknown"),
             BigipPropertySpec(
                 name="custom-signatures",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
-            ),
-            BigipPropertySpec(name="name", value_type="string", in_sections=("custom-signatures",)),
-            BigipPropertySpec(
-                name="manual-detection-threshold", value_type="integer", in_sections=("name",)
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="manual-mitigation-threshold", value_type="integer", in_sections=("name",)
+                name="manual-detection-threshold",
+                value_type="integer",
+                in_sections=("custom-signatures",),
+            ),
+            BigipPropertySpec(
+                name="manual-mitigation-threshold",
+                value_type="integer",
+                in_sections=("custom-signatures",),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                in_sections=("name",),
-                enum_values=("disabled", "learn-only", "detect-only", "mitigate"),
+                in_sections=("custom-signatures",),
+                enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
-                in_sections=("name",),
+                in_sections=("custom-signatures",),
                 enum_values=(
                     "fully-automatic",
                     "manual",
@@ -55,7 +52,9 @@ def register_spec() -> BigipObjectSpec:
                     "stress-based-mitigation",
                 ),
             ),
-            BigipPropertySpec(name="dos-device-vector", value_type="string"),
+            BigipPropertySpec(name="dns-dos-mitigation-percentage", value_type="integer"),
+            BigipPropertySpec(name="dns-nxdomain-stat", value_type="unknown"),
+            BigipPropertySpec(name="dos-device-vector", value_type="unknown"),
             BigipPropertySpec(
                 name="allow-advertisement",
                 value_type="enum",
@@ -78,7 +77,7 @@ def register_spec() -> BigipObjectSpec:
                 name="auto-blacklisting",
                 value_type="enum",
                 in_sections=("dos-device-vector",),
-                enum_values=("enabled", "disabled"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="auto-scrubbing",
@@ -99,7 +98,10 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="blacklist-category", value_type="string", in_sections=("dos-device-vector",)
+                name="blacklist-category",
+                value_type="reference",
+                in_sections=("dos-device-vector",),
+                references=("security_ip_intelligence_blacklist_category",),
             ),
             BigipPropertySpec(
                 name="blacklist-detection-seconds",
@@ -107,158 +109,191 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
-                name="blacklist-duration", value_type="integer", in_sections=("dos-device-vector",)
+                name="blacklist-duration",
+                value_type="integer",
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
-                name="ceiling", value_type="integer", in_sections=("dos-device-vector",)
+                name="ceiling",
+                value_type="enum",
+                in_sections=("dos-device-vector",),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="default-internal-rate-limit",
-                value_type="integer",
+                value_type="enum",
                 in_sections=("dos-device-vector",),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="detection-threshold-percent",
-                value_type="integer",
+                value_type="enum",
                 in_sections=("dos-device-vector",),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="detection-threshold-pps",
-                value_type="integer",
+                value_type="enum",
                 in_sections=("dos-device-vector",),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="enforce",
                 value_type="enum",
                 in_sections=("dos-device-vector",),
-                enum_values=("enabled", "disabled"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="floor", value_type="integer", in_sections=("dos-device-vector",)
+                name="floor",
+                value_type="integer",
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
                 name="packet-types",
-                value_type="reference",
+                value_type="list",
                 in_sections=("dos-device-vector",),
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="dns-any-query", value_type="string", in_sections=("packet-types",)
+                name="per-dst-ip-detection-pps",
+                value_type="integer",
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
-                name="dns-mx-query", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="dns-ptr-query", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="dns-txt-query", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(name="ipfrag", value_type="string", in_sections=("packet-types",)),
-            BigipPropertySpec(
-                name="ipv6-any-other", value_type="boolean", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="sip-bye-method", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="sip-malformed", value_type="boolean", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="sip-options-method", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="sip-publish-method", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="suspicious", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="tcp-synack", value_type="string", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="packet-types",
-                value_type="boolean",
-                in_sections=("packet-types",),
-                allow_none=True,
-            ),
-            BigipPropertySpec(
-                name="per-dst-ip-detection-pps", value_type="integer", in_sections=("packet-types",)
-            ),
-            BigipPropertySpec(
-                name="per-dst-ip-limit-pps", value_type="integer", in_sections=("packet-types",)
+                name="per-dst-ip-limit-pps",
+                value_type="integer",
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
                 name="per-source-ip-detection-pps",
                 value_type="integer",
-                in_sections=("packet-types",),
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
-                name="per-source-ip-limit-pps", value_type="integer", in_sections=("packet-types",)
+                name="per-source-ip-limit-pps",
+                value_type="integer",
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
                 name="scrubbing-category",
-                value_type="boolean",
-                in_sections=("packet-types",),
-                allow_none=True,
+                value_type="enum",
+                in_sections=("dos-device-vector",),
+                enum_values=('"none"',),
             ),
             BigipPropertySpec(
                 name="scrubbing-detection-seconds",
                 value_type="integer",
-                in_sections=("packet-types",),
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
-                name="scrubbing-duration", value_type="integer", in_sections=("packet-types",)
+                name="scrubbing-duration",
+                value_type="integer",
+                in_sections=("dos-device-vector",),
             ),
             BigipPropertySpec(
                 name="simulate-auto-threshold",
                 value_type="enum",
-                in_sections=("packet-types",),
-                enum_values=("enable", "disable"),
+                in_sections=("dos-device-vector",),
+                enum_values=("disable", "enable"),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                in_sections=("packet-types",),
-                enum_values=("disabled", "learn-only", "detect-only", "mitigate"),
+                in_sections=("dos-device-vector",),
+                enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
             BigipPropertySpec(
-                name="tscookie",
+                name="suspicious",
                 value_type="enum",
-                in_sections=("packet-types",),
-                enum_values=("disable", "enable"),
+                in_sections=("dos-device-vector",),
+                enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
-                in_sections=("packet-types",),
+                in_sections=("dos-device-vector",),
                 enum_values=(
-                    "manual",
-                    "stress-based-mitigation",
                     "fully-automatic",
+                    "manual",
                     "manual-multiplier-mitigation",
+                    "stress-based-mitigation",
                 ),
             ),
             BigipPropertySpec(
+                name="tscookie",
+                value_type="enum",
+                in_sections=("dos-device-vector",),
+                enum_values=("disable", "enable"),
+            ),
+            BigipPropertySpec(
                 name="valid-domains",
-                value_type="reference",
-                in_sections=("packet-types",),
+                value_type="list",
+                in_sections=("dos-device-vector",),
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="dynamic-signatures", value_type="string"),
+            BigipPropertySpec(name="dynamic-signatures", value_type="list"),
             BigipPropertySpec(
                 name="detection",
                 value_type="enum",
                 in_sections=("dynamic-signatures",),
                 enum_values=("disabled", "enabled", "learn-only"),
             ),
+            BigipPropertySpec(name="dns", value_type="list", in_sections=("dynamic-signatures",)),
+            BigipPropertySpec(
+                name="detection",
+                value_type="enum",
+                in_sections=("dynamic-signatures", "dns"),
+                enum_values=("disabled", "enabled", "learn-only"),
+            ),
             BigipPropertySpec(
                 name="mitigation",
-                value_type="reference",
+                value_type="enum",
+                in_sections=("dynamic-signatures", "dns"),
+                allow_none=True,
+                enum_values=("high", "low", "manual-multiplier", "medium", "none"),
+            ),
+            BigipPropertySpec(
+                name="mitigation",
+                value_type="enum",
                 in_sections=("dynamic-signatures",),
                 allow_none=True,
-                enum_values=("low", "medium", "high"),
-                list_operators=frozenset(("none",)),
+                enum_values=("high", "low", "medium", "none"),
+            ),
+            BigipPropertySpec(
+                name="network",
+                value_type="unknown",
+                in_sections=("dynamic-signatures",),
+            ),
+            BigipPropertySpec(
+                name="detection",
+                value_type="enum",
+                in_sections=("dynamic-signatures", "network"),
+                enum_values=("disabled", "enabled", "learn-only"),
+            ),
+            BigipPropertySpec(
+                name="mitigation",
+                value_type="enum",
+                in_sections=("dynamic-signatures", "network"),
+                allow_none=True,
+                enum_values=("high", "low", "manual-multiplier", "medium", "none"),
+            ),
+            BigipPropertySpec(
+                name="scrubber-advertisement-period",
+                value_type="integer",
+                in_sections=("dynamic-signatures", "network"),
+            ),
+            BigipPropertySpec(
+                name="scrubber-category",
+                value_type="reference",
+                in_sections=("dynamic-signatures", "network"),
+            ),
+            BigipPropertySpec(
+                name="scrubber-enable",
+                value_type="enum",
+                in_sections=("dynamic-signatures", "network"),
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
                 name="scrubber-advertisement-period",
@@ -266,73 +301,35 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("dynamic-signatures",),
             ),
             BigipPropertySpec(
-                name="scrubber-category", value_type="string", in_sections=("dynamic-signatures",)
+                name="scrubber-category",
+                value_type="reference",
+                in_sections=("dynamic-signatures",),
             ),
             BigipPropertySpec(
                 name="scrubber-enable",
                 value_type="enum",
                 in_sections=("dynamic-signatures",),
-                enum_values=("yes", "no"),
+                enum_values=("no", "yes"),
             ),
-            BigipPropertySpec(
-                name="network", value_type="string", in_sections=("dynamic-signatures",)
-            ),
-            BigipPropertySpec(
-                name="detection",
-                value_type="enum",
-                in_sections=("network",),
-                enum_values=("disabled", "enabled", "learn-only"),
-            ),
-            BigipPropertySpec(
-                name="mitigation",
-                value_type="reference",
-                in_sections=("network",),
-                allow_none=True,
-                enum_values=("low", "medium", "high", "manual-multiplier"),
-                list_operators=frozenset(("none",)),
-            ),
-            BigipPropertySpec(
-                name="scrubber-advertisement-period", value_type="integer", in_sections=("network",)
-            ),
-            BigipPropertySpec(
-                name="scrubber-category", value_type="string", in_sections=("network",)
-            ),
-            BigipPropertySpec(
-                name="scrubber-enable",
-                value_type="enum",
-                in_sections=("network",),
-                enum_values=("yes", "no"),
-            ),
-            BigipPropertySpec(name="dns", value_type="string", in_sections=("dynamic-signatures",)),
-            BigipPropertySpec(
-                name="detection",
-                value_type="enum",
-                in_sections=("dns",),
-                enum_values=("disabled", "enabled", "learn-only"),
-            ),
-            BigipPropertySpec(
-                name="mitigation",
-                value_type="reference",
-                in_sections=("dns",),
-                allow_none=True,
-                enum_values=("low", "medium", "high", "manual-multiplier"),
-                list_operators=frozenset(("none",)),
-            ),
-            BigipPropertySpec(name="dns-dos-mitigation-percentage", value_type="integer"),
-            BigipPropertySpec(name="log-publisher", value_type="string"),
+            BigipPropertySpec(name="ip-uncommon-protolist", value_type="string"),
+            BigipPropertySpec(name="log-publisher", value_type="reference"),
             BigipPropertySpec(name="network-dos-mitigation-percentage", value_type="integer"),
             BigipPropertySpec(name="sip-dos-mitigation-percentage", value_type="integer"),
             BigipPropertySpec(
                 name="syn-cookie-dsr-flow-reset-by",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("bigip", "client"),
-                list_operators=frozenset(("none",)),
+                enum_values=("bigip", "client", "none"),
             ),
             BigipPropertySpec(
-                name="syn-cookie-whitelist", value_type="enum", enum_values=("disabled", "enabled")
+                name="syn-cookie-whitelist",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
-            BigipPropertySpec(name="query-valid-domain", value_type="string"),
+            BigipPropertySpec(
+                name="threshold-sensitivity",
+                value_type="enum",
+                enum_values=("high", "low", "medium"),
+            ),
         ),
     )

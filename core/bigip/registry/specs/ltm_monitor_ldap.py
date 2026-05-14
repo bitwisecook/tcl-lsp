@@ -18,42 +18,39 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor ldap"),),
         properties=(
-            BigipPropertySpec(name="base", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="base", value_type="string"),
             BigipPropertySpec(name="chase-referrals", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(name="debug", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_monitor_ldap",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_monitor_ldap",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination", value_type="string"),
-            BigipPropertySpec(name="filter", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="filter", value_type="unknown", allow_none=True),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(
-                name="mandatory-attributes", value_type="enum", enum_values=("no", "yes")
+                name="mandatory-attributes",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
-                name="manual-resume", value_type="enum", enum_values=("enabled", "disabled")
+                name="manual-resume",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(
-                name="password",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("password",),
-                list_operators=frozenset(("none",)),
-            ),
+            BigipPropertySpec(name="password", value_type="unknown"),
             BigipPropertySpec(
                 name="security",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("ssl", "tls"),
-                list_operators=frozenset(("none",)),
+                enum_values=("none", "ssl", "tls"),
             ),
             BigipPropertySpec(name="time-until-up", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(name="up-interval", value_type="integer"),
-            BigipPropertySpec(
-                name="username", value_type="reference", allow_none=True, references=("auth_user",)
-            ),
-            BigipPropertySpec(name="stop", value_type="string"),
+            BigipPropertySpec(name="username", value_type="reference", allow_none=True),
         ),
     )

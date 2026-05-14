@@ -17,5 +17,8 @@ def register_spec() -> BigipObjectSpec:
             object_types=("file ifile",),
         ),
         header_types=(("sys", "file ifile"),),
-        properties=(BigipPropertySpec(name="source-path", value_type="string"),),
+        properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="source-path", value_type="unknown"),
+        ),
     )

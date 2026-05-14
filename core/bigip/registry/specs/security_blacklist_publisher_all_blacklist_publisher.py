@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("blacklist-publisher all-blacklist-publisher",),
         ),
         header_types=(("security", "blacklist-publisher all-blacklist-publisher"),),
+        properties=(),
     )

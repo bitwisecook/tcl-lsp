@@ -19,10 +19,11 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "dns hpke profile"),),
         properties=(
             BigipPropertySpec(name="aead", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="expiration-period", value_type="integer"),
-            BigipPropertySpec(name="kem", value_type="string"),
             BigipPropertySpec(name="kdf", value_type="string"),
+            BigipPropertySpec(name="kem", value_type="string"),
             BigipPropertySpec(name="rollover-period", value_type="integer"),
         ),
     )

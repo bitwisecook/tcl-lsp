@@ -19,9 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "anti-fraud signatures-update"),),
         properties=(
             BigipPropertySpec(
-                name="update-automatically", value_type="enum", enum_values=("enabled", "disabled")
+                name="update-automatically",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="load", value_type="string"),
-            BigipPropertySpec(name="file", value_type="string"),
         ),
     )

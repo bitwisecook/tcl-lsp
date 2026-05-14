@@ -18,10 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "file data-group"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="data-group-description", value_type="string"),
-            BigipPropertySpec(name="data-group-name", value_type="string"),
+            BigipPropertySpec(name="data-group-name", value_type="reference"),
             BigipPropertySpec(name="separator", value_type="string"),
-            BigipPropertySpec(name="source-path", value_type="string"),
-            BigipPropertySpec(name="type", value_type="integer"),
+            BigipPropertySpec(name="source-path", value_type="unknown"),
+            BigipPropertySpec(name="type", value_type="integer", enum_values=("ip",)),
         ),
     )

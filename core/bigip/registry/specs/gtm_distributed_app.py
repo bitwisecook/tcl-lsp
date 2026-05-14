@@ -18,28 +18,28 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "distributed-app"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="dependency-level",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("datacenter", "link", "server", "wideip"),
-                list_operators=frozenset(("none",)),
+                enum_values=("datacenter", "link", "none", "server", "wideip"),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="disabled-contexts", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="persistence", value_type="enum", enum_values=("enabled", "disabled")
-            ),
+            BigipPropertySpec(name="disabled-contexts", value_type="unknown", allow_none=True),
             BigipPropertySpec(name="persist-cidr-ipv4", value_type="integer"),
             BigipPropertySpec(name="persist-cidr-ipv6", value_type="integer"),
+            BigipPropertySpec(
+                name="persistence",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
             BigipPropertySpec(name="ttl-persistence", value_type="integer"),
             BigipPropertySpec(
                 name="wideips",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("default",),
-                list_operators=frozenset(("none",)),
+                enum_values=("default", "none"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

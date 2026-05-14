@@ -18,8 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor inband"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_monitor_inband",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_monitor_inband",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="failure-interval", value_type="integer"),

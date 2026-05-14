@@ -19,9 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile http"),),
         properties=(
             BigipPropertySpec(
-                name="accept-xff", value_type="enum", enum_values=("disabled", "enabled")
+                name="accept-xff",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="basic-auth-realm", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="basic-auth-realm", value_type="unknown", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -29,21 +32,9 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_http",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="encrypt-cookie-secret",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("passphrase",),
-                list_operators=frozenset(("none",)),
-            ),
-            BigipPropertySpec(name="encrypt-cookies", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="enforcement", value_type="string"),
-            BigipPropertySpec(
-                name="rfc-compliance",
-                value_type="enum",
-                in_sections=("enforcement",),
-                enum_values=("disabled", "enabled"),
-            ),
+            BigipPropertySpec(name="encrypt-cookie-secret", value_type="unknown"),
+            BigipPropertySpec(name="encrypt-cookies", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="enforcement", value_type="unknown"),
             BigipPropertySpec(
                 name="allow-ws-header-name",
                 value_type="enum",
@@ -63,13 +54,24 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="max-header-size", value_type="integer", in_sections=("enforcement",)
+                name="known-methods",
+                value_type="unknown",
+                in_sections=("enforcement",),
             ),
             BigipPropertySpec(
-                name="max-header-count", value_type="integer", in_sections=("enforcement",)
+                name="max-header-count",
+                value_type="integer",
+                in_sections=("enforcement",),
             ),
             BigipPropertySpec(
-                name="max-requests", value_type="integer", in_sections=("enforcement",)
+                name="max-header-size",
+                value_type="integer",
+                in_sections=("enforcement",),
+            ),
+            BigipPropertySpec(
+                name="max-requests",
+                value_type="integer",
+                in_sections=("enforcement",),
             ),
             BigipPropertySpec(
                 name="oversize-client-headers",
@@ -90,6 +92,12 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("allow", "pass-through", "reject"),
             ),
             BigipPropertySpec(
+                name="rfc-compliance",
+                value_type="enum",
+                in_sections=("enforcement",),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
                 name="truncated-redirects",
                 value_type="enum",
                 in_sections=("enforcement",),
@@ -101,54 +109,43 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("enforcement",),
                 enum_values=("allow", "pass-through", "reject"),
             ),
-            BigipPropertySpec(name="fallback-host", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="fallback-status-codes", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="header-erase", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="header-insert", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="explicit-proxy", value_type="unknown"),
             BigipPropertySpec(
-                name="insert-xforwarded-for", value_type="enum", enum_values=("disabled", "enabled")
+                name="bad-request-message",
+                value_type="unknown",
+                in_sections=("explicit-proxy",),
             ),
-            BigipPropertySpec(name="lws-separator", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="lws-width", value_type="integer"),
             BigipPropertySpec(
-                name="oneconnect-transformations",
+                name="bad-response-message",
+                value_type="unknown",
+                in_sections=("explicit-proxy",),
+            ),
+            BigipPropertySpec(
+                name="connect-error-message",
+                value_type="unknown",
+                in_sections=("explicit-proxy",),
+            ),
+            BigipPropertySpec(
+                name="default-connect-handling",
                 value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(name="oneconnect-status-reuse", value_type="string"),
-            BigipPropertySpec(
-                name="proxy-type",
-                value_type="enum",
-                enum_values=("reverse", "explicit", "transparent"),
+                in_sections=("explicit-proxy",),
+                enum_values=("allow", "deny"),
             ),
             BigipPropertySpec(
-                name="redirect-rewrite",
-                value_type="reference",
-                allow_none=True,
-                enum_values=("all", "matching", "nodes"),
-                list_operators=frozenset(("none",)),
+                name="dns-error-message",
+                value_type="unknown",
+                in_sections=("explicit-proxy",),
             ),
             BigipPropertySpec(
-                name="request-chunking", value_type="enum", enum_values=("rechunk", "sustain")
+                name="dns-resolver",
+                value_type="unknown",
+                in_sections=("explicit-proxy",),
             ),
-            BigipPropertySpec(
-                name="response-chunking",
-                value_type="enum",
-                enum_values=("rechunk", "sustain", "unchunk"),
-            ),
-            BigipPropertySpec(
-                name="response-headers-permitted", value_type="boolean", allow_none=True
-            ),
-            BigipPropertySpec(name="server-agent-name", value_type="string"),
-            BigipPropertySpec(name="explicit-proxy", value_type="string"),
             BigipPropertySpec(
                 name="enabled",
                 value_type="enum",
                 in_sections=("explicit-proxy",),
                 enum_values=("no", "yes"),
-            ),
-            BigipPropertySpec(
-                name="dns-resolver", value_type="string", in_sections=("explicit-proxy",)
             ),
             BigipPropertySpec(
                 name="ipv6",
@@ -157,19 +154,15 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
-                name="tunnel-name", value_type="string", in_sections=("explicit-proxy",)
-            ),
-            BigipPropertySpec(
                 name="route-domain",
-                value_type="reference",
+                value_type="unknown",
                 in_sections=("explicit-proxy",),
                 references=("net_route_domain",),
             ),
             BigipPropertySpec(
-                name="default-connect-handling",
-                value_type="enum",
+                name="tunnel-name",
+                value_type="unknown",
                 in_sections=("explicit-proxy",),
-                enum_values=("deny", "allow"),
             ),
             BigipPropertySpec(
                 name="tunnel-on-any-request",
@@ -177,19 +170,76 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("explicit-proxy",),
                 enum_values=("no", "yes"),
             ),
+            BigipPropertySpec(name="fallback-host", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="fallback-status-codes", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="header-erase", value_type="string"),
+            BigipPropertySpec(name="header-insert", value_type="string"),
+            BigipPropertySpec(name="hsts", value_type="list"),
             BigipPropertySpec(
-                name="connect-error-message", value_type="string", in_sections=("explicit-proxy",)
+                name="include-subdomains",
+                value_type="enum",
+                in_sections=("hsts",),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(name="maximum-age", value_type="integer", in_sections=("hsts",)),
+            BigipPropertySpec(
+                name="mode",
+                value_type="enum",
+                in_sections=("hsts",),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="dns-error-message", value_type="string", in_sections=("explicit-proxy",)
+                name="preload",
+                value_type="enum",
+                in_sections=("hsts",),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="bad-request-message", value_type="string", in_sections=("explicit-proxy",)
+                name="insert-xforwarded-for",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="bad-response-message", value_type="string", in_sections=("explicit-proxy",)
+                name="lws-separator",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("none",),
             ),
-            BigipPropertySpec(name="sflow", value_type="string"),
+            BigipPropertySpec(name="lws-width", value_type="integer"),
+            BigipPropertySpec(name="oneconnect-status-reuse", value_type="unknown"),
+            BigipPropertySpec(
+                name="oneconnect-transformations",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="proxy-type",
+                value_type="enum",
+                enum_values=("explicit", "reverse", "transparent"),
+            ),
+            BigipPropertySpec(
+                name="redirect-rewrite",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("all", "matching", "nodes", "none"),
+            ),
+            BigipPropertySpec(
+                name="request-chunking",
+                value_type="enum",
+                enum_values=("rechunk", "sustain"),
+            ),
+            BigipPropertySpec(
+                name="response-chunking",
+                value_type="enum",
+                enum_values=("rechunk", "sustain", "unchunk"),
+            ),
+            BigipPropertySpec(
+                name="response-headers-permitted",
+                value_type="unknown",
+                allow_none=True,
+            ),
+            BigipPropertySpec(name="server-agent-name", value_type="string"),
+            BigipPropertySpec(name="sflow", value_type="unknown"),
             BigipPropertySpec(name="poll-interval", value_type="integer", in_sections=("sflow",)),
             BigipPropertySpec(
                 name="poll-interval-global",
@@ -206,31 +256,15 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="via-host-name", value_type="string"),
             BigipPropertySpec(
-                name="via-request", value_type="enum", enum_values=("append", "preserve", "remove")
-            ),
-            BigipPropertySpec(
-                name="via-response", value_type="enum", enum_values=("append", "preserve", "remove")
-            ),
-            BigipPropertySpec(name="hsts", value_type="string"),
-            BigipPropertySpec(
-                name="mode",
+                name="via-request",
                 value_type="enum",
-                in_sections=("hsts",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(name="maximum-age", value_type="integer", in_sections=("hsts",)),
-            BigipPropertySpec(
-                name="include-subdomains",
-                value_type="enum",
-                in_sections=("hsts",),
-                enum_values=("enabled", "disabled"),
+                enum_values=("append", "preserve", "remove"),
             ),
             BigipPropertySpec(
-                name="preload",
+                name="via-response",
                 value_type="enum",
-                in_sections=("hsts",),
-                enum_values=("enabled", "disabled"),
+                enum_values=("append", "preserve", "remove"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="xff-alternative-names", value_type="unknown"),
         ),
     )

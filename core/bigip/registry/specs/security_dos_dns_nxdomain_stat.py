@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,5 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dos dns-nxdomain-stat",),
         ),
         header_types=(("security", "dos dns-nxdomain-stat"),),
-        properties=(BigipPropertySpec(name="reset-stats", value_type="string"),),
+        properties=(),
     )

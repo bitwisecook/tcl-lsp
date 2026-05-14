@@ -18,7 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "monitor snmp-dca-base"),),
         properties=(
-            BigipPropertySpec(name="community", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="community",
+                value_type="reference",
+                allow_none=True,
+                references=("net_routing_community_list",),
+            ),
             BigipPropertySpec(name="cpu-coefficient", value_type="integer", allow_none=True),
             BigipPropertySpec(
                 name="defaults-from",
@@ -29,7 +35,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(name="time-until-up", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
-            BigipPropertySpec(name="user-defined", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="user-defined", value_type="reference", allow_none=True),
             BigipPropertySpec(name="version", value_type="integer", allow_none=True),
         ),
     )

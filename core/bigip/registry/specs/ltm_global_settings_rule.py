@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("global-settings rule",),
         ),
         header_types=(("ltm", "global-settings rule"),),
-        properties=(BigipPropertySpec(name="rule-aborted-log-ratio", value_type="integer"),),
+        properties=(BigipPropertySpec(name="rule-aborted-log-ratio", value_type="unknown"),),
     )

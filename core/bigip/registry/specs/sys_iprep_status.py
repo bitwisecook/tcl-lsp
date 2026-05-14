@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("iprep-status",),
         ),
         header_types=(("sys", "iprep-status"),),
+        properties=(),
     )

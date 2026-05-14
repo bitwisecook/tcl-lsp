@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("lldp-globals",),
         ),
         header_types=(("net", "lldp-globals"),),
+        properties=(),
     )

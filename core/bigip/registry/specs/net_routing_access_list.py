@@ -20,18 +20,15 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="route-domain",
-                value_type="reference",
-                allow_none=True,
-                references=("net_route_domain",),
-            ),
-            BigipPropertySpec(
                 name="entries",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="action", value_type="boolean", in_sections=("entries",), allow_none=True
+                name="action",
+                value_type="boolean",
+                in_sections=("entries",),
+                allow_none=True,
             ),
             BigipPropertySpec(name="destination", value_type="string", in_sections=("entries",)),
             BigipPropertySpec(
@@ -41,5 +38,11 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="source", value_type="string", in_sections=("entries",)),
+            BigipPropertySpec(
+                name="route-domain",
+                value_type="reference",
+                allow_none=True,
+                references=("net_route_domain",),
+            ),
         ),
     )

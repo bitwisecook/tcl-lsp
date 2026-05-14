@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("ipsec-stat",),
         ),
         header_types=(("net", "ipsec-stat"),),
+        properties=(),
     )

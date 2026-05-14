@@ -18,9 +18,15 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "http profile"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="evasion-techniques", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                allow_none=True,
+                references=("security_http_profile",),
+            ),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(name="evasion-techniques", value_type="list"),
             BigipPropertySpec(
                 name="alarm",
                 value_type="enum",
@@ -33,7 +39,7 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("evasion-techniques",),
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="file-types", value_type="string"),
+            BigipPropertySpec(name="file-types", value_type="list"),
             BigipPropertySpec(
                 name="alarm",
                 value_type="enum",
@@ -48,13 +54,12 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="reference",
+                value_type="list",
                 in_sections=("file-types",),
-                repeated=True,
                 allow_none=True,
-                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="http-rfc", value_type="string"),
+            BigipPropertySpec(name="http-rfc", value_type="unknown"),
             BigipPropertySpec(
                 name="alarm",
                 value_type="enum",
@@ -122,7 +127,9 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="maximum-headers", value_type="integer", in_sections=("http-rfc",)
+                name="maximum-headers",
+                value_type="integer",
+                in_sections=("http-rfc",),
             ),
             BigipPropertySpec(
                 name="null-in-body",
@@ -154,7 +161,7 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("http-rfc",),
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="mandatory-headers", value_type="string"),
+            BigipPropertySpec(name="mandatory-headers", value_type="list"),
             BigipPropertySpec(
                 name="alarm",
                 value_type="enum",
@@ -169,13 +176,12 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="reference",
+                value_type="list",
                 in_sections=("mandatory-headers",),
-                repeated=True,
                 allow_none=True,
-                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="maximum-length", value_type="string"),
+            BigipPropertySpec(name="maximum-length", value_type="unknown"),
             BigipPropertySpec(
                 name="alarm",
                 value_type="enum",
@@ -189,16 +195,22 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="post-data", value_type="integer", in_sections=("maximum-length",)
+                name="post-data",
+                value_type="integer",
+                in_sections=("maximum-length",),
             ),
             BigipPropertySpec(
-                name="query-string", value_type="integer", in_sections=("maximum-length",)
+                name="query-string",
+                value_type="integer",
+                in_sections=("maximum-length",),
             ),
             BigipPropertySpec(
-                name="request", value_type="integer", in_sections=("maximum-length",)
+                name="request",
+                value_type="integer",
+                in_sections=("maximum-length",),
             ),
             BigipPropertySpec(name="uri", value_type="integer", in_sections=("maximum-length",)),
-            BigipPropertySpec(name="methods", value_type="string"),
+            BigipPropertySpec(name="methods", value_type="list"),
             BigipPropertySpec(
                 name="alarm",
                 value_type="enum",
@@ -213,18 +225,23 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="values",
-                value_type="reference",
+                value_type="list",
                 in_sections=("methods",),
-                repeated=True,
                 allow_none=True,
-                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="response", value_type="string"),
+            BigipPropertySpec(name="response", value_type="unknown"),
             BigipPropertySpec(
-                name="body", value_type="boolean", in_sections=("response",), allow_none=True
+                name="body",
+                value_type="string",
+                in_sections=("response",),
+                allow_none=True,
             ),
             BigipPropertySpec(
-                name="headers", value_type="boolean", in_sections=("response",), allow_none=True
+                name="headers",
+                value_type="unknown",
+                in_sections=("response",),
+                allow_none=True,
             ),
             BigipPropertySpec(
                 name="type",
@@ -233,7 +250,10 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("custom", "default", "redirect", "soap-fault"),
             ),
             BigipPropertySpec(
-                name="url", value_type="boolean", in_sections=("response",), allow_none=True
+                name="url",
+                value_type="string",
+                in_sections=("response",),
+                allow_none=True,
             ),
         ),
     )

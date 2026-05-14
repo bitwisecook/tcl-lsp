@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("monitor none",),
         ),
         header_types=(("gtm", "monitor none"),),
+        properties=(),
     )

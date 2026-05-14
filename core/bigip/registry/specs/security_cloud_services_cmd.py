@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("cloud-services cmd",),
         ),
         header_types=(("security", "cloud-services cmd"),),
+        properties=(),
     )

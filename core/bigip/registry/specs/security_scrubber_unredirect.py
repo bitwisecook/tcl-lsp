@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,11 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("scrubber unredirect",),
         ),
         header_types=(("security", "scrubber unredirect"),),
-        properties=(
-            BigipPropertySpec(name="profile", value_type="string"),
-            BigipPropertySpec(name="unredirect-category", value_type="string"),
-            BigipPropertySpec(name="unredirect-netflow-protected-server", value_type="string"),
-            BigipPropertySpec(name="unredirect-route-domain", value_type="string"),
-            BigipPropertySpec(name="unredirect-virtual-server", value_type="string"),
-        ),
+        properties=(),
     )

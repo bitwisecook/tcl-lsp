@@ -19,6 +19,7 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "dos stress-stats"),),
         properties=(
             BigipPropertySpec(name="context-name", value_type="string"),
+            BigipPropertySpec(name="run", value_type="unknown"),
             BigipPropertySpec(name="stress", value_type="enum", enum_values=("0-100", "auto")),
         ),
     )

@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,5 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dns dns-express-db",),
         ),
         header_types=(("ltm", "dns dns-express-db"),),
-        properties=(BigipPropertySpec(name="load", value_type="string"),),
+        properties=(),
     )

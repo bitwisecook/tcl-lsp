@@ -18,32 +18,36 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile mssql"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_profile_mssql",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_profile_mssql",),
             ),
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="read-pool", value_type="reference", references=("ltm_pool",)),
-            BigipPropertySpec(
-                name="read-write-split-by-user",
-                value_type="enum",
-                enum_values=("disabled", "enabled"),
-            ),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(name="read-pool", value_type="string"),
             BigipPropertySpec(
                 name="read-write-split-by-command",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="user-can-write-by-default", value_type="enum", enum_values=("true", "false")
+                name="read-write-split-by-user",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="user-can-write-by-default",
+                value_type="enum",
+                enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="user-list",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("add", "delete", "none", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="write-persist-timer", value_type="string"),
-            BigipPropertySpec(name="write-pool", value_type="reference", references=("ltm_pool",)),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="write-persist-timer", value_type="unknown"),
+            BigipPropertySpec(name="write-pool", value_type="string"),
         ),
     )

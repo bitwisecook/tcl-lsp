@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("flowspec-route-injector flowspec-advertised-route-info",),
         ),
         header_types=(("security", "flowspec-route-injector flowspec-advertised-route-info"),),
+        properties=(),
     )

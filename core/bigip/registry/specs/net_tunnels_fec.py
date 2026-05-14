@@ -18,22 +18,31 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels fec"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="decode-idle-timeout", value_type="integer"),
             BigipPropertySpec(name="decode-max-packets", value_type="integer"),
             BigipPropertySpec(name="decode-queues", value_type="integer"),
-            BigipPropertySpec(name="defaults-from", value_type="string"),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                references=("net_tunnels_fec",),
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="encode-max-delay", value_type="integer"),
             BigipPropertySpec(name="keepalive-interval", value_type="integer"),
             BigipPropertySpec(name="lzo", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
-                name="repair-adaptive", value_type="enum", enum_values=("disabled", "enabled")
+                name="repair-adaptive",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="repair-packets", value_type="integer"),
             BigipPropertySpec(
-                name="source-adaptive", value_type="enum", enum_values=("disabled", "enabled")
+                name="source-adaptive",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="source-packets", value_type="integer"),
-            BigipPropertySpec(name="udp-port", value_type="integer", min_value=0, max_value=65535),
+            BigipPropertySpec(name="udp-port", value_type="integer"),
         ),
     )

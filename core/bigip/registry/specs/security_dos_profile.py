@@ -18,707 +18,892 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "dos profile"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="application",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="bot-defense", value_type="string", in_sections=("application",)
+                name="bot-defense",
+                value_type="unknown",
+                in_sections=("application",),
+            ),
+            BigipPropertySpec(
+                name="browser-legit-captcha",
+                value_type="enum",
+                in_sections=("application", "bot-defense"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="browser-legit-enabled",
+                value_type="enum",
+                in_sections=("application", "bot-defense"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="collect-stats",
                 value_type="enum",
-                in_sections=("bot-defense",),
-                enum_values=("enabled", "disabled"),
+                in_sections=("application", "bot-defense"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="cross-domain-requests",
                 value_type="enum",
-                in_sections=("bot-defense",),
+                in_sections=("application", "bot-defense"),
                 enum_values=("allow-all", "validate-bulk", "validate-upon-request"),
             ),
             BigipPropertySpec(
                 name="external-domains",
-                value_type="reference",
-                in_sections=("bot-defense",),
-                repeated=True,
+                value_type="list",
+                in_sections=("application", "bot-defense"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="grace-period", value_type="integer", in_sections=("application",)
+                name="grace-period",
+                value_type="integer",
+                in_sections=("application", "bot-defense"),
             ),
             BigipPropertySpec(
                 name="mode",
                 value_type="enum",
-                in_sections=("application",),
+                in_sections=("application", "bot-defense"),
                 enum_values=("always", "disabled", "during-attacks"),
             ),
             BigipPropertySpec(
                 name="site-domains",
-                value_type="reference",
-                in_sections=("application",),
-                repeated=True,
+                value_type="list",
+                in_sections=("application", "bot-defense"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="url-whitelist",
-                value_type="reference",
-                repeated=True,
+                value_type="list",
+                in_sections=("application", "bot-defense"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="browser-legit-enabled", value_type="enum", enum_values=("enabled", "disabled")
+                name="bot-signatures",
+                value_type="list",
+                in_sections=("application",),
             ),
-            BigipPropertySpec(
-                name="browser-legit-captcha", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-            BigipPropertySpec(name="bot-signatures", value_type="string"),
             BigipPropertySpec(
                 name="categories",
-                value_type="reference",
-                in_sections=("bot-signatures",),
+                value_type="list",
+                in_sections=("application", "bot-signatures"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="action", value_type="string", in_sections=("categories",)),
+            BigipPropertySpec(
+                name="action",
+                value_type="unknown",
+                in_sections=("application", "bot-signatures", "categories"),
+            ),
             BigipPropertySpec(
                 name="check",
                 value_type="enum",
-                in_sections=("bot-signatures",),
-                enum_values=("enabled", "disabled"),
+                in_sections=("application", "bot-signatures"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="disabled-signatures",
-                value_type="reference",
-                in_sections=("bot-signatures",),
+                value_type="list",
+                in_sections=("application", "bot-signatures"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="captcha-response", value_type="string"),
             BigipPropertySpec(
-                name="failure", value_type="string", in_sections=("captcha-response",)
+                name="captcha-response",
+                value_type="unknown",
+                in_sections=("application",),
             ),
-            BigipPropertySpec(name="body", value_type="string", in_sections=("failure",)),
+            BigipPropertySpec(
+                name="failure",
+                value_type="unknown",
+                in_sections=("application", "captcha-response"),
+            ),
+            BigipPropertySpec(
+                name="body",
+                value_type="string",
+                in_sections=("application", "captcha-response", "failure"),
+            ),
             BigipPropertySpec(
                 name="type",
                 value_type="enum",
-                in_sections=("failure",),
+                in_sections=("application", "captcha-response", "failure"),
                 enum_values=("custom", "default"),
             ),
-            BigipPropertySpec(name="first", value_type="string", in_sections=("captcha-response",)),
-            BigipPropertySpec(name="body", value_type="string", in_sections=("first",)),
+            BigipPropertySpec(
+                name="first",
+                value_type="unknown",
+                in_sections=("application", "captcha-response"),
+            ),
+            BigipPropertySpec(
+                name="body",
+                value_type="string",
+                in_sections=("application", "captcha-response", "first"),
+            ),
             BigipPropertySpec(
                 name="type",
                 value_type="enum",
-                in_sections=("first",),
+                in_sections=("application", "captcha-response", "first"),
                 enum_values=("custom", "default"),
+            ),
+            BigipPropertySpec(
+                name="fastl4-acceleration-profile",
+                value_type="reference",
+                in_sections=("application",),
             ),
             BigipPropertySpec(
                 name="geolocations",
-                value_type="reference",
+                value_type="list",
+                in_sections=("application",),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="heavy-urls", value_type="string"),
+            BigipPropertySpec(name="heavy-urls", value_type="list", in_sections=("application",)),
             BigipPropertySpec(
                 name="automatic-detection",
                 value_type="enum",
-                in_sections=("heavy-urls",),
-                enum_values=("enabled", "disabled"),
+                in_sections=("application", "heavy-urls"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="exclude",
-                value_type="reference",
-                in_sections=("heavy-urls",),
-                repeated=True,
+                value_type="list",
+                in_sections=("application", "heavy-urls"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="include",
-                value_type="reference",
-                repeated=True,
+                value_type="list",
+                in_sections=("application", "heavy-urls"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="include-list",
-                value_type="reference",
-                repeated=True,
+                value_type="list",
+                in_sections=("application", "heavy-urls"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="latency-threshold", value_type="integer"),
             BigipPropertySpec(
-                name="protection", value_type="enum", enum_values=("enabled", "disabled")
+                name="latency-threshold",
+                value_type="integer",
+                in_sections=("application", "heavy-urls"),
+            ),
+            BigipPropertySpec(
+                name="protection",
+                value_type="enum",
+                in_sections=("application", "heavy-urls"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="ip-whitelist",
-                value_type="reference",
+                value_type="list",
+                in_sections=("application",),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
-            ),
-            BigipPropertySpec(name="stress-based", value_type="string"),
-            BigipPropertySpec(
-                name="de-escalation-period", value_type="integer", in_sections=("stress-based",)
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="escalation-period", value_type="integer", in_sections=("stress-based",)
+                name="rtbh-duration-sec",
+                value_type="integer",
+                in_sections=("application",),
             ),
             BigipPropertySpec(
-                name="geo-captcha-challenge",
+                name="rtbh-enable",
                 value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
+                in_sections=("application",),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="geo-client-side-defense",
+                name="scrubbing-duration-sec",
+                value_type="integer",
+                in_sections=("application",),
+            ),
+            BigipPropertySpec(
+                name="scrubbing-enable",
                 value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="geo-minimum-share", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="geo-rate-limiting",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="geo-request-blocking-mode",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("block-all", "rate-limit"),
-            ),
-            BigipPropertySpec(
-                name="geo-share-increase-rate", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="geo-maximum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="geo-minimum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-captcha-challenge",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="ip-client-side-defense",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="ip-maximum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-minimum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-rate-limiting",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="ip-request-blocking-mode",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("block-all", "rate-limit"),
-            ),
-            BigipPropertySpec(
-                name="ip-tps-increase-rate", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-maximum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-minimum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="mode",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("off", "transparent", "blocking"),
-            ),
-            BigipPropertySpec(
-                name="thresholds-mode",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("manual", "automatic"),
-            ),
-            BigipPropertySpec(
-                name="site-captcha-challenge",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="site-client-side-defense",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="site-maximum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="site-minimum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="site-rate-limiting",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="site-tps-increase-rate", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="site-maximum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="site-minimum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="static-url-mitigation",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-captcha-challenge",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-client-side-defense",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-maximum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="url-minimum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="url-rate-limiting",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-tps-increase-rate", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="url-maximum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="url-minimum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="url-enable-heavy",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-captcha-challenge",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-client-side-defense",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-maximum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="device-minimum-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="device-rate-limiting",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-request-blocking-mode",
-                value_type="enum",
-                in_sections=("stress-based",),
-                enum_values=("block-all", "rate-limit"),
-            ),
-            BigipPropertySpec(
-                name="device-tps-increase-rate", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="device-maximum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="device-minimum-auto-tps", value_type="integer", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="behavioral", value_type="string", in_sections=("stress-based",)
-            ),
-            BigipPropertySpec(
-                name="dos-detection",
-                value_type="enum",
-                in_sections=("behavioral",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="mitigation-mode",
-                value_type="reference",
-                in_sections=("behavioral",),
-                allow_none=True,
-                enum_values=("conservative", "standard", "aggressive"),
-                list_operators=frozenset(("none",)),
-            ),
-            BigipPropertySpec(
-                name="signatures",
-                value_type="enum",
-                in_sections=("behavioral",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="signatures-approved-only",
-                value_type="enum",
-                in_sections=("behavioral",),
-                enum_values=("disabled",),
-            ),
-            BigipPropertySpec(
-                name="accelerated-signatures",
-                value_type="enum",
-                in_sections=("behavioral",),
-                enum_values=("enables", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="tls-signatures",
-                value_type="enum",
-                in_sections=("behavioral",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="tls-fp",
-                value_type="enum",
-                in_sections=("behavioral",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(name="tcp-dump", value_type="string"),
-            BigipPropertySpec(
-                name="maximum-duration", value_type="integer", in_sections=("tcp-dump",)
-            ),
-            BigipPropertySpec(name="maximum-size", value_type="integer", in_sections=("tcp-dump",)),
-            BigipPropertySpec(
-                name="record-traffic",
-                value_type="enum",
-                in_sections=("tcp-dump",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="repetition-interval", value_type="integer", in_sections=("tcp-dump",)
-            ),
-            BigipPropertySpec(name="tps-based", value_type="string"),
-            BigipPropertySpec(
-                name="de-escalation-period", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="escalation-period", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="geo-captcha-challenge",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="geo-client-side-defense",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="geo-minimum-share", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="geo-rate-limiting",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="geo-request-blocking-mode",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("block-all", "rate-limit"),
-            ),
-            BigipPropertySpec(
-                name="geo-share-increase-rate", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-captcha-challenge",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="ip-client-side-defense",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="ip-maximum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-minimum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-rate-limiting",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="ip-request-blocking-mode",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("block-all", "rate-limit"),
-            ),
-            BigipPropertySpec(
-                name="ip-tps-increase-rate", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-maximum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="ip-minimum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="mode",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("off", "transparent", "blocking"),
-            ),
-            BigipPropertySpec(
-                name="thresholds-mode",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("manual", "automatic"),
-            ),
-            BigipPropertySpec(
-                name="site-captcha-challenge",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="site-client-side-defense",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="site-maximum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="site-minimum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="site-rate-limiting",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="site-tps-increase-rate", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="site-maximum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="site-minimum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="static-url-mitigation",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-captcha-challenge",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-client-side-defense",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-maximum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="url-minimum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="url-rate-limiting",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="url-tps-increase-rate", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="url-maximum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="url-minimum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="url-enable-heavy",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-captcha-challenge",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-client-side-defense",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-maximum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="device-minimum-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="device-rate-limiting",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("enabled", "disabled"),
-            ),
-            BigipPropertySpec(
-                name="device-request-blocking-mode",
-                value_type="enum",
-                in_sections=("tps-based",),
-                enum_values=("block-all", "rate-limit"),
-            ),
-            BigipPropertySpec(
-                name="device-tps-increase-rate", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="device-maximum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="device-minimum-auto-tps", value_type="integer", in_sections=("tps-based",)
-            ),
-            BigipPropertySpec(
-                name="trigger-irule", value_type="enum", enum_values=("enabled", "disabled")
+                in_sections=("application",),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="single-page-application",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
+                in_sections=("application",),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="scrubbing-enable", value_type="enum", enum_values=("enabled", "disabled")
+                name="stress-based",
+                value_type="unknown",
+                in_sections=("application",),
             ),
-            BigipPropertySpec(name="scrubbing-duration-sec", value_type="integer"),
             BigipPropertySpec(
-                name="rtbh-enable", value_type="enum", enum_values=("enabled", "disabled")
+                name="behavioral",
+                value_type="unknown",
+                in_sections=("application", "stress-based"),
             ),
-            BigipPropertySpec(name="rtbh-duration-sec", value_type="integer"),
-            BigipPropertySpec(name="fastl4-acceleration-profile", value_type="string"),
+            BigipPropertySpec(
+                name="accelerated-signatures",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                enum_values=("disabled", "enables"),
+            ),
+            BigipPropertySpec(
+                name="dos-detection",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="mitigation-mode",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                allow_none=True,
+                enum_values=("aggressive", "conservative", "none", "standard"),
+            ),
+            BigipPropertySpec(
+                name="signatures",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="signatures-approved-only",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                enum_values=("disabled",),
+            ),
+            BigipPropertySpec(
+                name="tls-fp",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="tls-signatures",
+                value_type="enum",
+                in_sections=("application", "stress-based", "behavioral"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="de-escalation-period",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="device-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="device-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="device-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="device-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="device-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="device-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="device-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="device-request-blocking-mode",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("block-all", "rate-limit"),
+            ),
+            BigipPropertySpec(
+                name="device-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="escalation-period",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="geo-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="geo-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="geo-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="geo-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="geo-minimum-share",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="geo-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="geo-request-blocking-mode",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("block-all", "rate-limit"),
+            ),
+            BigipPropertySpec(
+                name="geo-share-increase-rate",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="ip-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="ip-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="ip-request-blocking-mode",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("block-all", "rate-limit"),
+            ),
+            BigipPropertySpec(
+                name="ip-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="mode",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("blocking", "off", "transparent"),
+            ),
+            BigipPropertySpec(
+                name="site-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="site-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="site-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="site-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="site-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="site-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="site-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="site-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="static-url-mitigation",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="thresholds-mode",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("automatic", "manual"),
+            ),
+            BigipPropertySpec(
+                name="url-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-enable-heavy",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="url-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="url-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="url-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(
+                name="url-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "stress-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "stress-based"),
+            ),
+            BigipPropertySpec(name="tcp-dump", value_type="unknown", in_sections=("application",)),
+            BigipPropertySpec(
+                name="maximum-duration",
+                value_type="integer",
+                in_sections=("application", "tcp-dump"),
+            ),
+            BigipPropertySpec(
+                name="maximum-size",
+                value_type="integer",
+                in_sections=("application", "tcp-dump"),
+            ),
+            BigipPropertySpec(
+                name="record-traffic",
+                value_type="enum",
+                in_sections=("application", "tcp-dump"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="repetition-interval",
+                value_type="integer",
+                in_sections=("application", "tcp-dump"),
+            ),
+            BigipPropertySpec(name="tps-based", value_type="unknown", in_sections=("application",)),
+            BigipPropertySpec(
+                name="de-escalation-period",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="device-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="device-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="device-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="device-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="device-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="device-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="device-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="device-request-blocking-mode",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("block-all", "rate-limit"),
+            ),
+            BigipPropertySpec(
+                name="device-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="escalation-period",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="geo-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="geo-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="geo-minimum-share",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="geo-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="geo-request-blocking-mode",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("block-all", "rate-limit"),
+            ),
+            BigipPropertySpec(
+                name="geo-share-increase-rate",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="ip-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="ip-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="ip-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="ip-request-blocking-mode",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("block-all", "rate-limit"),
+            ),
+            BigipPropertySpec(
+                name="ip-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="mode",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("blocking", "off", "transparent"),
+            ),
+            BigipPropertySpec(
+                name="site-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="site-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="site-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="site-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="site-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="site-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="site-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="site-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="static-url-mitigation",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="thresholds-mode",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("automatic", "manual"),
+            ),
+            BigipPropertySpec(
+                name="url-captcha-challenge",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-client-side-defense",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-enable-heavy",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-maximum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="url-maximum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="url-minimum-auto-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="url-minimum-tps",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="url-rate-limiting",
+                value_type="enum",
+                in_sections=("application", "tps-based"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="url-tps-increase-rate",
+                value_type="integer",
+                in_sections=("application", "tps-based"),
+            ),
+            BigipPropertySpec(
+                name="trigger-irule",
+                value_type="enum",
+                in_sections=("application",),
+                enum_values=("disabled", "enabled"),
+            ),
             BigipPropertySpec(
                 name="custom-signatures",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
-            ),
-            BigipPropertySpec(name="name", value_type="string", in_sections=("custom-signatures",)),
-            BigipPropertySpec(
-                name="manual-detection-threshold", value_type="integer", in_sections=("name",)
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="manual-mitigation-threshold", value_type="integer", in_sections=("name",)
+                name="manual-detection-threshold",
+                value_type="integer",
+                in_sections=("custom-signatures",),
+            ),
+            BigipPropertySpec(
+                name="manual-mitigation-threshold",
+                value_type="integer",
+                in_sections=("custom-signatures",),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                in_sections=("name",),
+                in_sections=("custom-signatures",),
                 enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
-                in_sections=("name",),
+                in_sections=("custom-signatures",),
                 enum_values=("fully-automatic", "manual", "stress-based-mitigation"),
             ),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="dos-dnsnxdomain-stat", value_type="unknown"),
             BigipPropertySpec(
                 name="dos-network",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="dynamic-signatures", value_type="string", in_sections=("dos-network",)
+                name="dynamic-signatures",
+                value_type="list",
+                in_sections=("dos-network",),
             ),
             BigipPropertySpec(
                 name="detection",
                 value_type="enum",
-                in_sections=("dynamic-signatures",),
+                in_sections=("dos-network", "dynamic-signatures"),
                 enum_values=("disabled", "enabled", "learn-only"),
             ),
             BigipPropertySpec(
                 name="mitigation",
-                value_type="reference",
-                in_sections=("dynamic-signatures",),
+                value_type="enum",
+                in_sections=("dos-network", "dynamic-signatures"),
                 allow_none=True,
-                enum_values=("low", "medium", "high", "manual-multiplier"),
-                list_operators=frozenset(("none",)),
+                enum_values=("high", "low", "manual-multiplier", "medium", "none"),
             ),
             BigipPropertySpec(
                 name="scrubber-advertisement-period",
                 value_type="integer",
-                in_sections=("dynamic-signatures",),
+                in_sections=("dos-network", "dynamic-signatures"),
             ),
             BigipPropertySpec(
-                name="scrubber-category", value_type="string", in_sections=("dynamic-signatures",)
+                name="scrubber-category",
+                value_type="reference",
+                in_sections=("dos-network", "dynamic-signatures"),
             ),
             BigipPropertySpec(
                 name="scrubber-enable",
                 value_type="enum",
-                in_sections=("dynamic-signatures",),
-                enum_values=("yes", "no"),
+                in_sections=("dos-network", "dynamic-signatures"),
+                enum_values=("no", "yes"),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
@@ -727,333 +912,365 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="network-attack-vector",
-                value_type="reference",
+                value_type="list",
                 in_sections=("dos-network",),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="attack-type", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="icmpv4-flood", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="ip-opt-frames", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="non-tcp-connection",
-                value_type="string",
-                in_sections=("network-attack-vector",),
-            ),
-            BigipPropertySpec(
-                name="tcp-half-open", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="tcp-rst-flood", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="tcp-bad-urg", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="udp-flood", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="enforce",
+                name="allow-upstream-scrubbing",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="attack-type",
+                value_type="enum",
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=(
+                    "ext-hdr-too-large",
+                    "hop-cnt-low",
+                    "host-unreachable",
+                    "icmp-frag",
+                    "icmpv4-flood",
+                    "icmpv6-flood",
+                    "ip-frag-flood",
+                    "ip-opt-frames",
+                    "ipv6-ext-hdr-frames",
+                    "ipv6-frag-flood",
+                    "non-tcp-connection",
+                    "opt-present-with-illegal-len",
+                    "sweep",
+                    "tcp-bad-urg",
+                    "tcp-half-open",
+                    "tcp-opt-overruns-tcp-hdr",
+                    "tcp-psh-flood",
+                    "tcp-rst-flood",
+                    "tcp-syn-flood",
+                    "tcp-syn-oversize",
+                    "tcp-synack-flood",
+                    "tcp-window-size",
+                    "tidcmp",
+                    "too-many-ext-hdrs",
+                    "udp-flood",
+                    "unk-tcp-opt-type",
+                ),
+            ),
+            BigipPropertySpec(
+                name="attacked-dst",
+                value_type="enum",
+                in_sections=("dos-network", "network-attack-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="auto-blacklisting",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="auto-threshold",
-                value_type="enum",
-                in_sections=("network-attack-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="allow-upstream-scrubbing",
-                value_type="enum",
-                in_sections=("network-attack-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="attacked-dst",
-                value_type="enum",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="auto-scrubbing",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="auto-threshold",
+                value_type="enum",
+                in_sections=("dos-network", "network-attack-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="bad-actor",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
                 enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="blacklist-category",
+                value_type="reference",
+                in_sections=("dos-network", "network-attack-vector"),
+                references=("security_ip_intelligence_blacklist_category",),
             ),
             BigipPropertySpec(
                 name="blacklist-detection-seconds",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
                 name="blacklist-duration",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
-                name="blacklist-category",
-                value_type="string",
-                in_sections=("network-attack-vector",),
+                name="enforce",
+                value_type="enum",
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
-                name="per-source-ip-detection-pps",
-                value_type="integer",
-                in_sections=("network-attack-vector",),
-            ),
-            BigipPropertySpec(
-                name="per-source-ip-limit-pps",
-                value_type="integer",
-                in_sections=("network-attack-vector",),
+                name="packet-types",
+                value_type="unknown",
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
                 name="per-dst-ip-detection-pps",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
                 name="per-dst-ip-limit-pps",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="per-source-ip-detection-pps",
+                value_type="integer",
+                in_sections=("dos-network", "network-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="per-source-ip-limit-pps",
+                value_type="integer",
+                in_sections=("dos-network", "network-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="rate-increase",
+                value_type="integer",
+                in_sections=("dos-network", "network-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="rate-limit",
+                value_type="enum",
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("infinite",),
+            ),
+            BigipPropertySpec(
+                name="rate-threshold",
+                value_type="enum",
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="scrubbing-category",
-                value_type="boolean",
-                in_sections=("network-attack-vector",),
+                value_type="reference",
+                in_sections=("dos-network", "network-attack-vector"),
                 allow_none=True,
             ),
             BigipPropertySpec(
                 name="scrubbing-detection-seconds",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
                 name="scrubbing-duration",
                 value_type="integer",
-                in_sections=("network-attack-vector",),
-            ),
-            BigipPropertySpec(
-                name="rate-increase", value_type="integer", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-limit", value_type="integer", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-threshold", value_type="integer", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="packet-types", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="tcp-synack", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="dns-query-a", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="dns-query-cname", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="dns-query-srv", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="sip-method-prack", value_type="string", in_sections=("network-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="sip-method-invite",
-                value_type="boolean",
-                in_sections=("network-attack-vector",),
-            ),
-            BigipPropertySpec(
-                name="sip-method-publish",
-                value_type="string",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
-                enum_values=("disabled", "learn-only", "detect-only", "mitigate"),
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
             BigipPropertySpec(
                 name="suspicious",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
+                in_sections=("dos-network", "network-attack-vector"),
                 enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
-                in_sections=("network-attack-vector",),
-                enum_values=("manual", "stress-based-mitigation", "fully-automatic"),
+                in_sections=("dos-network", "network-attack-vector"),
+                enum_values=("fully-automatic", "manual", "stress-based-mitigation"),
             ),
+            BigipPropertySpec(name="http-whitelist", value_type="reference"),
             BigipPropertySpec(
                 name="protocol-dns",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="dns-query-vector",
-                value_type="reference",
+                value_type="list",
                 in_sections=("protocol-dns",),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
-            ),
-            BigipPropertySpec(
-                name="query-type", value_type="string", in_sections=("dns-query-vector",)
-            ),
-            BigipPropertySpec(name="other", value_type="string", in_sections=("dns-query-vector",)),
-            BigipPropertySpec(
-                name="enforce",
-                value_type="enum",
-                in_sections=("dns-query-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="auto-blacklisting",
-                value_type="enum",
-                in_sections=("dns-query-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="auto-threshold",
-                value_type="enum",
-                in_sections=("dns-query-vector",),
-                enum_values=("disabled", "enabled"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="allow-upstream-scrubbing",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="attacked-dst",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="auto-blacklisting",
+                value_type="enum",
+                in_sections=("protocol-dns", "dns-query-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="auto-scrubbing",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="auto-threshold",
+                value_type="enum",
+                in_sections=("protocol-dns", "dns-query-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="bad-actor",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
                 enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="blacklist-category",
+                value_type="reference",
+                in_sections=("protocol-dns", "dns-query-vector"),
+                references=("security_ip_intelligence_blacklist_category",),
             ),
             BigipPropertySpec(
                 name="blacklist-detection-seconds",
                 value_type="integer",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
             ),
             BigipPropertySpec(
-                name="blacklist-duration", value_type="integer", in_sections=("dns-query-vector",)
+                name="blacklist-duration",
+                value_type="integer",
+                in_sections=("protocol-dns", "dns-query-vector"),
             ),
             BigipPropertySpec(
-                name="blacklist-category", value_type="string", in_sections=("dns-query-vector",)
+                name="enforce",
+                value_type="enum",
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
                 value_type="integer",
-                in_sections=("dns-query-vector",),
-            ),
-            BigipPropertySpec(
-                name="per-source-ip-detection-pps",
-                value_type="integer",
-                in_sections=("dns-query-vector",),
-            ),
-            BigipPropertySpec(
-                name="per-source-ip-limit-pps",
-                value_type="integer",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
             ),
             BigipPropertySpec(
                 name="per-dst-ip-detection-pps",
                 value_type="integer",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
             ),
             BigipPropertySpec(
-                name="per-dst-ip-limit-pps", value_type="integer", in_sections=("dns-query-vector",)
+                name="per-dst-ip-limit-pps",
+                value_type="integer",
+                in_sections=("protocol-dns", "dns-query-vector"),
+            ),
+            BigipPropertySpec(
+                name="per-source-ip-detection-pps",
+                value_type="integer",
+                in_sections=("protocol-dns", "dns-query-vector"),
+            ),
+            BigipPropertySpec(
+                name="per-source-ip-limit-pps",
+                value_type="integer",
+                in_sections=("protocol-dns", "dns-query-vector"),
+            ),
+            BigipPropertySpec(
+                name="query-type",
+                value_type="enum",
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=(
+                    "a",
+                    "aaaa",
+                    "any",
+                    "axfr",
+                    "ixfr",
+                    "mx",
+                    "ns",
+                    "nxdomain",
+                    "other",
+                    "ptr",
+                    "soa",
+                    "srv",
+                    "txt",
+                ),
+            ),
+            BigipPropertySpec(
+                name="rate-increase",
+                value_type="integer",
+                in_sections=("protocol-dns", "dns-query-vector"),
+            ),
+            BigipPropertySpec(
+                name="rate-limit",
+                value_type="enum",
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("infinite",),
+            ),
+            BigipPropertySpec(
+                name="rate-threshold",
+                value_type="enum",
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="scrubbing-category",
-                value_type="boolean",
-                in_sections=("dns-query-vector",),
+                value_type="reference",
+                in_sections=("protocol-dns", "dns-query-vector"),
                 allow_none=True,
             ),
             BigipPropertySpec(
                 name="scrubbing-detection-seconds",
                 value_type="integer",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
             ),
             BigipPropertySpec(
-                name="scrubbing-duration", value_type="integer", in_sections=("dns-query-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-increase", value_type="integer", in_sections=("dns-query-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-limit", value_type="integer", in_sections=("dns-query-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-threshold", value_type="integer", in_sections=("dns-query-vector",)
+                name="scrubbing-duration",
+                value_type="integer",
+                in_sections=("protocol-dns", "dns-query-vector"),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
-                enum_values=("disabled", "learn-only", "detect-only", "mitigate"),
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
             BigipPropertySpec(
                 name="suspicious",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
+                in_sections=("protocol-dns", "dns-query-vector"),
                 enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
-                in_sections=("dns-query-vector",),
-                enum_values=("manual", "stress-based-mitigation", "fully-automatic"),
+                in_sections=("protocol-dns", "dns-query-vector"),
+                enum_values=("fully-automatic", "manual", "stress-based-mitigation"),
             ),
             BigipPropertySpec(
                 name="valid-domains",
-                value_type="reference",
-                in_sections=("dns-query-vector",),
+                value_type="list",
+                in_sections=("protocol-dns", "dns-query-vector"),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete")),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
+                value_type="integer",
+                in_sections=("protocol-dns",),
+            ),
+            BigipPropertySpec(
+                name="prot-err-atck-rate-incr",
                 value_type="integer",
                 in_sections=("protocol-dns",),
             ),
@@ -1063,13 +1280,10 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("protocol-dns",),
             ),
             BigipPropertySpec(
-                name="prot-err-atck-rate-incr", value_type="integer", in_sections=("protocol-dns",)
-            ),
-            BigipPropertySpec(
                 name="protocol-sip",
-                value_type="reference",
+                value_type="list",
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
@@ -1093,138 +1307,174 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="sip-attack-vector",
-                value_type="reference",
+                value_type="list",
                 in_sections=("protocol-sip",),
                 allow_none=True,
-                list_operators=frozenset(("none", "add", "delete", "modify", "replace-all-with")),
-            ),
-            BigipPropertySpec(name="type", value_type="string", in_sections=("sip-attack-vector",)),
-            BigipPropertySpec(
-                name="enforce",
-                value_type="enum",
-                in_sections=("sip-attack-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="auto-blacklisting",
-                value_type="enum",
-                in_sections=("sip-attack-vector",),
-                enum_values=("disabled", "enabled"),
-            ),
-            BigipPropertySpec(
-                name="auto-threshold",
-                value_type="enum",
-                in_sections=("sip-attack-vector",),
-                enum_values=("disabled", "enabled"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="allow-upstream-scrubbing",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="attacked-dst",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="auto-blacklisting",
+                value_type="enum",
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="auto-scrubbing",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="auto-threshold",
+                value_type="enum",
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="bad-actor",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 enum_values=("disabled", "enabled"),
+            ),
+            BigipPropertySpec(
+                name="blacklist-category",
+                value_type="reference",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                references=("security_ip_intelligence_blacklist_category",),
             ),
             BigipPropertySpec(
                 name="blacklist-detection-seconds",
                 value_type="integer",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
             ),
             BigipPropertySpec(
-                name="blacklist-duration", value_type="integer", in_sections=("sip-attack-vector",)
+                name="blacklist-duration",
+                value_type="integer",
+                in_sections=("protocol-sip", "sip-attack-vector"),
             ),
             BigipPropertySpec(
-                name="blacklist-category", value_type="string", in_sections=("sip-attack-vector",)
+                name="enforce",
+                value_type="enum",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="multiplier-mitigation-percentage",
                 value_type="integer",
-                in_sections=("sip-attack-vector",),
-            ),
-            BigipPropertySpec(
-                name="per-source-ip-detection-pps",
-                value_type="integer",
-                in_sections=("sip-attack-vector",),
-            ),
-            BigipPropertySpec(
-                name="per-source-ip-limit-pps",
-                value_type="integer",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
             ),
             BigipPropertySpec(
                 name="per-dst-ip-detection-pps",
                 value_type="integer",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
             ),
             BigipPropertySpec(
                 name="per-dst-ip-limit-pps",
                 value_type="integer",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="per-source-ip-detection-pps",
+                value_type="integer",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="per-source-ip-limit-pps",
+                value_type="integer",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="rate-increase",
+                value_type="integer",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+            ),
+            BigipPropertySpec(
+                name="rate-limit",
+                value_type="enum",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=("infinite",),
+            ),
+            BigipPropertySpec(
+                name="rate-threshold",
+                value_type="enum",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=("infinite",),
             ),
             BigipPropertySpec(
                 name="scrubbing-category",
-                value_type="boolean",
-                in_sections=("sip-attack-vector",),
+                value_type="reference",
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 allow_none=True,
             ),
             BigipPropertySpec(
                 name="scrubbing-detection-seconds",
                 value_type="integer",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
             ),
             BigipPropertySpec(
-                name="scrubbing-duration", value_type="integer", in_sections=("sip-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-increase", value_type="integer", in_sections=("sip-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-limit", value_type="integer", in_sections=("sip-attack-vector",)
-            ),
-            BigipPropertySpec(
-                name="rate-threshold", value_type="integer", in_sections=("sip-attack-vector",)
+                name="scrubbing-duration",
+                value_type="integer",
+                in_sections=("protocol-sip", "sip-attack-vector"),
             ),
             BigipPropertySpec(
                 name="state",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
-                enum_values=("disabled", "learn-only", "detect-only", "mitigate"),
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=("detect-only", "disabled", "learn-only", "mitigate"),
             ),
             BigipPropertySpec(
                 name="suspicious",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 enum_values=("false", "true"),
             ),
             BigipPropertySpec(
                 name="threshold-mode",
                 value_type="enum",
-                in_sections=("sip-attack-vector",),
+                in_sections=("protocol-sip", "sip-attack-vector"),
                 enum_values=(
+                    "fully-automatic",
                     "manual",
                     "manual-multiplier-mitigation",
                     "stress-based-mitigation",
-                    "fully-automatic",
                 ),
             ),
-            BigipPropertySpec(name="whitelist", value_type="string"),
-            BigipPropertySpec(name="http-whitelist", value_type="string"),
-            BigipPropertySpec(name="reset-stats", value_type="list", repeated=True),
+            BigipPropertySpec(
+                name="type",
+                value_type="enum",
+                in_sections=("protocol-sip", "sip-attack-vector"),
+                enum_values=(
+                    "ack",
+                    "bye",
+                    "cancel",
+                    "invite",
+                    "message",
+                    "notify",
+                    "options",
+                    "other",
+                    "prack",
+                    "publish",
+                    "register",
+                    "subscribe",
+                    "uri-limit",
+                ),
+            ),
+            BigipPropertySpec(
+                name="whitelist",
+                value_type="reference",
+                references=("security_dos_network_whitelist",),
+            ),
         ),
     )

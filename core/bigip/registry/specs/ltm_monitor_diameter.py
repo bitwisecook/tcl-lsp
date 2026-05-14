@@ -19,39 +19,47 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "monitor diameter"),),
         properties=(
             BigipPropertySpec(name="acct-application-id", value_type="integer", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="auth-application-id", value_type="integer", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_monitor_diameter",)
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_monitor_diameter",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="host-ip-address",
-                value_type="boolean",
-                allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
+            BigipPropertySpec(name="host-ip-address", value_type="string", allow_none=True),
             BigipPropertySpec(name="interval", value_type="integer"),
             BigipPropertySpec(
-                name="manual-resume", value_type="enum", enum_values=("enabled", "disabled")
+                name="manual-resume",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
-                name="mode", value_type="enum", enum_values=("tcp", "mr-tcp", "mr-sctp")
+                name="mode",
+                value_type="enum",
+                enum_values=("mr-sctp", "mr-tcp", "tcp"),
             ),
-            BigipPropertySpec(name="origin-host", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="origin-realm", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="product-name", value_type="string"),
+            BigipPropertySpec(name="origin-host", value_type="string", allow_none=True),
+            BigipPropertySpec(name="origin-realm", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="product-name", value_type="reference"),
             BigipPropertySpec(name="time-until-up", value_type="integer"),
             BigipPropertySpec(name="timeout", value_type="integer"),
             BigipPropertySpec(name="up-interval", value_type="integer"),
             BigipPropertySpec(name="vendor-id", value_type="integer"),
             BigipPropertySpec(
-                name="vendor-specific-acct-application-id", value_type="integer", allow_none=True
+                name="vendor-specific-acct-application-id",
+                value_type="integer",
+                allow_none=True,
             ),
             BigipPropertySpec(
-                name="vendor-specific-auth-application-id", value_type="integer", allow_none=True
+                name="vendor-specific-auth-application-id",
+                value_type="integer",
+                allow_none=True,
             ),
             BigipPropertySpec(
-                name="vendor-specific-vendor-id", value_type="integer", allow_none=True
+                name="vendor-specific-vendor-id",
+                value_type="integer",
+                allow_none=True,
             ),
         ),
     )

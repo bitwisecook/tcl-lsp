@@ -18,11 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "tacdb customdb"),),
         properties=(
-            BigipPropertySpec(name="url", value_type="string"),
-            BigipPropertySpec(name="poll-interval", value_type="integer"),
-            BigipPropertySpec(name="user", value_type="reference", references=("auth_user",)),
-            BigipPropertySpec(name="password", value_type="string"),
-            BigipPropertySpec(name="priority", value_type="enum", enum_values=("high", "low")),
+            BigipPropertySpec(name="app-service", value_type="reference"),
             BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="password", value_type="string"),
+            BigipPropertySpec(name="poll-interval", value_type="integer"),
+            BigipPropertySpec(name="priority", value_type="enum", enum_values=("high", "low")),
+            BigipPropertySpec(name="url", value_type="string"),
+            BigipPropertySpec(name="user", value_type="string"),
         ),
     )

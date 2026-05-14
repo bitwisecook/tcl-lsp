@@ -19,14 +19,22 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "dns cache transparent"),),
         properties=(
             BigipPropertySpec(
-                name="answer-default-zones", value_type="enum", enum_values=("yes", "no")
+                name="answer-default-zones",
+                value_type="enum",
+                enum_values=("no", "yes"),
             ),
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="local-zones", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="local-zones",
+                value_type="list",
+                list_operators=frozenset(("add",)),
+            ),
             BigipPropertySpec(name="msg-cache-size", value_type="integer"),
             BigipPropertySpec(
                 name="response-policy-zones",
-                value_type="reference",
+                value_type="list",
+                allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(
@@ -36,15 +44,16 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("nxdomain", "walled-garden"),
             ),
             BigipPropertySpec(
-                name="walled-garden", value_type="string", in_sections=("response-policy-zones",)
+                name="walled-garden",
+                value_type="unknown",
+                in_sections=("response-policy-zones",),
             ),
             BigipPropertySpec(name="rrset-cache-size", value_type="integer"),
             BigipPropertySpec(
                 name="rrset-rotate",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                enum_values=("query-id",),
-                list_operators=frozenset(("none",)),
+                enum_values=("none", "query-id"),
             ),
         ),
     )

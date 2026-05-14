@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("performance throughput",),
         ),
         header_types=(("sys", "performance throughput"),),
+        properties=(),
     )

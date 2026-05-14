@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("proc-info",),
         ),
         header_types=(("sys", "proc-info"),),
+        properties=(),
     )

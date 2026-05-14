@@ -18,28 +18,15 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "traffic-class"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="classification", value_type="string"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="destination-address",
-                value_type="boolean",
-                allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(name="destination-mask", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="destination-port", value_type="integer", min_value=0, max_value=65535
-            ),
-            BigipPropertySpec(name="protocol", value_type="enum", enum_values=("any", "protocol")),
-            BigipPropertySpec(
-                name="source-address",
-                value_type="boolean",
-                allow_none=True,
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(name="source-mask", value_type="boolean", allow_none=True),
-            BigipPropertySpec(
-                name="source-port", value_type="integer", min_value=0, max_value=65535
-            ),
+            BigipPropertySpec(name="destination-address", value_type="string", allow_none=True),
+            BigipPropertySpec(name="destination-mask", value_type="string", allow_none=True),
+            BigipPropertySpec(name="destination-port", value_type="reference"),
+            BigipPropertySpec(name="protocol", value_type="unknown"),
+            BigipPropertySpec(name="source-address", value_type="string", allow_none=True),
+            BigipPropertySpec(name="source-mask", value_type="string", allow_none=True),
+            BigipPropertySpec(name="source-port", value_type="reference"),
         ),
     )

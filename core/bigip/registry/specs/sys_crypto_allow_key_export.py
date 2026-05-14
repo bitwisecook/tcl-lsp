@@ -18,6 +18,6 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "crypto allow-key-export"),),
         properties=(
-            BigipPropertySpec(name="value", value_type="enum", enum_values=("enabled", "disabled")),
+            BigipPropertySpec(name="value", value_type="enum", enum_values=("disabled", "enabled")),
         ),
     )

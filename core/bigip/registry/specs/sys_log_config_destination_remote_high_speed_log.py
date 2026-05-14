@@ -18,13 +18,14 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "log-config destination remote-high-speed-log"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="distribution",
                 value_type="enum",
                 enum_values=("adaptive", "balanced", "replicated"),
             ),
-            BigipPropertySpec(name="pool-name", value_type="string"),
+            BigipPropertySpec(name="pool-name", value_type="unknown"),
             BigipPropertySpec(name="protocol", value_type="enum", enum_values=("tcp", "udp")),
         ),
     )

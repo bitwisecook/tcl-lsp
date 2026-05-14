@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("packet-filter rule-stat",),
         ),
         header_types=(("security", "packet-filter rule-stat"),),
+        properties=(),
     )

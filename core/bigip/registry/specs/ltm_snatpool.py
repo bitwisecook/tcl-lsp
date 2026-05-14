@@ -18,16 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "snatpool"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="members",
-                value_type="reference",
+                value_type="enum",
                 allow_none=True,
-                # ``snatpool members`` accepts the same operator family
-                # as ``ltm pool members`` (sans ``modify``: snatpool
-                # members are bare addresses, no body).
-                list_operators=frozenset(("add", "delete", "replace-all-with", "none")),
+                enum_values=("default", "none"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

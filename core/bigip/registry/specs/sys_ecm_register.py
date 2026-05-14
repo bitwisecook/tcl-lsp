@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("ecm register",),
         ),
         header_types=(("sys", "ecm register"),),
+        properties=(),
     )
