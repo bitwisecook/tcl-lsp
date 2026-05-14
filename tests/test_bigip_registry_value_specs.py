@@ -509,3 +509,95 @@ def test_monitor_expression_rejects_garbage():
     parsed = spec.parse("min hello of { /Common/http }", ParseContext())
     assert parsed.value is None
     assert any("monitor expression" in d.message for d in parsed.diagnostics)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 batch 2: ProfileAttachment / PersistenceAttachment / SnatMode
+# ---------------------------------------------------------------------------
+
+
+def test_profile_attachment_parses_context_clientside():
+    from core.bigip.registry import ProfileAttachmentSpec, ReferenceContext
+    from core.bigip.types import ProfileAttachment
+
+    spec = ProfileAttachmentSpec()
+    parsed = spec.parse("/Common/clientssl { context clientside }", ParseContext())
+    assert isinstance(parsed.value, ProfileAttachment)
+    assert parsed.value.path == "/Common/clientssl"
+    assert parsed.value.context == "clientside"
+    assert parsed.value.name == "clientssl"
+    # The graph layer sees one reference to the profile.
+    refs = list(spec.references(parsed.value, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm profile", "/Common/clientssl"),
+    ]
+
+
+def test_profile_attachment_parses_empty_body():
+    from core.bigip.registry import ProfileAttachmentSpec
+    from core.bigip.types import ProfileAttachment
+
+    spec = ProfileAttachmentSpec()
+    parsed = spec.parse("/Common/http { }", ParseContext())
+    assert isinstance(parsed.value, ProfileAttachment)
+    assert parsed.value.path == "/Common/http"
+    assert parsed.value.context == ""
+
+
+def test_persistence_attachment_parses_default_yes():
+    from core.bigip.registry import PersistenceAttachmentSpec
+    from core.bigip.types import PersistenceAttachment
+
+    spec = PersistenceAttachmentSpec()
+    parsed = spec.parse("/Common/cookie { default yes }", ParseContext())
+    assert isinstance(parsed.value, PersistenceAttachment)
+    assert parsed.value.path == "/Common/cookie"
+    assert parsed.value.default is True
+    assert parsed.value.name == "cookie"
+
+
+def test_persistence_attachment_defaults_to_false():
+    from core.bigip.registry import PersistenceAttachmentSpec
+    from core.bigip.types import PersistenceAttachment
+
+    spec = PersistenceAttachmentSpec()
+    parsed = spec.parse("/Common/source_addr { }", ParseContext())
+    assert isinstance(parsed.value, PersistenceAttachment)
+    assert parsed.value.default is False
+
+
+def test_snat_mode_parses_each_variant():
+    from core.bigip.registry import ReferenceContext, SnatModeSpec
+    from core.bigip.types import SnatMode
+
+    spec = SnatModeSpec()
+
+    none = spec.parse("{ type none }", ParseContext())
+    assert isinstance(none.value, SnatMode)
+    assert none.value.is_none
+    assert none.value.references() == ()
+
+    automap = spec.parse("{ type automap }", ParseContext())
+    assert isinstance(automap.value, SnatMode)
+    assert automap.value.is_automap
+
+    snat = spec.parse("{ type snat pool /Common/snatpool_x }", ParseContext())
+    assert isinstance(snat.value, SnatMode)
+    assert snat.value.is_snat
+    assert snat.value.pool_path == "/Common/snatpool_x"
+    # ``references`` surfaces the snat pool as a graph edge so
+    # ``references_to /Common/snatpool_x`` finds every virtual
+    # using it.
+    refs = list(spec.references(snat.value, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm snatpool", "/Common/snatpool_x"),
+    ]
+
+
+def test_snat_mode_rejects_snat_without_pool():
+    from core.bigip.registry import SnatModeSpec
+
+    spec = SnatModeSpec()
+    parsed = spec.parse("{ type snat }", ParseContext())
+    assert parsed.value is None
+    assert any("SNAT mode" in d.message for d in parsed.diagnostics)

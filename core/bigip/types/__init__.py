@@ -41,6 +41,7 @@ and ``str()``-able to its canonical F5 spelling.
 from __future__ import annotations
 
 from ._address import FQDN, Address, IPAddress, parse_address, try_parse_address
+from ._attachments import PersistenceAttachment, ProfileAttachment
 from ._destination import Destination
 from ._folder import Folder, ObjectPath
 from ._monitor_expression import MonitorExpression, MonitorMode
@@ -48,6 +49,7 @@ from ._network import Network
 from ._partition import Partition
 from ._port import Port, PortRange
 from ._route_domain import RouteDomain
+from ._snat_mode import SnatMode, SnatModeKind
 
 __all__ = [
     "Address",
@@ -60,9 +62,13 @@ __all__ = [
     "Network",
     "ObjectPath",
     "Partition",
+    "PersistenceAttachment",
     "Port",
     "PortRange",
+    "ProfileAttachment",
     "RouteDomain",
+    "SnatMode",
+    "SnatModeKind",
     "parse_address",
     "try_parse_address",
 ]

@@ -698,6 +698,184 @@ class MonitorExpressionSpec(_BaseSpec):
         return True
 
 
+@dataclass(frozen=True, slots=True)
+class ProfileAttachmentSpec(_BaseSpec):
+    """One ``ltm virtual.profiles[]`` attachment item.
+
+    Profiles attach to a virtual server as a keyed-block list:
+
+        profiles {
+            /Common/clientssl { context clientside }
+            /Common/serverssl { context serverside }
+            /Common/http { }
+        }
+
+    The spec parses one attachment at a time — the surrounding list
+    is handled by the keyed-block parser; this spec only sees the
+    key (full-path) + body for each item.  ``ref_kind`` is the
+    target object kind for the graph layer (``"ltm profile"`` by
+    default; per-profile-type specs can narrow it).
+    """
+
+    ref_kind: str = "ltm profile"
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import ProfileAttachment
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        # *raw* arrives as ``<path> { body }`` from the keyed-block
+        # parser.  Split on the opening brace to extract the
+        # reference and the body separately.
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=ProfileAttachment(path=text), raw=raw)
+        path = text[:brace].strip()
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=ProfileAttachment.from_raw(path=path, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        from ..types import ProfileAttachment
+
+        if value is None or not isinstance(value, ProfileAttachment):
+            return ""
+        # Phase 6 keeps the legacy string projection for backwards
+        # compatibility; structured ``.context`` / ``.path`` /
+        # ``.name`` accessors come in when the projection layer
+        # exposes attachment containers.
+        return value.path
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        from ..types import ProfileAttachment
+
+        if value is None or not isinstance(value, ProfileAttachment):
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        from ..types import ProfileAttachment
+
+        if value is None or not isinstance(value, ProfileAttachment) or not value.path:
+            return ()
+        return (Reference(target_kind=self.ref_kind, target_path=value.path),)
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class PersistenceAttachmentSpec(_BaseSpec):
+    """One ``ltm virtual.persist[]`` attachment item.
+
+    Persistence attachments share the keyed-block shape with
+    profiles but carry a different optional flag (``default yes``
+    instead of ``context``).  Modelled separately so the structured
+    surface (``.default``) is clear and downstream queries don't
+    have to look at a wrapper field.
+    """
+
+    ref_kind: str = "ltm persistence"
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import PersistenceAttachment
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=PersistenceAttachment(path=text), raw=raw)
+        path = text[:brace].strip()
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=PersistenceAttachment.from_raw(path=path, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        from ..types import PersistenceAttachment
+
+        if value is None or not isinstance(value, PersistenceAttachment):
+            return ""
+        return value.path
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        from ..types import PersistenceAttachment
+
+        if value is None or not isinstance(value, PersistenceAttachment):
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        from ..types import PersistenceAttachment
+
+        if value is None or not isinstance(value, PersistenceAttachment) or not value.path:
+            return ()
+        return (Reference(target_kind=self.ref_kind, target_path=value.path),)
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class SnatModeSpec(_BaseSpec):
+    """An ltm virtual's ``source-address-translation`` value.
+
+    Sum type covering ``none`` / ``automap`` / ``snat <pool>`` so
+    queries can filter virtuals by SNAT mode (``select(.snat_mode.is_automap)``
+    or ``select(.snat_mode.kind == "snat")``) and the rewrite layer
+    can swap modes safely.
+
+    The graph reference layer surfaces the ``snat pool`` reference
+    when the mode is ``snat`` so ``references_to /Common/snatpool_x``
+    finds every virtual that uses it.
+    """
+
+    ref_kind: str = "ltm snatpool"
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import SnatMode
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        parsed = SnatMode.try_parse(text)
+        if parsed is None:
+            return ParsedValue(
+                value=None,
+                raw=raw,
+                diagnostics=(Diagnostic(severity="error", message=f"not a SNAT mode: {raw!r}"),),
+            )
+        return ParsedValue(value=parsed, raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        from ..types import SnatMode
+
+        if value is None or not isinstance(value, SnatMode):
+            return ()
+        return tuple(
+            Reference(target_kind=self.ref_kind, target_path=path) for path in value.references()
+        )
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
 # Public re-exports.
 __all__ = [
     "AddressSpec",
@@ -712,11 +890,14 @@ __all__ = [
     "ObjectRefSpec",
     "ParseContext",
     "ParsedValue",
+    "PersistenceAttachmentSpec",
     "PortSpec",
+    "ProfileAttachmentSpec",
     "ProjectionContext",
     "Reference",
     "ReferenceContext",
     "RenderContext",
+    "SnatModeSpec",
     "SourceRange",
     "StringSpec",
     "ValueSpec",
