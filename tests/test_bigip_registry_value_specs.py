@@ -1299,3 +1299,94 @@ def test_policy_rules_migration_unwinds_nested_pool_refs():
     )
     assert refs is not None
     assert [r.target_path for r in refs] == ["/Common/a_pool", "/Common/b_pool"]
+
+
+# ---------------------------------------------------------------------------
+# Migration batch 7: firewall rule-list rule bodies migrate to FirewallRuleSpec
+# ---------------------------------------------------------------------------
+
+
+def test_firewall_rule_list_rule_objects_pilot_walks_typed_bodies():
+    """``security firewall rule-list.rules`` is migrated to a list of
+    typed FirewallRule bodies (sourced from ``rule_objects`` on the
+    model).  Walking the pilot via ``references_via_spec`` enumerates
+    every port-list / address-list edge each rule references — so the
+    graph layer answers ``references_to /Common/web_servers`` for
+    rule-lists without re-parsing the nested source view."""
+    from core.bigip.registry import references_via_spec
+    from core.bigip.types import FirewallEndpoint, FirewallRule
+
+    rules = (
+        FirewallRule(
+            name="allow_https",
+            action="accept",
+            ip_protocol="tcp",
+            destination=FirewallEndpoint(
+                port_lists=("/Common/_sys_self_allow_tcp_defaults",),
+                address_lists=("/Common/web_servers",),
+            ),
+            source=FirewallEndpoint(address_lists=("/Common/trusted_clients",)),
+        ),
+        FirewallRule(
+            name="delegated",
+            rule_list="/Common/_sys_self_allow_defaults",
+        ),
+    )
+    refs = references_via_spec(
+        module="security",
+        object_type="firewall rule-list",
+        property_name="rules",
+        value=rules,
+        owner_path="/Common/rl_web",
+    )
+    assert refs is not None
+    paths = [(r.target_kind, r.target_path) for r in refs]
+    assert ("security firewall port-list", "/Common/_sys_self_allow_tcp_defaults") in paths
+    assert ("security firewall address-list", "/Common/web_servers") in paths
+    assert ("security firewall address-list", "/Common/trusted_clients") in paths
+    assert ("security firewall rule-list", "/Common/_sys_self_allow_defaults") in paths
+
+
+def test_firewall_rule_list_parser_populates_rule_objects():
+    """End-to-end through the parser: a ``security firewall
+    rule-list`` stanza yields ``rule_objects`` carrying the typed
+    bodies — the back-compat ``rules`` tuple of names is preserved
+    in document order."""
+    from core.bigip.parser._helpers import _Block
+    from core.bigip.parser._parsers import _parse_security_firewall_rule_list
+    from core.bigip.types import FirewallRule
+    from core.common.document_buffer import DocumentBuffer
+
+    body = (
+        "rules {\n"
+        "    allow_https {\n"
+        "        action accept\n"
+        "        ip-protocol tcp\n"
+        "        destination {\n"
+        "            address-lists { /Common/web_servers }\n"
+        "            ports { 443 }\n"
+        "        }\n"
+        "    }\n"
+        "    delegated {\n"
+        "        rule-list /Common/_sys_self_allow_defaults\n"
+        "    }\n"
+        "}\n"
+    )
+    buf = DocumentBuffer.from_source(body)
+    block = _Block(header="", body=body, start_offset=0, end_offset=len(body))
+    rule_list = _parse_security_firewall_rule_list(
+        "/Common/rl_web",
+        body,
+        buf,
+        block,
+    )
+    assert rule_list.rules == ("allow_https", "delegated")
+    assert len(rule_list.rule_objects) == 2
+    assert all(isinstance(r, FirewallRule) for r in rule_list.rule_objects)
+    first, second = rule_list.rule_objects
+    assert first.name == "allow_https"
+    assert first.action == "accept"
+    assert first.destination.address_lists == ("/Common/web_servers",)
+    assert first.destination.ports == ("443",)
+    assert second.name == "delegated"
+    assert second.rule_list == "/Common/_sys_self_allow_defaults"

@@ -29,14 +29,18 @@ class BigipSecurityFirewallPortList:
 class BigipSecurityFirewallRuleList:
     """A ``security firewall rule-list`` object.
 
-    Only top-level rule names are surfaced in v1; the nested
-    per-rule ``action`` / ``ip-protocol`` / source / destination
-    blocks are reachable through the unmodelled-stanza source view.
+    ``rules`` keeps the top-level rule names (back-compat with the
+    historical projection); ``rule_objects`` is the typed per-rule
+    view — :class:`core.bigip.types.FirewallRule` values carrying
+    action / ip-protocol / source / destination clauses — so the
+    registry's reference dispatch can enumerate the address-list /
+    port-list / nested rule-list edges every rule references.
     """
 
     name: str
     full_path: str
     rules: tuple[str, ...] = ()
+    rule_objects: tuple = ()  # tuple[FirewallRule, ...]
     description: str = ""
     range: Range | None = None
 

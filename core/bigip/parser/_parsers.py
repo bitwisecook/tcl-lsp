@@ -175,6 +175,7 @@ from ._helpers import (
     _Block,
     _description,
     _first_scalar_token_span,
+    _parse_keyed_block_entries,
     _parse_list_block,
     _parse_properties,
     _parse_properties_with_spans,
@@ -3408,16 +3409,25 @@ def _parse_security_firewall_port_list(
 def _parse_security_firewall_rule_list(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipSecurityFirewallRuleList:
+    from ..types import FirewallRule
+
     props = _parse_properties_with_spans(body)
     plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
     rules: tuple[str, ...] = ()
+    rule_objects: tuple[FirewallRule, ...] = ()
     if "rules" in props:
-        rules = tuple(_parse_list_block(props["rules"].value))
+        entries = _parse_keyed_block_entries(props["rules"].value)
+        rules = tuple(rule_name for rule_name, _ in entries)
+        rule_objects = tuple(
+            FirewallRule.from_raw(name=rule_name, body=rule_body)
+            for rule_name, rule_body in entries
+        )
     return BigipSecurityFirewallRuleList(
         name=name,
         full_path=full_path,
         rules=rules,
+        rule_objects=rule_objects,
         description=_description(plain),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )

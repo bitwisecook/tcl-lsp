@@ -376,6 +376,76 @@ def _parse_list_block(braced: str) -> list[str]:
     return items
 
 
+def _parse_keyed_block_entries(braced: str) -> list[tuple[str, str]]:
+    """Extract ``(name, body)`` pairs from a keyed-block list.
+
+    Sister to :func:`_parse_list_block` but returns each entry's
+    name AND its braced body content (without the surrounding
+    ``{`` / ``}``) so callers can hand the body to a typed-value
+    parser without re-tokenising the outer list.  Used by the
+    security firewall rule-list parser to promote bodies into
+    typed :class:`FirewallRule` values.
+
+    Mirrors the no-progress guard from :func:`_parse_list_block`
+    so a malformed input can't hang the parser.
+    """
+    inner = braced.strip()
+    if inner.startswith("{"):
+        inner = inner[1:]
+    if inner.endswith("}"):
+        inner = inner[:-1]
+
+    entries: list[tuple[str, str]] = []
+    pos = 0
+    length = len(inner)
+
+    while pos < length:
+        loop_start = pos
+        while pos < length and inner[pos] in " \t\n\r":
+            pos += 1
+        if pos >= length:
+            break
+
+        name_start = pos
+        while pos < length and inner[pos] not in " \t\n\r{}":
+            if inner[pos] == "\\" and pos + 1 < length:
+                pos += 2
+                continue
+            pos += 1
+        name = inner[name_start:pos].strip()
+
+        while pos < length and inner[pos] in " \t":
+            pos += 1
+
+        body = ""
+        if pos < length and inner[pos] == "{":
+            body_start = pos + 1
+            pos += 1
+            depth = 1
+            while pos < length and depth > 0:
+                ch = inner[pos]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                elif ch == "\\" and pos + 1 < length:
+                    pos += 1
+                pos += 1
+            body = inner[body_start:pos]
+            if pos < length:
+                pos += 1  # consume closing ``}``
+
+        if name and name != "{" and name != "}":
+            entries.append((name, body))
+
+        if pos == loop_start:
+            break
+
+    return entries
+
+
 def _range_from_offsets(source_map: DocumentBuffer, start: int, end: int) -> Range:
     return source_map.range_from_offsets(start, end)
 
