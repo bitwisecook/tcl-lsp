@@ -468,7 +468,12 @@ def _collect_registry_property_ref_tokens(
             for ref in refs or ():
                 if ref.range is None:
                     continue
-                rng = buffer.range_from_offsets(ref.range.start, ref.range.end)
+                # ``ref.range`` is half-open ``[start, end)``;
+                # ``range_from_offsets`` is inclusive on the end so
+                # convert at the boundary.  Token length is then the
+                # inclusive-character difference (no extra ``+1``)
+                # because both endpoints are inclusive in ``rng``.
+                rng = buffer.range_from_offsets(ref.range.start, ref.range.end - 1)
                 if rng.start.line != rng.end.line:
                     continue
                 _append_bigip_token(

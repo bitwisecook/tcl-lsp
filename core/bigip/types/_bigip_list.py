@@ -27,11 +27,11 @@ The matching :class:`core.bigip.registry.value_specs.ListSpec` owns
 (the parser, the projection, the edit planner, the graph builder,
 the LSP) never reach into BigipList internals; they ask the spec.
 
-Six list shapes live behind the single :class:`BigipList` type, all
+Four list shapes live behind the single :class:`BigipList` type, all
 discriminated by :class:`ListSyntax`:
 
-- ``space-separated`` — unbraced scalar lists (monitor chains,
-  ``ip-protocol icmp tcp``, ``description``).
+- ``space-separated`` — unbraced scalar lists (``ip-protocol icmp
+  tcp``, the bareword side of compact stanzas).
 - ``braced-space-separated`` — ``{ /Common/a /Common/b }``
   (``rules``, ``policies``, ``vlans``).
 - ``keyed-block`` — ``{ /Common/clientssl { context clientside }
@@ -40,12 +40,21 @@ discriminated by :class:`ListSyntax`:
 - ``named-rule-block`` — ``{ name { action accept ... } }``
   (firewall rules, policy rules — the body is a structured
   classifier rather than scalar metadata).
-- ``monitor-expression`` — ``min N of { a b c }`` / ``a and b`` /
-  scalar / ``default`` / ``none`` (the only list with an
-  evaluation-mode field).
-- ``operator-prefixed`` — ``{ replace-all-with { /Common/a } }``
-  / ``{ add { /Common/b } delete { /Common/c } }`` (the tmsh
-  list-edit forms; ``operator`` carries the prefix verb).
+
+Two further shapes are intentionally *not* in :class:`ListSyntax`
+today and are tracked as follow-up work rather than vapourware
+options the caller might pick by accident:
+
+- *monitor-expression* — handled by
+  :class:`core.bigip.types.MonitorExpression` as a dedicated typed
+  value (``mode`` / ``monitors`` / ``minimum`` plus per-monitor
+  source spans).  Lives outside :class:`BigipList` because the
+  ``min N of`` + ``and``-chain grammar isn't a flat list.
+- *operator-prefixed* — the tmsh edit forms (``{ add { … } delete
+  { … } replace-all-with { … } }``).  No spec uses this syntax
+  yet; a future migration that wants tmsh edit forms in
+  :class:`BigipList` needs to add parse / project / render /
+  references coverage alongside the new syntax tag.
 """
 
 from __future__ import annotations
@@ -58,8 +67,6 @@ ListSyntax = Literal[
     "braced-space-separated",
     "keyed-block",
     "named-rule-block",
-    "monitor-expression",
-    "operator-prefixed",
 ]
 
 
@@ -150,14 +157,8 @@ class BigipList:
     operator: str | None = None
     raw: str = ""
     range: SourceSpan | None = None
-    # Monitor-expression-only metadata.  ``mode`` is one of
-    # ``"default"`` / ``"none"`` / ``"single"`` / ``"all"`` /
-    # ``"min-of"``.  ``minimum`` is the threshold for ``min-of`` and
-    # ``None`` for every other mode.
-    mode: str = ""
-    minimum: int | None = None
-    # Diagnostics raised during parsing — surfaces threshold-out-of-
-    # range warnings, unknown operator tokens, etc.  Empty for
+    # Diagnostics raised during parsing — surfaces unknown enum
+    # tokens, malformed keyed-block entries, etc.  Empty for
     # well-formed inputs.
     diagnostics: tuple[object, ...] = field(default_factory=tuple)
 

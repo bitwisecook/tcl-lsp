@@ -45,6 +45,10 @@ rules for the KCS/documentation split live in
   working checklist of every authoritative TMSH property the
   typed projection does not yet surface, grouped into numbered
   bundles so each one can land as a focused commit.
+- [bigip-registry-architecture.md](bigip-registry-architecture.md) —
+  registry contract for object kinds, value specs (parse / project
+  / render / references), source-range fidelity, and the pilot
+  migration table that opts properties into the typed dispatch.
 
 ## tclpkg package manager
 

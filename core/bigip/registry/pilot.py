@@ -47,13 +47,12 @@ from .value_specs import (
     SnatModeSpec,
 )
 
-# All "ltm monitor *" kinds a pool / node / GTM-pool / GTM-server
-# monitor can point at.  Used by MonitorExpressionSpec so the graph
-# layer surfaces the right target kinds when walking pool monitor
-# references.  Kept in one place so adding a new monitor type only
-# touches this list — every property that references a monitor
-# inherits the broader set.
-_MONITOR_REF_KINDS = (
+# LTM monitor kinds a pool / node monitor expression can point at.
+# ``"ltm monitor"`` (the family-prefix) is intentionally first so
+# ``MonitorExpressionSpec.references()`` attributes refs to the family
+# and ``candidate_registry_kinds_for_display`` fans the family out to
+# every specific kind at resolution time.
+_LTM_MONITOR_REF_KINDS = (
     "ltm monitor",
     "ltm monitor diameter",
     "ltm monitor dns",
@@ -97,6 +96,46 @@ _MONITOR_REF_KINDS = (
     "ltm monitor wmi",
 )
 
+# GTM monitor kinds a gtm pool / gtm server monitor expression can
+# point at.  Distinct from the LTM family so GTM references resolve
+# to ``gtm_monitor_*`` rather than fanning out to LTM kinds.  Same
+# family-first convention as :data:`_LTM_MONITOR_REF_KINDS`.
+_GTM_MONITOR_REF_KINDS = (
+    "gtm monitor",
+    "gtm monitor bigip",
+    "gtm monitor bigip-link",
+    "gtm monitor external",
+    "gtm monitor firepass",
+    "gtm monitor ftp",
+    "gtm monitor gateway-icmp",
+    "gtm monitor gtp",
+    "gtm monitor http",
+    "gtm monitor https",
+    "gtm monitor imap",
+    "gtm monitor ldap",
+    "gtm monitor mssql",
+    "gtm monitor mysql",
+    "gtm monitor nntp",
+    "gtm monitor none",
+    "gtm monitor oracle",
+    "gtm monitor pop3",
+    "gtm monitor postgresql",
+    "gtm monitor radius",
+    "gtm monitor radius-accounting",
+    "gtm monitor real-server",
+    "gtm monitor scripted",
+    "gtm monitor sip",
+    "gtm monitor smtp",
+    "gtm monitor snmp",
+    "gtm monitor snmp-link",
+    "gtm monitor soap",
+    "gtm monitor tcp",
+    "gtm monitor tcp-half-open",
+    "gtm monitor udp",
+    "gtm monitor wap",
+    "gtm monitor wmi",
+)
+
 
 # Phase 2 seed: ltm virtual.destination flowing through DestinationSpec.
 # Keeping the spec's parameters identical to what the doc's pilot
@@ -125,15 +164,23 @@ _PILOT_LTM_VIRTUAL_DESTINATION = PropertySpec(
 # finds every pool / node / GTM object that uses the monitor —
 # exact-path matching that the legacy grep substring seeding could
 # only approximate.
-_MONITOR_PROPERTY = PropertySpec(
+_LTM_MONITOR_PROPERTY = PropertySpec(
     attr="monitor",
-    value=MonitorExpressionSpec(ref_kinds=_MONITOR_REF_KINDS),
+    value=MonitorExpressionSpec(ref_kinds=_LTM_MONITOR_REF_KINDS),
     writable=True,
     # Project the typed :class:`MonitorExpression` directly.  The
     # type carries ``.full_path`` / ``.name`` properties so the
     # historical ``.monitor.full-path`` PathRef-style queries keep
     # working, plus structured fields (``.mode`` / ``.monitors[]`` /
     # ``.minimum``) the new design surfaces for richer DSL access.
+)
+
+# GTM pool / GTM server monitor — same spec, GTM target kinds so
+# refs resolve into ``gtm_monitor_*`` rather than the LTM family.
+_GTM_MONITOR_PROPERTY = PropertySpec(
+    attr="monitor",
+    value=MonitorExpressionSpec(ref_kinds=_GTM_MONITOR_REF_KINDS),
+    writable=True,
 )
 
 # Phase 6 migration: source-address-translation as the SNAT mode sum
@@ -280,10 +327,10 @@ _PILOT_LTM_POLICY_RULES = PropertySpec(
 PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("ltm", "virtual", "destination"): _PILOT_LTM_VIRTUAL_DESTINATION,
     # ``monitor`` migrations — same spec, four kinds.
-    ("ltm", "pool", "monitor"): _MONITOR_PROPERTY,
-    ("ltm", "node", "monitor"): _MONITOR_PROPERTY,
-    ("gtm", "pool", "monitor"): _MONITOR_PROPERTY,
-    ("gtm", "server", "monitor"): _MONITOR_PROPERTY,
+    ("ltm", "pool", "monitor"): _LTM_MONITOR_PROPERTY,
+    ("ltm", "node", "monitor"): _LTM_MONITOR_PROPERTY,
+    ("gtm", "pool", "monitor"): _GTM_MONITOR_PROPERTY,
+    ("gtm", "server", "monitor"): _GTM_MONITOR_PROPERTY,
     ("ltm", "virtual", "source-address-translation"): _PILOT_LTM_VIRTUAL_SNAT,
     # List-valued attachments / refs on ltm virtual.
     ("ltm", "virtual", "profiles"): _PILOT_LTM_VIRTUAL_PROFILES,

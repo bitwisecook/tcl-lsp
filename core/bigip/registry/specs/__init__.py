@@ -206,7 +206,6 @@ from . import (
     cm_key,  # noqa: F401
     cm_traffic_group,  # noqa: F401
     cm_trust_domain,  # noqa: F401
-    gtm_add,  # noqa: F401
     gtm_datacenter,  # noqa: F401
     gtm_distributed_app,  # noqa: F401
     gtm_global_settings_general,  # noqa: F401

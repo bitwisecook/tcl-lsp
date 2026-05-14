@@ -91,11 +91,11 @@ class TestBigipDocumentLinks:
             if link.target is not None and link.tooltip and "/Common/http_probe" in link.tooltip
         )
         assert link.range.start.character > 0
-        # ``to_lsp_range`` adds +1 to end column (inclusive → exclusive),
-        # so the LSP range spans len + 1.
-        assert (
-            link.range.end.character - link.range.start.character == len("/Common/http_probe") + 1
-        )
+        # Registry ``SourceRange`` is half-open; the link layer
+        # converts to LSP's exclusive end so the LSP range spans
+        # exactly the path length (no off-by-one trailing
+        # whitespace / brace).
+        assert link.range.end.character - link.range.start.character == len("/Common/http_probe")
 
     def test_property_value_link_inside_keyed_list_item(self):
         """References inside a keyed-block list item (``profiles {

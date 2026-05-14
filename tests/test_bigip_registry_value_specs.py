@@ -945,6 +945,56 @@ def test_node_monitor_migration_handles_min_of():
     }
 
 
+def test_gtm_monitor_references_emit_gtm_target_kind():
+    """``gtm pool.monitor`` and ``gtm server.monitor`` must produce
+    references attributed to the ``gtm monitor`` family, NOT the
+    ``ltm monitor`` family — otherwise the graph / link / definition
+    layer fans out to ``ltm_monitor_*`` and never finds the
+    GTM-side monitor object.  Regression for the re-review's
+    high-severity finding."""
+    from core.bigip.registry import (
+        candidate_registry_kinds_for_display,
+        references_via_spec,
+    )
+
+    for object_type in ("pool", "server"):
+        refs = references_via_spec(
+            module="gtm",
+            object_type=object_type,
+            property_name="monitor",
+            value="/Common/http",
+            owner_path=f"/Common/{object_type}1",
+        )
+        assert refs is not None and len(refs) == 1
+        assert refs[0].target_kind == "gtm monitor"
+        kinds = candidate_registry_kinds_for_display(refs[0].target_kind)
+        assert "gtm_monitor_http" in kinds
+        # And critically: no LTM monitor kinds leak into the fan-out.
+        assert not any(k.startswith("ltm_") for k in kinds)
+
+
+def test_ltm_monitor_references_still_emit_ltm_target_kind():
+    """The split keeps LTM monitor refs on the LTM family — the
+    LTM pool / node fan-out resolves to ``ltm_monitor_*`` kinds
+    only."""
+    from core.bigip.registry import (
+        candidate_registry_kinds_for_display,
+        references_via_spec,
+    )
+
+    refs = references_via_spec(
+        module="ltm",
+        object_type="pool",
+        property_name="monitor",
+        value="/Common/http",
+        owner_path="/Common/p1",
+    )
+    assert refs is not None
+    assert refs[0].target_kind == "ltm monitor"
+    kinds = candidate_registry_kinds_for_display(refs[0].target_kind)
+    assert not any(k.startswith("gtm_") for k in kinds)
+
+
 def test_virtual_source_address_translation_migration_yields_snat_pool_ref():
     """``ltm virtual.source-address-translation`` is migrated to
     SnatModeSpec; the reference dispatch parses the body and yields
@@ -1689,3 +1739,31 @@ def test_list_spec_empty_input_returns_empty_list():
     assert isinstance(parsed.value, BigipList)
     assert len(parsed.value) == 0
     assert spec.render(parsed.value, None) == "{ }"  # type: ignore[arg-type]
+
+
+def test_hand_maintained_kinds_are_explicit_allowlist():
+    """Kinds without a corresponding manpage-generated JSON source
+    must be on a small explicit allowlist.  A spec regeneration that
+    leaves orphaned files behind (the reviewer's ``gtm_add`` /
+    ``cm_ha_group`` finding) shows up as a test failure here, not
+    as a silent kind in ``OBJECT_KIND_SPECS``.
+
+    The allowlist documents intent — every entry needs a comment in
+    its spec file explaining why the manpage corpus doesn't cover
+    it (device emits the header under a different module, hand-
+    written stub for a deprecated alias, etc.).
+    """
+    from core.bigip.registry.data import OBJECT_KIND_SPECS
+
+    hand_maintained_allowlist = frozenset(
+        {
+            "cm_ha_group",  # alias of sys_ha_group on 13.x/14.x emissions
+        }
+    )
+    # Every allowlist entry must actually exist in the registry; a
+    # stale allowlist entry is just as bad as an orphaned spec.
+    for kind in hand_maintained_allowlist:
+        assert kind in OBJECT_KIND_SPECS, f"allowlist entry {kind!r} is not in OBJECT_KIND_SPECS"
+    # Conversely, no truly dead kinds should sneak in.  The pruned
+    # ``gtm_add`` kind in particular must stay out.
+    assert "gtm_add" not in OBJECT_KIND_SPECS

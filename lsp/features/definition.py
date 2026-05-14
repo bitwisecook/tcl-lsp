@@ -150,7 +150,12 @@ def _bigip_definition_via_registry(
             for ref in refs or ():
                 if ref.range is None:
                     continue
-                if not (ref.range.start <= cursor_offset <= ref.range.end):
+                # ``ref.range`` is half-open ``[start, end)`` so the
+                # cursor sitting exactly on ``end`` is *past* the
+                # reference, not on it.  Treating it as inside would
+                # fire go-to-definition for the character after the
+                # token (e.g. the trailing brace).
+                if not (ref.range.start <= cursor_offset < ref.range.end):
                     continue
                 for kind in candidate_registry_kinds_for_display(ref.target_kind):
                     resolved = resolve_kind_in_configs(

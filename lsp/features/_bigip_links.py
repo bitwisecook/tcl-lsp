@@ -117,7 +117,12 @@ def _links_from_registry_refs(
                     continue
                 if ref.range is None:
                     continue
-                rng = buffer.range_from_offsets(ref.range.start, ref.range.end)
+                # ``ref.range`` is a half-open ``[start, end)`` span;
+                # ``range_from_offsets`` takes an inclusive end so
+                # subtract one byte at the boundary.  Otherwise the
+                # link would extend one character past the reference
+                # token and bleed into the trailing brace / space.
+                rng = buffer.range_from_offsets(ref.range.start, ref.range.end - 1)
                 out.append(
                     types.DocumentLink(
                         range=to_lsp_range(rng),
