@@ -50,6 +50,7 @@ from ._gtm_region_member import GtmRegionMember
 from ._monitor_expression import MonitorExpression, MonitorMode
 from ._network import Network
 from ._partition import Partition
+from ._policy import LtmPolicyAction, LtmPolicyCondition
 from ._port import Port, PortRange
 from ._route_domain import RouteDomain
 from ._snat_mode import SnatMode, SnatModeKind
@@ -63,6 +64,8 @@ __all__ = [
     "Folder",
     "GtmRegionMember",
     "IPAddress",
+    "LtmPolicyAction",
+    "LtmPolicyCondition",
     "MonitorExpression",
     "MonitorMode",
     "Network",

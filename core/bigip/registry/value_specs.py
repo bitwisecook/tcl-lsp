@@ -1018,6 +1018,110 @@ class CertKeyChainSpec(_BaseSpec):
         return True
 
 
+@dataclass(frozen=True, slots=True)
+class LtmPolicyConditionSpec(_BaseSpec):
+    """One clause inside a policy rule's ``conditions { ... }`` block.
+
+    Phase 6 lifts the legacy "raw token tuple" representation into a
+    structured value: queries can now ask things like
+
+        .ltm.policy[].rules[].conditions[]
+          | select(.operand == "http-host" and not .negate)
+          | .values
+
+    and the spec exposes a single structured value the rewrite
+    layer can update safely (changing one operator, adding one
+    value) without re-tokenising the whole body.
+    """
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import LtmPolicyCondition
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        # ``raw`` arrives as ``<index> { body }`` from the keyed-
+        # block parser; split on the brace to pull each side.
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=LtmPolicyCondition(), raw=raw)
+        try:
+            index = int(text[:brace].strip())
+        except ValueError:
+            index = 0
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=LtmPolicyCondition.from_raw(index=index, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, slots=True)
+class LtmPolicyActionSpec(_BaseSpec):
+    """One clause inside a policy rule's ``actions { ... }`` block.
+
+    The action's structured form exposes verb / target / select /
+    parameter slots so queries can filter policies by what they
+    actually do.  References (``forward select pool <path>``)
+    surface through :meth:`ValueSpec.references` so the graph
+    layer finds every policy that forwards to a given pool.
+    """
+
+    def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
+        from ..types import LtmPolicyAction
+
+        text = raw.strip()
+        if not text:
+            return ParsedValue(value=None, raw=raw)
+        brace = text.find("{")
+        if brace < 0:
+            return ParsedValue(value=LtmPolicyAction(), raw=raw)
+        try:
+            index = int(text[:brace].strip())
+        except ValueError:
+            index = 0
+        body = text[brace + 1 :]
+        if body.rstrip().endswith("}"):
+            body = body.rsplit("}", 1)[0]
+        return ParsedValue(value=LtmPolicyAction.from_raw(index=index, body=body), raw=raw)
+
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
+        if value is None:
+            return ""
+        return str(value)
+
+    def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]:
+        from ..types import LtmPolicyAction
+
+        if value is None or not isinstance(value, LtmPolicyAction):
+            return ()
+        return tuple(
+            Reference(target_kind=kind, target_path=path) for kind, path in value.references()
+        )
+
+    @property
+    def is_structured(self) -> bool:
+        return True
+
+
 # Public re-exports.
 __all__ = [
     "AddressSpec",
@@ -1030,6 +1134,8 @@ __all__ = [
     "GtmRegionMemberSpec",
     "IntSpec",
     "ListSpec",
+    "LtmPolicyActionSpec",
+    "LtmPolicyConditionSpec",
     "MonitorExpressionSpec",
     "NetworkSpec",
     "ObjectRefSpec",

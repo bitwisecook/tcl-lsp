@@ -669,3 +669,77 @@ def test_cert_key_chain_parses_full_entry_and_yields_refs():
         ("sys file ssl-key", "/Common/cert_a.key"),
         ("sys file ssl-cert", "/Common/ca_bundle.crt"),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 batch 4: LtmPolicyConditionSpec / LtmPolicyActionSpec
+# ---------------------------------------------------------------------------
+
+
+def test_policy_condition_parses_http_host_match():
+    from core.bigip.registry import LtmPolicyConditionSpec
+    from core.bigip.types import LtmPolicyCondition
+
+    spec = LtmPolicyConditionSpec()
+    parsed = spec.parse(
+        "0 { http-host all-strings values { example.com foo.example.com } }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, LtmPolicyCondition)
+    assert parsed.value.index == 0
+    assert parsed.value.operand == "http-host"
+    assert parsed.value.selector == "all-strings"
+    assert parsed.value.values == ("example.com", "foo.example.com")
+    assert parsed.value.negate is False
+
+
+def test_policy_condition_parses_negation_and_operator():
+    from core.bigip.registry import LtmPolicyConditionSpec
+    from core.bigip.types import LtmPolicyCondition
+
+    spec = LtmPolicyConditionSpec()
+    parsed = spec.parse(
+        "1 { http-uri path not starts-with values { /admin } }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, LtmPolicyCondition)
+    assert parsed.value.operand == "http-uri"
+    assert parsed.value.selector == "path"
+    assert parsed.value.operator == "starts-with"
+    assert parsed.value.negate is True
+    assert parsed.value.values == ("/admin",)
+
+
+def test_policy_action_forward_pool_yields_pool_reference():
+    from core.bigip.registry import LtmPolicyActionSpec, ReferenceContext
+    from core.bigip.types import LtmPolicyAction
+
+    spec = LtmPolicyActionSpec()
+    parsed = spec.parse(
+        "0 { request forward select pool /Common/web_pool }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, LtmPolicyAction)
+    assert parsed.value.target == "request"
+    assert parsed.value.verb == "forward"
+    assert parsed.value.select is True
+    assert parsed.value.pool == "/Common/web_pool"
+    refs = list(spec.references(parsed.value, ReferenceContext()))
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("ltm pool", "/Common/web_pool"),
+    ]
+
+
+def test_policy_action_redirect_captures_location_and_status():
+    from core.bigip.registry import LtmPolicyActionSpec
+    from core.bigip.types import LtmPolicyAction
+
+    spec = LtmPolicyActionSpec()
+    parsed = spec.parse(
+        "1 { response redirect location https://example.com/new status 301 }",
+        ParseContext(),
+    )
+    assert isinstance(parsed.value, LtmPolicyAction)
+    assert parsed.value.verb == "redirect"
+    assert parsed.value.redirect_location == "https://example.com/new"
+    assert parsed.value.status == 301
