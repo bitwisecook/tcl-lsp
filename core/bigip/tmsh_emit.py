@@ -553,19 +553,36 @@ def _render_pool(verb: str, pool: BigipPool) -> str:
                 inner.append(f"monitor {_quote(m.monitor)}")
             inner_str = " ".join(inner)
             member_lines.append(f"{m.name} {{ {inner_str} }}" if inner_str else f"{m.name} {{ }}")
-        # ``members`` is a list-valued property on tmsh; ``modify``
-        # rejects a bare ``members { ... }`` body with "list of items
-        # must be 'add', 'modify', 'delete', 'replace-all-with',
-        # 'none'", so list fields always need an explicit operator.
-        # ``replace-all-with`` is the correct semantic for a full-
-        # body emit (this renderer is the "write the whole object"
-        # path; the delta emitter routes through granular add /
-        # delete / modify operators when it can).  ``create``
-        # accepts the same operator and treats it as the initial
-        # set, so the same spelling works for both verbs.
-        fields.append("members replace-all-with { " + " ".join(member_lines) + " }")
+        fields.append(_list_field("ltm", "pool", "members", " ".join(member_lines)))
     body = " ".join(fields)
     return f"tmsh {verb} ltm pool {pool.full_path}" + (f" {{ {body} }}" if body else "")
+
+
+def _list_field(module: str, object_type: str, name: str, items_text: str) -> str:
+    """Render a list-valued field's brace body with the right operator.
+
+    Consults the registry to find whether *name* is list-valued and
+    which operator it accepts.  ``modify`` on a list-valued field
+    requires an explicit operator (``add`` / ``delete`` / ``modify``
+    / ``replace-all-with`` / ``none``) — a bare ``<name> { ... }``
+    body is rejected by the device with "list of items must be ...".
+    Full-body emission prefers ``replace-all-with`` so the resulting
+    script overwrites the whole list, matching the renderer's
+    "write the whole object" semantics; the delta emitter takes a
+    different path with granular add/delete/modify operators.
+
+    Falls back to the bare ``<name> { ... }`` body when the property
+    is unknown to the registry — better to risk one device error
+    than to invent an operator the property doesn't support.  The
+    failure surface for unknown properties is the test suite, not
+    real devices.
+    """
+    from .registry import list_operator_for
+
+    operator = list_operator_for(module, object_type, name)
+    if not operator:
+        return f"{name} {{ {items_text} }}"
+    return f"{name} {operator} {{ {items_text} }}"
 
 
 def _render_monitor(
@@ -594,8 +611,7 @@ def _render_data_group(verb: str, dg: BigipDataGroup) -> str:
         parts.append(f"type {dg.value_type}")
     if dg.records:
         record_block = " ".join(f"{r} {{ }}" for r in dg.records)
-        # List-valued field — needs an operator for tmsh modify.
-        parts.append(f"records replace-all-with {{ {record_block} }}")
+        parts.append(_list_field("ltm", "data-group internal", "records", record_block))
     body = " ".join(parts)
     head = f"tmsh {verb} ltm data-group {kind} {dg.full_path}"
     return head + (f" {{ {body} }}" if body else "")
@@ -616,8 +632,7 @@ def _render_profile(
 def _render_snatpool(verb: str, sp: BigipSnatPool) -> str:
     body = ""
     if sp.members:
-        # List-valued field — operator required on ``modify``.
-        body = "members replace-all-with { " + " ".join(sp.members) + " }"
+        body = _list_field("ltm", "snatpool", "members", " ".join(sp.members))
     return f"tmsh {verb} ltm snatpool {sp.full_path}" + (f" {{ {body} }}" if body else "")
 
 
@@ -652,22 +667,20 @@ def _render_virtual(verb: str, vs: BigipVirtualServer) -> str:
         fields.append(f"destination {vs.destination}")
     if vs.pool:
         fields.append(f"pool {vs.pool}")
-    # ``profiles`` / ``persist`` / ``rules`` are list-valued — tmsh
-    # modify rejects a bare ``foo { ... }`` body for these properties
-    # and requires an explicit ``add`` / ``delete`` / ``modify`` /
-    # ``replace-all-with`` / ``none`` operator.  This full-body
-    # renderer uses ``replace-all-with`` to set the complete list;
-    # the delta emitter wires granular operators when only some
-    # entries change.
+    # Each list-valued field reads its operator from the registry
+    # via :func:`_list_field`.  Marking a property as list-valued in
+    # its registry spec is the single source of truth — adding a
+    # new list field on this object requires only the spec entry,
+    # no parallel renderer change.
     if vs.profiles:
         fields.append(
-            "profiles replace-all-with { " + " ".join(f"{p} {{ }}" for p in vs.profiles) + " }"
+            _list_field("ltm", "virtual", "profiles", " ".join(f"{p} {{ }}" for p in vs.profiles))
         )
     if vs.rules:
-        fields.append("rules replace-all-with { " + " ".join(vs.rules) + " }")
+        fields.append(_list_field("ltm", "virtual", "rules", " ".join(vs.rules)))
     if vs.persist:
         fields.append(
-            "persist replace-all-with { " + " ".join(f"{p} {{ }}" for p in vs.persist) + " }"
+            _list_field("ltm", "virtual", "persist", " ".join(f"{p} {{ }}" for p in vs.persist))
         )
     if vs.snatpool:
         fields.append(f"snatpool {vs.snatpool}")

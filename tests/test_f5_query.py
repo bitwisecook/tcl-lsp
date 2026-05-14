@@ -6885,3 +6885,34 @@ def test_tmsh_full_body_uses_replace_all_with_for_list_fields():
                 assert f"{op} replace-all-with {{" in line, (
                     f"emitted line missing replace-all-with for {op}: {line}"
                 )
+
+
+def test_registry_drives_tmsh_list_operator_selection():
+    """``list_operator_for`` returns the right operator for each
+    list-valued property; the renderer uses this so adding a new
+    list field is one registry edit, not a parser + renderer
+    + test change."""
+    from core.bigip.registry import list_operator_for, property_spec_for
+
+    # ``replace-all-with`` is preferred (and available) on the
+    # common list properties.
+    assert list_operator_for("ltm", "pool", "members") == "replace-all-with"
+    assert list_operator_for("ltm", "virtual", "profiles") == "replace-all-with"
+    assert list_operator_for("ltm", "virtual", "rules") == "replace-all-with"
+    assert list_operator_for("ltm", "virtual", "persist") == "replace-all-with"
+    assert list_operator_for("ltm", "virtual", "vlans") == "replace-all-with"
+    assert list_operator_for("ltm", "virtual", "policies") == "replace-all-with"
+    assert list_operator_for("ltm", "snatpool", "members") == "replace-all-with"
+    assert list_operator_for("ltm", "data-group internal", "records") == "replace-all-with"
+    # ``metadata`` is the documented exception — no replace-all-with.
+    metadata = property_spec_for("ltm", "virtual", "metadata")
+    assert metadata is not None
+    assert "replace-all-with" not in metadata.list_operators
+    assert "modify" in metadata.list_operators
+    assert list_operator_for("ltm", "virtual", "metadata") == ""
+    # Falling back: ``prefer=("modify", "add")`` picks the first
+    # supported operator from the preference list.
+    assert list_operator_for("ltm", "virtual", "metadata", prefer=("modify", "add")) == "modify"
+    # Scalar fields return an empty operator (no list semantics).
+    assert list_operator_for("ltm", "pool", "monitor") == ""
+    assert list_operator_for("ltm", "pool", "description") == ""

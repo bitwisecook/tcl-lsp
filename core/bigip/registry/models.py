@@ -41,6 +41,27 @@ class BigipPropertySpec:
     pattern: str = ""
     references: tuple[str, ...] = ()
     description: str = ""
+    # tmsh modify/create requires an explicit operator on list-valued
+    # properties.  When set, ``list_operators`` enumerates the
+    # operator keywords the property accepts — ``add`` / ``delete``
+    # / ``modify`` / ``replace-all-with`` / ``none``.  The tmsh
+    # renderer uses this to:
+    #
+    #  - emit ``<prop> replace-all-with { ... }`` (not bare
+    #    ``<prop> { ... }``) for full-body writes;
+    #  - choose granular ``add`` / ``delete`` / ``modify`` operators
+    #    in the delta emitter when the property supports them.
+    #
+    # An empty set marks the property as scalar (no operator
+    # required).  ``frozenset()`` is the safe default — overriding
+    # per-property is a quiet declaration that the property is
+    # list-valued.
+    list_operators: frozenset[str] = frozenset()
+
+    @property
+    def is_list_valued(self) -> bool:
+        """True when this property is a tmsh list (operator required)."""
+        return bool(self.list_operators)
 
     def matches_section(self, section: str | None) -> bool:
         if not self.in_sections:

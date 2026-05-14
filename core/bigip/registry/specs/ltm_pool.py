@@ -44,7 +44,8 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="members",
                 value_type="reference",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                # tmsh ``members`` accepts add/delete/modify/replace-all-with/none.
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with", "none")),
                 references=("ltm_node",),
             ),
             BigipPropertySpec(

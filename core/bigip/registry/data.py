@@ -61,3 +61,47 @@ def property_names_for(module: str, object_type: str) -> tuple[str, ...]:
     rather than a continuation of the previous value.
     """
     return PROPERTY_NAMES_BY_TYPE.get((module, object_type), ())
+
+
+def property_spec_for(
+    module: str, object_type: str, property_name: str
+) -> BigipPropertySpec | None:
+    """Look up one property's spec, or ``None`` when unknown.
+
+    Centralised so callers don't have to know the indexing key shape
+    (``(module, object_type) -> dict[name, spec]``).  Used by the
+    tmsh emitter to decide whether a property is list-valued and
+    which operator keywords it accepts.
+    """
+    return PROPERTY_SPECS_BY_TYPE.get((module, object_type), {}).get(property_name)
+
+
+def list_operator_for(
+    module: str,
+    object_type: str,
+    property_name: str,
+    *,
+    prefer: tuple[str, ...] = ("replace-all-with",),
+) -> str:
+    """Return the best tmsh operator to use for a full-body write.
+
+    Looks up the property's ``list_operators`` set and picks the
+    first operator from *prefer* that the property supports.  Returns
+    an empty string when the property is scalar (no operator needed)
+    or when none of the preferred operators is supported (caller
+    should fall back to a bare ``<prop> { ... }``).
+
+    The default *prefer* picks ``replace-all-with`` first because
+    that's the right operator for "write the whole list from
+    scratch" — every list property except ``metadata`` (which uses
+    ``add``/``delete``/``modify`` only) supports it.  ``metadata``
+    callers should pass ``prefer=("modify", "add")`` so they get a
+    usable operator anyway.
+    """
+    spec = property_spec_for(module, object_type, property_name)
+    if spec is None or not spec.list_operators:
+        return ""
+    for op in prefer:
+        if op in spec.list_operators:
+            return op
+    return ""

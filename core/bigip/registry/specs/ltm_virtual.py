@@ -20,7 +20,9 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="address-status", value_type="enum", enum_values=("yes", "no")),
             BigipPropertySpec(
-                name="auth", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="auth",
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="auto-discovery", value_type="enum", enum_values=("enabled", "disabled")
@@ -32,8 +34,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="clone-pools",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="context",
@@ -106,6 +108,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="persist",
                 value_type="reference",
+                list_operators=frozenset(("replace-all-with",)),
                 references=(
                     "ltm_persistence_cookie",
                     "ltm_persistence_dest_addr",
@@ -129,7 +132,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="policies",
                 value_type="reference",
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
                 references=("ltm_policy",),
             ),
             BigipPropertySpec(
@@ -138,7 +141,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="profiles",
                 value_type="reference",
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
                 references=(
                     "ltm_profile_analytics",
                     "ltm_profile_certificate_authority",
@@ -244,6 +247,12 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 repeated=True,
                 allow_none=True,
+                # ``rules`` accepts ``replace-all-with`` (community
+                # examples on devcentral); the canonical TMSH docs
+                # show direct assignment + ``none``, but the
+                # operator form works in practice and is needed for
+                # the full-body modify to land.
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
                 references=("ltm_rule",),
             ),
             BigipPropertySpec(
@@ -316,8 +325,8 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(
                 name="traffic-classes",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="reference",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
                 name="translate-address",
@@ -338,11 +347,16 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="vlans",
                 value_type="reference",
-                enum_values=("add", "delete", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
                 references=("net_vlan",),
             ),
             BigipPropertySpec(
-                name="metadata", value_type="enum", enum_values=("add", "delete", "modify")
+                name="metadata",
+                # ``metadata`` is the doc's documented exception:
+                # supports ``add`` / ``delete`` / ``modify`` but
+                # NOT ``replace-all-with``.  Recording it here keeps
+                # the operator-aware renderer honest.
+                list_operators=frozenset(("add", "delete", "modify")),
             ),
             BigipPropertySpec(name="value", value_type="string", in_sections=("metadata",)),
             BigipPropertySpec(

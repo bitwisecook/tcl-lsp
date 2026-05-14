@@ -7,7 +7,9 @@ from .data import (
     PROPERTY_NAMES_BY_TYPE,
     PROPERTY_REFERENCE_SPECS,
     PROPERTY_SPECS_BY_TYPE,
+    list_operator_for,
     property_names_for,
+    property_spec_for,
 )
 from .models import (
     BigipObjectKindSpec,
@@ -25,5 +27,7 @@ __all__ = [
     "PROPERTY_NAMES_BY_TYPE",
     "PROPERTY_SPECS_BY_TYPE",
     "HEADER_KIND_MAP",
+    "list_operator_for",
     "property_names_for",
+    "property_spec_for",
 ]
