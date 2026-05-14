@@ -511,6 +511,18 @@ class DestinationSpec(_BaseSpec):
             )
         return ParsedValue(value=parsed, raw=raw)
 
+    def project(self, value: object, ctx: ProjectionContext) -> object:  # noqa: ARG002
+        # Legacy parity: typed values flow into the DSL as their
+        # canonical string spelling so every existing query that
+        # compares ``.destination`` against a literal keeps working.
+        # Phase 6's compound-spec work will introduce a structured
+        # container form (``.destination.host``, ``.destination.port``)
+        # alongside the string surface; until then we preserve the
+        # string projection the legacy ``typed=True`` branch returned.
+        if value is None:
+            return ""
+        return str(value)
+
     def render(self, value: object, ctx: RenderContext) -> str:  # noqa: ARG002
         if value is None:
             return ""

@@ -245,3 +245,46 @@ def test_object_spec_holds_property_map():
     assert spec.key.name == "full_path"
     assert spec.properties["monitor"].ref_kind == "ltm monitor"
     assert spec.properties["monitor"].writable is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: projection routes through the pilot table when migrated
+# ---------------------------------------------------------------------------
+
+
+def test_pilot_table_seeds_ltm_virtual_destination():
+    """The pilot migration table starts with one entry — the first
+    Phase 2 deliverable — so the projection engine has something to
+    exercise.  Behaviour is identical to the legacy ``typed=True``
+    branch (canonical-string projection); the dispatch path is what
+    Phase 2 actually exercises."""
+    from core.bigip.registry.pilot import pilot_property_spec_for
+
+    spec = pilot_property_spec_for("ltm", "virtual", "destination")
+    assert spec is not None
+    assert spec.writable is True
+    assert spec.ref_kind == ""  # destination is not a ref
+
+
+def test_projection_routes_destination_through_pilot_spec():
+    """``ltm virtual.destination`` now flows through the new
+    :class:`DestinationSpec` path.  The end-user surface is
+    unchanged — the destination still projects as a canonical
+    string — so every existing query continues to work."""
+    from core.bigip.query import run_query
+
+    src = "ltm virtual /Common/v { destination /Common/10.0.0.10:80 }\n"
+    result = run_query('.ltm.virtual["/Common/v"].destination', {"m": src})
+    [destination] = result.values_per_file["m"]
+    assert destination == "/Common/10.0.0.10:80"
+
+
+def test_destination_spec_projects_none_as_empty_string():
+    """The legacy ``typed=True`` branch turned ``None`` typed values
+    into ``""`` so falsey-truthiness matched empty strings.  The
+    Phase 2 dispatch preserves that — Destination's ``project()``
+    explicitly handles ``None`` to keep the contract."""
+    from core.bigip.registry import DestinationSpec, ProjectionContext
+
+    spec = DestinationSpec()
+    assert spec.project(None, ProjectionContext()) == ""

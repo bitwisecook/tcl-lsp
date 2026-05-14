@@ -146,6 +146,18 @@ def _project_field(
         return None
     raw = getattr(obj, spec.attr)
 
+    # Phase 2 of the registry rearchitecture: when this property has
+    # been migrated to a :class:`PropertySpec` in the new shape, run
+    # the projection through the spec's :meth:`ValueSpec.project`
+    # method.  Unmigrated properties keep flowing through the
+    # legacy branches below — the new shape is purely additive
+    # during the migration.  ``DestinationSpec.project`` returns the
+    # canonical string just like the legacy ``typed=True`` branch
+    # does, so observable behaviour stays identical for the pilot.
+    pilot_value = _project_via_pilot_spec(kind, spec.attr, raw, root)
+    if pilot_value is not _PILOT_MISS:
+        return pilot_value
+
     if spec.ref_kind and spec.list_ref:
         # Tuple/list of full-path strings.
         return [PathRef(full_path=p, root=root, expected_kind=spec.ref_kind) for p in raw or ()]
@@ -164,6 +176,41 @@ def _project_field(
     if isinstance(raw, tuple):
         return list(raw)
     return raw
+
+
+# Sentinel returned when the pilot lookup didn't find a migrated
+# spec.  Using a sentinel (rather than ``None``) lets the legacy
+# branches keep ``None`` as a valid projection value for a missing
+# typed field — only the explicit miss falls through to the legacy
+# dispatch.
+_PILOT_MISS = object()
+
+
+def _project_via_pilot_spec(kind: str, attr: str, raw: object, root: Root) -> object:
+    """Look up the migrated :class:`PropertySpec` for one property and run
+    its :meth:`ValueSpec.project` if present; otherwise return the
+    sentinel so the caller falls back to the legacy branches.
+
+    *kind* is the TMSH module+type pair (``"ltm virtual"``); the
+    pilot table is keyed by the tuple split into module and type
+    independently so we mirror the registry's existing index.
+    """
+    if " " not in kind:
+        return _PILOT_MISS
+    module, _, object_type = kind.partition(" ")
+    from ...registry.pilot import pilot_property_spec_for
+    from ...registry.value_specs import ProjectionContext
+
+    spec = pilot_property_spec_for(module, object_type, attr)
+    if spec is None:
+        return _PILOT_MISS
+    if raw is None:
+        # The legacy ``typed=True`` branch returned ``""`` for
+        # ``None`` typed values so falsey-truthiness stayed
+        # consistent with empty strings; keep that here.
+        return ""
+    ctx = ProjectionContext(root_uri=root.uri, owner_kind=kind)
+    return spec.value.project(raw, ctx)
 
 
 def _member_object_ref(member: BigipPoolMember, root: Root) -> ObjectRef:
