@@ -315,7 +315,7 @@ class TestTopologyFromSCF:
             full_path="/Common/test_vs",
             destination=Destination.parse("/Common/10.0.0.100:443"),
             pool="/Common/web_pool",
-            rules=("/Common/test_irule",),
+            rules=BigipList(items=(ListItem(value="/Common/test_irule"),)),
             profiles=BigipList(
                 items=tuple(
                     ListItem(value=ProfileAttachment(path=p), key=p)

@@ -1252,15 +1252,30 @@ def _parse_virtual(
         legacy_factory=_legacy_parse_destination,
     )
     destination_typed = destination_parsed if isinstance(destination_parsed, _Destination) else None
+    from ..types import BigipList as _BigipList
+    from ..types import ListItem as _ListItem
+
+    rules_list = _BigipList(
+        items=tuple(_ListItem(value=r) for r in rules),
+        syntax="braced-space-separated",
+    )
+    policies_list = _BigipList(
+        items=tuple(_ListItem(value=p) for p in policies),
+        syntax="braced-space-separated",
+    )
+    vlans_list = _BigipList(
+        items=tuple(_ListItem(value=v) for v in vlans),
+        syntax="braced-space-separated",
+    )
     return BigipVirtualServer(
         name=name,
         full_path=full_path,
         destination=destination_typed,
         pool=pool,
-        rules=tuple(rules),
+        rules=rules_list,
         profiles=profile_attachments,
         persist=persist_attachments,
-        policies=tuple(policies),
+        policies=policies_list,
         snatpool=snatpool,
         source_address_translation=source_addr_translation,
         description=_description(props),
@@ -1294,7 +1309,7 @@ def _parse_virtual(
         rate_class=props.get("rate-class", ""),
         per_flow_request_access_policy=props.get("per-flow-request-access-policy", ""),
         transparent_nexthop=props.get("transparent-nexthop", ""),
-        vlans=vlans,
+        vlans=vlans_list,
         vlans_disabled="vlans-disabled" in props,
         vlans_enabled="vlans-enabled" in props,
         fallback_persistence=props.get("fallback-persistence", ""),

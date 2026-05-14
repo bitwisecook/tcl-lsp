@@ -206,7 +206,7 @@ class TopologyFromSCF:
         vs = config.virtual_servers[vs_key]
         types: list[str] = []
 
-        for pref in vs.profiles:
+        for pref in vs.profiles.paths:
             resolved = config.resolve_profile(pref)
             if resolved and resolved in config.profiles:
                 profile = config.profiles[resolved]

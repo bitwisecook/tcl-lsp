@@ -251,7 +251,10 @@ class BigipVirtualServer:
     full_path: str
     destination: "Destination | None" = None
     pool: str = ""  # default pool path
-    rules: tuple[str, ...] = ()  # attached iRule paths
+    # Attached iRule paths — :class:`BigipList` of string refs.
+    # Iteration yields the path strings so legacy
+    # ``for r in vs.rules`` reads identically.
+    rules: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     # Profile attachments — :class:`core.bigip.types.BigipList` of
     # :class:`ProfileAttachment` items.  Iteration yields the typed
     # attachment values (with ``.context`` / ``.path`` accessors);
@@ -263,7 +266,8 @@ class BigipVirtualServer:
     # carrying :class:`PersistenceAttachment` items with
     # ``.default`` flags.
     persist: "BigipList" = dc_field(default_factory=_empty_bigip_list)
-    policies: tuple[str, ...] = ()  # ltm policy paths attached to this VS
+    # ltm policy refs attached to this VS.
+    policies: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     snatpool: str = ""
     source_address_translation: str = ""
     description: str = ""
@@ -297,7 +301,7 @@ class BigipVirtualServer:
     rate_class: str = ""
     per_flow_request_access_policy: str = ""  # PathRef → apm policy access-policy
     transparent_nexthop: str = ""  # PathRef → net vlan
-    vlans: tuple[str, ...] = ()  # PathRefs → net vlan
+    vlans: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     vlans_disabled: bool = False  # ``vlans-disabled`` flag was present
     vlans_enabled: bool = False  # ``vlans-enabled`` flag was present
     fallback_persistence: str = ""  # PathRef → ltm persistence
