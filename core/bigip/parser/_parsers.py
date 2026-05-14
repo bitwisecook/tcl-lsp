@@ -1086,11 +1086,21 @@ def _parse_pool(
     profiles_block = props.get("profiles")
     if profiles_block:
         profiles = tuple(_parse_list_block(profiles_block))
+    # Wrap the typed members in a :class:`BigipList` so the model
+    # exposes the same iteration / membership / paths surface as
+    # every other list field.
+    from ..types import BigipList as _BigipList
+    from ..types import ListItem as _ListItem
+
+    members_list = _BigipList(
+        items=tuple(_ListItem(value=m, key=m.name) for m in members),
+        syntax="keyed-block",
+    )
     return BigipPool(
         name=name,
         full_path=full_path,
         module=module,
-        members=tuple(members),
+        members=members_list,
         monitor=monitor,
         load_balancing_mode=lb_mode,
         description=_description(props),
@@ -2399,10 +2409,17 @@ def _parse_snatpool(
     members_block = props.get("members")
     if members_block:
         members = _parse_list_block(members_block)
+    from ..types import BigipList as _BigipList
+    from ..types import ListItem as _ListItem
+
+    members_list = _BigipList(
+        items=tuple(_ListItem(value=m) for m in members),
+        syntax="braced-space-separated",
+    )
     return BigipSnatPool(
         name=name,
         full_path=full_path,
-        members=tuple(members),
+        members=members_list,
         description=_description(props),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )

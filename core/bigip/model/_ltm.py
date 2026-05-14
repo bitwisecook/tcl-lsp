@@ -96,7 +96,14 @@ class BigipPool:
     name: str
     full_path: str
     module: str = "ltm"
-    members: tuple[BigipPoolMember, ...] = ()
+    # Pool members — :class:`BigipList` of :class:`BigipPoolMember`
+    # items.  Iteration yields the typed member values so
+    # ``for m in pool.members: m.address`` reads identically to the
+    # legacy ``tuple[BigipPoolMember, ...]`` shape; the BigipList
+    # carries per-member source ranges that LSP features (rename,
+    # document links, semantic tokens) need for byte-accurate
+    # navigation inside the ``members { … }`` body.
+    members: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     monitor: str = ""
     load_balancing_mode: str = ""
     description: str = ""
@@ -188,7 +195,11 @@ class BigipSnatPool:
 
     name: str
     full_path: str
-    members: tuple[str, ...] = ()
+    # SNAT pool members — :class:`BigipList` of translation-IP
+    # strings.  Iteration yields the strings directly so legacy
+    # ``" ".join(sp.members)`` consumers keep working; ``.paths``
+    # is the back-compat tuple view.
+    members: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     description: str = ""
     range: Range | None = None
 

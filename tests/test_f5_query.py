@@ -3009,7 +3009,10 @@ def test_pem_forwarding_endpoint_pool_pathref_resolves():
 def test_pem_forwarding_endpoint_snat_pool_walks_to_members():
     result = _run(".pem.forwarding-endpoint.fwd1.snat-pool.members", _PEM_CONF)
     [members] = result.values_per_file["mem://1"]
-    assert members == ["10.0.0.99"]
+    # ``snatpool.members`` is now a BigipList; the string-path view
+    # comes from ``.paths`` but plain iteration / membership still
+    # works for back-compat consumers.
+    assert list(members) == ["10.0.0.99"]
 
 
 def test_pem_forwarding_endpoint_scalar_fields():

@@ -327,9 +327,12 @@ class TestTopologyFromSCF:
         config.pools["/Common/web_pool"] = BigipPool(
             name="web_pool",
             full_path="/Common/web_pool",
-            members=(
-                BigipPoolMember(name="/Common/10.0.1.1:80"),
-                BigipPoolMember(name="/Common/10.0.1.2:80"),
+            members=BigipList(
+                items=tuple(
+                    ListItem(value=BigipPoolMember(name=name), key=name)
+                    for name in ("/Common/10.0.1.1:80", "/Common/10.0.1.2:80")
+                ),
+                syntax="keyed-block",
             ),
         )
         config.profiles["/Common/http"] = BigipProfile(
