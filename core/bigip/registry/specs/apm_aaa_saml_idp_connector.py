@@ -18,8 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa saml-idp-connector"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="artifact-resolution-service-addr", value_type="string"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="artifact-resolution-service-addr",
+                value_type="string",
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(name="artifact-resolution-service-port", value_type="integer"),
             BigipPropertySpec(
                 name="artifact-resolution-service-url",
@@ -28,7 +37,12 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="basic-auth-password", value_type="string", allow_none=True),
             BigipPropertySpec(name="basic-auth-username", value_type="string", allow_none=True),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="entity-id", value_type="string"),
             BigipPropertySpec(
                 name="identity-location",
@@ -46,6 +60,7 @@ def register_spec() -> BigipObjectSpec:
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="metadata-cert", value_type="string", allow_none=True),
             BigipPropertySpec(name="name-qualifier", value_type="string", allow_none=True),
@@ -59,6 +74,8 @@ def register_spec() -> BigipObjectSpec:
                 name="sign-artifact-resolution-rq",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="true",
             ),
             BigipPropertySpec(name="single-logout-binding", value_type="unknown"),
             BigipPropertySpec(
@@ -71,17 +88,22 @@ def register_spec() -> BigipObjectSpec:
                 name="sso-binding",
                 value_type="enum",
                 enum_values=("http-post", "http-redirect"),
+                default="http-post",
             ),
             BigipPropertySpec(name="sso-uri", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="want-authn-request-signed",
                 value_type="enum",
+                required=True,
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
             BigipPropertySpec(
                 name="want-detached-signature",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
         ),
     )

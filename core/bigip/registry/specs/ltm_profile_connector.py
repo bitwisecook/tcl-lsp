@@ -23,6 +23,7 @@ def register_spec() -> BigipObjectSpec:
                 name="connect-on-data",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="connection-timeout", value_type="integer"),
             BigipPropertySpec(name="entry-virtual-server", value_type="reference", allow_none=True),

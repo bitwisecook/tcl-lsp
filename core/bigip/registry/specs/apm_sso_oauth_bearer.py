@@ -18,11 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "sso oauth-bearer"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="headers",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                default="none",
             ),
             BigipPropertySpec(name="hname", value_type="unknown", allow_none=True),
             BigipPropertySpec(name="hvalue", value_type="integer", allow_none=True),
@@ -30,7 +36,8 @@ def register_spec() -> BigipObjectSpec:
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="oauth-server", value_type="string"),
+            BigipPropertySpec(name="oauth-server", value_type="string", required=True),
         ),
     )

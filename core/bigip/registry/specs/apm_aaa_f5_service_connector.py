@@ -18,15 +18,21 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa f5-service-connector"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="customer-id", value_type="string"),
-            BigipPropertySpec(name="customer-key", value_type="string"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="customer-id", value_type="string", required=True),
+            BigipPropertySpec(name="customer-key", value_type="string", required=True),
             BigipPropertySpec(
                 name="dns-resolver",
                 value_type="reference",
+                required=True,
                 references=("net_dns_resolver",),
             ),
-            BigipPropertySpec(name="serverssl-profile", value_type="reference"),
-            BigipPropertySpec(name="service-url", value_type="string"),
+            BigipPropertySpec(name="serverssl-profile", value_type="reference", required=True),
+            BigipPropertySpec(name="service-url", value_type="string", required=True),
         ),
     )

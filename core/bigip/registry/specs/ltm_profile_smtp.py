@@ -18,18 +18,26 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile smtp"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_smtp",),
+                default="smtp",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="security",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
         ),
     )

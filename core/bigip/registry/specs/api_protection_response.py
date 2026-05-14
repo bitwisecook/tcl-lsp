@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("api-protection", "response"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="body", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(
@@ -26,12 +31,34 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("headers",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="header-name",
+                        value_type="string",
+                        in_sections=("headers",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="header-value",
+                        value_type="string",
+                        in_sections=("headers",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("headers",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="header-name",
@@ -46,7 +73,7 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
             ),
             BigipPropertySpec(name="options", value_type="unknown"),
-            BigipPropertySpec(name="status-code", value_type="string"),
-            BigipPropertySpec(name="status-string", value_type="string"),
+            BigipPropertySpec(name="status-code", value_type="string", required=True),
+            BigipPropertySpec(name="status-string", value_type="string", required=True),
         ),
     )

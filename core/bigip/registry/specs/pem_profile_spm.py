@@ -24,12 +24,14 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 allow_none=True,
                 references=("pem_profile_spm",),
+                default="spm",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="fast-pem",
                 value_type="enum",
                 enum_values=("disable", "enable"),
+                default="enabled",
             ),
             BigipPropertySpec(name="fast-vs-name", value_type="reference"),
             BigipPropertySpec(

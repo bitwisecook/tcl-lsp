@@ -18,16 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "crypto server"),),
         properties=(
-            BigipPropertySpec(name="addr", value_type="string"),
+            BigipPropertySpec(name="addr", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(
                 name="clients",
                 value_type="list",
+                repeated=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="port", value_type="integer"),
             BigipPropertySpec(
                 name="profiles",
                 value_type="list",
+                repeated=True,
                 references=(
                     "analytics_dns_profile_report",
                     "api_protection_profile_apiprotection",

@@ -18,12 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "resource ipv6-leasepool"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="members",

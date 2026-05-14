@@ -18,14 +18,25 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "resource webtop-link"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="application-uri", value_type="string"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="application-uri", value_type="string", required=True),
             BigipPropertySpec(name="customization-group", value_type="string"),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
         ),
     )

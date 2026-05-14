@@ -19,18 +19,45 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("apm", "aaa saml-idp-automation"),),
         properties=(
             BigipPropertySpec(name="aaa-saml-server", value_type="string"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="connection-properties",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("connection-properties",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="dns-resolver-name",
+                        value_type="string",
+                        in_sections=("connection-properties",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="serverssl-profile-name",
+                        value_type="string",
+                        in_sections=("connection-properties",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("connection-properties",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="dns-resolver-name",
@@ -45,7 +72,7 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
             ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
-            BigipPropertySpec(name="frequency", value_type="integer"),
+            BigipPropertySpec(name="frequency", value_type="integer", default="60"),
             BigipPropertySpec(name="idp-matching-source", value_type="string"),
             BigipPropertySpec(name="idp-obj-name-tag", value_type="string"),
             BigipPropertySpec(name="metadata-matching-tag", value_type="string"),

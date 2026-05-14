@@ -18,20 +18,58 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "lsn-log-profile"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="csv-format",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="end-inbound-session", value_type="unknown"),
+            BigipPropertySpec(
+                name="end-inbound-session",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("end-inbound-session",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
                 in_sections=("end-inbound-session",),
                 enum_values=("backup-allocation-only", "disabled", "enabled"),
             ),
-            BigipPropertySpec(name="end-outbound-session", value_type="unknown"),
+            BigipPropertySpec(
+                name="end-outbound-session",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("end-outbound-session",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="elements",
+                        value_type="list",
+                        in_sections=("end-outbound-session",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                        usage_flags=frozenset(("optional",)),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
@@ -43,34 +81,100 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("end-outbound-session",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="destination",
+                        value_type="unknown",
+                        in_sections=("end-outbound-session", "elements"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="destination",
                 value_type="unknown",
                 in_sections=("end-outbound-session", "elements"),
             ),
-            BigipPropertySpec(name="errors", value_type="list"),
+            BigipPropertySpec(
+                name="errors",
+                value_type="list",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("errors",),
+                        enum_values=("disabled", "enabled"),
+                        shape_kind="boolean",
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
                 in_sections=("errors",),
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="quota-exceeded", value_type="unknown"),
+            BigipPropertySpec(
+                name="quota-exceeded",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("quota-exceeded",),
+                        enum_values=("disabled", "enabled"),
+                        shape_kind="boolean",
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
                 in_sections=("quota-exceeded",),
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="start-inbound-session", value_type="unknown"),
+            BigipPropertySpec(
+                name="start-inbound-session",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("start-inbound-session",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
                 in_sections=("start-inbound-session",),
                 enum_values=("backup-allocation-only", "disabled", "enabled"),
             ),
-            BigipPropertySpec(name="start-outbound-session", value_type="unknown"),
+            BigipPropertySpec(
+                name="start-outbound-session",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("start-outbound-session",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="elements",
+                        value_type="list",
+                        in_sections=("start-outbound-session",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                        usage_flags=frozenset(("optional",)),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
@@ -82,6 +186,14 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("start-outbound-session",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="destination",
+                        value_type="unknown",
+                        in_sections=("start-outbound-session", "elements"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="destination",
@@ -92,6 +204,7 @@ def register_spec() -> BigipObjectSpec:
                 name="subscriber-id",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

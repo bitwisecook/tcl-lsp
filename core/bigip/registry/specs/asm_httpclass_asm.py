@@ -18,8 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("asm", "httpclass-asm"),),
         properties=(
-            BigipPropertySpec(name="active-policy-name", value_type="string"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="active-policy-name",
+                value_type="string",
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="language", value_type="unknown"),
             BigipPropertySpec(name="predefined-policy", value_type="unknown"),
         ),

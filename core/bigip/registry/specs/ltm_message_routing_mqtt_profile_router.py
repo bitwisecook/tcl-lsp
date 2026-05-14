@@ -18,22 +18,34 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing mqtt profile router"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_message_routing_mqtt_profile_router",),
+                default="router",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="max-payload-pending-bytes", value_type="integer"),
-            BigipPropertySpec(name="max-pending-bytes", value_type="integer"),
-            BigipPropertySpec(name="max-pending-messages", value_type="integer"),
-            BigipPropertySpec(name="max-retries", value_type="integer"),
+            BigipPropertySpec(
+                name="max-payload-pending-bytes",
+                value_type="integer",
+                default="32768",
+            ),
+            BigipPropertySpec(name="max-pending-bytes", value_type="integer", default="32768"),
+            BigipPropertySpec(name="max-pending-messages", value_type="integer", default="64"),
+            BigipPropertySpec(name="max-retries", value_type="integer", default="1"),
             BigipPropertySpec(
                 name="per-peer-stats",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="route",
@@ -66,6 +78,7 @@ def register_spec() -> BigipObjectSpec:
                 name="use-local-connection",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

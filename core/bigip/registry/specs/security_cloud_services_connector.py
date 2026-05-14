@@ -30,11 +30,23 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="expiration-time", value_type="unknown"),
             BigipPropertySpec(name="params", value_type="string"),
-            BigipPropertySpec(name="services", value_type="list"),
+            BigipPropertySpec(
+                name="services",
+                value_type="list",
+                block=(
+                    BigipPropertySpec(
+                        name="centralized-device-id",
+                        value_type="unknown",
+                        in_sections=("services",),
+                        shape_kind="object",
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="centralized-device-id",
                 value_type="unknown",
                 in_sections=("services",),
+                shape_kind="object",
             ),
         ),
     )

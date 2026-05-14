@@ -26,12 +26,31 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="destination-host", value_type="string"),
             BigipPropertySpec(name="destination-realm", value_type="string"),
-            BigipPropertySpec(name="fatal-grace-time", value_type="unknown"),
+            BigipPropertySpec(
+                name="fatal-grace-time",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="enabled",
+                        value_type="enum",
+                        in_sections=("fatal-grace-time",),
+                        enum_values=("no", "yes"),
+                        shape_kind="boolean",
+                    ),
+                    BigipPropertySpec(
+                        name="time",
+                        value_type="integer",
+                        in_sections=("fatal-grace-time",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="enabled",
                 value_type="enum",
                 in_sections=("fatal-grace-time",),
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="time", value_type="integer", in_sections=("fatal-grace-time",)),
             BigipPropertySpec(name="gx-session-id-prefix", value_type="string"),

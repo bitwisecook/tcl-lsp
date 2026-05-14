@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "nat"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="arp", value_type="unknown"),
             BigipPropertySpec(
                 name="auto-lasthop",
@@ -26,14 +31,23 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("default", "disabled", "enabled"),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="originating-address", value_type="string"),
+            BigipPropertySpec(
+                name="originating-address",
+                value_type="string",
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(
                 name="traffic-group",
                 value_type="string",
                 allow_none=True,
                 references=("cm_traffic_group",),
             ),
-            BigipPropertySpec(name="translation-address", value_type="string"),
+            BigipPropertySpec(
+                name="translation-address",
+                value_type="string",
+                required=True,
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(
                 name="vlans",
                 value_type="list",

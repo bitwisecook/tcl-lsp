@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent aaa-oauth"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="auth-redirect-request", value_type="reference"),
             BigipPropertySpec(
                 name="grant-type",

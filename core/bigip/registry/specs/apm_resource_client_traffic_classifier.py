@@ -18,17 +18,82 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "resource client-traffic-classifier"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="entries",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="client-rate-class",
+                        value_type="string",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="dst-ip",
+                        value_type="string",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        shape_kind="ip-address",
+                    ),
+                    BigipPropertySpec(
+                        name="dst-mask",
+                        value_type="integer",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="dst-port",
+                        value_type="integer",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="protocol",
+                        value_type="integer",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="src-ip",
+                        value_type="string",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        shape_kind="ip-address",
+                    ),
+                    BigipPropertySpec(
+                        name="src-mask",
+                        value_type="integer",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="src-port",
+                        value_type="integer",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("entries",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="client-rate-class",
@@ -41,6 +106,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="string",
                 in_sections=("entries",),
                 allow_none=True,
+                shape_kind="ip-address",
             ),
             BigipPropertySpec(
                 name="dst-mask",
@@ -65,6 +131,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="string",
                 in_sections=("entries",),
                 allow_none=True,
+                shape_kind="ip-address",
             ),
             BigipPropertySpec(
                 name="src-mask",
@@ -82,6 +149,7 @@ def register_spec() -> BigipObjectSpec:
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
         ),
     )

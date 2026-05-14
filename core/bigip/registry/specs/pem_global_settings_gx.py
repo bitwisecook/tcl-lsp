@@ -22,11 +22,13 @@ def register_spec() -> BigipObjectSpec:
                 name="gx-immediate-reporting",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="gx-usage-record-merge",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent oauth-authz"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="audience",
                 value_type="list",
@@ -31,12 +36,56 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="expression",
+                        value_type="string",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="id-token-claim-entries",
+                        value_type="list",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                    BigipPropertySpec(
+                        name="jwt-access-token-claim-entries",
+                        value_type="list",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                    BigipPropertySpec(
+                        name="scope-entries",
+                        value_type="list",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                    BigipPropertySpec(
+                        name="userinfo-claim-entries",
+                        value_type="list",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("entries",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="expression",
@@ -50,12 +99,33 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("entries",),
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("entries", "id-token-claim-entries"),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="claim-name",
+                        value_type="unknown",
+                        in_sections=("entries", "id-token-claim-entries"),
+                    ),
+                    BigipPropertySpec(
+                        name="claim-value",
+                        value_type="string",
+                        in_sections=("entries", "id-token-claim-entries"),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("entries", "id-token-claim-entries"),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="claim-name",
@@ -74,12 +144,33 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("entries",),
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("entries", "jwt-access-token-claim-entries"),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="claim-name",
+                        value_type="unknown",
+                        in_sections=("entries", "jwt-access-token-claim-entries"),
+                    ),
+                    BigipPropertySpec(
+                        name="claim-value",
+                        value_type="string",
+                        in_sections=("entries", "jwt-access-token-claim-entries"),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("entries", "jwt-access-token-claim-entries"),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="claim-name",
@@ -98,12 +189,33 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("entries",),
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("entries", "scope-entries"),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="scope-name",
+                        value_type="unknown",
+                        in_sections=("entries", "scope-entries"),
+                    ),
+                    BigipPropertySpec(
+                        name="scope-value",
+                        value_type="string",
+                        in_sections=("entries", "scope-entries"),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("entries", "scope-entries"),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="scope-name",
@@ -122,12 +234,33 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("entries",),
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("entries", "userinfo-claim-entries"),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="claim-name",
+                        value_type="unknown",
+                        in_sections=("entries", "userinfo-claim-entries"),
+                    ),
+                    BigipPropertySpec(
+                        name="claim-value",
+                        value_type="string",
+                        in_sections=("entries", "userinfo-claim-entries"),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("entries", "userinfo-claim-entries"),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="claim-name",
@@ -145,6 +278,7 @@ def register_spec() -> BigipObjectSpec:
                 name="prompt-for-authorization",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="subject", value_type="string", allow_none=True),
         ),

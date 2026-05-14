@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile request-log"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
@@ -30,26 +35,31 @@ def register_spec() -> BigipObjectSpec:
                 name="log-request-logging-errors",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="log-response-by-default",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="log-response-logging-error",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="proxy-close-on-error",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="proxy-respond-on-logging-error",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="proxy-response", value_type="string"),
             BigipPropertySpec(
@@ -114,6 +124,7 @@ def register_spec() -> BigipObjectSpec:
                 name="request-logging",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="response-log-error-pool",
@@ -177,6 +188,7 @@ def register_spec() -> BigipObjectSpec:
                 name="response-logging",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

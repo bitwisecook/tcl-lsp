@@ -37,6 +37,37 @@ def register_spec() -> BigipObjectSpec:
                     "sys_file_rewrite_rule",
                 ),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("rules",),
+                        enum_values=("accept", "drop"),
+                    ),
+                    BigipPropertySpec(
+                        name="description", value_type="string", in_sections=("rules",)
+                    ),
+                    BigipPropertySpec(
+                        name="ipv6-extension-headers",
+                        value_type="list",
+                        in_sections=("rules",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                    ),
+                    BigipPropertySpec(
+                        name="log",
+                        value_type="enum",
+                        in_sections=("rules",),
+                        enum_values=("no", "yes"),
+                        shape_kind="boolean",
+                    ),
+                    BigipPropertySpec(
+                        name="status",
+                        value_type="enum",
+                        in_sections=("rules",),
+                        enum_values=("disabled", "enabled"),
+                        shape_kind="boolean",
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="action",
@@ -50,11 +81,21 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("rules",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="values",
+                        value_type="list",
+                        in_sections=("rules", "ipv6-extension-headers"),
+                        required=True,
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="values",
                 value_type="list",
                 in_sections=("rules", "ipv6-extension-headers"),
+                required=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
@@ -62,12 +103,14 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 in_sections=("rules",),
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="status",
                 value_type="enum",
                 in_sections=("rules",),
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

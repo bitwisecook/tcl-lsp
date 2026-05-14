@@ -19,11 +19,17 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("apm", "sso basic"),),
         properties=(
             BigipPropertySpec(name="apm-log-config", value_type="string", allow_none=True),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="headers",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                default="none",
             ),
             BigipPropertySpec(name="hname", value_type="unknown", allow_none=True),
             BigipPropertySpec(name="hvalue", value_type="integer", allow_none=True),
@@ -31,6 +37,7 @@ def register_spec() -> BigipObjectSpec:
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="password-source",
@@ -42,6 +49,8 @@ def register_spec() -> BigipObjectSpec:
                 name="username-conversion",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(name="username-source", value_type="unknown", allow_none=True),
         ),

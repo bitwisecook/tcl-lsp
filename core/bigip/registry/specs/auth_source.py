@@ -18,7 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("auth", "source"),),
         properties=(
-            BigipPropertySpec(name="fallback", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(
+                name="fallback",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
+            ),
             BigipPropertySpec(
                 name="type",
                 value_type="enum",
@@ -31,6 +37,7 @@ def register_spec() -> BigipObjectSpec:
                     "radius",
                     "tacacs",
                 ),
+                default="local",
             ),
         ),
     )

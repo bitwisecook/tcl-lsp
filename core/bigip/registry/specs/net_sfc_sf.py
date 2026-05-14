@@ -22,11 +22,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="egress-interface", value_type="string", allow_none=True),
             BigipPropertySpec(name="ingress-interface", value_type="string", allow_none=True),
-            BigipPropertySpec(name="ip-address", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="ip-address",
+                value_type="string",
+                allow_none=True,
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(
                 name="nsh-aware",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="pool-name",

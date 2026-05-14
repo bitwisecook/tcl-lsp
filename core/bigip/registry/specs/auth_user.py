@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("auth", "user"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="unknown"),
+            BigipPropertySpec(name="description", value_type="unknown", repeated=True),
             BigipPropertySpec(
                 name="partition-access",
                 value_type="list",

@@ -23,7 +23,12 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("hmacmd5", "hmacsha1", "hmacsha256"),
             ),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="secret", value_type="string"),
         ),

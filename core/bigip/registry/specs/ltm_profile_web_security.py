@@ -23,6 +23,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_web_security",),
+                default="none",
             ),
         ),
     )

@@ -22,10 +22,21 @@ def register_spec() -> BigipObjectSpec:
                 name="download-now",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="end-time", value_type="unknown"),
             BigipPropertySpec(name="start-time", value_type="unknown"),
-            BigipPropertySpec(name="status", value_type="enum", enum_values=("false", "true")),
-            BigipPropertySpec(name="use-proxy", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(
+                name="status",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="use-proxy",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
         ),
     )

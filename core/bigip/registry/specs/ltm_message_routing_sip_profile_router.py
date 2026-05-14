@@ -18,13 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing sip profile router"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="concurrent-sessions-per-subscriber", value_type="integer"),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_message_routing_sip_profile_router",),
+                default="router",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="dialog-establishment-timeout", value_type="integer"),
@@ -32,6 +38,8 @@ def register_spec() -> BigipObjectSpec:
                 name="inherited-traffic-group",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                usage_flags=frozenset(("read_only",)),
             ),
             BigipPropertySpec(
                 name="log-profile",
@@ -46,10 +54,26 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("none",),
             ),
             BigipPropertySpec(name="max-global-registrations", value_type="integer"),
-            BigipPropertySpec(name="max-pending-bytes", value_type="integer"),
-            BigipPropertySpec(name="max-pending-messages", value_type="integer"),
-            BigipPropertySpec(name="max-retries", value_type="integer"),
-            BigipPropertySpec(name="media-proxy", value_type="unknown"),
+            BigipPropertySpec(name="max-pending-bytes", value_type="integer", default="32768"),
+            BigipPropertySpec(name="max-pending-messages", value_type="integer", default="64"),
+            BigipPropertySpec(name="max-retries", value_type="integer", default="1"),
+            BigipPropertySpec(
+                name="media-proxy",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="max-media-sessions",
+                        value_type="integer",
+                        in_sections=("media-proxy",),
+                    ),
+                    BigipPropertySpec(
+                        name="media-inactivity-timeout",
+                        value_type="integer",
+                        in_sections=("media-proxy",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="max-media-sessions",
                 value_type="integer",
@@ -64,16 +88,21 @@ def register_spec() -> BigipObjectSpec:
                 name="mirror",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="nonregistered-subscriber-callout",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
                 name="nonregistered-subscriber-listener",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
                 name="operation-mode",
@@ -84,6 +113,8 @@ def register_spec() -> BigipObjectSpec:
                 name="per-peer-stats",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(name="registration-timeout", value_type="integer"),
             BigipPropertySpec(
@@ -92,7 +123,23 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="session", value_type="unknown"),
+            BigipPropertySpec(
+                name="session",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="max-session-timeout",
+                        value_type="integer",
+                        in_sections=("session",),
+                    ),
+                    BigipPropertySpec(
+                        name="transaction-timeout",
+                        value_type="integer",
+                        in_sections=("session",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="max-session-timeout",
                 value_type="integer",
@@ -113,6 +160,7 @@ def register_spec() -> BigipObjectSpec:
                 name="use-local-connection",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

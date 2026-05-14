@@ -18,10 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "log-config destination management-port"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="ip-address", value_type="unknown"),
             BigipPropertySpec(name="port", value_type="unknown"),
-            BigipPropertySpec(name="protocol", value_type="enum", enum_values=("tcp", "udp")),
+            BigipPropertySpec(
+                name="protocol",
+                value_type="enum",
+                enum_values=("tcp", "udp"),
+                default="tcp",
+            ),
         ),
     )

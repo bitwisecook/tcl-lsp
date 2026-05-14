@@ -25,6 +25,14 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 references=("ltm_rule", "ltm_rule_profiler"),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="ordinal",
+                        value_type="list",
+                        in_sections=("rules",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="ordinal",

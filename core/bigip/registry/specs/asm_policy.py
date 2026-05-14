@@ -18,19 +18,35 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("asm", "policy"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="blocking-mode",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(name="encoding", value_type="reference", allow_none=True),
-            BigipPropertySpec(name="parent-policy", value_type="reference"),
+            BigipPropertySpec(
+                name="parent-policy",
+                value_type="reference",
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(
                 name="policy-builder",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="policy-template", value_type="reference"),
             BigipPropertySpec(

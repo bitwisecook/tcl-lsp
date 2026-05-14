@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("pem", "protocol radius-avp"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="data-type",
                 value_type="integer",
@@ -31,10 +36,11 @@ def register_spec() -> BigipObjectSpec:
                     "octet",
                     "time",
                 ),
+                default="string",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="max-length", value_type="integer"),
-            BigipPropertySpec(name="min-length", value_type="integer"),
+            BigipPropertySpec(name="max-length", value_type="integer", default="253"),
+            BigipPropertySpec(name="min-length", value_type="integer", default="1"),
             BigipPropertySpec(name="type", value_type="integer"),
             BigipPropertySpec(name="vendor-id", value_type="integer"),
             BigipPropertySpec(name="vendor-type", value_type="integer"),

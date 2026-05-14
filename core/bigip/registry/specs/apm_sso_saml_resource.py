@@ -18,18 +18,31 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "sso saml-resource"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="customization-group", value_type="string", allow_none=True),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="publish-on-webtop",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="true",
             ),
             BigipPropertySpec(name="sso-config-saml", value_type="string", allow_none=True),
         ),

@@ -22,11 +22,13 @@ def register_spec() -> BigipObjectSpec:
                 name="avr-collect-data",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="avr-sampling",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
         ),
     )

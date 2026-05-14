@@ -18,23 +18,57 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent http-header-modify"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="cookie-entries",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("cookie-entries",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="cookie-name",
+                        value_type="string",
+                        in_sections=("cookie-entries",),
+                        required=True,
+                    ),
+                    BigipPropertySpec(
+                        name="cookie-operation",
+                        value_type="enum",
+                        in_sections=("cookie-entries",),
+                        enum_values=("cookie-delete", "cookie-update"),
+                    ),
+                    BigipPropertySpec(
+                        name="cookie-value",
+                        value_type="string",
+                        in_sections=("cookie-entries",),
+                        required=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("cookie-entries",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="cookie-name",
                 value_type="string",
                 in_sections=("cookie-entries",),
+                required=True,
             ),
             BigipPropertySpec(
                 name="cookie-operation",
@@ -46,18 +80,57 @@ def register_spec() -> BigipObjectSpec:
                 name="cookie-value",
                 value_type="string",
                 in_sections=("cookie-entries",),
+                required=True,
             ),
             BigipPropertySpec(
                 name="header-entries",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("header-entries",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="header-delimiter",
+                        value_type="string",
+                        in_sections=("header-entries",),
+                    ),
+                    BigipPropertySpec(
+                        name="header-name",
+                        value_type="string",
+                        in_sections=("header-entries",),
+                        required=True,
+                    ),
+                    BigipPropertySpec(
+                        name="header-operation",
+                        value_type="enum",
+                        in_sections=("header-entries",),
+                        enum_values=(
+                            "header-append",
+                            "header-insert",
+                            "header-remove",
+                            "header-replace",
+                        ),
+                    ),
+                    BigipPropertySpec(
+                        name="header-value",
+                        value_type="string",
+                        in_sections=("header-entries",),
+                        required=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("header-entries",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="header-delimiter",
@@ -68,6 +141,7 @@ def register_spec() -> BigipObjectSpec:
                 name="header-name",
                 value_type="string",
                 in_sections=("header-entries",),
+                required=True,
             ),
             BigipPropertySpec(
                 name="header-operation",
@@ -79,6 +153,7 @@ def register_spec() -> BigipObjectSpec:
                 name="header-value",
                 value_type="string",
                 in_sections=("header-entries",),
+                required=True,
             ),
         ),
     )

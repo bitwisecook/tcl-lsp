@@ -19,14 +19,25 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "ipsec traffic-selector"),),
         properties=(
             BigipPropertySpec(name="action", value_type="unknown"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="destination-address", value_type="string"),
+            BigipPropertySpec(
+                name="destination-address",
+                value_type="string",
+                required=True,
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(name="destination-port", value_type="unknown"),
             BigipPropertySpec(
                 name="direction",
                 value_type="enum",
                 enum_values=("both", "in", "out"),
+                default="both",
             ),
             BigipPropertySpec(name="ip-protocol", value_type="unknown"),
             BigipPropertySpec(
@@ -35,7 +46,12 @@ def register_spec() -> BigipObjectSpec:
                 references=("net_ipsec_ipsec_policy",),
             ),
             BigipPropertySpec(name="order", value_type="integer"),
-            BigipPropertySpec(name="source-address", value_type="string"),
+            BigipPropertySpec(
+                name="source-address",
+                value_type="string",
+                required=True,
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(name="source-port", value_type="unknown"),
         ),
     )

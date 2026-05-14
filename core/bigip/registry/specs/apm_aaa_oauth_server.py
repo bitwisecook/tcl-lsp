@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa oauth-server"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="client-id", value_type="string"),
             BigipPropertySpec(name="client-jwe-key", value_type="reference"),
             BigipPropertySpec(name="client-secret", value_type="string", allow_none=True),

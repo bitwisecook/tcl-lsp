@@ -18,15 +18,36 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa kerberos"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="auth-realm", value_type="string", allow_none=True),
-            BigipPropertySpec(name="keytab-file-obj", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="auth-realm",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
+            BigipPropertySpec(
+                name="keytab-file-obj",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="options", value_type="unknown"),
-            BigipPropertySpec(name="service-name", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="service-name",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
         ),
     )

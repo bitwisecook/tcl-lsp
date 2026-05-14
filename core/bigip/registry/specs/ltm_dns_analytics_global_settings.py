@@ -22,11 +22,15 @@ def register_spec() -> BigipObjectSpec:
                 name="collect-client-ip",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
                 name="collect-query-name",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
         ),
     )

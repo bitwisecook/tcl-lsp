@@ -18,8 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent aaa-http"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="max-logon-attempt", value_type="integer"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="max-logon-attempt", value_type="integer", default="3"),
             BigipPropertySpec(name="options", value_type="unknown"),
             BigipPropertySpec(name="server", value_type="string", allow_none=True),
         ),

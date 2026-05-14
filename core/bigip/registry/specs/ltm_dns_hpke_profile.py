@@ -18,12 +18,25 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "dns hpke profile"),),
         properties=(
-            BigipPropertySpec(name="aead", value_type="string"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="aead", value_type="string", default="AES-128-GCM"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="expiration-period", value_type="integer"),
-            BigipPropertySpec(name="kdf", value_type="string"),
-            BigipPropertySpec(name="kem", value_type="string"),
-            BigipPropertySpec(name="rollover-period", value_type="integer"),
+            BigipPropertySpec(
+                name="expiration-period",
+                value_type="integer",
+                default="0 (zero), which indicates unset, and thus the hpke key does not expire",
+            ),
+            BigipPropertySpec(name="kdf", value_type="string", default="HKDF-SHA256"),
+            BigipPropertySpec(name="kem", value_type="string", default="X25519"),
+            BigipPropertySpec(
+                name="rollover-period",
+                value_type="integer",
+                default="0 (zero), which indicates unset, and thus the hpke key does not roll over",
+            ),
         ),
     )

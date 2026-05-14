@@ -28,6 +28,7 @@ def register_spec() -> BigipObjectSpec:
                 name="single-rule-match-mode",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

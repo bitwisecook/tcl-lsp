@@ -18,25 +18,70 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "ha-group"),),
         properties=(
-            BigipPropertySpec(name="active-bonus", value_type="integer"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="active-bonus", value_type="integer", default="10 (ten)"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="clusters",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("clusters",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="attribute",
+                        value_type="unknown",
+                        in_sections=("clusters",),
+                    ),
+                    BigipPropertySpec(
+                        name="minimum-threshold",
+                        value_type="integer",
+                        in_sections=("clusters",),
+                        default="0 (zero), which indicates this option is disabled",
+                    ),
+                    BigipPropertySpec(
+                        name="sufficient",
+                        value_type="enum",
+                        in_sections=("clusters",),
+                        enum_values=("all",),
+                    ),
+                    BigipPropertySpec(
+                        name="threshold",
+                        value_type="integer",
+                        in_sections=("clusters",),
+                        usage_flags=frozenset(("deprecated",)),
+                    ),
+                    BigipPropertySpec(
+                        name="weight",
+                        value_type="integer",
+                        in_sections=("clusters",),
+                        default="10",
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("clusters",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(name="attribute", value_type="unknown", in_sections=("clusters",)),
             BigipPropertySpec(
                 name="minimum-threshold",
                 value_type="integer",
                 in_sections=("clusters",),
+                default="0 (zero), which indicates this option is disabled",
             ),
             BigipPropertySpec(
                 name="sufficient",
@@ -44,50 +89,150 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("clusters",),
                 enum_values=("all",),
             ),
-            BigipPropertySpec(name="threshold", value_type="integer", in_sections=("clusters",)),
-            BigipPropertySpec(name="weight", value_type="integer", in_sections=("clusters",)),
+            BigipPropertySpec(
+                name="threshold",
+                value_type="integer",
+                in_sections=("clusters",),
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(
+                name="weight",
+                value_type="integer",
+                in_sections=("clusters",),
+                default="10",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="pools",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("pools",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="attribute", value_type="unknown", in_sections=("pools",)
+                    ),
+                    BigipPropertySpec(
+                        name="minimum-threshold",
+                        value_type="integer",
+                        in_sections=("pools",),
+                        default="0 (zero), which indicates this option is disabled",
+                    ),
+                    BigipPropertySpec(
+                        name="sufficient", value_type="integer", in_sections=("pools",)
+                    ),
+                    BigipPropertySpec(
+                        name="threshold",
+                        value_type="integer",
+                        in_sections=("pools",),
+                        usage_flags=frozenset(("deprecated",)),
+                    ),
+                    BigipPropertySpec(
+                        name="weight",
+                        value_type="integer",
+                        in_sections=("pools",),
+                        default="10",
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("pools",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(name="attribute", value_type="unknown", in_sections=("pools",)),
             BigipPropertySpec(
                 name="minimum-threshold",
                 value_type="integer",
                 in_sections=("pools",),
+                default="0 (zero), which indicates this option is disabled",
             ),
             BigipPropertySpec(name="sufficient", value_type="integer", in_sections=("pools",)),
-            BigipPropertySpec(name="threshold", value_type="integer", in_sections=("pools",)),
-            BigipPropertySpec(name="weight", value_type="integer", in_sections=("pools",)),
+            BigipPropertySpec(
+                name="threshold",
+                value_type="integer",
+                in_sections=("pools",),
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(
+                name="weight",
+                value_type="integer",
+                in_sections=("pools",),
+                default="10",
+            ),
             BigipPropertySpec(
                 name="trunks",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("trunks",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="attribute", value_type="unknown", in_sections=("trunks",)
+                    ),
+                    BigipPropertySpec(
+                        name="minimum-threshold",
+                        value_type="integer",
+                        in_sections=("trunks",),
+                        default="0 (zero), which indicates this option is disabled",
+                    ),
+                    BigipPropertySpec(
+                        name="sufficient", value_type="integer", in_sections=("trunks",)
+                    ),
+                    BigipPropertySpec(
+                        name="threshold",
+                        value_type="integer",
+                        in_sections=("trunks",),
+                        usage_flags=frozenset(("deprecated",)),
+                    ),
+                    BigipPropertySpec(
+                        name="weight",
+                        value_type="integer",
+                        in_sections=("trunks",),
+                        default="10",
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("trunks",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(name="attribute", value_type="unknown", in_sections=("trunks",)),
             BigipPropertySpec(
                 name="minimum-threshold",
                 value_type="integer",
                 in_sections=("trunks",),
+                default="0 (zero), which indicates this option is disabled",
             ),
             BigipPropertySpec(name="sufficient", value_type="integer", in_sections=("trunks",)),
-            BigipPropertySpec(name="threshold", value_type="integer", in_sections=("trunks",)),
-            BigipPropertySpec(name="weight", value_type="integer", in_sections=("trunks",)),
+            BigipPropertySpec(
+                name="threshold",
+                value_type="integer",
+                in_sections=("trunks",),
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(
+                name="weight",
+                value_type="integer",
+                in_sections=("trunks",),
+                default="10",
+            ),
         ),
     )

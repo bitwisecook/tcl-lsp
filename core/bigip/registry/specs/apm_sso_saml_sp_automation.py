@@ -18,15 +18,27 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "sso saml-sp-automation"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="dns-resolver-name", value_type="string"),
-            BigipPropertySpec(name="frequency", value_type="integer"),
+            BigipPropertySpec(name="frequency", value_type="integer", default="60"),
             BigipPropertySpec(
                 name="metadata-urls",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="url-value",
+                        value_type="string",
+                        in_sections=("metadata-urls",),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="url-value",

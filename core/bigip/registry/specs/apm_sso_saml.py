@@ -19,7 +19,12 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("apm", "sso saml"),),
         properties=(
             BigipPropertySpec(name="apm-log-config", value_type="string", allow_none=True),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="artifact-resolution-service-name",
                 value_type="reference",
@@ -27,19 +32,36 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("none",),
             ),
             BigipPropertySpec(name="assertion-validity", value_type="integer"),
-            BigipPropertySpec(name="attributes", value_type="list", allow_none=True),
+            BigipPropertySpec(
+                name="attributes",
+                value_type="list",
+                allow_none=True,
+                usage_flags=frozenset(("deprecated", "optional")),
+            ),
             BigipPropertySpec(
                 name="auth-context-method",
                 value_type="enum",
                 allow_none=True,
                 enum_values=("none",),
             ),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
-            BigipPropertySpec(name="encrypt", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="encrypt",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="encrypt-subject",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
             BigipPropertySpec(
                 name="encryption-type",
@@ -50,8 +72,9 @@ def register_spec() -> BigipObjectSpec:
                 name="encryption-type-subject",
                 value_type="enum",
                 enum_values=("aes128", "aes192", "aes256"),
+                default="aes128",
             ),
-            BigipPropertySpec(name="entity-id", value_type="string"),
+            BigipPropertySpec(name="entity-id", value_type="string", required=True),
             BigipPropertySpec(
                 name="export-metadata",
                 value_type="enum",
@@ -72,10 +95,16 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="idp-host",
                 value_type="enum",
+                required=True,
                 allow_none=True,
                 enum_values=("none",),
             ),
-            BigipPropertySpec(name="idp-scheme", value_type="enum", enum_values=("http", "https")),
+            BigipPropertySpec(
+                name="idp-scheme",
+                value_type="enum",
+                enum_values=("http", "https"),
+                default="https",
+            ),
             BigipPropertySpec(
                 name="idp-signkey",
                 value_type="enum",
@@ -97,11 +126,13 @@ def register_spec() -> BigipObjectSpec:
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="log-level",
                 value_type="enum",
                 enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+                usage_flags=frozenset(("deprecated",)),
             ),
             BigipPropertySpec(name="metadata-cert", value_type="string", allow_none=True),
             BigipPropertySpec(name="metadata-file", value_type="string", allow_none=True),
@@ -118,6 +149,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                default="web-browser-sso",
             ),
             BigipPropertySpec(
                 name="sp-connectors",

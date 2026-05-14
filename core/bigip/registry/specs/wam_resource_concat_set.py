@@ -18,8 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("wam", "resource concat-set"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="members", value_type="unknown"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="members", value_type="unknown", repeated=True),
             BigipPropertySpec(name="type", value_type="enum", enum_values=("css", "js")),
             BigipPropertySpec(name="url", value_type="unknown"),
         ),

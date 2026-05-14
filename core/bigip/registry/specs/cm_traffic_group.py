@@ -18,22 +18,38 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("cm", "traffic-group"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="auto-failback-enabled",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="auto-failback-time", value_type="integer"),
+            BigipPropertySpec(name="auto-failback-time", value_type="integer", required=True),
             BigipPropertySpec(name="description", value_type="unknown"),
             BigipPropertySpec(
                 name="failover-method",
                 value_type="enum",
                 enum_values=("ha-order", "ha-score"),
             ),
-            BigipPropertySpec(name="ha-group", value_type="string", references=("cm_ha_group",)),
+            BigipPropertySpec(
+                name="ha-group",
+                value_type="string",
+                references=("cm_ha_group",),
+                usage_flags=frozenset(("deprecated", "not_synced")),
+            ),
             BigipPropertySpec(name="ha-load-factor", value_type="integer"),
-            BigipPropertySpec(name="ha-order", value_type="unknown", references=("cm_device",)),
+            BigipPropertySpec(
+                name="ha-order",
+                value_type="unknown",
+                repeated=True,
+                references=("cm_device",),
+            ),
             BigipPropertySpec(name="mac", value_type="unknown"),
             BigipPropertySpec(
                 name="monitor",
@@ -117,6 +133,7 @@ def register_spec() -> BigipObjectSpec:
                     "sys_file_external_monitor",
                     "util_test_monitor",
                 ),
+                shape_kind="object",
             ),
         ),
     )

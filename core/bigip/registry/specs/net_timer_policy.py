@@ -37,6 +37,30 @@ def register_spec() -> BigipObjectSpec:
                     "sys_file_rewrite_rule",
                 ),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="description", value_type="string", in_sections=("rules",)
+                    ),
+                    BigipPropertySpec(
+                        name="destination-ports",
+                        value_type="list",
+                        in_sections=("rules",),
+                        allow_none=True,
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                    ),
+                    BigipPropertySpec(
+                        name="ip-protocol",
+                        value_type="reference",
+                        in_sections=("rules",),
+                    ),
+                    BigipPropertySpec(
+                        name="timers",
+                        value_type="list",
+                        in_sections=("rules",),
+                        allow_none=True,
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(name="description", value_type="string", in_sections=("rules",)),
             BigipPropertySpec(
@@ -53,6 +77,13 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("rules",),
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="value",
+                        value_type="unknown",
+                        in_sections=("rules", "timers"),
+                    ),
+                ),
             ),
             BigipPropertySpec(name="value", value_type="unknown", in_sections=("rules", "timers")),
         ),

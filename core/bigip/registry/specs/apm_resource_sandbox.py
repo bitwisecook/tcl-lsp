@@ -24,12 +24,30 @@ def register_spec() -> BigipObjectSpec:
                 name="files",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="content-type", value_type="string", in_sections=("files",)
+                    ),
+                    BigipPropertySpec(
+                        name="file-type",
+                        value_type="enum",
+                        in_sections=("files",),
+                        required=True,
+                        enum_values=("citrix-bundle", "customization", "unknown"),
+                    ),
+                    BigipPropertySpec(name="filename", value_type="string", in_sections=("files",)),
+                    BigipPropertySpec(name="folder", value_type="string", in_sections=("files",)),
+                    BigipPropertySpec(
+                        name="local-path", value_type="string", in_sections=("files",)
+                    ),
+                ),
             ),
             BigipPropertySpec(name="content-type", value_type="string", in_sections=("files",)),
             BigipPropertySpec(
                 name="file-type",
                 value_type="enum",
                 in_sections=("files",),
+                required=True,
                 enum_values=("citrix-bundle", "customization", "unknown"),
             ),
             BigipPropertySpec(name="filename", value_type="string", in_sections=("files",)),

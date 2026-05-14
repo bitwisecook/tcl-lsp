@@ -21,7 +21,17 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="dynamic", value_type="unknown"),
-            BigipPropertySpec(name="priority-classes", value_type="list"),
+            BigipPropertySpec(
+                name="priority-classes",
+                value_type="list",
+                block=(
+                    BigipPropertySpec(
+                        name="weight-percentage",
+                        value_type="integer",
+                        in_sections=("priority-classes",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="weight-percentage",
                 value_type="integer",

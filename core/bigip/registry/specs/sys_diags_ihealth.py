@@ -18,7 +18,11 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "diags ihealth"),),
         properties=(
-            BigipPropertySpec(name="expiration", value_type="unknown"),
+            BigipPropertySpec(
+                name="expiration",
+                value_type="unknown",
+                default="30, and the maximum is 365",
+            ),
             BigipPropertySpec(name="no-ihealth", value_type="unknown"),
             BigipPropertySpec(name="options", value_type="unknown"),
             BigipPropertySpec(name="password", value_type="unknown"),

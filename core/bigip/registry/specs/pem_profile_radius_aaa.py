@@ -24,6 +24,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 allow_none=True,
                 references=("pem_profile_radius_aaa",),
+                default="radiusaaa",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="password", value_type="string"),

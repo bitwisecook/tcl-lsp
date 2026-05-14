@@ -18,13 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "folder"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="device-group", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="no-ref-check",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="traffic-group",

@@ -22,6 +22,139 @@ def register_spec() -> BigipObjectSpec:
                 name="address-family",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="activate",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="aggregate-address",
+                        value_type="reference",
+                        in_sections=("address-family",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                        shape_kind="list",
+                    ),
+                    BigipPropertySpec(
+                        name="allow-as-in",
+                        value_type="boolean",
+                        in_sections=("address-family",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="as-override",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="attribute-unchanged",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="auto-summary",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="capability",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="default-originate",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="distance",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="distribute-list",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="filter-list",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="maximum-prefix",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="network-synchronization",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="next-hop-self",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="prefix-list",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="remove-private-as",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="route-map",
+                        value_type="string",
+                        in_sections=("address-family",),
+                    ),
+                    BigipPropertySpec(
+                        name="route-reflector-client",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="route-server-client",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="send-community",
+                        value_type="boolean",
+                        in_sections=("address-family",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="soft-reconfiguration-inbound",
+                        value_type="enum",
+                        in_sections=("address-family",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="unsuppress-map",
+                        value_type="boolean",
+                        in_sections=("address-family",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="weight",
+                        value_type="boolean",
+                        in_sections=("address-family",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="activate",
@@ -34,6 +167,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 in_sections=("address-family",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
             ),
             BigipPropertySpec(
                 name="allow-as-in",
@@ -192,7 +326,43 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("attribute-unchanged",),
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="bestpath", value_type="string"),
+            BigipPropertySpec(
+                name="bestpath",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="as-path-ignore",
+                        value_type="enum",
+                        in_sections=("bestpath",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="compare-confed-aspath",
+                        value_type="enum",
+                        in_sections=("bestpath",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="compare-originator-id",
+                        value_type="enum",
+                        in_sections=("bestpath",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="compare-routerid",
+                        value_type="enum",
+                        in_sections=("bestpath",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(name="med", value_type="string", in_sections=("bestpath",)),
+                    BigipPropertySpec(
+                        name="tie-break-on-age",
+                        value_type="enum",
+                        in_sections=("bestpath",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="as-path-ignore",
                 value_type="enum",
@@ -267,7 +437,23 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(name="cluster-id", value_type="integer"),
-            BigipPropertySpec(name="confederation", value_type="string"),
+            BigipPropertySpec(
+                name="confederation",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="identifier",
+                        value_type="integer",
+                        in_sections=("confederation",),
+                    ),
+                    BigipPropertySpec(
+                        name="peers",
+                        value_type="boolean",
+                        in_sections=("confederation",),
+                        allow_none=True,
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="identifier",
                 value_type="integer",
@@ -279,7 +465,47 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("confederation",),
                 allow_none=True,
             ),
-            BigipPropertySpec(name="dampening", value_type="string"),
+            BigipPropertySpec(
+                name="dampening",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="reachability-half-life",
+                        value_type="integer",
+                        in_sections=("dampening",),
+                    ),
+                    BigipPropertySpec(
+                        name="reuse", value_type="integer", in_sections=("dampening",)
+                    ),
+                    BigipPropertySpec(
+                        name="route-map",
+                        value_type="boolean",
+                        in_sections=("dampening",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="state",
+                        value_type="enum",
+                        in_sections=("dampening",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="suppress",
+                        value_type="integer",
+                        in_sections=("dampening",),
+                    ),
+                    BigipPropertySpec(
+                        name="suppress-max",
+                        value_type="integer",
+                        in_sections=("dampening",),
+                    ),
+                    BigipPropertySpec(
+                        name="unreachability-half-life",
+                        value_type="integer",
+                        in_sections=("dampening",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="reachability-half-life",
                 value_type="integer",
@@ -332,6 +558,27 @@ def register_spec() -> BigipObjectSpec:
                 name="distance",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="access-list",
+                        value_type="boolean",
+                        in_sections=("distance",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="distance", value_type="integer", in_sections=("distance",)
+                    ),
+                    BigipPropertySpec(
+                        name="external", value_type="integer", in_sections=("distance",)
+                    ),
+                    BigipPropertySpec(
+                        name="internal", value_type="integer", in_sections=("distance",)
+                    ),
+                    BigipPropertySpec(
+                        name="local", value_type="integer", in_sections=("distance",)
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="access-list",
@@ -378,7 +625,28 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("filter-list",),
                 allow_none=True,
             ),
-            BigipPropertySpec(name="graceful-restart", value_type="string"),
+            BigipPropertySpec(
+                name="graceful-restart",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="graceful-reset",
+                        value_type="enum",
+                        in_sections=("graceful-restart",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="restart-time",
+                        value_type="integer",
+                        in_sections=("graceful-restart",),
+                    ),
+                    BigipPropertySpec(
+                        name="stalepath-time",
+                        value_type="integer",
+                        in_sections=("graceful-restart",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="graceful-reset",
                 value_type="enum",
@@ -395,7 +663,34 @@ def register_spec() -> BigipObjectSpec:
                 value_type="integer",
                 in_sections=("graceful-restart",),
             ),
-            BigipPropertySpec(name="graceful-shutdown", value_type="string"),
+            BigipPropertySpec(
+                name="graceful-shutdown",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="capable",
+                        value_type="enum",
+                        in_sections=("graceful-shutdown",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="local-preference",
+                        value_type="integer",
+                        in_sections=("graceful-shutdown",),
+                    ),
+                    BigipPropertySpec(
+                        name="mode",
+                        value_type="enum",
+                        in_sections=("graceful-shutdown",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="timer",
+                        value_type="integer",
+                        in_sections=("graceful-shutdown",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="capable",
                 value_type="enum",
@@ -467,12 +762,152 @@ def register_spec() -> BigipObjectSpec:
                 name="neighbor",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="address-family",
+                        value_type="reference",
+                        in_sections=("neighbor",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                        shape_kind="list",
+                    ),
+                    BigipPropertySpec(
+                        name="advertisement-interval",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="allow-infinite-hold-time",
+                        value_type="enum",
+                        in_sections=("neighbor",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="as-origination-interval",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="capability",
+                        value_type="string",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="capability-negotiate",
+                        value_type="string",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="collide-established",
+                        value_type="enum",
+                        in_sections=("neighbor",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="connect-timer",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="description",
+                        value_type="boolean",
+                        in_sections=("neighbor",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="ebgp-multihop",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="enabled",
+                        value_type="enum",
+                        in_sections=("neighbor",),
+                        enum_values=("false", "true"),
+                    ),
+                    BigipPropertySpec(
+                        name="enforce-multihop",
+                        value_type="enum",
+                        in_sections=("neighbor",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="fall-over",
+                        value_type="boolean",
+                        in_sections=("neighbor",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="graceful-shutdown",
+                        value_type="string",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="hold-time",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="keep-alive",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="local-as", value_type="integer", in_sections=("neighbor",)
+                    ),
+                    BigipPropertySpec(
+                        name="passive",
+                        value_type="enum",
+                        in_sections=("neighbor",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="password",
+                        value_type="boolean",
+                        in_sections=("neighbor",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="peer-group",
+                        value_type="boolean",
+                        in_sections=("neighbor",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(name="port", value_type="integer", in_sections=("neighbor",)),
+                    BigipPropertySpec(
+                        name="remote-as",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="restart-time",
+                        value_type="integer",
+                        in_sections=("neighbor",),
+                    ),
+                    BigipPropertySpec(
+                        name="update-source",
+                        value_type="boolean",
+                        in_sections=("neighbor",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="version", value_type="integer", in_sections=("neighbor",)
+                    ),
+                    BigipPropertySpec(
+                        name="vlan",
+                        value_type="reference",
+                        in_sections=("neighbor",),
+                        allow_none=True,
+                        references=("net_vlan",),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="address-family",
                 value_type="reference",
                 in_sections=("neighbor",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
             ),
             BigipPropertySpec(
                 name="advertisement-interval",
@@ -583,6 +1018,21 @@ def register_spec() -> BigipObjectSpec:
                 name="network",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="backdoor",
+                        value_type="enum",
+                        in_sections=("network",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="route-map",
+                        value_type="boolean",
+                        in_sections=("network",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="backdoor",
@@ -606,12 +1056,145 @@ def register_spec() -> BigipObjectSpec:
                 name="peer-group",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="address-family",
+                        value_type="reference",
+                        in_sections=("peer-group",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                        shape_kind="list",
+                    ),
+                    BigipPropertySpec(
+                        name="advertisement-interval",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="allow-infinite-hold-time",
+                        value_type="enum",
+                        in_sections=("peer-group",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="as-origination-interval",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="capability",
+                        value_type="string",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="capability-negotiate",
+                        value_type="string",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="collide-established",
+                        value_type="enum",
+                        in_sections=("peer-group",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="connect-timer",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="description",
+                        value_type="boolean",
+                        in_sections=("peer-group",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="ebgp-multihop",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="enabled",
+                        value_type="enum",
+                        in_sections=("peer-group",),
+                        enum_values=("false", "true"),
+                    ),
+                    BigipPropertySpec(
+                        name="enforce-multihop",
+                        value_type="enum",
+                        in_sections=("peer-group",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="fall-over",
+                        value_type="boolean",
+                        in_sections=("peer-group",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="graceful-shutdown",
+                        value_type="string",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="hold-time",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="keep-alive",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="local-as",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="passive",
+                        value_type="enum",
+                        in_sections=("peer-group",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="password",
+                        value_type="boolean",
+                        in_sections=("peer-group",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="port", value_type="integer", in_sections=("peer-group",)
+                    ),
+                    BigipPropertySpec(
+                        name="remote-as",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="restart-time",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                    BigipPropertySpec(
+                        name="update-source",
+                        value_type="boolean",
+                        in_sections=("peer-group",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="version",
+                        value_type="integer",
+                        in_sections=("peer-group",),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="address-family",
                 value_type="reference",
                 in_sections=("peer-group",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
             ),
             BigipPropertySpec(
                 name="advertisement-interval",
@@ -726,6 +1309,15 @@ def register_spec() -> BigipObjectSpec:
                 name="redistribute",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="route-map",
+                        value_type="boolean",
+                        in_sections=("redistribute",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="route-map",

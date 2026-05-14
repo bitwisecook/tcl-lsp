@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "epsec epsec-package"),),
         properties=(
-            BigipPropertySpec(name="local-path", value_type="string"),
+            BigipPropertySpec(name="local-path", value_type="string", required=True),
             BigipPropertySpec(name="server", value_type="string", allow_none=True),
         ),
     )

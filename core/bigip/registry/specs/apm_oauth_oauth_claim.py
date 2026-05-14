@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "oauth oauth-claim"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="claim-description", value_type="string", allow_none=True),
             BigipPropertySpec(name="claim-name", value_type="string"),
             BigipPropertySpec(

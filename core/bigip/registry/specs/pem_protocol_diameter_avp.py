@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("pem", "protocol diameter-avp"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="avp-code", value_type="integer"),
             BigipPropertySpec(
                 name="data-type",
@@ -33,6 +38,8 @@ def register_spec() -> BigipObjectSpec:
                     "unsigned32",
                     "unsigned64",
                 ),
+                default="octetstring",
+                usage_flags=frozenset(("optional",)),
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="length", value_type="integer"),

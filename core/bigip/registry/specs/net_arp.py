@@ -19,7 +19,13 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "arp"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="ip-address", value_type="string"),
+            BigipPropertySpec(
+                name="ip-address",
+                value_type="string",
+                repeated=True,
+                shape_kind="ip-address",
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(name="mac-address", value_type="unknown"),
         ),
     )

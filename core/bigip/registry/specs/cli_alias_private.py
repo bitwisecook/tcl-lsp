@@ -18,8 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("cli", "alias private"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="command", value_type="unknown"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="command", value_type="unknown", repeated=True),
             BigipPropertySpec(name="description", value_type="string"),
         ),
     )

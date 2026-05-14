@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "firewall global-fqdn-policy"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="dns-resolver",
@@ -32,6 +32,6 @@ def register_spec() -> BigipObjectSpec:
                 ),
             ),
             BigipPropertySpec(name="recursive", value_type="unknown"),
-            BigipPropertySpec(name="refresh-interval", value_type="integer"),
+            BigipPropertySpec(name="refresh-interval", value_type="integer", default="60 seconds"),
         ),
     )

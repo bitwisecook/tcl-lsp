@@ -18,13 +18,29 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "resource remote-desktop citrix-client-package-file"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="original-file-name", value_type="string", allow_none=True),
-            BigipPropertySpec(name="source-path", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="original-file-name",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="source-path",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
         ),
     )

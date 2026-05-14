@@ -18,14 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa securid"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="config-files", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="source-ip", value_type="unknown"),
+            BigipPropertySpec(name="source-ip", value_type="unknown", required=True),
         ),
     )

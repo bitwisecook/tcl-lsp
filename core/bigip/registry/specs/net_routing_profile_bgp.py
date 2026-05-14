@@ -46,10 +46,37 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="max-paths", value_type="string"),
+            BigipPropertySpec(
+                name="max-paths",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="ebgp", value_type="integer", in_sections=("max-paths",)
+                    ),
+                    BigipPropertySpec(
+                        name="ibgp", value_type="integer", in_sections=("max-paths",)
+                    ),
+                ),
+            ),
             BigipPropertySpec(name="ebgp", value_type="integer", in_sections=("max-paths",)),
             BigipPropertySpec(name="ibgp", value_type="integer", in_sections=("max-paths",)),
-            BigipPropertySpec(name="nexthop-trigger", value_type="string"),
+            BigipPropertySpec(
+                name="nexthop-trigger",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="delay",
+                        value_type="integer",
+                        in_sections=("nexthop-trigger",),
+                    ),
+                    BigipPropertySpec(
+                        name="state",
+                        value_type="enum",
+                        in_sections=("nexthop-trigger",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(name="delay", value_type="integer", in_sections=("nexthop-trigger",)),
             BigipPropertySpec(
                 name="state",
@@ -57,7 +84,24 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("nexthop-trigger",),
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="rfc1771", value_type="string"),
+            BigipPropertySpec(
+                name="rfc1771",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="path-select",
+                        value_type="enum",
+                        in_sections=("rfc1771",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="strict",
+                        value_type="enum",
+                        in_sections=("rfc1771",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="path-select",
                 value_type="enum",

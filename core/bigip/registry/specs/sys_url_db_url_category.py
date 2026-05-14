@@ -21,7 +21,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="display-name", value_type="string"),
             BigipPropertySpec(name="initial-disposition", value_type="integer"),
-            BigipPropertySpec(name="is-security-category", value_type="string"),
+            BigipPropertySpec(
+                name="is-security-category",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
             BigipPropertySpec(name="parent-cat-number", value_type="integer"),
             BigipPropertySpec(name="severity-level", value_type="integer"),
             BigipPropertySpec(

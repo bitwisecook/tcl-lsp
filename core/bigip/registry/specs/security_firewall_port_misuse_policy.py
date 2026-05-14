@@ -24,11 +24,15 @@ def register_spec() -> BigipObjectSpec:
                 name="drop-on-l7-mismatch",
                 value_type="enum",
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes",
             ),
             BigipPropertySpec(
                 name="log-on-l7-mismatch",
                 value_type="enum",
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
             ),
             BigipPropertySpec(
                 name="rules",
@@ -48,6 +52,38 @@ def register_spec() -> BigipObjectSpec:
                     "sys_file_rewrite_rule",
                 ),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="description", value_type="string", in_sections=("rules",)
+                    ),
+                    BigipPropertySpec(
+                        name="drop-on-l7-mismatch",
+                        value_type="enum",
+                        in_sections=("rules",),
+                        enum_values=("no", "use-policy-setting", "yes"),
+                        default="yes",
+                    ),
+                    BigipPropertySpec(
+                        name="ip-protocol",
+                        value_type="enum",
+                        in_sections=("rules",),
+                        enum_values=("sctp", "tcp", "udp"),
+                        default="tcp",
+                    ),
+                    BigipPropertySpec(
+                        name="l7-protocol",
+                        value_type="reference",
+                        in_sections=("rules",),
+                    ),
+                    BigipPropertySpec(
+                        name="log-on-l7-mismatch",
+                        value_type="enum",
+                        in_sections=("rules",),
+                        enum_values=("no", "use-policy-setting", "yes"),
+                        default="no",
+                    ),
+                    BigipPropertySpec(name="port", value_type="unknown", in_sections=("rules",)),
+                ),
             ),
             BigipPropertySpec(name="description", value_type="string", in_sections=("rules",)),
             BigipPropertySpec(
@@ -55,12 +91,14 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 in_sections=("rules",),
                 enum_values=("no", "use-policy-setting", "yes"),
+                default="yes",
             ),
             BigipPropertySpec(
                 name="ip-protocol",
                 value_type="enum",
                 in_sections=("rules",),
                 enum_values=("sctp", "tcp", "udp"),
+                default="tcp",
             ),
             BigipPropertySpec(name="l7-protocol", value_type="reference", in_sections=("rules",)),
             BigipPropertySpec(
@@ -68,6 +106,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 in_sections=("rules",),
                 enum_values=("no", "use-policy-setting", "yes"),
+                default="no",
             ),
             BigipPropertySpec(name="port", value_type="unknown", in_sections=("rules",)),
         ),

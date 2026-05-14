@@ -23,8 +23,18 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("basic", "basic-ntlm", "ntlm"),
             ),
-            BigipPropertySpec(name="active-sync-sso-config", value_type="string", allow_none=True),
-            BigipPropertySpec(name="active-sync-url", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="active-sync-sso-config",
+                value_type="string",
+                allow_none=True,
+                usage_flags=frozenset(("optional",)),
+            ),
+            BigipPropertySpec(
+                name="active-sync-url",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
             BigipPropertySpec(
                 name="auto-discover-auth-type",
                 value_type="enum",
@@ -34,8 +44,14 @@ def register_spec() -> BigipObjectSpec:
                 name="auto-discover-sso-config",
                 value_type="string",
                 allow_none=True,
+                usage_flags=frozenset(("optional",)),
             ),
-            BigipPropertySpec(name="auto-discover-url", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="auto-discover-url",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="ntlm-auth-name", value_type="string", allow_none=True),
             BigipPropertySpec(
@@ -47,10 +63,12 @@ def register_spec() -> BigipObjectSpec:
                 name="offline-address-book-sso-config",
                 value_type="string",
                 allow_none=True,
+                usage_flags=frozenset(("optional",)),
             ),
             BigipPropertySpec(
                 name="offline-address-book-url",
                 value_type="string",
+                required=True,
                 allow_none=True,
             ),
             BigipPropertySpec(
@@ -62,8 +80,14 @@ def register_spec() -> BigipObjectSpec:
                 name="rpc-over-http-sso-config",
                 value_type="string",
                 allow_none=True,
+                usage_flags=frozenset(("optional",)),
             ),
-            BigipPropertySpec(name="rpc-over-http-url", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="rpc-over-http-url",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
             BigipPropertySpec(
                 name="user-agent-pattern-for-utf8",
                 value_type="string",
@@ -74,7 +98,12 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("basic", "basic-ntlm", "ntlm"),
             ),
-            BigipPropertySpec(name="web-service-sso-config", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="web-service-sso-config",
+                value_type="string",
+                allow_none=True,
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(name="web-service-url", value_type="string", allow_none=True),
         ),
     )

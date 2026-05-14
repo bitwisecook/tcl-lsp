@@ -18,11 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa okta-connector"),),
         properties=(
-            BigipPropertySpec(name="domain", value_type="string"),
-            BigipPropertySpec(name="token", value_type="string"),
+            BigipPropertySpec(name="domain", value_type="string", required=True),
+            BigipPropertySpec(name="token", value_type="string", required=True),
             BigipPropertySpec(
                 name="transport",
                 value_type="reference",
+                required=True,
                 references=(
                     "apm_aaa_http_connector_transport",
                     "ltm_message_routing_diameter_transport_config",

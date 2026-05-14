@@ -18,15 +18,30 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "resource client-rate-class"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="burst", value_type="integer"),
-            BigipPropertySpec(name="ceiling", value_type="integer"),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
-            BigipPropertySpec(name="dscp", value_type="integer"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="burst", value_type="integer", default="0 (zero)"),
+            BigipPropertySpec(
+                name="ceiling",
+                value_type="integer",
+                default="the value of the rate option",
+            ),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="dscp", value_type="integer", default="-1"),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="mode",

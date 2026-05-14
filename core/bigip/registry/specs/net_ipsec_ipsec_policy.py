@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "ipsec ipsec-policy"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="ike-phase2-auth-algorithm",
@@ -35,6 +40,7 @@ def register_spec() -> BigipObjectSpec:
                     "sha384",
                     "sha512",
                 ),
+                default="aes-gcm128",
             ),
             BigipPropertySpec(
                 name="ike-phase2-encrypt-algorithm",
@@ -52,6 +58,7 @@ def register_spec() -> BigipObjectSpec:
                     "aes256",
                     "null",
                 ),
+                default="aes-gcm128",
             ),
             BigipPropertySpec(name="ike-phase2-lifetime", value_type="integer"),
             BigipPropertySpec(name="ike-phase2-lifetime-kilobytes", value_type="integer"),
@@ -77,7 +84,17 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="mode", value_type="enum", enum_values=("interface", "tunnel")),
             BigipPropertySpec(name="protocol", value_type="unknown"),
-            BigipPropertySpec(name="tunnel-local-address", value_type="string"),
-            BigipPropertySpec(name="tunnel-remote-address", value_type="string"),
+            BigipPropertySpec(
+                name="tunnel-local-address",
+                value_type="string",
+                required=True,
+                shape_kind="ip-address",
+            ),
+            BigipPropertySpec(
+                name="tunnel-remote-address",
+                value_type="string",
+                required=True,
+                shape_kind="ip-address",
+            ),
         ),
     )

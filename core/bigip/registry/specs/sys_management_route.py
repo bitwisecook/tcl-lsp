@@ -19,9 +19,14 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "management-route"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="gateway", value_type="string"),
+            BigipPropertySpec(name="gateway", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(name="mtu", value_type="unknown"),
-            BigipPropertySpec(name="network", value_type="string"),
+            BigipPropertySpec(
+                name="network",
+                value_type="string",
+                shape_kind="ip-address",
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(
                 name="type",
                 value_type="enum",

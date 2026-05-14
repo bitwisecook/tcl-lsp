@@ -18,20 +18,32 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "log-config filter"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="level",
                 value_type="enum",
                 enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+                default="debug",
             ),
             BigipPropertySpec(
                 name="message-id",
                 value_type="enum",
                 allow_none=True,
                 enum_values=("none",),
+                default="none",
             ),
-            BigipPropertySpec(name="publisher", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="publisher",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="source",
                 value_type="enum",
@@ -259,6 +271,7 @@ def register_spec() -> BigipObjectSpec:
                     "zfd",
                     "zxfrd",
                 ),
+                default="all",
             ),
         ),
     )

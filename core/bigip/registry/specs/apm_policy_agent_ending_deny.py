@@ -18,10 +18,16 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent ending-deny"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="customization-group",
                 value_type="reference",
+                required=True,
                 references=("apm_policy_customization_group",),
             ),
             BigipPropertySpec(name="options", value_type="unknown"),

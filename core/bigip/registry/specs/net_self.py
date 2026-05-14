@@ -18,11 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "self"),),
         properties=(
-            BigipPropertySpec(name="address", value_type="string"),
+            BigipPropertySpec(
+                name="address",
+                value_type="string",
+                shape_kind="ip-address",
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(
                 name="address-source",
                 value_type="enum",
                 enum_values=("from-management", "from-user"),
+                usage_flags=frozenset(("optional",)),
             ),
             BigipPropertySpec(
                 name="allow-service",
@@ -30,7 +36,12 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 enum_values=("all", "default", "none"),
             ),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="fw-context-stat", value_type="unknown"),
             BigipPropertySpec(
@@ -323,6 +334,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="vlan",
                 value_type="reference",
+                required=True,
                 references=("net_vlan", "net_vlan_allowed", "net_vlan_group"),
             ),
         ),

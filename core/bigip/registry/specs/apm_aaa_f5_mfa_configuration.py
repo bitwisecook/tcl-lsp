@@ -22,6 +22,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="f5-service-connector",
                 value_type="reference",
+                required=True,
                 references=("apm_aaa_f5_service_connector",),
             ),
             BigipPropertySpec(
@@ -32,6 +33,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="permitted-devices-types",
                 value_type="list",
+                required=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(
@@ -44,6 +46,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 allow_none=True,
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
         ),
     )

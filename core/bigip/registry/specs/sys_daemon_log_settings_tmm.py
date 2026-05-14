@@ -22,36 +22,43 @@ def register_spec() -> BigipObjectSpec:
                 name="arp-log-level",
                 value_type="enum",
                 enum_values=("debug", "error", "informational", "notice", "warning"),
+                default="warning",
             ),
             BigipPropertySpec(
                 name="http-compression-log-level",
                 value_type="enum",
                 enum_values=("debug", "error", "informational", "notice", "warning"),
+                default="error",
             ),
             BigipPropertySpec(
                 name="http-log-level",
                 value_type="enum",
                 enum_values=("debug", "error", "informational", "notice", "warning"),
+                default="error",
             ),
             BigipPropertySpec(
                 name="ip-log-level",
                 value_type="enum",
                 enum_values=("debug", "informational", "notice", "warning"),
+                default="warning",
             ),
             BigipPropertySpec(
                 name="irule-log-level",
                 value_type="enum",
                 enum_values=("debug", "error", "informational", "notice", "warning"),
+                default="warning",
             ),
             BigipPropertySpec(
                 name="layer4-log-level",
                 value_type="enum",
                 enum_values=("debug", "informational", "notice"),
+                default="notice",
             ),
             BigipPropertySpec(
                 name="net-log-level",
                 value_type="enum",
                 enum_values=("critical", "debug", "error", "informational", "notice", "warning"),
+                default="warning",
             ),
             BigipPropertySpec(
                 name="os-log-level",
@@ -66,11 +73,13 @@ def register_spec() -> BigipObjectSpec:
                     "notice",
                     "warning",
                 ),
+                default="notice",
             ),
             BigipPropertySpec(
                 name="pva-log-level",
                 value_type="enum",
                 enum_values=("debug", "informational", "notice"),
+                default="informational",
             ),
             BigipPropertySpec(
                 name="ssl-log-level",
@@ -85,6 +94,7 @@ def register_spec() -> BigipObjectSpec:
                     "notice",
                     "warning",
                 ),
+                default="warning",
             ),
         ),
     )

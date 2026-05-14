@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("pem", "protocol profile radius"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="cp",
                 value_type="reference",
@@ -49,12 +54,58 @@ def register_spec() -> BigipObjectSpec:
                 name="messages",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="avps",
+                        value_type="list",
+                        in_sections=("messages",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                    BigipPropertySpec(
+                        name="direction",
+                        value_type="enum",
+                        in_sections=("messages",),
+                        enum_values=("any", "in", "out"),
+                    ),
+                    BigipPropertySpec(
+                        name="message-type",
+                        value_type="enum",
+                        in_sections=("messages",),
+                        enum_values=("acct-req-interim-update", "acct-req-start", "acct-req-stop"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="avps",
                 value_type="list",
                 in_sections=("messages",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="ingress-op",
+                        value_type="enum",
+                        in_sections=("messages", "avps"),
+                        allow_none=True,
+                        enum_values=("none",),
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="radius-avp",
+                        value_type="reference",
+                        in_sections=("messages", "avps"),
+                        allow_none=True,
+                        references=("pem_protocol_radius_avp",),
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="subscriber-attr",
+                        value_type="reference",
+                        in_sections=("messages", "avps"),
+                        allow_none=True,
+                        references=("pem_subscriber_attribute",),
+                        default="none",
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="ingress-op",
@@ -62,6 +113,7 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("messages", "avps"),
                 allow_none=True,
                 enum_values=("none",),
+                default="none",
             ),
             BigipPropertySpec(
                 name="radius-avp",
@@ -69,6 +121,7 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("messages", "avps"),
                 allow_none=True,
                 references=("pem_protocol_radius_avp",),
+                default="none",
             ),
             BigipPropertySpec(
                 name="subscriber-attr",
@@ -76,6 +129,7 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("messages", "avps"),
                 allow_none=True,
                 references=("pem_subscriber_attribute",),
+                default="none",
             ),
             BigipPropertySpec(
                 name="direction",
@@ -93,6 +147,33 @@ def register_spec() -> BigipObjectSpec:
                 name="subscriber-id",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="order",
+                        value_type="integer",
+                        in_sections=("subscriber-id",),
+                    ),
+                    BigipPropertySpec(
+                        name="prefix",
+                        value_type="string",
+                        in_sections=("subscriber-id",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="radius-avp",
+                        value_type="reference",
+                        in_sections=("subscriber-id",),
+                        allow_none=True,
+                        references=("pem_protocol_radius_avp",),
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="suffix",
+                        value_type="string",
+                        in_sections=("subscriber-id",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="subscriber-id-type",
@@ -112,6 +193,7 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("subscriber-id",),
                 allow_none=True,
                 references=("pem_protocol_radius_avp",),
+                default="none",
             ),
             BigipPropertySpec(
                 name="suffix",

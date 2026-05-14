@@ -18,12 +18,42 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "resource remote-desktop citrix-client-bundle"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="download-url", value_type="unknown", allow_none=True),
-            BigipPropertySpec(name="packages", value_type="string", allow_none=True),
-            BigipPropertySpec(name="sb-windows-package", value_type="string", allow_none=True),
-            BigipPropertySpec(name="windows-download-url", value_type="unknown", allow_none=True),
-            BigipPropertySpec(name="windows-min-version", value_type="string", allow_none=True),
-            BigipPropertySpec(name="windows-package", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="packages",
+                value_type="string",
+                allow_none=True,
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(
+                name="sb-windows-package",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="windows-download-url",
+                value_type="unknown",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="windows-min-version",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="windows-package",
+                value_type="string",
+                allow_none=True,
+                usage_flags=frozenset(("deprecated",)),
+            ),
         ),
     )

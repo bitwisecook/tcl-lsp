@@ -18,7 +18,16 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent server-cert-response-control"),),
         properties=(
-            BigipPropertySpec(name="action", value_type="integer"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="action",
+                value_type="integer",
+                default="ignore which specifies that the system ignores untrusted/expired certificate and may allow the connection",
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
         ),
     )

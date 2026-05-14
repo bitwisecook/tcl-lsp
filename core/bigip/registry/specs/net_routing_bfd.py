@@ -24,6 +24,27 @@ def register_spec() -> BigipObjectSpec:
                 name="multihop-peer",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="interval",
+                        value_type="boolean",
+                        in_sections=("multihop-peer",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="minrx",
+                        value_type="boolean",
+                        in_sections=("multihop-peer",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="multiplier",
+                        value_type="boolean",
+                        in_sections=("multihop-peer",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="interval",
@@ -60,6 +81,33 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 references=("net_vlan",),
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="enabled",
+                        value_type="enum",
+                        in_sections=("vlan",),
+                        enum_values=("false", "true"),
+                    ),
+                    BigipPropertySpec(
+                        name="interval",
+                        value_type="boolean",
+                        in_sections=("vlan",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="minrx",
+                        value_type="boolean",
+                        in_sections=("vlan",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="multiplier",
+                        value_type="boolean",
+                        in_sections=("vlan",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="enabled",

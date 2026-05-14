@@ -18,14 +18,25 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "prober-pool"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="load-balancing-mode",
                 value_type="enum",
                 enum_values=("round-robin",),
+                default="global-availability",
             ),
-            BigipPropertySpec(name="members", value_type="unknown", allow_none=True),
+            BigipPropertySpec(
+                name="members",
+                value_type="unknown",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="order", value_type="integer"),
         ),
     )

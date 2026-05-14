@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa http"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="auth-type",
                 value_type="enum",
@@ -31,11 +36,32 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("none", "url-encoded-utf8", "xml-utf8"),
             ),
             BigipPropertySpec(name="custom-body", value_type="string", allow_none=True),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="follow-redirect", value_type="integer"),
-            BigipPropertySpec(name="form-action", value_type="string", allow_none=True),
-            BigipPropertySpec(name="form-fields", value_type="string", allow_none=True),
-            BigipPropertySpec(name="form-method", value_type="enum", enum_values=("get", "post")),
+            BigipPropertySpec(
+                name="form-action",
+                value_type="string",
+                allow_none=True,
+                usage_flags=frozenset(("optional",)),
+            ),
+            BigipPropertySpec(
+                name="form-fields",
+                value_type="string",
+                required=True,
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="form-method",
+                value_type="enum",
+                enum_values=("get", "post"),
+                default="POST",
+            ),
             BigipPropertySpec(name="form-params", value_type="string", allow_none=True),
             BigipPropertySpec(name="form-password", value_type="string", allow_none=True),
             BigipPropertySpec(name="form-username", value_type="string", allow_none=True),
@@ -44,12 +70,34 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("headers",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="hname",
+                        value_type="string",
+                        in_sections=("headers",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="hvalue",
+                        value_type="string",
+                        in_sections=("headers",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("headers",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="hname",
@@ -67,6 +115,7 @@ def register_spec() -> BigipObjectSpec:
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="start-uri", value_type="string", allow_none=True),
             BigipPropertySpec(

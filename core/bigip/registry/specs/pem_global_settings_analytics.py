@@ -18,18 +18,48 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("pem", "global-settings analytics"),),
         properties=(
-            BigipPropertySpec(name="logging", value_type="unknown"),
-            BigipPropertySpec(name="hsl", value_type="unknown", in_sections=("logging",)),
+            BigipPropertySpec(
+                name="logging",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="hsl",
+                        value_type="unknown",
+                        in_sections=("logging",),
+                        shape_kind="object",
+                    ),
+                ),
+            ),
+            BigipPropertySpec(
+                name="hsl",
+                value_type="unknown",
+                in_sections=("logging",),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="endpoint-id",
+                        value_type="unknown",
+                        in_sections=("logging", "hsl"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="endpoint-id",
                 value_type="unknown",
                 in_sections=("logging", "hsl"),
             ),
-            BigipPropertySpec(name="mode", value_type="enum", enum_values=("disabled", "enabled")),
+            BigipPropertySpec(
+                name="mode",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="subscriber-aware",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

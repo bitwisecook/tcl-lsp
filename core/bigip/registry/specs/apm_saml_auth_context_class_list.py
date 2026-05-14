@@ -18,12 +18,21 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "saml auth-context-class-list"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="classes",
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(name="order", value_type="integer", in_sections=("classes",)),
+                    BigipPropertySpec(name="value", value_type="string", in_sections=("classes",)),
+                ),
             ),
             BigipPropertySpec(name="order", value_type="integer", in_sections=("classes",)),
             BigipPropertySpec(name="value", value_type="string", in_sections=("classes",)),

@@ -19,7 +19,7 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("apm", "report custom-report-field"),),
         properties=(
             BigipPropertySpec(name="alias", value_type="string"),
-            BigipPropertySpec(name="app-service", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="string", default="none"),
             BigipPropertySpec(name="field-position", value_type="integer"),
             BigipPropertySpec(name="options", value_type="unknown"),
             BigipPropertySpec(name="report-name", value_type="string"),
@@ -27,7 +27,8 @@ def register_spec() -> BigipObjectSpec:
                 name="sort-direction",
                 value_type="enum",
                 enum_values=("asc", "desc", "unsorted"),
+                default="asc",
             ),
-            BigipPropertySpec(name="sort-order", value_type="integer"),
+            BigipPropertySpec(name="sort-order", value_type="integer", default="100000"),
         ),
     )

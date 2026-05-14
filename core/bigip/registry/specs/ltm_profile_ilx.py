@@ -18,12 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile ilx"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_ilx",),
+                default="ilx",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="plugin", value_type="string"),

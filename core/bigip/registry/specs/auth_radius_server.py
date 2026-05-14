@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("auth", "radius-server"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="port",
@@ -30,9 +35,16 @@ def register_spec() -> BigipObjectSpec:
                     "security_firewall_port_misuse_policy",
                     "sys_log_config_destination_management_port",
                 ),
+                default="1812",
             ),
-            BigipPropertySpec(name="secret", value_type="unknown"),
-            BigipPropertySpec(name="server", value_type="string", allow_none=True),
-            BigipPropertySpec(name="timeout", value_type="integer"),
+            BigipPropertySpec(name="secret", value_type="unknown", required=True),
+            BigipPropertySpec(
+                name="server",
+                value_type="string",
+                required=True,
+                allow_none=True,
+                shape_kind="ip-address",
+            ),
+            BigipPropertySpec(name="timeout", value_type="integer", default="3"),
         ),
     )

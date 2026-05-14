@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing diameter route"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="application-id", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="destination-realm", value_type="string", allow_none=True),
@@ -31,6 +36,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="peers",
                 value_type="list",
+                repeated=True,
                 references=(
                     "ltm_message_routing_diameter_peer",
                     "ltm_message_routing_generic_peer",
@@ -39,6 +45,10 @@ def register_spec() -> BigipObjectSpec:
                     "net_ipsec_ike_peer",
                 ),
             ),
-            BigipPropertySpec(name="virtual-server", value_type="reference"),
+            BigipPropertySpec(
+                name="virtual-server",
+                value_type="reference",
+                default="none which means the route is not restricted and messages originating on any connection may be routed to the route",
+            ),
         ),
     )

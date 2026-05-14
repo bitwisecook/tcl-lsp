@@ -22,6 +22,8 @@ def register_spec() -> BigipObjectSpec:
                 name="heartbeat",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled for all daemons, except the named daemon, which is disabled by default",
             ),
             BigipPropertySpec(
                 name="heartbeat-action",
@@ -34,11 +36,14 @@ def register_spec() -> BigipObjectSpec:
                     "restart",
                     "restart-all",
                 ),
+                default="dependent on the specified daemon, the most common default value is restart",
             ),
             BigipPropertySpec(
                 name="running",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="dependent on the specified daemon, the most common default value is enabled",
             ),
         ),
     )

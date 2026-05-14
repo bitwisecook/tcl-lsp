@@ -23,11 +23,17 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 allow_none=True,
                 enum_values=("basic", "bearer", "custom", "none"),
+                default="none",
             ),
-            BigipPropertySpec(name="method", value_type="string"),
+            BigipPropertySpec(name="method", value_type="string", required=True),
             BigipPropertySpec(name="password", value_type="string", allow_none=True),
             BigipPropertySpec(name="request-body", value_type="string", allow_none=True),
-            BigipPropertySpec(name="request-headers", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="request-headers",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
             BigipPropertySpec(
                 name="response-action",
                 value_type="enum",
@@ -44,6 +50,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="transport",
                 value_type="reference",
+                required=True,
                 references=(
                     "apm_aaa_http_connector_transport",
                     "ltm_message_routing_diameter_transport_config",
@@ -52,7 +59,7 @@ def register_spec() -> BigipObjectSpec:
                     "ltm_message_routing_sip_transport_config",
                 ),
             ),
-            BigipPropertySpec(name="url", value_type="string"),
+            BigipPropertySpec(name="url", value_type="string", required=True),
             BigipPropertySpec(name="username", value_type="string", allow_none=True),
         ),
     )

@@ -18,15 +18,26 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("wom", "advertised-route"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="dest", value_type="string"),
+            BigipPropertySpec(name="dest", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(
                 name="include",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="label", value_type="unknown"),
+            BigipPropertySpec(
+                name="label",
+                value_type="unknown",
+                usage_flags=frozenset(("optional",)),
+            ),
             BigipPropertySpec(name="metric", value_type="integer"),
             BigipPropertySpec(
                 name="origin",

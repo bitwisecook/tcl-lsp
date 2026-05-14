@@ -18,11 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent endpoint-windows-check-file"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="continuous-check",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
             BigipPropertySpec(
                 name="files",

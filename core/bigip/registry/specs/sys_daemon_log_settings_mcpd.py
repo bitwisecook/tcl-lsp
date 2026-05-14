@@ -22,6 +22,7 @@ def register_spec() -> BigipObjectSpec:
                 name="audit",
                 value_type="enum",
                 enum_values=("all", "disabled", "enabled", "verbose"),
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="log-level",

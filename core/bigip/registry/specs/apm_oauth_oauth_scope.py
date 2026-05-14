@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "oauth oauth-scope"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="customization-group", value_type="string", allow_none=True),
             BigipPropertySpec(name="options", value_type="unknown"),
             BigipPropertySpec(name="scope-description", value_type="string", allow_none=True),

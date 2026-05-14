@@ -18,7 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent endpoint-windows-group-policy"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="policy-file", value_type="unknown"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="policy-file",
+                value_type="unknown",
+                required=True,
+                shape_kind="object",
+            ),
         ),
     )

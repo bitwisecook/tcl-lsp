@@ -18,10 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("api-protection", "server"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(name="options", value_type="unknown"),
-            BigipPropertySpec(name="serverssl-profile", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="serverssl-profile",
+                value_type="string",
+                required=True,
+                allow_none=True,
+            ),
             BigipPropertySpec(name="url", value_type="string"),
         ),
     )

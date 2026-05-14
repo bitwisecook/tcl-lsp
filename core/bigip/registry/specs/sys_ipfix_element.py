@@ -18,11 +18,16 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "ipfix element"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="data-type", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="enterprise-id", value_type="integer"),
             BigipPropertySpec(name="id", value_type="integer"),
-            BigipPropertySpec(name="size", value_type="integer"),
+            BigipPropertySpec(name="size", value_type="integer", default="0"),
         ),
     )

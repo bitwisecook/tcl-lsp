@@ -18,25 +18,33 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels vxlan"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("net_tunnels_vxlan",),
+                default="vxlan",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="encapsulation-type",
                 value_type="enum",
                 enum_values=("vxlan", "vxlan-gpe"),
+                default="vxlan",
             ),
             BigipPropertySpec(
                 name="flooding-type",
                 value_type="enum",
                 allow_none=True,
                 enum_values=("multicast", "multipoint", "none", "replicator"),
+                default="multicast",
             ),
-            BigipPropertySpec(name="port", value_type="integer"),
+            BigipPropertySpec(name="port", value_type="integer", default="4789"),
         ),
     )

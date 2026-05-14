@@ -27,12 +27,23 @@ def register_spec() -> BigipObjectSpec:
                 name="ads",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify")),
+                block=(
+                    BigipPropertySpec(
+                        name="preroll",
+                        value_type="enum",
+                        in_sections=("ads",),
+                        enum_values=("no", "yes"),
+                        shape_kind="boolean",
+                    ),
+                    BigipPropertySpec(name="url", value_type="unknown", in_sections=("ads",)),
+                ),
             ),
             BigipPropertySpec(
                 name="preroll",
                 value_type="enum",
                 in_sections=("ads",),
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="url", value_type="unknown", in_sections=("ads",)),
             BigipPropertySpec(name="description", value_type="string"),

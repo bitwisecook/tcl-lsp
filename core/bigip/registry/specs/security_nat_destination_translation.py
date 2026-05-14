@@ -24,7 +24,12 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="ports",

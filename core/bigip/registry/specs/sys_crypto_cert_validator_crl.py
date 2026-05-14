@@ -23,6 +23,8 @@ def register_spec() -> BigipObjectSpec:
                 name="strict-revocation-check",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
         ),
     )

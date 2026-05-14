@@ -23,14 +23,20 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("accept", "continue", "discard", "reject"),
             ),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="logging",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="order", value_type="integer"),
+            BigipPropertySpec(name="order", value_type="integer", required=True),
             BigipPropertySpec(name="rate-class", value_type="reference"),
             BigipPropertySpec(
                 name="rule",

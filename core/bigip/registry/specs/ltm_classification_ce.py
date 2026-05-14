@@ -29,7 +29,12 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("off", "on"),
             ),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="cache-results", value_type="enum", enum_values=("off", "on")),
             BigipPropertySpec(name="flow-bundling", value_type="enum", enum_values=("off", "on")),
             BigipPropertySpec(

@@ -41,6 +41,7 @@ def register_spec() -> BigipObjectSpec:
                     "return-25",
                     "return-50",
                 ),
+                default="none",
             ),
             BigipPropertySpec(
                 name="priority-2",
@@ -58,6 +59,7 @@ def register_spec() -> BigipObjectSpec:
                     "return-25",
                     "return-50",
                 ),
+                default="none",
             ),
             BigipPropertySpec(
                 name="priority-3",
@@ -75,6 +77,7 @@ def register_spec() -> BigipObjectSpec:
                     "return-25",
                     "return-50",
                 ),
+                default="none",
             ),
             BigipPropertySpec(
                 name="priority-4",
@@ -92,6 +95,7 @@ def register_spec() -> BigipObjectSpec:
                     "return-25",
                     "return-50",
                 ),
+                default="none",
             ),
         ),
     )

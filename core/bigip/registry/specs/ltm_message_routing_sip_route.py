@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing sip route"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="from-uri", value_type="string"),
             BigipPropertySpec(
@@ -29,6 +34,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="peers",
                 value_type="list",
+                repeated=True,
                 references=(
                     "ltm_message_routing_diameter_peer",
                     "ltm_message_routing_generic_peer",

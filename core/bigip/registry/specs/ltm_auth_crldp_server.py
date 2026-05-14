@@ -18,10 +18,27 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "auth crldp-server"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="base-dn", value_type="reference", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="base-dn",
+                value_type="reference",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="host", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="host",
+                value_type="string",
+                required=True,
+                allow_none=True,
+                shape_kind="ip-address",
+                default="none",
+            ),
             BigipPropertySpec(
                 name="port",
                 value_type="reference",
@@ -32,11 +49,14 @@ def register_spec() -> BigipObjectSpec:
                     "security_firewall_port_misuse_policy",
                     "sys_log_config_destination_management_port",
                 ),
+                default="389",
             ),
             BigipPropertySpec(
                 name="reverse-dn",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
         ),
     )

@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "log-config destination remote-syslog"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="default-facility",
                 value_type="enum",
@@ -32,18 +37,21 @@ def register_spec() -> BigipObjectSpec:
                     "local6",
                     "local7",
                 ),
+                default="local0",
             ),
             BigipPropertySpec(
                 name="default-severity",
                 value_type="enum",
                 enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+                default="info",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="format",
                 value_type="enum",
                 enum_values=("legacy-bigip", "rfc3164", "rfc5424"),
+                default="rfc3164",
             ),
-            BigipPropertySpec(name="remote-high-speed-log", value_type="string"),
+            BigipPropertySpec(name="remote-high-speed-log", value_type="string", required=True),
         ),
     )

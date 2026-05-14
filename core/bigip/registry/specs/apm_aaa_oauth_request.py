@@ -18,12 +18,25 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa oauth-request"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="headers",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(name="value", value_type="unknown", in_sections=("headers",)),
+                ),
             ),
             BigipPropertySpec(name="value", value_type="unknown", in_sections=("headers",)),
             BigipPropertySpec(name="method", value_type="enum", enum_values=("get", "post")),
@@ -31,6 +44,17 @@ def register_spec() -> BigipObjectSpec:
                 name="parameters",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="type", value_type="unknown", in_sections=("parameters",)
+                    ),
+                    BigipPropertySpec(
+                        name="value",
+                        value_type="string",
+                        in_sections=("parameters",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(name="type", value_type="unknown", in_sections=("parameters",)),
             BigipPropertySpec(
@@ -40,6 +64,6 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
             ),
             BigipPropertySpec(name="type", value_type="unknown"),
-            BigipPropertySpec(name="uri", value_type="string", allow_none=True),
+            BigipPropertySpec(name="uri", value_type="string", required=True, allow_none=True),
         ),
     )

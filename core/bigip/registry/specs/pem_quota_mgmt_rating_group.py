@@ -18,21 +18,66 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("pem", "quota-mgmt rating-group"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="default-breach-action",
                 value_type="enum",
                 enum_values=("allow", "redirect", "terminate"),
             ),
             BigipPropertySpec(name="default-forwarding-endpoint", value_type="reference"),
-            BigipPropertySpec(name="default-quota", value_type="unknown"),
+            BigipPropertySpec(
+                name="default-quota",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="interval",
+                        value_type="integer",
+                        in_sections=("default-quota",),
+                    ),
+                    BigipPropertySpec(
+                        name="time",
+                        value_type="unknown",
+                        in_sections=("default-quota",),
+                        shape_kind="object",
+                    ),
+                    BigipPropertySpec(
+                        name="volume",
+                        value_type="unknown",
+                        in_sections=("default-quota",),
+                        shape_kind="object",
+                    ),
+                ),
+            ),
             BigipPropertySpec(name="default-quota-holding-time", value_type="integer"),
             BigipPropertySpec(
                 name="interval",
                 value_type="integer",
                 in_sections=("default-quota",),
             ),
-            BigipPropertySpec(name="time", value_type="unknown", in_sections=("default-quota",)),
+            BigipPropertySpec(
+                name="time",
+                value_type="unknown",
+                in_sections=("default-quota",),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="consumption-time",
+                        value_type="unknown",
+                        in_sections=("default-quota", "time"),
+                    ),
+                    BigipPropertySpec(
+                        name="usage-time",
+                        value_type="unknown",
+                        in_sections=("default-quota", "time"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="consumption-time",
                 value_type="unknown",
@@ -43,7 +88,29 @@ def register_spec() -> BigipObjectSpec:
                 value_type="unknown",
                 in_sections=("default-quota", "time"),
             ),
-            BigipPropertySpec(name="volume", value_type="unknown", in_sections=("default-quota",)),
+            BigipPropertySpec(
+                name="volume",
+                value_type="unknown",
+                in_sections=("default-quota",),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="input-octets",
+                        value_type="unknown",
+                        in_sections=("default-quota", "volume"),
+                    ),
+                    BigipPropertySpec(
+                        name="output-octets",
+                        value_type="unknown",
+                        in_sections=("default-quota", "volume"),
+                    ),
+                    BigipPropertySpec(
+                        name="total-octets",
+                        value_type="unknown",
+                        in_sections=("default-quota", "volume"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="input-octets",
                 value_type="unknown",
@@ -62,7 +129,24 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="default-threshold", value_type="integer"),
             BigipPropertySpec(name="default-validity-time", value_type="integer"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="initial-quota-request", value_type="unknown"),
+            BigipPropertySpec(
+                name="initial-quota-request",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="interval",
+                        value_type="integer",
+                        in_sections=("initial-quota-request",),
+                    ),
+                    BigipPropertySpec(
+                        name="volume",
+                        value_type="unknown",
+                        in_sections=("initial-quota-request",),
+                        shape_kind="object",
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="interval",
                 value_type="integer",
@@ -72,6 +156,24 @@ def register_spec() -> BigipObjectSpec:
                 name="volume",
                 value_type="unknown",
                 in_sections=("initial-quota-request",),
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="input-octets",
+                        value_type="unknown",
+                        in_sections=("initial-quota-request", "volume"),
+                    ),
+                    BigipPropertySpec(
+                        name="output-octets",
+                        value_type="unknown",
+                        in_sections=("initial-quota-request", "volume"),
+                    ),
+                    BigipPropertySpec(
+                        name="total-octets",
+                        value_type="unknown",
+                        in_sections=("initial-quota-request", "volume"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="input-octets",
@@ -93,6 +195,7 @@ def register_spec() -> BigipObjectSpec:
                 name="request-on-install",
                 value_type="enum",
                 enum_values=("no", "yes"),
+                shape_kind="boolean",
             ),
         ),
     )

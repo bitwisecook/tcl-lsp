@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("auth", "remote-user"),),
         properties=(
-            BigipPropertySpec(name="default-partition", value_type="reference"),
+            BigipPropertySpec(name="default-partition", value_type="reference", default="all"),
             BigipPropertySpec(
                 name="default-role",
                 value_type="enum",
@@ -41,12 +41,14 @@ def register_spec() -> BigipObjectSpec:
                     "web-application-security-editor",
                     "web-application-security-operations-administrator",
                 ),
+                default="no-access",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="remote-console-access",
                 value_type="enum",
                 enum_values=("disabled", "tmsh"),
+                default="disabled",
             ),
         ),
     )

@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing diameter transport-config"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="profiles",
@@ -154,6 +159,15 @@ def register_spec() -> BigipObjectSpec:
                     "wom_profile_mapi",
                 ),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                default="none",
+                block=(
+                    BigipPropertySpec(
+                        name="context",
+                        value_type="enum",
+                        in_sections=("profiles",),
+                        enum_values=("all", "clientside", "serverside"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="context",
@@ -164,6 +178,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="rules",
                 value_type="list",
+                repeated=True,
                 references=(
                     "gtm_rule",
                     "ltm_cipher_rule",
@@ -177,8 +192,45 @@ def register_spec() -> BigipObjectSpec:
                     "security_packet_filter_rule_stat",
                     "sys_file_rewrite_rule",
                 ),
+                default="none",
             ),
-            BigipPropertySpec(name="source-address-translation", value_type="unknown"),
+            BigipPropertySpec(
+                name="source-address-translation",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="pool",
+                        value_type="reference",
+                        in_sections=("source-address-translation",),
+                        allow_none=True,
+                        references=(
+                            "analytics_lsn_pool_report",
+                            "analytics_lsn_pool_scheduled_report",
+                            "analytics_pool_traffic_report",
+                            "analytics_pool_traffic_scheduled_report",
+                            "gtm_pool_a",
+                            "gtm_pool_aaaa",
+                            "gtm_pool_cname",
+                            "gtm_pool_https",
+                            "gtm_pool_mx",
+                            "gtm_pool_naptr",
+                            "gtm_pool_srv",
+                            "gtm_pool_svcb",
+                            "gtm_prober_pool",
+                            "ltm_lsn_pool",
+                            "ltm_pool",
+                        ),
+                    ),
+                    BigipPropertySpec(
+                        name="type",
+                        value_type="enum",
+                        in_sections=("source-address-translation",),
+                        allow_none=True,
+                        enum_values=("automap", "none", "snat"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="pool",
                 value_type="reference",
@@ -209,11 +261,12 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 enum_values=("automap", "none", "snat"),
             ),
-            BigipPropertySpec(name="source-port", value_type="integer"),
+            BigipPropertySpec(name="source-port", value_type="integer", default="0"),
             BigipPropertySpec(
                 name="source-port-mode",
                 value_type="enum",
                 enum_values=("change", "preserve", "preserve-strict"),
+                default="change",
             ),
         ),
     )

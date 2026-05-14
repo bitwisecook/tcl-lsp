@@ -18,12 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("wam", "object-type"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="code", value_type="unknown"),
             BigipPropertySpec(
                 name="compression",
                 value_type="enum",
                 enum_values=("disabled", "policy-controlled"),
+                default="disabled",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
@@ -40,6 +46,7 @@ def register_spec() -> BigipObjectSpec:
                 name="symmetric-compression",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

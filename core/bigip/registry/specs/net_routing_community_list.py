@@ -23,6 +23,21 @@ def register_spec() -> BigipObjectSpec:
                 name="entries",
                 value_type="reference",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                shape_kind="list",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="boolean",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                    BigipPropertySpec(
+                        name="community",
+                        value_type="boolean",
+                        in_sections=("entries",),
+                        allow_none=True,
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="action",

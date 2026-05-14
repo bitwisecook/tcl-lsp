@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "snat"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="auto-lasthop",
                 value_type="enum",
@@ -31,9 +36,16 @@ def register_spec() -> BigipObjectSpec:
                 value_type="unknown",
                 allow_none=True,
                 enum_values=("disabled", "enabled", "none"),
+                shape_kind="object",
+                default="none",
             ),
-            BigipPropertySpec(name="origins", value_type="unknown"),
-            BigipPropertySpec(name="persist", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(name="origins", value_type="unknown", required=True),
+            BigipPropertySpec(
+                name="persist",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="snatpool",
                 value_type="reference",
@@ -43,10 +55,12 @@ def register_spec() -> BigipObjectSpec:
                 name="source-port",
                 value_type="enum",
                 enum_values=("change", "preserve", "preserve-strict"),
+                default="preserve",
             ),
             BigipPropertySpec(
                 name="translation",
                 value_type="reference",
+                repeated=True,
                 references=(
                     "ltm_snat_translation",
                     "security_nat_destination_translation",
@@ -59,6 +73,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 allow_none=True,
                 enum_values=("default", "none"),
+                default="none",
             ),
         ),
     )

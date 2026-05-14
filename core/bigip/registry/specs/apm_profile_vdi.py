@@ -22,6 +22,7 @@ def register_spec() -> BigipObjectSpec:
                 name="citrix-storefront-replacement",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="msrdp-ntlm-auth-name", value_type="string", allow_none=True),
         ),

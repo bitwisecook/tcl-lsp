@@ -23,14 +23,21 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                default="all",
             ),
             BigipPropertySpec(
                 name="banner",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(name="banner-text", value_type="string"),
-            BigipPropertySpec(name="inactivity-timeout", value_type="integer"),
+            BigipPropertySpec(
+                name="inactivity-timeout",
+                value_type="integer",
+                default="0 (zero) seconds, which indicates that inactivity timeout is disabled",
+            ),
             BigipPropertySpec(name="include", value_type="string"),
             BigipPropertySpec(
                 name="log-level",
@@ -47,7 +54,13 @@ def register_spec() -> BigipObjectSpec:
                     "verbose",
                 ),
             ),
-            BigipPropertySpec(name="login", value_type="enum", enum_values=("disabled", "enabled")),
-            BigipPropertySpec(name="port", value_type="integer"),
+            BigipPropertySpec(
+                name="login",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(name="port", value_type="integer", default="22"),
         ),
     )

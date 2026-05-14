@@ -17,5 +17,12 @@ def register_spec() -> BigipObjectSpec:
             object_types=("policy agent server-cert-status",),
         ),
         header_types=(("apm", "policy agent server-cert-status"),),
-        properties=(BigipPropertySpec(name="app-service", value_type="string", allow_none=True),),
+        properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+        ),
     )

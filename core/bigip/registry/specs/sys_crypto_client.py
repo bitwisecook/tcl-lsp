@@ -18,14 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "crypto client"),),
         properties=(
-            BigipPropertySpec(name="addr", value_type="string"),
+            BigipPropertySpec(name="addr", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(name="connection-reset", value_type="unknown"),
-            BigipPropertySpec(name="heartbeat", value_type="integer"),
-            BigipPropertySpec(name="max-retries", value_type="enum", enum_values=("infinite",)),
+            BigipPropertySpec(name="heartbeat", value_type="integer", default="30 seconds"),
+            BigipPropertySpec(
+                name="max-retries",
+                value_type="enum",
+                enum_values=("infinite",),
+                default="infinite",
+            ),
             BigipPropertySpec(name="port", value_type="integer"),
             BigipPropertySpec(
                 name="profiles",
                 value_type="list",
+                repeated=True,
                 references=(
                     "analytics_dns_profile_report",
                     "api_protection_profile_apiprotection",
@@ -158,7 +164,11 @@ def register_spec() -> BigipObjectSpec:
                 ),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="req-timeout", value_type="integer"),
-            BigipPropertySpec(name="retry-interval", value_type="integer"),
+            BigipPropertySpec(
+                name="req-timeout",
+                value_type="integer",
+                default="5000 milliseconds",
+            ),
+            BigipPropertySpec(name="retry-interval", value_type="integer", default="10 seconds"),
         ),
     )

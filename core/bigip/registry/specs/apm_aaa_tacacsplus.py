@@ -18,11 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa tacacsplus"),),
         properties=(
-            BigipPropertySpec(name="address", value_type="unknown"),
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(name="address", value_type="unknown", required=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="auth-service",
                 value_type="enum",
+                required=True,
                 allow_none=True,
                 enum_values=(
                     "arap",
@@ -42,16 +48,24 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("arap", "ascii", "chap", "mschap", "pap"),
             ),
-            BigipPropertySpec(name="description", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="description",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="encrypt",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
                 name="location-specific",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="pool",
@@ -74,8 +88,9 @@ def register_spec() -> BigipObjectSpec:
                     "ltm_lsn_pool",
                     "ltm_pool",
                 ),
+                default="none",
             ),
-            BigipPropertySpec(name="port", value_type="string", allow_none=True),
+            BigipPropertySpec(name="port", value_type="string", allow_none=True, default="49"),
             BigipPropertySpec(
                 name="priv-lvl",
                 value_type="enum",
@@ -103,8 +118,9 @@ def register_spec() -> BigipObjectSpec:
                     "vpdn",
                     "xremote",
                 ),
+                default="unknown",
             ),
-            BigipPropertySpec(name="secret", value_type="string", allow_none=True),
+            BigipPropertySpec(name="secret", value_type="string", required=True, allow_none=True),
             BigipPropertySpec(
                 name="service",
                 value_type="enum",
@@ -121,6 +137,11 @@ def register_spec() -> BigipObjectSpec:
                     "tty-daemon",
                 ),
             ),
-            BigipPropertySpec(name="use-pool", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="use-pool",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
         ),
     )

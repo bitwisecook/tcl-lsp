@@ -18,13 +18,39 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "alg-log-profile"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="csv-format",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="end-control-channel", value_type="unknown"),
+            BigipPropertySpec(
+                name="end-control-channel",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("end-control-channel",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="elements",
+                        value_type="list",
+                        in_sections=("end-control-channel",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                        usage_flags=frozenset(("optional",)),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
@@ -36,13 +62,40 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("end-control-channel",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="destination",
+                        value_type="unknown",
+                        in_sections=("end-control-channel", "elements"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="destination",
                 value_type="unknown",
                 in_sections=("end-control-channel", "elements"),
             ),
-            BigipPropertySpec(name="end-data-channel", value_type="unknown"),
+            BigipPropertySpec(
+                name="end-data-channel",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("end-data-channel",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="elements",
+                        value_type="list",
+                        in_sections=("end-data-channel",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                        usage_flags=frozenset(("optional",)),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
@@ -54,20 +107,61 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("end-data-channel",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="destination",
+                        value_type="unknown",
+                        in_sections=("end-data-channel", "elements"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="destination",
                 value_type="unknown",
                 in_sections=("end-data-channel", "elements"),
             ),
-            BigipPropertySpec(name="inbound-transaction", value_type="unknown"),
+            BigipPropertySpec(
+                name="inbound-transaction",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("inbound-transaction",),
+                        enum_values=("disabled", "enabled"),
+                        shape_kind="boolean",
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
                 in_sections=("inbound-transaction",),
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="start-control-channel", value_type="unknown"),
+            BigipPropertySpec(
+                name="start-control-channel",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("start-control-channel",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="elements",
+                        value_type="list",
+                        in_sections=("start-control-channel",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                        usage_flags=frozenset(("optional",)),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
@@ -79,13 +173,40 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("start-control-channel",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="destination",
+                        value_type="unknown",
+                        in_sections=("start-control-channel", "elements"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="destination",
                 value_type="unknown",
                 in_sections=("start-control-channel", "elements"),
             ),
-            BigipPropertySpec(name="start-data-channel", value_type="unknown"),
+            BigipPropertySpec(
+                name="start-data-channel",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="action",
+                        value_type="enum",
+                        in_sections=("start-data-channel",),
+                        enum_values=("backup-allocation-only", "disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="elements",
+                        value_type="list",
+                        in_sections=("start-data-channel",),
+                        list_operators=frozenset(("add", "delete", "replace-all-with")),
+                        usage_flags=frozenset(("optional",)),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="action",
                 value_type="enum",
@@ -97,6 +218,14 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 in_sections=("start-data-channel",),
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="destination",
+                        value_type="unknown",
+                        in_sections=("start-data-channel", "elements"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="destination",

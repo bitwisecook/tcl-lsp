@@ -24,7 +24,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="ca-cert-file", value_type="unknown"),
             BigipPropertySpec(name="cert-file", value_type="unknown"),
             BigipPropertySpec(name="cert-key-file", value_type="unknown"),
-            BigipPropertySpec(name="controller-addresses", value_type="string"),
+            BigipPropertySpec(
+                name="controller-addresses",
+                value_type="string",
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="disabled", value_type="unknown"),
             BigipPropertySpec(name="enabled", value_type="unknown"),
@@ -41,8 +45,17 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("backhaul", "none"),
             ),
             BigipPropertySpec(name="port", value_type="unknown"),
-            BigipPropertySpec(name="tunnel-floating-addresses", value_type="string"),
-            BigipPropertySpec(name="tunnel-local-address", value_type="string"),
+            BigipPropertySpec(
+                name="tunnel-floating-addresses",
+                value_type="string",
+                shape_kind="ip-address",
+            ),
+            BigipPropertySpec(
+                name="tunnel-local-address",
+                value_type="string",
+                required=True,
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(
                 name="tunnel-maintenance-mode",
                 value_type="enum",

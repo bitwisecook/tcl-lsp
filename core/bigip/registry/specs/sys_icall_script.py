@@ -24,6 +24,14 @@ def register_spec() -> BigipObjectSpec:
                 name="events",
                 value_type="list",
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="contexts",
+                        value_type="list",
+                        in_sections=("events",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="contexts",

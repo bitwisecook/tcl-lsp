@@ -18,21 +18,28 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile stream"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="chunk-size", value_type="integer"),
             BigipPropertySpec(
                 name="chunking-enabled",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_stream",),
+                default="stream",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="source", value_type="string"),
-            BigipPropertySpec(name="target", value_type="string"),
+            BigipPropertySpec(name="source", value_type="string", default="none"),
+            BigipPropertySpec(name="target", value_type="string", default="none"),
         ),
     )

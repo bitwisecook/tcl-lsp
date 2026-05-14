@@ -39,6 +39,7 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(
                 name="domains",
                 value_type="list",
+                repeated=True,
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
@@ -65,7 +66,22 @@ def register_spec() -> BigipObjectSpec:
                 ),
             ),
             BigipPropertySpec(name="signature-references", value_type="string"),
-            BigipPropertySpec(name="url", value_type="unknown"),
+            BigipPropertySpec(
+                name="url",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="match-type",
+                        value_type="enum",
+                        in_sections=("url",),
+                        enum_values=("contains",),
+                    ),
+                    BigipPropertySpec(
+                        name="search-string", value_type="string", in_sections=("url",)
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="match-type",
                 value_type="enum",
@@ -73,7 +89,24 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("contains",),
             ),
             BigipPropertySpec(name="search-string", value_type="string", in_sections=("url",)),
-            BigipPropertySpec(name="user-agent", value_type="unknown"),
+            BigipPropertySpec(
+                name="user-agent",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="match-type",
+                        value_type="enum",
+                        in_sections=("user-agent",),
+                        enum_values=("contains",),
+                    ),
+                    BigipPropertySpec(
+                        name="search-string",
+                        value_type="string",
+                        in_sections=("user-agent",),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="match-type",
                 value_type="enum",

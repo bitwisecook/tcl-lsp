@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent aaa-ldap"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="attr-name",
                 value_type="list",
@@ -44,7 +49,7 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 list_operators=frozenset(("add", "delete")),
             ),
-            BigipPropertySpec(name="max-logon-attempt", value_type="integer"),
+            BigipPropertySpec(name="max-logon-attempt", value_type="integer", default="3"),
             BigipPropertySpec(
                 name="modify-type",
                 value_type="list",
@@ -56,11 +61,15 @@ def register_spec() -> BigipObjectSpec:
                 name="show-extended-error",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
             BigipPropertySpec(
                 name="type",
                 value_type="list",
+                required=True,
                 list_operators=frozenset(("modify",)),
+                default="last",
             ),
             BigipPropertySpec(name="user-dn", value_type="string", allow_none=True),
         ),

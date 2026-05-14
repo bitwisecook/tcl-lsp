@@ -23,11 +23,18 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("allow", "deny", "required"),
             ),
-            BigipPropertySpec(name="collect", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(
+                name="collect",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="continuous-check",
                 value_type="enum",
                 enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
             BigipPropertySpec(
                 name="items",

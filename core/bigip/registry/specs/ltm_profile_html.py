@@ -22,6 +22,7 @@ def register_spec() -> BigipObjectSpec:
                 name="content-detection",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="content-selection", value_type="unknown", allow_none=True),
             BigipPropertySpec(
@@ -29,6 +30,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_html",),
+                default="html",
             ),
             BigipPropertySpec(
                 name="rules",

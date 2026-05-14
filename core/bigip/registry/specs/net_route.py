@@ -20,14 +20,19 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="blackhole", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="gw", value_type="string", references=("net_self",)),
+            BigipPropertySpec(
+                name="gw",
+                value_type="string",
+                references=("net_self",),
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(
                 name="interface",
                 value_type="reference",
                 references=("net_interface", "net_interface_cos", "net_interface_ddm"),
             ),
             BigipPropertySpec(name="mtu", value_type="integer"),
-            BigipPropertySpec(name="network", value_type="string"),
+            BigipPropertySpec(name="network", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(
                 name="pool",
                 value_type="reference",

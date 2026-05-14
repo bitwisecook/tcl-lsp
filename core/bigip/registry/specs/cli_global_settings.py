@@ -18,7 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("cli", "global-settings"),),
         properties=(
-            BigipPropertySpec(name="audit", value_type="enum", enum_values=("disabled", "enabled")),
+            BigipPropertySpec(
+                name="audit",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="idle-timeout", value_type="integer", enum_values=("disabled",)),
             BigipPropertySpec(name="scf-backup-number", value_type="integer"),
@@ -39,6 +45,7 @@ def register_spec() -> BigipObjectSpec:
                     "sys_application_service",
                     "sys_service",
                 ),
+                default="name",
             ),
         ),
     )

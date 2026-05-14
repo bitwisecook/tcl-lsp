@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "classification url-cat-policy"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="feed-lists",

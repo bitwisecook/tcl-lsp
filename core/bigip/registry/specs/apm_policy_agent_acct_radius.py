@@ -18,8 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "policy agent acct-radius"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="server", value_type="string", allow_none=True),
-            BigipPropertySpec(name="username-source", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="server", value_type="string", required=True, allow_none=True),
+            BigipPropertySpec(
+                name="username-source",
+                value_type="string",
+                allow_none=True,
+                default="%{session",
+            ),
         ),
     )

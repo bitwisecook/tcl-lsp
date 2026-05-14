@@ -18,7 +18,16 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "icall handler periodic"),),
         properties=(
-            BigipPropertySpec(name="arguments", value_type="list"),
+            BigipPropertySpec(
+                name="arguments",
+                value_type="list",
+                usage_flags=frozenset(("optional",)),
+                block=(
+                    BigipPropertySpec(
+                        name="value", value_type="string", in_sections=("arguments",)
+                    ),
+                ),
+            ),
             BigipPropertySpec(name="value", value_type="string", in_sections=("arguments",)),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="first-occurrence", value_type="unknown"),

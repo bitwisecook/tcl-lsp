@@ -24,6 +24,7 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
+                default="none",
             ),
         ),
     )

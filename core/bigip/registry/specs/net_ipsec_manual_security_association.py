@@ -18,11 +18,20 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "ipsec manual-security-association"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="auth-algorithm", value_type="unknown"),
             BigipPropertySpec(name="auth-key", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="destination-address", value_type="string"),
+            BigipPropertySpec(
+                name="destination-address",
+                value_type="string",
+                shape_kind="ip-address",
+            ),
             BigipPropertySpec(
                 name="encrypt-algorithm",
                 value_type="enum",
@@ -35,7 +44,7 @@ def register_spec() -> BigipObjectSpec:
                 references=("net_ipsec_ipsec_policy",),
             ),
             BigipPropertySpec(name="protocol", value_type="unknown"),
-            BigipPropertySpec(name="source-address", value_type="string"),
+            BigipPropertySpec(name="source-address", value_type="string", shape_kind="ip-address"),
             BigipPropertySpec(name="spi", value_type="unknown"),
         ),
     )

@@ -31,7 +31,7 @@ def register_spec() -> BigipObjectSpec:
                 references=("security_protocol_inspection_profile",),
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="services", value_type="list"),
+            BigipPropertySpec(name="services", value_type="list", repeated=True),
             BigipPropertySpec(name="signature-enable", value_type="unknown"),
             BigipPropertySpec(name="staging-period", value_type="integer"),
         ),

@@ -24,6 +24,7 @@ def register_spec() -> BigipObjectSpec:
                 name="rate-limit",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="route-lookup-timeout", value_type="unknown"),
         ),

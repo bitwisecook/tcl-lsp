@@ -22,6 +22,7 @@ def register_spec() -> BigipObjectSpec:
                 name="update-automatically",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

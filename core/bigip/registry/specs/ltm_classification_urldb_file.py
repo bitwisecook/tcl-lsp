@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "classification urldb-file"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="source-path", value_type="string"),
         ),
     )

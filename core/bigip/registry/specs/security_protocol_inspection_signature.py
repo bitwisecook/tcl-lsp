@@ -39,7 +39,12 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="documentation", value_type="string"),
             BigipPropertySpec(name="id", value_type="integer"),
             BigipPropertySpec(name="last-updated", value_type="unknown"),
-            BigipPropertySpec(name="log", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(
+                name="log",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="performance-impact",
                 value_type="enum",
@@ -61,6 +66,11 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="service", value_type="string"),
             BigipPropertySpec(name="sig", value_type="unknown"),
             BigipPropertySpec(name="systems", value_type="string"),
-            BigipPropertySpec(name="user-defined", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(
+                name="user-defined",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+            ),
         ),
     )

@@ -18,13 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "message-routing diameter peer"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="auto-initialization",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="auto-initialization-interval", value_type="integer"),
+            BigipPropertySpec(
+                name="auto-initialization-interval",
+                value_type="integer",
+                default="5000ms",
+            ),
             BigipPropertySpec(
                 name="connection-mode",
                 value_type="enum",
@@ -38,9 +49,10 @@ def register_spec() -> BigipObjectSpec:
                     "per-peer-alternate-tmm",
                     "per-tmm",
                 ),
+                default="per-peer",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="number-connections", value_type="integer"),
+            BigipPropertySpec(name="number-connections", value_type="integer", default="1"),
             BigipPropertySpec(
                 name="pool",
                 value_type="reference",
@@ -62,7 +74,7 @@ def register_spec() -> BigipObjectSpec:
                     "ltm_pool",
                 ),
             ),
-            BigipPropertySpec(name="ratio", value_type="integer"),
+            BigipPropertySpec(name="ratio", value_type="integer", default="1"),
             BigipPropertySpec(name="transport-config", value_type="unknown"),
         ),
     )

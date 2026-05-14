@@ -25,6 +25,11 @@ def register_spec() -> BigipObjectSpec:
                 references=("ltm_profile_qoe",),
             ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
-            BigipPropertySpec(name="video", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(
+                name="video",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
         ),
     )

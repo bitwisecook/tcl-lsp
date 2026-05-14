@@ -18,14 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile request-adapt"),),
         properties=(
-            BigipPropertySpec(name="allow-http-10", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(
+                name="allow-http-10",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_request_adapt",),
             ),
-            BigipPropertySpec(name="enabled", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(
+                name="enabled",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(name="internal-virtual", value_type="reference", allow_none=True),
             BigipPropertySpec(name="preview-size", value_type="integer"),
             BigipPropertySpec(

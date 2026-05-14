@@ -18,9 +18,37 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("pem", "forwarding-endpoint"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
-            BigipPropertySpec(name="persistence", value_type="unknown"),
+            BigipPropertySpec(
+                name="persistence",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="fallback",
+                        value_type="enum",
+                        in_sections=("persistence",),
+                        enum_values=("destination-ip", "disabled", "source-ip"),
+                    ),
+                    BigipPropertySpec(
+                        name="hash-settings",
+                        value_type="list",
+                        in_sections=("persistence",),
+                    ),
+                    BigipPropertySpec(
+                        name="type",
+                        value_type="enum",
+                        in_sections=("persistence",),
+                        enum_values=("destination-ip", "disabled", "hash", "source-ip"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="fallback",
                 value_type="enum",
@@ -31,6 +59,34 @@ def register_spec() -> BigipObjectSpec:
                 name="hash-settings",
                 value_type="list",
                 in_sections=("persistence",),
+                block=(
+                    BigipPropertySpec(
+                        name="algorithm",
+                        value_type="unknown",
+                        in_sections=("persistence", "hash-settings"),
+                    ),
+                    BigipPropertySpec(
+                        name="length",
+                        value_type="integer",
+                        in_sections=("persistence", "hash-settings"),
+                    ),
+                    BigipPropertySpec(
+                        name="offset",
+                        value_type="integer",
+                        in_sections=("persistence", "hash-settings"),
+                    ),
+                    BigipPropertySpec(
+                        name="source",
+                        value_type="enum",
+                        in_sections=("persistence", "hash-settings"),
+                        enum_values=("tcl-snippet", "uri"),
+                    ),
+                    BigipPropertySpec(
+                        name="tcl-value",
+                        value_type="string",
+                        in_sections=("persistence", "hash-settings"),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="algorithm",
@@ -85,21 +141,26 @@ def register_spec() -> BigipObjectSpec:
                     "ltm_pool",
                 ),
             ),
-            BigipPropertySpec(name="snat-pool", value_type="reference"),
+            BigipPropertySpec(name="snat-pool", value_type="reference", default="none"),
             BigipPropertySpec(
                 name="source-port",
                 value_type="enum",
                 enum_values=("change", "preserve", "preserve-strict"),
+                default="preserve",
             ),
             BigipPropertySpec(
                 name="translate-address",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="translate-service",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
         ),
     )

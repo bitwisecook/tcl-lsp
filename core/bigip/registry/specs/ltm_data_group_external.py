@@ -18,10 +18,15 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "data-group external"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="external-file-name", value_type="reference", allow_none=True),
-            BigipPropertySpec(name="separator", value_type="string"),
+            BigipPropertySpec(name="separator", value_type="string", default=":="),
             BigipPropertySpec(name="source-path", value_type="unknown"),
             BigipPropertySpec(name="type", value_type="integer", enum_values=("ip",)),
         ),

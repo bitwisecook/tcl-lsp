@@ -17,5 +17,12 @@ def register_spec() -> BigipObjectSpec:
             object_types=("policy agent ip-geolocation-lookup",),
         ),
         header_types=(("apm", "policy agent ip-geolocation-lookup"),),
-        properties=(BigipPropertySpec(name="app-service", value_type="string", allow_none=True),),
+        properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+        ),
     )

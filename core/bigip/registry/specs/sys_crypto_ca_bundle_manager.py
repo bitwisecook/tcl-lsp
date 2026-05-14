@@ -20,10 +20,20 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="proxy-port", value_type="unknown"),
-            BigipPropertySpec(name="proxy-server", value_type="string"),
-            BigipPropertySpec(name="time-out", value_type="unknown"),
+            BigipPropertySpec(name="proxy-server", value_type="string", shape_kind="ip-address"),
+            BigipPropertySpec(name="time-out", value_type="unknown", default="8 seconds"),
             BigipPropertySpec(name="trusted-ca-bundle", value_type="unknown"),
-            BigipPropertySpec(name="update-interval", value_type="unknown"),
-            BigipPropertySpec(name="update-now", value_type="enum", enum_values=("no", "yes")),
+            BigipPropertySpec(
+                name="update-interval",
+                value_type="unknown",
+                default="0, which means the generated ca-bundle is not dynamically updated",
+            ),
+            BigipPropertySpec(
+                name="update-now",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
+            ),
         ),
     )

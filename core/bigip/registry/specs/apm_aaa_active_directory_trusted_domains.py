@@ -18,13 +18,27 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("apm", "aaa active-directory-trusted-domains"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string", allow_none=True),
-            BigipPropertySpec(name="root-domain", value_type="string"),
+            BigipPropertySpec(name="root-domain", value_type="string", required=True),
             BigipPropertySpec(
                 name="trusted-domains",
                 value_type="list",
+                required=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="active-directory",
+                        value_type="reference",
+                        in_sections=("trusted-domains",),
+                        references=("apm_aaa_active_directory",),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="active-directory",

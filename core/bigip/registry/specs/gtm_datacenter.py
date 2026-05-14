@@ -18,12 +18,27 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("gtm", "datacenter"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
-            BigipPropertySpec(name="contact", value_type="reference", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="contact",
+                value_type="reference",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="location", value_type="unknown"),
+            BigipPropertySpec(name="location", value_type="unknown", default="none"),
             BigipPropertySpec(name="metadata", value_type="unknown"),
-            BigipPropertySpec(name="persist", value_type="enum", enum_values=("false", "true")),
+            BigipPropertySpec(
+                name="persist",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
             BigipPropertySpec(
                 name="prober-fallback",
                 value_type="enum",
@@ -35,6 +50,7 @@ def register_spec() -> BigipObjectSpec:
                     "outside-datacenter",
                     "pool",
                 ),
+                default="any-available",
             ),
             BigipPropertySpec(
                 name="prober-pool",
@@ -47,6 +63,7 @@ def register_spec() -> BigipObjectSpec:
                 name="prober-preference",
                 value_type="enum",
                 enum_values=("inside-datacenter", "outside-datacenter", "pool"),
+                default="inside-datacenter",
             ),
             BigipPropertySpec(name="value", value_type="string"),
         ),

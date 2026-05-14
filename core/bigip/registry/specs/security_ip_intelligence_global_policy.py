@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "ip-intelligence global-policy"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="reference"),
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="ip-intelligence-categories", value_type="unknown"),
             BigipPropertySpec(

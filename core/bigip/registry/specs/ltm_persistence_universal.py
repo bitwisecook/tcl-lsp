@@ -18,27 +18,39 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "persistence universal"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 references=("ltm_persistence_universal",),
+                default="universal, the system default cookie persistence profile",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="match-across-pools",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="match-across-services",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="match-across-virtuals",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="method",
@@ -49,11 +61,15 @@ def register_spec() -> BigipObjectSpec:
                 name="mirror",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="override-connection-limit",
                 value_type="enum",
                 enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
                 name="rule",
@@ -73,6 +89,6 @@ def register_spec() -> BigipObjectSpec:
                     "sys_file_rewrite_rule",
                 ),
             ),
-            BigipPropertySpec(name="timeout", value_type="integer"),
+            BigipPropertySpec(name="timeout", value_type="integer", default="180 seconds"),
         ),
     )

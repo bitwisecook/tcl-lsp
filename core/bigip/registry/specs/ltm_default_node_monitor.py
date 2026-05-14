@@ -22,6 +22,7 @@ def register_spec() -> BigipObjectSpec:
                 name="rule",
                 value_type="unknown",
                 references=("ltm_rule", "ltm_rule_profiler"),
+                default="none",
             ),
         ),
     )

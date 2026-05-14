@@ -18,7 +18,12 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "stp"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="instance-id", value_type="integer"),
             BigipPropertySpec(
@@ -26,22 +31,51 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("interfaces",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="external-path-cost",
+                        value_type="integer",
+                        in_sections=("interfaces",),
+                        default="20000",
+                    ),
+                    BigipPropertySpec(
+                        name="internal-path-cost",
+                        value_type="integer",
+                        in_sections=("interfaces",),
+                        default="20000",
+                    ),
+                    BigipPropertySpec(
+                        name="priority",
+                        value_type="integer",
+                        in_sections=("interfaces",),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("interfaces",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="external-path-cost",
                 value_type="integer",
                 in_sections=("interfaces",),
+                default="20000",
             ),
             BigipPropertySpec(
                 name="internal-path-cost",
                 value_type="integer",
                 in_sections=("interfaces",),
+                default="20000",
             ),
             BigipPropertySpec(name="priority", value_type="integer", in_sections=("interfaces",)),
             BigipPropertySpec(name="priority", value_type="integer"),
@@ -50,22 +84,49 @@ def register_spec() -> BigipObjectSpec:
                 value_type="list",
                 allow_none=True,
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="app-service",
+                        value_type="string",
+                        in_sections=("trunks",),
+                        allow_none=True,
+                        default="none",
+                    ),
+                    BigipPropertySpec(
+                        name="external-path-cost",
+                        value_type="integer",
+                        in_sections=("trunks",),
+                        default="20000",
+                    ),
+                    BigipPropertySpec(
+                        name="internal-path-cost",
+                        value_type="integer",
+                        in_sections=("trunks",),
+                        default="20000",
+                    ),
+                    BigipPropertySpec(
+                        name="priority", value_type="integer", in_sections=("trunks",)
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="app-service",
                 value_type="string",
                 in_sections=("trunks",),
                 allow_none=True,
+                default="none",
             ),
             BigipPropertySpec(
                 name="external-path-cost",
                 value_type="integer",
                 in_sections=("trunks",),
+                default="20000",
             ),
             BigipPropertySpec(
                 name="internal-path-cost",
                 value_type="integer",
                 in_sections=("trunks",),
+                default="20000",
             ),
             BigipPropertySpec(name="priority", value_type="integer", in_sections=("trunks",)),
             BigipPropertySpec(

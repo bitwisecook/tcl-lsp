@@ -18,11 +18,17 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels etherip"),),
         properties=(
-            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 references=("net_tunnels_etherip",),
+                default="etherip",
             ),
             BigipPropertySpec(name="description", value_type="string"),
         ),
