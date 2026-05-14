@@ -230,6 +230,34 @@ _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN = PropertySpec(
     project_via_legacy=True,
 )
 
+# Security firewall rule-lists carry ``rules`` as a tuple of rule
+# names; the inner bodies (action / source / destination clauses)
+# live in raw source and aren't yet exposed on the model.  We can
+# still register the list-of-rule-name refs through the new specs
+# so the dispatch is consistent with the rest of the system — the
+# deeper FirewallRuleSpec walk against parsed bodies waits for the
+# follow-up model refactor.
+_PILOT_SECURITY_FW_RULE_LIST_RULES = PropertySpec(
+    attr="rules",
+    value=ListSpec(item=ObjectRefSpec(kind="security firewall rule")),
+    writable=False,  # rule names key the bodies, not externally renameable
+    project_via_legacy=True,
+)
+_PILOT_SECURITY_FW_POLICY_RULE_LISTS = PropertySpec(
+    attr="rule_lists",
+    value=ListSpec(item=ObjectRefSpec(kind="security firewall rule-list")),
+    writable=True,
+    tmsh_name="rule-lists",
+    project_via_legacy=True,
+)
+_PILOT_SECURITY_FW_ADDRESS_LIST_NESTED = PropertySpec(
+    attr="address_lists",
+    value=ListSpec(item=ObjectRefSpec(kind="security firewall address-list")),
+    writable=True,
+    tmsh_name="address-lists",
+    project_via_legacy=True,
+)
+
 
 # (module, object_type, property_name) -> PropertySpec
 PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
@@ -251,6 +279,12 @@ PILOT_PROPERTY_SPECS: dict[tuple[str, str, str], PropertySpec] = {
     ("gtm", "region", "region-members"): _PILOT_GTM_REGION_MEMBERS,
     ("ltm", "profile client-ssl", "cert-key-chain"): _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN,
     ("ltm", "profile server-ssl", "cert-key-chain"): _PILOT_LTM_CLIENT_SSL_CERT_KEY_CHAIN,
+    # Security firewall list-of-refs migrations.  Body-level rule
+    # introspection waits for the model refactor that promotes
+    # tuple-of-names to tuple-of-FirewallRule.
+    ("security", "firewall rule-list", "rules"): _PILOT_SECURITY_FW_RULE_LIST_RULES,
+    ("security", "firewall policy", "rule-lists"): _PILOT_SECURITY_FW_POLICY_RULE_LISTS,
+    ("security", "firewall address-list", "address-lists"): _PILOT_SECURITY_FW_ADDRESS_LIST_NESTED,
 }
 
 

@@ -1107,3 +1107,52 @@ def test_server_ssl_cert_key_chain_shares_one_spec():
     client = pilot_property_spec_for("ltm", "profile client-ssl", "cert-key-chain")
     server = pilot_property_spec_for("ltm", "profile server-ssl", "cert-key-chain")
     assert client is server
+
+
+# ---------------------------------------------------------------------------
+# Migration batch 6: security firewall list-of-refs
+# ---------------------------------------------------------------------------
+
+
+def test_firewall_policy_rule_lists_migration_yields_nested_refs():
+    """``security firewall policy.rule-lists`` references each
+    nested rule-list — the migration surfaces every edge so the
+    graph layer can answer "which firewall policies use this
+    rule-list?" exactly."""
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="security",
+        object_type="firewall policy",
+        property_name="rule-lists",
+        value=("/Common/_sys_self_allow_defaults", "/Common/app_rules"),
+        owner_path="/Common/policy_outer",
+    )
+    assert refs is not None
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        ("security firewall rule-list", "/Common/_sys_self_allow_defaults"),
+        ("security firewall rule-list", "/Common/app_rules"),
+    ]
+
+
+def test_firewall_address_list_nested_lists_migration_yields_refs():
+    from core.bigip.registry import references_via_spec
+
+    refs = references_via_spec(
+        module="security",
+        object_type="firewall address-list",
+        property_name="address-lists",
+        value=("/Common/trusted_networks", "/Common/datacenter_ranges"),
+        owner_path="/Common/all_internal",
+    )
+    assert refs is not None
+    assert [(r.target_kind, r.target_path) for r in refs] == [
+        (
+            "security firewall address-list",
+            "/Common/trusted_networks",
+        ),
+        (
+            "security firewall address-list",
+            "/Common/datacenter_ranges",
+        ),
+    ]
