@@ -24,7 +24,18 @@ from ...analysis.semantic_model import Range
 from ._enums import DataGroupType, ProfileType
 
 if TYPE_CHECKING:
-    from ..types import FQDN, Address, Destination, IPAddress
+    from ..types import FQDN, Address, BigipList, Destination, IPAddress
+
+
+def _empty_bigip_list():
+    """Return a fresh empty :class:`BigipList` for default-factory use.
+
+    Lazy import keeps the model layer from forcing the types module
+    to import at module-import time (the registry pulls in the
+    model during its own initialisation)."""
+    from ..types import BigipList
+
+    return BigipList()
 
 
 # v1 LTM core types (data-groups, pools, virtuals, monitors, profiles,
@@ -230,17 +241,17 @@ class BigipVirtualServer:
     destination: "Destination | None" = None
     pool: str = ""  # default pool path
     rules: tuple[str, ...] = ()  # attached iRule paths
-    profiles: tuple[str, ...] = ()  # attached profile paths
-    # Typed per-attachment view of ``profiles``: each ListItem
-    # carries a ``ProfileAttachment`` value (``.path``, ``.context``)
-    # so DSL queries can ask ``.profiles[] | select(.context ==
-    # "clientside")``.  Populated alongside ``profiles`` by the
-    # parser; ``None`` when the legacy back-compat path is enough.
-    profile_attachments: object = None  # BigipList | None
-    persist: tuple[str, ...] = ()  # persistence profile paths
-    # Sister field to ``profile_attachments`` for persistence
-    # attachments — surfaces ``.default`` to the DSL.
-    persist_attachments: object = None  # BigipList | None
+    # Profile attachments — :class:`core.bigip.types.BigipList` of
+    # :class:`ProfileAttachment` items.  Iteration yields the typed
+    # attachment values (with ``.context`` / ``.path`` accessors);
+    # the back-compat ``.paths`` property returns the legacy
+    # ``tuple[str, ...]`` shape for code that just wants the
+    # profile paths.
+    profiles: "BigipList" = dc_field(default_factory=_empty_bigip_list)
+    # Persistence attachments — same shape as ``profiles`` but
+    # carrying :class:`PersistenceAttachment` items with
+    # ``.default`` flags.
+    persist: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     policies: tuple[str, ...] = ()  # ltm policy paths attached to this VS
     snatpool: str = ""
     source_address_translation: str = ""

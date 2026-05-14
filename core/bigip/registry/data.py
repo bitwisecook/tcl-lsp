@@ -45,10 +45,19 @@ for object_spec in OBJECT_SPECS:
             PROPERTY_NAMES_BY_TYPE[type_key] = ()
         PROPERTY_SPECS_BY_TYPE.setdefault(type_key, {})
         existing = list(PROPERTY_NAMES_BY_TYPE[type_key])
+        prop_map = PROPERTY_SPECS_BY_TYPE[type_key]
         for prop in object_spec.properties:
             if prop.name not in existing:
                 existing.append(prop.name)
-            PROPERTY_SPECS_BY_TYPE[type_key].setdefault(prop.name, prop)
+            current = prop_map.get(prop.name)
+            # Prefer top-level properties (no ``in_sections``) over
+            # sub-section homonyms: a kind can legitimately reuse a
+            # property name (``persist`` on ``ltm virtual`` is both
+            # a top-level list of attachments AND a boolean flag
+            # inside the ``metadata`` sub-section).  The top-level
+            # entry is the one queries / emitter / pilot want.
+            if current is None or (current.in_sections and not prop.in_sections):
+                prop_map[prop.name] = prop
         PROPERTY_NAMES_BY_TYPE[type_key] = tuple(existing)
 
 

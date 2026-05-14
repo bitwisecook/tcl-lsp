@@ -1116,7 +1116,7 @@ class BigipConfig:
         if vs is None:
             return []
         result: list[BigipProfile] = []
-        for pref in vs.profiles:
+        for pref in vs.profiles.paths:
             resolved = self.resolve_profile(pref)
             if resolved and resolved in self.profiles:
                 result.append(self.profiles[resolved])

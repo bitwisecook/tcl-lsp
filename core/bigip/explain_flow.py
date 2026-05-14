@@ -1701,7 +1701,7 @@ def _gtm_wide_ips_in_config(cfg: BigipConfig) -> list[str]:
 
 
 def _apm_profile_for(cfg: BigipConfig, vs: BigipVirtualServer) -> str:
-    for pref in vs.profiles:
+    for pref in vs.profiles.paths:
         resolved = cfg.resolve_profile(pref) or pref
         if "/access" in resolved or resolved.endswith("access"):
             return resolved
@@ -1995,7 +1995,7 @@ def compute_explain_flow(
         partition = vs_path.split("/")[1] if vs_path.startswith("/") else ""
 
         profile_chain: list[str] = []
-        for pref in vs.profiles:
+        for pref in vs.profiles.paths:
             resolved = cfg_hit.resolve_profile(pref) or pref
             prof = cfg_hit.profiles.get(resolved)
             if prof is not None:

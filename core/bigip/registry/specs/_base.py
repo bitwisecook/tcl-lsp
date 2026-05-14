@@ -61,15 +61,37 @@ _FORCE_REPLACE_ALL_WITH: frozenset[tuple[str, str, str]] = frozenset(
 )
 
 
+# Properties the generator mis-classifies (e.g. as ``enum`` when
+# they're really lists).  Each entry forces ``value_type="list"``
+# and applies the default ``add``/``delete``/``replace-all-with``
+# operator set so the renderer treats them correctly.
+_FORCE_LIST_VALUE_TYPE: frozenset[tuple[str, str, str]] = frozenset(
+    {
+        # SNAT pool members: a list of translation IPs but the
+        # manpage spec emits ``enum`` because of the ``default`` /
+        # ``none`` operator keywords.
+        ("ltm", "snatpool", "members"),
+    }
+)
+
+
 def _normalise_property(
     module: str, object_type: str, prop: BigipPropertySpec
 ) -> BigipPropertySpec:
     """Return *prop* with curated overrides applied."""
+    key = (module, object_type, prop.name)
+    if key in _FORCE_LIST_VALUE_TYPE and prop.value_type != "list":
+        prop = _dc_replace(
+            prop,
+            value_type="list",
+            list_operators=frozenset({"add", "delete", "replace-all-with"}),
+        )
+        return prop
     if prop.value_type != "list":
         return prop
     if prop.list_operators:
         return prop
-    if (module, object_type, prop.name) in _FORCE_REPLACE_ALL_WITH:
+    if key in _FORCE_REPLACE_ALL_WITH:
         return _dc_replace(
             prop,
             list_operators=frozenset({"add", "delete", "replace-all-with"}),

@@ -208,16 +208,14 @@ _PILOT_LTM_VIRTUAL_SNAT = PropertySpec(
 # values expose ``.full_path`` aliases for back-compat with the
 # legacy PathRef contract (``.profiles[].full-path``).
 _PILOT_LTM_VIRTUAL_PROFILES = PropertySpec(
-    attr="profile_attachments",  # typed BigipList on the model
+    attr="profiles",  # typed BigipList stored directly on the model
     value=ListSpec(item=ProfileAttachmentSpec(), syntax="keyed-block"),
     writable=True,
-    tmsh_name="profiles",
 )
 _PILOT_LTM_VIRTUAL_PERSIST = PropertySpec(
-    attr="persist_attachments",
+    attr="persist",
     value=ListSpec(item=PersistenceAttachmentSpec(), syntax="keyed-block"),
     writable=True,
-    tmsh_name="persist",
 )
 # ``rules`` is a plain ref-list (no per-attachment metadata) so the
 # inner spec is the simpler ObjectRefSpec.  Migrating it here lets

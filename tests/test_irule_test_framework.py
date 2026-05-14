@@ -26,7 +26,7 @@ from core.bigip.model import (
     DataGroupType,
     ProfileType,
 )
-from core.bigip.types import Destination
+from core.bigip.types import BigipList, Destination, ListItem, ProfileAttachment
 from core.irule_test.bridge import EventResult, IruleTestSession, RequestResult, _has_tkinter_tcl
 from core.irule_test.codegen_event_data import _generate as generate_event_data
 from core.irule_test.codegen_mock_stubs import _generate as generate_mock_stubs
@@ -316,7 +316,13 @@ class TestTopologyFromSCF:
             destination=Destination.parse("/Common/10.0.0.100:443"),
             pool="/Common/web_pool",
             rules=("/Common/test_irule",),
-            profiles=("/Common/http", "/Common/clientssl", "/Common/tcp"),
+            profiles=BigipList(
+                items=tuple(
+                    ListItem(value=ProfileAttachment(path=p), key=p)
+                    for p in ("/Common/http", "/Common/clientssl", "/Common/tcp")
+                ),
+                syntax="keyed-block",
+            ),
         )
         config.pools["/Common/web_pool"] = BigipPool(
             name="web_pool",

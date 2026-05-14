@@ -177,12 +177,15 @@ ltm virtual /Common/v_compact {
 """
     config = parse_bigip_conf(source)
     vs = config.virtual_servers["/Common/v_compact"]
-    assert vs.profiles == (
+    # ``vs.profiles`` / ``vs.persist`` are typed BigipList now;
+    # ``.paths`` is the legacy ``tuple[str, ...]`` back-compat
+    # accessor.
+    assert vs.profiles.paths == (
         "/Common/clientssl",
         "/Common/http",
         "/Common/serverssl",
     )
-    assert vs.persist == ("/Common/cookie",)
+    assert vs.persist.paths == ("/Common/cookie",)
 
 
 def test_parse_virtual_server_source_addr_translation():

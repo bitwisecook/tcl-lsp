@@ -674,13 +674,23 @@ def _render_virtual(verb: str, vs: BigipVirtualServer) -> str:
     # no parallel renderer change.
     if vs.profiles:
         fields.append(
-            _list_field("ltm", "virtual", "profiles", " ".join(f"{p} {{ }}" for p in vs.profiles))
+            _list_field(
+                "ltm",
+                "virtual",
+                "profiles",
+                " ".join(f"{p} {{ }}" for p in vs.profiles.paths),
+            )
         )
     if vs.rules:
         fields.append(_list_field("ltm", "virtual", "rules", " ".join(vs.rules)))
     if vs.persist:
         fields.append(
-            _list_field("ltm", "virtual", "persist", " ".join(f"{p} {{ }}" for p in vs.persist))
+            _list_field(
+                "ltm",
+                "virtual",
+                "persist",
+                " ".join(f"{p} {{ }}" for p in vs.persist.paths),
+            )
         )
     if vs.snatpool:
         fields.append(f"snatpool {vs.snatpool}")

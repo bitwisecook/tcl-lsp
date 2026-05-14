@@ -176,11 +176,55 @@ class BigipList:
     def __bool__(self) -> bool:
         return bool(self.items)
 
+    def __getitem__(self, index):
+        return self.items[index].value
+
+    def __contains__(self, needle: object) -> bool:
+        """Membership against either a typed item value OR its
+        string path — so legacy callers checking ``"/Common/x" in
+        vs.profiles`` keep working without unwrapping items."""
+        if isinstance(needle, str):
+            return needle in self.paths
+        return any(item.value == needle for item in self.items)
+
     @property
     def values(self) -> tuple[object, ...]:
         """Tuple of just the typed item values — for callers that
         want the legacy ``tuple[T, ...]`` shape without iterating."""
         return tuple(item.value for item in self.items)
+
+    @property
+    def paths(self) -> tuple[str, ...]:
+        """Tuple of string paths the items reference.
+
+        For typed item values with a ``full_path`` / ``path``
+        attribute (``ProfileAttachment``, ``PersistenceAttachment``,
+        ``CertKeyChain``, ``FirewallRule``, ...) returns the
+        ``full_path``; for plain string items (``ObjectRefSpec``-
+        wrapped paths in ``rules`` / ``policies`` / ``vlans``)
+        returns the string verbatim.  This is the back-compat
+        surface the legacy ``tuple[str, ...]`` consumers used —
+        ``for p in vs.profiles.paths`` reads identically to the
+        pre-collapse ``for p in vs.profiles`` shape."""
+        out: list[str] = []
+        for item in self.items:
+            v = item.value
+            if isinstance(v, str):
+                out.append(v)
+                continue
+            full_path = getattr(v, "full_path", None)
+            if isinstance(full_path, str) and full_path:
+                out.append(full_path)
+                continue
+            path = getattr(v, "path", None)
+            if isinstance(path, str) and path:
+                out.append(path)
+                continue
+            if item.key:
+                out.append(item.key)
+                continue
+            out.append(str(v) if v is not None else "")
+        return tuple(out)
 
 
 __all__ = ["BigipList", "ListItem", "ListSyntax", "SourceSpan"]
