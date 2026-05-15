@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import random
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -233,7 +232,6 @@ def _gen_ltm_lines(device: DeviceConfig, rng: random.Random) -> list[str]:
     pid_mcpd = rng.randint(1500, 9999)
     pid_tmm = rng.randint(10000, 19999)
     pid_bigd = rng.randint(2000, 4999)
-    pid_logger = rng.randint(20000, 29999)
     pid_audit = rng.randint(30000, 39999)
     host = device.hostname
 

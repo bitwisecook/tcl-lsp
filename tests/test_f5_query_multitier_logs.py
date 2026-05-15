@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.bigip.query import run_query
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MULTITIER = REPO_ROOT / "samples" / "for_f5_query" / "multitier"
 LOGS_DIR = MULTITIER / "logs"
@@ -43,9 +42,7 @@ def test_logs_dir_has_one_log_per_device():
     """The generator should produce a ``.log`` per device.  This is
     the cheapest test that catches generator drift before the more
     semantic checks below."""
-    assert LOGS_DIR.is_dir(), (
-        f"missing {LOGS_DIR} — run python {MULTITIER}/generate_logs.py first"
-    )
+    assert LOGS_DIR.is_dir(), f"missing {LOGS_DIR} — run python {MULTITIER}/generate_logs.py first"
     log_files = sorted(p.name for p in LOGS_DIR.glob("*.log"))
     # 1 GTM + 2 tier-1 + 24 tier-2 (12 pairs) + 1 tier-3 = 28 files.
     assert len(log_files) == 28, f"unexpected log set: {log_files}"
@@ -277,7 +274,9 @@ def test_whole_fleet_severity_rollup_via_runner_specs():
     # For every log binding, emit the device + its err count.
     parts = []
     for var in sorted(names):
-        parts.append(f'{{ device: "{var}", errs: ([${var}[] | select(.severity == "err")] | count) }}')
+        parts.append(
+            f'{{ device: "{var}", errs: ([${var}[] | select(.severity == "err")] | count) }}'
+        )
     query = "[ " + ", ".join(parts) + " ] | sort"
     result = run_query(query, sources, input_specs=specs, names=names)
     [rows] = _flat(result, uri="mem://x")
