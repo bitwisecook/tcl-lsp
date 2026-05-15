@@ -787,7 +787,7 @@ export async function activate(context: ExtensionContext) {
   }
 
   ch.appendLine(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient };
+  return { getClient, applyDialectForDocument };
 }
 
 export async function deactivate(): Promise<void> {
@@ -974,7 +974,7 @@ export async function setServerDialect(dialect: string): Promise<void> {
   });
 }
 
-async function applyDialectForDocument(document: TextDocument): Promise<void> {
+export async function applyDialectForDocument(document: TextDocument): Promise<void> {
   if (!isTclLanguage(document.languageId)) {
     return;
   }
