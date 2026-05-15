@@ -36,8 +36,9 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     uri = params.text_document.uri
     lang_id = params.text_document.language_id or ""
     n_lines = params.text_document.text.count("\n") + 1
+    had_open_documents = bool(_state.workspace_state.items())
     log.info("Opened %s (language_id=%r, lines=%d)", uri, lang_id, n_lines)
-    _state.workspace_state.open(
+    state = _state.workspace_state.open(
         uri,
         params.text_document.text,
         params.text_document.version,
@@ -76,19 +77,27 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
                 )
             )
     elif not folder_cfg.dialect_explicitly_set:
-        from core.common.dialect import detect_dialect_from_source
-
-        source_dialect = detect_dialect_from_source(params.text_document.text)
-        if source_dialect:
-            # Stash the detected dialect on the folder config so subsequent
-            # requests in this folder honour it without re-running detection.
+        # Use the document's cached dialect hint (state.dialect_hint is
+        # populated by workspace_state.open() via
+        # WorkspaceDocumentState.refresh_dialect_hint).  Only auto-switch
+        # the workspace dialect on the *first* opened document so that
+        # subsequent files with conflicting hints don't ping-pong the
+        # process-wide dialect setting.
+        source_dialect = state.dialect_hint
+        if source_dialect and not had_open_documents:
             folder_cfg.dialect = source_dialect
             changed = configure_signatures(dialect=source_dialect)
             if changed:
                 log.info(
-                    "Auto-switched to %s dialect (detected from source)",
+                    "Auto-switched workspace dialect to %s for first opened document",
                     source_dialect,
                 )
+        elif source_dialect:
+            log.info(
+                "Using per-document dialect %s for %s; workspace dialect unchanged",
+                source_dialect,
+                uri,
+            )
         else:
             from lsp.workspace_init import _upgrade_dialect_from_workspace
 

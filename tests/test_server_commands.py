@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -58,6 +59,31 @@ def test_suggest_packages_for_symbol_has_stable_shape() -> None:
     assert data["symbol"] == "json::parse"
     assert "suggestions" in data
     assert isinstance(data["suggestions"], list)
+
+
+def test_tclpkg_install_adds_manifest_requirement_and_lockfile(tmp_path: Path) -> None:
+    manifest = tmp_path / "tclpkg.tcl"
+    manifest.write_text("package demo\nversion 1.0.0\n", encoding="utf-8")
+    script = tmp_path / "main.tcl"
+    script.write_text("json::json2dict {}\n", encoding="utf-8")
+
+    result = server_module.on_tclpkg_install("json", script.as_uri())
+
+    assert result["success"] is True
+    assert "require json 0.0.1" in manifest.read_text(encoding="utf-8")
+    lock_data = json.loads((tmp_path / "tclpkg.lock").read_text(encoding="utf-8"))
+    assert [pkg["name"] for pkg in lock_data["packages"]] == ["json"]
+
+
+def test_tclpkg_install_rejects_manifest_injection(tmp_path: Path) -> None:
+    manifest = tmp_path / "tclpkg.tcl"
+    manifest.write_text("package demo\nversion 1.0.0\n", encoding="utf-8")
+
+    result = server_module.on_tclpkg_install("json;exec", (tmp_path / "main.tcl").as_uri())
+
+    assert result["success"] is False
+    assert "Invalid package name" in result["message"]
+    assert "json;exec" not in manifest.read_text(encoding="utf-8")
 
 
 def test_extract_linked_objects_command_returns_graph(monkeypatch: pytest.MonkeyPatch) -> None:

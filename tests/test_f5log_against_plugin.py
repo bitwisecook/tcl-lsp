@@ -28,8 +28,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.bigip.query._inputs import parse_f5log
-
+from core.bigip.query._inputs import parse_f5log  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "f5log" / "visidata_gtm.log"
 
@@ -77,9 +76,7 @@ def _plugin_parse_one(line: str) -> dict:
     return {
         "timestamp": d.get("date1") or d.get("date2") or d.get("date3") or "",
         "host": d.get("host") or "",
-        "severity": (d.get("level") or "").lower()
-        if d.get("level") in _PLUGIN_SEVERITIES
-        else "",
+        "severity": (d.get("level") or "").lower() if d.get("level") in _PLUGIN_SEVERITIES else "",
         "daemon": process,
         "pid": int(d["pid"]) if d.get("pid") else None,
         "code": code,
@@ -89,9 +86,7 @@ def _plugin_parse_one(line: str) -> dict:
     }
 
 
-_PLUGIN_SEVERITIES = {
-    "emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"
-}
+_PLUGIN_SEVERITIES = {"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}
 
 
 # ---------------------------------------------------------------------------
@@ -117,8 +112,7 @@ def test_every_line_parses_without_dropping_to_raw_only():
     assert len(events) == 76
     missing_timestamp = [e for e in events if not e["timestamp"]]
     assert not missing_timestamp, (
-        f"{len(missing_timestamp)} lines without timestamp; first: "
-        f"{missing_timestamp[0]['raw']!r}"
+        f"{len(missing_timestamp)} lines without timestamp; first: {missing_timestamp[0]['raw']!r}"
     )
 
 

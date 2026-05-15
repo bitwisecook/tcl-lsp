@@ -329,7 +329,7 @@ def _take_timestamp(text: str) -> tuple[str | None, str, bool]:
     parts = text.split(None, 3)
     if len(parts) < 4:
         return None, text, False
-    month, day, hms, rest = parts[0], parts[1], parts[2], parts[3]
+    month, day, hms = parts[0], parts[1], parts[2]
     if len(month) != 3 or not day.isdigit() or len(hms) != 8 or hms[2] != ":" or hms[5] != ":":
         return None, text, False
     # Recover the literal source slice so double-space day

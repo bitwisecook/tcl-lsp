@@ -1306,7 +1306,8 @@ def on_code_action(
         source,
         params.range,
         params.context,
-        package_names=_state.package_resolver_for_uri(params.text_document.uri).all_package_names(),
+        uri=uri,
+        package_names=_state.package_resolver_for_uri(uri).all_package_names(),
         lines=state.lines if state else None,
     )
     # Fill in the correct document URI for each action's edit

@@ -14,7 +14,12 @@ from lsprotocol import types
 
 import lsp.state as _state
 
-from .features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
+from .features.diagnostics import (
+    _to_lsp_diagnostic,
+    get_basic_diagnostics,
+    get_deep_diagnostics,
+    get_diagnostics,
+)
 from .workspace.scanner import path_to_uri, uri_to_path
 from .workspace.workspace_index import EntrySource
 
@@ -688,7 +693,10 @@ def _publish_bigip_diagnostics(
     if cfg.diagnostics_enabled:
         # Stanza-shape / value-format diagnostics (BIGIP6xxx codes,
         # always anchored on parser ranges).
-        diagnostics = get_bigip_diagnostics(config, disabled_codes=cfg.disabled_diagnostics)
+        diagnostics = [
+            _to_lsp_diagnostic(d)
+            for d in get_bigip_diagnostics(config, disabled_codes=cfg.disabled_diagnostics)
+        ]
         # Cross-file lint diagnostics (orphaned monitors, missing
         # iRule references, partition mismatches, deprecated commands,
         # …).  Driven by the same lint rule registry the ``f5 lint``
@@ -712,14 +720,17 @@ def _publish_bigip_diagnostics(
                 if doc_source:
                     scanner_sources[u] = doc_source
         try:
-            diagnostics = list(diagnostics) + get_bigip_lint_diagnostics(
-                uri=uri,
-                source=source,
-                config=config,
-                workspace_sources=scanner_sources,
-                workspace_configs=scanner_configs,
-                disabled_codes=cfg.disabled_diagnostics,
-            )
+            diagnostics = list(diagnostics) + [
+                _to_lsp_diagnostic(d)
+                for d in get_bigip_lint_diagnostics(
+                    uri=uri,
+                    source=source,
+                    config=config,
+                    workspace_sources=scanner_sources,
+                    workspace_configs=scanner_configs,
+                    disabled_codes=cfg.disabled_diagnostics,
+                )
+            ]
         except Exception:  # noqa: BLE001
             # Lint pipeline is best-effort — never let a buggy rule
             # take down the per-keystroke diagnostics path.

@@ -1,7 +1,4 @@
-"""BIG-IP configuration diagnostics for the LSP pipeline.
-
-Converts :class:`BigipConfig` validation results into LSP-compatible
-diagnostics that can be surfaced in the editor.
+"""BIG-IP configuration diagnostics.
 
 Two layers:
 
@@ -20,29 +17,18 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from lsprotocol import types
-
-from ..analysis.semantic_model import Range, Severity
-from ..common.lsp import to_lsp_range
+from ..analysis.semantic_model import Diagnostic, Range, Severity
 from .lint import Finding, run_lint
 from .model import BigipConfig
 from .validator import validate_bigip_config
 
-_SEVERITY_MAP = {
-    Severity.ERROR: types.DiagnosticSeverity.Error,
-    Severity.WARNING: types.DiagnosticSeverity.Warning,
-    Severity.INFO: types.DiagnosticSeverity.Information,
-    Severity.HINT: types.DiagnosticSeverity.Hint,
-}
-
-# Lint :class:`Finding.severity` is a string; map to LSP enum so the
-# editor renders the right squiggle colour.  Default to ``Warning`` for
-# anything we don't recognise.
+# Lint :class:`Finding.severity` is a string; map to the core severity enum.
+# Default to ``Warning`` for anything we don't recognise.
 _LINT_SEVERITY_MAP = {
-    "error": types.DiagnosticSeverity.Error,
-    "warning": types.DiagnosticSeverity.Warning,
-    "info": types.DiagnosticSeverity.Information,
-    "hint": types.DiagnosticSeverity.Hint,
+    "error": Severity.ERROR,
+    "warning": Severity.WARNING,
+    "info": Severity.INFO,
+    "hint": Severity.HINT,
 }
 
 
@@ -50,8 +36,8 @@ def get_bigip_diagnostics(
     config: BigipConfig,
     *,
     disabled_codes: set[str] | None = None,
-) -> list[types.Diagnostic]:
-    """Run BIG-IP validation and return LSP diagnostics.
+) -> list[Diagnostic]:
+    """Run BIG-IP validation and return core diagnostics.
 
     Parameters
     ----------
@@ -60,21 +46,11 @@ def get_bigip_diagnostics(
     disabled_codes:
         Diagnostic codes to suppress (e.g. ``{"BIGIP6006", "BIGIP6008"}``).
     """
-    raw = validate_bigip_config(config)
-    results: list[types.Diagnostic] = []
-    for d in raw:
-        if disabled_codes and d.code in disabled_codes:
-            continue
-        results.append(
-            types.Diagnostic(
-                range=to_lsp_range(d.range),
-                message=d.message,
-                severity=_SEVERITY_MAP.get(d.severity, types.DiagnosticSeverity.Warning),
-                source="tcl-lsp",
-                code=d.code or None,
-            )
-        )
-    return results
+    return [
+        d
+        for d in validate_bigip_config(config)
+        if not disabled_codes or d.code not in disabled_codes
+    ]
 
 
 def get_bigip_lint_diagnostics(
@@ -85,7 +61,7 @@ def get_bigip_lint_diagnostics(
     workspace_sources: dict[str, str] | None = None,
     workspace_configs: dict[str, BigipConfig] | None = None,
     disabled_codes: set[str] | None = None,
-) -> list[types.Diagnostic]:
+) -> list[Diagnostic]:
     """Run cross-file lint rules and return diagnostics anchored in *uri*.
 
     Pulls in every rule registered with :func:`core.bigip.lint.register`
@@ -114,8 +90,8 @@ def _findings_to_diagnostics(
     self_config: BigipConfig,
     *,
     disabled_codes: set[str] | None,
-) -> list[types.Diagnostic]:
-    """Convert lint findings into LSP diagnostics anchored on *self_config*.
+) -> list[Diagnostic]:
+    """Convert lint findings into core diagnostics anchored on *self_config*.
 
     Findings whose ``full_path`` matches an object in *self_config*
     inherit that object's stanza ``range`` as the diagnostic range.
@@ -124,7 +100,7 @@ def _findings_to_diagnostics(
     pass.
     """
     paths_to_range = _index_object_ranges(self_config)
-    results: list[types.Diagnostic] = []
+    results: list[Diagnostic] = []
     for finding in findings:
         if disabled_codes and finding.rule_id in disabled_codes:
             continue
@@ -132,11 +108,10 @@ def _findings_to_diagnostics(
         if rng is None:
             continue
         results.append(
-            types.Diagnostic(
-                range=to_lsp_range(rng),
+            Diagnostic(
+                range=rng,
                 message=finding.message,
-                severity=_LINT_SEVERITY_MAP.get(finding.severity, types.DiagnosticSeverity.Warning),
-                source="tcl-lsp",
+                severity=_LINT_SEVERITY_MAP.get(finding.severity, Severity.WARNING),
                 code=finding.rule_id,
             )
         )
