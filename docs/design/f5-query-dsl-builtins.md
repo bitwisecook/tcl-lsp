@@ -32,11 +32,11 @@ exactly the same content for one builtin.
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
   - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition), [`rename_prefix`](#rename_prefix)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_parse`](#x509_parse)
+  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_parse`](#x509_parse)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
-  - [`defined`](#defined), [`json_load`](#json_load), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
+  - [`defined`](#defined), [`json_load`](#json_load), [`json_parse`](#json_parse), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
 
 ## stream
 
@@ -1369,6 +1369,208 @@ Related: ``first_host``, ``last_host``, ``prefix_length``.
 ```
 host_count("10.0.0.0/24")                    # -> 254
 host_count("10.0.0.0/31")                    # -> 2
+```
+
+### `http_body`
+
+Response body as a string.
+
+**Signatures**
+
+- `http_body(response: object) -> string`
+
+**Details**
+
+Accessor for the response's ``body`` field.  Always a string;
+binary payloads round-trip with U+FFFD replacement.
+
+**Examples**
+
+```
+url_get("https://example.com/") | http_body(.)
+```
+
+### `http_body_json`
+
+Parse the response body as JSON.
+
+**Signatures**
+
+- `http_body_json(response: object) -> any`
+
+**Details**
+
+Convenience wrapper around ``json_parse(.body)`` that adds a
+light content-type sanity check: if the response declares a
+``content-type`` and it doesn't include ``json``, the
+builtin still parses but raises ``BuiltinError`` if the body
+isn't valid JSON.  When ``content-type`` is missing it
+silently attempts the parse.
+
+Use this when an API returns JSON and you want to traverse
+the parsed value without spelling out a ``json_parse(.body)``
+chain every time.
+
+**Examples**
+
+```
+url_get("https://api/v1") | http_body_json(.) | .items
+.urls[] | url_get(.) | http_body_json(.).version
+```
+
+### `http_client_error`
+
+True when the response status is 4xx.
+
+**Signatures**
+
+- `http_client_error(response: object) -> boolean`
+
+**Details**
+
+Range predicate for the 400-499 client-error class.
+
+**Examples**
+
+```
+.urls[] | url_get(.) | select(http_client_error(.))
+```
+
+### `http_header`
+
+Return one header value by name (case-insensitive).
+
+**Signatures**
+
+- `http_header(response: object, name: string) -> string | null`
+
+**Details**
+
+Looks *name* up in the response's headers; the match is
+case-insensitive (``Content-Type`` finds ``content-type``).
+Returns ``null`` when the header isn't present.
+
+Note: HTTP allows multiple headers with the same name to
+repeat (e.g. ``Set-Cookie``).  The underlying urllib path
+collapses repeats into a single comma-separated string,
+matching the wire-format convention.
+
+**Examples**
+
+```
+url_get("https://example.com/") | http_header(., "content-type")
+.urls[] | url_head(.) | http_header(., "server")
+```
+
+### `http_headers`
+
+Return the response's headers as a dict (keys lowercased).
+
+**Signatures**
+
+- `http_headers(response: object) -> object`
+
+**Details**
+
+The underlying ``url_*`` builtins already store headers
+with lowercase keys so a query can do case-insensitive
+lookups directly.  This helper is the typed accessor: use
+``http_header(resp, "name")`` for one value, or
+``http_headers(resp)`` when you want the whole map.
+
+**Examples**
+
+```
+url_get("https://example.com/") | http_headers(.) | keys
+```
+
+### `http_ok`
+
+True when the response status is 2xx.
+
+**Signatures**
+
+- `http_ok(response: object) -> boolean`
+
+**Details**
+
+Range predicate for the 200-299 success class.  Useful as
+the head of audit pipelines:
+``.urls[] | url_get(.) | select(http_ok(.))``.
+
+Related: ``http_redirect``, ``http_client_error``,
+``http_server_error``.
+
+**Examples**
+
+```
+.urls[] | url_get(.) | select(http_ok(.))
+```
+
+### `http_redirect`
+
+True when the response status is 3xx.
+
+**Signatures**
+
+- `http_redirect(response: object) -> boolean`
+
+**Details**
+
+Range predicate for the 300-399 redirect class.
+Pair with ``http_header(., "location")`` to extract the
+Location target.
+
+**Examples**
+
+```
+.urls[] | url_head(.) | select(http_redirect(.))
+```
+
+### `http_server_error`
+
+True when the response status is 5xx.
+
+**Signatures**
+
+- `http_server_error(response: object) -> boolean`
+
+**Details**
+
+Range predicate for the 500-599 server-error class.  When
+diffing an audit run, surfacing these reliably gives an
+operator the right signal — server errors typically need
+a different escalation path from 4xx client misuse.
+
+**Examples**
+
+```
+.urls[] | url_get(.) | select(http_server_error(.))
+```
+
+### `http_status`
+
+Status code from an HTTP response dict.
+
+**Signatures**
+
+- `http_status(response: object) -> integer | null`
+
+**Details**
+
+Accessor for the ``status`` field of an ``url_get``-style
+response.  Returns ``null`` when the request failed before
+the server responded (DNS error, connect timeout, etc.).
+
+Equivalent to ``response.status`` — provided for parity with
+the other ``http_*`` helpers and so audits can spell their
+intent symmetrically.
+
+**Examples**
+
+```
+url_get("https://example.com/") | http_status(.)
+.urls[] | url_head(.) | {url: ., status: http_status(.)}
 ```
 
 ### `in_cidr`
@@ -2841,6 +3043,35 @@ JSON — failures are explicit rather than producing ``null``.
 ```
 json_load("/etc/inventory/servers.json")
 .ltm.node[].address as $a | json_load("data.json")[$a]
+```
+
+### `json_parse`
+
+Parse a JSON string into its native value.
+
+**Signatures**
+
+- `json_parse(text: string) -> any`
+
+**Details**
+
+Counterpart to :func:`json_load` for in-memory strings.
+Useful for parsing the ``body`` of an HTTP response or any
+other JSON-bearing text the query already has in hand:
+
+.. code-block:: text
+
+   url_get("https://api.example/v1/inventory")
+     | json_parse(.body)
+     | .servers
+
+Raises :class:`BuiltinError` on invalid JSON.
+
+**Examples**
+
+```
+json_parse("[1, 2, 3]")                          # -> [1, 2, 3]
+url_get("https://api/v1") | json_parse(.body)
 ```
 
 ### `kind`

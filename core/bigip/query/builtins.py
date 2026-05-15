@@ -4382,6 +4382,278 @@ def _builtin_json_load(path: Any) -> object:
         ) from exc
 
 
+@_register(
+    "json_parse",
+    summary="Parse a JSON string into its native value.",
+    signatures=("json_parse(text: string) -> any",),
+    details="""
+    Counterpart to :func:`json_load` for in-memory strings.
+    Useful for parsing the ``body`` of an HTTP response or any
+    other JSON-bearing text the query already has in hand:
+
+    .. code-block:: text
+
+       url_get("https://api.example/v1/inventory")
+         | json_parse(.body)
+         | .servers
+
+    Raises :class:`BuiltinError` on invalid JSON.
+    """,
+    examples=(
+        'json_parse("[1, 2, 3]")                          # -> [1, 2, 3]',
+        'url_get("https://api/v1") | json_parse(.body)',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_json_parse(value: Any) -> object:
+    import json as _json
+
+    text = _as_str(value, name="json_parse", arg=1)
+    try:
+        return _json.loads(text)
+    except _json.JSONDecodeError as exc:
+        raise BuiltinError(
+            f"json_parse: invalid JSON ({exc.msg} at line {exc.lineno} col {exc.colno})"
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# HTTP response helpers — make ``url_*`` results ergonomic.
+# ---------------------------------------------------------------------------
+
+
+def _http_response(value: Any, *, name: str) -> dict[str, Any]:
+    """Coerce *value* to an HTTP response dict and validate its shape."""
+    if not isinstance(value, dict):
+        raise BuiltinError(
+            f"{name}: argument must be an HTTP response dict (got {_type_name(value)})"
+        )
+    return value
+
+
+@_register(
+    "http_status",
+    summary="Status code from an HTTP response dict.",
+    signatures=("http_status(response: object) -> integer | null",),
+    details="""
+    Accessor for the ``status`` field of an ``url_get``-style
+    response.  Returns ``null`` when the request failed before
+    the server responded (DNS error, connect timeout, etc.).
+
+    Equivalent to ``response.status`` — provided for parity with
+    the other ``http_*`` helpers and so audits can spell their
+    intent symmetrically.
+    """,
+    examples=(
+        'url_get("https://example.com/") | http_status(.)',
+        ".urls[] | url_head(.) | {url: ., status: http_status(.)}",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_status(value: Any) -> int | None:
+    resp = _http_response(value, name="http_status")
+    return resp.get("status")
+
+
+@_register(
+    "http_body",
+    summary="Response body as a string.",
+    signatures=("http_body(response: object) -> string",),
+    details="""
+    Accessor for the response's ``body`` field.  Always a string;
+    binary payloads round-trip with U+FFFD replacement.
+    """,
+    examples=('url_get("https://example.com/") | http_body(.)',),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_body(value: Any) -> str:
+    resp = _http_response(value, name="http_body")
+    body = resp.get("body", "")
+    return body if isinstance(body, str) else str(body)
+
+
+@_register(
+    "http_body_json",
+    summary="Parse the response body as JSON.",
+    signatures=("http_body_json(response: object) -> any",),
+    details="""
+    Convenience wrapper around ``json_parse(.body)`` that adds a
+    light content-type sanity check: if the response declares a
+    ``content-type`` and it doesn't include ``json``, the
+    builtin still parses but raises ``BuiltinError`` if the body
+    isn't valid JSON.  When ``content-type`` is missing it
+    silently attempts the parse.
+
+    Use this when an API returns JSON and you want to traverse
+    the parsed value without spelling out a ``json_parse(.body)``
+    chain every time.
+    """,
+    examples=(
+        'url_get("https://api/v1") | http_body_json(.) | .items',
+        ".urls[] | url_get(.) | http_body_json(.).version",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_body_json(value: Any) -> object:
+    import json as _json
+
+    resp = _http_response(value, name="http_body_json")
+    body = resp.get("body", "")
+    if not isinstance(body, str):
+        body = str(body)
+    if not body:
+        return None
+    try:
+        return _json.loads(body)
+    except _json.JSONDecodeError as exc:
+        raise BuiltinError(
+            f"http_body_json: invalid JSON ({exc.msg} at line {exc.lineno} col {exc.colno})"
+        ) from exc
+
+
+@_register(
+    "http_headers",
+    summary="Return the response's headers as a dict (keys lowercased).",
+    signatures=("http_headers(response: object) -> object",),
+    details="""
+    The underlying ``url_*`` builtins already store headers
+    with lowercase keys so a query can do case-insensitive
+    lookups directly.  This helper is the typed accessor: use
+    ``http_header(resp, "name")`` for one value, or
+    ``http_headers(resp)`` when you want the whole map.
+    """,
+    examples=('url_get("https://example.com/") | http_headers(.) | keys',),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_headers(value: Any) -> dict[str, Any]:
+    resp = _http_response(value, name="http_headers")
+    headers = resp.get("headers", {})
+    return headers if isinstance(headers, dict) else {}
+
+
+@_register(
+    "http_header",
+    summary="Return one header value by name (case-insensitive).",
+    signatures=("http_header(response: object, name: string) -> string | null",),
+    details="""
+    Looks *name* up in the response's headers; the match is
+    case-insensitive (``Content-Type`` finds ``content-type``).
+    Returns ``null`` when the header isn't present.
+
+    Note: HTTP allows multiple headers with the same name to
+    repeat (e.g. ``Set-Cookie``).  The underlying urllib path
+    collapses repeats into a single comma-separated string,
+    matching the wire-format convention.
+    """,
+    examples=(
+        'url_get("https://example.com/") | http_header(., "content-type")',
+        '.urls[] | url_head(.) | http_header(., "server")',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_http_header(value: Any, name: Any) -> str | None:
+    resp = _http_response(value, name="http_header")
+    headers = resp.get("headers", {})
+    if not isinstance(headers, dict):
+        return None
+    key = _as_str(name, name="http_header", arg=2).lower()
+    return headers.get(key)
+
+
+def _status_in_range(value: Any, low: int, high: int, builtin_name: str) -> bool:
+    resp = _http_response(value, name=builtin_name)
+    status = resp.get("status")
+    if not isinstance(status, int):
+        return False
+    return low <= status <= high
+
+
+@_register(
+    "http_ok",
+    summary="True when the response status is 2xx.",
+    signatures=("http_ok(response: object) -> boolean",),
+    details="""
+    Range predicate for the 200-299 success class.  Useful as
+    the head of audit pipelines:
+    ``.urls[] | url_get(.) | select(http_ok(.))``.
+
+    Related: ``http_redirect``, ``http_client_error``,
+    ``http_server_error``.
+    """,
+    examples=(".urls[] | url_get(.) | select(http_ok(.))",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_ok(value: Any) -> bool:
+    return _status_in_range(value, 200, 299, "http_ok")
+
+
+@_register(
+    "http_redirect",
+    summary="True when the response status is 3xx.",
+    signatures=("http_redirect(response: object) -> boolean",),
+    details="""
+    Range predicate for the 300-399 redirect class.
+    Pair with ``http_header(., "location")`` to extract the
+    Location target.
+    """,
+    examples=(".urls[] | url_head(.) | select(http_redirect(.))",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_redirect(value: Any) -> bool:
+    return _status_in_range(value, 300, 399, "http_redirect")
+
+
+@_register(
+    "http_client_error",
+    summary="True when the response status is 4xx.",
+    signatures=("http_client_error(response: object) -> boolean",),
+    details="""
+    Range predicate for the 400-499 client-error class.
+    """,
+    examples=(".urls[] | url_get(.) | select(http_client_error(.))",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_client_error(value: Any) -> bool:
+    return _status_in_range(value, 400, 499, "http_client_error")
+
+
+@_register(
+    "http_server_error",
+    summary="True when the response status is 5xx.",
+    signatures=("http_server_error(response: object) -> boolean",),
+    details="""
+    Range predicate for the 500-599 server-error class.  When
+    diffing an audit run, surfacing these reliably gives an
+    operator the right signal — server errors typically need
+    a different escalation path from 4xx client misuse.
+    """,
+    examples=(".urls[] | url_get(.) | select(http_server_error(.))",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_http_server_error(value: Any) -> bool:
+    return _status_in_range(value, 500, 599, "http_server_error")
+
+
 # ---------------------------------------------------------------------------
 # Graph helpers — surfaced from the same edge model the grep verb walks.
 # ---------------------------------------------------------------------------
