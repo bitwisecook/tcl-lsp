@@ -27,7 +27,7 @@ import ipaddress
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Protocol, runtime_checkable
 
 from .errors import BuiltinError
 from .values import ObjectRef, PathRef, Stream
@@ -71,6 +71,11 @@ class BuiltinSpec:
     # ``sort_by``) set ``stream_aware=True`` so they receive the
     # whole stream as one argument.
     stream_aware: bool = False
+
+
+@runtime_checkable
+class _PathResolverContext(Protocol):
+    def resolve_pathref(self, ref: PathRef) -> ObjectRef | None: ...
 
 
 _REGISTRY: dict[str, BuiltinSpec] = {}
@@ -2600,6 +2605,30 @@ def _builtin_split(value: Any, sep: Any) -> list[str]:
     min_args=2,
     max_args=2,
 )
+def _builtin_index(value: Any, needle: Any) -> int | None:
+    def _eq(item: Any, target: Any) -> bool:
+        a = item.full_path if isinstance(item, PathRef) else item
+        b = target.full_path if isinstance(target, PathRef) else target
+        return a == b
+
+    if isinstance(value, str):
+        nstr = _as_str(needle, name="index", arg=2)
+        pos = value.find(nstr)
+        return pos if pos >= 0 else None
+    if isinstance(value, PathRef):
+        nstr = _as_str(needle, name="index", arg=2)
+        pos = value.full_path.find(nstr)
+        return pos if pos >= 0 else None
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, dict)):
+        items = list(value)
+    else:
+        raise BuiltinError(f"index: cannot search inside {_type_name(value)}")
+    for i, item in enumerate(items):
+        if _eq(item, needle):
+            return i
+    return None
+
+
 @_register(
     "source_file",
     summary="Return the source file URI of the current object.",
@@ -2641,41 +2670,11 @@ def _builtin_source_file(value: Any, *, ctx: Any) -> str | None:
     return None
 
 
-def _resolve_pathref_via_ctx(ref: Any, ctx: Any) -> Any:
-    """Best-effort PathRef → ObjectRef lookup using the evaluator's
-    context.  Returns ``None`` when the path cannot be resolved."""
-    try:
-        from .evaluator import _resolve_pathref  # local import to avoid cycle
-    except Exception:
+def _resolve_pathref_via_ctx(ref: Any, ctx: Any) -> ObjectRef | None:
+    """Best-effort PathRef -> ObjectRef lookup through EvalContext."""
+    if not isinstance(ref, PathRef) or not isinstance(ctx, _PathResolverContext):
         return None
-    try:
-        return _resolve_pathref(ref, ctx)
-    except Exception:
-        return None
-
-
-def _builtin_index(value: Any, needle: Any) -> int | None:
-    def _eq(item: Any, target: Any) -> bool:
-        a = item.full_path if isinstance(item, PathRef) else item
-        b = target.full_path if isinstance(target, PathRef) else target
-        return a == b
-
-    if isinstance(value, str):
-        nstr = _as_str(needle, name="index", arg=2)
-        pos = value.find(nstr)
-        return pos if pos >= 0 else None
-    if isinstance(value, PathRef):
-        nstr = _as_str(needle, name="index", arg=2)
-        pos = value.full_path.find(nstr)
-        return pos if pos >= 0 else None
-    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, dict)):
-        items = list(value)
-    else:
-        raise BuiltinError(f"index: cannot search inside {_type_name(value)}")
-    for i, item in enumerate(items):
-        if _eq(item, needle):
-            return i
-    return None
+    return ctx.resolve_pathref(ref)
 
 
 @_register(

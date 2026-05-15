@@ -59,8 +59,9 @@ today:
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator, MutableSequence
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal, Protocol, overload, runtime_checkable
 
 ListSyntax = Literal[
     "space-separated",
@@ -134,8 +135,18 @@ class ListItem:
         return self.key
 
 
-@dataclass(frozen=True, slots=True)
-class BigipList:
+@runtime_checkable
+class _HasFullPath(Protocol):
+    full_path: str
+
+
+@runtime_checkable
+class _HasPath(Protocol):
+    path: str
+
+
+@dataclass(slots=True)
+class BigipList(MutableSequence[Any]):
     """A list-shaped BIG-IP property value.
 
     ``items`` is the typed per-element view.  ``syntax`` discriminates
@@ -153,7 +164,7 @@ class BigipList:
     / etc.).  Other syntaxes leave these fields at their defaults.
     """
 
-    items: tuple[ListItem, ...] = ()
+    items: list[ListItem] = field(default_factory=list)
     syntax: str = "braced-space-separated"  # values from :data:`ListSyntax`
     operator: str | None = None
     raw: str = ""
@@ -163,7 +174,10 @@ class BigipList:
     # well-formed inputs.
     diagnostics: tuple[object, ...] = field(default_factory=tuple)
 
-    def __iter__(self):
+    def __post_init__(self) -> None:
+        self.items = [_as_list_item(item) for item in self.items]
+
+    def __iter__(self) -> Iterator[Any]:
         """Iterating the list yields the typed item values so query
         DSL ``.profiles[]`` flows directly through the list without
         the consumer reaching into ``items``."""
@@ -176,8 +190,38 @@ class BigipList:
     def __bool__(self) -> bool:
         return bool(self.items)
 
-    def __getitem__(self, index):
+    @overload
+    def __getitem__(self, index: int) -> Any: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> list[Any]: ...
+
+    def __getitem__(self, index: int | slice) -> Any | list[Any]:
+        if isinstance(index, slice):
+            return [item.value for item in self.items[index]]
         return self.items[index].value
+
+    @overload
+    def __setitem__(self, index: int, value: Any) -> None: ...
+
+    @overload
+    def __setitem__(self, index: slice, value: Iterable[Any]) -> None: ...
+
+    def __setitem__(self, index: int | slice, value: Any | Iterable[Any]) -> None:
+        if isinstance(index, slice):
+            if isinstance(value, (str, bytes)) or not isinstance(value, Iterable):
+                replacement = [value]
+            else:
+                replacement = list(value)
+            self.items[index] = [_as_list_item(item) for item in replacement]
+            return
+        self.items[index] = _as_list_item(value)
+
+    def __delitem__(self, index: int | slice) -> None:
+        del self.items[index]
+
+    def insert(self, index: int, value: Any) -> None:
+        self.items.insert(index, _as_list_item(value))
 
     def __contains__(self, needle: object) -> bool:
         """Membership against either a typed item value OR its
@@ -188,7 +232,7 @@ class BigipList:
         return any(item.value == needle for item in self.items)
 
     @property
-    def values(self) -> tuple[object, ...]:
+    def values(self) -> tuple[Any, ...]:
         """Tuple of just the typed item values — for callers that
         want the legacy ``tuple[T, ...]`` shape without iterating."""
         return tuple(item.value for item in self.items)
@@ -212,19 +256,23 @@ class BigipList:
             if isinstance(v, str):
                 out.append(v)
                 continue
-            full_path = getattr(v, "full_path", None)
-            if isinstance(full_path, str) and full_path:
-                out.append(full_path)
+            if isinstance(v, _HasFullPath) and v.full_path:
+                out.append(v.full_path)
                 continue
-            path = getattr(v, "path", None)
-            if isinstance(path, str) and path:
-                out.append(path)
+            if isinstance(v, _HasPath) and v.path:
+                out.append(v.path)
                 continue
             if item.key:
                 out.append(item.key)
                 continue
             out.append(str(v) if v is not None else "")
         return tuple(out)
+
+
+def _as_list_item(value: object) -> ListItem:
+    if isinstance(value, ListItem):
+        return value
+    return ListItem(value=value)
 
 
 __all__ = ["BigipList", "ListItem", "ListSyntax", "SourceSpan"]

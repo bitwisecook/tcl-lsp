@@ -718,6 +718,41 @@ def test_pipe_iterates_streams_not_plain_lists():
     assert n == 1  # web_vs has one rule
 
 
+def test_index_builtin_is_registered_to_index_implementation():
+    assert _run('index("abc", "b")').values_per_file["mem://1"] == [1]
+    assert _run('index("abc", "z")').values_per_file["mem://1"] == [None]
+
+
+def test_index_builtin_supports_implicit_receiver():
+    result = _run('.ltm.virtual[] | select(.name | index("eb")) | .name')
+    assert result.values_per_file["mem://1"] == ["web_vs"]
+
+
+def test_object_subscript_iteration_matches_jq_value_semantics():
+    assert _run("{a: 1, b: 2}[]").values_per_file["mem://1"] == [1, 2]
+    assert _run('{a: 1, b: 2}["a"]').values_per_file["mem://1"] == [1]
+    assert _run('{web: 1, api: 2}["~we"]').values_per_file["mem://1"] == [1]
+
+
+def test_field_slot_scanner_ignores_nested_blocks():
+    from core.bigip.query.projection._engine import _iter_top_level_scalar_slots
+
+    body = """{
+    pool /Common/top
+    rules {
+        pool /Common/nested
+    }
+    destination /Common/10.0.0.1:80
+}
+"""
+
+    slots = [(key, value) for key, _, _, value in _iter_top_level_scalar_slots(body)]
+    assert slots == [
+        ("pool", "/Common/top"),
+        ("destination", "/Common/10.0.0.1:80"),
+    ]
+
+
 def test_bare_builtin_implicit_dot():
     # `length` with no parens is sugar for `length(.)`.
     [n] = _run(".ltm.virtual.web_vs.rules | length").values_per_file["mem://1"]

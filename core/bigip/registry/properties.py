@@ -103,17 +103,11 @@ class PropertySpec:
 
     @property
     def ref_kind(self) -> str:
-        from .value_specs import ObjectRefSpec
-
-        if isinstance(self.value, ObjectRefSpec):
-            return self.value.kind
-        return ""
+        return self.value.reference_kind
 
     @property
     def list_ref(self) -> bool:
-        from .value_specs import ListSpec, ObjectRefSpec
-
-        return isinstance(self.value, ListSpec) and isinstance(self.value.item, ObjectRefSpec)
+        return self.value.is_list_of_references
 
 
 @dataclass(frozen=True, slots=True)

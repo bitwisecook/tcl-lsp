@@ -15,7 +15,8 @@ stable across the whole query.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any
 
 from . import builtins as _builtins
@@ -41,7 +42,7 @@ from .builtins import _truthy
 from .edit_plan import EditOp, EditPlan
 from .errors import EvalError
 from .projection import Container, root_container
-from .values import ObjectRef, PathRef, Root, Stream
+from .values import ObjectRef, PathRef, QueryFieldProvider, Root, Stream
 
 
 @dataclass
@@ -65,6 +66,10 @@ class EvalContext:
     # evaluations stay isolated; the previous frame is restored when
     # the body finishes.
     bindings: dict[str, Any] = field(default_factory=dict)
+
+    def resolve_pathref(self, ref: PathRef) -> ObjectRef | None:
+        """Resolve a query PathRef without exposing evaluator internals."""
+        return _resolve_pathref(ref, self)
 
 
 # ---------------------------------------------------------------------------
@@ -388,16 +393,48 @@ def _field_step(value: Any, step: Field, ctx: EvalContext):
         if name not in value:
             raise EvalError(f"no field {name!r}")
         return (value[name],)
-    # Typed-value fallback: dataclasses like MonitorExpression /
-    # BigipList / FirewallRule expose structured fields directly.
-    # The DSL spells fields with ``-`` (``.full-path``) while Python
-    # uses ``_`` so map between them.  Private / dunder names stay
-    # off-limits to keep introspection from leaking implementation
-    # details into queries.
-    attr = name.replace("-", "_")
-    if not attr.startswith("_") and hasattr(value, attr):
-        return (getattr(value, attr),)
+    typed_value = _typed_query_field(value, name)
+    if typed_value is not _MISSING:
+        return (typed_value,)
     raise EvalError(f"cannot read field {name!r} on {_describe(value)}")
+
+
+class _Missing:
+    __slots__ = ()
+
+
+_MISSING = _Missing()
+
+
+def _typed_query_field(value: object, name: str) -> object:
+    """Return one explicit typed-value field or ``_MISSING``.
+
+    This keeps query field access broad enough for typed BIG-IP values
+    while avoiding the old arbitrary ``hasattr/getattr`` fallback.  A
+    value can opt in with ``query_fields()``; dataclass fields and class
+    properties are also exposed because the typed value layer is built
+    from frozen dataclasses with deliberate computed properties such as
+    ``full_path`` and ``name``.
+    """
+    if name.startswith("_"):
+        return _MISSING
+    attr = name.replace("-", "_")
+    if attr.startswith("_"):
+        return _MISSING
+    if isinstance(value, QueryFieldProvider):
+        query_fields = value.query_fields()
+        if name in query_fields:
+            return query_fields[name]
+        if attr in query_fields:
+            return query_fields[attr]
+    if is_dataclass(value) and not isinstance(value, type):
+        for dataclass_field in fields(value):
+            if dataclass_field.name == attr:
+                return getattr(value, attr)
+    descriptor = getattr(type(value), attr, None)
+    if isinstance(descriptor, property):
+        return descriptor.__get__(value, type(value))
+    return _MISSING
 
 
 def _subscript_root(value: Any, ctx: EvalContext) -> Any:
@@ -425,6 +462,8 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
         return entries
     if isinstance(value, (list, Stream)):
         return value
+    if isinstance(value, dict):
+        return list(value.values())
     if isinstance(value, ObjectRef):
         return list(value.fields.values())
     # Iterable typed values (BigipList / MonitorExpression / …)
@@ -432,7 +471,7 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
     # subscripts work without registering every concrete type
     # here.  Strings are excluded because the DSL never iterates
     # character-by-character.
-    if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
         return list(iter(value))
     raise EvalError(f"cannot iterate {_describe(value)}")
 
@@ -448,6 +487,12 @@ def _regex_subscript(value: Any, pattern: str, ctx: EvalContext):
     if isinstance(value, Container):
         keys = value.regex_keys(pattern)
         return [value.entries()[k] for k in keys]
+    if isinstance(value, dict):
+        try:
+            rx = _safe_regex_compile(pattern, name="regex subscript")
+        except BuiltinError as exc:
+            raise EvalError(str(exc)) from exc
+        return [item for key, item in value.items() if rx.search(str(key))]
     if isinstance(value, ObjectRef):
         # Cross-kind regex subscript: ``.ltm[]["~app3"]`` flattens the
         # module container through every kind into a stream of
@@ -490,6 +535,16 @@ def _subscript_step(value: Any, index: Any, ctx: EvalContext) -> Any:
         if not -len(value) <= index < len(value):
             raise EvalError(f"list index {index} out of range")
         return value[index]
+    if isinstance(value, dict):
+        if isinstance(index, str):
+            if index in value:
+                return value[index]
+            raise EvalError(f"no field {index!r}")
+        if isinstance(index, int):
+            items = list(value.values())
+            if not -len(items) <= index < len(items):
+                raise EvalError(f"object index {index} out of range")
+            return items[index]
     if isinstance(value, ObjectRef):
         if isinstance(index, str):
             if index in value.fields:

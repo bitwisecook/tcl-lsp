@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from .pilot import pilot_property_spec_for
-from .value_specs import ListSpec, ParseContext, Reference, ReferenceContext
+from .value_specs import ParseContext, Reference, ReferenceContext
 
 
 def references_via_spec(
@@ -79,90 +79,8 @@ def references_via_spec(
         source_text=source_text,
         base_offset=base_offset,
     )
-    if isinstance(spec.value, ListSpec):
-        list_value = _materialise_bigip_list(
-            spec.value, value, module, object_type, owner_path, parse_ctx
-        )
-        return tuple(spec.value.references(list_value, ctx))
-    typed = _coerce_to_typed(value, spec.value, module, object_type, owner_path, parse_ctx)
+    typed = spec.value.prepare_references(value, parse_ctx)
     return tuple(spec.value.references(typed, ctx))
-
-
-def _materialise_bigip_list(
-    list_spec: ListSpec,
-    value: Any,
-    module: str,
-    object_type: str,
-    owner_path: str,
-    parse_ctx: ParseContext | None = None,
-) -> Any:
-    """Coerce *value* into a :class:`BigipList` (or pass through one).
-
-    - Pre-typed :class:`BigipList` values flow through unchanged.
-    - Tuples / lists of typed item values wrap each element as a
-      :class:`ListItem`; the ListSpec's ``references`` walker yields
-      one Reference per item.
-    - Raw strings parse through :meth:`ListSpec.parse`, which
-      tokenises and feeds each token to the inner item spec.
-    """
-    from ..types import BigipList, ListItem
-
-    if value is None or value == "":
-        return BigipList(syntax=list_spec.syntax, raw="")
-    if isinstance(value, BigipList):
-        return value
-    if isinstance(value, (tuple, list)):
-        # Walk each element through the inner item spec so raw
-        # strings stored on the legacy model parse into typed values
-        # before reference dispatch.  Pre-typed items pass through
-        # via _coerce_to_typed's no-op branch.
-        items: list[ListItem] = []
-        for v in value:
-            if isinstance(v, ListItem):
-                items.append(v)
-                continue
-            typed = _coerce_to_typed(v, list_spec.item, module, object_type, owner_path)
-            items.append(ListItem(value=typed))
-        return BigipList(items=tuple(items), syntax=list_spec.syntax)
-    if isinstance(value, str):
-        ctx_to_use = parse_ctx or ParseContext(
-            module=module, object_type=object_type, object_path=owner_path
-        )
-        parsed = list_spec.parse(value, ctx_to_use)
-        if isinstance(parsed.value, BigipList):
-            return parsed.value
-        return BigipList(syntax=list_spec.syntax, raw=value)
-    return value
-
-
-def _coerce_to_typed(
-    value: Any,
-    value_spec: Any,
-    module: str,
-    object_type: str,
-    owner_path: str,
-    parse_ctx: ParseContext | None = None,
-) -> Any:
-    """Run *value* through ``value_spec.parse`` when it's still raw text.
-
-    The reference / edit / projection dispatch wants the structured
-    typed value (``MonitorExpression`` / ``Destination`` / etc.) but
-    a property still carrying its legacy ``str`` shape on the model
-    arrives here as a string.  Parse first so the spec's methods see
-    a uniform input.  Tuples / lists / pre-typed instances pass
-    through unchanged.
-    """
-    if value is None or value == "":
-        return value
-    if isinstance(value, str):
-        ctx_to_use = parse_ctx or ParseContext(
-            module=module,
-            object_type=object_type,
-            object_path=owner_path,
-        )
-        parsed = value_spec.parse(value, ctx_to_use)
-        return parsed.value
-    return value
 
 
 def iter_object_references(

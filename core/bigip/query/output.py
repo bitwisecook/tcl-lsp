@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
+from ..types import BigipList
 from .values import ObjectRef, PathRef, Stream
 
 
@@ -131,7 +132,7 @@ def _flatten_scalar_lists(values: list[Any]) -> list[Any] | None:
         if _is_scalar(v):
             flat.append(v)
             continue
-        if isinstance(v, list):
+        if isinstance(v, (list, BigipList)):
             for item in v:
                 if not _is_scalar(item):
                     return None
@@ -147,7 +148,7 @@ def _flatten_scalars(values: list[Any]) -> list[Any]:
     opted into a flat output."""
     flat: list[Any] = []
     for v in values:
-        if isinstance(v, list):
+        if isinstance(v, (list, BigipList)):
             flat.extend(v)
         else:
             flat.append(v)
@@ -178,7 +179,7 @@ def _to_json(v: Any) -> Any:
         return v.full_path
     if isinstance(v, Stream):
         return [_to_json(x) for x in v.items]
-    if isinstance(v, list):
+    if isinstance(v, (list, BigipList)):
         return [_to_json(x) for x in v]
     if isinstance(v, dict):
         # Object literals produce plain Python dicts; recurse so

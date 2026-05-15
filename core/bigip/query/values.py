@@ -26,10 +26,17 @@ The address/network helpers in :mod:`.builtins` use plain
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping, Protocol, runtime_checkable
 
 from ..model import BigipConfig
 from .source_map import SourceMap
+
+
+@runtime_checkable
+class QueryFieldProvider(Protocol):
+    """Value that exposes an explicit field map to the query DSL."""
+
+    def query_fields(self) -> Mapping[str, object]: ...
 
 
 @dataclass(frozen=True, slots=True)

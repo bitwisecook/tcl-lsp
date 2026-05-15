@@ -30,6 +30,7 @@ from core.bigip.registry import (
     ReferenceContext,
     StringSpec,
 )
+from core.bigip.types import BigipList, ListItem
 
 # ---------------------------------------------------------------------------
 # StringSpec / IntSpec / BoolSpec / EnumSpec — scalar fundamentals
@@ -124,6 +125,18 @@ def test_list_spec_declares_default_operator_set():
     spec = ListSpec(item=ObjectRefSpec(kind="ltm rule"))
     assert "replace-all-with" in spec.list_operators
     assert spec.is_structured is True
+
+
+def test_bigip_list_behaves_like_mutable_python_list():
+    values = BigipList(items=[ListItem(value="/Common/a")])
+
+    values.append("/Common/b")
+    values[0] = "/Common/z"
+    values[1:2] = ["/Common/c", "/Common/d"]
+
+    assert list(values) == ["/Common/z", "/Common/c", "/Common/d"]
+    assert values.pop() == "/Common/d"
+    assert list(values) == ["/Common/z", "/Common/c"]
 
 
 # ---------------------------------------------------------------------------

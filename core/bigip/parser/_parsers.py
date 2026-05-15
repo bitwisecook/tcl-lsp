@@ -1093,7 +1093,7 @@ def _parse_pool(
     from ..types import ListItem as _ListItem
 
     members_list = _BigipList(
-        items=tuple(_ListItem(value=m, key=m.name) for m in members),
+        items=[_ListItem(value=m, key=m.name) for m in members],
         syntax="keyed-block",
     )
     return BigipPool(
@@ -1256,15 +1256,15 @@ def _parse_virtual(
     from ..types import ListItem as _ListItem
 
     rules_list = _BigipList(
-        items=tuple(_ListItem(value=r) for r in rules),
+        items=[_ListItem(value=r) for r in rules],
         syntax="braced-space-separated",
     )
     policies_list = _BigipList(
-        items=tuple(_ListItem(value=p) for p in policies),
+        items=[_ListItem(value=p) for p in policies],
         syntax="braced-space-separated",
     )
     vlans_list = _BigipList(
-        items=tuple(_ListItem(value=v) for v in vlans),
+        items=[_ListItem(value=v) for v in vlans],
         syntax="braced-space-separated",
     )
     return BigipVirtualServer(
@@ -2428,7 +2428,7 @@ def _parse_snatpool(
     from ..types import ListItem as _ListItem
 
     members_list = _BigipList(
-        items=tuple(_ListItem(value=m) for m in members),
+        items=[_ListItem(value=m) for m in members],
         syntax="braced-space-separated",
     )
     return BigipSnatPool(

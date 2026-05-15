@@ -7,7 +7,8 @@ The engine is the only runtime code in the projection package;
 
 from __future__ import annotations
 
-import re
+from collections.abc import Iterable
+from dataclasses import fields, is_dataclass
 from typing import Any
 
 from ...model import (
@@ -65,7 +66,9 @@ def _build_entries(container: Container) -> dict[str, Any]:
     label = container.kind
     if label in _OBJECT_KIND_ALIASES:
         cls_attr = _kind_to_attr(label)
-        objects = getattr(root.config, cls_attr)
+        objects = _read_model_attr(root.config, cls_attr)
+        if not isinstance(objects, dict):
+            return {}
         entries: dict[str, Any] = {}
         for full_path, obj in objects.items():
             entries[full_path] = _build_object_ref(label, full_path, obj, root)
@@ -105,7 +108,7 @@ def _build_object_ref(
     field_slots = _collect_field_slots(kind, obj, field_map, root)
 
     stanza_slot = None
-    rng = getattr(obj, "range", None)
+    rng = _read_model_attr(obj, "range", None)
     if rng is not None:
         # The dataclass range covers the brace block ``{ ... }``; extend
         # it backwards over the header so SCF stanza output includes
@@ -144,9 +147,9 @@ def _project_field(
             return _rule_refs_value(obj, root)
         return None
 
-    if not hasattr(obj, spec.attr):
+    raw = _read_model_attr(obj, spec.attr)
+    if raw is _MISSING:
         return None
-    raw = getattr(obj, spec.attr)
 
     # Phase 2 of the registry rearchitecture: when this property has
     # been migrated to a :class:`PropertySpec` in the new shape, run
@@ -223,8 +226,8 @@ def _resolve_pilot_value(
     spec = pilot_property_spec_for(module, object_type, tmsh_name)
     if spec is None or not spec.attr:
         return fallback_raw, None
-    if hasattr(obj, spec.attr):
-        candidate = getattr(obj, spec.attr)
+    candidate = _read_model_attr(obj, spec.attr)
+    if candidate is not _MISSING:
         if candidate is not None and candidate != "":
             return candidate, spec.attr
     return fallback_raw, None
@@ -410,12 +413,6 @@ def _extract_rule_refs(obj: BigipRule, root: Root) -> tuple[list[str], list[str]
 # ---------------------------------------------------------------------------
 
 
-_KEY_LINE_RE = re.compile(
-    r"^(?P<indent>[ \t]*)(?P<key>[A-Za-z0-9_./\-]+)[ \t]+(?P<value>[^\n{]+?)[ \t]*$",
-    re.MULTILINE,
-)
-
-
 def _scan_back_to_line_start(source: str, offset: int) -> int:
     """Return the offset of the start of the line containing *offset*.
 
@@ -442,29 +439,113 @@ def _collect_field_slots(
     fields whose location is the header) are simply absent — the edit
     planner falls back to its own strategy for those.
     """
-    rng = getattr(obj, "range", None)
+    rng = _read_model_attr(obj, "range", None)
     if rng is None:
         return {}
     body_start = rng.start.offset
     body_end = rng.end.offset
     body_text = root.source[body_start:body_end]
     slots: dict[str, FieldSlot] = {}
-    for match in _KEY_LINE_RE.finditer(body_text):
-        key = match.group("key")
+    for key, value_start, value_end, value_text in _iter_top_level_scalar_slots(body_text):
         # Map TMSH key back to our field-map name.  Keys with spaces or
         # nested braces are not handled here (those are sub-blocks).
         if key not in field_map:
             continue
-        value_text = match.group("value")
-        value_start = match.start("value") + body_start
-        value_end = value_start + len(value_text)
         slots[key] = FieldSlot(
             source_uri=root.uri,
-            start=value_start,
-            end=value_end,
+            start=body_start + value_start,
+            end=body_start + value_end,
             raw_text=value_text,
         )
     return slots
+
+
+class _Missing:
+    __slots__ = ()
+
+
+_MISSING = _Missing()
+
+
+def _read_model_attr(obj: object, name: str, default: Any = _MISSING) -> Any:
+    """Read a declared dataclass field from a BIG-IP model object."""
+    if not is_dataclass(obj) or isinstance(obj, type):
+        return default
+    for model_field in fields(obj):
+        if model_field.name == name:
+            return getattr(obj, name)
+    return default
+
+
+def _iter_top_level_scalar_slots(body: str) -> Iterable[tuple[str, int, int, str]]:
+    """Yield ``(key, value_start, value_end, value_text)`` for scalar lines.
+
+    The scanner is deliberately brace-depth aware.  It only reports
+    top-level ``key value`` lines and skips sub-block bodies so a nested
+    ``pool`` / ``rules`` / ``profiles`` key cannot masquerade as an
+    editable property on the owning object.
+    """
+    target_depth = 1 if body.lstrip().startswith("{") else 0
+    depth = 0
+    line_start = 0
+    for line in body.splitlines(keepends=True):
+        line_end = line_start + len(line)
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and depth == target_depth:
+            parsed = _parse_scalar_slot_line(line, line_start)
+            if parsed is not None:
+                yield parsed
+        depth = _brace_depth_after_line(line, depth)
+        line_start = line_end
+
+
+def _parse_scalar_slot_line(line: str, line_start: int) -> tuple[str, int, int, str] | None:
+    """Parse one top-level scalar property line without regular expressions."""
+    content = line[:-1] if line.endswith("\n") else line
+    pos = 0
+    while pos < len(content) and content[pos] in " \t":
+        pos += 1
+    if pos >= len(content) or content[pos] in "{}#":
+        return None
+    key_start = pos
+    while pos < len(content) and content[pos] not in " \t{}":
+        pos += 1
+    key = content[key_start:pos]
+    if not key:
+        return None
+    while pos < len(content) and content[pos] in " \t":
+        pos += 1
+    if pos >= len(content):
+        return None
+    value = content[pos:].rstrip(" \t")
+    if not value or "{" in value or "}" in value:
+        return None
+    value_start = line_start + pos
+    value_end = value_start + len(value)
+    return key, value_start, value_end, value
+
+
+def _brace_depth_after_line(line: str, depth: int) -> int:
+    """Update brace depth for one line, ignoring quoted strings."""
+    in_quote = False
+    escaped = False
+    for ch in line:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\" and in_quote:
+            escaped = True
+            continue
+        if ch == '"':
+            in_quote = not in_quote
+            continue
+        if in_quote:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth = max(0, depth - 1)
+    return depth
 
 
 # Public API surface.  ``MODULE_KINDS`` / ``LTM_KINDS`` enumerate the

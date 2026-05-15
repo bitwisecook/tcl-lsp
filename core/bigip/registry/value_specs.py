@@ -206,6 +206,8 @@ class ValueSpec(Protocol):
 
     def references(self, value: object, ctx: ReferenceContext) -> Iterable[Reference]: ...
 
+    def prepare_references(self, value: object, ctx: ParseContext) -> object: ...
+
     @property
     def is_structured(self) -> bool:
         """True when ``project`` returns a non-string structured value.
@@ -214,6 +216,15 @@ class ValueSpec(Protocol):
         ``FieldSpec.typed`` flag.
         """
         ...
+
+    @property
+    def default_list_syntax(self) -> str: ...
+
+    @property
+    def reference_kind(self) -> str: ...
+
+    @property
+    def is_list_of_references(self) -> bool: ...
 
 
 # ---------------------------------------------------------------------------
@@ -249,8 +260,27 @@ class _BaseSpec:
     ) -> Iterable[Reference]:
         return ()
 
+    def prepare_references(self, value: object, ctx: ParseContext) -> object:
+        if value is None or value == "":
+            return value
+        if isinstance(value, str):
+            return self.parse(value, ctx).value
+        return value
+
     @property
     def is_structured(self) -> bool:
+        return False
+
+    @property
+    def default_list_syntax(self) -> str:
+        return "keyed-block" if self.is_structured else "braced-space-separated"
+
+    @property
+    def reference_kind(self) -> str:
+        return ""
+
+    @property
+    def is_list_of_references(self) -> bool:
         return False
 
 
@@ -427,6 +457,14 @@ class ObjectRefSpec(_BaseSpec):
             return self.kinds
         return (self.kind,) if self.kind else ()
 
+    @property
+    def reference_kind(self) -> str:
+        return self.target_kinds[0] if self.target_kinds else ""
+
+    @property
+    def default_list_syntax(self) -> str:
+        return "braced-space-separated"
+
     def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:  # noqa: ARG002
         text = raw.strip()
         if not text and self.allow_none:
@@ -483,6 +521,29 @@ class ListSpec(_BaseSpec):
     list_operators: frozenset[str] = frozenset(("add", "delete", "replace-all-with"))
     keyed: bool = False
     allow_empty_item_body: bool = True
+
+    def prepare_references(self, value: object, ctx: ParseContext) -> object:
+        from ..types import BigipList, ListItem
+
+        if value is None or value == "":
+            return BigipList(syntax=self._effective_syntax(), raw="")
+        if isinstance(value, BigipList):
+            return value
+        if isinstance(value, str):
+            parsed = self.parse(value, ctx)
+            if isinstance(parsed.value, BigipList):
+                return parsed.value
+            return BigipList(syntax=self._effective_syntax(), raw=value)
+        if isinstance(value, (tuple, list)):
+            items: list[ListItem] = []
+            for item in value:
+                if isinstance(item, ListItem):
+                    items.append(item)
+                    continue
+                typed = self.item.prepare_references(item, ctx) if self.item is not None else item
+                items.append(ListItem(value=typed))
+            return BigipList(items=items, syntax=self._effective_syntax())
+        return value
 
     def parse(self, raw: str, ctx: ParseContext) -> ParsedValue:
         """Tokenise *raw* into a :class:`BigipList` of typed items.
@@ -551,7 +612,7 @@ class ListSpec(_BaseSpec):
                         )
                     )
                 value = BigipList(
-                    items=tuple(items),
+                    items=items,
                     syntax=syntax,
                     operator=operator,
                     raw=raw.strip(),
@@ -613,7 +674,7 @@ class ListSpec(_BaseSpec):
                     )
                 )
         value = BigipList(
-            items=tuple(items),
+            items=items,
             syntax=syntax,
             raw=raw.strip(),
             range=SourceSpan(start=base, end=base + len(raw)) if base else None,
@@ -646,7 +707,7 @@ class ListSpec(_BaseSpec):
                     items.append(ListItem(value=parsed.value, raw=v))
                 else:
                     items.append(ListItem(value=v))
-            return BigipList(items=tuple(items), syntax=self._effective_syntax())
+            return BigipList(items=items, syntax=self._effective_syntax())
         return value
 
     def render(self, value: object, ctx: RenderContext) -> str:
@@ -706,13 +767,12 @@ class ListSpec(_BaseSpec):
         if isinstance(value, BigipList):
             iterable = value.items
         elif isinstance(value, (tuple, list)):
-            iterable = [_LegacyListItem(item) if not _is_listitem(item) else item for item in value]
+            iterable = [_as_reference_item(item) for item in value]
         else:
             return ()
         out: list[Reference] = []
         for li in iterable:
-            v = li.value if hasattr(li, "value") else li
-            for ref in self.item.references(v, ctx) or ():
+            for ref in self.item.references(li.value, ctx) or ():
                 if ref.range is None:
                     fallback = _pick_item_range(li, ref.target_path)
                     if fallback is not None:
@@ -732,13 +792,8 @@ class ListSpec(_BaseSpec):
         compound specs that carry per-item bodies)."""
         if self.syntax and self.syntax != "braced-space-separated":
             return self.syntax
-        if self.item is not None and getattr(self.item, "is_structured", False):
-            # ObjectRefSpec is structured but produces scalar refs,
-            # not keyed-block bodies — keep the braced-space-separated
-            # default for it specifically.
-            if isinstance(self.item, ObjectRefSpec):
-                return "braced-space-separated"
-            return "keyed-block"
+        if self.item is not None:
+            return self.item.default_list_syntax
         return "braced-space-separated"
 
     def _render_item(self, value: object, ctx: RenderContext) -> str:
@@ -749,6 +804,14 @@ class ListSpec(_BaseSpec):
     @property
     def is_structured(self) -> bool:
         return True
+
+    @property
+    def reference_kind(self) -> str:
+        return self.item.reference_kind if self.item is not None else ""
+
+    @property
+    def is_list_of_references(self) -> bool:
+        return bool(self.reference_kind)
 
 
 _LIST_OPERATOR_PREFIXES: tuple[str, ...] = (
@@ -811,23 +874,10 @@ def _keyed_item_text(key: str, body: str) -> str:
     return f"{key} {{ {body} }}"
 
 
-class _LegacyListItem:
-    """Lightweight stand-in so ``ListSpec.references`` can walk a
-    plain tuple of typed values via the same code path it uses for
-    :class:`ListItem` records.  Used during the migration window
-    while the model still stores raw tuples for some properties."""
-
-    __slots__ = ("value", "range")
-
-    def __init__(self, value: object) -> None:
-        self.value = value
-        self.range = None
-
-
-def _is_listitem(value: object) -> bool:
+def _as_reference_item(value: object):
     from ..types import ListItem
 
-    return isinstance(value, ListItem)
+    return value if isinstance(value, ListItem) else ListItem(value=value)
 
 
 def _pick_item_range(item: object, target_path: str) -> SourceRange | None:
@@ -841,9 +891,13 @@ def _pick_item_range(item: object, target_path: str) -> SourceRange | None:
     ``address-lists`` / etc.) we fall back to the broader item
     range.  Returns ``None`` when no span info is available.
     """
-    key = getattr(item, "key", "")
-    key_range = getattr(item, "key_range", None)
-    item_range = getattr(item, "range", None)
+    from ..types import ListItem
+
+    if not isinstance(item, ListItem):
+        return None
+    key = item.key
+    key_range = item.key_range
+    item_range = item.range
     if key and key == target_path and key_range is not None:
         return SourceRange(start=key_range.start, end=key_range.end)
     if item_range is not None:
