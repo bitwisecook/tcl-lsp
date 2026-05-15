@@ -23,9 +23,9 @@ layers:
    `core/bigip/graph_export.py`, `core/bigip/stats.py`,
    `core/bigip/rewrite.py`), and a query DSL
    (`core/bigip/query/`, see
-   [`f5-query-dsl.md`](f5-query-dsl.md) for grammar, value model,
+   [`f5-query-dsl.md`](../references/f5_query/dsl.md) for grammar, value model,
    edit pipeline, and jq-compatibility notes, and
-   [`f5-query-dsl-builtins.md`](f5-query-dsl-builtins.md) for the
+   [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) for the
    auto-generated per-function reference).  All verbs are thin
    shells over these modules.
 
@@ -96,7 +96,7 @@ Internal layering:
   each function's signature, summary, deep-explanation prose, and
   worked examples so the same source feeds runtime dispatch,
   `f5 query --help-builtins NAME`, and the generated reference
-  doc at `docs/design/f5-query-dsl-builtins.md`
+  doc at `docs/references/f5_query/builtins.md`
   (`scripts/dev/gen_query_builtins_doc.py`).
 - `grammar.py`, `examples.py` — terminal-friendly grammar
   reference and the worked-example cookbook surfaced by

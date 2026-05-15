@@ -2466,11 +2466,11 @@ def test_generated_builtins_doc_is_up_to_date():
     import gen_query_builtins_doc  # type: ignore[import-not-found]
 
     expected = gen_query_builtins_doc.render(list_builtins())
-    on_disk = (repo_root / "docs" / "design" / "f5-query-dsl-builtins.md").read_text(
+    on_disk = (repo_root / "docs" / "references" / "f5_query" / "builtins.md").read_text(
         encoding="utf-8"
     )
     assert on_disk == expected, (
-        "docs/design/f5-query-dsl-builtins.md is out of date; run "
+        "docs/references/f5_query/builtins.md is out of date; run "
         "`python scripts/dev/gen_query_builtins_doc.py` to regenerate."
     )
 

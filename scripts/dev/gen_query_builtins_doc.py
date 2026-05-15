@@ -1,4 +1,4 @@
-"""Generate ``docs/design/f5-query-dsl-builtins.md`` from the builtin registry.
+"""Generate ``docs/references/f5_query/builtins.md`` from the builtin registry.
 
 The :mod:`core.bigip.query.builtins` registry is the single source of
 truth for every builtin's signature, summary, details, and examples.
@@ -31,7 +31,7 @@ from core.bigip.query.builtins import (  # noqa: E402
     list_builtins,
 )
 
-OUTPUT_PATH = REPO_ROOT / "docs" / "design" / "f5-query-dsl-builtins.md"
+OUTPUT_PATH = REPO_ROOT / "docs" / "references" / "f5_query" / "builtins.md"
 
 
 _HEADER = """# F5 query DSL — builtin function reference

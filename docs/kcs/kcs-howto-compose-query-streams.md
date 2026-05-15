@@ -15,7 +15,7 @@ How do I compose `select`, `map`, `any`, `all`, `sort`, and `unique` to filter a
 
 - A `bigip.conf` / SCF file.
 - A rough idea of which property you want to filter, project, or aggregate on.
-- The full per-function reference at [`docs/design/f5-query-dsl-builtins.md`](../design/f5-query-dsl-builtins.md), or `f5 query --help-builtins NAME` from the terminal.
+- The full per-function reference at [`docs/references/f5_query/builtins.md`](../references/f5_query/builtins.md), or `f5 query --help-builtins NAME` from the terminal.
 
 ## Answer
 
@@ -117,6 +117,6 @@ $ f5 query --paths-only '.ltm.pool[]
 ## Related
 
 - [BIG-IP Query DSL](features/kcs-feature-bigip-query.md)
-- [F5 query DSL — builtin function reference](../design/f5-query-dsl-builtins.md)
+- [F5 query DSL — builtin function reference](../references/f5_query/builtins.md)
 - [How do I find BIG-IP objects with a query expression?](kcs-howto-find-objects-by-query.md)
 - [How do I bulk-readdress virtual servers into a new subnet?](kcs-howto-readdress-virtuals-with-query.md)

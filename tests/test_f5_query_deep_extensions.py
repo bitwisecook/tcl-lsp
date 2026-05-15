@@ -795,6 +795,101 @@ class TestTlsAndX509:
         assert parsed["fingerprint_sha256"]
         assert parsed["key_size"] == 2048
 
+    def test_x509_from_sys_file_matches_x509_parse_shape(self):
+        """A ``sys file ssl-cert`` projected via ``x509_from_sys_file``
+        should produce the same dict shape ``x509_parse`` does.
+        Every shared key — ``subject`` / ``issuer`` / ``serial`` /
+        ``sans`` / ``fingerprint_sha256`` / ``version`` /
+        ``key_size`` / ``key_alg`` — comes out normalised so the
+        two sides compare cleanly."""
+        src = (
+            "sys file ssl-cert /Common/example.crt {\n"
+            '    source-path "file:///config/ssl/ssl.crt/example.crt"\n'
+            '    issuer "CN=Example CA"\n'
+            '    subject "CN=www.example.com"\n'
+            '    subject-alternative-name "DNS:www.example.com,DNS:example.com"\n'
+            '    expiration-string "Jan 1 00:00:00 2099 GMT"\n'
+            '    fingerprint "SHA256/12:34:56:AB"\n'
+            "    key-size 2048\n"
+            "    key-type rsa-public\n"
+            "    serial-number 1002\n"
+            "    version 3\n"
+            "}\n"
+        )
+        result = run_query(
+            '.sys["file-ssl-cert"]["/Common/example.crt"] | x509_from_sys_file(.)',
+            {"mem://x": src},
+        )
+        [parsed] = result.values_per_file["mem://x"]
+        assert parsed["subject"] == "CN=www.example.com"
+        assert parsed["issuer"] == "CN=Example CA"
+        assert parsed["sans"] == ["www.example.com", "example.com"]
+        assert parsed["fingerprint_sha256"] == "123456AB"
+        assert parsed["serial"] == "3EA"  # 1002 → hex
+        assert parsed["version"] == "v3"
+        assert parsed["key_size"] == 2048
+        assert parsed["key_alg"] == "RSAPublicKey"
+        assert parsed["not_after"] == "2099-01-01T00:00:00+00:00"
+        # Fields BIG-IP doesn't expose come back null.
+        assert parsed["not_before"] is None
+        assert parsed["sig_alg"] is None
+        assert parsed["public_key_pem"] is None
+
+    def test_x509_eq_matches_same_fingerprint(self):
+        """Two certs with matching ``fingerprint_sha256`` are equal
+        regardless of which fields are populated."""
+        src = 'sys file ssl-cert /Common/c.crt {\n    fingerprint "SHA256/AA:BB:CC"\n}\n'
+        result = run_query(
+            "x509_eq("
+            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_sys_file(.), '
+            '{ fingerprint_sha256: "AABBCC" })',
+            {"mem://x": src},
+        )
+        [eq] = result.values_per_file["mem://x"]
+        assert eq is True
+
+    def test_x509_eq_falls_back_to_subject_issuer_serial(self):
+        """When ``fingerprint_sha256`` is empty on one side,
+        ``x509_eq`` falls back to subject + issuer + serial — the
+        X.509-defined primary key.  Same cert under both forms
+        still compares equal."""
+        src = (
+            "sys file ssl-cert /Common/c.crt {\n"
+            '    issuer "CN=Example CA"\n'
+            '    subject "CN=www.example.com"\n'
+            "    serial-number 42\n"
+            "}\n"
+        )
+        result = run_query(
+            "x509_eq("
+            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_sys_file(.), '
+            '{ subject: "CN=www.example.com", issuer: "CN=Example CA", '
+            'serial: "2A" })',
+            {"mem://x": src},
+        )
+        [eq] = result.values_per_file["mem://x"]
+        assert eq is True
+
+    def test_x509_eq_rejects_different_serial(self):
+        """Same subject + issuer but different serial number is a
+        different cert (e.g. a reissued cert)."""
+        src = (
+            "sys file ssl-cert /Common/c.crt {\n"
+            '    subject "CN=www.example.com"\n'
+            '    issuer "CN=Example CA"\n'
+            "    serial-number 42\n"
+            "}\n"
+        )
+        result = run_query(
+            "x509_eq("
+            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_sys_file(.), '
+            '{ subject: "CN=www.example.com", issuer: "CN=Example CA", '
+            'serial: "FF" })',
+            {"mem://x": src},
+        )
+        [eq] = result.values_per_file["mem://x"]
+        assert eq is False
+
 
 # ===========================================================================
 # Probe gate — exhaustive coverage of which builtins gate

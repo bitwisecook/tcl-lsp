@@ -214,17 +214,26 @@ def _scf_with_https_endpoint(url: str) -> str:
 
 
 def test_url_get_validates_against_pinned_ca(https_server):
-    """`url_get` honours TLS_CA_BUNDLE — same query that errors with
-    the system trust store succeeds when the test CA is pinned."""
+    """`url_get` honours TLS_CA_BUNDLE.  When the bundle is pinned
+    ``reason.kind`` is ``"ok"``; without it, the call still
+    collects the body + peer cert but ``reason.kind`` flags
+    ``"self_signed"`` so audit queries can filter to the
+    unverified results."""
     url, cert = https_server
-    # Without the CA bundle, urllib refuses the self-signed cert.
+    # Without the CA bundle, the self-signed cert fails strict
+    # verification.  We still collect the response (audit-mode
+    # default) and the reason tells the consumer why.
     [unverified] = _run_with_probes(f'url_get("{url}/health")')
-    assert unverified["status"] is None
-    assert "certificate verify failed" in (unverified.get("error") or "").lower()
-    # With the CA pinned, the same call lands a 200.
+    assert unverified["status"] == 200
+    assert unverified["reason"]["kind"] == "self_signed"
+    assert unverified["reason"]["fatal"] is False
+    assert unverified["peer_cert"] is not None
+    # With the CA pinned the same call verifies clean.
     [resp] = _run_with_probes(f'url_get("{url}/health")', ca_bundle=cert)
     assert resp["status"] == 200
     assert resp["headers"]["content-type"] == "application/json"
+    assert resp["reason"]["kind"] == "ok"
+    assert resp["reason"]["fatal"] is False
     # body_json is pre-parsed because the response declared JSON.
     assert resp["body_json"] == {"status": "ok", "uptime_s": 42}
 
@@ -237,6 +246,48 @@ def test_url_get_body_json_traverses_inline(https_server):
         ca_bundle=cert,
     )
     assert count == 2
+
+
+def test_url_get_captures_peer_cert_on_https(https_server):
+    """``url_get`` captures the negotiated server cert on every
+    ``https://`` request — same dict shape every ``x509_*``
+    helper produces.  No extra round-trip; the cert comes off
+    the same handshake that served the HTTP body."""
+    url, cert = https_server
+    [resp] = _run_with_probes(f'url_get("{url}/health")', ca_bundle=cert)
+    assert resp["status"] == 200
+    peer = resp["peer_cert"]
+    assert peer is not None
+    assert "localhost" in peer["sans"]
+    assert peer["key_size"] == 2048
+    # The pre-parsed cert is the SAME dict shape ``x509_parse`` /
+    # ``x509_from_sys_file`` produce, so an equality check works
+    # across the three sources.
+    [matches] = _run_with_probes(
+        f'x509_eq(url_get("{url}/health").peer_cert, url_get("{url}/health").peer_cert)',
+        ca_bundle=cert,
+    )
+    assert matches is True
+
+
+def test_url_get_peer_cert_is_null_for_http(https_server):
+    """Plain ``http://`` URLs leave ``peer_cert`` as ``null`` so
+    consumers can branch on ``select(.peer_cert != null)``."""
+    # The fixture is https-only — use a small local HTTP server.
+    import http.server
+    import threading
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), http.server.BaseHTTPRequestHandler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        [resp] = _run_with_probes(f'url_get("http://127.0.0.1:{port}/")')
+        # ``url_get`` returns either a status (when the dummy
+        # handler responds) or ``status=None`` with an error; in
+        # either case ``peer_cert`` is null for plain http.
+        assert resp["peer_cert"] is None
+    finally:
+        server.shutdown()
 
 
 def test_http_helpers_against_live_endpoint(https_server):
@@ -274,6 +325,40 @@ def test_cert_load_round_trip(https_server):
     assert "localhost" in parsed["subject"]
     assert "localhost" in parsed["sans"]
     assert parsed["key_size"] == 2048
+
+
+def test_x509_eq_across_every_source(https_server):
+    """The point of unified shape + ``x509_eq``: a cert reaches an
+    audit pipeline from many sources (PEM on disk, live TLS
+    handshake, captured ``url_get`` peer cert), and the four
+    builtins below all produce dicts that ``x509_eq`` recognises
+    as the same certificate.  Test pins every cross-source
+    combination."""
+    import urllib.parse
+
+    url, cert = https_server
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.hostname
+    port = parsed.port
+    # Three pairwise comparisons across the three real sources — a
+    # cert on disk, a cert captured during ``url_get``'s TLS
+    # handshake, and a cert from an explicit ``tls_handshake``
+    # probe.  Every cell must come back ``true`` because they're
+    # the same self-signed cert; ``x509_eq`` collapses field-by-
+    # field differences (``not_before`` may render different ISO
+    # offsets, etc.) into cert-identity semantics.
+    [results] = _run_with_probes(
+        f"""[
+            x509_eq(cert_load("{cert}"),
+                    url_get("{url}/health").peer_cert),
+            x509_eq(cert_load("{cert}"),
+                    tls_handshake("{host}", {port}).peer_cert),
+            x509_eq(url_get("{url}/health").peer_cert,
+                    tls_handshake("{host}", {port}).peer_cert)
+        ]""",
+        ca_bundle=cert,
+    )
+    assert results == [True, True, True]
 
 
 def test_scf_referenced_endpoint_is_probed(https_server):

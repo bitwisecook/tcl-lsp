@@ -68,4 +68,4 @@ The first sets every VS's destination route domain to `7`; the second strips the
 - [BIG-IP Query DSL](features/kcs-feature-bigip-query.md)
 - [BIG-IP rename](features/kcs-feature-rename.md)
 - [How do I bulk-readdress virtual servers into a new subnet?](kcs-howto-readdress-virtuals-with-query.md)
-- [F5 query DSL design](../design/f5-query-dsl.md)
+- [F5 query DSL design](../references/f5_query/dsl.md)

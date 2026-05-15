@@ -48,7 +48,7 @@ class BuiltinSpec:
     # Multi-paragraph reference prose — semantics, return type, error
     # cases, related builtins.  Surfaced verbatim by
     # ``--help-builtins NAME`` and by the generated builtin reference
-    # under ``docs/design/f5-query-dsl-builtins.md``.  Markdown is
+    # under ``docs/references/f5_query/builtins.md``.  Markdown is
     # tolerated but the help-text path is a terminal, so keep
     # decoration light (paragraphs, bullets, inline ``code``).
     details: str = ""
@@ -4457,6 +4457,86 @@ def _builtin_x509_parse(value: Any) -> dict[str, Any]:
     from ._probes import x509_parse
 
     return x509_parse(_as_str(value, name="x509_parse", arg=1))
+
+
+@_register(
+    "x509_from_sys_file",
+    summary="Project a ``sys file ssl-cert`` into the ``x509_parse`` shape.",
+    signatures=("x509_from_sys_file(cert: object) -> object",),
+    details="""
+    Takes a BIG-IP ``sys file ssl-cert`` (the typed model object
+    or its DSL projection) and returns a dict in the same shape
+    :func:`x509_parse` produces: ``subject`` / ``issuer`` /
+    ``not_after`` / ``serial`` / ``fingerprint_sha256`` / ``sans``
+    / ``key_alg`` / ``key_size`` / ``version`` / etc.
+
+    Normalisation handled at the boundary: SAN strings are split
+    on commas with the ``DNS:`` / ``IP:`` prefix stripped; the
+    fingerprint is converted from ``SHA256/12:34:…`` to bare
+    uppercase hex; ``serial-number`` is converted from decimal to
+    uppercase hex; ``version`` is mapped from ``"3"`` to ``"v3"``;
+    ``key-type`` is mapped to cryptography's public-key class
+    names (``rsa-public`` → ``RSAPublicKey``).  Fields BIG-IP's
+    TMSH surface doesn't carry (``not_before``, ``sig_alg``,
+    ``public_key_pem``) come back ``null``.
+
+    Pair with :func:`x509_eq` to compare a BIG-IP cert against one
+    fetched from a live endpoint or a PEM file.
+
+    Related: ``x509_parse`` (parse a PEM string),
+    ``x509_load_file`` (parse a PEM file), ``x509_eq``.
+    """,
+    examples=(
+        '.sys.file.ssl-cert["/Common/example.crt"] | x509_from_sys_file(.)',
+        "x509_eq("
+        '.sys.file.ssl-cert["/Common/example.crt"] | x509_from_sys_file(.), '
+        'x509_parse(url_get("https://example.com/cert.pem").body))',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_x509_from_sys_file(value: Any) -> dict[str, Any]:
+    from ._probes import x509_from_sys_file
+
+    return x509_from_sys_file(value)
+
+
+@_register(
+    "x509_eq",
+    summary="Compare two ``x509_parse``-shaped dicts for cert identity.",
+    signatures=("x509_eq(a: object, b: object) -> boolean",),
+    details="""
+    Returns ``true`` when the two dicts describe the same X.509
+    certificate.  Comparison order, strongest → weakest:
+
+    1. ``fingerprint_sha256`` — the canonical identity.  Two certs
+       with the same SHA-256 fingerprint are the same cert.
+    2. ``subject`` + ``issuer`` + ``serial`` — the X.509-defined
+       primary key.  Used when one side is a BIG-IP ``sys file
+       ssl-cert`` projection that doesn't carry a SHA-256
+       fingerprint.
+
+    Plain ``==`` on the dicts compares every field — including
+    ``not_before`` / ``sig_alg`` / ``public_key_pem`` which the
+    BIG-IP side leaves ``null`` — and so reports certs as
+    different even when they describe the same key material.  Use
+    this helper instead for "same cert" semantics.
+
+    Related: ``x509_parse``, ``x509_from_sys_file``.
+    """,
+    examples=(
+        "x509_eq(x509_parse(.body), x509_from_sys_file($cert))",
+        ".sys.file.ssl-cert[] | select(x509_eq(x509_from_sys_file(.), $peer))",
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_x509_eq(left: Any, right: Any) -> bool:
+    from ._probes import x509_eq
+
+    return x509_eq(left, right)
 
 
 @_register(

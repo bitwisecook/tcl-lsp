@@ -11,7 +11,7 @@ Help layers:
   the deeper help.  ``RawDescriptionHelpFormatter`` keeps the example
   block readable.
 - ``--help-dsl`` — prints :func:`core.bigip.query.format_grammar`, the
-  same grammar reference that lives in ``docs/design/f5-query-dsl.md``.
+  same grammar reference that lives in ``docs/references/f5_query/dsl.md``.
 - ``--help-builtins [NAME]`` — full builtin catalogue, or just one
   function when a name is given.  Generated from the same registry the
   evaluator dispatches against, so docs and code cannot drift.
@@ -116,6 +116,74 @@ class _HelpExamplesAction(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
         sys.stdout.write(format_examples())
+        parser.exit()
+
+
+class _HelpManualAction(argparse.Action):
+    """Print the comprehensive manual — grammar + builtins + examples.
+
+    Gives MCP / AI surfaces a single self-contained reference they
+    can feed back to a model when answering questions about the
+    DSL.  Identical content to ``--help-dsl`` + ``--help-builtins``
+    + ``--help-examples`` concatenated, with section banners that
+    make the output easy to scan or chunk for context windows.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        bar = "=" * 72
+        parts = (
+            f"{bar}\nGRAMMAR\n{bar}\n\n",
+            format_grammar(),
+            f"\n\n{bar}\nBUILTINS\n{bar}\n\n",
+            format_builtins(None),
+            f"\n\n{bar}\nEXAMPLES\n{bar}\n\n",
+            format_examples(),
+        )
+        for part in parts:
+            sys.stdout.write(part)
+        parser.exit()
+
+
+class _HelpReferencesAction(argparse.Action):
+    """Print the comprehensive `f5 query` reference manual.
+
+    Sources ``docs/references/f5_query/manual.md`` — the master
+    long-form companion to the auto-generated grammar / builtins
+    / examples surfaces.  Covers stream semantics, the probe gate
+    + reason taxonomy, cert-dict shape, mutating-query apply
+    order, the F5 KB cross-reference, sample SCF fragments, cert-
+    generation one-liners, and end-to-end audit walkthroughs.
+
+    Each section carries a stable Markdown anchor so external
+    tools (MCP, AI skills, IDE quick-lookups) can deep-link into
+    a single concept.  Pair with ``--help-builtins NAME`` for the
+    full per-function documentation.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from pathlib import Path
+
+        # The manual lives in the repo's ``docs/references`` tree.
+        # Resolve relative to this verb module so editable installs
+        # and zipapp builds both find it.
+        repo_root = Path(__file__).resolve().parents[3]
+        manual = repo_root / "docs" / "references" / "f5_query" / "manual.md"
+        if manual.is_file():
+            sys.stdout.write(manual.read_text(encoding="utf-8"))
+            parser.exit()
+        # Fall back to the F5 KB cross-reference doc if only it is
+        # bundled — better than nothing, and the manual links to
+        # it explicitly.
+        kb = repo_root / "docs" / "references" / "f5_query" / "f5-kb-monitor-articles.md"
+        if kb.is_file():
+            sys.stdout.write(kb.read_text(encoding="utf-8"))
+            parser.exit()
+        sys.stdout.write(
+            "f5 query --help-references: references not found "
+            f"under {repo_root / 'docs' / 'references'}\n"
+            "(this build may not include the docs/ tree; see "
+            "https://github.com/bitwisecook/tcl-lsp for the canonical copy)\n"
+        )
         parser.exit()
 
 
@@ -404,6 +472,28 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         action=_HelpExamplesAction,
         default=argparse.SUPPRESS,
         help="Show a cookbook of worked example queries and exit.",
+    )
+    p.add_argument(
+        "--help-manual",
+        nargs=0,
+        action=_HelpManualAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Show the comprehensive manual (grammar + builtins + examples) "
+            "as one self-contained reference and exit.  Useful when feeding "
+            "the DSL surface to an AI agent / MCP context."
+        ),
+    )
+    p.add_argument(
+        "--help-references",
+        nargs=0,
+        action=_HelpReferencesAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Show the embedded F5 KB references (K2167 / K3451 / K3224 / "
+            "K12531 etc.) and exit.  Use alongside ``--help-builtins`` when "
+            "figuring out which probe builtin matches a device behaviour."
+        ),
     )
 
     p.set_defaults(handler=_run_query, output_mode="auto")

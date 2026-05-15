@@ -118,7 +118,7 @@ $ f5 query --paths-only '
 ## Related
 
 - [BIG-IP Query DSL](features/kcs-feature-bigip-query.md)
-- [F5 query DSL — builtin function reference](../design/f5-query-dsl-builtins.md)
+- [F5 query DSL — builtin function reference](../references/f5_query/builtins.md)
 - [How do I migrate every object from one partition into another?](kcs-howto-migrate-partition-with-query.md)
 - [How do I audit a BIG-IP config with f5 query?](kcs-howto-audit-config-with-query.md)
 - [How do I rename a pool everywhere?](kcs-howto-rewrite-pool-refs-in-irules.md)

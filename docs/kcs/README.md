@@ -89,6 +89,14 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-audit-config-with-query.md](kcs-howto-audit-config-with-query.md)
   — audit a config for orphans, naming-convention violations, port
   policy, partition leaks, and pool-member sanity using `f5 query`.
+- [kcs-howto-audit-server-certs-with-query.md](kcs-howto-audit-server-certs-with-query.md)
+  — verify the cert on each device's `sys file ssl-cert` matches
+  the cert each virtual is actually serving; find devices where a
+  cert push failed in a multi-tier deployment.
+- [kcs-howto-reproduce-http-monitor-with-query.md](kcs-howto-reproduce-http-monitor-with-query.md)
+  — reproduce an `ltm monitor http(s)` from your laptop, honouring
+  the 5,120-byte response-check ceiling (F5 KB K3451) so the
+  result matches what the device sees.
 - [kcs-howto-cross-config-transforms-with-query.md](kcs-howto-cross-config-transforms-with-query.md)
   — compose multi-step transformations (rename + readdress + policy
   edit) across the config in one `;`-separated query.

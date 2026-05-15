@@ -44,7 +44,7 @@ The DSL itself has three companion help screens, all served from the verb's own 
 - `f5 query --help-builtins` — every function exposed to the DSL, with signature and summary.  Pass a name (`--help-builtins ip`) to drill down to the full per-function reference (signature, semantics, worked examples, return types, error cases).
 - `f5 query --help-examples` — a cookbook of common one-liners covering filter, projection, mutation, rename, and iRule rewrites.
 
-The same per-function reference is available as a rendered document at [`docs/design/f5-query-dsl-builtins.md`](../../design/f5-query-dsl-builtins.md) — the canonical builtin reference, generated from the registry so it can't drift from the runtime.  For grammar and architectural background see [`docs/design/f5-query-dsl.md`](../../design/f5-query-dsl.md).
+The same per-function reference is available as a rendered document at [`docs/references/f5_query/builtins.md`](../../references/f5_query/builtins.md) — the canonical builtin reference, generated from the registry so it can't drift from the runtime.  For grammar and architectural background see [`docs/references/f5_query/dsl.md`](../../references/f5_query/dsl.md).
 
 Complex worked examples live in KCS How-Tos:
 
@@ -218,4 +218,4 @@ A `renamed /Common/web_pool -> /Common/app_pool (3 occurrence(s))` line is also 
 - [BIG-IP Related-Object Grep](kcs-feature-bigip-grep.md) — uses the same reference graph for "which objects touch X?" queries.
 - [BIG-IP Config Cleanup](kcs-feature-bigip-cleanup.md) — pairs with `f5 query --scf` to emit a tidy projection.
 - [F5 CLI](kcs-feature-f5-cli.md) — the umbrella verb catalogue.
-- [F5 query DSL design](../../design/f5-query-dsl.md) — grammar, value model, and edit pipeline internals.
+- [F5 query DSL design](../../references/f5_query/dsl.md) — grammar, value model, and edit pipeline internals.

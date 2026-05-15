@@ -164,6 +164,6 @@ done
 ## Related
 
 - [BIG-IP Query DSL](features/kcs-feature-bigip-query.md)
-- [F5 query DSL — builtin function reference](../design/f5-query-dsl-builtins.md)
+- [F5 query DSL — builtin function reference](../references/f5_query/builtins.md)
 - [How do I filter and transform streams with f5 query?](kcs-howto-compose-query-streams.md)
 - [BIG-IP Related-Object Grep](features/kcs-feature-bigip-grep.md) — alternative for relationship-shaped questions.

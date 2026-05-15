@@ -14,6 +14,7 @@ the life of the Python process.
 
 from __future__ import annotations
 
+import datetime
 import socket
 import ssl
 import subprocess
@@ -193,14 +194,22 @@ def url_request(
 ) -> dict[str, Any]:
     """Generic HTTP request via :mod:`urllib`.
 
-    Returns ``{"status", "headers", "body", "body_json", "error"}``.
-    ``body`` is the raw response body decoded as UTF-8 with
-    replacement.  ``body_json`` is the pre-parsed JSON value when the
-    response's ``content-type`` header includes ``json`` and the body
-    is valid JSON; otherwise ``None``.  Pre-parsing here lets callers
-    write ``url_get(...) | http_body_json(.)`` without re-parsing on
+    Returns ``{"status", "headers", "body", "body_json",
+    "peer_cert", "error"}``.  ``body`` is the raw response body
+    decoded as UTF-8 with replacement.  ``body_json`` is the
+    pre-parsed JSON value when the response's ``content-type``
+    header includes ``json`` and the body is valid JSON;
+    otherwise ``None``.  Pre-parsing here lets callers write
+    ``url_get(...) | http_body_json(.)`` without re-parsing on
     every traversal, and means a query that only needs structured
     fields doesn't pay the regex cost twice.
+
+    ``peer_cert`` is the negotiated server certificate parsed
+    through :func:`x509_parse` (same dict shape every other x509
+    helper produces).  ``None`` for ``http://`` URLs, failed
+    handshakes, or when the underlying SSL stack doesn't expose
+    the peer cert.  Captured during the same TLS handshake that
+    served the HTTP request — no extra round-trip.
     """
     _require_probes(f"url_{method.lower()}")
     scheme = urlsplit(url).scheme.lower()
@@ -226,33 +235,135 @@ def url_request(
     else:
         data = body
     req = urllib.request.Request(url, data=data, method=method.upper(), headers=headers or {})
-    # When a custom CA bundle is bound, build a verifying context
-    # that trusts it (and only it).  Otherwise let urllib fall back
-    # to the platform default.
-    opener_kwargs: dict[str, Any] = {"timeout": timeout_s}
-    if ca_bundle:
-        opener_kwargs["context"] = ssl.create_default_context(cafile=ca_bundle)
+
+    def _attempt(
+        ctx: ssl.SSLContext | None,
+    ) -> tuple[dict[str, Any], _CertCapturingHTTPSHandler | None]:
+        """Run one HTTP request via the given context.
+
+        Returns ``(out_dict, cert_handler)`` so the caller can pull
+        the captured PEM off the handler.  Raises
+        :class:`ssl.SSLCertVerificationError` and other
+        :class:`urllib.error.URLError` instances unchanged so the
+        wrapper can choose to retry."""
+        handler: _CertCapturingHTTPSHandler | None
+        if scheme == "https":
+            effective = ctx or ssl.create_default_context()
+            handler = _CertCapturingHTTPSHandler(effective)
+            opener_local = urllib.request.build_opener(handler)
+        else:
+            handler = None
+            opener_local = urllib.request.build_opener()
+        try:
+            with opener_local.open(req, timeout=timeout_s) as resp:
+                payload = resp.read()
+                return (
+                    {
+                        "status": resp.status,
+                        "headers": {k.lower(): v for k, v in resp.headers.items()},
+                        "body": payload.decode("utf-8", "replace"),
+                        "error": None,
+                    },
+                    handler,
+                )
+        except urllib.error.HTTPError as exc:
+            return (
+                {
+                    "status": exc.code,
+                    "headers": {k.lower(): v for k, v in (exc.headers or {}).items()},
+                    "body": exc.read().decode("utf-8", "replace") if exc.fp else "",
+                    "error": exc.reason,
+                },
+                handler,
+            )
+
+    # Default verifying context.  When a CA bundle is pinned, trust
+    # it (and only it); otherwise the platform default.
+    strict_ctx = (
+        ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
+    )
+    reason: dict[str, Any] = {"kind": "ok", "message": "", "fatal": False}
+    cert_handler: _CertCapturingHTTPSHandler | None = None
     try:
-        with urllib.request.urlopen(req, **opener_kwargs) as resp:
-            payload = resp.read()
-            out = {
-                "status": resp.status,
-                "headers": {k.lower(): v for k, v in resp.headers.items()},
-                "body": payload.decode("utf-8", "replace"),
-                "error": None,
-            }
-    except urllib.error.HTTPError as exc:
-        out = {
-            "status": exc.code,
-            "headers": {k.lower(): v for k, v in (exc.headers or {}).items()},
-            "body": exc.read().decode("utf-8", "replace") if exc.fp else "",
-            "error": exc.reason,
-        }
+        out, cert_handler = _attempt(strict_ctx)
+    except ssl.SSLCertVerificationError as exc:
+        # Verification failed — record the reason and retry without
+        # verification so the audit query still gets the response
+        # body + peer cert.  The cert is what they want to inspect.
+        reason = _classify_cert_error(exc)
+        try:
+            out, cert_handler = _attempt(_permissive_ssl_context())
+        except (urllib.error.URLError, OSError, TimeoutError) as exc2:
+            out = {"status": None, "headers": {}, "body": "", "error": str(exc2)}
+            reason = {"kind": "connection_error", "message": str(exc2), "fatal": True}
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
-        out = {"status": None, "headers": {}, "body": "", "error": str(exc)}
-    out["body_json"] = _maybe_parse_body_json(out["body"], out["headers"])
+        # The URLError wrapper hides ``ssl.SSLCertVerificationError``
+        # inside ``exc.reason`` — extract it so audit queries get a
+        # structured reason rather than a generic connection error.
+        inner = getattr(exc, "reason", None)
+        if isinstance(inner, ssl.SSLCertVerificationError):
+            reason = _classify_cert_error(inner)
+            try:
+                out, cert_handler = _attempt(_permissive_ssl_context())
+            except (urllib.error.URLError, OSError, TimeoutError) as exc2:
+                out = {"status": None, "headers": {}, "body": "", "error": str(exc2)}
+                reason = {"kind": "connection_error", "message": str(exc2), "fatal": True}
+        else:
+            out = {"status": None, "headers": {}, "body": "", "error": str(exc)}
+            reason = {"kind": "connection_error", "message": str(exc), "fatal": True}
+    body_str = out["body"] if isinstance(out["body"], str) else ""
+    hdrs = out["headers"] if isinstance(out["headers"], dict) else {}
+    out["body_json"] = _maybe_parse_body_json(body_str, hdrs)
+    # ``peer_cert`` is the negotiated server cert parsed via
+    # :func:`x509_parse`.  ``None`` for http URLs, failed handshakes,
+    # or when the certificate isn't available (extremely rare on a
+    # successful TLS connection).  The dict is the same shape every
+    # other x509 builtin emits so queries chain naturally.
+    peer_cert: dict[str, Any] | None = None
+    if cert_handler is not None and cert_handler.peer_cert_pem:
+        try:
+            peer_cert = x509_parse(cert_handler.peer_cert_pem)
+        except BuiltinError:
+            peer_cert = None
+    out["peer_cert"] = peer_cert
+    out["reason"] = reason
     _URL_CACHE[cache_key] = out
     return dict(out)
+
+
+class _CertCapturingHTTPSHandler(urllib.request.HTTPSHandler):
+    """``urllib`` handler that captures the negotiated server cert.
+
+    Sits between :func:`urllib.request.build_opener` and
+    :class:`http.client.HTTPSConnection`, swapping in a connection
+    subclass whose ``connect()`` records the peer cert (as PEM)
+    onto the handler so the caller can retrieve it after the
+    response body is read.  Falls back silently — the handler
+    leaves ``peer_cert_pem = None`` when the SSL stack doesn't
+    expose the underlying cert (rare on a successful handshake).
+    """
+
+    def __init__(self, ctx: ssl.SSLContext) -> None:
+        super().__init__(context=ctx)
+        self.peer_cert_pem: str | None = None
+        self._ctx = ctx
+
+    def https_open(self, req):  # type: ignore[override]
+        import http.client
+
+        handler_self = self
+
+        class _Conn(http.client.HTTPSConnection):
+            def connect(self) -> None:
+                super().connect()
+                try:
+                    der = self.sock.getpeercert(binary_form=True)
+                except (AttributeError, ssl.SSLError):
+                    return
+                if der:
+                    handler_self.peer_cert_pem = ssl.DER_cert_to_PEM_cert(der)
+
+        return self.do_open(_Conn, req, context=self._ctx)
 
 
 def _maybe_parse_body_json(body: str, headers: dict[str, Any]) -> Any:
@@ -323,9 +434,19 @@ def tls_handshake(
     """Open a TLS connection and report what the peer offered.
 
     Returns ``{"protocol", "cipher", "peer_cert", "alpn_selected",
-    "verify_status", "error"}``.  The handshake is verified against
-    the host's default trust store; ``verify_status`` is ``"ok"`` or
-    the verification error.
+    "verify_status", "reason", "error"}``.
+
+    Verification failures (expired cert, hostname mismatch,
+    self-signed bundle, untrusted CA) do **not** abort the
+    handshake — the probe retries with verification disabled so
+    audit queries still get the peer cert and protocol metadata.
+    The ``reason`` sub-object (``{"kind", "message", "fatal"}``)
+    records what would have failed; ``fatal=True`` only when the
+    connection itself couldn't complete (DNS / refused / timeout).
+
+    Use ``reason.kind`` to filter audit results: ``select(.reason.kind
+    == "expired")`` finds every endpoint with an expired cert,
+    ``select(.reason.kind == "ok")`` only verified-clean endpoints.
     """
     _require_probes("tls_handshake")
     sni_value = sni if sni is not None else host
@@ -333,24 +454,14 @@ def tls_handshake(
     key = (host, int(port), sni_value, ca_bundle)
     if key in _TLS_CACHE:
         return dict(_TLS_CACHE[key])
-    ctx = (
-        ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
-    )
-    if alpn:
-        ctx.set_alpn_protocols(alpn)
-    out: dict[str, Any]
-    try:
+
+    def _run(ctx: ssl.SSLContext) -> dict[str, Any]:
         with socket.create_connection((host, int(port)), timeout=timeout_s) as sock:
             with ctx.wrap_socket(sock, server_hostname=sni_value) as ssock:
                 cipher = ssock.cipher()
                 peer = ssock.getpeercert()
                 peer_der = ssock.getpeercert(binary_form=True)
                 alpn_selected = ssock.selected_alpn_protocol() if alpn else None
-                # Pre-parse the peer cert into the structured shape
-                # ``x509_parse`` produces so callers can navigate it
-                # directly: ``tls_handshake(h, p).peer_cert.subject``.
-                # When the DER is unavailable (very old Pythons /
-                # alpine variants) fall back to the raw ssl dict.
                 peer_cert: Any = peer
                 if peer_der is not None:
                     try:
@@ -358,23 +469,47 @@ def tls_handshake(
                         peer_cert = x509_parse(pem)
                     except Exception:
                         peer_cert = peer
-                out = {
+                return {
                     "protocol": ssock.version(),
                     "cipher": cipher[0] if cipher else None,
                     "peer_cert": peer_cert,
                     "alpn_selected": alpn_selected,
-                    "verify_status": "ok",
-                    "error": None,
                 }
+
+    strict_ctx = (
+        ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
+    )
+    if alpn:
+        strict_ctx.set_alpn_protocols(alpn)
+
+    reason: dict[str, Any] = {"kind": "ok", "message": "", "fatal": False}
+    out: dict[str, Any]
+    try:
+        out = _run(strict_ctx)
+        out["verify_status"] = "ok"
+        out["error"] = None
     except ssl.SSLCertVerificationError as exc:
-        out = {
-            "protocol": None,
-            "cipher": None,
-            "peer_cert": None,
-            "alpn_selected": None,
-            "verify_status": exc.verify_message,
-            "error": str(exc),
-        }
+        reason = _classify_cert_error(exc)
+        # Retry without verification so the audit query still gets
+        # the cert + protocol metadata.  Both legs go through the
+        # same socket logic; only the context differs.
+        permissive = _permissive_ssl_context()
+        if alpn:
+            permissive.set_alpn_protocols(alpn)
+        try:
+            out = _run(permissive)
+            out["verify_status"] = reason["message"] or "verification failed"
+            out["error"] = None
+        except (OSError, ssl.SSLError, TimeoutError) as exc2:
+            out = {
+                "protocol": None,
+                "cipher": None,
+                "peer_cert": None,
+                "alpn_selected": None,
+                "verify_status": "error",
+                "error": str(exc2),
+            }
+            reason = {"kind": "connection_error", "message": str(exc2), "fatal": True}
     except (OSError, ssl.SSLError, TimeoutError) as exc:
         out = {
             "protocol": None,
@@ -384,8 +519,69 @@ def tls_handshake(
             "verify_status": "error",
             "error": str(exc),
         }
+        reason = {"kind": "connection_error", "message": str(exc), "fatal": True}
+    out["reason"] = reason
     _TLS_CACHE[key] = out
     return dict(out)
+
+
+# ---------------------------------------------------------------------------
+# Cert-error classification — shared by ``url_*`` and ``tls_handshake``
+# ---------------------------------------------------------------------------
+
+
+# Maps OpenSSL verify codes (the integers ``SSLCertVerificationError``
+# exposes via ``.verify_code``) to the ``reason.kind`` tags the probes
+# emit.  An unmatched code becomes ``"other_verification"``.  Codes
+# come from ``openssl/x509_vfy.h``; we only enumerate the ones a
+# typical audit query needs to filter on.
+_VERIFY_CODE_TO_KIND: dict[int, str] = {
+    10: "expired",  # X509_V_ERR_CERT_HAS_EXPIRED
+    9: "not_yet_valid",  # X509_V_ERR_CERT_NOT_YET_VALID
+    18: "self_signed",  # X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT
+    19: "self_signed",  # X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN
+    20: "untrusted_ca",  # X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT
+    21: "untrusted_ca",  # X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE
+    24: "untrusted_ca",  # X509_V_ERR_INVALID_CA
+    62: "hostname_mismatch",  # X509_V_ERR_HOSTNAME_MISMATCH
+}
+
+
+def _classify_cert_error(exc: ssl.SSLCertVerificationError) -> dict[str, Any]:
+    """Return a structured ``reason`` for an SSL verification error.
+
+    Shape: ``{"kind": str, "message": str, "fatal": bool}``.  Kind
+    is one of ``ok`` / ``expired`` / ``not_yet_valid`` /
+    ``self_signed`` / ``hostname_mismatch`` / ``untrusted_ca`` /
+    ``other_verification``.  ``fatal=False`` for verification
+    failures (we got the cert and the response body anyway);
+    ``fatal=True`` is reserved for connection-level errors that
+    leave us with no data.
+    """
+    code = getattr(exc, "verify_code", None)
+    kind = (
+        _VERIFY_CODE_TO_KIND.get(code, "other_verification")
+        if code is not None
+        else "other_verification"
+    )
+    message = getattr(exc, "verify_message", None) or str(exc)
+    return {"kind": kind, "message": message, "fatal": False}
+
+
+def _permissive_ssl_context() -> ssl.SSLContext:
+    """Return an :class:`ssl.SSLContext` that accepts any peer.
+
+    Used as the second-try context when strict verification fails
+    so audit queries still collect the peer cert + response body.
+    The cert lives on the captured handshake regardless of
+    verification status — pinning the failure reason via
+    ``_classify_cert_error`` lets consumers filter without losing
+    the data they need to inspect.
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 
 def x509_parse(pem: str) -> dict[str, Any]:
@@ -490,3 +686,210 @@ def _x509_name_to_str(name_tuples: tuple) -> str:
         for typ, val in rdn:
             parts.append(f"{typ}={val}")
     return ", ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# BIG-IP ``sys file ssl-cert`` → x509_parse-shaped dict
+# ---------------------------------------------------------------------------
+
+
+# Map BIG-IP ``key-type`` tokens to the same ``key_alg`` strings
+# ``cryptography``'s ``type(public_key).__name__`` produces, so a
+# ``sys file ssl-cert`` cert and an :func:`x509_parse` cert compare
+# equal under ``==`` when they describe the same key material.
+_KEY_TYPE_TO_KEY_ALG: dict[str, str] = {
+    "rsa-public": "RSAPublicKey",
+    "rsa-private": "RSAPublicKey",
+    "ec-public": "EllipticCurvePublicKey",
+    "ec-private": "EllipticCurvePublicKey",
+    "dsa-public": "DSAPublicKey",
+    "dsa-private": "DSAPublicKey",
+    "ed25519-public": "Ed25519PublicKey",
+    "ed25519-private": "Ed25519PublicKey",
+    "ed448-public": "Ed448PublicKey",
+    "ed448-private": "Ed448PublicKey",
+}
+
+
+def x509_from_sys_file(cert: Any) -> dict[str, Any]:
+    """Project a ``sys file ssl-cert`` value into the same shape
+    :func:`x509_parse` produces.
+
+    Lets queries compare a cert imported into BIG-IP against a
+    cert parsed from PEM bytes (``x509_parse`` / ``x509_load_file``
+    / ``tls_handshake().peer_cert``) under plain ``==`` — every
+    field is normalised:
+
+    - ``subject`` / ``issuer`` — already RFC-4514-ish on the
+      BIG-IP side; passed through.
+    - ``not_after`` — parsed from ``expiration-string`` (TMSH emits
+      ``"Jan 1 00:00:00 2099 GMT"``) into ISO-8601 UTC.  Falls
+      back to ``expiration-date`` (epoch seconds) when the string
+      form isn't available.
+    - ``not_before`` — ``None``; BIG-IP doesn't expose it.
+    - ``serial`` — decimal → uppercase hex (no ``0x`` prefix), the
+      same shape :func:`x509_parse` emits.
+    - ``fingerprint_sha256`` — ``SHA256/12:34:56:...`` → ``"1234..."``
+      uppercase, prefix and separators stripped.  Other fingerprint
+      algorithms come through unmodified.
+    - ``sans`` — ``"DNS:foo.com,DNS:bar.com"`` → ``["foo.com",
+      "bar.com"]``; the ``TYPE:`` prefix is stripped to match what
+      :func:`x509_parse` emits.
+    - ``key_alg`` — derived from ``key-type`` via the
+      :data:`_KEY_TYPE_TO_KEY_ALG` map.
+    - ``key_size`` — coerced to ``int``.
+    - ``version`` — ``"3"`` → ``"v3"`` to match cryptography's
+      ``CertificateVersion.name``.
+    - ``sig_alg`` / ``public_key_pem`` — ``None``; BIG-IP's TMSH
+      surface doesn't carry them.
+    """
+    if cert is None:
+        raise BuiltinError("x509_from_sys_file: cannot project None")
+
+    def _get(name: str) -> str:
+        # Accept dataclass attribute, dict key, or ObjectRef field
+        # form so the helper works against the model directly AND
+        # against the DSL's projected :class:`ObjectRef`.  Strip
+        # surrounding ``"..."`` quotes the parser leaves on some
+        # fields (``fingerprint``, ``serial-number``, …) so the
+        # normalised output matches :func:`x509_parse`.
+        raw: str = ""
+        if hasattr(cert, name):
+            value = getattr(cert, name)
+            if value is not None:
+                raw = str(value)
+        if not raw:
+            tmsh_name = name.replace("_", "-")
+            if hasattr(cert, "fields"):
+                field_map = cert.fields
+                if tmsh_name in field_map and field_map[tmsh_name] is not None:
+                    raw = str(field_map[tmsh_name])
+                elif name in field_map and field_map[name] is not None:
+                    raw = str(field_map[name])
+        if len(raw) >= 2 and raw[0] == '"' and raw[-1] == '"':
+            raw = raw[1:-1]
+        return raw
+
+    subject = _get("subject")
+    issuer = _get("issuer")
+    san_raw = _get("subject_alternative_name")
+    sans: list[str] = []
+    if san_raw:
+        for chunk in san_raw.split(","):
+            token = chunk.strip()
+            if ":" in token:
+                _, _, host = token.partition(":")
+                sans.append(host.strip())
+            elif token:
+                sans.append(token)
+
+    fingerprint = _get("fingerprint")
+    if fingerprint.upper().startswith("SHA256/"):
+        fingerprint = fingerprint[len("SHA256/") :]
+    fingerprint = fingerprint.replace(":", "").upper()
+
+    serial_raw = _get("serial_number")
+    serial_hex = ""
+    if serial_raw:
+        try:
+            serial_hex = format(int(serial_raw), "X")
+        except ValueError:
+            serial_hex = serial_raw.upper()
+
+    version_raw = _get("version")
+    version = (
+        f"v{version_raw}"
+        if version_raw and not version_raw.lower().startswith("v")
+        else version_raw
+    )
+
+    key_size_raw = _get("key_size") or _get("certificate_key_size")
+    try:
+        key_size: int | None = int(key_size_raw) if key_size_raw else None
+    except ValueError:
+        key_size = None
+
+    key_alg = _KEY_TYPE_TO_KEY_ALG.get(_get("key_type"), None)
+
+    not_after = _parse_x509_date(_get("expiration_string"))
+    if not_after is None:
+        epoch_raw = _get("expiration_date")
+        if epoch_raw:
+            try:
+                not_after = datetime.datetime.fromtimestamp(
+                    int(epoch_raw), tz=datetime.timezone.utc
+                ).isoformat()
+            except (ValueError, OverflowError):
+                not_after = None
+
+    return {
+        "subject": subject,
+        "issuer": issuer,
+        "not_before": None,
+        "not_after": not_after,
+        "serial": serial_hex,
+        "fingerprint_sha256": fingerprint,
+        "sans": sans,
+        "key_alg": key_alg,
+        "key_size": key_size,
+        "sig_alg": None,
+        "version": version,
+        "public_key_pem": None,
+    }
+
+
+def _parse_x509_date(text: str) -> str | None:
+    """Parse a BIG-IP ``expiration-string`` value into ISO-8601 UTC.
+
+    TMSH emits ``"Jan 1 00:00:00 2099 GMT"``; some 13.x builds emit
+    the same with a leading zero on single-digit days.  Returns
+    ``None`` when the text doesn't match any known format."""
+    if not text:
+        return None
+    formats = (
+        "%b %d %H:%M:%S %Y %Z",
+        "%b  %d %H:%M:%S %Y %Z",  # double-space day alignment
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    for fmt in formats:
+        try:
+            parsed = datetime.datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.astimezone(datetime.timezone.utc).isoformat()
+    return None
+
+
+def x509_eq(left: Any, right: Any) -> bool:
+    """Compare two :func:`x509_parse`-shaped dicts for cert identity.
+
+    Two certs are considered equal when they describe the same
+    public key material.  Comparison order, strongest → weakest:
+
+    1. ``fingerprint_sha256`` — the canonical identity.  Two certs
+       with the same SHA-256 fingerprint are the same cert.
+    2. ``subject`` + ``issuer`` + ``serial`` — the X.509-defined
+       primary key.  Used when one side is a BIG-IP ``sys file
+       ssl-cert`` that doesn't carry a SHA-256 fingerprint.
+
+    Plain ``==`` on the dicts compares every field including
+    ``not_before`` / ``sig_alg`` / ``public_key_pem`` which the
+    BIG-IP side leaves ``None``.  Use this helper instead when
+    you want "same cert" rather than "same projection"."""
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return left == right
+    lfp = left.get("fingerprint_sha256") or ""
+    rfp = right.get("fingerprint_sha256") or ""
+    if lfp and rfp:
+        return lfp.upper() == rfp.upper()
+    # Fallback: X.509 issuer + serial uniquely identify a cert
+    # within an issuer's namespace; pair with subject to catch
+    # mismatched root vs intermediate vs leaf.
+    return (
+        (left.get("subject") or "") == (right.get("subject") or "")
+        and (left.get("issuer") or "") == (right.get("issuer") or "")
+        and (left.get("serial") or "").upper() == (right.get("serial") or "").upper()
+    )

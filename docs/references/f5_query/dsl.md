@@ -15,7 +15,7 @@ existing verbs:
 This document is the canonical reference for the grammar, value model,
 builtin library, and edit-application pipeline.  The user-facing
 quick-start lives in
-[`docs/kcs/features/kcs-feature-bigip-query.md`](../kcs/features/kcs-feature-bigip-query.md).
+[`docs/kcs/features/kcs-feature-bigip-query.md`](../../kcs/features/kcs-feature-bigip-query.md).
 
 ## Module map
 

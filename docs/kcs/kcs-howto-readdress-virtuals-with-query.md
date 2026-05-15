@@ -54,4 +54,4 @@ The partition prefix on `destination` (`/Common/...`) and the `:port` suffix are
 
 - [BIG-IP Query DSL](features/kcs-feature-bigip-query.md)
 - [BIG-IP rename](features/kcs-feature-rename.md)
-- [F5 query DSL design](../design/f5-query-dsl.md)
+- [F5 query DSL design](../references/f5_query/dsl.md)

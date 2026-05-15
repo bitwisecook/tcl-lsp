@@ -1,7 +1,7 @@
 """Recursive-descent parser for the query DSL.
 
 Grammar (informal — the canonical version lives in
-``docs/design/f5-query-dsl.md``)::
+``docs/references/f5_query/dsl.md``)::
 
     program     := pipeline (';' pipeline)* EOF
     pipeline    := pipe_stage ('|' pipe_stage)*

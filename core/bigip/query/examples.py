@@ -205,5 +205,5 @@ def format_examples() -> str:
         out.append(f"     -- {ex.comment}")
         out.append("")
     out.append("More: see docs/kcs/features/kcs-feature-bigip-query.md")
-    out.append("      and docs/design/f5-query-dsl.md")
+    out.append("      and docs/references/f5_query/dsl.md")
     return "\n".join(out) + "\n"

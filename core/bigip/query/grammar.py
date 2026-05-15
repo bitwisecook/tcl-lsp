@@ -1,6 +1,6 @@
 """Plain-text grammar reference rendered by ``f5 query --help-dsl``.
 
-The canonical reference lives in ``docs/design/f5-query-dsl.md``; this
+The canonical reference lives in ``docs/references/f5_query/dsl.md``; this
 file holds the condensed terminal-friendly version so users on an
 air-gapped device can read the grammar without leaving the shell.
 

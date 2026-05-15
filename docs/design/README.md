@@ -33,14 +33,16 @@ rules for the KCS/documentation split live in
 - [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,
   reference graph, IP-redaction model, tmsh emitter, file layout, and
   the recipe for adding a new verb.
-- [f5-query-dsl.md](f5-query-dsl.md) — grammar, value model, builtin
-  registry, and edit-application pipeline for the `f5 query` verb.
-- [f5-query-dsl-builtins.md](f5-query-dsl-builtins.md) — generated
-  per-function reference for every `f5 query` builtin (signature,
-  semantics, worked examples, return types, error cases).  Generated
-  from the registry by
-  [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py);
-  do not edit by hand.
+- [f5-query-engine-internals.md](f5-query-engine-internals.md) —
+  internals of the `f5 query` engine: module layout, pipeline,
+  invariants, edit-plan apply order, builtin registration,
+  extension points.  User-facing reference (grammar, every
+  builtin, sample configs, F5 KB cross-references) lives at
+  [`docs/references/f5_query/`](../references/f5_query/); the
+  alphabetical builtin catalogue there is generated from the
+  registry by
+  [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py)
+  and asserted up-to-date by CI.
 - [f5-query-projection-gaps.md](f5-query-projection-gaps.md) —
   working checklist of every authoritative TMSH property the
   typed projection does not yet surface, grouped into numbered
