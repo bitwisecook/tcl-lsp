@@ -32,13 +32,20 @@ from ._data import (
 # ---------------------------------------------------------------------------
 
 
-def root_container(root: Root) -> Container:
-    """Return the synthetic top-level container.
+def root_container(root: Root) -> "Container | object":
+    """Return the synthetic top-level container or external JSON.
 
-    Holds one child per known module (``ltm``, ``net``, …).  Each
+    For BIG-IP roots: a synthetic ``<root>`` container that holds
+    one child per known module (``ltm``, ``net``, …).  Each
     module container is lazy — its kind containers and per-object
     refs only materialise when navigated into.
+
+    For external-JSON roots (``Root.json_value`` set): returns the
+    parsed JSON value directly so ``.`` / ``.foo.bar`` use native
+    dict/list semantics — matching jq on plain JSON.
     """
+    if root.is_json:
+        return root.json_value
     return Container(kind="<root>", root=root, _entry_source="")
 
 

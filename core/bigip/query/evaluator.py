@@ -570,7 +570,12 @@ def _resolve_pathref(ref: PathRef, ctx: EvalContext) -> ObjectRef | None:
             return cached
     from .projection import MODULE_KINDS
 
+    # PathRef resolution only runs against BIG-IP roots — JSON
+    # roots never produce PathRefs.  Narrow the type so ``ty``
+    # accepts the ``.lookup()`` calls below.
     container = root_container(root)
+    if not isinstance(container, Container):
+        return None
     # Targeted scope: if we know the kind we're looking for, only
     # build that one container's entries.  Keeps lazy projection cost
     # proportional to the kinds the query actually touches.

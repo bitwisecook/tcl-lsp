@@ -46,6 +46,10 @@ def render(values: list[Any], *, mode: str = "auto") -> str:
         return _render_paths(values)
     if mode == "json":
         return _render_json(values)
+    if mode == "table":
+        return _render_table(values, lineart=False)
+    if mode == "table-lineart":
+        return _render_table(values, lineart=True)
     raise ValueError(f"unknown output mode: {mode}")
 
 
@@ -164,6 +168,100 @@ def _scalar_str(v: Any) -> str:
         return v.full_path
     if isinstance(v, bool):
         return "true" if v else "false"
+    return str(v)
+
+
+def _render_table(values: list[Any], *, lineart: bool) -> str:
+    """Render *values* as an aligned table.
+
+    Headers are inferred from the keys of the first dict-shaped
+    row; every subsequent row is laid out under the same columns
+    in the same order (missing keys render as empty cells).
+    Mixed-shape input (some dicts, some bare scalars) falls back
+    to one cell per row, no header.
+
+    *lineart* picks the border style:
+
+    - ``False`` → ASCII (``+---+`` / ``|`` separators), portable
+      across every terminal and easily piped through other text
+      tools.
+    - ``True`` → Unicode box-drawing (``┌─┬─┐`` / ``│``); prettier
+      for human viewing in modern terminals.
+    """
+    if not values:
+        return ""
+    # Discover headers from the first dict; if no value is a dict,
+    # treat the whole list as a single anonymous column.
+    headers: list[str] = []
+    has_dict = False
+    for v in values:
+        if isinstance(v, dict):
+            has_dict = True
+            for k in v.keys():
+                if k not in headers:
+                    headers.append(k)
+        elif isinstance(v, ObjectRef):
+            has_dict = True
+            for k in v.fields.keys():
+                if k not in headers:
+                    headers.append(k)
+    if not has_dict:
+        headers = ["value"]
+        rows = [[_cell_str(v)] for v in values]
+    else:
+        rows = []
+        for v in values:
+            if isinstance(v, dict):
+                rows.append([_cell_str(v.get(h, "")) for h in headers])
+            elif isinstance(v, ObjectRef):
+                rows.append([_cell_str(v.fields.get(h, "")) for h in headers])
+            else:
+                # Scalar mixed with dicts — stretches the scalar across
+                # the first column, leaves the rest empty.
+                rows.append([_cell_str(v)] + [""] * (len(headers) - 1))
+    widths = [max(len(h), max((len(r[i]) for r in rows), default=0)) for i, h in enumerate(headers)]
+    if lineart:
+        h = "─"
+        v = "│"
+        tl, tm, tr = "┌", "┬", "┐"
+        ml, mm, mr = "├", "┼", "┤"
+        bl, bm, br = "└", "┴", "┘"
+    else:
+        h = "-"
+        v = "|"
+        tl = tm = tr = ml = mm = mr = bl = bm = br = "+"
+    # Borders.
+    sep_top = tl + tm.join(h * (w + 2) for w in widths) + tr
+    sep_mid = ml + mm.join(h * (w + 2) for w in widths) + mr
+    sep_bot = bl + bm.join(h * (w + 2) for w in widths) + br
+    header_row = v + v.join(f" {h_text:<{w}} " for h_text, w in zip(headers, widths)) + v
+    lines: list[str] = [sep_top, header_row, sep_mid]
+    for row in rows:
+        lines.append(v + v.join(f" {cell:<{w}} " for cell, w in zip(row, widths)) + v)
+    lines.append(sep_bot)
+    return "\n".join(lines) + "\n"
+
+
+def _cell_str(v: Any) -> str:
+    """Coerce a single cell value to its display string.
+
+    Mirrors the scalar / path-ref logic of :func:`_scalar_str` but
+    also handles lists (joined with ``,``) and dicts (rendered as
+    compact JSON so a nested object survives in one cell rather
+    than blowing up the layout).
+    """
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, PathRef):
+        return v.full_path
+    if isinstance(v, ObjectRef):
+        return v.full_path or v.kind
+    if isinstance(v, (list, BigipList)):
+        return ",".join(_cell_str(x) for x in v)
+    if isinstance(v, dict):
+        return json.dumps({k: _to_json(val) for k, val in v.items()}, separators=(",", ":"))
     return str(v)
 
 

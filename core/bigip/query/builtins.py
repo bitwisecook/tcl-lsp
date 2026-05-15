@@ -3819,6 +3819,569 @@ def _builtin_type(value: Any) -> str:
     return _type_name(value)
 
 
+@_register(
+    "port_set_contains",
+    summary="True when *port* lies inside the comma-separated *spec*.",
+    signatures=("port_set_contains(spec: string, port: integer) -> boolean",),
+    details="""
+    *spec* is a F5 firewall-rule port spec like ``"80-82,8081"``.
+    Returns ``true`` when *port* falls inside any segment.  Use
+    this to audit rules:
+    ``.security.firewall.rule-list[].rules[] | select(port_set_contains(.port, 443))``.
+
+    Related: ``port_set_count``, ``port_set_overlaps``,
+    ``in_cidr`` (the address-side counterpart).
+    """,
+    examples=(
+        'port_set_contains("80-82,8081", 81)            # -> true',
+        'port_set_contains("80,443", 8080)              # -> false',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_port_set_contains(spec: Any, port: Any) -> bool:
+    from ..types import PortSet
+
+    s = _as_str(spec, name="port_set_contains", arg=1)
+    p_int = _as_int(port, name="port_set_contains", arg=2)
+    ps = PortSet.try_parse(s)
+    if ps is None:
+        return False
+    return ps.contains(p_int)
+
+
+@_register(
+    "port_set_count",
+    summary="Total number of ports across every segment of *spec*.",
+    signatures=("port_set_count(spec: string) -> integer | null",),
+    details="""
+    Counts how many distinct ports a comma-separated port spec
+    covers.  ``"80-82,8081"`` → 4.  ``"any"`` → 65536.  Returns
+    ``null`` for unparseable input.
+
+    Related: ``port_set_contains``, ``port_set_overlaps``.
+    """,
+    examples=(
+        'port_set_count("80-82,8081")                   # -> 4',
+        'port_set_count("any")                          # -> 65536',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_port_set_count(spec: Any) -> int | None:
+    from ..types import PortSet
+
+    s = _as_str(spec, name="port_set_count", arg=1)
+    ps = PortSet.try_parse(s)
+    if ps is None:
+        return None
+    return ps.count
+
+
+@_register(
+    "port_set_overlaps",
+    summary="True when two port specs share at least one port.",
+    signatures=("port_set_overlaps(a: string, b: string) -> boolean",),
+    details="""
+    Pair-wise overlap check between two comma-separated port
+    specs.  Useful when comparing firewall-rule port windows to
+    spot accidental coverage gaps or duplications.
+
+    Related: ``port_set_contains``, ``port_set_count``.
+    """,
+    examples=(
+        'port_set_overlaps("80-82,443", "82-100")       # -> true',
+        'port_set_overlaps("80-82,443", "100-200")      # -> false',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_port_set_overlaps(a: Any, b: Any) -> bool:
+    from ..types import PortSet
+
+    sa = _as_str(a, name="port_set_overlaps", arg=1)
+    sb = _as_str(b, name="port_set_overlaps", arg=2)
+    pa = PortSet.try_parse(sa)
+    pb = PortSet.try_parse(sb)
+    if pa is None or pb is None:
+        return False
+    return pa.overlaps(pb)
+
+
+@_register(
+    "ip_range_to_cidrs",
+    summary="Decompose ``first-last`` IP range into the minimum CIDR set.",
+    signatures=("ip_range_to_cidrs(range: string) -> list[string]",),
+    details="""
+    Parses *range* (``"192.168.9.77-192.168.9.83"``) and returns
+    the smallest list of CIDRs that exactly covers the range.
+    Useful for converting free-form ranges into firewall
+    ``address-list`` entries.
+
+    Returns ``null`` for unparseable input.  Single-address
+    inputs return a one-element list of the ``/32`` (or
+    ``/128``).
+
+    Related: ``ip_range_supernet``, ``ip_range_count``,
+    ``ip_range_contains``.
+    """,
+    examples=(
+        'ip_range_to_cidrs("192.168.9.77-192.168.9.83")  # -> 4 /29.. /30 etc.',
+        'ip_range_to_cidrs("10.0.0.1-10.0.0.255")',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_ip_range_to_cidrs(value: Any) -> list[str] | None:
+    from ..types import IPRange
+
+    s = _as_str(value, name="ip_range_to_cidrs", arg=1)
+    rng = IPRange.try_parse(s)
+    if rng is None:
+        return None
+    return [str(n) for n in rng.to_cidrs()]
+
+
+@_register(
+    "ip_range_supernet",
+    summary="Smallest single CIDR that covers an IP range.",
+    signatures=("ip_range_supernet(range: string) -> string | null",),
+    details="""
+    The minimum-prefix CIDR containing both endpoints of *range*.
+    May include addresses outside the original ``[first, last]``
+    span — that's the inherent cost of summarising a free-form
+    range as a single CIDR.
+
+    Pair with :func:`ip_range_to_cidrs` (exact decomposition)
+    when you need precision instead of a single bounding network.
+    """,
+    examples=('ip_range_supernet("192.168.9.77-192.168.9.83")  # -> "192.168.9.64/27"',),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_ip_range_supernet(value: Any) -> str | None:
+    from ..types import IPRange
+
+    s = _as_str(value, name="ip_range_supernet", arg=1)
+    rng = IPRange.try_parse(s)
+    if rng is None:
+        return None
+    return str(rng.as_supernet())
+
+
+@_register(
+    "ip_range_count",
+    summary="Count of addresses in an IP range (inclusive).",
+    signatures=("ip_range_count(range: string) -> integer | null",),
+    details="""
+    ``"10.0.0.5-10.0.0.9"`` → 5 (five addresses inclusive).
+    Returns ``null`` for unparseable input.
+
+    Related: ``ip_range_to_cidrs``, ``ip_range_contains``.
+    """,
+    examples=(
+        'ip_range_count("192.168.9.77-192.168.9.83")    # -> 7',
+        'ip_range_count("10.0.0.1")                     # -> 1',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_ip_range_count(value: Any) -> int | None:
+    from ..types import IPRange
+
+    s = _as_str(value, name="ip_range_count", arg=1)
+    rng = IPRange.try_parse(s)
+    if rng is None:
+        return None
+    return rng.count
+
+
+@_register(
+    "ip_range_contains",
+    summary="True when *addr* lies inside the ``first-last`` range.",
+    signatures=("ip_range_contains(range: string, addr: string) -> boolean",),
+    details="""
+    Inclusive membership check.  Mixed-family inputs (v4 range,
+    v6 address or vice versa) always return ``false`` rather
+    than raising — different families never overlap.
+
+    Related: ``in_cidr`` (CIDR equivalent), ``ip_range_to_cidrs``.
+    """,
+    examples=(
+        'ip_range_contains("192.168.9.77-192.168.9.83", "192.168.9.80")  # -> true',
+        'ip_range_contains("10.0.0.0-10.0.0.255", "10.0.1.1")            # -> false',
+    ),
+    category="net",
+    min_args=2,
+    max_args=2,
+)
+def _builtin_ip_range_contains(range_text: Any, addr: Any) -> bool:
+    from ..types import IPRange
+
+    s = _as_str(range_text, name="ip_range_contains", arg=1)
+    a = _as_str(addr, name="ip_range_contains", arg=2)
+    rng = IPRange.try_parse(s)
+    if rng is None:
+        return False
+    return rng.contains(a)
+
+
+_DNS_CACHE: dict[str, list[str]] = {}
+_REV_DNS_CACHE: dict[str, list[str]] = {}
+
+
+@_register(
+    "dns",
+    summary="Resolve a hostname to its IP addresses (A + AAAA records).",
+    signatures=("dns(name: string) -> list[string]",),
+    details="""
+    Performs a forward DNS lookup of *name* via the system
+    resolver (``socket.getaddrinfo``).  Returns the sorted list
+    of unique IP addresses or an empty list when resolution
+    fails.
+
+    Results are memoised for the lifetime of the Python process
+    so repeated lookups inside one query don't hammer DNS.
+    Lookups are time-bounded by the resolver's default timeout
+    (typically 5s).
+
+    Pair with ``rev_dns`` for round-trip checks
+    (``dns("host.example.com") | map(rev_dns(.))``).
+    """,
+    examples=(
+        'dns("one.one.one.one")                          # -> ["1.1.1.1", "1.0.0.1"]',
+        ".ltm.node[].address | {addr: ., rev: rev_dns(.)}",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_dns(value: Any) -> list[str]:
+    import socket as _socket
+
+    name = _as_str(value, name="dns", arg=1)
+    if name in _DNS_CACHE:
+        return list(_DNS_CACHE[name])
+    try:
+        infos = _socket.getaddrinfo(name, None, type=_socket.SOCK_STREAM)
+    except _socket.gaierror:
+        _DNS_CACHE[name] = []
+        return []
+    # ``getaddrinfo`` returns ``sockaddr`` tuples whose first
+    # element is the address string; coerce to ``str`` so the
+    # static type matches the declared ``list[str]`` return.
+    out: list[str] = sorted({str(info[4][0]) for info in infos})
+    _DNS_CACHE[name] = out
+    return list(out)
+
+
+@_register(
+    "rev_dns",
+    summary="Reverse-resolve an IP address to its PTR hostname.",
+    signatures=("rev_dns(ip: string) -> list[string]",),
+    details="""
+    Performs a reverse DNS lookup (``socket.gethostbyaddr``).
+    Returns the canonical hostname plus any aliases, or an
+    empty list on failure.  Memoised per process; bounded by the
+    resolver's default timeout.
+
+    Related: ``dns`` (forward).
+    """,
+    examples=(
+        'rev_dns("1.1.1.1")                              # -> ["one.one.one.one"]',
+        ".ltm.node[].address | rev_dns(.)",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_rev_dns(value: Any) -> list[str]:
+    import socket as _socket
+
+    ip = _as_str(value, name="rev_dns", arg=1)
+    if ip in _REV_DNS_CACHE:
+        return list(_REV_DNS_CACHE[ip])
+    try:
+        host, aliases, _ = _socket.gethostbyaddr(ip)
+    except (_socket.herror, _socket.gaierror):
+        _REV_DNS_CACHE[ip] = []
+        return []
+    out = [host] + list(aliases)
+    _REV_DNS_CACHE[ip] = out
+    return list(out)
+
+
+# ---------------------------------------------------------------------------
+# Network probes — opt-in via --enable-probes.  Time-bounded, cached
+# per process, gated by ``_probes.PROBES_ENABLED``.
+# ---------------------------------------------------------------------------
+
+
+@_register(
+    "ping",
+    summary="ICMP echo to *ip*.  Requires --enable-probes.",
+    signatures=("ping(ip: string) -> object",),
+    details="""
+    Subprocess invocation of the system ``ping`` command.
+    Returns ``{ok: bool, rtt_ms: float | null, error: string | null}``.
+    Gated by ``--enable-probes`` — without the flag, raises
+    ``BuiltinError`` so an offline query never hits the network
+    by accident.
+
+    Related: ``portping`` (TCP/UDP), ``traceroute``, ``dns``.
+    """,
+    examples=(
+        'ping("10.0.0.1")',
+        ".ltm.node[] | {addr: .address, reachable: (ping(.address).ok)}",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_ping(value: Any) -> dict[str, Any]:
+    from ._probes import ping
+
+    return ping(_as_str(value, name="ping", arg=1))
+
+
+@_register(
+    "portping",
+    summary="TCP/UDP probe to *(ip, port)*.  Requires --enable-probes.",
+    signatures=("portping(ip: string, port: integer[, protocol: string]) -> object",),
+    details="""
+    TCP-connect (default) or UDP send-receive timing.  Returns
+    ``{ok, rtt_ms, error}``.  UDP is best-effort — no reply does
+    not imply unreachable.  Pass ``protocol="udp"`` to switch.
+    """,
+    examples=(
+        'portping("10.0.0.1", 443)',
+        ".ltm.virtual[] | {name: .name, vip_up: portping(host(.destination), port(.destination)).ok}",
+    ),
+    category="net",
+    min_args=2,
+    max_args=3,
+)
+def _builtin_portping(ip: Any, port: Any, protocol: Any = "tcp") -> dict[str, Any]:
+    from ._probes import portping
+
+    return portping(
+        _as_str(ip, name="portping", arg=1),
+        _as_int(port, name="portping", arg=2),
+        protocol=_as_str(protocol, name="portping", arg=3),
+    )
+
+
+@_register(
+    "traceroute",
+    summary="Hop-by-hop path probe to *ip*.  Requires --enable-probes.",
+    signatures=("traceroute(ip: string) -> list[object]",),
+    details="""
+    Subprocess invocation of ``traceroute``.  Returns one record
+    per hop: ``{hop: int, ip: string | null, rtt_ms: float | null}``.
+    Hops the router didn't answer for show up with ``ip=null``.
+    """,
+    examples=('traceroute("8.8.8.8") | last(.) | .ip',),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_traceroute(value: Any) -> list[dict[str, Any]]:
+    from ._probes import traceroute
+
+    return traceroute(_as_str(value, name="traceroute", arg=1))
+
+
+def _register_url_method(method: str) -> Callable[[Any], dict[str, Any]]:
+    @_register(
+        f"url_{method.lower()}",
+        summary=f"HTTP {method.upper()} request.  Requires --enable-probes.",
+        signatures=(f"url_{method.lower()}(url: string[, headers: object]) -> object",),
+        details=f"""
+        Issues an HTTP ``{method.upper()}`` to *url* via urllib.
+        Returns ``{{status: int | null, headers: object, body: string,
+        error: string | null}}``.  Default timeout 5s.
+
+        Optional second argument is a dict of request headers.
+
+        Related: ``url_get``, ``url_head``, ``url_post``,
+        ``url_options``.
+        """,
+        examples=(
+            f'url_{method.lower()}("https://example.com/")',
+            f'url_{method.lower()}("https://api.example/v1", {{"Authorization": "Bearer X"}})',
+        ),
+        category="net",
+        min_args=1,
+        max_args=3 if method.upper() == "POST" else 2,
+    )
+    def _impl(*args: Any) -> dict[str, Any]:
+        from ._probes import url_request
+
+        url = _as_str(args[0], name=f"url_{method.lower()}", arg=1)
+        headers: dict[str, str] | None = None
+        body: str | None = None
+        if method.upper() == "POST":
+            body = _as_str(args[1], name="url_post", arg=2) if len(args) > 1 else None
+            if len(args) > 2 and isinstance(args[2], dict):
+                headers = {str(k): str(v) for k, v in args[2].items()}
+        else:
+            if len(args) > 1 and isinstance(args[1], dict):
+                headers = {str(k): str(v) for k, v in args[1].items()}
+        return url_request(method.upper(), url, body=body, headers=headers)
+
+    return _impl
+
+
+_register_url_method("get")
+_register_url_method("head")
+_register_url_method("options")
+_register_url_method("post")
+
+
+@_register(
+    "socket_get",
+    summary="TCP connect + read banner.  Requires --enable-probes.",
+    signatures=("socket_get(host: string, port: integer[, send: string]) -> string",),
+    details="""
+    Opens a TCP socket to *(host, port)*, optionally sends *send*,
+    reads up to 4096 bytes, and returns the response as UTF-8
+    (replacement on non-text bytes).  Useful for protocol-banner
+    fingerprinting — SSH versions, SMTP greetings, etc.
+    """,
+    examples=(
+        'socket_get("ssh.example.com", 22)',
+        'socket_get("smtp.example.com", 25)',
+    ),
+    category="net",
+    min_args=2,
+    max_args=3,
+)
+def _builtin_socket_get(host: Any, port: Any, send: Any = "") -> str:
+    from ._probes import socket_get
+
+    return socket_get(
+        _as_str(host, name="socket_get", arg=1),
+        _as_int(port, name="socket_get", arg=2),
+        send=_as_str(send, name="socket_get", arg=3),
+    )
+
+
+@_register(
+    "tls_handshake",
+    summary="Open a TLS connection and inspect what the peer offered.",
+    signatures=("tls_handshake(host: string, port: integer[, sni: string]) -> object",),
+    details="""
+    Performs a full TLS handshake against *(host, port)* (with
+    SNI defaulting to *host*) and returns the negotiated
+    protocol, cipher suite, ALPN selection, peer certificate
+    dict, and verify status against the system trust store.
+
+    Requires ``--enable-probes``.
+    """,
+    examples=(
+        'tls_handshake("example.com", 443) | .protocol',
+        'tls_handshake("example.com", 443) | .peer_cert.subject',
+    ),
+    category="net",
+    min_args=2,
+    max_args=3,
+)
+def _builtin_tls_handshake(host: Any, port: Any, sni: Any = None) -> dict[str, Any]:
+    from ._probes import tls_handshake
+
+    sni_text: str | None = None
+    if sni is not None and sni != "":
+        sni_text = _as_str(sni, name="tls_handshake", arg=3)
+    return tls_handshake(
+        _as_str(host, name="tls_handshake", arg=1),
+        _as_int(port, name="tls_handshake", arg=2),
+        sni=sni_text,
+    )
+
+
+@_register(
+    "x509_parse",
+    summary="Parse a PEM-encoded X.509 certificate.",
+    signatures=("x509_parse(pem: string) -> object",),
+    details="""
+    Returns a dict of fields: subject, issuer, not_before,
+    not_after, serial, fingerprint_sha256, sans, key_alg,
+    key_size, sig_alg, version, public_key_pem.  Uses
+    :mod:`cryptography` when available; falls back to stdlib
+    :mod:`ssl` (a subset of fields) when not.
+
+    Does NOT need ``--enable-probes`` — it operates on locally-
+    held PEM text.  Pair with ``url_get`` or ``json_load`` to
+    feed it certificate data.
+
+    Related: ``tls_handshake`` (negotiated chain), ``json_load``.
+    """,
+    examples=(
+        'x509_parse(json_load("/etc/ssl/cert.pem"))',
+        'tls_handshake("example.com", 443).peer_cert',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_x509_parse(value: Any) -> dict[str, Any]:
+    from ._probes import x509_parse
+
+    return x509_parse(_as_str(value, name="x509_parse", arg=1))
+
+
+@_register(
+    "json_load",
+    summary="Read a file from disk and parse it as JSON.",
+    signatures=("json_load(path: string) -> any",),
+    details="""
+    Reads *path* from the local filesystem and returns the parsed
+    JSON value.  Use this to mix external data (CMDB exports,
+    vlan-to-tenant maps, signed-cert manifests) into a query:
+
+    .. code-block:: text
+
+       json_load("/etc/inventory/servers.json") as $inv
+         | .ltm.node[]
+         | {name: .name, owner: $inv[.address]}
+
+    Tilde expansion is honoured (``json_load("~/data/x.json")``).
+    Raises :class:`BuiltinError` for missing files or invalid
+    JSON — failures are explicit rather than producing ``null``.
+    """,
+    examples=(
+        'json_load("/etc/inventory/servers.json")',
+        '.ltm.node[].address as $a | json_load("data.json")[$a]',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_json_load(path: Any) -> object:
+    import json as _json
+    import os.path
+
+    p = _as_str(path, name="json_load", arg=1)
+    expanded = os.path.expanduser(p)
+    try:
+        with open(expanded, encoding="utf-8") as f:
+            return _json.load(f)
+    except FileNotFoundError as exc:
+        raise BuiltinError(f"json_load: file not found: {expanded}") from exc
+    except OSError as exc:
+        raise BuiltinError(f"json_load: cannot read {expanded}: {exc}") from exc
+    except _json.JSONDecodeError as exc:
+        raise BuiltinError(
+            f"json_load: {expanded}: invalid JSON ({exc.msg} at line {exc.lineno} col {exc.colno})"
+        ) from exc
+
+
 # ---------------------------------------------------------------------------
 # Graph helpers — surfaced from the same edge model the grep verb walks.
 # ---------------------------------------------------------------------------

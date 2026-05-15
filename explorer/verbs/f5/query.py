@@ -168,6 +168,35 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     p.add_argument(
+        "--enable-probes",
+        action="store_true",
+        help=(
+            "Opt the query in to live network probes "
+            "(``ping``, ``portping``, ``traceroute``, ``url_get`` "
+            "and friends, ``socket_get``, ``tls_handshake``).  "
+            "Without this flag those builtins raise rather than "
+            "touching the network — keeps the default invocation "
+            "offline-safe."
+        ),
+    )
+    p.add_argument(
+        "--input-json",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help=(
+            "Bind an external JSON file to ``$NAME`` as a side input "
+            "(repeatable).  Unlike positional inputs the JSON file "
+            "is not treated as a BIG-IP configuration; the parsed "
+            "value (a dict / list / scalar) is the queryable shape "
+            "of ``$NAME``.  Use this to mix external data (CMDB, "
+            "vlan-to-tenant map, signed-cert manifest) into a "
+            "query without reaching for a sidecar tool.  Inside "
+            "the DSL you can also use the ``json_load(path)`` "
+            "builtin to read JSON ad-hoc."
+        ),
+    )
+    p.add_argument(
         "--partition",
         action="append",
         default=[],
@@ -231,6 +260,29 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         action="store_const",
         const="json",
         help="Render the result as a JSON array.",
+    )
+    out_group.add_argument(
+        "--table",
+        dest="output_mode",
+        action="store_const",
+        const="table",
+        help=(
+            "Render the result as an ASCII grid.  Column headers are "
+            "discovered from the first object-literal row's keys; each "
+            "subsequent row lays out under the same columns.  Use "
+            "``--table-lineart`` for the Unicode box-drawing variant."
+        ),
+    )
+    out_group.add_argument(
+        "--table-lineart",
+        dest="output_mode",
+        action="store_const",
+        const="table-lineart",
+        help=(
+            "Like ``--table`` but uses Unicode box-drawing characters "
+            "(``┌─┬─┐`` / ``│``) for the borders — prettier in modern "
+            "terminals."
+        ),
     )
 
     write_group = p.add_mutually_exclusive_group()
@@ -332,6 +384,11 @@ def _run_query(args: argparse.Namespace) -> int:
         print(f"error: {partition_err}", file=sys.stderr)
         return 2
 
+    json_name_to_path, json_err = _parse_json_bindings(args.input_json)
+    if json_err is not None:
+        print(f"error: {json_err}", file=sys.stderr)
+        return 2
+
     sources: dict[str, str] = {}
     path_for_uri: dict[str, str] = {}
     for path_str in args.paths:
@@ -365,6 +422,32 @@ def _run_query(args: argparse.Namespace) -> int:
             return 2
         sources[uri] = src
         path_for_uri[uri] = path_str
+
+    # Load JSON side-inputs (one per ``--json NAME=PATH`` entry).
+    # They're added to ``sources`` so the runner sees them through
+    # the same lookup map, but tagged in ``json_source_uris`` so
+    # the per-file loop knows to skip them as primaries and the
+    # builder treats them as JSON.  URIs collide-check against the
+    # positional inputs so a typo doesn't silently overwrite a
+    # config.
+    json_source_uris: set[str] = set()
+    json_resolved_names: dict[str, str] = {}
+    for nm, json_path in json_name_to_path.items():
+        try:
+            uri, src = read_path(json_path, strict=False)
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"error: --json {nm}={json_path}: {exc}", file=sys.stderr)
+            return 2
+        if uri in sources:
+            print(
+                f"error: --json {nm}={json_path}: URI {uri} is already "
+                "loaded as a positional input",
+                file=sys.stderr,
+            )
+            return 2
+        sources[uri] = src
+        json_source_uris.add(uri)
+        json_resolved_names[nm] = uri
 
     # Translate ``--name N=PATH`` from path-string to URI keys so the
     # runner can look each one up in ``sources``.  Paths that didn't
@@ -406,17 +489,32 @@ def _run_query(args: argparse.Namespace) -> int:
             return 2
         resolved_partitions[uri] = partition
 
+    # Merge the JSON-side names into the resolved-names map so
+    # ``$NAME`` from ``--json NAME=PATH`` resolves the same way
+    # ``$NAME`` from ``--name NAME=PATH`` does.
+    full_names = {**resolved_names, **json_resolved_names}
+
+    # Network-probe builtins (ping, portping, url_*, etc.) gate
+    # themselves on the ``PROBES_ENABLED`` contextvar.  Set it for
+    # the duration of the run_query call so the default invocation
+    # stays offline-safe.
+    from core.bigip.query._probes import PROBES_ENABLED
+
+    _probe_token = PROBES_ENABLED.set(bool(args.enable_probes))
     try:
         result = run_query(
             expression,
             sources,
-            names=resolved_names or None,
+            names=full_names or None,
             merge=args.merge,
             partitions=resolved_partitions or None,
+            json_sources=frozenset(json_source_uris) or None,
         )
     except QueryError as exc:
+        PROBES_ENABLED.reset(_probe_token)
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    PROBES_ENABLED.reset(_probe_token)
 
     if result.has_mutation:
         return _emit_mutation(args, sources, result, path_for_uri)
@@ -455,6 +553,34 @@ def _parse_name_bindings(raw: list[str], paths: list[str]) -> tuple[dict[str, st
                 f"--name {nm}={pth}: path was not given as a positional "
                 "input (so the runner would have no source text for it)"
             )
+        bindings[nm] = pth
+    return bindings, None
+
+
+def _parse_json_bindings(raw: list[str]) -> tuple[dict[str, str], str | None]:
+    """Parse ``--input-json NAME=PATH`` entries.
+
+    Returns ``(bindings, error_or_None)`` where ``bindings`` maps
+    each ``$NAME`` to the JSON file path it should read.  Names
+    must be valid DSL identifiers and unique across the run.
+    """
+    import re as _re
+
+    name_re = _re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+    bindings: dict[str, str] = {}
+    for entry in raw:
+        if "=" not in entry:
+            return {}, f"--input-json expects NAME=PATH (got {entry!r})"
+        nm, _, pth = entry.partition("=")
+        if not name_re.match(nm):
+            return {}, (
+                f"--input-json {entry!r}: {nm!r} is not a valid DSL identifier "
+                "(letters, digits, '_', '-'; cannot start with a digit)"
+            )
+        if not pth:
+            return {}, f"--input-json {entry!r}: PATH side cannot be empty"
+        if nm in bindings:
+            return {}, f"--input-json {nm}: duplicate binding"
         bindings[nm] = pth
     return bindings, None
 

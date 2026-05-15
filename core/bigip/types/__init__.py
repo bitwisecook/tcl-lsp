@@ -49,11 +49,13 @@ from ._destination import Destination
 from ._firewall_rule import FirewallEndpoint, FirewallRule, NatRule
 from ._folder import Folder, ObjectPath
 from ._gtm_region_member import GtmRegionMember
+from ._ip_range import IPRange
 from ._monitor_expression import MonitorExpression, MonitorMode
 from ._network import Network
 from ._partition import Partition
 from ._policy import LtmPolicyAction, LtmPolicyCondition
 from ._port import Port, PortRange
+from ._port_set import PortSegment, PortSet
 from ._route_domain import RouteDomain
 from ._snat_mode import SnatMode, SnatModeKind
 
@@ -69,6 +71,7 @@ __all__ = [
     "Folder",
     "GtmRegionMember",
     "IPAddress",
+    "IPRange",
     "ListItem",
     "ListSyntax",
     "LtmPolicyAction",
@@ -82,6 +85,8 @@ __all__ = [
     "PersistenceAttachment",
     "Port",
     "PortRange",
+    "PortSegment",
+    "PortSet",
     "ProfileAttachment",
     "RouteDomain",
     "SnatMode",

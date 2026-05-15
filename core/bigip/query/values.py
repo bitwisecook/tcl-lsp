@@ -144,6 +144,13 @@ class Root:
     :class:`SourceMap` used for line/column reporting.  Builtins that
     walk references (``refs``, ``referenced_by``) consult this back-
     pointer rather than threading the config through every call.
+
+    For non-BIG-IP inputs (external JSON loaded for joins), the
+    :attr:`json_value` field carries the parsed JSON value
+    instead.  When set, ``root_container`` returns that value
+    directly so ``$name`` reaches into the JSON tree with native
+    dict/list semantics — matching jq's behaviour on plain JSON
+    inputs.
     """
 
     uri: str
@@ -151,9 +158,23 @@ class Root:
     config: BigipConfig
     source_map: SourceMap
 
+    # External-JSON-source flag.  When non-``None`` this Root
+    # represents a JSON file rather than a BIG-IP configuration:
+    # ``$name`` returns the parsed value, field access uses Python
+    # dict/list semantics, and BIG-IP-only builtins (``refs``,
+    # ``referenced_by``) raise rather than silently returning empty
+    # lists.  ``config`` stays at its empty-default to avoid
+    # special-casing every consumer that reads it.
+    json_value: object | None = None
+
     # Lazily built: (kind, full-path) → ObjectRef.  The compound key
     # disambiguates objects that share a full-path across kinds — a
     # pool, a node, and an iRule can all be named ``/Common/shared``.
     # Populated as the user navigates so objects no query touches stay
     # unprojected.
     _object_cache: dict[tuple[str, str], ObjectRef] = field(default_factory=dict)
+
+    @property
+    def is_json(self) -> bool:
+        """``True`` when this root carries external JSON data."""
+        return self.json_value is not None

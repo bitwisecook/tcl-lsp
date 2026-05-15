@@ -122,9 +122,44 @@ def _partition_for_uri(uri: str) -> str:
     return _ACTIVE_PARTITIONS.get().get(uri, "Common")
 
 
+_JSON_SOURCES: ContextVar[frozenset[str]] = ContextVar(
+    "_bigip_query_json_sources", default=frozenset()
+)
+
+
+def _is_json_source(uri: str) -> bool:
+    """Return ``True`` when *uri* was tagged as external-JSON by
+    the caller of :func:`run_query`."""
+    return uri in _JSON_SOURCES.get()
+
+
 def _build_root(uri: str, source: str, *, default_partition: str | None = None) -> Root:
     if default_partition is None:
         default_partition = _partition_for_uri(uri)
+    if _is_json_source(uri):
+        # External JSON side-input — bypass the BIG-IP parser
+        # entirely and bind the parsed value as the root's
+        # queryable shape.  Caller marks the URI via the
+        # ``json_sources`` arg on :func:`run_query`; no source
+        # auto-sniffing.
+        import json as _json
+
+        from ..model import BigipConfig
+
+        try:
+            parsed = _json.loads(source)
+        except _json.JSONDecodeError as exc:
+            raise QueryError(
+                f"{uri}: --<name>-json: invalid JSON ({exc.msg} at "
+                f"line {exc.lineno} col {exc.colno})"
+            ) from exc
+        return Root(
+            uri=uri,
+            source=source,
+            config=BigipConfig(),
+            source_map=SourceMap.build(source),
+            json_value=parsed,
+        )
     return Root(
         uri=uri,
         source=source,
@@ -140,6 +175,7 @@ def run_query(
     names: dict[str, str] | None = None,
     merge: bool = False,
     partitions: dict[str, str] | None = None,
+    json_sources: frozenset[str] | set[str] | None = None,
 ) -> QueryResult:
     """Parse *query* and run it against each file in *sources*.
 
@@ -179,8 +215,10 @@ def run_query(
     # Bind per-URI partitions for the duration of this call so every
     # ``_build_root`` (per-file, merge, or variable-rooted) sees the
     # correct partition without each dispatch path threading the
-    # mapping through its signature.
+    # mapping through its signature.  Same trick for the JSON-source
+    # marker set: ``_build_root`` reads it from the contextvar.
     _partition_token = _ACTIVE_PARTITIONS.set(dict(partitions or {}))
+    _json_token = _JSON_SOURCES.set(frozenset(json_sources or ()))
     try:
         result = QueryResult()
         if merge:
@@ -201,7 +239,16 @@ def run_query(
         # Per-file iteration (default).  Each source takes its turn as the
         # primary input; variables bind to every loaded source so ``$other``
         # remains reachable from inside each iteration.
+        #
+        # External JSON inputs (tagged via ``json_sources``) are
+        # excluded from the primary loop — they're bound to
+        # ``$name`` but never act as the implicit ``.`` for a top-
+        # level statement.  Without this skip a BIG-IP query like
+        # ``.ltm.virtual[]`` would try to evaluate against the JSON
+        # tree and fail.
         for uri, source in sources.items():
+            if _is_json_source(uri):
+                continue
             named_roots = _build_named_roots(
                 sources={u: (s if u != uri else source) for u, s in sources.items()},
                 names=names,
@@ -295,6 +342,7 @@ def run_query(
         return result
     finally:
         _ACTIVE_PARTITIONS.reset(_partition_token)
+        _JSON_SOURCES.reset(_json_token)
 
 
 def _run_query_merged(

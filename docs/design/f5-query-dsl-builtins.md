@@ -32,11 +32,11 @@ exactly the same content for one builtin.
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
   - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition), [`rename_prefix`](#rename_prefix)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`can_see`](#can_see), [`folder`](#folder), [`host`](#host), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_loopback`](#is_loopback), [`is_private`](#is_private), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`net`](#net), [`overlaps`](#overlaps), [`port`](#port), [`prefix_length`](#prefix_length), [`route_domain`](#route_domain), [`subnet_of`](#subnet_of), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain)
+  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_parse`](#x509_parse)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
-  - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
+  - [`defined`](#defined), [`json_load`](#json_load), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
 
 ## stream
 
@@ -1131,6 +1131,31 @@ rename_prefix("/Common/legacy-", "/Tenant_B/legacy-")
 
 IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
 
+### `broadcast_address`
+
+Return the broadcast address of a CIDR (last address in range).
+
+**Signatures**
+
+- `broadcast_address(value: string) -> string | null`
+
+**Details**
+
+For IPv4 the broadcast is the ``.255`` (or whatever the
+prefix gives); for IPv6 there is no true broadcast, but
+``ipaddress`` exposes the last address in the range and we
+surface it here for symmetry.  Returns ``null`` for
+unparseable input.
+
+Related: ``network_address``, ``last_host``, ``host_count``.
+
+**Examples**
+
+```
+broadcast_address("10.0.0.0/24")             # -> "10.0.0.255"
+.net.route[] | {net: network_address(.network), bcast: broadcast_address(.network)}
+```
+
 ### `can_see`
 
 True when *referrer_path*'s partition may reference *target_path*'s partition.
@@ -1169,6 +1194,93 @@ Related: ``partition``, ``in_partition``,
 can_see("/Tenant_A/vs1", "/Common/web_pool")  # true — Tenant_A can see /Common
 can_see("/Common/vs1", "/Tenant_A/web_pool")  # false — /Common cannot see /Tenant_A
 can_see("/Tenant_A/vs1", "/Tenant_B/web_pool")  # false — cross-tenant
+```
+
+### `collapse_cidrs`
+
+Merge a list of CIDRs into the minimal set of ranges.
+
+**Signatures**
+
+- `collapse_cidrs(values: list[string]) -> list[string]`
+
+**Details**
+
+Wraps :func:`ipaddress.collapse_addresses`.  Adjacent or
+subsumed CIDRs in *values* are merged so the result is the
+smallest set of non-overlapping ranges that covers the same
+address space.  Mixed IPv4 / IPv6 lists are split and each
+family collapsed independently.
+
+Useful for normalising address-list and firewall-rule
+address-list payloads before diffing:
+``collapse_cidrs([.security.firewall."address-list"[].addresses[]])``.
+
+Related: ``supernet_of`` (one CIDR covering everything),
+``subnet_of``.
+
+**Examples**
+
+```
+collapse_cidrs(["10.0.0.0/24", "10.0.1.0/24"])    # -> ["10.0.0.0/23"]
+collapse_cidrs(["10.0.0.0/8", "10.1.0.0/16"])     # -> ["10.0.0.0/8"]
+```
+
+### `dns`
+
+Resolve a hostname to its IP addresses (A + AAAA records).
+
+**Signatures**
+
+- `dns(name: string) -> list[string]`
+
+**Details**
+
+Performs a forward DNS lookup of *name* via the system
+resolver (``socket.getaddrinfo``).  Returns the sorted list
+of unique IP addresses or an empty list when resolution
+fails.
+
+Results are memoised for the lifetime of the Python process
+so repeated lookups inside one query don't hammer DNS.
+Lookups are time-bounded by the resolver's default timeout
+(typically 5s).
+
+Pair with ``rev_dns`` for round-trip checks
+(``dns("host.example.com") | map(rev_dns(.))``).
+
+**Examples**
+
+```
+dns("one.one.one.one")                          # -> ["1.1.1.1", "1.0.0.1"]
+.ltm.node[].address | {addr: ., rev: rev_dns(.)}
+```
+
+### `first_host`
+
+Return the lowest usable host address inside a CIDR.
+
+**Signatures**
+
+- `first_host(value: string) -> string | null`
+
+**Details**
+
+For prefix lengths that yield a network and broadcast
+address (IPv4 ``/30`` or shorter, IPv6 anything), this is
+``network + 1`` — the first address assignable to a host.
+For point-to-point ``/31`` and host ``/32`` IPv4 networks
+where ``ipaddress.hosts()`` is empty, falls back to the
+network address itself (the only / lowest address in the
+range).  Returns ``null`` for unparseable input.
+
+Related: ``last_host``, ``host_count``, ``network_address``.
+
+**Examples**
+
+```
+first_host("10.0.0.0/24")                    # -> "10.0.0.1"
+.ltm.pool[].members[].address | first_host(. + "/24")
 ```
 
 ### `folder`
@@ -1232,6 +1344,31 @@ Related: ``ip`` (one-arg form does the same normalisation),
 host(.destination)
 host("/Common/192.168.1.1:80")           # -> "192.168.1.1"
 host("/Common/10.0.0.1%5:443")           # -> "10.0.0.1"
+```
+
+### `host_count`
+
+Count of host addresses inside a CIDR.
+
+**Signatures**
+
+- `host_count(value: string) -> integer | null`
+
+**Details**
+
+Returns the number of host-assignable addresses in *value*.
+``host_count("10.0.0.0/24")`` → ``254`` (256 − network −
+broadcast).  ``/31`` returns 2 and ``/32`` returns 1, matching
+operational reality on point-to-point and host networks.
+Returns ``null`` for unparseable input.
+
+Related: ``first_host``, ``last_host``, ``prefix_length``.
+
+**Examples**
+
+```
+host_count("10.0.0.0/24")                    # -> 254
+host_count("10.0.0.0/31")                    # -> 2
 ```
 
 ### `in_cidr`
@@ -1372,6 +1509,126 @@ ip("192.168.9.0/24", .destination)      # rebase, keep host bits
 ip("192.168.9.0/24", "10.10.0.5%5:443") # -> "192.168.9.5%5:443"
 ```
 
+### `ip_range_contains`
+
+True when *addr* lies inside the ``first-last`` range.
+
+**Signatures**
+
+- `ip_range_contains(range: string, addr: string) -> boolean`
+
+**Details**
+
+Inclusive membership check.  Mixed-family inputs (v4 range,
+v6 address or vice versa) always return ``false`` rather
+than raising — different families never overlap.
+
+Related: ``in_cidr`` (CIDR equivalent), ``ip_range_to_cidrs``.
+
+**Examples**
+
+```
+ip_range_contains("192.168.9.77-192.168.9.83", "192.168.9.80")  # -> true
+ip_range_contains("10.0.0.0-10.0.0.255", "10.0.1.1")            # -> false
+```
+
+### `ip_range_count`
+
+Count of addresses in an IP range (inclusive).
+
+**Signatures**
+
+- `ip_range_count(range: string) -> integer | null`
+
+**Details**
+
+``"10.0.0.5-10.0.0.9"`` → 5 (five addresses inclusive).
+Returns ``null`` for unparseable input.
+
+Related: ``ip_range_to_cidrs``, ``ip_range_contains``.
+
+**Examples**
+
+```
+ip_range_count("192.168.9.77-192.168.9.83")    # -> 7
+ip_range_count("10.0.0.1")                     # -> 1
+```
+
+### `ip_range_supernet`
+
+Smallest single CIDR that covers an IP range.
+
+**Signatures**
+
+- `ip_range_supernet(range: string) -> string | null`
+
+**Details**
+
+The minimum-prefix CIDR containing both endpoints of *range*.
+May include addresses outside the original ``[first, last]``
+span — that's the inherent cost of summarising a free-form
+range as a single CIDR.
+
+Pair with :func:`ip_range_to_cidrs` (exact decomposition)
+when you need precision instead of a single bounding network.
+
+**Examples**
+
+```
+ip_range_supernet("192.168.9.77-192.168.9.83")  # -> "192.168.9.64/27"
+```
+
+### `ip_range_to_cidrs`
+
+Decompose ``first-last`` IP range into the minimum CIDR set.
+
+**Signatures**
+
+- `ip_range_to_cidrs(range: string) -> list[string]`
+
+**Details**
+
+Parses *range* (``"192.168.9.77-192.168.9.83"``) and returns
+the smallest list of CIDRs that exactly covers the range.
+Useful for converting free-form ranges into firewall
+``address-list`` entries.
+
+Returns ``null`` for unparseable input.  Single-address
+inputs return a one-element list of the ``/32`` (or
+``/128``).
+
+Related: ``ip_range_supernet``, ``ip_range_count``,
+``ip_range_contains``.
+
+**Examples**
+
+```
+ip_range_to_cidrs("192.168.9.77-192.168.9.83")  # -> 4 /29.. /30 etc.
+ip_range_to_cidrs("10.0.0.1-10.0.0.255")
+```
+
+### `is_documentation`
+
+True when *value* is in a documentation-example range (RFC 5737 / RFC 3849).
+
+**Signatures**
+
+- `is_documentation(value: string) -> boolean`
+
+**Details**
+
+IPv4 ``192.0.2.0/24``, ``198.51.100.0/24``, ``203.0.113.0/24``,
+and IPv6 ``2001:db8::/32``.  Catching these in production
+configs is almost always a lab-template leak.
+
+Related: ``is_public``, ``is_private``, ``is_reserved``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_documentation(.destination)) | .name
+```
+
 ### `is_fqdn`
 
 True when *value*'s host portion is an FQDN (not an IP).
@@ -1451,6 +1708,28 @@ is_ipv6(.destination)
 .ltm.virtual[] | select(is_ipv6(.destination)) | .name
 ```
 
+### `is_link_local`
+
+True when *value* is link-local (``169.254.0.0/16`` IPv4 / ``fe80::/10`` IPv6).
+
+**Signatures**
+
+- `is_link_local(value: string) -> boolean`
+
+**Details**
+
+RFC 3927 (IPv4) / RFC 4291 (IPv6) link-local — addresses that
+are only valid on the directly attached segment.  Useful when
+auditing for accidentally-leaked auto-configured addresses.
+
+Related: ``is_multicast``, ``is_loopback``, ``is_private``.
+
+**Examples**
+
+```
+.ltm.node[] | select(is_link_local(.address)) | .name
+```
+
 ### `is_loopback`
 
 True when *value* is a loopback address (``127.0.0.0/8`` / ``::1``).
@@ -1470,6 +1749,28 @@ Related: ``is_private``, ``is_unspecified``.
 
 ```
 .ltm.virtual[] | select(is_loopback(.destination)) | .name
+```
+
+### `is_multicast`
+
+True when *value* is a multicast IP (``224.0.0.0/4`` / ``ff00::/8``).
+
+**Signatures**
+
+- `is_multicast(value: string) -> boolean`
+
+**Details**
+
+Classifies through Python's ``ipaddress``: IPv4 ``224.0.0.0/4``
+and IPv6 ``ff00::/8``.  Returns ``false`` for FQDNs, unicast
+IPs, and unparseable input.
+
+Related: ``is_link_local``, ``is_reserved``, ``is_public``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_multicast(.destination)) | .name
 ```
 
 ### `is_private`
@@ -1496,6 +1797,58 @@ Related: ``is_loopback``, ``is_unspecified``, ``in_cidr``.
 ```
 is_private(.destination)
 .ltm.virtual[] | select(is_private(.destination)) | .name
+```
+
+### `is_public`
+
+True when *value* is globally routable on the public internet.
+
+**Signatures**
+
+- `is_public(value: string) -> boolean`
+
+**Details**
+
+Returns ``true`` only when *value* is **not** in any of the
+reserved / private / loopback / link-local / multicast /
+unspecified ranges — i.e. an address you might legitimately
+see on the public internet.  Backed by
+:pyattr:`ipaddress.IPv4Address.is_global`.
+
+Use to audit "what's actually exposed?" without spelling out
+every negation:
+``.ltm.virtual[] | select(is_public(.destination)) | .name``.
+
+Related: ``is_private`` (the complement), ``is_reserved``,
+``is_documentation``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_public(.destination)) | .name
+```
+
+### `is_reserved`
+
+True when *value* is in an IANA-reserved range (no current use).
+
+**Signatures**
+
+- `is_reserved(value: string) -> boolean`
+
+**Details**
+
+Reserved means "IANA has set aside the range, no current
+allocation" — distinct from ``is_private`` (carved out for
+intra-network use).  IPv4 ``240.0.0.0/4`` and various IPv6
+blocks fall here.
+
+Related: ``is_public``, ``is_private``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(is_reserved(.destination)) | .name
 ```
 
 ### `is_unspecified`
@@ -1548,6 +1901,29 @@ Related: ``port``, ``is_unspecified`` (the host half).
 .ltm.virtual[] | select(is_wildcard_port(.destination)) | .name
 ```
 
+### `last_host`
+
+Return the highest usable host address inside a CIDR.
+
+**Signatures**
+
+- `last_host(value: string) -> string | null`
+
+**Details**
+
+The mirror of :func:`first_host`.  For ``/30`` and shorter
+IPv4 networks this is one below the broadcast; for ``/31``
+and ``/32`` it is the network address itself.  Returns
+``null`` for unparseable input.
+
+Related: ``first_host``, ``broadcast_address``, ``host_count``.
+
+**Examples**
+
+```
+last_host("10.0.0.0/24")                     # -> "10.0.0.254"
+```
+
 ### `net`
 
 Return the network portion of an IP/CIDR string as ``addr/prefix``.
@@ -1579,6 +1955,30 @@ net("192.168.9.42/24")          # -> "192.168.9.0/24"
 net("2001:db8::42/64")          # -> "2001:db8::/64"
 ```
 
+### `network_address`
+
+Return the network (``.0``) address of a CIDR.
+
+**Signatures**
+
+- `network_address(value: string) -> string | null`
+
+**Details**
+
+Strips the host bits off *value* and returns the canonical
+network address.  ``network_address("10.0.0.5/24")`` →
+``"10.0.0.0"``.  Returns ``null`` for unparseable input.
+
+Related: ``broadcast_address``, ``first_host``, ``last_host``,
+``prefix_length``.
+
+**Examples**
+
+```
+network_address("10.0.0.5/24")               # -> "10.0.0.0"
+.net.self[] | network_address(.address)
+```
+
 ### `overlaps`
 
 True when two networks overlap (share at least one address).
@@ -1605,6 +2005,31 @@ Related: ``subnet_of``, ``in_cidr``.
 ```
 overlaps("10.0.0.0/24", "10.0.0.0/16")              # -> true
 overlaps("10.0.0.0/24", "10.1.0.0/24")              # -> false
+```
+
+### `ping`
+
+ICMP echo to *ip*.  Requires --enable-probes.
+
+**Signatures**
+
+- `ping(ip: string) -> object`
+
+**Details**
+
+Subprocess invocation of the system ``ping`` command.
+Returns ``{ok: bool, rtt_ms: float | null, error: string | null}``.
+Gated by ``--enable-probes`` — without the flag, raises
+``BuiltinError`` so an offline query never hits the network
+by accident.
+
+Related: ``portping`` (TCP/UDP), ``traceroute``, ``dns``.
+
+**Examples**
+
+```
+ping("10.0.0.1")
+.ltm.node[] | {addr: .address, reachable: (ping(.address).ok)}
 ```
 
 ### `port`
@@ -1638,6 +2063,98 @@ port("/Common/10.0.0.1%5:443")           # -> 443
 port("/Common/10.0.0.1")                 # -> null
 ```
 
+### `port_set_contains`
+
+True when *port* lies inside the comma-separated *spec*.
+
+**Signatures**
+
+- `port_set_contains(spec: string, port: integer) -> boolean`
+
+**Details**
+
+*spec* is a F5 firewall-rule port spec like ``"80-82,8081"``.
+Returns ``true`` when *port* falls inside any segment.  Use
+this to audit rules:
+``.security.firewall.rule-list[].rules[] | select(port_set_contains(.port, 443))``.
+
+Related: ``port_set_count``, ``port_set_overlaps``,
+``in_cidr`` (the address-side counterpart).
+
+**Examples**
+
+```
+port_set_contains("80-82,8081", 81)            # -> true
+port_set_contains("80,443", 8080)              # -> false
+```
+
+### `port_set_count`
+
+Total number of ports across every segment of *spec*.
+
+**Signatures**
+
+- `port_set_count(spec: string) -> integer | null`
+
+**Details**
+
+Counts how many distinct ports a comma-separated port spec
+covers.  ``"80-82,8081"`` → 4.  ``"any"`` → 65536.  Returns
+``null`` for unparseable input.
+
+Related: ``port_set_contains``, ``port_set_overlaps``.
+
+**Examples**
+
+```
+port_set_count("80-82,8081")                   # -> 4
+port_set_count("any")                          # -> 65536
+```
+
+### `port_set_overlaps`
+
+True when two port specs share at least one port.
+
+**Signatures**
+
+- `port_set_overlaps(a: string, b: string) -> boolean`
+
+**Details**
+
+Pair-wise overlap check between two comma-separated port
+specs.  Useful when comparing firewall-rule port windows to
+spot accidental coverage gaps or duplications.
+
+Related: ``port_set_contains``, ``port_set_count``.
+
+**Examples**
+
+```
+port_set_overlaps("80-82,443", "82-100")       # -> true
+port_set_overlaps("80-82,443", "100-200")      # -> false
+```
+
+### `portping`
+
+TCP/UDP probe to *(ip, port)*.  Requires --enable-probes.
+
+**Signatures**
+
+- `portping(ip: string, port: integer[, protocol: string]) -> object`
+
+**Details**
+
+TCP-connect (default) or UDP send-receive timing.  Returns
+``{ok, rtt_ms, error}``.  UDP is best-effort — no reply does
+not imply unreachable.  Pass ``protocol="udp"`` to switch.
+
+**Examples**
+
+```
+portping("10.0.0.1", 443)
+.ltm.virtual[] | {name: .name, vip_up: portping(host(.destination), port(.destination)).ok}
+```
+
 ### `prefix_length`
 
 Return the CIDR prefix length of a network string.
@@ -1662,6 +2179,30 @@ Related: ``in_cidr``, ``subnet_of``.
 ```
 prefix_length(.net.self[].address)
 .net.self[] | select(prefix_length(.address) >= 24) | .name
+```
+
+### `rev_dns`
+
+Reverse-resolve an IP address to its PTR hostname.
+
+**Signatures**
+
+- `rev_dns(ip: string) -> list[string]`
+
+**Details**
+
+Performs a reverse DNS lookup (``socket.gethostbyaddr``).
+Returns the canonical hostname plus any aliases, or an
+empty list on failure.  Memoised per process; bounded by the
+resolver's default timeout.
+
+Related: ``dns`` (forward).
+
+**Examples**
+
+```
+rev_dns("1.1.1.1")                              # -> ["one.one.one.one"]
+.ltm.node[].address | rev_dns(.)
 ```
 
 ### `route_domain`
@@ -1694,6 +2235,28 @@ route_domain("10.0.0.1%5:80")            # -> "5"
 route_domain("/Common/10.0.0.1:80")      # -> null
 ```
 
+### `socket_get`
+
+TCP connect + read banner.  Requires --enable-probes.
+
+**Signatures**
+
+- `socket_get(host: string, port: integer[, send: string]) -> string`
+
+**Details**
+
+Opens a TCP socket to *(host, port)*, optionally sends *send*,
+reads up to 4096 bytes, and returns the response as UTF-8
+(replacement on non-text bytes).  Useful for protocol-banner
+fingerprinting — SSH versions, SMTP greetings, etc.
+
+**Examples**
+
+```
+socket_get("ssh.example.com", 22)
+socket_get("smtp.example.com", 25)
+```
+
 ### `subnet_of`
 
 True when *subnet* lies entirely inside *supernet*.
@@ -1717,6 +2280,183 @@ Related: ``in_cidr`` (single-host membership), ``prefix_length``.
 ```
 subnet_of("10.1.0.0/16", "10.0.0.0/8")               # -> true
 subnet_of(.net.self[].address, "10.0.0.0/8")
+```
+
+### `supernet_of`
+
+Return the smallest single CIDR that covers every address or network in *values*.
+
+**Signatures**
+
+- `supernet_of(values: list[string]) -> string | null`
+
+**Details**
+
+Finds the minimal supernet that contains every input.
+Plain IPs are treated as ``/32`` (IPv4) or ``/128`` (IPv6).
+Mixed-family inputs raise — IPv4 and IPv6 are never in the
+same supernet.  Returns ``null`` when *values* is empty.
+
+Pairs with ``collapse_cidrs`` for the two natural CIDR-
+algebra operations: "merge what's already adjacent" versus
+"what's the bounding CIDR".
+
+Related: ``collapse_cidrs``, ``subnet_of``, ``in_cidr``.
+
+**Examples**
+
+```
+supernet_of(["10.0.0.1", "10.0.1.1"])             # -> "10.0.0.0/23"
+supernet_of(["10.0.0.0/24", "10.0.1.0/24"])       # -> "10.0.0.0/23"
+.ltm.pool[].members[].address | [.] | supernet_of(.)
+```
+
+### `tls_handshake`
+
+Open a TLS connection and inspect what the peer offered.
+
+**Signatures**
+
+- `tls_handshake(host: string, port: integer[, sni: string]) -> object`
+
+**Details**
+
+Performs a full TLS handshake against *(host, port)* (with
+SNI defaulting to *host*) and returns the negotiated
+protocol, cipher suite, ALPN selection, peer certificate
+dict, and verify status against the system trust store.
+
+Requires ``--enable-probes``.
+
+**Examples**
+
+```
+tls_handshake("example.com", 443) | .protocol
+tls_handshake("example.com", 443) | .peer_cert.subject
+```
+
+### `traceroute`
+
+Hop-by-hop path probe to *ip*.  Requires --enable-probes.
+
+**Signatures**
+
+- `traceroute(ip: string) -> list[object]`
+
+**Details**
+
+Subprocess invocation of ``traceroute``.  Returns one record
+per hop: ``{hop: int, ip: string | null, rtt_ms: float | null}``.
+Hops the router didn't answer for show up with ``ip=null``.
+
+**Examples**
+
+```
+traceroute("8.8.8.8") | last(.) | .ip
+```
+
+### `url_get`
+
+HTTP GET request.  Requires --enable-probes.
+
+**Signatures**
+
+- `url_get(url: string[, headers: object]) -> object`
+
+**Details**
+
+Issues an HTTP ``GET`` to *url* via urllib.
+Returns ``{status: int | null, headers: object, body: string,
+error: string | null}``.  Default timeout 5s.
+
+Optional second argument is a dict of request headers.
+
+Related: ``url_get``, ``url_head``, ``url_post``,
+``url_options``.
+
+**Examples**
+
+```
+url_get("https://example.com/")
+url_get("https://api.example/v1", {"Authorization": "Bearer X"})
+```
+
+### `url_head`
+
+HTTP HEAD request.  Requires --enable-probes.
+
+**Signatures**
+
+- `url_head(url: string[, headers: object]) -> object`
+
+**Details**
+
+Issues an HTTP ``HEAD`` to *url* via urllib.
+Returns ``{status: int | null, headers: object, body: string,
+error: string | null}``.  Default timeout 5s.
+
+Optional second argument is a dict of request headers.
+
+Related: ``url_get``, ``url_head``, ``url_post``,
+``url_options``.
+
+**Examples**
+
+```
+url_head("https://example.com/")
+url_head("https://api.example/v1", {"Authorization": "Bearer X"})
+```
+
+### `url_options`
+
+HTTP OPTIONS request.  Requires --enable-probes.
+
+**Signatures**
+
+- `url_options(url: string[, headers: object]) -> object`
+
+**Details**
+
+Issues an HTTP ``OPTIONS`` to *url* via urllib.
+Returns ``{status: int | null, headers: object, body: string,
+error: string | null}``.  Default timeout 5s.
+
+Optional second argument is a dict of request headers.
+
+Related: ``url_get``, ``url_head``, ``url_post``,
+``url_options``.
+
+**Examples**
+
+```
+url_options("https://example.com/")
+url_options("https://api.example/v1", {"Authorization": "Bearer X"})
+```
+
+### `url_post`
+
+HTTP POST request.  Requires --enable-probes.
+
+**Signatures**
+
+- `url_post(url: string[, headers: object]) -> object`
+
+**Details**
+
+Issues an HTTP ``POST`` to *url* via urllib.
+Returns ``{status: int | null, headers: object, body: string,
+error: string | null}``.  Default timeout 5s.
+
+Optional second argument is a dict of request headers.
+
+Related: ``url_get``, ``url_head``, ``url_post``,
+``url_options``.
+
+**Examples**
+
+```
+url_post("https://example.com/")
+url_post("https://api.example/v1", {"Authorization": "Bearer X"})
 ```
 
 ### `with_folder`
@@ -1871,6 +2611,35 @@ with_route_domain(.destination, 5)
 with_route_domain("/Common/10.0.0.1:80", 7)        # -> "/Common/10.0.0.1%7:80"
 with_route_domain("/Common/10.0.0.1%5:80", "")     # -> "/Common/10.0.0.1:80"
 .ltm.virtual[] | .destination |= with_route_domain(., 7)
+```
+
+### `x509_parse`
+
+Parse a PEM-encoded X.509 certificate.
+
+**Signatures**
+
+- `x509_parse(pem: string) -> object`
+
+**Details**
+
+Returns a dict of fields: subject, issuer, not_before,
+not_after, serial, fingerprint_sha256, sans, key_alg,
+key_size, sig_alg, version, public_key_pem.  Uses
+:mod:`cryptography` when available; falls back to stdlib
+:mod:`ssl` (a subset of fields) when not.
+
+Does NOT need ``--enable-probes`` — it operates on locally-
+held PEM text.  Pair with ``url_get`` or ``json_load`` to
+feed it certificate data.
+
+Related: ``tls_handshake`` (negotiated chain), ``json_load``.
+
+**Examples**
+
+```
+x509_parse(json_load("/etc/ssl/cert.pem"))
+tls_handshake("example.com", 443).peer_cert
 ```
 
 ## graph
@@ -2041,6 +2810,37 @@ Related: ``not``, ``select``.
 ```
 select(defined(.pool))
 .ltm.virtual[] | select(defined(.snatpool)) | .name
+```
+
+### `json_load`
+
+Read a file from disk and parse it as JSON.
+
+**Signatures**
+
+- `json_load(path: string) -> any`
+
+**Details**
+
+Reads *path* from the local filesystem and returns the parsed
+JSON value.  Use this to mix external data (CMDB exports,
+vlan-to-tenant maps, signed-cert manifests) into a query:
+
+.. code-block:: text
+
+   json_load("/etc/inventory/servers.json") as $inv
+     | .ltm.node[]
+     | {name: .name, owner: $inv[.address]}
+
+Tilde expansion is honoured (``json_load("~/data/x.json")``).
+Raises :class:`BuiltinError` for missing files or invalid
+JSON — failures are explicit rather than producing ``null``.
+
+**Examples**
+
+```
+json_load("/etc/inventory/servers.json")
+.ltm.node[].address as $a | json_load("data.json")[$a]
 ```
 
 ### `kind`
