@@ -240,8 +240,7 @@ def _coerce_pathlike(value: object, *, name: str, arg: int) -> str:
     if isinstance(value, ObjectRef):
         return value.full_path
     raise BuiltinError(
-        f"{name}: argument {arg} must be a path-string or object, "
-        f"got {_type_name(value)}"
+        f"{name}: argument {arg} must be a path-string or object, got {_type_name(value)}"
     )
 
 
@@ -4573,9 +4572,7 @@ def _builtin_cert_load(*args: Any) -> Any:
             raise BuiltinError(f"cert_load: {expanded}: not UTF-8 PEM ({exc})") from exc
         blocks = _split_pem_blocks(text)
         if not blocks:
-            raise BuiltinError(
-                f"cert_load: {expanded}: no PEM CERTIFICATE blocks found"
-            )
+            raise BuiltinError(f"cert_load: {expanded}: no PEM CERTIFICATE blocks found")
         parsed = [x509_parse(b) for b in blocks]
         return parsed[0] if len(parsed) == 1 else parsed
     # PKCS#12 — needs cryptography.  Detect by the leading magic
@@ -4591,9 +4588,7 @@ def _builtin_cert_load(*args: Any) -> Any:
 
         pem = _ssl.DER_cert_to_PEM_cert(raw)
     except Exception as exc:
-        raise BuiltinError(
-            f"cert_load: {expanded}: not PEM / DER / PKCS#12 ({exc})"
-        ) from exc
+        raise BuiltinError(f"cert_load: {expanded}: not PEM / DER / PKCS#12 ({exc})") from exc
     return x509_parse(pem)
 
 
@@ -4651,9 +4646,7 @@ def _load_pkcs12(expanded: str, raw: bytes, password: bytes | None) -> Any:
         raise BuiltinError(f"cert_load: {expanded}: PKCS#12 bundle contains no certificates")
     pem_blocks: list[str] = []
     if leaf_cert is not None:
-        pem_blocks.append(
-            leaf_cert.public_bytes(serialization.Encoding.PEM).decode("utf-8")
-        )
+        pem_blocks.append(leaf_cert.public_bytes(serialization.Encoding.PEM).decode("utf-8"))
     for cert in additional:
         pem_blocks.append(cert.public_bytes(serialization.Encoding.PEM).decode("utf-8"))
     parsed = [x509_parse(b) for b in pem_blocks]

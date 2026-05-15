@@ -59,12 +59,16 @@ class TestJSONL:
     def test_jsonl_load_in_query_filter(self, tmp_path: Path):
         p = tmp_path / "events.jsonl"
         p.write_text(
-            '\n'.join(json.dumps(r) for r in [
-                {"severity": "info", "msg": "ok"},
-                {"severity": "err", "msg": "kaboom"},
-                {"severity": "warning", "msg": "ish"},
-                {"severity": "err", "msg": "oops"},
-            ]) + "\n"
+            "\n".join(
+                json.dumps(r)
+                for r in [
+                    {"severity": "info", "msg": "ok"},
+                    {"severity": "err", "msg": "kaboom"},
+                    {"severity": "warning", "msg": "ish"},
+                    {"severity": "err", "msg": "oops"},
+                ]
+            )
+            + "\n"
         )
         result = run_query(
             f'[jsonl_load("{p}")[] | select(.severity == "err") | .msg]',
@@ -124,9 +128,7 @@ class TestCSV:
     def test_csv_load_with_header_row(self, tmp_path: Path):
         p = tmp_path / "vips.csv"
         p.write_text("vs,port\nweb,443\napi,8443\n")
-        result = run_query(
-            f'csv_load("{p}") | map(.vs)', {"mem://x": BIG_CONF}
-        )
+        result = run_query(f'csv_load("{p}") | map(.vs)', {"mem://x": BIG_CONF})
         [names] = result.values_per_file["mem://x"]
         assert names == ["web", "api"]
 
@@ -149,9 +151,7 @@ class TestCSV:
         p = tmp_path / "x.csv"
         p.write_text("a,b\n")
         with pytest.raises(QueryError, match="must be a string"):
-            run_query(
-                f'csv_load("{p}", [1, 2])', {"mem://x": BIG_CONF}
-            )
+            run_query(f'csv_load("{p}", [1, 2])', {"mem://x": BIG_CONF})
 
     def test_input_csv_via_runner_spec_with_headers(self, tmp_path: Path):
         p = tmp_path / "nats.csv"
@@ -312,9 +312,7 @@ class TestF5Log:
 
     def test_input_f5log_via_runner_spec(self, tmp_path: Path):
         p = tmp_path / "ltm"
-        p.write_text(
-            "Nov 28 09:53:00 bigip01 info tmm[1]: 01230140:6: stuff\n"
-        )
+        p.write_text("Nov 28 09:53:00 bigip01 info tmm[1]: 01230140:6: stuff\n")
         result = run_query(
             "$ltm[] | .module",
             {"mem://x": BIG_CONF, str(p): p.read_text()},

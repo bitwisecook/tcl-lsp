@@ -26,7 +26,10 @@ def _source(name: str) -> dict[str, str]:
 
 
 def _t2_sources() -> dict[str, str]:
-    return {f"sample://tier2-{cluster}.conf": _read(f"tier2-{cluster}-ltm-ha.conf") for cluster in T2_IDS}
+    return {
+        f"sample://tier2-{cluster}.conf": _read(f"tier2-{cluster}-ltm-ha.conf")
+        for cluster in T2_IDS
+    }
 
 
 def _all_sources() -> dict[str, str]:
@@ -106,7 +109,7 @@ def test_tier1_and_tier2_are_ha_but_tier3_is_standalone():
 def test_every_tier2_device_uses_same_vip_and_port_without_translation():
     query = (
         ".ltm.virtual[] "
-        '| tsv(source_file(.), (.destination | host), str(.destination | port), '
+        "| tsv(source_file(.), (.destination | host), str(.destination | port), "
         '."translate-address", ."translate-port")'
     )
     result = run_query(query, _t2_sources())
@@ -221,10 +224,7 @@ def test_tier1_member_addresses_match_each_tier2_device_vip():
     }
     t2 = run_query("[.ltm.virtual[].destination | host] | unique", _t2_sources())
     t2_hosts = {
-        host
-        for values in t2.values_per_file.values()
-        for group in values
-        for host in group
+        host for values in t2.values_per_file.values() for group in values for host in group
     }
     assert t1_hosts == t2_hosts == {SHARED_T2_VIP}
 

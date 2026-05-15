@@ -173,7 +173,9 @@ class _Parser:
             parts.append(self._parse_pipe_stage())
         if not parts:
             return first
-        return CommaStream(parts=tuple(parts), offset=first.offset if hasattr(first, "offset") else 0)
+        return CommaStream(
+            parts=tuple(parts), offset=first.offset if hasattr(first, "offset") else 0
+        )
 
     def _parse_pipeline_no_comma(self) -> Expr:
         """Pipeline form that excludes the stream-comma operator.

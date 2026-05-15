@@ -145,9 +145,7 @@ class F5LogEvent:
     raw: str = ""
 
 
-_F5_SEVERITIES = frozenset(
-    {"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"}
-)
+_F5_SEVERITIES = frozenset({"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"})
 
 # Only one tiny regex remains — to strip the optional syslog PRI
 # prefix ``<NNN>`` at the very start of a line.  Everything else is
@@ -237,7 +235,15 @@ def _take_timestamp(text: str) -> tuple[str | None, str]:
     chars).  RFC3339 form: ``YYYY-MM-DDTHH:MM:SS[.fff][±HH:MM|Z]``.
     """
     # RFC3339: starts with 4 digits + '-'
-    if len(text) >= 19 and text[:4].isdigit() and text[4] == "-" and text[7] == "-" and text[10] in "T " and text[13] == ":" and text[16] == ":":
+    if (
+        len(text) >= 19
+        and text[:4].isdigit()
+        and text[4] == "-"
+        and text[7] == "-"
+        and text[10] in "T "
+        and text[13] == ":"
+        and text[16] == ":"
+    ):
         # Find the end of the timestamp (whitespace).
         i = 19
         while i < len(text) and text[i] not in " \t":

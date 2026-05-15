@@ -217,7 +217,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "is parsed as one JSON value and ``$NAME`` resolves to "
             "the resulting list, so a query can iterate logs / "
             "event archives the same way it iterates a BIG-IP "
-            "collection: ``$NAME[] | select(.severity == \"err\")``.  "
+            'collection: ``$NAME[] | select(.severity == "err")``.  '
             "Inside the DSL the ``jsonl_load(path)`` builtin gives "
             "the same shape ad-hoc."
         ),
@@ -254,7 +254,7 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "severity, daemon, pid, code, module, level, "
             "message, raw}``) so a query can filter by F5 "
             "message code or severity without sub-parsing the "
-            "line: ``$NAME[] | select(.module == \"01070417\")``.  "
+            'line: ``$NAME[] | select(.module == "01070417")``.  '
             "Inside the DSL the ``f5log_load(path)`` builtin "
             "gives the same shape ad-hoc."
         ),
@@ -452,9 +452,7 @@ def _run_query(args: argparse.Namespace) -> int:
         print(f"error: {json_err}", file=sys.stderr)
         return 2
 
-    jsonl_bindings, jsonl_err = _parse_input_bindings(
-        args.input_jsonl, flag="--input-jsonl"
-    )
+    jsonl_bindings, jsonl_err = _parse_input_bindings(args.input_jsonl, flag="--input-jsonl")
     if jsonl_err is not None:
         print(f"error: {jsonl_err}", file=sys.stderr)
         return 2
@@ -466,9 +464,7 @@ def _run_query(args: argparse.Namespace) -> int:
         print(f"error: {csv_err}", file=sys.stderr)
         return 2
 
-    f5log_bindings, f5log_err = _parse_input_bindings(
-        args.input_f5log, flag="--input-f5log"
-    )
+    f5log_bindings, f5log_err = _parse_input_bindings(args.input_f5log, flag="--input-f5log")
     if f5log_err is not None:
         print(f"error: {f5log_err}", file=sys.stderr)
         return 2
@@ -552,20 +548,14 @@ def _run_query(args: argparse.Namespace) -> int:
             return 2
 
     for nm, (csv_path, csv_hdr) in csv_bindings.items():
-        options: tuple[tuple[str, object], ...] = (
-            (("headers", tuple(csv_hdr)),) if csv_hdr else ()
-        )
-        err = _load_side_input(
-            nm, csv_path, "--input-csv", _InputSpec(kind="csv", options=options)
-        )
+        options: tuple[tuple[str, object], ...] = (("headers", tuple(csv_hdr)),) if csv_hdr else ()
+        err = _load_side_input(nm, csv_path, "--input-csv", _InputSpec(kind="csv", options=options))
         if err is not None:
             print(f"error: {err}", file=sys.stderr)
             return 2
 
     for nm, (f5log_path, _hdr) in f5log_bindings.items():
-        err = _load_side_input(
-            nm, f5log_path, "--input-f5log", _InputSpec(kind="f5log")
-        )
+        err = _load_side_input(nm, f5log_path, "--input-f5log", _InputSpec(kind="f5log"))
         if err is not None:
             print(f"error: {err}", file=sys.stderr)
             return 2

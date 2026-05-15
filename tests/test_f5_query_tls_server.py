@@ -15,7 +15,6 @@ private CA from inside a BIG-IP query.
 
 from __future__ import annotations
 
-import json
 import socket
 import ssl
 import sys
@@ -48,12 +47,12 @@ def _make_self_signed(tmp_path: Path, hostname: str) -> tuple[Path, Path]:
     signed cert that the test pins as the trusted root.
     """
     pytest.importorskip("cryptography")
+    import datetime
+
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509 import oid
-
-    import datetime
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(oid.NameOID.COMMON_NAME, hostname)])
@@ -67,9 +66,7 @@ def _make_self_signed(tmp_path: Path, hostname: str) -> tuple[Path, Path]:
         .not_valid_before(now - datetime.timedelta(minutes=1))
         .not_valid_after(now + datetime.timedelta(days=1))
         .add_extension(
-            x509.SubjectAlternativeName(
-                [x509.DNSName(hostname), x509.DNSName("localhost")]
-            ),
+            x509.SubjectAlternativeName([x509.DNSName(hostname), x509.DNSName("localhost")]),
             critical=False,
         )
         .add_extension(
@@ -109,9 +106,7 @@ class _Handler(BaseHTTPRequestHandler):
     }
 
     def do_GET(self):  # noqa: N802 — stdlib convention
-        status, ctype, body = self.routes.get(
-            self.path, (404, "text/plain", b"not found")
-        )
+        status, ctype, body = self.routes.get(self.path, (404, "text/plain", b"not found"))
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -170,9 +165,7 @@ def _wait_listening(host: str, port: int, *, timeout_s: float) -> None:
 def _run_with_probes(query: str, *, ca_bundle: Path | None = None) -> list:
     """Run a query with probes enabled and an optional pinned CA bundle."""
     probes_token = PROBES_ENABLED.set(True)
-    bundle_token = (
-        TLS_CA_BUNDLE.set(str(ca_bundle)) if ca_bundle is not None else None
-    )
+    bundle_token = TLS_CA_BUNDLE.set(str(ca_bundle)) if ca_bundle is not None else None
     try:
         result = run_query(query, {"mem://x": ""})
     finally:
@@ -200,7 +193,7 @@ def _scf_with_https_endpoint(url: str) -> str:
         "    members { /Common/web1:443 { address 10.0.0.10 } }\n"
         "    monitor /Common/https\n"
         "}\n"
-        f'ltm virtual /Common/web_vs {{\n'
+        f"ltm virtual /Common/web_vs {{\n"
         f"    destination /Common/10.0.0.10:443\n"
         f"    ip-protocol tcp\n"
         f'    description "health-url={url}/health"\n'
@@ -248,13 +241,9 @@ def test_url_get_body_json_traverses_inline(https_server):
 
 def test_http_helpers_against_live_endpoint(https_server):
     url, cert = https_server
-    [ok] = _run_with_probes(
-        f'url_get("{url}/health") | http_ok(.)', ca_bundle=cert
-    )
+    [ok] = _run_with_probes(f'url_get("{url}/health") | http_ok(.)', ca_bundle=cert)
     assert ok is True
-    [teapot] = _run_with_probes(
-        f'url_get("{url}/teapot") | http_client_error(.)', ca_bundle=cert
-    )
+    [teapot] = _run_with_probes(f'url_get("{url}/teapot") | http_client_error(.)', ca_bundle=cert)
     assert teapot is True
     [text_type] = _run_with_probes(
         f'url_get("{url}/text") | http_header(., "content-type")', ca_bundle=cert
@@ -267,9 +256,7 @@ def test_tls_handshake_returns_structured_peer_cert(https_server):
     structured dict `x509_parse` produces."""
     url, cert = https_server
     host, port = url.replace("https://", "").split(":")
-    [info] = _run_with_probes(
-        f'tls_handshake("{host}", {int(port)})', ca_bundle=cert
-    )
+    [info] = _run_with_probes(f'tls_handshake("{host}", {int(port)})', ca_bundle=cert)
     assert info["verify_status"] == "ok"
     assert info["protocol"].startswith("TLS")
     peer = info["peer_cert"]

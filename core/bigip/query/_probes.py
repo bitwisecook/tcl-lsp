@@ -36,9 +36,7 @@ PROBES_ENABLED: ContextVar[bool] = ContextVar("_bigip_query_probes_enabled", def
 # the system trust store.  Set this from a test fixture (or the
 # CLI's ``--ca-bundle`` flag) when probing an endpoint signed by an
 # internal / self-signed CA.
-TLS_CA_BUNDLE: ContextVar[str | None] = ContextVar(
-    "_bigip_query_tls_ca_bundle", default=None
-)
+TLS_CA_BUNDLE: ContextVar[str | None] = ContextVar("_bigip_query_tls_ca_bundle", default=None)
 
 # Process-lifetime caches.
 _PING_CACHE: dict[str, dict[str, Any]] = {}
@@ -335,7 +333,9 @@ def tls_handshake(
     key = (host, int(port), sni_value, ca_bundle)
     if key in _TLS_CACHE:
         return dict(_TLS_CACHE[key])
-    ctx = ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
+    ctx = (
+        ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
+    )
     if alpn:
         ctx.set_alpn_protocols(alpn)
     out: dict[str, Any]
