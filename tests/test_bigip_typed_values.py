@@ -56,6 +56,43 @@ class TestIPAddress:
         assert IPAddress.try_parse("not.an.ip") is None
         assert IPAddress.try_parse("10.0.0.1") is not None
 
+    def test_parse_ipv4_with_route_domain(self):
+        ip = IPAddress.parse("10.0.0.1%10")
+        assert ip.is_ipv4
+        assert ip.route_domain == 10
+        # The string form round-trips the suffix verbatim.
+        assert str(ip) == "10.0.0.1%10"
+
+    def test_parse_ipv6_with_route_domain(self):
+        ip = IPAddress.parse("2001:db8::1%50")
+        assert ip.is_ipv6
+        assert ip.route_domain == 50
+        assert str(ip) == "2001:db8::1%50"
+
+    def test_parse_default_route_domain_is_none(self):
+        ip = IPAddress.parse("10.0.0.1")
+        # ``None`` distinguishes "default partition / RD-0" from an
+        # explicit ``%0`` qualifier — the latter would set
+        # ``route_domain == 0``.
+        assert ip.route_domain is None
+
+    def test_parse_route_domain_zero_is_preserved(self):
+        ip = IPAddress.parse("10.0.0.1%0")
+        assert ip.route_domain == 0
+        assert str(ip) == "10.0.0.1%0"
+
+    def test_parse_non_numeric_suffix_falls_through(self):
+        # IPv6 zone-id form ``fe80::1%eth0`` — F5's ``%RD`` is
+        # always numeric so the parser doesn't strip a non-numeric
+        # suffix.  Python's ``ipaddress.ip_address`` accepts the
+        # zone-id and preserves it on the address, so
+        # ``route_domain`` stays ``None`` while the zone-id
+        # round-trips on the underlying stdlib value.
+        ip = IPAddress.parse("fe80::1%eth0")
+        assert ip.route_domain is None
+        # ``ipaddress`` stores the zone-id on the address itself.
+        assert ip.addr.compressed == "fe80::1%eth0"
+
 
 # ---------------------------------------------------------------------------
 # FQDN

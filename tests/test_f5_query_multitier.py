@@ -538,3 +538,37 @@ def test_t1_fanout_targets_one_node_per_t2_cluster():
         [dest] = result.values_per_file[f"mem://t2-{cluster}.conf"]
         # /<partition>/10.2.0.10:443
         assert str(dest) == f"/{partition}/{_SHARED_T2_VIP}:{_SHARED_T2_PORT}"
+
+
+def test_t1_pool_member_addresses_preserve_route_domain_qualifier():
+    """T1's fanout pool uses ``%RD`` to distinguish per-cluster
+    routes to a shared backend VIP.  The address parser must
+    round-trip the suffix so a query on ``.members[].address``
+    returns the canonical ``<ip>%<rd>`` form."""
+    result = run_query(
+        '.ltm.pool["/Common/t2_fanout_pool"].members[].address',
+        {"mem://t1.conf": T1_CONF},
+    )
+    addrs = result.values_per_file["mem://t1.conf"]
+    # Twelve addresses, every one ``10.2.0.10%<rd>`` where rd
+    # ranges 101..112 (one per T2 cluster).
+    assert len(addrs) == _T2_COUNT
+    bases = {addr.split("%", 1)[0] for addr in addrs}
+    assert bases == {_SHARED_T2_VIP}
+    rds = sorted(int(addr.split("%", 1)[1]) for addr in addrs)
+    assert rds == list(range(101, 101 + _T2_COUNT))
+
+
+def test_t1_nodes_carry_route_domain_metadata():
+    """The standalone ``ltm node`` stanzas that the fanout pool
+    references also preserve their ``%RD`` qualifier through the
+    parser → DSL projection round-trip."""
+    result = run_query(
+        ".ltm.node[].address",
+        {"mem://t1.conf": T1_CONF},
+    )
+    addrs = result.values_per_file["mem://t1.conf"]
+    assert len(addrs) == _T2_COUNT
+    assert all("%" in a for a in addrs)
+    bases = {a.split("%", 1)[0] for a in addrs}
+    assert bases == {_SHARED_T2_VIP}

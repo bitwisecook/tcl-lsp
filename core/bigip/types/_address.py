@@ -9,25 +9,49 @@ from typing import Union
 
 @dataclass(frozen=True, slots=True)
 class IPAddress:
-    """An IPv4 or IPv6 address (no port, no prefix, no route-domain).
+    """An IPv4 or IPv6 address with an optional route-domain id.
 
     Stored as a ``ipaddress.IPv4Address`` or ``IPv6Address`` so all
     classification (loopback / private / link-local / multicast),
     arithmetic, and CIDR membership flows through the stdlib.
+
+    F5 tmsh writes route-domain-qualified addresses as
+    ``<host>%<rd>`` — e.g. ``10.0.0.1%10`` is the IP ``10.0.0.1``
+    living on route-domain ``10``.  When that suffix is present
+    :attr:`route_domain` carries the numeric id; otherwise the
+    field is ``None`` (the default Common-partition / RD-0 case).
+    The :func:`str` form round-trips the suffix verbatim so
+    ``str(IPAddress.parse("10.0.0.1%10")) == "10.0.0.1%10"``.
     """
 
     addr: ipaddress.IPv4Address | ipaddress.IPv6Address
+    # Optional ``%RD`` suffix.  ``None`` for default-RD (Common /
+    # route-domain 0).  Stored as an int because tmsh only writes
+    # numeric route-domain ids — distinct from the IPv6 zone-id
+    # form ``fe80::1%eth0`` which Python's ``ipaddress`` rejects
+    # outright.
+    route_domain: int | None = None
 
     @classmethod
     def parse(cls, text: str) -> "IPAddress":
-        """Parse *text* as an IPv4 or IPv6 host address.
+        """Parse *text* as an IPv4 or IPv6 host address with an
+        optional ``%<rd>`` route-domain suffix.
 
         Raises :class:`ValueError` for invalid input.  Wildcard
         spellings (``"any"`` / ``"*"``) are NOT accepted here —
         :class:`Destination` handles those at the higher level.
         """
         text = text.strip()
-        return cls(addr=ipaddress.ip_address(text))
+        rd: int | None = None
+        if "%" in text:
+            host, _, rd_text = text.rpartition("%")
+            if rd_text.isdigit():
+                rd = int(rd_text)
+                text = host
+            # ``rd_text`` non-numeric (``fe80::1%eth0``) — leave
+            # *text* intact and let ``ipaddress`` reject it
+            # naturally, matching the original behaviour.
+        return cls(addr=ipaddress.ip_address(text), route_domain=rd)
 
     @classmethod
     def try_parse(cls, text: str) -> "IPAddress | None":
@@ -59,7 +83,9 @@ class IPAddress:
         return self.addr.is_unspecified
 
     def __str__(self) -> str:
-        return self.addr.compressed
+        if self.route_domain is None:
+            return self.addr.compressed
+        return f"{self.addr.compressed}%{self.route_domain}"
 
 
 @dataclass(frozen=True, slots=True)
