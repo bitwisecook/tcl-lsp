@@ -565,6 +565,16 @@ def _run_query(args: argparse.Namespace) -> int:
         if path_str == "-" and args.in_place:
             print("error: --in-place requires a path, not stdin", file=sys.stderr)
             return 2
+        if args.in_place and path_str != "-" and Path(path_str).suffix.lower() == ".ucs":
+            # UCS is a gzipped tar; rewriting it in place would mean
+            # repacking the archive and losing other config artefacts.
+            # Refuse rather than silently dropping content.
+            print(
+                f"error: --in-place not supported for UCS archives ({path_str}); "
+                "extract first with `f5 extract` or use --write",
+                file=sys.stderr,
+            )
+            return 2
         try:
             # Strict UTF-8 for mutating in-place writes: if any byte
             # in the source can't be decoded, raise instead of
@@ -572,7 +582,7 @@ def _run_query(args: argparse.Namespace) -> int:
             # round-trip ``read … rewrite … write_text`` would
             # permanently overwrite the unreadable bytes.
             uri, src = read_path(path_str, strict=args.in_place)
-        except (OSError, UnicodeDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         if uri in sources:

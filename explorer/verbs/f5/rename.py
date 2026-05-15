@@ -102,12 +102,19 @@ def _run_rename(args: argparse.Namespace) -> int:
     if not args.new:
         print("error: new name is empty", file=sys.stderr)
         return 2
+    if args.in_place and args.path != "-" and Path(args.path).suffix.lower() == ".ucs":
+        print(
+            f"error: --in-place not supported for UCS archives ({args.path}); "
+            "extract first with `f5 extract` or use --write",
+            file=sys.stderr,
+        )
+        return 2
     try:
         # Strict UTF-8 for in-place writes — see ``f5 query``: silent
         # U+FFFD replacement followed by an in-place rewrite would
         # permanently overwrite the unreadable bytes.
         uri, source = read_path(args.path, strict=args.in_place)
-    except (OSError, UnicodeDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

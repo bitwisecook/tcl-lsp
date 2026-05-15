@@ -18,6 +18,10 @@ _BIGIP_SUFFIXES = frozenset({".conf", ".scf"})
 _UCS_SUFFIXES = frozenset({".ucs"})
 
 
+def _is_gzip(data: bytes) -> bool:
+    return len(data) >= 2 and data[0] == 0x1F and data[1] == 0x8B
+
+
 def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
     """Return ``(uri, source)`` for *path_str*.  ``-`` reads stdin.
 
@@ -28,15 +32,36 @@ def read_path(path_str: str, *, strict: bool = False) -> tuple[str, str]:
     don't permanently lose data on the round-trip — once the source
     has lost a byte to a replacement char, writing the rewritten
     text back overwrites the original byte for good.
+
+    ``.ucs`` archives (and gzipped streams from stdin) are
+    transparently extracted to SCF via :func:`ucs_to_scf` so every
+    verb that reads via ``read_path`` (``query``, ``rename``,
+    ``merge``, ``convert``, ``unredact``) accepts UCS the same way it
+    accepts ``.scf``/``.conf``.
     """
     errors = "strict" if strict else "replace"
     if path_str == "-":
+        raw = sys.stdin.buffer.read()
+        if _is_gzip(raw):
+            from explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+
+            if not is_ucs_bytes(raw):
+                raise ValueError("stdin: gzip stream is not a UCS archive")
+            return ("stdin://input", ucs_to_scf(raw))
         if strict:
-            return ("stdin://input", sys.stdin.buffer.read().decode("utf-8"))
-        return ("stdin://input", sys.stdin.read())
+            return ("stdin://input", raw.decode("utf-8"))
+        return ("stdin://input", raw.decode("utf-8", errors="replace"))
     path = Path(path_str).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"not a file: {path_str}")
+    suffix = path.suffix.lower()
+    if suffix in _UCS_SUFFIXES:
+        from explorer.f5_remote.ucs import is_ucs_bytes, ucs_to_scf
+
+        raw = path.read_bytes()
+        if not is_ucs_bytes(raw):
+            raise ValueError(f"{path_str}: not a valid UCS archive")
+        return (path.as_uri(), ucs_to_scf(raw))
     return (path.as_uri(), path.read_text(encoding="utf-8", errors=errors))
 
 
@@ -86,10 +111,6 @@ def _read_path_bytes(path_str: str) -> tuple[str, bytes]:
     if not path.is_file():
         raise FileNotFoundError(f"not a file: {path_str}")
     return (path.as_uri(), path.read_bytes())
-
-
-def _is_gzip(data: bytes) -> bool:
-    return len(data) >= 2 and data[0] == 0x1F and data[1] == 0x8B
 
 
 def _config_to_irule_inputs(
