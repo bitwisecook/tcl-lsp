@@ -112,6 +112,9 @@
           "bigip_script.conf",
           "bigip_user.conf"
         ],
+        "extensions": [
+          ".scf"
+        ],
         "configuration": "./language-configuration.json"
       },
       {
