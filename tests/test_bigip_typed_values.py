@@ -81,6 +81,70 @@ class TestIPAddress:
         assert ip.route_domain == 0
         assert str(ip) == "10.0.0.1%0"
 
+    def test_classification_predicates_cover_every_category(self):
+        """Single matrix asserting each well-known address falls
+        into exactly the categories we'd expect.  This is the
+        contract IP-classification builtins rely on.
+
+        Each row pins one canonical example per category so adding
+        a new range later (RFC update, new IETF allocation) can
+        only fail the relevant assertion — not collateral matches
+        in unrelated categories.
+        """
+        # (address, expected-true categories) — every other
+        # category must report False.
+        cases: list[tuple[str, set[str]]] = [
+            ("8.8.8.8", {"public", "ipv4"}),
+            ("10.0.0.1", {"private", "ipv4"}),
+            ("172.16.0.1", {"private", "ipv4"}),
+            ("192.168.1.1", {"private", "ipv4"}),
+            ("127.0.0.1", {"loopback", "private", "ipv4"}),
+            ("0.0.0.0", {"unspecified", "private", "ipv4"}),
+            ("169.254.1.1", {"link_local", "private", "ipv4"}),
+            ("224.0.0.1", {"multicast", "ipv4"}),
+            ("240.0.0.1", {"reserved", "private", "ipv4"}),
+            ("192.0.2.5", {"documentation", "private", "ipv4"}),
+            ("198.51.100.5", {"documentation", "private", "ipv4"}),
+            ("203.0.113.5", {"documentation", "private", "ipv4"}),
+            ("::1", {"loopback", "reserved", "private", "ipv6"}),
+            ("::", {"unspecified", "reserved", "private", "ipv6"}),
+            ("fe80::1", {"link_local", "private", "ipv6"}),
+            ("ff00::1", {"multicast", "ipv6"}),
+            ("2001:db8::1", {"documentation", "private", "ipv6"}),
+            ("fc00::1", {"private", "ipv6"}),
+            ("2001:4860:4860::8888", {"public", "ipv6"}),
+        ]
+        # Every predicate's name and the attribute it maps to.
+        predicates = {
+            "public": "is_public",
+            "private": "is_private",
+            "loopback": "is_loopback",
+            "link_local": "is_link_local",
+            "multicast": "is_multicast",
+            "reserved": "is_reserved",
+            "unspecified": "is_unspecified",
+            "documentation": "is_documentation",
+            "ipv4": "is_ipv4",
+            "ipv6": "is_ipv6",
+        }
+        for text, expected in cases:
+            ip = IPAddress.parse(text)
+            actual = {name for name, attr in predicates.items() if getattr(ip, attr)}
+            assert actual == expected, (
+                f"{text!r}: expected {sorted(expected)}, got {sorted(actual)}"
+            )
+
+    def test_is_public_excludes_multicast_unlike_stdlib_is_global(self):
+        """The stdlib ``ipaddress.is_global`` reports True for
+        multicast addresses because they're not IETF-private; the
+        F5 audit semantics this DSL exposes prefer the stricter
+        unicast-routable meaning."""
+        mcast = IPAddress.parse("224.0.0.1")
+        assert mcast.addr.is_global is True  # stdlib answer
+        assert mcast.is_public is False  # our tightened answer
+        # A plain public unicast keeps reporting True.
+        assert IPAddress.parse("8.8.8.8").is_public is True
+
     def test_parse_non_numeric_suffix_falls_through(self):
         # IPv6 zone-id form ``fe80::1%eth0`` — F5's ``%RD`` is
         # always numeric so the parser doesn't strip a non-numeric
@@ -164,6 +228,39 @@ class TestNetwork:
         n = Network.parse("10.0.0.0/8")
         assert IPAddress.parse("10.0.0.1") in n
         assert IPAddress.parse("11.0.0.1") not in n
+
+    def test_classification_predicates_at_cidr_level(self):
+        """CIDR-level classification mirrors the per-address
+        predicates but reports True only when the whole network
+        falls inside the matching reserved block."""
+        cases: list[tuple[str, set[str]]] = [
+            ("10.0.0.0/8", {"private", "ipv4"}),
+            ("8.8.8.0/24", {"public", "ipv4"}),
+            ("127.0.0.0/8", {"loopback", "private", "ipv4"}),
+            ("224.0.0.0/4", {"multicast", "ipv4"}),
+            ("169.254.0.0/16", {"link_local", "private", "ipv4"}),
+            ("240.0.0.0/4", {"reserved", "private", "ipv4"}),
+            ("fc00::/7", {"private", "ipv6"}),
+            ("fe80::/10", {"link_local", "private", "ipv6"}),
+            ("ff00::/8", {"multicast", "ipv6"}),
+        ]
+        predicates = {
+            "public": "is_public",
+            "private": "is_private",
+            "loopback": "is_loopback",
+            "link_local": "is_link_local",
+            "multicast": "is_multicast",
+            "reserved": "is_reserved",
+            "unspecified": "is_unspecified",
+            "ipv4": "is_ipv4",
+            "ipv6": "is_ipv6",
+        }
+        for text, expected in cases:
+            net = Network.parse(text)
+            actual = {name for name, attr in predicates.items() if getattr(net, attr)}
+            assert actual == expected, (
+                f"{text!r}: expected {sorted(expected)}, got {sorted(actual)}"
+            )
 
     def test_parse_dotted_quad_netmask(self):
         # F5 ``net route`` / ``net self`` configs sometimes spell the

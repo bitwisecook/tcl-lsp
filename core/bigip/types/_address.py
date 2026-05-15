@@ -82,6 +82,71 @@ class IPAddress:
         """``0.0.0.0`` / ``::`` — F5 uses these as listen-on-any wildcards."""
         return self.addr.is_unspecified
 
+    @property
+    def is_multicast(self) -> bool:
+        """RFC 1112 (v4) / RFC 4291 (v6) multicast range."""
+        return self.addr.is_multicast
+
+    @property
+    def is_link_local(self) -> bool:
+        """RFC 3927 (169.254.0.0/16) and RFC 4291 (fe80::/10) link-local."""
+        return self.addr.is_link_local
+
+    @property
+    def is_reserved(self) -> bool:
+        """IANA-reserved range (240.0.0.0/4 et al, plus various v6).
+
+        Distinct from :attr:`is_private` — reserved is "set aside by
+        IANA, no current use" while private is "carved out for
+        intra-network use".
+        """
+        return self.addr.is_reserved
+
+    @property
+    def is_public(self) -> bool:
+        """Globally routable as a *unicast* address on the public
+        internet.
+
+        Stricter than :pyattr:`ipaddress.IPv4Address.is_global`:
+        also rejects multicast, link-local, loopback,
+        unspecified, and reserved ranges.  Use this to decide
+        "should we ever expect to see this address on the outside
+        as a routable unicast target?" without spelling out every
+        negation by hand.
+
+        Note: ``is_global`` in the stdlib reports multicast as
+        global because multicast isn't IETF-private; that's
+        semantically correct but rarely what an audit query
+        means by "public".
+        """
+        return (
+            self.addr.is_global
+            and not self.addr.is_multicast
+            and not self.addr.is_link_local
+            and not self.addr.is_loopback
+            and not self.addr.is_unspecified
+            and not self.addr.is_reserved
+        )
+
+    @property
+    def is_documentation(self) -> bool:
+        """RFC 5737 / RFC 3849 documentation-example range
+        (``192.0.2.0/24``, ``198.51.100.0/24``, ``203.0.113.0/24``,
+        ``2001:db8::/32``).  Configs that pin these are almost
+        always lab / template / dummy values, not production."""
+        # ``ipaddress`` exposes ``is_global`` and ``is_private``
+        # but not a dedicated documentation predicate; check the
+        # canonical ranges directly.
+        if isinstance(self.addr, ipaddress.IPv4Address):
+            doc_ranges = (
+                ipaddress.ip_network("192.0.2.0/24"),
+                ipaddress.ip_network("198.51.100.0/24"),
+                ipaddress.ip_network("203.0.113.0/24"),
+            )
+        else:
+            doc_ranges = (ipaddress.ip_network("2001:db8::/32"),)
+        return any(self.addr in net for net in doc_ranges)
+
     def __str__(self) -> str:
         if self.route_domain is None:
             return self.addr.compressed

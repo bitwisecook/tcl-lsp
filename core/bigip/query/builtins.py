@@ -1113,6 +1113,129 @@ def _builtin_is_unspecified(value: Any) -> bool:
 
 
 @_register(
+    "is_multicast",
+    summary="True when *value* is a multicast IP (``224.0.0.0/4`` / ``ff00::/8``).",
+    signatures=("is_multicast(value: string) -> boolean",),
+    details="""
+    Classifies through Python's ``ipaddress``: IPv4 ``224.0.0.0/4``
+    and IPv6 ``ff00::/8``.  Returns ``false`` for FQDNs, unicast
+    IPs, and unparseable input.
+
+    Related: ``is_link_local``, ``is_reserved``, ``is_public``.
+    """,
+    examples=(".ltm.virtual[] | select(is_multicast(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_multicast(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_multicast")
+    return isinstance(a, IPAddress) and a.is_multicast
+
+
+@_register(
+    "is_link_local",
+    summary=("True when *value* is link-local (``169.254.0.0/16`` IPv4 / ``fe80::/10`` IPv6)."),
+    signatures=("is_link_local(value: string) -> boolean",),
+    details="""
+    RFC 3927 (IPv4) / RFC 4291 (IPv6) link-local — addresses that
+    are only valid on the directly attached segment.  Useful when
+    auditing for accidentally-leaked auto-configured addresses.
+
+    Related: ``is_multicast``, ``is_loopback``, ``is_private``.
+    """,
+    examples=(".ltm.node[] | select(is_link_local(.address)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_link_local(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_link_local")
+    return isinstance(a, IPAddress) and a.is_link_local
+
+
+@_register(
+    "is_reserved",
+    summary="True when *value* is in an IANA-reserved range (no current use).",
+    signatures=("is_reserved(value: string) -> boolean",),
+    details="""
+    Reserved means "IANA has set aside the range, no current
+    allocation" — distinct from ``is_private`` (carved out for
+    intra-network use).  IPv4 ``240.0.0.0/4`` and various IPv6
+    blocks fall here.
+
+    Related: ``is_public``, ``is_private``.
+    """,
+    examples=(".ltm.virtual[] | select(is_reserved(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_reserved(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_reserved")
+    return isinstance(a, IPAddress) and a.is_reserved
+
+
+@_register(
+    "is_public",
+    summary="True when *value* is globally routable on the public internet.",
+    signatures=("is_public(value: string) -> boolean",),
+    details="""
+    Returns ``true`` only when *value* is **not** in any of the
+    reserved / private / loopback / link-local / multicast /
+    unspecified ranges — i.e. an address you might legitimately
+    see on the public internet.  Backed by
+    :pyattr:`ipaddress.IPv4Address.is_global`.
+
+    Use to audit "what's actually exposed?" without spelling out
+    every negation:
+    ``.ltm.virtual[] | select(is_public(.destination)) | .name``.
+
+    Related: ``is_private`` (the complement), ``is_reserved``,
+    ``is_documentation``.
+    """,
+    examples=(".ltm.virtual[] | select(is_public(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_public(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_public")
+    return isinstance(a, IPAddress) and a.is_public
+
+
+@_register(
+    "is_documentation",
+    summary=("True when *value* is in a documentation-example range (RFC 5737 / RFC 3849)."),
+    signatures=("is_documentation(value: string) -> boolean",),
+    details="""
+    IPv4 ``192.0.2.0/24``, ``198.51.100.0/24``, ``203.0.113.0/24``,
+    and IPv6 ``2001:db8::/32``.  Catching these in production
+    configs is almost always a lab-template leak.
+
+    Related: ``is_public``, ``is_private``, ``is_reserved``.
+    """,
+    examples=(".ltm.virtual[] | select(is_documentation(.destination)) | .name",),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_is_documentation(value: Any) -> bool:
+    from ..types import IPAddress
+
+    a = _typed_address(value, name="is_documentation")
+    return isinstance(a, IPAddress) and a.is_documentation
+
+
+@_register(
     "is_wildcard_port",
     summary="True when *value*'s port portion is the wildcard (``any`` / ``*`` / ``0``).",
     signatures=("is_wildcard_port(value: string) -> boolean",),
@@ -1166,6 +1289,277 @@ def _builtin_prefix_length(value: Any) -> int | None:
     if n is None:
         return None
     return n.prefix_length
+
+
+@_register(
+    "network_address",
+    summary="Return the network (``.0``) address of a CIDR.",
+    signatures=("network_address(value: string) -> string | null",),
+    details="""
+    Strips the host bits off *value* and returns the canonical
+    network address.  ``network_address("10.0.0.5/24")`` →
+    ``"10.0.0.0"``.  Returns ``null`` for unparseable input.
+
+    Related: ``broadcast_address``, ``first_host``, ``last_host``,
+    ``prefix_length``.
+    """,
+    examples=(
+        'network_address("10.0.0.5/24")               # -> "10.0.0.0"',
+        ".net.self[] | network_address(.address)",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_network_address(value: Any) -> str | None:
+    n = _typed_network(value, name="network_address")
+    if n is None:
+        return None
+    return str(n.network.network_address)
+
+
+@_register(
+    "broadcast_address",
+    summary="Return the broadcast address of a CIDR (last address in range).",
+    signatures=("broadcast_address(value: string) -> string | null",),
+    details="""
+    For IPv4 the broadcast is the ``.255`` (or whatever the
+    prefix gives); for IPv6 there is no true broadcast, but
+    ``ipaddress`` exposes the last address in the range and we
+    surface it here for symmetry.  Returns ``null`` for
+    unparseable input.
+
+    Related: ``network_address``, ``last_host``, ``host_count``.
+    """,
+    examples=(
+        'broadcast_address("10.0.0.0/24")             # -> "10.0.0.255"',
+        ".net.route[] | {net: network_address(.network), bcast: broadcast_address(.network)}",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_broadcast_address(value: Any) -> str | None:
+    n = _typed_network(value, name="broadcast_address")
+    if n is None:
+        return None
+    return str(n.network.broadcast_address)
+
+
+@_register(
+    "first_host",
+    summary="Return the lowest usable host address inside a CIDR.",
+    signatures=("first_host(value: string) -> string | null",),
+    details="""
+    For prefix lengths that yield a network and broadcast
+    address (IPv4 ``/30`` or shorter, IPv6 anything), this is
+    ``network + 1`` — the first address assignable to a host.
+    For point-to-point ``/31`` and host ``/32`` IPv4 networks
+    where ``ipaddress.hosts()`` is empty, falls back to the
+    network address itself (the only / lowest address in the
+    range).  Returns ``null`` for unparseable input.
+
+    Related: ``last_host``, ``host_count``, ``network_address``.
+    """,
+    examples=(
+        'first_host("10.0.0.0/24")                    # -> "10.0.0.1"',
+        '.ltm.pool[].members[].address | first_host(. + "/24")',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_first_host(value: Any) -> str | None:
+    n = _typed_network(value, name="first_host")
+    if n is None:
+        return None
+    hosts = list(n.network.hosts())
+    if hosts:
+        return str(hosts[0])
+    # /31 and /32 (and v6 /127, /128) have no broadcast / network
+    # split — there's just the one address.
+    return str(n.network.network_address)
+
+
+@_register(
+    "last_host",
+    summary="Return the highest usable host address inside a CIDR.",
+    signatures=("last_host(value: string) -> string | null",),
+    details="""
+    The mirror of :func:`first_host`.  For ``/30`` and shorter
+    IPv4 networks this is one below the broadcast; for ``/31``
+    and ``/32`` it is the network address itself.  Returns
+    ``null`` for unparseable input.
+
+    Related: ``first_host``, ``broadcast_address``, ``host_count``.
+    """,
+    examples=('last_host("10.0.0.0/24")                     # -> "10.0.0.254"',),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_last_host(value: Any) -> str | None:
+    n = _typed_network(value, name="last_host")
+    if n is None:
+        return None
+    hosts = list(n.network.hosts())
+    if hosts:
+        return str(hosts[-1])
+    return str(n.network.network_address)
+
+
+@_register(
+    "host_count",
+    summary="Count of host addresses inside a CIDR.",
+    signatures=("host_count(value: string) -> integer | null",),
+    details="""
+    Returns the number of host-assignable addresses in *value*.
+    ``host_count("10.0.0.0/24")`` → ``254`` (256 − network −
+    broadcast).  ``/31`` returns 2 and ``/32`` returns 1, matching
+    operational reality on point-to-point and host networks.
+    Returns ``null`` for unparseable input.
+
+    Related: ``first_host``, ``last_host``, ``prefix_length``.
+    """,
+    examples=(
+        'host_count("10.0.0.0/24")                    # -> 254',
+        'host_count("10.0.0.0/31")                    # -> 2',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_host_count(value: Any) -> int | None:
+    n = _typed_network(value, name="host_count")
+    if n is None:
+        return None
+    network = n.network
+    total = network.num_addresses
+    # /31 (and IPv6 /127) are point-to-point: both addresses are
+    # usable hosts.  /32 (and /128) are single-host networks.
+    if total <= 2:
+        return total
+    # Otherwise subtract network + broadcast.
+    return total - 2
+
+
+@_register(
+    "collapse_cidrs",
+    summary="Merge a list of CIDRs into the minimal set of ranges.",
+    signatures=("collapse_cidrs(values: list[string]) -> list[string]",),
+    details="""
+    Wraps :func:`ipaddress.collapse_addresses`.  Adjacent or
+    subsumed CIDRs in *values* are merged so the result is the
+    smallest set of non-overlapping ranges that covers the same
+    address space.  Mixed IPv4 / IPv6 lists are split and each
+    family collapsed independently.
+
+    Useful for normalising address-list and firewall-rule
+    address-list payloads before diffing:
+    ``collapse_cidrs([.security.firewall."address-list"[].addresses[]])``.
+
+    Related: ``supernet_of`` (one CIDR covering everything),
+    ``subnet_of``.
+    """,
+    examples=(
+        'collapse_cidrs(["10.0.0.0/24", "10.0.1.0/24"])    # -> ["10.0.0.0/23"]',
+        'collapse_cidrs(["10.0.0.0/8", "10.1.0.0/16"])     # -> ["10.0.0.0/8"]',
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+    stream_aware=True,
+)
+def _builtin_collapse_cidrs(values: Any) -> list[str]:
+    import ipaddress as _ip
+
+    items = _as_sequence(values, name="collapse_cidrs", arg=1)
+    v4: list[_ip.IPv4Network] = []
+    v6: list[_ip.IPv6Network] = []
+    for item in items:
+        net = _typed_network(item, name="collapse_cidrs")
+        if net is None:
+            continue
+        if isinstance(net.network, _ip.IPv4Network):
+            v4.append(net.network)
+        else:
+            v6.append(net.network)
+    out: list[str] = [str(n) for n in _ip.collapse_addresses(v4)]
+    out.extend(str(n) for n in _ip.collapse_addresses(v6))
+    return out
+
+
+@_register(
+    "supernet_of",
+    summary=("Return the smallest single CIDR that covers every address or network in *values*."),
+    signatures=("supernet_of(values: list[string]) -> string | null",),
+    details="""
+    Finds the minimal supernet that contains every input.
+    Plain IPs are treated as ``/32`` (IPv4) or ``/128`` (IPv6).
+    Mixed-family inputs raise — IPv4 and IPv6 are never in the
+    same supernet.  Returns ``null`` when *values* is empty.
+
+    Pairs with ``collapse_cidrs`` for the two natural CIDR-
+    algebra operations: "merge what's already adjacent" versus
+    "what's the bounding CIDR".
+
+    Related: ``collapse_cidrs``, ``subnet_of``, ``in_cidr``.
+    """,
+    examples=(
+        'supernet_of(["10.0.0.1", "10.0.1.1"])             # -> "10.0.0.0/23"',
+        'supernet_of(["10.0.0.0/24", "10.0.1.0/24"])       # -> "10.0.0.0/23"',
+        ".ltm.pool[].members[].address | [.] | supernet_of(.)",
+    ),
+    category="net",
+    min_args=1,
+    max_args=1,
+    stream_aware=True,
+)
+def _builtin_supernet_of(values: Any) -> str | None:
+    import ipaddress as _ip
+
+    items = _as_sequence(values, name="supernet_of", arg=1)
+    nets: list[_ip.IPv4Network | _ip.IPv6Network] = []
+    for item in items:
+        # Try CIDR first; fall back to single-host wrapping.
+        net = _typed_network(item, name="supernet_of")
+        if net is not None:
+            nets.append(net.network)
+            continue
+        addr = _typed_address(item, name="supernet_of")
+        if addr is None:
+            continue
+        from ..types import IPAddress
+
+        if not isinstance(addr, IPAddress):
+            continue
+        prefix = 32 if addr.is_ipv4 else 128
+        nets.append(_ip.ip_network(f"{addr.addr}/{prefix}", strict=False))
+    if not nets:
+        return None
+    families = {type(n) for n in nets}
+    if len(families) > 1:
+        raise BuiltinError("supernet_of: cannot mix IPv4 and IPv6 inputs")
+    # Iteratively shrink the prefix until a single network covers
+    # every input.  ``ipaddress`` doesn't expose a "minimal-cover"
+    # helper but ``supernet(prefixlen_diff=N)`` lets us widen each
+    # input and check for convergence.
+    network_cls = next(iter(families))
+    family_max_prefix = 32 if network_cls is _ip.IPv4Network else 128
+    lowest = min(int(n.network_address) for n in nets)
+    highest = max(int(n.broadcast_address) for n in nets)
+    # Walk prefix lengths from the most specific (the shortest
+    # prefix present in inputs) outward until the candidate
+    # contains the full ``[lowest, highest]`` span.
+    prefix = min(n.prefixlen for n in nets)
+    while prefix >= 0:
+        candidate = _ip.ip_network((lowest, prefix), strict=False)
+        if int(candidate.network_address) <= lowest and int(candidate.broadcast_address) >= highest:
+            return str(candidate)
+        prefix -= 1
+    # Fallback: the family's default (0.0.0.0/0 or ::/0) covers
+    # everything.
+    return "0.0.0.0/0" if family_max_prefix == 32 else "::/0"
 
 
 @_register(

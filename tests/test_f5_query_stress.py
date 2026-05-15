@@ -29,6 +29,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.bigip.query import run_query
@@ -661,3 +663,176 @@ def test_refs_returns_the_actual_pool_path():
     [deps] = _run(expr).values_per_file["mem://big"]
     assert "/Common/web_pool" in deps
     assert "/Common/log_rule" in deps
+
+
+# ===========================================================================
+# Pattern 16: IP classification predicates
+# ===========================================================================
+
+
+_CLASSIFIER_CONF = """\
+ltm node /Common/n_public { address 8.8.8.8 }
+ltm node /Common/n_private { address 10.0.0.1 }
+ltm node /Common/n_loopback { address 127.0.0.1 }
+ltm node /Common/n_link_local { address 169.254.1.1 }
+ltm node /Common/n_multicast { address 224.0.0.1 }
+ltm node /Common/n_reserved { address 240.0.0.1 }
+ltm node /Common/n_doc1 { address 192.0.2.1 }
+ltm node /Common/n_doc2 { address 198.51.100.1 }
+ltm node /Common/n_v6_public { address 2001:4860:4860::8888 }
+ltm node /Common/n_v6_doc { address 2001:db8::1 }
+"""
+
+
+def test_is_public_filters_to_globally_routable_unicast():
+    """``is_public`` accepts only addresses that would be valid
+    unicast targets on the public internet — every other IP
+    category (private, multicast, link-local, documentation,
+    reserved, loopback) is rejected."""
+    result = run_query(
+        ".ltm.node[] | select(is_public(.address)) | .name",
+        {"mem://classify": _CLASSIFIER_CONF},
+    )
+    rows = result.values_per_file["mem://classify"]
+    assert sorted(rows) == ["n_public", "n_v6_public"]
+
+
+def test_classifier_predicates_partition_every_known_address():
+    """Single sweep across the six new builtins — each predicate
+    must select exactly the nodes that match its category.  Any
+    crossover indicates a classifier-overlap bug (e.g. multicast
+    leaking into ``is_public``)."""
+    expected: dict[str, set[str]] = {
+        "is_public": {"n_public", "n_v6_public"},
+        "is_private": {
+            "n_private",
+            "n_loopback",
+            "n_link_local",
+            "n_reserved",
+            "n_doc1",
+            "n_doc2",
+            "n_v6_doc",
+        },
+        "is_loopback": {"n_loopback"},
+        "is_link_local": {"n_link_local"},
+        "is_multicast": {"n_multicast"},
+        "is_reserved": {"n_reserved"},
+        "is_documentation": {"n_doc1", "n_doc2", "n_v6_doc"},
+    }
+    for builtin, want in expected.items():
+        result = run_query(
+            f".ltm.node[] | select({builtin}(.address)) | .name",
+            {"mem://classify": _CLASSIFIER_CONF},
+        )
+        got = set(result.values_per_file["mem://classify"])
+        assert got == want, f"{builtin}: expected {sorted(want)}, got {sorted(got)}"
+
+
+# ===========================================================================
+# Pattern 17: CIDR algebra
+# ===========================================================================
+
+
+_CIDR_CONF = """\
+net route /Common/r1 { gw 10.0.0.1 network 10.0.0.0/24 }
+net route /Common/r2 { gw 10.0.0.1 network 10.0.1.0/24 }
+net route /Common/r3 { gw 10.0.0.1 network 10.0.2.0/24 }
+net route /Common/r4 { gw 10.0.0.1 network 10.0.4.0/24 }
+ltm node /Common/n_low { address 10.0.0.5 }
+ltm node /Common/n_mid { address 10.0.2.5 }
+ltm node /Common/n_high { address 10.0.4.5 }
+"""
+
+
+def test_network_and_broadcast_address_strip_host_bits():
+    """``network_address`` and ``broadcast_address`` give the
+    canonical endpoints of any CIDR — even when the original
+    spelling has host bits set (a ``net self`` style address)."""
+    result = run_query(
+        '{net: network_address("10.0.0.5/24"), bcast: broadcast_address("10.0.0.5/24")}',
+        {"m": _CIDR_CONF},
+    )
+    [row] = result.values_per_file["m"]
+    assert row == {"net": "10.0.0.0", "bcast": "10.0.0.255"}
+
+
+def test_first_and_last_host_bound_the_assignable_range():
+    """For a normal subnet ``first_host`` is network+1 and
+    ``last_host`` is broadcast-1; for a /31 both endpoints are
+    usable hosts, and for /32 there is just the single address."""
+    cases = [
+        ("10.0.0.0/24", "10.0.0.1", "10.0.0.254"),
+        ("10.0.0.0/31", "10.0.0.0", "10.0.0.1"),
+        ("10.0.0.0/32", "10.0.0.0", "10.0.0.0"),
+    ]
+    for cidr, want_first, want_last in cases:
+        result = run_query(
+            f'{{first: first_host("{cidr}"), last: last_host("{cidr}")}}',
+            {"m": _CIDR_CONF},
+        )
+        [row] = result.values_per_file["m"]
+        assert row == {"first": want_first, "last": want_last}, cidr
+
+
+def test_host_count_treats_point_to_point_and_host_networks_naturally():
+    """A /24 has 254 hosts; /31 has 2 (point-to-point); /32 has 1
+    (host network).  Matches operational reality."""
+    cases = [
+        ('host_count("10.0.0.0/24")', 254),
+        ('host_count("10.0.0.0/30")', 2),
+        ('host_count("10.0.0.0/31")', 2),
+        ('host_count("10.0.0.0/32")', 1),
+        ('host_count("2001:db8::/64")', 18_446_744_073_709_551_614),
+    ]
+    for query, want in cases:
+        result = run_query(query, {"m": _CIDR_CONF})
+        assert result.values_per_file["m"] == [want], query
+
+
+def test_collapse_cidrs_merges_adjacent_routes_from_a_stream():
+    """Feeding ``collapse_cidrs`` the route-table CIDRs returns
+    the minimal covering set: two adjacent /24s collapse to a
+    /23, the disjoint /24 stays separate."""
+    result = run_query(
+        "collapse_cidrs([.net.route[].network])",
+        {"m": _CIDR_CONF},
+    )
+    [collapsed] = result.values_per_file["m"]
+    assert collapsed == ["10.0.0.0/23", "10.0.2.0/24", "10.0.4.0/24"]
+
+
+def test_supernet_of_finds_minimum_enclosing_cidr():
+    """``supernet_of`` walks every input — addresses *and*
+    networks — and returns the smallest single CIDR that
+    contains them all.  Bounds the corpus's ``10.0.0.0/24``,
+    ``10.0.2.0/24``, and ``10.0.4.0/24`` plus the three node
+    addresses into a single ``10.0.0.0/21``."""
+    result = run_query(
+        "supernet_of([.net.route[].network])",
+        {"m": _CIDR_CONF},
+    )
+    [supernet] = result.values_per_file["m"]
+    assert supernet == "10.0.0.0/21"
+
+    # Mixing addresses and networks in one supernet computation
+    # is also legal — addresses are treated as /32.
+    result = run_query(
+        "supernet_of([.ltm.node[].address])",
+        {"m": _CIDR_CONF},
+    )
+    [supernet] = result.values_per_file["m"]
+    # 10.0.0.5, 10.0.2.5, 10.0.4.5 → minimum enclosing CIDR is /21.
+    assert supernet == "10.0.0.0/21"
+
+
+def test_supernet_of_rejects_mixed_ipv4_ipv6_inputs():
+    """v4 and v6 are never in the same supernet — the builtin
+    raises rather than silently picking one family."""
+    from core.bigip.query.errors import QueryError
+
+    mixed = """\
+ltm node /Common/v4 { address 10.0.0.1 }
+ltm node /Common/v6 { address 2001:db8::1 }
+"""
+    with pytest.raises(QueryError, match="cannot mix"):
+        run_query("supernet_of([.ltm.node[].address])", {"m": mixed})

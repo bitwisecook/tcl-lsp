@@ -96,6 +96,62 @@ class Network:
         """
         return self.original in ("default", "default-inet6")
 
+    # ------------------------------------------------------------------
+    # Classification predicates.
+    #
+    # All delegate to the stdlib ``ipaddress`` network attributes,
+    # which classify a *whole network* as belonging to a category
+    # when its address range falls entirely inside one of the
+    # reserved CIDRs IANA / the RFCs publish.  This is the natural
+    # CIDR-level analogue of the per-address predicates on
+    # :class:`IPAddress`.
+    # ------------------------------------------------------------------
+
+    @property
+    def is_private(self) -> bool:
+        """RFC 1918 / RFC 4193 / link-local / reserved private range."""
+        return self.network.is_private
+
+    @property
+    def is_public(self) -> bool:
+        """Globally routable *unicast* network on the public
+        internet.
+
+        Stricter than :pyattr:`ipaddress.IPv4Network.is_global`:
+        excludes multicast, link-local, loopback, unspecified,
+        and reserved ranges (the stdlib counts multicast as
+        global because it isn't IETF-private — semantically
+        correct but rarely what an audit means by "public").
+        """
+        return (
+            self.network.is_global
+            and not self.network.is_multicast
+            and not self.network.is_link_local
+            and not self.network.is_loopback
+            and not self.network.is_unspecified
+            and not self.network.is_reserved
+        )
+
+    @property
+    def is_loopback(self) -> bool:
+        return self.network.is_loopback
+
+    @property
+    def is_link_local(self) -> bool:
+        return self.network.is_link_local
+
+    @property
+    def is_multicast(self) -> bool:
+        return self.network.is_multicast
+
+    @property
+    def is_reserved(self) -> bool:
+        return self.network.is_reserved
+
+    @property
+    def is_unspecified(self) -> bool:
+        return self.network.is_unspecified
+
     def __contains__(self, other: object) -> bool:
         """``ip in network`` membership; accepts :class:`IPAddress` or stdlib types."""
         if isinstance(other, Network):
