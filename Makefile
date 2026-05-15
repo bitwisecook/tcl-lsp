@@ -224,8 +224,13 @@ test-tclpkg-tcl: ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
 	@echo "==> Running pure-Tcl tclpkg tests"
 	cd $(ROOT)/tclpkg-tcl && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
 
-test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM)
-	@echo "==> Running VM tcltest tests"
+test-vm: $(UV_STAMP) ## Run VM tcltest suite (slow — runs Tcl test files through our VM); skip with SKIP_TEST_VM=1
+	@set -eu; \
+	if [ -n "$${SKIP_TEST_VM:-}" ]; then \
+		echo "==> SKIP_TEST_VM set — skipping VM tcltest suite"; \
+		exit 0; \
+	fi; \
+	echo "==> Running VM tcltest tests"; \
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/test_vm_*_test.py -q
 
 test-tcl9: $(UV_STAMP) test-tcl9-samples ## Run Tcl 9 correctness harness + emit tmp/tcl9-report.json
@@ -362,8 +367,13 @@ coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage 
 	@echo ""
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
-check-wasm-parity: $(UV_STAMP) ## Check WASM command parity (registry vs Zig runtime) against tests/baselines/wasm_command_parity.json
-	@echo "==> Checking WASM command parity"
+check-wasm-parity: $(UV_STAMP) ## Check WASM command parity (registry vs Zig runtime) against tests/baselines/wasm_command_parity.json; skip with SKIP_CHECK_WASM_PARITY=1
+	@set -eu; \
+	if [ -n "$${SKIP_CHECK_WASM_PARITY:-}" ]; then \
+		echo "==> SKIP_CHECK_WASM_PARITY set — skipping WASM command parity check"; \
+		exit 0; \
+	fi; \
+	echo "==> Checking WASM command parity"; \
 	cd $(ROOT) && $(UV) run python scripts/check_wasm_command_parity.py --check
 
 snapshot-wasm-parity: $(UV_STAMP) ## Refresh tests/baselines/wasm_command_parity.json from current sources

@@ -79,25 +79,29 @@ async def did_open(params: types.DidOpenTextDocumentParams) -> None:
     elif not folder_cfg.dialect_explicitly_set:
         # Use the document's cached dialect hint (state.dialect_hint is
         # populated by workspace_state.open() via
-        # WorkspaceDocumentState.refresh_dialect_hint).  Only auto-switch
-        # the workspace dialect on the *first* opened document so that
-        # subsequent files with conflicting hints don't ping-pong the
-        # process-wide dialect setting.
+        # WorkspaceDocumentState.refresh_dialect_hint).  Per-folder
+        # dialect always reflects the document's hint — subsequent
+        # requests in this folder go through ``resolve_dialect_for_uri``
+        # which picks it up.  The workspace-wide default
+        # (``configure_signatures``) only auto-switches on the *first*
+        # opened document so later files with conflicting hints don't
+        # ping-pong the process-default ContextVar.
         source_dialect = state.dialect_hint
-        if source_dialect and not had_open_documents:
+        if source_dialect:
             folder_cfg.dialect = source_dialect
-            changed = configure_signatures(dialect=source_dialect)
-            if changed:
+            if not had_open_documents:
+                changed = configure_signatures(dialect=source_dialect)
+                if changed:
+                    log.info(
+                        "Auto-switched workspace dialect to %s for first opened document",
+                        source_dialect,
+                    )
+            else:
                 log.info(
-                    "Auto-switched workspace dialect to %s for first opened document",
+                    "Set per-document dialect %s for %s; workspace dialect unchanged",
                     source_dialect,
+                    uri,
                 )
-        elif source_dialect:
-            log.info(
-                "Using per-document dialect %s for %s; workspace dialect unchanged",
-                source_dialect,
-                uri,
-            )
         else:
             from lsp.workspace_init import _upgrade_dialect_from_workspace
 
