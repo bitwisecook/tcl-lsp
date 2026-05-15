@@ -368,6 +368,13 @@ def _step(value: Any, step, ctx: EvalContext):
             for item in _regex_subscript(value, step.regex, ctx):
                 yield item, True
             return
+        # Subscript expressions evaluate against the path-cursor
+        # (``value``) — consistent with the rest of the DSL where
+        # postfix steps see their LHS as the current value.  For
+        # the "evaluate index against the outer pipe input" idiom
+        # (``$x[.outer_field]``) use ``as $name | $name`` to bind
+        # the outer current explicitly:
+        # ``.outer[] as $o | $x[$o.field]``.
         idx_val = _eval(step.index, value, ctx)
         yield _subscript_step(value, idx_val, ctx), False
         return
