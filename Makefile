@@ -408,6 +408,9 @@ _ci-fast-checks: lint-py typecheck-py check-editor-settings check-wasm-parity
 
 ci-fast: $(UV_STAMP) $(BUILD_INFO) ## Fast CI gate — lint + typecheck + LSP e2e (mirrors GitHub Actions PR job)
 	@$(MAKE) -j $(NPROC) _ci-fast-checks _ci-fast-pytest
+	@mkdir -p $(ROOT)tmp
+	@$(ROOT)scripts/worktree-fingerprint.sh > $(ROOT)tmp/ci-fast.stamp
+	@echo "==> ci-fast: PASSED — stamped $(ROOT)tmp/ci-fast.stamp"
 
 prep-pr: format codegen ## Fast pre-PR gate (format + codegen + lint + typecheck + fast tests, no UI/smoke)
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-tests

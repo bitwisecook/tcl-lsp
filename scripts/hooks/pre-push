@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-# Pre-push hook: refuse to push unless `make check-all` has been run against
-# the current worktree.
+# Pre-push hook: refuse to push unless one of the recognised gate
+# stamps matches the current worktree.
 #
-# `make check-all` runs full lint + typecheck across every language
-# (Python via Ruff/ty, TypeScript via ESLint/Prettier/tsc, Zig via
-# zig fmt --check + zig build, Rust via cargo fmt --check + clippy).
-# On success it writes the worktree fingerprint to tmp/check-all.stamp.
-# `make test-slow` is a superset and writes the same stamp.
+# Accepted stamps, in order of preference:
 #
-# This hook recomputes the fingerprint and rejects the push if it doesn't
-# match the stamp.  See AGENTS.md for the stricter rule that agents must
-# also have a matching tmp/test-slow.stamp before opening a PR.
+#   tmp/test-slow.stamp   — comprehensive (`make test-slow`).  Strictest.
+#   tmp/check-all.stamp   — full lint + typecheck across every language.
+#   tmp/ci-fast.stamp     — Python lint + typecheck + fast tests (≈10s).
+#                           Minimum gate; mirrors the GitHub Actions
+#                           ``pr-gate`` job that the PR will run.
 #
-# Bypass with --no-verify or SKIP_PUSH_GATE=1 only when explicitly authorised.
+# Each ``make`` target writes its own stamp on success via
+# :file:`scripts/worktree-fingerprint.sh`; the hook recomputes the
+# fingerprint at push time and rejects the push if no stamp matches.
+#
+# Agents must also have a matching ``tmp/test-slow.stamp`` before
+# opening a PR (see AGENTS.md).
+#
+# Bypass with ``--no-verify`` or ``SKIP_PUSH_GATE=1`` only when
+# explicitly authorised.
 set -euo pipefail
 
 if [ -n "${SKIP_PUSH_GATE:-}" ] || [ -n "${SKIP_TEST_SLOW_GATE:-}" ]; then
@@ -20,7 +26,6 @@ if [ -n "${SKIP_PUSH_GATE:-}" ] || [ -n "${SKIP_TEST_SLOW_GATE:-}" ]; then
 fi
 
 repo_root=$(git rev-parse --show-toplevel)
-stamp_file="$repo_root/tmp/check-all.stamp"
 fingerprint_script="$repo_root/scripts/worktree-fingerprint.sh"
 hooks_dir=$(cd "$repo_root" && git rev-parse --git-path hooks)
 case "$hooks_dir" in
@@ -36,43 +41,62 @@ fi
 
 current=$("$fingerprint_script")
 
-if [ ! -f "$stamp_file" ]; then
+# Stamps are ordered from strongest to weakest.  Any matching stamp
+# at the current fingerprint accepts the push.
+stamps=(
+    "$repo_root/tmp/test-slow.stamp"
+    "$repo_root/tmp/check-all.stamp"
+    "$repo_root/tmp/ci-fast.stamp"
+)
+
+matched=""
+for stamp in "${stamps[@]}"; do
+    if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$current" ]; then
+        matched="$stamp"
+        break
+    fi
+done
+
+if [ -n "$matched" ]; then
+    exit 0
+fi
+
+# Drift / missing — explain how to recover.
+existing=""
+for stamp in "${stamps[@]}"; do
+    if [ -f "$stamp" ]; then
+        existing="$existing\n  $stamp ($(cat "$stamp"))"
+    fi
+done
+
+if [ -z "$existing" ]; then
     cat >&2 <<EOF
-pre-push: refused — no check-all stamp found at $stamp_file
+pre-push: refused — no gate stamp found in $repo_root/tmp/
 pre-push:
-pre-push: Before any push, full lint + typecheck across every language
-pre-push: (Python, TypeScript, Zig, Rust) must pass and be fixed.  Run:
+pre-push: Run ONE of the following before pushing:
 pre-push:
-pre-push:     make check-all
+pre-push:   make ci-fast       Fast Python gate (~10s)
+pre-push:   make check-all     Full multi-language gate (~30s)
+pre-push:   make test-slow     Comprehensive (required before opening a PR)
 pre-push:
-pre-push: Or, if you also intend to open a PR (which requires test-slow):
-pre-push:
-pre-push:     make test-slow
-pre-push:
-pre-push: Either target writes tmp/check-all.stamp on success.
+pre-push: Each target writes its own stamp on success.
 pre-push:
 pre-push: To bypass temporarily: SKIP_PUSH_GATE=1 git push ...
 pre-push: To uninstall the hook:  rm $hooks_dir/pre-push
 EOF
-    exit 1
-fi
-
-stamped=$(cat "$stamp_file")
-
-if [ "$stamped" != "$current" ]; then
+else
     cat >&2 <<EOF
-pre-push: refused — worktree fingerprint does not match the recorded check-all stamp
+pre-push: refused — worktree fingerprint does not match any gate stamp
 pre-push:
-pre-push:   stamp at: $stamp_file
-pre-push:   stamped:  $stamped
-pre-push:   current:  $current
+pre-push:   current:$existing
+pre-push:           current fingerprint: $current
 pre-push:
-pre-push: The worktree has changed since 'make check-all' last passed.
-pre-push: Re-run 'make check-all' (or 'make test-slow') before pushing.
+pre-push: The worktree has changed since the last gate run.  Re-run
+pre-push: 'make ci-fast' (fast) / 'make check-all' (strict) /
+pre-push: 'make test-slow' (full) before pushing.
 pre-push:
 pre-push: To bypass temporarily: SKIP_PUSH_GATE=1 git push ...
 EOF
-    exit 1
 fi
 
-exit 0
+exit 1
