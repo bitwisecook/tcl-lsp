@@ -512,6 +512,79 @@ def _builtin_ip(*args: Any) -> str:
 
 
 @_register(
+    "ip_translate",
+    summary=(
+        "Map an address from a source network to a destination network, "
+        "across address families when needed."
+    ),
+    signatures=("ip_translate(src_net: string, dst_net: string, addr: string) -> string",),
+    details="""
+    Computes the host-bit offset of *addr* within *src_net* and applies
+    that same offset within *dst_net*.  When the two networks belong to
+    different families (IPv4 / IPv6) this performs an address-family
+    translation: the host portion of an IPv4 address can be re-emitted
+    inside an IPv6 prefix and vice versa.
+
+    *src_net* must cover *addr*: if the host bits of *addr* relative to
+    *src_net* don't fit inside *dst_net* (i.e. ``dst_net`` is more
+    specific than ``src_net``), :class:`BuiltinError` is raised so
+    silent truncation can't slip through.
+
+    The returned string is the bare address — partition prefix and port
+    are not preserved (callers building tmsh stanzas can re-attach
+    them with ``+`` concatenation).  Use ``ip(net, src)`` instead when
+    the operation stays in one family and you want to keep partition /
+    route-domain / port from the source.
+
+    Related: ``ip``, ``in_cidr``, ``net``.
+    """,
+    examples=(
+        'ip_translate("10.0.0.0/8", "2001:db8::/32", "10.1.2.3")',
+        '# -> "2001:db8::1:203"',
+        'ip_translate("192.168.50.0/24", "2001:db8:50::/64", "192.168.50.10")',
+        '# -> "2001:db8:50::a"',
+    ),
+    category="net",
+    min_args=3,
+    max_args=3,
+)
+def _builtin_ip_translate(*args: Any) -> str:
+    src_str = _as_str(args[0], name="ip_translate", arg=1)
+    dst_str = _as_str(args[1], name="ip_translate", arg=2)
+    addr_str = _as_str(args[2], name="ip_translate", arg=3)
+    try:
+        src_net = ipaddress.ip_network(src_str, strict=False)
+    except ValueError as exc:
+        raise BuiltinError(f"ip_translate: invalid src_net {src_str!r}: {exc}") from exc
+    try:
+        dst_net = ipaddress.ip_network(dst_str, strict=False)
+    except ValueError as exc:
+        raise BuiltinError(f"ip_translate: invalid dst_net {dst_str!r}: {exc}") from exc
+    _, bare_addr, _, _ = _split_destination(addr_str)
+    try:
+        src_ip = ipaddress.ip_address(bare_addr)
+    except ValueError as exc:
+        raise BuiltinError(f"ip_translate: invalid addr {bare_addr!r}: {exc}") from exc
+    if src_ip not in src_net:
+        raise BuiltinError(
+            f"ip_translate: {bare_addr!r} is not within src_net {src_str!r}"
+        )
+    src_host_bits = src_net.max_prefixlen - src_net.prefixlen
+    dst_host_bits = dst_net.max_prefixlen - dst_net.prefixlen
+    if src_host_bits > dst_host_bits:
+        raise BuiltinError(
+            f"ip_translate: dst_net {dst_str!r} is too specific to hold "
+            f"the host bits of src_net {src_str!r} "
+            f"({src_host_bits}-bit host vs {dst_host_bits}-bit host)"
+        )
+    host_offset = int(src_ip) - int(src_net.network_address)
+    new_int = int(dst_net.network_address) | host_offset
+    if isinstance(dst_net, ipaddress.IPv4Network):
+        return str(ipaddress.IPv4Address(new_int))
+    return str(ipaddress.IPv6Address(new_int))
+
+
+@_register(
     "net",
     summary="Return the network portion of an IP/CIDR string as ``addr/prefix``.",
     signatures=("net(value: string) -> string",),

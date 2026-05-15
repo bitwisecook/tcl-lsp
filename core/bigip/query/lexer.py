@@ -50,6 +50,7 @@ class TokenKind(Enum):
     NULL = auto()
     AS = auto()  # `expr as $name | body` — jq's let-binding form
     DOLLAR_IDENT = auto()  # $name — variable reference to a named source
+    QUESTION = auto()  # `?` — optional-marker suffix on a path step
     EOF = auto()
 
 
@@ -121,6 +122,7 @@ def tokenise(source: str) -> list[Token]:
             ";": TokenKind.SEMICOLON,
             "*": TokenKind.STAR,
             "/": TokenKind.SLASH,
+            "?": TokenKind.QUESTION,
         }
         if ch in simple:
             out.append(Token(simple[ch], ch, start))

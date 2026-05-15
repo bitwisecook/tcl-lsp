@@ -1,0 +1,28 @@
+# Migrate every IPv4 virtual server into the equivalent IPv6 stanza
+# using a JSON map of IPv4 network -> IPv6 network.
+#
+# Run:
+#   f5 query \
+#     --raw \
+#     -f samples/for_f5_query/examples/migrate_v4_to_v6.f5q \
+#     --input-json netmap.json=samples/for_f5_query/examples/v4_to_v6_map.json \
+#     samples/for_f5_query/examples/v4_ltm.conf
+#
+# The map file is a JSON array of {"v4": cidr, "v6": cidr} pairs.  Each
+# IPv4 VS destination is rebased into the v6 prefix that covers its
+# source network — host bits are preserved, so 10.0.0.20 in the
+# 10.0.0.0/8 -> 2001:db8:a::/48 mapping becomes 2001:db8:a::14.
+#
+# Pipe to a file to land a self-contained SCF that can be `tmsh load`-ed.
+
+.ltm.virtual[]
+| select(is_ipv4(host(.destination)))
+| . as $vs
+| $netmap[] as $m
+| select(in_cidr(host($vs.destination), $m.v4))
+| "ltm virtual /" + partition($vs.destination) + "/" + $vs.name + "_v6 {\n"
++ "    destination /" + partition($vs.destination) + "/"
++ ip_translate($m.v4, $m.v6, host($vs.destination)) + "." + str(port($vs.destination)) + "\n"
++ "    ip-protocol tcp\n"
++ "    pool " + str($vs.pool) + "\n"
++ "}"

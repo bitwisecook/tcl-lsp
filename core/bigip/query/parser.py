@@ -284,9 +284,15 @@ class _Parser:
         Trailing ``.field`` and ``[...]`` are accepted after any
         primary, not just after a leading ``.`` — that matches jq's
         ``f[]`` / ``f.field`` postfix and lets idioms like
-        ``refs(.)[]`` (iterate the result of a call) work.  When
-        postfix steps follow a non-path primary the primary's value
-        is fed into a synthetic path via :class:`Pipe`.
+        ``refs(.)[]`` (iterate the result of a call) work.
+
+        Non-Identity primaries (``$x.foo``, ``f(.).y[0]``,
+        ``"literal"[0]``) emit a :class:`PathExpr` with ``head`` set
+        to the primary.  The evaluator walks ``head`` to obtain the
+        starting value but keeps the original pipe input as ``.``
+        for subscript index expressions — matching jq's
+        ``$x[.field]`` semantics where ``.field`` resolves against
+        the surrounding current, not against ``$x``.
         """
         primary = self._parse_primary()
         steps: list = []
@@ -306,8 +312,13 @@ class _Parser:
         if not steps:
             return primary
         offset = getattr(primary, "offset", 0)
-        path = PathExpr(steps=tuple(steps), offset=offset)
-        return Pipe(lhs=primary, rhs=path, offset=offset)
+        # Identity primary: the steps walk from ``.`` directly —
+        # no need for a ``head`` wrapper.  Every other primary
+        # becomes the ``head`` of the path so the evaluator can
+        # preserve the outer current for subscript expressions.
+        if isinstance(primary, Identity):
+            return PathExpr(steps=tuple(steps), offset=offset)
+        return PathExpr(steps=tuple(steps), offset=offset, head=primary)
 
     def _parse_primary(self) -> Expr:
         tok = self._peek()
@@ -431,14 +442,18 @@ class _Parser:
             name = str(tok.value)
         else:  # pragma: no cover - unreachable
             raise ParseError("expected field name", tok.offset)
-        return Field(name=name, optional=False, offset=tok.offset)
+        optional = self._consume_optional_marker()
+        return Field(name=name, optional=optional, offset=tok.offset)
 
     def _parse_subscript_step(self) -> Subscript:
         lb = self._expect(TokenKind.LBRACKET, msg="expected '['")
         nxt = self._peek()
         if nxt.kind is TokenKind.RBRACKET:
             self._consume()
-            return Subscript(stream=True, index=None, regex=None, offset=lb.offset)
+            optional = self._consume_optional_marker()
+            return Subscript(
+                stream=True, index=None, regex=None, offset=lb.offset, optional=optional
+            )
         # A bare string subscript whose contents start with ``~`` is a
         # regex subscript.  We recognise it here rather than in the
         # lexer so a string literal starting with ``~`` in any other
@@ -452,10 +467,28 @@ class _Parser:
         ):
             self._consume()
             self._expect(TokenKind.RBRACKET, msg="expected ']' after regex subscript")
-            return Subscript(stream=False, index=None, regex=nxt.value[1:], offset=lb.offset)
+            optional = self._consume_optional_marker()
+            return Subscript(
+                stream=False, index=None, regex=nxt.value[1:], offset=lb.offset, optional=optional
+            )
         inner = self._parse_pipeline()
         self._expect(TokenKind.RBRACKET, msg="expected ']'")
-        return Subscript(stream=False, index=inner, regex=None, offset=lb.offset)
+        optional = self._consume_optional_marker()
+        return Subscript(
+            stream=False, index=inner, regex=None, offset=lb.offset, optional=optional
+        )
+
+    def _consume_optional_marker(self) -> bool:
+        """Consume an optional ``?`` token after a path step.
+
+        Matches jq's optional-access form: ``.foo?`` and ``.[expr]?``
+        swallow a missing key, out-of-range index, or wrong-type
+        subscript error and produce no value instead of raising.
+        """
+        if self._peek().kind is TokenKind.QUESTION:
+            self._consume()
+            return True
+        return False
 
     def _parse_object_literal(self) -> Expr:
         """``{ key: expr, key2, key3: expr3, ... }`` — jq's object constructor.

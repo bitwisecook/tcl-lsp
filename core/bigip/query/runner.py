@@ -532,7 +532,20 @@ def _is_purely_variable_rooted(program) -> bool:
         if isinstance(node, Identity):
             return True
         if isinstance(node, PathExpr):
-            # A PathExpr with no preceding ``$name`` reads from ``.``.
+            # A PathExpr with ``head`` (``$name.foo`` / ``f(.).y``)
+            # is rooted at that expression — ``.`` only matters if
+            # the head itself uses primary, or if any subscript
+            # index expression in the steps references ``.``.
+            if node.head is not None:
+                if _uses_primary(node.head):
+                    return True
+                for step in node.steps:
+                    if isinstance(step, PathExpr):  # pragma: no cover
+                        continue
+                    index = getattr(step, "index", None)
+                    if index is not None and _uses_primary(index):
+                        return True
+                return False
             return True
         if isinstance(node, Pipe):
             # ``$ltm.x | <body>`` — body runs against the LHS, not

@@ -339,12 +339,27 @@ _UNBOUND = _Unbound()
 
 
 def _eval_path(node: PathExpr, current: Any, ctx: EvalContext) -> Any:
-    values: list[Any] = [current]
+    # ``head`` is the optional rooting expression: ``$x.foo``,
+    # ``f(.).y``, ``"text"[0]``.  When set the walk starts from its
+    # value; otherwise the bare ``.`` is the starting input.  The
+    # outer ``current`` stays available as ``path_input`` so a
+    # subscript index expression (``$x[.field]``) keeps the same
+    # ``.`` as the surrounding pipeline — matches jq.
     is_stream = False
+    if node.head is not None:
+        head_value = _eval(node.head, current, ctx)
+        if isinstance(head_value, Stream):
+            values = list(head_value.items)
+            is_stream = True
+        else:
+            values = [head_value]
+    else:
+        values = [current]
+    path_input = current
     for step in node.steps:
         next_values: list[Any] = []
         for value in values:
-            for produced, produced_is_stream in _step(value, step, ctx):
+            for produced, produced_is_stream in _step(value, step, path_input, ctx):
                 next_values.append(produced)
                 if produced_is_stream:
                     is_stream = True
@@ -354,29 +369,49 @@ def _eval_path(node: PathExpr, current: Any, ctx: EvalContext) -> Any:
     return values[0]
 
 
-def _step(value: Any, step, ctx: EvalContext):
+def _step(value: Any, step, path_input: Any, ctx: EvalContext):
     if isinstance(step, Field):
-        for produced in _field_step(value, step, ctx):
+        try:
+            produced_iter = list(_field_step(value, step, ctx))
+        except EvalError:
+            if getattr(step, "optional", False):
+                return
+            raise
+        for produced in produced_iter:
             yield produced, False
         return
     if isinstance(step, Subscript):
+        optional = getattr(step, "optional", False)
         if step.stream:
-            for item in _stream_items(_subscript_root(value, ctx)):
+            try:
+                root = _subscript_root(value, ctx)
+            except EvalError:
+                if optional:
+                    return
+                raise
+            for item in _stream_items(root):
                 yield item, True
             return
         if step.regex is not None:
-            for item in _regex_subscript(value, step.regex, ctx):
+            try:
+                regex_items = list(_regex_subscript(value, step.regex, ctx))
+            except EvalError:
+                if optional:
+                    return
+                raise
+            for item in regex_items:
                 yield item, True
             return
-        # Subscript expressions evaluate against the path-cursor
-        # (``value``) — consistent with the rest of the DSL where
-        # postfix steps see their LHS as the current value.  For
-        # the "evaluate index against the outer pipe input" idiom
-        # (``$x[.outer_field]``) use ``as $name | $name`` to bind
-        # the outer current explicitly:
-        # ``.outer[] as $o | $x[$o.field]``.
-        idx_val = _eval(step.index, value, ctx)
-        yield _subscript_step(value, idx_val, ctx), False
+        # Subscript index expressions evaluate against the *outer*
+        # pipe input (``path_input``), matching jq: in ``.a | $x[.b]``
+        # the ``.b`` resolves against ``.a``, not against ``$x``.
+        idx_val = _eval(step.index, path_input, ctx)
+        try:
+            yield _subscript_step(value, idx_val, ctx), False
+        except EvalError:
+            if optional:
+                return
+            raise
         return
     raise EvalError(f"unknown path step: {type(step).__name__}")  # pragma: no cover
 
@@ -1004,7 +1039,7 @@ def _resolve_assignment_targets(
             "assignment LHS must end in a field access (e.g. '.foo'); "
             "subscript-only paths are not writable"
         )
-    prefix = PathExpr(steps=path.steps[:-1], offset=path.offset)
+    prefix = PathExpr(steps=path.steps[:-1], offset=path.offset, head=path.head)
     prefix_value = _eval_path(prefix, current, ctx)
     targets: list[_AssignTarget] = []
     for obj in _flatten(prefix_value):

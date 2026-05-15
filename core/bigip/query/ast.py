@@ -88,13 +88,20 @@ class Field:
 
 @dataclass(frozen=True, slots=True)
 class Subscript:
-    """``[expr]`` / ``["~regex"]`` / ``[number]`` / ``[]``."""
+    """``[expr]`` / ``["~regex"]`` / ``[number]`` / ``[]``.
+
+    ``optional`` (the ``?`` suffix) makes the step error-suppressing:
+    a missing key, an out-of-range index, or a wrong-type subscript
+    yields no value instead of raising.  Matches jq's ``[]?`` and
+    ``[expr]?`` semantics.
+    """
 
     # When `stream` is True this is the bare ``[]`` (iterate all).
     stream: bool
     index: "Expr | None"
     regex: str | None  # set when the subscript was ``["~..."]``
     offset: int
+    optional: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,10 +112,20 @@ class PathExpr:
     follows the chain to fetch a value) and writable (an assignment
     writes back through them).  Other expression kinds cannot appear on
     the LHS of ``=`` / ``|=``.
+
+    ``head`` is the optional rooting expression — when set (``$x.foo``,
+    ``f(.).y[0]``), the steps walk from ``head``'s value rather than
+    from the current input.  Crucially, subscript index expressions
+    inside the steps still evaluate against the *outer* current
+    (matches jq's ``$x[.key]`` semantics: ``.key`` resolves against
+    the surrounding pipeline input, not against ``$x``).  When
+    ``head`` is ``None`` the path is bare-``.``-rooted and behaves
+    as before.
     """
 
     steps: tuple["PathStep", ...]
     offset: int
+    head: "Expr | None" = None
 
 
 PathStep = Union[Field, Subscript]
