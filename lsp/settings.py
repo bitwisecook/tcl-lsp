@@ -168,6 +168,16 @@ _FEATURE_TOGGLE_KEYS = {
 # config loader logs a warning when it sees one change so users know.
 _RESTART_REQUIRED_TOGGLES = frozenset({"pull_diagnostics_enabled"})
 
+# Schema default for ``tclLsp.dialect`` — kept in sync with the
+# ``editors/vscode/package.json`` schema.  VS Code's
+# ``workspace/configuration`` returns this value for every scope that
+# doesn't carry its own ``tclLsp.dialect`` entry; we use it to
+# distinguish "user explicitly set the dialect" from "client echoed
+# back the schema default" so the iRules / iApps auto-switch in
+# ``did_open`` doesn't get blocked by a non-override.
+_DIALECT_SCHEMA_DEFAULT = "tcl8.6"
+
+
 # Server reference injection
 
 _server: LanguageServer | None = None
@@ -181,11 +191,22 @@ def configure(server_instance: LanguageServer) -> None:
 # Feature settings application
 
 
-def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" = None) -> bool:
+def _apply_feature_settings(
+    tcl_settings: dict,
+    target: "FeatureConfig | None" = None,
+) -> bool:
     """Apply feature toggles and diagnostic/optimiser filters to ``target``.
 
     Mutates ``target`` (defaulting to the workspace-level ``feature_config``)
     in place and returns True if any diagnostics need republishing.
+
+    A pulled ``tclLsp.dialect`` matching :data:`_DIALECT_SCHEMA_DEFAULT`
+    is treated as the package.json schema default echoed back via
+    ``workspace/configuration`` rather than an explicit user override —
+    VS Code returns the schema default for every scope that doesn't
+    carry its own entry, and the iRules / iApps auto-switch in
+    ``did_open`` depends on ``dialect_explicitly_set`` staying false
+    when the user hasn't actually pinned the dialect.
     """
     if target is None:
         target = _state.feature_config
@@ -349,13 +370,24 @@ def _apply_feature_settings(tcl_settings: dict, target: "FeatureConfig | None" =
         from core.commands.registry.runtime import _canonical_dialect
 
         canonical = _canonical_dialect(folder_dialect)
-        if canonical is not None and canonical != target.dialect:
-            target.dialect = canonical
-            changed = True
-        if canonical is not None and not target.dialect_explicitly_set:
-            # Per-folder ``tclLsp.dialect`` is an explicit user override —
-            # mark the flag on this target so the auto-detect-from-source
-            # path in ``lifecycle.did_open`` doesn't second-guess it.
+        # VS Code's ``workspace/configuration`` returns the package.json
+        # schema default for every scope without an explicit entry.
+        # Don't promote that echoed default into a *per-folder* override
+        # (leave ``cfg.dialect`` as ``None`` so
+        # ``resolve_dialect_for_uri`` falls through to the workspace
+        # value), and don't flip ``dialect_explicitly_set`` either —
+        # both would block the iRules / iApps auto-switch in
+        # ``did_open`` for every ``.irul`` / ``.iapp`` file opened in a
+        # workspace the user hasn't customised.  The workspace-level
+        # target still records the value so ``configure_signatures``
+        # has a sensible default to wire up.
+        looks_inherited = canonical == _DIALECT_SCHEMA_DEFAULT
+        is_workspace_target = target is _state.feature_config
+        if canonical is not None and (is_workspace_target or not looks_inherited):
+            if canonical != target.dialect:
+                target.dialect = canonical
+                changed = True
+        if canonical is not None and not target.dialect_explicitly_set and not looks_inherited:
             target.dialect_explicitly_set = True
             changed = True
     elif folder_dialect is None and target.dialect is not None and "dialect" in tcl_settings:
@@ -553,7 +585,14 @@ def _apply_merged_settings_now() -> None:
 
     dialect_setting = fallback_settings.get("dialect")
     if isinstance(dialect_setting, str) and dialect_setting:
-        _state.feature_config.dialect_explicitly_set = True
+        # Same heuristic as ``_apply_feature_settings``: only treat the
+        # dialect as an explicit user override when it differs from the
+        # schema default that VS Code echoes back via
+        # ``workspace/configuration``.  Otherwise the iRules / iApps
+        # auto-switch in ``did_open`` would be silently disabled for
+        # every user who hasn't customised ``tclLsp.dialect``.
+        if dialect_setting != _DIALECT_SCHEMA_DEFAULT:
+            _state.feature_config.dialect_explicitly_set = True
     signatures_changed = configure_signatures(
         dialect=dialect_setting if isinstance(dialect_setting, str) else None,
         extra_commands=extra_commands,
