@@ -46,6 +46,7 @@ def test_multitier_sample_files_exist_for_physically_separate_devices():
     expected = {
         "border-nat.json",
         "generate.py",
+        "generate_logs.py",
         "gtm-dns.conf",
         "tier1-ltm-ha.conf",
         "tier3-reaggregator.conf",

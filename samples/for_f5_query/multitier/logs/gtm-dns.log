@@ -1,0 +1,9 @@
+Mar 14 06:40:14 gtm-a.example.test info mcpd[3941]: 01071db9:6: Boot complete on gtm-a.example.test
+Mar 14 07:02:49 gtm-a.example.test info mcpd[3941]: 01071a08:6: Configuration loaded from /config/bigip.conf successfully.
+Mar 14 07:05:19 gtm-a.example.test info named[5700]: 011a3003:6: zone www.example.com reloaded
+Mar 14 07:06:15 gtm-a.example.test info gtmd[2589]: 011a3055:6: wide-IP /Common/www.example.com returning A 203.0.113.10 via /Common/border-fw:public_a
+Mar 14 07:19:56 gtm-a.example.test info gtmd[2589]: 011a3055:6: wide-IP /Common/www.example.com returning A 203.0.113.10 via /Common/border-fw:public_a
+Mar 14 07:24:31 gtm-a.example.test info gtmd[2589]: 011a3055:6: wide-IP /Common/www.example.com returning A 203.0.113.10 via /Common/border-fw:public_a
+Mar 14 08:16:05 gtm-a.example.test warning gtmd[2589]: 011a4001:4: Pool /Common/www_pool member /Common/border-fw:public_b transitioned to down.
+Mar 14 09:08:38 gtm-a.example.test info gtmd[2589]: 011a4002:6: Pool /Common/www_pool member /Common/border-fw:public_b transitioned to up.
+Mar 14 09:53:22 gtm-a.example.test info logger[30530]: 01071be3:6: AUDIT - jadmin - tmsh - tmsh -c save sys config

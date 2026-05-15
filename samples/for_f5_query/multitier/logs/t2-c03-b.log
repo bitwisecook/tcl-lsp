@@ -1,0 +1,14 @@
+Mar 14 07:11:05 t2-c03-b.example.test info mcpd[4304]: 01071db9:6: Boot complete on t2-c03-b.example.test
+Mar 14 07:33:54 t2-c03-b.example.test info mcpd[4304]: 01071a08:6: Configuration loaded from /config/bigip.conf successfully.
+Mar 14 08:11:17 t2-c03-b.example.test info mcpd[4304]: 01340039:6: Device t2-c03-b entered Standby state for /Common/t2-c03-failover.
+Mar 14 09:00:08 t2-c03-b.example.test info logger[31665]: 01070417:6: AUDIT - jadmin - tmsh - tmsh -c modify ltm virtual /Common/app_vs description "managed by netops"
+Mar 14 09:01:57 t2-c03-b.example.test warning bigd[3083]: 01340011:4: Pool /Common/backend_pool member /Common/backend_1:8443 monitor status down.
+Mar 14 09:05:21 t2-c03-b.example.test info bigd[3083]: 01340012:6: Pool /Common/backend_pool member /Common/backend_1:8443 monitor status up.
+Mar 14 09:24:28 t2-c03-b.example.test warning bigd[3083]: 01340011:4: Pool /Common/backend_pool member /Common/backend_2:8443 monitor status down.
+Mar 14 11:09:07 t2-c03-b.example.test info bigd[3083]: 01340012:6: Pool /Common/backend_pool member /Common/backend_2:8443 monitor status up.
+Mar 14 12:05:24 t2-c03-b.example.test notice tmm[19769]: 01230140:5: Connection limit approached on /Common/app_vs.
+Mar 14 12:16:25 t2-c03-b.example.test warning tmm[19769]: 01260009:4: SSL handshake failed for client 198.51.100.7 on /Common/app_vs.
+Mar 14 12:34:39 t2-c03-b.example.test err tmm[19769]: 01010013:3: monitor /Common/tcp failing for /Common/backend_1:8443 (pool /Common/backend_pool).
+Mar 14 12:54:15 t2-c03-b.example.test err tmm[19769]: 01010013:3: monitor /Common/tcp failing for /Common/backend_2:8443 (pool /Common/backend_pool).
+Mar 14 13:06:25 t2-c03-b.example.test info logger[31665]: 01071be3:6: AUDIT - jadmin - tmsh - tmsh -c save sys config
+Mar 14 13:09:47 t2-c03-b.example.test info mcpd[4304]: 01071681:6: Configuration saved to /config/bigip.conf.
