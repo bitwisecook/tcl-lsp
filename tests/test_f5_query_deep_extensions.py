@@ -733,8 +733,12 @@ def _builtin_status_class_query(base_url: str, path: str) -> str:
 def _self_signed_cert(tmp_path: Path) -> tuple[Path, Path]:
     """Generate a self-signed cert + key pair on disk and return
     their paths.  Skips if ``cryptography`` isn't installed."""
-    crypto = pytest.importorskip("cryptography")
-    x509 = crypto.x509
+    pytest.importorskip("cryptography")
+    # ``cryptography`` doesn't re-export submodules from the top
+    # package, so ``importorskip("cryptography").x509`` raises
+    # ``AttributeError``.  Pull each submodule explicitly through
+    # ``importorskip`` to skip cleanly on missing optional dep.
+    x509 = pytest.importorskip("cryptography.x509")
     hashes = pytest.importorskip("cryptography.hazmat.primitives.hashes")
     serialization = pytest.importorskip("cryptography.hazmat.primitives.serialization")
     rsa = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.rsa")

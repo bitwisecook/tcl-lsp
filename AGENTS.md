@@ -241,12 +241,13 @@ for the contract and full per-cluster file layout.
 
 ## Workflow requirements
 
-There are **two distinct gates**, with different scopes and enforcement:
+There are **three distinct gates**, in increasing strictness:
 
 | Gate | Required before | What runs | Enforcement |
 |---|---|---|---|
-| **`make check-all`** | every `git push` | Full lint + typecheck for every language: Python (Ruff + ty), TypeScript (ESLint + Prettier + tsc), Zig (`zig fmt --check` + `zig build`), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook (`scripts/hooks/pre-push`) checks `tmp/check-all.stamp` against the current worktree fingerprint and refuses the push on mismatch |
-| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Python test suite, optimiser coverage, VM tcltest, tclpkg, VS Code extension, Zig runtime tests, Emacs eglot, zipapp & VSIX smokes, and Rust workspace tests when present | Agent rule (below) + reviewer responsibility — verify `tmp/test-slow.stamp` matches the worktree before opening the PR |
+| **`make ci-fast`** | every `git push` (minimum) | Python Ruff + ty (full scope) + WASM parity + editor settings + LSP end-to-end pytest subset.  Mirrors GitHub Actions' `pr-gate` job exactly | Pre-push hook accepts `tmp/ci-fast.stamp` matching the current worktree |
+| **`make check-all`** | every `git push` (stricter) | `ci-fast` + multi-language lint + typecheck across TypeScript (ESLint + Prettier + tsc), Zig (`zig fmt --check` + `zig build`), Rust (`cargo fmt --check` + `cargo clippy`) | Pre-push hook accepts `tmp/check-all.stamp` |
+| **`make test-slow`** | every PR / merge request | Everything `check-all` runs **plus** the full Python test suite, optimiser coverage, VM tcltest, tclpkg, VS Code extension, Zig runtime tests, Emacs eglot, zipapp & VSIX smokes, and Rust workspace tests when present | Pre-push hook accepts `tmp/test-slow.stamp` + agent rule: required before opening a PR |
 
 GitHub Actions only runs `make ci-fast` on PRs (~10s wall clock — Python lint
 + typecheck + LSP end-to-end pytest subset).  Everything else is the
@@ -255,20 +256,28 @@ either gate.
 
 ### Before any push
 
-**Lint and typecheck must be clean for every language before you push.**
-Run:
+**Lint and typecheck must be clean before you push.**  Three gate
+levels, weakest → strongest:
 
 ```
-make check-all
+make ci-fast        # ~10s — mirrors what GitHub Actions runs on every PR
+make check-all      # ~30s — multi-language lint + typecheck
+make test-slow      # full suite — required before opening a PR
 ```
 
-This must complete successfully — failures must be fixed, not skipped.
-Tooling missing on your machine?  Document the skip with the appropriate
-variable: `SKIP_CHECK_ZIG=1`, `SKIP_CHECK_RUST=1`.  Do not skip blindly.
+The pre-push hook (installed via `make install-hooks`) recomputes
+the worktree fingerprint at push time and accepts the push when any
+of `tmp/ci-fast.stamp`, `tmp/check-all.stamp`, or `tmp/test-slow.stamp`
+matches.  Failures must be fixed, not skipped — tooling-missing skips
+must be deliberate (`SKIP_CHECK_ZIG=1`, `SKIP_CHECK_RUST=1`, ...).
 
-`make check-all` writes `tmp/check-all.stamp` on success.  The pre-push
-hook (installed via `make install-hooks`) reads that stamp and rejects
-any push where the worktree has drifted since the stamp was written.
+**Agent rule — Claude / codex / etc:** `make ci-fast` is the MINIMUM
+gate before every `git push`.  The PR's `pr-gate` job runs the same
+target, so a local pass means CI will pass on the first try.  Running
+`ruff format .` after a commit isn't enough — the fingerprint stamp
+locks the full gate.  Every "ci-fast bounced on a trivial unused
+import / format drift" failure on this repo's PRs has been a `push`
+that skipped this step.
 
 ### Before opening a PR
 
