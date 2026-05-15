@@ -474,9 +474,7 @@ class _Parser:
         inner = self._parse_pipeline()
         self._expect(TokenKind.RBRACKET, msg="expected ']'")
         optional = self._consume_optional_marker()
-        return Subscript(
-            stream=False, index=inner, regex=None, offset=lb.offset, optional=optional
-        )
+        return Subscript(stream=False, index=inner, regex=None, offset=lb.offset, optional=optional)
 
     def _consume_optional_marker(self) -> bool:
         """Consume an optional ``?`` token after a path step.

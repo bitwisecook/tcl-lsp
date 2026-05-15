@@ -566,9 +566,7 @@ def _builtin_ip_translate(*args: Any) -> str:
     except ValueError as exc:
         raise BuiltinError(f"ip_translate: invalid addr {bare_addr!r}: {exc}") from exc
     if src_ip not in src_net:
-        raise BuiltinError(
-            f"ip_translate: {bare_addr!r} is not within src_net {src_str!r}"
-        )
+        raise BuiltinError(f"ip_translate: {bare_addr!r} is not within src_net {src_str!r}")
     src_host_bits = src_net.max_prefixlen - src_net.prefixlen
     dst_host_bits = dst_net.max_prefixlen - dst_net.prefixlen
     if src_host_bits > dst_host_bits:
