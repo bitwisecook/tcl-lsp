@@ -4460,15 +4460,33 @@ def _builtin_x509_parse(value: Any) -> dict[str, Any]:
 
 
 @_register(
-    "x509_from_sys_file",
-    summary="Project a ``sys file ssl-cert`` into the ``x509_parse`` shape.",
-    signatures=("x509_from_sys_file(cert: object) -> object",),
+    "x509_from_config",
+    summary="Project a BIG-IP config-object cert into the ``x509_parse`` shape.",
+    signatures=("x509_from_config(cert: object) -> object",),
     details="""
-    Takes a BIG-IP ``sys file ssl-cert`` (the typed model object
-    or its DSL projection) and returns a dict in the same shape
-    :func:`x509_parse` produces: ``subject`` / ``issuer`` /
-    ``not_after`` / ``serial`` / ``fingerprint_sha256`` / ``sans``
-    / ``key_alg`` / ``key_size`` / ``version`` / etc.
+    Takes a BIG-IP config object that carries cert metadata and
+    returns a dict in the same shape :func:`x509_parse` produces:
+    ``subject`` / ``issuer`` / ``not_after`` / ``serial`` /
+    ``fingerprint_sha256`` / ``sans`` / ``key_alg`` / ``key_size``
+    / ``version`` / etc.
+
+    Supported config objects (anywhere a cert appears in the
+    parsed model):
+
+    - ``sys file ssl-cert`` — cert / chain / bundle store, the
+      target of every client-ssl / server-ssl ``cert-key-chain``
+      and ``ltm monitor https.cert`` PathRef.
+    - ``cm cert`` — device-trust certs, the target of ``cm
+      device.cert``, ``cm trust-domain.ca-cert``, ``cm
+      trust-domain.ca-cert-bundle``.
+
+    For config objects that *reference* a cert by PathRef
+    (``ltm monitor https``, ``ltm profile client-ssl``,
+    ``ltm profile server-ssl``, ``cm device``, ``cm
+    trust-domain``), index into the referent first then pipe to
+    this builtin.  ``sys crypto cert`` is a minimal projection
+    that doesn't carry metadata — load its PEM with
+    :func:`cert_load` instead.
 
     Normalisation handled at the boundary: SAN strings are split
     on commas with the ``DNS:`` / ``IP:`` prefix stripped; the
@@ -4487,19 +4505,20 @@ def _builtin_x509_parse(value: Any) -> dict[str, Any]:
     ``x509_load_file`` (parse a PEM file), ``x509_eq``.
     """,
     examples=(
-        '.sys.file.ssl-cert["/Common/example.crt"] | x509_from_sys_file(.)',
+        '.sys.file.ssl-cert["/Common/example.crt"] | x509_from_config(.)',
+        '.cm.cert["/Common/dtca.crt"] | x509_from_config(.)',
         "x509_eq("
-        '.sys.file.ssl-cert["/Common/example.crt"] | x509_from_sys_file(.), '
+        '.sys.file.ssl-cert["/Common/example.crt"] | x509_from_config(.), '
         'x509_parse(url_get("https://example.com/cert.pem").body))',
     ),
     category="net",
     min_args=1,
     max_args=1,
 )
-def _builtin_x509_from_sys_file(value: Any) -> dict[str, Any]:
-    from ._probes import x509_from_sys_file
+def _builtin_x509_from_config(value: Any) -> dict[str, Any]:
+    from ._probes import x509_from_config
 
-    return x509_from_sys_file(value)
+    return x509_from_config(value)
 
 
 @_register(
@@ -4523,11 +4542,11 @@ def _builtin_x509_from_sys_file(value: Any) -> dict[str, Any]:
     different even when they describe the same key material.  Use
     this helper instead for "same cert" semantics.
 
-    Related: ``x509_parse``, ``x509_from_sys_file``.
+    Related: ``x509_parse``, ``x509_from_config``.
     """,
     examples=(
-        "x509_eq(x509_parse(.body), x509_from_sys_file($cert))",
-        ".sys.file.ssl-cert[] | select(x509_eq(x509_from_sys_file(.), $peer))",
+        "x509_eq(x509_parse(.body), x509_from_config($cert))",
+        ".sys.file.ssl-cert[] | select(x509_eq(x509_from_config(.), $peer))",
     ),
     category="net",
     min_args=2,

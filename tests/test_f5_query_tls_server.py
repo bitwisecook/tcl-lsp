@@ -261,7 +261,7 @@ def test_url_get_captures_peer_cert_on_https(https_server):
     assert "localhost" in peer["sans"]
     assert peer["key_size"] == 2048
     # The pre-parsed cert is the SAME dict shape ``x509_parse`` /
-    # ``x509_from_sys_file`` produce, so an equality check works
+    # ``x509_from_config`` produce, so an equality check works
     # across the three sources.
     [matches] = _run_with_probes(
         f'x509_eq(url_get("{url}/health").peer_cert, url_get("{url}/health").peer_cert)',

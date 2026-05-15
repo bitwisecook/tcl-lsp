@@ -32,11 +32,12 @@ source via the `x509_eq` builtin, which collapses field-by-field
 noise (different ISO time offsets, missing `not_before` on the
 device side) into pure cert-identity semantics.
 
-The four cert sources `f5 query` recognises:
+The five cert sources `f5 query` recognises:
 
 | Source | Builtin | Shape |
 |---|---|---|
-| `sys file ssl-cert` on the device | `x509_from_sys_file(cert)` | parsed dict |
+| `sys file ssl-cert` on the device | `x509_from_config(cert)` | parsed dict |
+| `cm cert` (device-trust) on the device | `x509_from_config(cert)` | parsed dict |
 | Live TLS handshake | `tls_handshake(host, port).peer_cert` | parsed dict |
 | Any HTTPS endpoint | `url_get(url).peer_cert` | parsed dict |
 | PEM / DER / PKCS#12 on disk | `cert_load(path[, password])` | parsed dict |
@@ -61,7 +62,7 @@ f5 query --enable-probes '
         .profiles[] | select(.context == "clientside")
         | .full-path | .ltm.profile."client-ssl"[.]
         | ."cert-key-chain"[0].cert | .sys."file-ssl-cert"[.]
-        | x509_from_sys_file(.)),
+        | x509_from_config(.)),
       live_cert: tls_handshake(.destination.host, .destination.port).peer_cert,
       matches: false }
   | .matches = x509_eq(.device_cert, .live_cert)
@@ -95,7 +96,7 @@ f5 query --enable-probes \
         .profiles[] | select(.context == "clientside")
         | .full-path | $dev.ltm.profile."client-ssl"[.]
         | ."cert-key-chain"[0].cert | $dev.sys."file-ssl-cert"[.]
-        | x509_from_sys_file(.)),
+        | x509_from_config(.)),
       live_cert: tls_handshake(.destination.host, .destination.port).peer_cert
     }
   | select(x509_eq(.file_cert, .live_cert) == false)
@@ -177,7 +178,8 @@ leaves `null`.  Use `x509_eq` for "same cert" semantics, `==` for
 
 | Question | Source |
 |---|---|
-| "What does the device think is installed?" | `x509_from_sys_file` against `sys file ssl-cert` |
+| "What does the device think is installed?" | `x509_from_config` against `sys file ssl-cert` |
+| "What does the device-trust store look like?" | `x509_from_config` against `cm cert` (e.g. `.cm.cert[]`) |
 | "What is the device actually serving?" | `tls_handshake` to the virtual's destination |
 | "What does this PEM on disk contain?" | `cert_load("/path/to/cert.pem")` |
 | "What cert is a peer endpoint using?" | `url_get(url).peer_cert` |
@@ -185,4 +187,4 @@ leaves `null`.  Use `x509_eq` for "same cert" semantics, `==` for
 ## Related
 
 - [`kcs-howto-find-objects-by-query.md`](kcs-howto-find-objects-by-query.md) — for the base query patterns.
-- [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) — full builtins reference (`tls_handshake`, `x509_from_sys_file`, `x509_eq`, `cert_load`, …).
+- [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) — full builtins reference (`tls_handshake`, `x509_from_config`, `x509_eq`, `cert_load`, …).

@@ -115,7 +115,7 @@ so they compose with ``x509_eq``:
 |---|---|---|
 | ``x509_parse(pem)`` | parsed cert dict | you already have PEM in memory |
 | ``cert_load(path[, pw])`` | parsed cert dict OR ``[leaf, ...chain]`` | PEM / DER / PKCS#12 on disk |
-| ``x509_from_sys_file(cert)`` | parsed cert dict | ``sys file ssl-cert`` projection |
+| ``x509_from_config(cert)`` | parsed cert dict | any config-object cert — ``sys file ssl-cert`` or ``cm cert`` (device-trust) |
 | ``tls_handshake(host, port).peer_cert`` | parsed cert dict | live TLS handshake |
 | ``url_get(url).peer_cert`` | parsed cert dict | live HTTPS request — captured without an extra round-trip |
 
@@ -145,8 +145,9 @@ so the audit query still gets the response body + peer cert.  The
 
 | User asks | Query |
 |---|---|
-| "expiry date of every cert on the device" | ``.sys["file-ssl-cert"][] \| { name, expires: x509_from_sys_file(.).not_after }`` |
-| "every cert expiring within 30 days" | ``.sys["file-ssl-cert"][] \| x509_from_sys_file(.) \| select(.not_after < "2026-06-15") \| .subject`` |
+| "expiry date of every cert on the device" | ``.sys["file-ssl-cert"][] \| { name, expires: x509_from_config(.).not_after }`` |
+| "every cert expiring within 30 days" | ``.sys["file-ssl-cert"][] \| x509_from_config(.) \| select(.not_after < "2026-06-15") \| .subject`` |
+| "expiry date of every device-trust cert" | ``.cm.cert[] \| { name, expires: x509_from_config(.).not_after }`` |
 | "verify the cert each VS serves matches its `sys file ssl-cert`" | walk ``.ltm.virtual[]`` → ``.profiles[]`` → client-ssl profile → ``cert-key-chain`` → ``sys file ssl-cert``, compare with ``tls_handshake(host, port).peer_cert`` via ``x509_eq``.  See [`kcs-howto-audit-server-certs-with-query.md`](../../../docs/kcs/kcs-howto-audit-server-certs-with-query.md) for the full pattern. |
 | "find every endpoint with an expired cert" | ``.ltm.virtual[] \| { vs: .name, probe: tls_handshake(.destination.host, .destination.port) } \| select(.probe.reason.kind == "expired")`` |
 | "find every endpoint using a self-signed cert" | ``select(.probe.reason.kind == "self_signed")`` after a ``tls_handshake`` walk |

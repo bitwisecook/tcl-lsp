@@ -183,7 +183,7 @@ Major families:
   `url_head`, `url_options`, `tls_handshake`, `dns_resolve`,
   `ping`, `port_ping`
 - **cert / X.509** — `x509_parse`, `cert_load`,
-  `x509_from_sys_file`, `x509_eq`
+  `x509_from_config`, `x509_eq`
 - **external inputs** — `json_load`, `jsonl_load`, `csv_load`,
   `f5log_load`
 
@@ -255,8 +255,16 @@ SHA-256 hash (BIG-IP's TMSH surface).
 - `x509_parse(pem)` — parse a PEM string in memory.
 - `cert_load(path[, password])` — read PEM / DER / PKCS#12
   (`.pem`, `.crt`, `.cer`, `.der`, `.pfx`, `.p12`) from disk.
-- `x509_from_sys_file(cert)` — project a `sys file ssl-cert`
-  object into the same dict shape.
+- `x509_from_config(cert)` — project any BIG-IP config object
+  that carries cert metadata into the same dict shape.  Works
+  on `sys file ssl-cert` (cert / chain / bundle store, the
+  target of every `cert-key-chain` and `ltm monitor https.cert`
+  PathRef) and `cm cert` (device-trust certs, the target of
+  `cm device.cert` / `cm trust-domain.ca-cert`).  For PathRef
+  fields elsewhere (`ltm monitor https.cert`, `cm device.cert`,
+  …), index into the referent first then project.  `sys crypto
+  cert` is a minimal projection without cert metadata — load
+  its PEM with `cert_load` instead.
 - `tls_handshake(host, port).peer_cert` — capture during a live
   TLS handshake.
 - `url_get(url).peer_cert` — capture during an HTTPS request, no
@@ -661,7 +669,7 @@ SCF
 #    the device thinks it has.
 f5 query --enable-probes '
   x509_eq(
-    .sys["file-ssl-cert"]["/Common/test.crt"] | x509_from_sys_file(.),
+    .sys["file-ssl-cert"]["/Common/test.crt"] | x509_from_config(.),
     tls_handshake("127.0.0.1", 8443).peer_cert)
 ' /tmp/lab.conf
 # => false (fingerprints differ — the SCF carries a placeholder

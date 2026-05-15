@@ -795,8 +795,8 @@ class TestTlsAndX509:
         assert parsed["fingerprint_sha256"]
         assert parsed["key_size"] == 2048
 
-    def test_x509_from_sys_file_matches_x509_parse_shape(self):
-        """A ``sys file ssl-cert`` projected via ``x509_from_sys_file``
+    def test_x509_from_config_matches_x509_parse_shape(self):
+        """A ``sys file ssl-cert`` projected via ``x509_from_config``
         should produce the same dict shape ``x509_parse`` does.
         Every shared key — ``subject`` / ``issuer`` / ``serial`` /
         ``sans`` / ``fingerprint_sha256`` / ``version`` /
@@ -817,7 +817,7 @@ class TestTlsAndX509:
             "}\n"
         )
         result = run_query(
-            '.sys["file-ssl-cert"]["/Common/example.crt"] | x509_from_sys_file(.)',
+            '.sys["file-ssl-cert"]["/Common/example.crt"] | x509_from_config(.)',
             {"mem://x": src},
         )
         [parsed] = result.values_per_file["mem://x"]
@@ -835,13 +835,48 @@ class TestTlsAndX509:
         assert parsed["sig_alg"] is None
         assert parsed["public_key_pem"] is None
 
+    def test_x509_from_config_handles_cm_cert(self):
+        """``x509_from_config`` projects ``cm cert`` (device-trust
+        certs) using the same field shape — ``cm cert`` and ``sys
+        file ssl-cert`` carry identical metadata field names, so
+        the same projection function works on both.  This
+        coverage matters because ``cm device.cert`` /
+        ``cm trust-domain.ca-cert`` PathRefs resolve into
+        ``cm cert`` entries, not ``sys file ssl-cert``."""
+        src = (
+            "cm cert /Common/dtca.crt {\n"
+            '    issuer "CN=Local DTCA"\n'
+            '    subject "CN=bigip-1.example.com"\n'
+            '    subject-alternative-name "DNS:bigip-1.example.com"\n'
+            '    expiration-string "Jan 1 00:00:00 2099 GMT"\n'
+            '    fingerprint "SHA256/AA:BB:CC:DD"\n'
+            "    certificate-key-size 2048\n"
+            "    key-type rsa-public\n"
+            "    serial-number 99\n"
+            "    version 3\n"
+            "}\n"
+        )
+        result = run_query(
+            '.cm.cert["/Common/dtca.crt"] | x509_from_config(.)',
+            {"mem://x": src},
+        )
+        [parsed] = result.values_per_file["mem://x"]
+        assert parsed["subject"] == "CN=bigip-1.example.com"
+        assert parsed["issuer"] == "CN=Local DTCA"
+        assert parsed["sans"] == ["bigip-1.example.com"]
+        assert parsed["fingerprint_sha256"] == "AABBCCDD"
+        assert parsed["serial"] == "63"  # 99 → hex
+        assert parsed["version"] == "v3"
+        assert parsed["key_size"] == 2048
+        assert parsed["key_alg"] == "RSAPublicKey"
+
     def test_x509_eq_matches_same_fingerprint(self):
         """Two certs with matching ``fingerprint_sha256`` are equal
         regardless of which fields are populated."""
         src = 'sys file ssl-cert /Common/c.crt {\n    fingerprint "SHA256/AA:BB:CC"\n}\n'
         result = run_query(
             "x509_eq("
-            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_sys_file(.), '
+            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_config(.), '
             '{ fingerprint_sha256: "AABBCC" })',
             {"mem://x": src},
         )
@@ -862,7 +897,7 @@ class TestTlsAndX509:
         )
         result = run_query(
             "x509_eq("
-            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_sys_file(.), '
+            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_config(.), '
             '{ subject: "CN=www.example.com", issuer: "CN=Example CA", '
             'serial: "2A" })',
             {"mem://x": src},
@@ -882,7 +917,7 @@ class TestTlsAndX509:
         )
         result = run_query(
             "x509_eq("
-            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_sys_file(.), '
+            '.sys["file-ssl-cert"]["/Common/c.crt"] | x509_from_config(.), '
             '{ subject: "CN=www.example.com", issuer: "CN=Example CA", '
             'serial: "FF" })',
             {"mem://x": src},

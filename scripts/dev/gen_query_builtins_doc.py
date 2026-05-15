@@ -40,17 +40,16 @@ _HEADER = """# F5 query DSL — builtin function reference
 > **Type:** Reference
 
 **This page is generated from the builtin registry in
-[`core/bigip/query/builtins.py`](../../core/bigip/query/builtins.py).
-Edit that registry, not this file.**  The generator lives at
-[`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py);
+`core/bigip/query/builtins.py`.  Edit that registry, not this file.**
+The generator lives at `scripts/dev/gen_query_builtins_doc.py`;
 a CI check asserts the on-disk file is up to date.
 
 This is the **canonical per-function reference** for every builtin the
 `f5 query` DSL exposes.  For grammar, value-model, edit-pipeline, and
-architectural context see [`f5-query-dsl.md`](f5-query-dsl.md); for
-the user-facing feature overview and worked-example KCS notes start
+architectural context see [`dsl.md`](dsl.md) and [`manual.md`](manual.md);
+for the user-facing feature overview and worked-example KCS notes start
 from
-[`../kcs/features/kcs-feature-bigip-query.md`](../kcs/features/kcs-feature-bigip-query.md).
+[`../../kcs/features/kcs-feature-bigip-query.md`](../../kcs/features/kcs-feature-bigip-query.md).
 
 The same per-function reference is available offline through the
 verb's own help action — ``f5 query --help-builtins NAME`` prints

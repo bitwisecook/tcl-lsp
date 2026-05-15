@@ -689,14 +689,14 @@ def _x509_name_to_str(name_tuples: tuple) -> str:
 
 
 # ---------------------------------------------------------------------------
-# BIG-IP ``sys file ssl-cert`` → x509_parse-shaped dict
+# BIG-IP config-object cert → x509_parse-shaped dict
 # ---------------------------------------------------------------------------
 
 
 # Map BIG-IP ``key-type`` tokens to the same ``key_alg`` strings
 # ``cryptography``'s ``type(public_key).__name__`` produces, so a
-# ``sys file ssl-cert`` cert and an :func:`x509_parse` cert compare
-# equal under ``==`` when they describe the same key material.
+# config-object cert and an :func:`x509_parse` cert compare equal
+# under ``==`` when they describe the same key material.
 _KEY_TYPE_TO_KEY_ALG: dict[str, str] = {
     "rsa-public": "RSAPublicKey",
     "rsa-private": "RSAPublicKey",
@@ -711,9 +711,32 @@ _KEY_TYPE_TO_KEY_ALG: dict[str, str] = {
 }
 
 
-def x509_from_sys_file(cert: Any) -> dict[str, Any]:
-    """Project a ``sys file ssl-cert`` value into the same shape
+def x509_from_config(cert: Any) -> dict[str, Any]:
+    """Project a BIG-IP config-object cert into the same shape
     :func:`x509_parse` produces.
+
+    Works against any config object that carries the BIG-IP cert
+    metadata fields — ``subject`` / ``issuer`` / ``fingerprint``
+    / ``serial-number`` / ``version`` / ``key-type`` /
+    ``certificate-key-size`` / ``expiration-string`` /
+    ``expiration-date`` / ``subject-alternative-name``.  The
+    parsed model classes that match this shape today:
+
+    - :class:`BigipSysFileSslCert` — ``sys file ssl-cert`` (the
+      cert / chain / bundle store, used by client-ssl / server-ssl
+      profiles and HTTPS monitors).
+    - :class:`BigipCmCert` — ``cm cert`` (device-trust certs,
+      used by ``cm device.cert`` / ``cm trust-domain.ca-cert``).
+
+    Other config objects that reference certs by *PathRef*
+    (``ltm monitor https.cert``, ``ltm profile client-ssl``
+    ``cert-key-chain.cert``, ``cm device.cert``, ``cm
+    trust-domain.ca-cert``) follow the indirection to one of the
+    types above — pipe through ``.sys["file-ssl-cert"][ref]`` /
+    ``.cm.cert[ref]`` first, then call this builtin on the
+    resolved object.  Minimal projections (``sys crypto cert``)
+    don't carry cert metadata; load the underlying PEM with
+    :func:`cert_load` / :func:`x509_load_file` instead.
 
     Lets queries compare a cert imported into BIG-IP against a
     cert parsed from PEM bytes (``x509_parse`` / ``x509_load_file``
@@ -744,7 +767,7 @@ def x509_from_sys_file(cert: Any) -> dict[str, Any]:
       surface doesn't carry them.
     """
     if cert is None:
-        raise BuiltinError("x509_from_sys_file: cannot project None")
+        raise BuiltinError("x509_from_config: cannot project None")
 
     def _get(name: str) -> str:
         # Accept dataclass attribute, dict key, or ObjectRef field

@@ -4,17 +4,16 @@
 > **Type:** Reference
 
 **This page is generated from the builtin registry in
-[`core/bigip/query/builtins.py`](../../../core/bigip/query/builtins.py).
-Edit that registry, not this file.**  The generator lives at
-[`scripts/dev/gen_query_builtins_doc.py`](../../../scripts/dev/gen_query_builtins_doc.py);
+`core/bigip/query/builtins.py`.  Edit that registry, not this file.**
+The generator lives at `scripts/dev/gen_query_builtins_doc.py`;
 a CI check asserts the on-disk file is up to date.
 
 This is the **canonical per-function reference** for every builtin the
 `f5 query` DSL exposes.  For grammar, value-model, edit-pipeline, and
-architectural context see [`f5-query-dsl.md`](dsl.md); for
-the user-facing feature overview and worked-example KCS notes start
+architectural context see [`dsl.md`](dsl.md) and [`manual.md`](manual.md);
+for the user-facing feature overview and worked-example KCS notes start
 from
-[`../kcs/features/kcs-feature-bigip-query.md`](../../kcs/features/kcs-feature-bigip-query.md).
+[`../../kcs/features/kcs-feature-bigip-query.md`](../../kcs/features/kcs-feature-bigip-query.md).
 
 The same per-function reference is available offline through the
 verb's own help action — ``f5 query --help-builtins NAME`` prints
@@ -32,7 +31,7 @@ exactly the same content for one builtin.
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
   - [`rename`](#rename), [`rename_folder`](#rename_folder), [`rename_partition`](#rename_partition), [`rename_prefix`](#rename_prefix)
 - **[net](#net)** — IP-address arithmetic and route-domain helpers.  The `ip(net, src)` rebase is the workhorse of bulk readdressing; `with_route_domain` sets / replaces / strips the `%rd` suffix.
-  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`ip_translate`](#ip_translate), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_eq`](#x509_eq), [`x509_from_sys_file`](#x509_from_sys_file), [`x509_parse`](#x509_parse)
+  - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`ip_translate`](#ip_translate), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_eq`](#x509_eq), [`x509_from_config`](#x509_from_config), [`x509_parse`](#x509_parse)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
@@ -2879,30 +2878,48 @@ BIG-IP side leaves ``null`` — and so reports certs as
 different even when they describe the same key material.  Use
 this helper instead for "same cert" semantics.
 
-Related: ``x509_parse``, ``x509_from_sys_file``.
+Related: ``x509_parse``, ``x509_from_config``.
 
 **Examples**
 
 ```
-x509_eq(x509_parse(.body), x509_from_sys_file($cert))
-.sys.file.ssl-cert[] | select(x509_eq(x509_from_sys_file(.), $peer))
+x509_eq(x509_parse(.body), x509_from_config($cert))
+.sys.file.ssl-cert[] | select(x509_eq(x509_from_config(.), $peer))
 ```
 
-### `x509_from_sys_file`
+### `x509_from_config`
 
-Project a ``sys file ssl-cert`` into the ``x509_parse`` shape.
+Project a BIG-IP config-object cert into the ``x509_parse`` shape.
 
 **Signatures**
 
-- `x509_from_sys_file(cert: object) -> object`
+- `x509_from_config(cert: object) -> object`
 
 **Details**
 
-Takes a BIG-IP ``sys file ssl-cert`` (the typed model object
-or its DSL projection) and returns a dict in the same shape
-:func:`x509_parse` produces: ``subject`` / ``issuer`` /
-``not_after`` / ``serial`` / ``fingerprint_sha256`` / ``sans``
-/ ``key_alg`` / ``key_size`` / ``version`` / etc.
+Takes a BIG-IP config object that carries cert metadata and
+returns a dict in the same shape :func:`x509_parse` produces:
+``subject`` / ``issuer`` / ``not_after`` / ``serial`` /
+``fingerprint_sha256`` / ``sans`` / ``key_alg`` / ``key_size``
+/ ``version`` / etc.
+
+Supported config objects (anywhere a cert appears in the
+parsed model):
+
+- ``sys file ssl-cert`` — cert / chain / bundle store, the
+  target of every client-ssl / server-ssl ``cert-key-chain``
+  and ``ltm monitor https.cert`` PathRef.
+- ``cm cert`` — device-trust certs, the target of ``cm
+  device.cert``, ``cm trust-domain.ca-cert``, ``cm
+  trust-domain.ca-cert-bundle``.
+
+For config objects that *reference* a cert by PathRef
+(``ltm monitor https``, ``ltm profile client-ssl``,
+``ltm profile server-ssl``, ``cm device``, ``cm
+trust-domain``), index into the referent first then pipe to
+this builtin.  ``sys crypto cert`` is a minimal projection
+that doesn't carry metadata — load its PEM with
+:func:`cert_load` instead.
 
 Normalisation handled at the boundary: SAN strings are split
 on commas with the ``DNS:`` / ``IP:`` prefix stripped; the
@@ -2923,8 +2940,9 @@ Related: ``x509_parse`` (parse a PEM string),
 **Examples**
 
 ```
-.sys.file.ssl-cert["/Common/example.crt"] | x509_from_sys_file(.)
-x509_eq(.sys.file.ssl-cert["/Common/example.crt"] | x509_from_sys_file(.), x509_parse(url_get("https://example.com/cert.pem").body))
+.sys.file.ssl-cert["/Common/example.crt"] | x509_from_config(.)
+.cm.cert["/Common/dtca.crt"] | x509_from_config(.)
+x509_eq(.sys.file.ssl-cert["/Common/example.crt"] | x509_from_config(.), x509_parse(url_get("https://example.com/cert.pem").body))
 ```
 
 ### `x509_parse`
