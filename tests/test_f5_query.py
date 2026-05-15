@@ -351,9 +351,13 @@ def test_route_domain_round_trip():
         'route_domain("/Common/10.0.0.1%5:80")',
         {"mem://1": SAMPLE_CONF},
     )
-    # Only the last statement's values are returned by the runner.
-    [rd] = result.values_per_file["mem://1"]
-    assert rd == "5"
+    # ``;`` concatenates every statement's values — the first two
+    # return the rewritten destination strings, the third reads the
+    # route-domain back out.
+    set_to_7, cleared, read_back = result.values_per_file["mem://1"]
+    assert set_to_7 == "/Common/10.0.0.1%7:80"
+    assert cleared == "/Common/10.0.0.1:80"
+    assert read_back == "5"
 
 
 def test_ip_rebase_preserves_route_domain():
@@ -7475,3 +7479,141 @@ def test_ltm_profile_carries_subtype_specific_fields():
     assert nagle.values_per_file["mem://1"] == ["disabled"]
     source_mask = _run('.ltm.profile.oc1["source-mask"]', _GAPS_CONF)
     assert source_mask.values_per_file["mem://1"] == ["255.255.255.0"]
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the four fixes that landed alongside the SCF/UCS
+# testsrc audit (UCS load, ``;`` accumulation, lazy rule.refs, .scf in
+# the editor extension).
+# ---------------------------------------------------------------------------
+
+
+def test_semicolon_concatenates_read_pipeline_outputs():
+    """Multiple read pipelines separated by ``;`` should all emit
+    their values into the result stream — previously every
+    statement but the last was silently dropped."""
+    result = run_query(
+        ".ltm.virtual[].name ; .ltm.pool[].name",
+        {"mem://1": SAMPLE_CONF},
+    )
+    values = result.values_per_file["mem://1"]
+    # Both the virtual-name stream and the pool-name stream
+    # contribute their values to the output, in order.
+    assert "web_vs" in values
+    assert "api_vs" in values
+    assert "web_pool" in values
+    assert "api_pool" in values
+
+
+def test_rule_iteration_does_not_eagerly_compute_refs():
+    """[.ltm.rule[]] | count used to walk the full reference graph
+    per rule (O(n × full-config grep)).  After the lazy-refs fix
+    every rule's ``__refs__`` is a :class:`LazyField` until something
+    actually reads ``.refs``."""
+    from core.bigip.query.projection._engine import root_container
+    from core.bigip.query.values import LazyField, Root
+
+    src = """ltm rule /Common/r1 { when HTTP_REQUEST { pool /Common/p } }
+ltm rule /Common/r2 { when HTTP_REQUEST { pool /Common/p } }
+ltm pool /Common/p { members { /Common/n:80 { address 1.1.1.1 } } }
+"""
+    from core.bigip.parser import parse_bigip_conf
+
+    cfg = parse_bigip_conf(src)
+    from core.bigip.query.projection import Container
+    from core.bigip.query.source_map import SourceMap
+
+    root = Root(
+        uri="mem://lazy",
+        source=src,
+        config=cfg,
+        source_map=SourceMap.build(src),
+    )
+    top = root_container(root)
+    assert isinstance(top, Container)
+    ltm = top.entries()["ltm"]
+    assert isinstance(ltm, Container)
+    rules_container = ltm.entries()["rule"]
+    assert isinstance(rules_container, Container)
+    entries = rules_container.entries()
+    # Two rules visible.
+    assert set(entries.keys()) == {"/Common/r1", "/Common/r2"}
+    # ``refs`` is still a thunk for each rule — not the materialised
+    # ObjectRef-of-references.
+    for ref in entries.values():
+        assert isinstance(ref.fields["refs"], LazyField)
+
+
+def test_rule_refs_materialise_on_access_and_memoise():
+    """Once a query reads ``.refs`` the lazy thunk is replaced in
+    place, so subsequent reads see the resolved object."""
+    src = """ltm rule /Common/r1 { when HTTP_REQUEST { pool /Common/p } }
+ltm pool /Common/p { members { /Common/n:80 { address 1.1.1.1 } } }
+"""
+    result = run_query(".ltm.rule[].refs.pools[]", {"mem://1": src})
+    [path] = result.values_per_file["mem://1"]
+    assert str(path) == "/Common/p"
+
+
+def test_read_path_extracts_ucs_archive_in_memory(tmp_path):
+    """``read_path`` should transparently extract ``.ucs`` archives
+    via tarfile/gzip so ``f5 query foo.ucs`` works the same as
+    ``f5 query foo.scf``."""
+    import gzip
+    import io
+    import tarfile
+
+    scf_text = """ltm node /Common/n1 { address 10.0.0.1 }
+ltm pool /Common/p1 { members { /Common/n1:80 { address 10.0.0.1 } } }
+ltm virtual /Common/v1 { destination /Common/10.0.0.1:80 pool /Common/p1 }
+"""
+    # Pack into a UCS-shaped tarball (gzipped tar with config/bigip.conf).
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tf:
+        info = tarfile.TarInfo("config/bigip.conf")
+        scf_bytes = scf_text.encode("utf-8")
+        info.size = len(scf_bytes)
+        tf.addfile(info, io.BytesIO(scf_bytes))
+    gz = gzip.compress(buf.getvalue())
+    ucs_path = tmp_path / "fake.ucs"
+    ucs_path.write_bytes(gz)
+
+    from explorer.verbs.f5._paths import read_path
+
+    uri, src = read_path(str(ucs_path))
+    assert uri.endswith("fake.ucs")
+    assert "ltm virtual /Common/v1" in src
+    # And the query engine accepts it as a normal SCF source.
+    result = run_query(".ltm.virtual[].name", {uri: src})
+    assert result.values_per_file[uri] == ["v1"]
+
+
+def test_read_path_rejects_malformed_ucs(tmp_path):
+    """A ``.ucs`` whose magic bytes are wrong should produce a
+    clear ValueError, not a silent empty-config parse."""
+    import pytest
+
+    fake = tmp_path / "bogus.ucs"
+    fake.write_bytes(b"not a gzip archive")
+    from explorer.verbs.f5._paths import read_path
+
+    with pytest.raises(ValueError, match="not a valid UCS"):
+        read_path(str(fake))
+
+
+def test_vscode_extension_registers_scf_as_tcl_bigip():
+    """The VS Code extension's ``tcl-bigip`` language must pick up
+    arbitrary ``.scf`` files — the BIG-IP testsrc directories
+    ship hundreds of named-by-host SCFs that previously opened as
+    plaintext."""
+    import json
+
+    pkg = json.loads(
+        (Path(__file__).resolve().parent.parent / "editors" / "vscode" / "package.json").read_text()
+    )
+    languages = pkg["contributes"]["languages"]
+    [bigip] = [lang for lang in languages if lang["id"] == "tcl-bigip"]
+    assert ".scf" in bigip.get("extensions", []), (
+        "expected `.scf` to map to tcl-bigip; current registration: "
+        f"extensions={bigip.get('extensions')}, filenames={bigip.get('filenames')}"
+    )

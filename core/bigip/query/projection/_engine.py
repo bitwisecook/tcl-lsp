@@ -19,7 +19,7 @@ from ...model import (
     BigipRule,
 )
 from ..errors import EvalError
-from ..values import FieldSlot, ObjectRef, PathRef, Root
+from ..values import FieldSlot, LazyField, ObjectRef, PathRef, Root
 from ._classes import Container, FieldSpec
 from ._data import (
     _KIND_FIELD_MAPS,
@@ -110,8 +110,21 @@ def _build_object_ref(
     _, field_map = _KIND_FIELD_MAPS[kind]
     fields: dict[str, Any] = {}
     for tmsh_name, spec in field_map.items():
-        value = _project_field(kind, obj, spec, root, tmsh_name=tmsh_name)
-        fields[tmsh_name] = value
+        if spec.attr.startswith("__"):
+            # Synthesised field — defer the computation until something
+            # actually reads ``.refs`` etc.  See ``LazyField``: building
+            # every rule's ``refs`` eagerly turned ``[.ltm.rule[]] |
+            # count`` into a full-config grep per rule.
+            fields[tmsh_name] = LazyField(
+                # Default args bind kind/obj/spec/tmsh_name at thunk-
+                # creation time so the loop variables aren't captured
+                # by reference.
+                lambda kind=kind, obj=obj, spec=spec, tmsh_name=tmsh_name: _project_field(
+                    kind, obj, spec, root, tmsh_name=tmsh_name
+                )
+            )
+        else:
+            fields[tmsh_name] = _project_field(kind, obj, spec, root, tmsh_name=tmsh_name)
     field_slots = _collect_field_slots(kind, obj, field_map, root)
 
     stanza_slot = None

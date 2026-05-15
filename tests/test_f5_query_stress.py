@@ -308,7 +308,12 @@ def test_rename_then_read_sees_post_rename_state():
     renamed name everywhere."""
     expr = 'rename("/Common/web_pool", "/Common/renamed_pool") ; [.ltm.virtual[].pool] | sort'
     result = _run(expr)
-    [rows] = result.values_per_file["mem://big"]
+    # ``;`` concatenates each statement's output.  ``rename()``
+    # returns the integer occurrence count; the read pipeline
+    # returns the sorted list.
+    values = result.values_per_file["mem://big"]
+    assert isinstance(values[0], int)
+    rows = values[1]
     paths = [str(row) for row in rows]
     # The mutation rolled forward through the second statement —
     # every reference to web_pool has been retargeted.
@@ -326,7 +331,13 @@ def test_two_renames_compose_then_read_final_state():
         " ; .ltm.virtual.web_vs.pool"
     )
     result = _run(expr)
-    [final_pool] = result.values_per_file["mem://big"]
+    # ``;`` concatenates each statement's output: the two
+    # ``rename()`` calls each return their occurrence count, then
+    # the final read returns the post-rename pool path.
+    values = result.values_per_file["mem://big"]
+    assert isinstance(values[0], int)
+    assert isinstance(values[1], int)
+    final_pool = values[2]
     # PathRef rendering yields its full_path string.
     assert str(final_pool) == "/Common/final"
 

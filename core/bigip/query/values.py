@@ -39,6 +39,46 @@ class QueryFieldProvider(Protocol):
     def query_fields(self) -> Mapping[str, object]: ...
 
 
+class LazyField:
+    """A synthesised :class:`ObjectRef` field whose value is computed
+    on first access.
+
+    Expensive synthesised fields (the cross-config reference graph
+    on ``ltm rule.refs`` is the original motivating case) used to be
+    eagerly built when the :class:`ObjectRef` was constructed.  On
+    rule-heavy configs that meant every rule paid a full
+    ``compute_grep`` walk even when the query never asked for
+    ``.refs`` — turning ``[.ltm.rule[]] | count`` from O(n) into
+    O(n × full-config-walk).
+
+    Materialisation goes through :func:`_resolve_lazy_field` which
+    memoises the result back into the ObjectRef's ``fields`` dict,
+    so the second touch is free.
+    """
+
+    __slots__ = ("_thunk",)
+
+    def __init__(self, thunk):
+        self._thunk = thunk
+
+    def resolve(self) -> Any:
+        return self._thunk()
+
+
+def resolve_lazy_field(obj_ref: "ObjectRef", name: str, value: Any) -> Any:
+    """If *value* is a :class:`LazyField`, evaluate and memoise it.
+
+    Centralises the lazy-field unboxing so every reader path goes
+    through the same memoisation step.  Returns the resolved value
+    (or *value* unchanged when it isn't lazy).
+    """
+    if isinstance(value, LazyField):
+        materialised = value.resolve()
+        obj_ref.fields[name] = materialised
+        return materialised
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class FieldSlot:
     """Where a single property value lives in the source text.

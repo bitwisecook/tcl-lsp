@@ -44,7 +44,7 @@ from .builtins import _truthy
 from .edit_plan import EditOp, EditPlan
 from .errors import EvalError
 from .projection import Container, root_container
-from .values import ObjectRef, PathRef, QueryFieldProvider, Root, Stream
+from .values import ObjectRef, PathRef, QueryFieldProvider, Root, Stream, resolve_lazy_field
 
 
 @dataclass
@@ -90,23 +90,24 @@ def evaluate_statement(stmt: Expr, ctx: EvalContext) -> list[Any]:
 
 
 def evaluate(program: Program, ctx: EvalContext) -> list[Any]:
-    """Evaluate every statement against the root, returning the last result.
+    """Evaluate every statement against the root and concatenate results.
 
-    This entry point is convenient for read-only queries.  Multi-
-    statement *mutating* queries should drive ``evaluate_statement``
-    one statement at a time and apply each statement's edits before
-    moving to the next — the runner does exactly that so a
-    ``rename_partition(...) ; .ltm.virtual[].destination = ...``
-    chain works the way users expect.
+    The DSL's ``;`` separates pipelines that share the same root, and
+    every statement contributes its own values to the output — so a
+    read-only program ``.ltm.virtual[].name ; .ltm.pool[].name``
+    emits both streams.  This entry point is convenient for read-
+    only queries; multi-statement *mutating* queries should drive
+    ``evaluate_statement`` one statement at a time and apply each
+    statement's edits before moving to the next (the runner does
+    exactly that so ``rename_partition(...) ; .ltm.virtual[].dest =
+    ...`` works the way users expect).
     """
     if not program.statements:
         return []
-    last_values: list[Any] = []
-    for index, stmt in enumerate(program.statements):
-        results = evaluate_statement(stmt, ctx)
-        if index == len(program.statements) - 1:
-            last_values = results
-    return last_values
+    out: list[Any] = []
+    for stmt in program.statements:
+        out.extend(evaluate_statement(stmt, ctx))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +490,7 @@ def _field_step(value: Any, step: Field, ctx: EvalContext):
     if isinstance(value, ObjectRef):
         if name not in value.fields:
             raise EvalError(f"{value.kind}: no field {name!r}")
-        return (value.fields[name],)
+        return (resolve_lazy_field(value, name, value.fields[name]),)
     if isinstance(value, dict):
         if name not in value:
             raise EvalError(f"no field {name!r}")
@@ -566,7 +567,7 @@ def _subscript_root(value: Any, ctx: EvalContext) -> Any:
     if isinstance(value, dict):
         return list(value.values())
     if isinstance(value, ObjectRef):
-        return list(value.fields.values())
+        return [resolve_lazy_field(value, k, v) for k, v in value.fields.items()]
     # Iterable typed values (BigipList / MonitorExpression / …)
     # implement ``__iter__`` directly; honour it so DSL ``[]``
     # subscripts work without registering every concrete type
@@ -649,7 +650,7 @@ def _subscript_step(value: Any, index: Any, ctx: EvalContext) -> Any:
     if isinstance(value, ObjectRef):
         if isinstance(index, str):
             if index in value.fields:
-                return value.fields[index]
+                return resolve_lazy_field(value, index, value.fields[index])
             raise EvalError(f"{value.kind}: no field {index!r}")
     if isinstance(value, QueryFieldProvider) and isinstance(index, str):
         # Typed sub-objects (BigipSysNtpRestrict, BigipSysSnmpTrap,
@@ -1127,7 +1128,11 @@ def _resolve_assignment_targets(
         if final.name not in obj.fields:
             raise EvalError(f"{obj.kind}: no field {final.name!r}")
         targets.append(
-            _AssignTarget(obj=obj, field_name=final.name, current_value=obj.fields[final.name])
+            _AssignTarget(
+                obj=obj,
+                field_name=final.name,
+                current_value=resolve_lazy_field(obj, final.name, obj.fields[final.name]),
+            )
         )
     return targets
 

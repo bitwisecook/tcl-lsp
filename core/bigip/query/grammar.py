@@ -279,8 +279,11 @@ JQ COMPATIBILITY
   Differences:
     * Function arguments are comma-separated, not semicolon-separated.
       ``sub(.name, "foo", "bar")`` rather than ``sub("foo"; "bar")``.
-    * No stream-comma operator — use ``;`` between statements (each
-      runs against the evolving source) or wrap with a list literal.
+    * Stream-comma ``,`` and statement-semicolon ``;`` both
+      concatenate their LHS and RHS values into one output stream.
+      ``,`` joins within a pipeline (``.a, .b | length``); ``;``
+      joins separate top-level statements that share the same root
+      and observe each other's mutations (``rename(o, n); .x = y``).
     * Identifiers may contain ``-`` so TMSH-spelt keys like
       ``data-group`` and ``source-address-translation`` lex as a
       single bareword token — ``.source-address-translation`` parses

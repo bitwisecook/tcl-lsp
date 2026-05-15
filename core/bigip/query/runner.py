@@ -308,10 +308,10 @@ def run_query(
             current_source = source
             accumulated_renames: list[RenameReport] = []
             accumulated_field_edits = 0
-            last_values: list[Any] = []
+            accumulated_values: list[Any] = []
 
             attempted_mutation = False
-            for index, stmt in enumerate(program.statements):
+            for stmt in program.statements:
                 root = _build_root(uri, current_source)
                 # Rebuild the named-root for the iterating source against
                 # the current_source so ``$self.x`` reads post-edit state
@@ -323,8 +323,10 @@ def run_query(
                 ctx = EvalContext(root=root, named_roots=named_roots_for_step, merge_mode=False)
                 with _active_roots({root.uri: root}):
                     values = evaluate_statement(stmt, ctx)
-                if index == len(program.statements) - 1:
-                    last_values = values
+                # Every statement contributes to the output — the DSL's
+                # ``;`` is a "share the root, accumulate the results"
+                # separator, not a "discard previous output" one.
+                accumulated_values.extend(values)
                 if ctx.edits.has_edits():
                     attempted_mutation = True
                     # Edits may target the iterating source or any named
@@ -376,7 +378,7 @@ def run_query(
                             field_edits=base_edits + other_applied.field_edits,
                         )
 
-            result.values_per_file[uri] = last_values
+            result.values_per_file[uri] = accumulated_values
             if attempted_mutation:
                 result.has_mutation = True
                 existing = result.edits_per_file.get(uri)
@@ -462,10 +464,10 @@ def _run_merge_statements(
     """Inner loop of merge mode, lifted so the ContextVar token can wrap it."""
     from ..rewrite import RenameReport
 
-    last_values: list[Any] = []
+    accumulated_values: list[Any] = []
     attempted_mutation = False
 
-    for index, stmt in enumerate(program.statements):
+    for stmt in program.statements:
         # Rebuild roots against current_sources so each statement sees
         # the post-edit text of every preceding statement.  Preserve
         # the per-URI partition discovered on the initial parse.
@@ -494,8 +496,9 @@ def _run_merge_statements(
                 else:
                     plan.ops.extend(ctx.edits.ops)
                     plan.prefix_rewrites.extend(ctx.edits.prefix_rewrites)
-        if index == len(program.statements) - 1:
-            last_values = stmt_values
+        # ``;`` accumulates every statement's output, not just the
+        # last — same shape as the per-file loop above.
+        accumulated_values.extend(stmt_values)
         if plan is not None and plan.has_edits():
             attempted_mutation = True
             applied_per = apply(plan, current_sources)
@@ -517,7 +520,7 @@ def _run_merge_statements(
     # attribute every value to the first source's URI.  Callers that
     # need a true per-source split can run without --merge.
     primary_uri = next(iter(sources))
-    result.values_per_file[primary_uri] = last_values
+    result.values_per_file[primary_uri] = accumulated_values
     if attempted_mutation:
         result.has_mutation = True
         for uri in sources:
@@ -664,10 +667,10 @@ def _run_query_variable_rooted(
     primary_uri = next(iter(sources))
     accumulated_renames_per_uri: dict[str, list[RenameReport]] = {u: [] for u in sources}
     accumulated_field_edits_per_uri: dict[str, int] = {u: 0 for u in sources}
-    last_values: list[Any] = []
+    accumulated_values: list[Any] = []
     attempted_mutation = False
 
-    for index, stmt in enumerate(program.statements):
+    for stmt in program.statements:
         # Rebuild roots against the post-edit text so $name reads
         # see the same coherent state the per-file loop would.
         step_roots = {uri: _build_root(uri, current_sources[uri]) for uri in sources}
@@ -681,8 +684,9 @@ def _run_query_variable_rooted(
         )
         with _active_roots(step_roots):
             values = evaluate_statement(stmt, ctx)
-        if index == len(program.statements) - 1:
-            last_values = values
+        # ``;`` concatenates each statement's output — see the
+        # per-file and merge loops above.
+        accumulated_values.extend(values)
         if ctx.edits.has_edits():
             attempted_mutation = True
             applied_per = apply(ctx.edits, current_sources)
@@ -699,7 +703,7 @@ def _run_query_variable_rooted(
                     )
                 accumulated_field_edits_per_uri[uri] += applied.field_edits
 
-    result.values_per_file[primary_uri] = last_values
+    result.values_per_file[primary_uri] = accumulated_values
     if attempted_mutation:
         result.has_mutation = True
         for uri in sources:

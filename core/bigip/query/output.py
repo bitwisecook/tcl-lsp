@@ -21,7 +21,7 @@ import json
 from typing import Any, Iterable
 
 from ..types import BigipList
-from .values import ObjectRef, PathRef, Stream
+from .values import ObjectRef, PathRef, Stream, resolve_lazy_field
 
 
 def _flat(values: Iterable[Any]) -> list[Any]:
@@ -214,7 +214,12 @@ def _render_table(values: list[Any], *, lineart: bool) -> str:
             if isinstance(v, dict):
                 rows.append([_cell_str(v.get(h, "")) for h in headers])
             elif isinstance(v, ObjectRef):
-                rows.append([_cell_str(v.fields.get(h, "")) for h in headers])
+                rows.append(
+                    [
+                        _cell_str(resolve_lazy_field(v, h, v.fields[h]) if h in v.fields else "")
+                        for h in headers
+                    ]
+                )
             else:
                 # Scalar mixed with dicts — stretches the scalar across
                 # the first column, leaves the rest empty.
@@ -270,7 +275,7 @@ def _to_json(v: Any) -> Any:
         out = {
             "kind": v.kind,
             "full-path": v.full_path,
-            "fields": {k: _to_json(val) for k, val in v.fields.items()},
+            "fields": {k: _to_json(resolve_lazy_field(v, k, val)) for k, val in v.fields.items()},
         }
         return out
     if isinstance(v, PathRef):

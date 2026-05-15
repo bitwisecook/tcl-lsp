@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 from .errors import BuiltinError
-from .values import ObjectRef, PathRef, Stream
+from .values import ObjectRef, PathRef, QueryFieldProvider, Stream, resolve_lazy_field
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -221,6 +221,16 @@ def _as_str(value: object, *, name: str, arg: int) -> str:
         return value.full_path
     if isinstance(value, str):
         return value
+    # Typed sub-objects (BigipGtmPoolMember, BigipPoolMember, …)
+    # stringify to their ``name`` field — mirrors how PathRef
+    # stringifies to ``full_path`` so a query like
+    # ``join($pool.members, ",")`` produces the member-name list
+    # without an explicit ``.[].name`` projection.
+    if isinstance(value, QueryFieldProvider):
+        qf = value.query_fields()
+        member_name = qf.get("name")
+        if isinstance(member_name, str) and member_name:
+            return member_name
     raise BuiltinError(f"{name}: argument {arg} must be a string, got {_type_name(value)}")
 
 
@@ -3431,7 +3441,7 @@ def _builtin_keys(value: Any) -> list[Any]:
 )
 def _builtin_values(value: Any) -> list[Any]:
     if isinstance(value, ObjectRef):
-        return [value.fields[k] for k in sorted(value.fields)]
+        return [resolve_lazy_field(value, k, value.fields[k]) for k in sorted(value.fields)]
     if isinstance(value, dict):
         return [value[k] for k in sorted(value)]
     raise BuiltinError(f"values: argument 1 must be an object, got {_type_name(value)}")
@@ -3623,7 +3633,13 @@ def _sort_key(value: Any) -> tuple:
     if isinstance(value, dict):
         return (5, tuple((k, _sort_key(value[k])) for k in sorted(value)))
     if isinstance(value, ObjectRef):
-        return (5, tuple((k, _sort_key(value.fields[k])) for k in sorted(value.fields)))
+        return (
+            5,
+            tuple(
+                (k, _sort_key(resolve_lazy_field(value, k, value.fields[k])))
+                for k in sorted(value.fields)
+            ),
+        )
     # Fallback: try string repr so heterogeneous unknowns sort
     # deterministically rather than blowing up.
     return (6, str(value))
