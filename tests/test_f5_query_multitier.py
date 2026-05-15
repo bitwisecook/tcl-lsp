@@ -73,10 +73,13 @@ def test_gtm_public_answers_and_border_nat_side_input_agree_on_service():
 
 
 def test_gtm_wideip_deep_links_to_pool_members():
+    # ``gtm pool.members`` was promoted from ``tuple[str, ...]`` to a
+    # tuple of typed ``BigipGtmPoolMember`` sub-objects; collect the
+    # ``.name`` field explicitly before joining.
     query = (
         ".gtm.wideip[] as $wide "
         "| $wide.pools[] as $pool "
-        '| tsv($wide.name, $pool.name, join($pool.members, ","), source_file($pool))'
+        '| tsv($wide.name, $pool.name, join([$pool.members[].name], ","), source_file($pool))'
     )
     result = run_query(query, _source("gtm-dns.conf"))
     assert result.values_per_file["sample://gtm-dns.conf"] == [
