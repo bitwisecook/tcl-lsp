@@ -147,6 +147,15 @@ class F5LogEvent:
 
 _F5_SEVERITIES = frozenset({"emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"})
 
+# Syslog facility-tag prefix used when BIG-IP log files are relayed
+# through a centralised syslog server: each line is prepended with
+# the facility-style label of the originating log
+# (``audit`` / ``gtm`` / ``ltm`` / ``security`` / ``tmm`` /
+# ``user``).  Peel it before the timestamp so the rest of the
+# parser treats the line as the bare-syslog shape — matches the
+# behaviour of the visidata-f5log plugin's regex.
+_SOURCE_TAGS = frozenset({"audit", "gtm", "ltm", "security", "tmm", "user"})
+
 # Only one tiny regex remains — to strip the optional syslog PRI
 # prefix ``<NNN>`` at the very start of a line.  Everything else is
 # a deterministic tokeniser.  PRI is well-defined (``<`` digits ``>``)
@@ -203,11 +212,24 @@ def _parse_one_f5log(line: str) -> F5LogEvent:
     """
     raw = line
     body = _PRI_PREFIX.sub("", line, count=1)
-    timestamp, body = _take_timestamp(body)
+    body = _strip_source_tag(body)
+    timestamp, body, ts_swaps_host_level = _take_timestamp(body)
     if timestamp is None:
         return F5LogEvent(raw=raw, message=line)
-    host, body = _take_token(body)
-    severity, body = _take_severity(body)
+    if ts_swaps_host_level:
+        # ``tmsh show sys log`` emits ``MM-DD HH:MM:SS level host …``
+        # where *level* may be any free-text severity word (the
+        # plugin's regex doesn't restrict the spelling, so neither
+        # do we for this shape).  Take both tokens unconditionally
+        # and swap so downstream consumers get the canonical
+        # ``host`` / ``severity`` slots.
+        first, body = _take_token(body)
+        second, body = _take_token(body)
+        host = second
+        severity = first.lower() if first.lower() in _F5_SEVERITIES else first
+    else:
+        host, body = _take_token(body)
+        severity, body = _take_severity(body)
     daemon, pid, body = _take_daemon_pid(body)
     body = body.lstrip()
     if body.startswith(":"):
@@ -227,12 +249,44 @@ def _parse_one_f5log(line: str) -> F5LogEvent:
     )
 
 
-def _take_timestamp(text: str) -> tuple[str | None, str]:
-    """Peel off either a syslog timestamp or RFC3339 timestamp.
+def _strip_source_tag(text: str) -> str:
+    """Drop a leading ``audit ``/``gtm ``/``ltm ``/… facility tag.
 
-    Syslog form: ``Mon DD HH:MM:SS`` (15 chars wide, day may be a
-    single digit padded by a space — handled by accepting 14 or 15
-    chars).  RFC3339 form: ``YYYY-MM-DDTHH:MM:SS[.fff][±HH:MM|Z]``.
+    Centralised syslog relays prepend the BIG-IP log file's facility
+    name as a free-text tag so the receiving syslog server can route
+    multiple log streams into one file.  Real-world examples::
+
+        ltm Oct 28 03:06:07 bigip01.example.test info tmm[1]: …
+        audit Oct 28 04:01:11 bigip01.example.test info logger[2]: …
+
+    Returns *text* unchanged when no recognised tag is present.
+    """
+    head, rest = _take_token(text)
+    if head and head in _SOURCE_TAGS:
+        return rest.lstrip()
+    return text
+
+
+def _take_timestamp(text: str) -> tuple[str | None, str, bool]:
+    """Peel a timestamp off the head.
+
+    Recognises three shapes that F5 surfaces emit:
+
+    - **Syslog** (``/var/log/ltm`` etc.): ``Mon DD HH:MM:SS`` where
+      day is one or two digits.  No year on the wire — callers that
+      need an absolute time-point reconstruct it from the file's
+      mtime or an explicit base year.
+    - **RFC3339** (high-speed-logging targets, journald JSON, etc.):
+      ``YYYY-MM-DDTHH:MM:SS[.fff][±HH:MM|Z]``.
+    - **tmsh-show-sys-log short ISO**: ``MM-DD HH:MM:SS``.  Distinct
+      enough from RFC3339 (no year, no ``T``) and from syslog (no
+      month abbreviation).  When this shape appears the host and
+      level fields swap order downstream — that's a tmsh quirk
+      mirrored from the visidata-f5log plugin so a centralised
+      audit pipeline sees consistent column meanings across log
+      surfaces.
+
+    Returns ``(timestamp_or_None, remainder, swap_host_level_flag)``.
     """
     # RFC3339: starts with 4 digits + '-'
     if (
@@ -244,23 +298,51 @@ def _take_timestamp(text: str) -> tuple[str | None, str]:
         and text[13] == ":"
         and text[16] == ":"
     ):
-        # Find the end of the timestamp (whitespace).
         i = 19
         while i < len(text) and text[i] not in " \t":
             i += 1
-        return text[:i], text[i:]
+        return text[:i], text[i:], False
+    # tmsh short ISO: ``NN-NN HH:MM:SS`` (no year, no T).
+    if (
+        len(text) >= 14
+        and text[0:2].isdigit()
+        and text[2] == "-"
+        and text[3:5].isdigit()
+        and text[5] == " "
+        and text[6:8].isdigit()
+        and text[8] == ":"
+        and text[9:11].isdigit()
+        and text[11] == ":"
+        and text[12:14].isdigit()
+    ):
+        return text[:14], text[14:], True
     # Syslog: 3-letter month, space(s), 1-2 digit day, space, HH:MM:SS.
+    # The plugin's regex captures the raw timestamp slice (``\s+``
+    # matches one *or more* spaces between month and day), so a
+    # single-digit day like ``Nov  1 17:06:46`` keeps its
+    # double-space alignment on the wire.  We mirror that exactly
+    # so cross-parser comparisons land identical strings.
     if len(text) < 14:
-        return None, text
+        return None, text, False
     if not text[:3].isalpha():
-        return None, text
+        return None, text, False
     parts = text.split(None, 3)
     if len(parts) < 4:
-        return None, text
+        return None, text, False
     month, day, hms, rest = parts[0], parts[1], parts[2], parts[3]
     if len(month) != 3 or not day.isdigit() or len(hms) != 8 or hms[2] != ":" or hms[5] != ":":
-        return None, text
-    return f"{month} {day} {hms}", rest
+        return None, text, False
+    # Recover the literal source slice so double-space day
+    # alignment survives the round trip.  Walk forward through the
+    # leading whitespace runs between the three tokens.
+    i = 3  # past month
+    while i < len(text) and text[i].isspace():
+        i += 1
+    i += len(day)
+    while i < len(text) and text[i].isspace():
+        i += 1
+    i += len(hms)
+    return text[:i], text[i:], False
 
 
 def _take_token(text: str) -> tuple[str, str]:
@@ -284,33 +366,53 @@ def _take_severity(text: str) -> tuple[str, str]:
 
 
 def _take_daemon_pid(text: str) -> tuple[str, int | None, str]:
-    """Peel ``daemon[pid]`` or ``daemon`` off the head.
+    """Peel ``daemon[pid]`` or ``daemon`` off the head, conservatively.
 
-    The daemon segment ends at either ``:`` (no PID) or ``[`` (PID
-    follows).  Returns blank strings when nothing daemon-shaped is
-    found so the caller can still recover the body as ``message``.
+    A daemon token only commits when it ends in one of the canonical
+    syslog terminators:
+
+    - ``daemon[pid]:``  — full form, captures the PID.
+    - ``daemon:``       — daemon with no PID (some kernel / cron
+      surfaces do this).
+
+    When neither is found (free-text continuation like the bare
+    ``Saving running configuration…`` line a tmsh save emits) the
+    function returns ``("", None, text)`` so the whole tail rolls
+    back into the caller's message slot — much safer than
+    speculatively claiming the first word as the daemon name.
     """
-    text = text.lstrip()
-    if not text:
+    stripped = text.lstrip()
+    leading_ws = text[: len(text) - len(stripped)]
+    if not stripped:
         return "", None, ""
-    n = len(text)
+    n = len(stripped)
     i = 0
-    while i < n and text[i] not in "[: \t":
+    while i < n and stripped[i] not in "[:" and not stripped[i].isspace():
         i += 1
-    daemon = text[:i]
-    if i < n and text[i] == "[":
-        # Optional PID inside the brackets.
+    if i == 0:
+        return "", None, text
+    daemon = stripped[:i]
+    if i < n and stripped[i] == "[":
+        # Optional PID inside brackets.
         j = i + 1
-        while j < n and text[j].isdigit():
+        while j < n and stripped[j].isdigit():
             j += 1
-        if j > i + 1 and j < n and text[j] == "]":
+        if j > i + 1 and j < n and stripped[j] == "]" and j + 1 < n and stripped[j + 1] == ":":
             try:
-                pid = int(text[i + 1 : j])
+                pid = int(stripped[i + 1 : j])
             except ValueError:
                 pid = None
-            return daemon, pid, text[j + 1 :]
-        return daemon, None, text[i:]
-    return daemon, None, text[i:]
+            return daemon, pid, stripped[j + 1 :]
+        # ``daemon[…`` without a closing ``]:`` is not a daemon-pid;
+        # roll the whole thing back into the message tail.
+        return "", None, text
+    if i < n and stripped[i] == ":":
+        return daemon, None, stripped[i:]
+    # No terminator found — not a daemon, surface the original
+    # text (with its leading whitespace) so the caller can use the
+    # full tail as the message body.
+    _ = leading_ws  # kept explicit for the doc comment above
+    return "", None, text
 
 
 def _take_f5_code(text: str) -> tuple[str, str, int | None, str]:
