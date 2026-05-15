@@ -476,6 +476,14 @@ class TestProbeGate:
         assert row["error"] == "unsupported URL scheme: file"
 
     def test_ping_succeeds_when_enabled(self):
+        # ``ping`` uses ``subprocess.run(["ping", ...])`` under the
+        # hood; skip when the system binary isn't installed (minimal
+        # sandboxes, some test runners).  ``shutil.which`` returns
+        # ``None`` in that case.
+        import shutil
+
+        if shutil.which("ping") is None:
+            pytest.skip("system ``ping`` binary not available")
         token = PROBES_ENABLED.set(True)
         try:
             result = run_query('ping("127.0.0.1")', {"mem://x": _CFG})
