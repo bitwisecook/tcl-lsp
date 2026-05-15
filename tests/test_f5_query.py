@@ -2126,6 +2126,159 @@ def test_gtm_rule_projects_body_with_dns_request_handler():
     assert "DNS query received" in body
 
 
+# ---------------------------------------------------------------------------
+# Stress queries — deliberately dense jq-style compositions
+# ---------------------------------------------------------------------------
+
+_STRESS_LTM_SCF = """ltm node /Common/n1 {
+    address 10.0.0.11
+}
+ltm node /Common/n2 {
+    address 10.0.0.12
+}
+ltm monitor http /Common/http_app {
+    destination *:*
+    interval 5
+    timeout 16
+}
+ltm pool /Common/app_pool {
+    members {
+        /Common/n1:80 {
+            address 10.0.0.11
+        }
+        /Common/n2:80 {
+            address 10.0.0.12
+        }
+    }
+    monitor /Common/http_app
+}
+ltm pool /Common/api_pool {
+    members {
+        /Common/n2:8080 {
+            address 10.0.0.12
+        }
+    }
+}
+ltm virtual /Common/app_vs {
+    destination /Common/192.0.2.10:443
+    pool /Common/app_pool
+    rules {
+        /Common/app_rule
+    }
+}
+ltm virtual /Common/api_vs {
+    destination /Common/192.0.2.20:8443
+    pool /Common/api_pool
+}
+ltm rule /Common/app_rule {
+when HTTP_REQUEST {
+    pool /Common/app_pool
+}
+}
+"""
+
+
+def test_stress_ltm_virtual_inventory_uses_dynamic_links_and_reverse_graph():
+    """Synthesised from corpus pool / virtual / monitor shapes.
+
+    Exercises stream let-bindings, PathRef re-entry via dynamic
+    subscript, nested typed values, reverse graph lookup, list
+    collection, sorting, joining, scalar casts, and source attribution
+    in one pipeline.
+    """
+    query = (
+        "[.ltm.virtual[] as $vs "
+        "| .ltm.pool[path($vs.pool)] as $pool "
+        "| $pool.members[] as $member "
+        "| tsv($vs.name, ($vs.destination | host), str($vs.destination | port), "
+        "$pool.name, $member.name, $member.address, "
+        'join(([referenced_by($pool)[] | basename(.)] | sort), ","), '
+        "source_file($member))] | sort"
+    )
+
+    result = run_query(query, {"ltm.scf": _STRESS_LTM_SCF})
+    [rows] = result.values_per_file["ltm.scf"]
+    assert rows == [
+        "api_vs\t192.0.2.20\t8443\tapi_pool\t/Common/n2:8080\t10.0.0.12\tapi_vs\tltm.scf",
+        "app_vs\t192.0.2.10\t443\tapp_pool\t/Common/n1:80\t10.0.0.11\tapp_rule,app_vs\tltm.scf",
+        "app_vs\t192.0.2.10\t443\tapp_pool\t/Common/n2:80\t10.0.0.12\tapp_rule,app_vs\tltm.scf",
+    ]
+
+
+def test_stress_object_transform_subscripts_graph_refs_and_nested_map():
+    query = (
+        "[.ltm.virtual[] as $vs "
+        "| {virtual: $vs.name, vip: ($vs.destination | host), "
+        "port: ($vs.destination | port), deps: ($vs | refs(.) | sort), "
+        "dep_count: ($vs | refs(.) | count)} "
+        '| .["virtual"] + "@" + .["vip"] + ":" + str(.["port"]) '
+        '+ " deps=" + str(.["dep_count"]) + " [" '
+        '+ join((.deps | map(basename(.)) | sort), ",") + "]"] | sort'
+    )
+
+    result = run_query(query, {"m": SAMPLE_CONF})
+    [rows] = result.values_per_file["m"]
+    assert rows == [
+        "api_vs@10.10.0.6:80 deps=1 [api_pool]",
+        "web_vs@10.10.0.5:443 deps=2 [log_rule,web_pool]",
+    ]
+
+
+def test_stress_cm_net_cross_module_deep_link_join():
+    """Mirrors the cloud-libs corpus shape: trust-domain, device-group,
+    device certs, self IP traffic-groups, route-domains, and VLANs.
+    """
+    query = (
+        "[.cm.trust-domain[] as $td "
+        "| $td.trust-group.devices[] as $dev "
+        "| .net.self[] as $self "
+        '| select($self.traffic-group.full-path == "/Common/traffic-group-1") '
+        "| $self.vlan as $vlan "
+        "| $td.ca-devices[] as $ca "
+        "| select($ca.hostname == $dev.hostname) "
+        '| tsv($td.name, $dev.hostname, ($dev.cert.checksum | split(":") | first), '
+        '$self.name, $vlan.name, join($vlan.interfaces, ","), source_file($self))] | sort'
+    )
+
+    result = run_query(query, {"infra.scf": _CM_SCF + "\n" + _NET_SCF})
+    [rows] = result.values_per_file["infra.scf"]
+    assert rows == ["Root\thost1.example.test\tSHA1\t203.0.113.5\tinternal\t1.2\tinfra.scf"]
+
+
+def test_stress_apm_policy_chain_walks_policy_items_to_agents():
+    query = (
+        "[.apm.access-policy[] as $policy "
+        "| $policy.items[] as $item "
+        "| $item.agents[] as $agent "
+        "| tsv($policy.name, $item.caption, $agent.agent-type, kind($agent), "
+        "source_file($agent))] | sort"
+    )
+
+    result = run_query(query, {"apm.scf": _APM_SCF})
+    [rows] = result.values_per_file["apm.scf"]
+    assert rows == [
+        "policy_default\tAllow\tending-allow\tapm policy agent\tapm.scf",
+        "policy_default\tDeny\tending-deny\tapm policy agent\tapm.scf",
+        "policy_default\tKerberos Auth\tkerberos\tapm policy agent\tapm.scf",
+    ]
+
+
+def test_stress_gtm_wideip_pool_transform_over_dns_record_kinds():
+    query = (
+        "[.gtm.wideip[] as $wide "
+        "| $wide.pools[] as $pool "
+        "| tsv($wide.name, $wide.record-type, $pool.name, $pool.record-type, "
+        "($pool.ttl | str), ($pool.load-balancing-mode | upcase), source_file($pool))] | sort"
+    )
+
+    result = run_query(query, {"gtm.scf": _GTM_SCF})
+    [rows] = result.values_per_file["gtm.scf"]
+    assert rows == [
+        "example.test\ta\tp_a1\ta\t180\tGLOBAL-AVAILABILITY\tgtm.scf",
+        "example.test\ta\tp_a2\ta\t60\tROUND-ROBIN\tgtm.scf",
+    ]
+
+
 # Issue 2 — Parser must not hang on ``\"...\"`` data-group record keys.
 _DG_ESCAPED_KEYS = (
     "ltm data-group internal /Common/dg_minimal {\n"
