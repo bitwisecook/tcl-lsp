@@ -62,6 +62,50 @@ class BigipGtmServer:
 
 
 @dataclass(frozen=True, slots=True)
+class BigipGtmPoolMember:
+    """One ``gtm pool.members`` entry.
+
+    Member keys in TMSH spell as ``<server>:<virtual-server>`` (for
+    A / AAAA pools — the virtual-server resolves through ``gtm
+    server`` to a real listener) or ``<server>`` for record types
+    that don't carry a virtual-server (``cname``, ``mx``, …).  The
+    ``service-port`` field overrides the underlying virtual-server's
+    listener port when present.
+    """
+
+    name: str = ""
+    description: str = ""
+    state: str = ""  # ``enabled`` / ``disabled`` bare flag
+    member_order: str = ""
+    order: str = ""
+    service_port: str = ""
+    ratio: str = ""
+    monitor: str = ""
+    depends_on: str = ""
+    limit_max_bps: str = ""
+    limit_max_connections: str = ""
+    limit_max_pps: str = ""
+    static_target: str = ""
+
+    def query_fields(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "state": self.state,
+            "member-order": self.member_order,
+            "order": self.order,
+            "service-port": self.service_port,
+            "ratio": self.ratio,
+            "monitor": self.monitor,
+            "depends-on": self.depends_on,
+            "limit-max-bps": self.limit_max_bps,
+            "limit-max-connections": self.limit_max_connections,
+            "limit-max-pps": self.limit_max_pps,
+            "static-target": self.static_target,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class BigipGtmPool:
     """A ``gtm pool <record-type>`` object — a record-type-tagged pool.
 
@@ -73,7 +117,7 @@ class BigipGtmPool:
     name: str
     full_path: str
     record_type: str = ""
-    members: tuple[str, ...] = ()
+    members: tuple[BigipGtmPoolMember, ...] = ()
     monitor: str = ""
     alternate_mode: str = ""
     fallback_mode: str = ""

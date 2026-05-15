@@ -990,8 +990,5 @@ CLI's `--output` choices in `explorer/verbs/f5/query.py`.
 - [`bigip-registry-architecture.md`](bigip-registry-architecture.md)
   — registry contract for value specs, source ranges,
   references.
-- [`f5-query-projection-gaps.md`](f5-query-projection-gaps.md) —
-  working checklist of TMSH properties the typed projection
-  doesn't surface yet.
 - [`f5-cli-architecture.md`](f5-cli-architecture.md) — verb
   registry, command dispatch, output format plumbing.

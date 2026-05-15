@@ -162,30 +162,167 @@ class BigipNode:
 
 @dataclass(frozen=True, slots=True)
 class BigipProfile:
-    """A ``ltm profile <type>`` object."""
+    """A ``ltm profile <type>`` object.
+
+    A single dataclass carries the superset of subtype-specific fields
+    (HTTP ``idle-timeout`` / header-insert, client-ssl / server-ssl
+    ``ciphers`` / ``cert`` / ``key`` / ``chain`` / ``sni-default``,
+    TCP / UDP ``idle-timeout``, OneConnect ``source-mask`` /
+    ``idle-timeout-override``, fasthttp / fastl4 ``reset-on-timeout``,
+    Web-acceleration ``cache-uri-exclude`` / ``cache-uri-include``, …)
+    rather than minting one dataclass per type.  The TMSH parser
+    fills in only the fields actually present in the stanza, so
+    absent fields stay empty; consumers branch on
+    :attr:`profile_type` to decide which fields are meaningful.
+    """
 
     name: str
     full_path: str
     profile_type: ProfileType = ProfileType.OTHER
     defaults_from: str = ""  # PathRef → ltm profile
     description: str = ""
+    # HTTP-family scalars (http, http-compression, http-proxy-connect,
+    # web-acceleration, fasthttp).
+    idle_timeout: str = ""
+    insert_xforwarded_for: str = ""
+    request_chunking: str = ""
+    response_chunking: str = ""
+    lws_max_columns: str = ""
+    lws_separator: str = ""
+    server_agent_name: str = ""
+    via_request: str = ""
+    via_response: str = ""
+    # client-ssl / server-ssl scalars.  The full cert / key / chain
+    # tuples live in ``cert-key-chain`` keyed-blocks and are surfaced
+    # via the typed :class:`BigipList`; these scalars are the legacy
+    # singular form many real configs still carry.
+    ciphers: str = ""
+    cert: str = ""  # PathRef → sys file ssl-cert
+    key: str = ""  # PathRef → sys file ssl-key
+    chain: str = ""  # PathRef → sys file ssl-cert
+    ca_file: str = ""  # PathRef → sys file ssl-cert
+    crl_file: str = ""  # PathRef → sys file ssl-crl
+    cert_extension_includes: str = ""
+    options: str = ""
+    peer_cert_mode: str = ""
+    sni_default: str = ""
+    sni_require: str = ""
+    server_name: str = ""
+    renegotiation: str = ""
+    secure_renegotiation: str = ""
+    proxy_ca_cert: str = ""
+    proxy_ca_key: str = ""
+    # TCP-family knobs.
+    keep_alive_interval: str = ""
+    ip_tos_to_client: str = ""
+    ip_tos_to_server: str = ""
+    link_qos_to_client: str = ""
+    link_qos_to_server: str = ""
+    nagle: str = ""
+    reset_on_timeout: str = ""
+    send_buffer_size: str = ""
+    receive_window_size: str = ""
+    proxy_buffer_low: str = ""
+    proxy_buffer_high: str = ""
+    # FastL4 / FastHTTP knobs.
+    pva_acceleration: str = ""
+    pva_dynamic_client_packets: str = ""
+    pva_dynamic_server_packets: str = ""
+    loose_close: str = ""
+    loose_initialization: str = ""
+    # UDP knobs.
+    datagram_load_balancing: str = ""
+    allow_no_payload: str = ""
+    # OneConnect knobs.
+    source_mask: str = ""
+    idle_timeout_override: str = ""
+    max_age: str = ""
+    max_reuse: str = ""
+    max_size: str = ""
+    # Stream / HTML / Rewrite knobs.
+    source: str = ""
+    target: str = ""
+    pool: str = ""  # PathRef → ltm pool (for rewrite profile)
+    # Analytics / classification / request-log knobs.
+    collected_stats_internal_logging: str = ""
+    collected_stats_external_logging: str = ""
+    publisher: str = ""  # PathRef → sys log-config publisher
     range: Range | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class BigipMonitor:
-    """A ``ltm monitor <type>`` object."""
+    """A ``ltm monitor <type>`` object.
+
+    A single dataclass carries the superset of subtype-specific fields
+    (HTTP / HTTPS ``send`` / ``recv``, external ``args`` / ``run``,
+    SNMP-DCA ``community`` / ``version``, …) rather than minting one
+    dataclass per type.  The TMSH parser fills in only the fields
+    actually present in the stanza, so absent fields stay empty and
+    consumers branch on :attr:`monitor_type` to decide which fields
+    are meaningful.  Subtypes are discoverable from
+    ``_TWO_WORD_TYPES`` in ``core/bigip/parser/_parsers.py``.
+    """
 
     name: str
     full_path: str
-    monitor_type: str = ""  # "http", "tcp", "https", etc.
+    monitor_type: str = ""  # "http", "tcp", "https", "external", "snmp-dca", …
     defaults_from: str = ""  # PathRef → ltm monitor
     description: str = ""
     interval: str = ""
     timeout: str = ""
     destination: str = ""
+    # HTTP / HTTPS / TCP / UDP send-receive content match.
     send: str = ""
     recv: str = ""
+    recv_disable: str = ""
+    # Authentication probes (LDAP, MySQL, Oracle, PostgreSQL, RADIUS).
+    username: str = ""
+    password: str = ""
+    base: str = ""  # LDAP base DN
+    filter: str = ""  # LDAP search filter
+    count: str = ""  # MySQL / Oracle / PostgreSQL row count
+    database: str = ""  # MySQL / Oracle / PostgreSQL database name
+    # External monitors — script + args.
+    args: str = ""
+    run: str = ""  # PathRef → sys file external-monitor
+    # Adaptive timing.
+    adaptive: str = ""
+    adaptive_divergence_type: str = ""
+    adaptive_divergence_value: str = ""
+    adaptive_limit: str = ""
+    adaptive_sampling_timespan: str = ""
+    # Behaviour flags.
+    transparent: str = ""
+    reverse: str = ""
+    manual_resume: str = ""
+    ignore_down_response: str = ""
+    ip_dscp: str = ""
+    up_interval: str = ""
+    time_until_up: str = ""
+    # HTTPS / SSL-specific fields.
+    cipherlist: str = ""
+    cert: str = ""  # PathRef → sys file ssl-cert
+    key: str = ""  # PathRef → sys file ssl-key
+    compatibility: str = ""
+    # SNMP-DCA / SNMP-DCA-Base.
+    community: str = ""
+    version: str = ""
+    agent_type: str = ""
+    cpu_coefficient: str = ""
+    cpu_threshold: str = ""
+    disk_coefficient: str = ""
+    disk_threshold: str = ""
+    memory_coefficient: str = ""
+    memory_threshold: str = ""
+    # SIP / Diameter / RADIUS specific.
+    headers: str = ""
+    request: str = ""
+    response: str = ""
+    mode: str = ""
+    # Address-translation overrides (gateway-icmp / portping).
+    alias_address: str = ""
+    alias_service_port: str = ""
     range: Range | None = None
 
 
@@ -201,6 +338,30 @@ class BigipSnatPool:
     # is the back-compat tuple view.
     members: "BigipList" = dc_field(default_factory=_empty_bigip_list)
     description: str = ""
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipLtmRateClass:
+    """A ``ltm rate-class`` object — token-bucket rate-shaping class.
+
+    Each ``ltm virtual.rate-class`` PathRef resolves to one of these.
+    Numeric fields stay as strings (TMSH suffix-notation: ``2g`` /
+    ``500k`` / etc.) so the original byte-accurate spelling survives a
+    re-emit; callers that want integers should parse them at the
+    query-builtin layer.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    rate: str = ""
+    ceiling: str = ""
+    burst_size: str = ""
+    direction: str = ""  # ``any`` / ``in`` / ``out``
+    queue_management: str = ""  # ``sfq`` / ``red`` / ``pfifo``
+    parent: str = ""  # PathRef → ltm rate-class (hierarchical shaping)
+    drop_policy: str = ""
     range: Range | None = None
 
 

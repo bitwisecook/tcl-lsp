@@ -40,6 +40,7 @@ from ._cm import (
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
+    BigipCmHaGroup,
     BigipCmKey,
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
@@ -87,6 +88,7 @@ from ._ltm import (
     BigipLtmMessageRoutingObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
+    BigipLtmRateClass,
     BigipLtmSnat,
     BigipLtmSnatTranslation,
     BigipLtmTrafficClass,
@@ -204,6 +206,7 @@ class BigipConfig:
     ltm_snats: dict[str, BigipLtmSnat] = field(default_factory=dict)
     ltm_snat_translations: dict[str, BigipLtmSnatTranslation] = field(default_factory=dict)
     ltm_policy_strategies: dict[str, BigipLtmPolicyStrategy] = field(default_factory=dict)
+    ltm_rate_classes: dict[str, BigipLtmRateClass] = field(default_factory=dict)
     ltm_traffic_classes: dict[str, BigipLtmTrafficClass] = field(default_factory=dict)
     ltm_traffic_matching_criteria: dict[str, BigipLtmTrafficMatchingCriteria] = field(
         default_factory=dict
@@ -948,7 +951,7 @@ class BigipConfig:
     vcmp_virtual_disks: dict[str, BigipVcmpMinimalObject] = field(default_factory=dict)
     vcmp_virtual_disk_templates: dict[str, BigipVcmpMinimalObject] = field(default_factory=dict)
     # Bundle 43 — cm.* follow-ons.
-    cm_ha_groups: dict[str, BigipCmMinimalObject] = field(default_factory=dict)
+    cm_ha_groups: dict[str, BigipCmHaGroup] = field(default_factory=dict)
     cm_config_sync: dict[str, BigipCmMinimalObject] = field(default_factory=dict)
     # Bundle 44 — cli.* minimal kinds.
     cli_admin_partitions: dict[str, BigipCliMinimalObject] = field(default_factory=dict)

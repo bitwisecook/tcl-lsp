@@ -45,6 +45,7 @@ from ..model import (
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
+    BigipCmHaGroup,
     BigipCmKey,
     BigipCmTrafficGroup,
     BigipCmTrustDomain,
@@ -60,6 +61,7 @@ from ..model import (
     BigipGtmListenerDohProxy,
     BigipGtmListenerDohServer,
     BigipGtmPool,
+    BigipGtmPoolMember,
     BigipGtmProberPool,
     BigipGtmRegion,
     BigipGtmRule,
@@ -87,6 +89,7 @@ from ..model import (
     BigipLtmMessageRoutingObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
+    BigipLtmRateClass,
     BigipLtmSnat,
     BigipLtmSnatTranslation,
     BigipLtmTrafficClass,
@@ -162,8 +165,13 @@ from ..model import (
     BigipSysGlobalSettings,
     BigipSysManagementRoute,
     BigipSysNtp,
+    BigipSysNtpRestrict,
     BigipSysProvision,
     BigipSysSnmp,
+    BigipSysSnmpDiskMonitor,
+    BigipSysSnmpProcessMonitor,
+    BigipSysSnmpTrap,
+    BigipSysSnmpUser,
     BigipVirtualAddress,
     BigipVirtualServer,
     DataGroupType,
@@ -1478,6 +1486,26 @@ def _parse_ltm_policy_strategy(
     )
 
 
+def _parse_ltm_rate_class(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipLtmRateClass:
+    props = _parse_properties(body)
+    name = full_path.rsplit("/", 1)[-1]
+    return BigipLtmRateClass(
+        name=name,
+        full_path=full_path,
+        description=_description(props),
+        rate=props.get("rate", ""),
+        ceiling=props.get("ceiling", ""),
+        burst_size=props.get("burst-size", ""),
+        direction=props.get("direction", ""),
+        queue_management=props.get("queue-management", ""),
+        parent=props.get("parent", ""),
+        drop_policy=props.get("drop-policy", ""),
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
 def _parse_ltm_traffic_class(
     full_path: str, body: str, source_map: DocumentBuffer, block: _Block
 ) -> BigipLtmTrafficClass:
@@ -2163,8 +2191,9 @@ _parse_vcmp_minimal = _parse_minimal
 
 
 _CM_MINIMAL_DISPATCH: dict[str, str] = {
-    # Bundle 43 — cm.* follow-ons (2 kinds).
-    "ha-group": "cm_ha_groups",
+    # Bundle 43 — cm.* follow-ons.  ``ha-group`` graduated to a typed
+    # projection (see ``_parse_cm_ha_group``); only ``config-sync``
+    # remains as a minimal kind.
     "config-sync": "cm_config_sync",
 }
 
@@ -2387,6 +2416,68 @@ def _parse_profile(
         profile_type=_classify_profile(profile_type_str),
         defaults_from=props.get("defaults-from", ""),
         description=_description(props),
+        # HTTP-family.
+        idle_timeout=props.get("idle-timeout", ""),
+        insert_xforwarded_for=props.get("insert-xforwarded-for", ""),
+        request_chunking=props.get("request-chunking", ""),
+        response_chunking=props.get("response-chunking", ""),
+        lws_max_columns=props.get("lws-max-columns", ""),
+        lws_separator=_unquote(props.get("lws-separator", "")),
+        server_agent_name=_unquote(props.get("server-agent-name", "")),
+        via_request=props.get("via-request", ""),
+        via_response=props.get("via-response", ""),
+        # SSL profiles (client-ssl / server-ssl).
+        ciphers=_unquote(props.get("ciphers", "")),
+        cert=props.get("cert", ""),
+        key=props.get("key", ""),
+        chain=props.get("chain", ""),
+        ca_file=props.get("ca-file", ""),
+        crl_file=props.get("crl-file", ""),
+        cert_extension_includes=_unquote(props.get("cert-extension-includes", "")),
+        options=_unquote(props.get("options", "")),
+        peer_cert_mode=props.get("peer-cert-mode", ""),
+        sni_default=props.get("sni-default", ""),
+        sni_require=props.get("sni-require", ""),
+        server_name=_unquote(props.get("server-name", "")),
+        renegotiation=props.get("renegotiation", ""),
+        secure_renegotiation=props.get("secure-renegotiation", ""),
+        proxy_ca_cert=props.get("proxy-ca-cert", ""),
+        proxy_ca_key=props.get("proxy-ca-key", ""),
+        # TCP.
+        keep_alive_interval=props.get("keep-alive-interval", ""),
+        ip_tos_to_client=props.get("ip-tos-to-client", ""),
+        ip_tos_to_server=props.get("ip-tos-to-server", ""),
+        link_qos_to_client=props.get("link-qos-to-client", ""),
+        link_qos_to_server=props.get("link-qos-to-server", ""),
+        nagle=props.get("nagle", ""),
+        reset_on_timeout=props.get("reset-on-timeout", ""),
+        send_buffer_size=props.get("send-buffer-size", ""),
+        receive_window_size=props.get("receive-window-size", ""),
+        proxy_buffer_low=props.get("proxy-buffer-low", ""),
+        proxy_buffer_high=props.get("proxy-buffer-high", ""),
+        # FastL4 / FastHTTP.
+        pva_acceleration=props.get("pva-acceleration", ""),
+        pva_dynamic_client_packets=props.get("pva-dynamic-client-packets", ""),
+        pva_dynamic_server_packets=props.get("pva-dynamic-server-packets", ""),
+        loose_close=props.get("loose-close", ""),
+        loose_initialization=props.get("loose-initialization", ""),
+        # UDP.
+        datagram_load_balancing=props.get("datagram-load-balancing", ""),
+        allow_no_payload=props.get("allow-no-payload", ""),
+        # OneConnect.
+        source_mask=props.get("source-mask", ""),
+        idle_timeout_override=props.get("idle-timeout-override", ""),
+        max_age=props.get("max-age", ""),
+        max_reuse=props.get("max-reuse", ""),
+        max_size=props.get("max-size", ""),
+        # Stream / HTML / Rewrite.
+        source=_unquote(props.get("source", "")),
+        target=_unquote(props.get("target", "")),
+        pool=props.get("pool", ""),
+        # Analytics / request-log.
+        collected_stats_internal_logging=props.get("collected-stats-internal-logging", ""),
+        collected_stats_external_logging=props.get("collected-stats-external-logging", ""),
+        publisher=props.get("publisher", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -2411,6 +2502,46 @@ def _parse_monitor(
         destination=props.get("destination", ""),
         send=_unquote(props.get("send", "")),
         recv=_unquote(props.get("recv", "")),
+        recv_disable=_unquote(props.get("recv-disable", "")),
+        username=props.get("username", ""),
+        password=props.get("password", ""),
+        base=_unquote(props.get("base", "")),
+        filter=_unquote(props.get("filter", "")),
+        count=props.get("count", ""),
+        database=props.get("database", ""),
+        args=_unquote(props.get("args", "")),
+        run=props.get("run", ""),
+        adaptive=props.get("adaptive", ""),
+        adaptive_divergence_type=props.get("adaptive-divergence-type", ""),
+        adaptive_divergence_value=props.get("adaptive-divergence-value", ""),
+        adaptive_limit=props.get("adaptive-limit", ""),
+        adaptive_sampling_timespan=props.get("adaptive-sampling-timespan", ""),
+        transparent=props.get("transparent", ""),
+        reverse=props.get("reverse", ""),
+        manual_resume=props.get("manual-resume", ""),
+        ignore_down_response=props.get("ignore-down-response", ""),
+        ip_dscp=props.get("ip-dscp", ""),
+        up_interval=props.get("up-interval", ""),
+        time_until_up=props.get("time-until-up", ""),
+        cipherlist=props.get("cipherlist", ""),
+        cert=props.get("cert", ""),
+        key=props.get("key", ""),
+        compatibility=props.get("compatibility", ""),
+        community=props.get("community", ""),
+        version=props.get("version", ""),
+        agent_type=props.get("agent-type", ""),
+        cpu_coefficient=props.get("cpu-coefficient", ""),
+        cpu_threshold=props.get("cpu-threshold", ""),
+        disk_coefficient=props.get("disk-coefficient", ""),
+        disk_threshold=props.get("disk-threshold", ""),
+        memory_coefficient=props.get("memory-coefficient", ""),
+        memory_threshold=props.get("memory-threshold", ""),
+        headers=_unquote(props.get("headers", "")),
+        request=_unquote(props.get("request", "")),
+        response=_unquote(props.get("response", "")),
+        mode=props.get("mode", ""),
+        alias_address=props.get("alias-address", ""),
+        alias_service_port=props.get("alias-service-port", ""),
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -3262,31 +3393,143 @@ def _parse_sys_dns(body: str, source_map: DocumentBuffer, block: _Block) -> Bigi
     )
 
 
+_NTP_RESTRICT_FLAG_KEYS: tuple[str, ...] = (
+    "ignore",
+    "kod",
+    "limited",
+    "low-priority-trap",
+    "no-modify",
+    "no-peer",
+    "no-query",
+    "no-serve-packets",
+    "no-trap",
+    "no-trust",
+)
+
+
 def _parse_sys_ntp(body: str, source_map: DocumentBuffer, block: _Block) -> BigipSysNtp:
     props = _parse_properties_with_spans(body)
     servers: tuple[str, ...] = ()
     if "servers" in props:
         servers = tuple(_parse_list_block(props["servers"].value))
+    restrict: tuple[BigipSysNtpRestrict, ...] = ()
+    if "restrict" in props:
+        entries: list[BigipSysNtpRestrict] = []
+        for entry_name, entry_body in _parse_keyed_block_entries(props["restrict"].value):
+            entry_props = _parse_properties(entry_body)
+            flags = tuple(
+                flag_name
+                for flag_name in _NTP_RESTRICT_FLAG_KEYS
+                if entry_props.get(flag_name, "") == "enabled"
+            )
+            entries.append(
+                BigipSysNtpRestrict(
+                    name=entry_name,
+                    address=entry_props.get("address", ""),
+                    mask=entry_props.get("mask", ""),
+                    default_entry=entry_props.get("default-entry", ""),
+                    flags=flags,
+                    description=_description(entry_props),
+                )
+            )
+        restrict = tuple(entries)
     return BigipSysNtp(
         servers=servers,
         timezone=props["timezone"].value if "timezone" in props else "",
+        restrict=restrict,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
 
 def _parse_sys_snmp(body: str, source_map: DocumentBuffer, block: _Block) -> BigipSysSnmp:
     props = _parse_properties_with_spans(body)
+    plain = {k: p.value for k, p in props.items()}
     agent_addresses: tuple[str, ...] = ()
     if "agent-addresses" in props:
         agent_addresses = tuple(_parse_list_block(props["agent-addresses"].value))
     communities: tuple[str, ...] = ()
     if "communities" in props:
-        # ``communities`` is a block of named sub-objects; the top-level
-        # keys are the community full-paths.
-        communities = tuple(_parse_list_block(props["communities"].value))
+        # ``communities`` is a keyed-block of community sub-objects; the
+        # top-level keys are the community names.
+        communities = tuple(k for k, _ in _parse_keyed_block_entries(props["communities"].value))
+    users: tuple[BigipSysSnmpUser, ...] = ()
+    if "users" in props:
+        entries: list[BigipSysSnmpUser] = []
+        for entry_name, entry_body in _parse_keyed_block_entries(props["users"].value):
+            ep = _parse_properties(entry_body)
+            entries.append(
+                BigipSysSnmpUser(
+                    name=entry_name,
+                    username=ep.get("username", ""),
+                    security_level=ep.get("security-level", ""),
+                    auth_protocol=ep.get("auth-protocol", ""),
+                    privacy_protocol=ep.get("privacy-protocol", ""),
+                    oid_subset=ep.get("oid-subset", ""),
+                    description=_description(ep),
+                )
+            )
+        users = tuple(entries)
+    traps: tuple[BigipSysSnmpTrap, ...] = ()
+    if "traps" in props:
+        tentries: list[BigipSysSnmpTrap] = []
+        for entry_name, entry_body in _parse_keyed_block_entries(props["traps"].value):
+            ep = _parse_properties(entry_body)
+            tentries.append(
+                BigipSysSnmpTrap(
+                    name=entry_name,
+                    host=ep.get("host", ""),
+                    port=ep.get("port", ""),
+                    version=ep.get("version", ""),
+                    community=ep.get("community", ""),
+                    security_name=ep.get("security-name", ""),
+                    security_level=ep.get("security-level", ""),
+                    auth_protocol=ep.get("auth-protocol", ""),
+                    privacy_protocol=ep.get("privacy-protocol", ""),
+                    network=ep.get("network", ""),
+                    description=_description(ep),
+                )
+            )
+        traps = tuple(tentries)
+    process_monitors: tuple[BigipSysSnmpProcessMonitor, ...] = ()
+    if "process-monitors" in props:
+        pentries: list[BigipSysSnmpProcessMonitor] = []
+        for entry_name, entry_body in _parse_keyed_block_entries(props["process-monitors"].value):
+            ep = _parse_properties(entry_body)
+            pentries.append(
+                BigipSysSnmpProcessMonitor(
+                    name=entry_name,
+                    process=ep.get("process", ""),
+                    max_processes=ep.get("max-processes", ""),
+                    min_processes=ep.get("min-processes", ""),
+                    description=_description(ep),
+                )
+            )
+        process_monitors = tuple(pentries)
+    disk_monitors: tuple[BigipSysSnmpDiskMonitor, ...] = ()
+    if "disk-monitors" in props:
+        dentries: list[BigipSysSnmpDiskMonitor] = []
+        for entry_name, entry_body in _parse_keyed_block_entries(props["disk-monitors"].value):
+            ep = _parse_properties(entry_body)
+            dentries.append(
+                BigipSysSnmpDiskMonitor(
+                    name=entry_name,
+                    partition=ep.get("partition", ""),
+                    min_space=ep.get("min-space", ""),
+                    description=_description(ep),
+                )
+            )
+        disk_monitors = tuple(dentries)
     return BigipSysSnmp(
         agent_addresses=agent_addresses,
         communities=communities,
+        sys_contact=_unquote(plain.get("sys-contact", "")),
+        sys_location=_unquote(plain.get("sys-location", "")),
+        sys_services=plain.get("sys-services", ""),
+        trap_community=plain.get("trap-community", ""),
+        users=users,
+        traps=traps,
+        process_monitors=process_monitors,
+        disk_monitors=disk_monitors,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -4375,6 +4618,7 @@ def _parse_cm_traffic_group(
         default_device=plain.get("default-device", ""),
         ha_load_factor=plain.get("ha-load-factor", ""),
         ha_order=ha_order,
+        ha_group=plain.get("ha-group", ""),
         auto_failback_enabled=plain.get("auto-failback-enabled", ""),
         auto_failback_time=plain.get("auto-failback-time", ""),
         mac=plain.get("mac", ""),
@@ -4400,6 +4644,30 @@ def _parse_cm_trust_domain(
         guid=props["guid"].value if "guid" in props else "",
         status=props["status"].value if "status" in props else "",
         trust_group=props["trust-group"].value if "trust-group" in props else "",
+        range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
+    )
+
+
+def _parse_cm_ha_group(
+    full_path: str, body: str, source_map: DocumentBuffer, block: _Block
+) -> BigipCmHaGroup:
+    props = _parse_properties_with_spans(body)
+    plain = {key: prop.value for key, prop in props.items()}
+    name = full_path.rsplit("/", 1)[-1]
+    pools: tuple[str, ...] = ()
+    if "pools" in props:
+        pools = tuple(k for k, _ in _parse_keyed_block_entries(props["pools"].value))
+    trunks: tuple[str, ...] = ()
+    if "trunks" in props:
+        trunks = tuple(k for k, _ in _parse_keyed_block_entries(props["trunks"].value))
+    return BigipCmHaGroup(
+        name=name,
+        full_path=full_path,
+        description=_description(plain),
+        enabled_state=_state_flag(plain),
+        active_bonus=plain.get("active-bonus", ""),
+        pools=pools,
+        trunks=trunks,
         range=_range_from_offsets(source_map, block.start_offset, block.end_offset),
     )
 
@@ -4492,9 +4760,29 @@ def _parse_gtm_pool(
     props = _parse_properties_with_spans(body)
     plain = {key: prop.value for key, prop in props.items()}
     name = full_path.rsplit("/", 1)[-1]
-    members: tuple[str, ...] = ()
+    members: tuple[BigipGtmPoolMember, ...] = ()
     if "members" in props:
-        members = tuple(_parse_list_block(props["members"].value))
+        member_entries: list[BigipGtmPoolMember] = []
+        for entry_name, entry_body in _parse_keyed_block_entries(props["members"].value):
+            ep = _parse_properties(entry_body)
+            member_entries.append(
+                BigipGtmPoolMember(
+                    name=entry_name,
+                    description=_description(ep),
+                    state=_state_flag(ep),
+                    member_order=ep.get("member-order", ""),
+                    order=ep.get("order", ""),
+                    service_port=ep.get("service-port", ""),
+                    ratio=ep.get("ratio", ""),
+                    monitor=ep.get("monitor", ""),
+                    depends_on=ep.get("depends-on", ""),
+                    limit_max_bps=ep.get("limit-max-bps", ""),
+                    limit_max_connections=ep.get("limit-max-connections", ""),
+                    limit_max_pps=ep.get("limit-max-pps", ""),
+                    static_target=ep.get("static-target", ""),
+                )
+            )
+        members = tuple(member_entries)
     return BigipGtmPool(
         name=name,
         full_path=full_path,
@@ -5370,6 +5658,7 @@ _NAMED_DISPATCH: dict[tuple[str, str], tuple[str, _NamedTypedParserFn]] = {
     ("cm", "device-group"): ("cm_device_groups", _parse_cm_device_group),
     ("cm", "traffic-group"): ("cm_traffic_groups", _parse_cm_traffic_group),
     ("cm", "trust-domain"): ("cm_trust_domains", _parse_cm_trust_domain),
+    ("cm", "ha-group"): ("cm_ha_groups", _parse_cm_ha_group),
     # gtm.*  (most are named, singletons go in _SINGLETON_DISPATCH)
     ("gtm", "datacenter"): ("gtm_datacenters", _parse_gtm_datacenter),
     ("gtm", "server"): ("gtm_servers", _parse_gtm_server),
@@ -5421,6 +5710,7 @@ _NAMED_DISPATCH: dict[tuple[str, str], tuple[str, _NamedTypedParserFn]] = {
     ("ltm", "snat"): ("ltm_snats", _parse_ltm_snat),
     ("ltm", "snat-translation"): ("ltm_snat_translations", _parse_ltm_snat_translation),
     ("ltm", "policy-strategy"): ("ltm_policy_strategies", _parse_ltm_policy_strategy),
+    ("ltm", "rate-class"): ("ltm_rate_classes", _parse_ltm_rate_class),
     ("ltm", "traffic-class"): ("ltm_traffic_classes", _parse_ltm_traffic_class),
     ("ltm", "traffic-matching-criteria"): (
         "ltm_traffic_matching_criteria",

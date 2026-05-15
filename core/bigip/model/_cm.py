@@ -134,6 +134,7 @@ class BigipCmTrafficGroup:
     default_device: str = ""  # PathRef → cm device
     ha_load_factor: str = ""
     ha_order: tuple[str, ...] = ()  # PathRefs → cm device
+    ha_group: str = ""  # PathRef → cm ha-group (TMSH-deprecated, still appears)
     auto_failback_enabled: str = ""
     auto_failback_time: str = ""
     mac: str = ""
@@ -153,6 +154,29 @@ class BigipCmTrustDomain:
     guid: str = ""
     status: str = ""
     trust_group: str = ""  # PathRef → cm device-group
+    range: Range | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BigipCmHaGroup:
+    """A ``cm ha-group`` object — HA scoring rule for a traffic group.
+
+    Sums weighted contributions from monitored pools / trunks; the
+    traffic-group with the highest score (plus optional
+    ``active-bonus``) is preferred for activation.  Fields modelled at
+    the top level; per-pool / per-trunk weights are surfaced as
+    ``pools`` / ``trunks`` PathRef tuples — the per-entry weight /
+    threshold values live inside the source stanza and can be
+    inspected via ``f5 grep`` when audit detail is needed.
+    """
+
+    name: str
+    full_path: str
+    description: str = ""
+    enabled_state: str = ""  # ``enabled`` / ``disabled``
+    active_bonus: str = ""
+    pools: tuple[str, ...] = ()  # PathRefs → ltm pool (keyed-block names)
+    trunks: tuple[str, ...] = ()  # PathRefs → net trunk (keyed-block names)
     range: Range | None = None
 
 

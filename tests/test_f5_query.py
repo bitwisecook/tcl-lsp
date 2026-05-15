@@ -3512,9 +3512,18 @@ def test_virtual_per_flow_access_policy_pathref_resolves():
     assert result.values_per_file["mem://1"] == ["/Common/per_flow_ap"]
 
 
-def test_virtual_rate_class_is_projected_as_string():
+def test_virtual_rate_class_is_pathref():
+    """``rate-class`` is now a PathRef → ``ltm rate-class`` (was a plain
+    string before the rate-class kind was projected).  Stringifying it
+    yields the full-path; the projection auto-derefs to the rate-class
+    object when one is defined in the same config."""
+    from core.bigip.query.values import PathRef
+
     rc = _run(".ltm.virtual.fwd_vs.rate-class", _VS_FLAGS_CONF)
-    assert rc.values_per_file["mem://1"] == ["/Common/rc1"]
+    values = rc.values_per_file["mem://1"]
+    assert len(values) == 1
+    assert isinstance(values[0], PathRef)
+    assert values[0].full_path == "/Common/rc1"
 
 
 # ---------------------------------------------------------------------------
@@ -5784,7 +5793,8 @@ def test_bundles_33_to_45_dispatch():
         (".sys.software-image[].kind", "sys software image"),
         (".sys.cluster[].kind", "sys cluster"),
         (".vcmp.guest[].kind", "vcmp guest"),
-        (".cm.ha-group[].kind", "cm ha-group"),
+        # cm ha-group has graduated to a typed projection — see the
+        # dedicated coverage in TestBigipCmHaGroup.
         (".cm.config-sync[].kind", "cm config-sync"),
         (".cli.admin-partitions[].kind", "cli admin-partitions"),
         (".cli.alias-shared[].kind", "cli alias shared"),
@@ -7196,3 +7206,272 @@ def test_registry_drives_tmsh_list_operator_selection():
     # Scalar fields return an empty operator (no list semantics).
     assert list_operator_for("ltm", "pool", "monitor") == ""
     assert list_operator_for("ltm", "pool", "description") == ""
+
+
+# ---------------------------------------------------------------------------
+# Projection-gap closures (formerly in docs/design/f5-query-projection-gaps.md)
+# ---------------------------------------------------------------------------
+
+
+_GAPS_CONF = """cm ha-group /Common/hag1 {
+    description "ha group one"
+    active-bonus 20
+    enabled
+    pools {
+        /Common/pool_a { weight 10 threshold 5 }
+        /Common/pool_b { weight 20 }
+    }
+    trunks {
+        /Common/trunk_a { weight 5 }
+    }
+}
+cm traffic-group /Common/tg1 {
+    ha-group /Common/hag1
+    unit-id 1
+}
+ltm rate-class /Common/rc_uplink {
+    description "uplink shaping"
+    rate 100mbps
+    ceiling 120mbps
+    burst-size 64k
+    direction any
+    queue-management sfq
+}
+ltm virtual /Common/web_vs {
+    destination /Common/0.0.0.0:443
+    rate-class /Common/rc_uplink
+}
+sys ntp {
+    servers { time.google.com }
+    timezone UTC
+    restrict {
+        default {
+            address 0.0.0.0
+            mask 0.0.0.0
+            default-entry enabled
+            no-query enabled
+            no-trust enabled
+        }
+        localnet {
+            address 127.0.0.1
+            mask 255.255.255.255
+            kod enabled
+            limited enabled
+        }
+    }
+}
+sys snmp {
+    agent-addresses { 127.0.0.1 }
+    sys-contact "admin@example.com"
+    sys-location "Rack 4"
+    users {
+        admin-user {
+            username admin
+            security-level auth-privacy
+            auth-protocol sha
+            privacy-protocol aes
+        }
+    }
+    traps {
+        siem {
+            host 10.0.0.1
+            port 162
+            version 2c
+            community siem-community
+        }
+    }
+    process-monitors {
+        httpd {
+            process httpd
+            max-processes 100
+            min-processes 1
+        }
+    }
+    disk-monitors {
+        root {
+            partition /
+            min-space 100000
+        }
+    }
+}
+gtm pool a /Common/wp {
+    members {
+        dc1:vs1 {
+            order 0
+            member-order 0
+            ratio 5
+            monitor /Common/gateway_icmp
+        }
+        dc2:vs2 {
+            order 1
+            ratio 10
+        }
+    }
+    load-balancing-mode round-robin
+}
+ltm monitor http /Common/http_check {
+    defaults-from /Common/http
+    send "GET /health HTTP/1.1\\r\\nHost: example\\r\\n\\r\\n"
+    recv "OK"
+    recv-disable "DOWN"
+    interval 5
+    timeout 16
+    adaptive enabled
+    adaptive-divergence-type relative
+}
+ltm monitor external /Common/ext1 {
+    run /Common/myscript.sh
+    args "--check"
+}
+ltm monitor snmp-dca /Common/snmp1 {
+    community public
+    version v2c
+    cpu-threshold 80
+    disk-threshold 90
+}
+ltm monitor ldap /Common/ldap1 {
+    base "ou=users,dc=example,dc=com"
+    filter "(uid=monitoring)"
+    username monitoring
+    password secret
+}
+ltm profile http /Common/h_prof {
+    defaults-from /Common/http
+    idle-timeout 600
+    insert-xforwarded-for enabled
+    lws-max-columns 80
+}
+ltm profile client-ssl /Common/c_ssl {
+    cert /Common/site.crt
+    key /Common/site.key
+    chain /Common/ca_bundle.crt
+    ciphers "DEFAULT:!SSLv3"
+    sni-default true
+    server-name "example.com"
+}
+ltm profile tcp /Common/tcp_prof {
+    idle-timeout 300
+    nagle disabled
+    reset-on-timeout enabled
+}
+ltm profile one-connect /Common/oc1 {
+    source-mask 255.255.255.0
+    idle-timeout-override 60
+    max-age 86400
+    max-reuse 1000
+}
+"""
+
+
+def test_cm_ha_group_projects_typed_fields():
+    """`cm ha-group` is now a typed projection (was minimal)."""
+    desc = _run('.cm["ha-group"].hag1.description', _GAPS_CONF)
+    assert desc.values_per_file["mem://1"] == ["ha group one"]
+    bonus = _run('.cm["ha-group"].hag1["active-bonus"]', _GAPS_CONF)
+    assert bonus.values_per_file["mem://1"] == ["20"]
+    state = _run('.cm["ha-group"].hag1["enabled-state"]', _GAPS_CONF)
+    assert state.values_per_file["mem://1"] == ["enabled"]
+    # ``pools`` resolves as a stream of PathRefs; their string form is
+    # the canonical full-path even when the targets aren't projected
+    # in the same config.
+    from core.bigip.query.values import PathRef
+
+    pools = _run('.cm["ha-group"].hag1.pools[]', _GAPS_CONF)
+    pool_refs = pools.values_per_file["mem://1"]
+    assert all(isinstance(r, PathRef) for r in pool_refs)
+    assert [r.full_path for r in pool_refs] == ["/Common/pool_a", "/Common/pool_b"]
+
+
+def test_cm_traffic_group_ha_group_walks_to_cm_ha_group():
+    """``cm traffic-group.ha-group`` is now a PathRef → cm ha-group."""
+    result = _run('.cm["traffic-group"].tg1["ha-group"].description', _GAPS_CONF)
+    assert result.values_per_file["mem://1"] == ["ha group one"]
+
+
+def test_ltm_rate_class_is_projected_kind():
+    """``ltm rate-class`` is a new top-level kind."""
+    rate = _run('.ltm["rate-class"].rc_uplink.rate', _GAPS_CONF)
+    assert rate.values_per_file["mem://1"] == ["100mbps"]
+    qm = _run('.ltm["rate-class"].rc_uplink["queue-management"]', _GAPS_CONF)
+    assert qm.values_per_file["mem://1"] == ["sfq"]
+    # ``ltm virtual.rate-class`` resolves through it as a PathRef.
+    resolved = _run('.ltm.virtual.web_vs["rate-class"].direction', _GAPS_CONF)
+    assert resolved.values_per_file["mem://1"] == ["any"]
+
+
+def test_sys_ntp_restrict_entries_project_as_typed_subobjects():
+    addresses = _run(".sys.ntp[].restrict[].address", _GAPS_CONF)
+    assert addresses.values_per_file["mem://1"] == ["0.0.0.0", "127.0.0.1"]
+    flags = _run(".sys.ntp[].restrict[].flags", _GAPS_CONF)
+    # Two restrict entries, each with its own flags tuple.
+    assert flags.values_per_file["mem://1"] == [
+        ["no-query", "no-trust"],
+        ["kod", "limited"],
+    ]
+
+
+def test_sys_snmp_subblocks_project_as_typed_subobjects():
+    contact = _run('.sys.snmp[]["sys-contact"]', _GAPS_CONF)
+    assert contact.values_per_file["mem://1"] == ["admin@example.com"]
+    location = _run('.sys.snmp[]["sys-location"]', _GAPS_CONF)
+    assert location.values_per_file["mem://1"] == ["Rack 4"]
+    # users / traps / process-monitors / disk-monitors all surface as
+    # typed sub-objects with their own ``query_fields``.
+    auth_protocols = _run('.sys.snmp[].users[]["auth-protocol"]', _GAPS_CONF)
+    assert auth_protocols.values_per_file["mem://1"] == ["sha"]
+    trap_hosts = _run(".sys.snmp[].traps[].host", _GAPS_CONF)
+    assert trap_hosts.values_per_file["mem://1"] == ["10.0.0.1"]
+    proc = _run('.sys.snmp[]["process-monitors"][].process', _GAPS_CONF)
+    assert proc.values_per_file["mem://1"] == ["httpd"]
+    partition = _run('.sys.snmp[]["disk-monitors"][].partition', _GAPS_CONF)
+    assert partition.values_per_file["mem://1"] == ["/"]
+
+
+def test_gtm_pool_members_project_as_typed_subobjects():
+    names = _run(".gtm.pool.wp.members[].name", _GAPS_CONF)
+    assert names.values_per_file["mem://1"] == ["dc1:vs1", "dc2:vs2"]
+    ratios = _run(".gtm.pool.wp.members[].ratio", _GAPS_CONF)
+    assert ratios.values_per_file["mem://1"] == ["5", "10"]
+    monitors = _run(".gtm.pool.wp.members[].monitor", _GAPS_CONF)
+    assert monitors.values_per_file["mem://1"] == ["/Common/gateway_icmp", ""]
+
+
+def test_ltm_monitor_carries_subtype_specific_fields():
+    """``BigipMonitor`` now carries the superset of subtype-specific
+    fields — HTTP send/recv, external args/run, SNMP-DCA thresholds,
+    LDAP base/filter, etc.  Absent fields stay empty so filters that
+    target one subtype don't accidentally match another."""
+    http_send = _run(".ltm.monitor.http_check.send", _GAPS_CONF)
+    assert "GET /health" in http_send.values_per_file["mem://1"][0]
+    recv_disable = _run('.ltm.monitor.http_check["recv-disable"]', _GAPS_CONF)
+    assert recv_disable.values_per_file["mem://1"] == ["DOWN"]
+    adaptive = _run(".ltm.monitor.http_check.adaptive", _GAPS_CONF)
+    assert adaptive.values_per_file["mem://1"] == ["enabled"]
+    args = _run(".ltm.monitor.ext1.args", _GAPS_CONF)
+    assert args.values_per_file["mem://1"] == ["--check"]
+    run = _run(".ltm.monitor.ext1.run", _GAPS_CONF)
+    assert run.values_per_file["mem://1"] == ["/Common/myscript.sh"]
+    cpu = _run('.ltm.monitor.snmp1["cpu-threshold"]', _GAPS_CONF)
+    assert cpu.values_per_file["mem://1"] == ["80"]
+    base = _run(".ltm.monitor.ldap1.base", _GAPS_CONF)
+    assert base.values_per_file["mem://1"] == ["ou=users,dc=example,dc=com"]
+
+
+def test_ltm_profile_carries_subtype_specific_fields():
+    """``BigipProfile`` now carries the superset of subtype-specific
+    fields — HTTP idle-timeout, client-ssl ciphers / cert / key /
+    chain, TCP idle-timeout / nagle, OneConnect source-mask, …"""
+    idle = _run('.ltm.profile.h_prof["idle-timeout"]', _GAPS_CONF)
+    assert idle.values_per_file["mem://1"] == ["600"]
+    xff = _run('.ltm.profile.h_prof["insert-xforwarded-for"]', _GAPS_CONF)
+    assert xff.values_per_file["mem://1"] == ["enabled"]
+    ciphers = _run(".ltm.profile.c_ssl.ciphers", _GAPS_CONF)
+    assert ciphers.values_per_file["mem://1"] == ["DEFAULT:!SSLv3"]
+    server_name = _run('.ltm.profile.c_ssl["server-name"]', _GAPS_CONF)
+    assert server_name.values_per_file["mem://1"] == ["example.com"]
+    tcp_idle = _run('.ltm.profile.tcp_prof["idle-timeout"]', _GAPS_CONF)
+    assert tcp_idle.values_per_file["mem://1"] == ["300"]
+    nagle = _run(".ltm.profile.tcp_prof.nagle", _GAPS_CONF)
+    assert nagle.values_per_file["mem://1"] == ["disabled"]
+    source_mask = _run('.ltm.profile.oc1["source-mask"]', _GAPS_CONF)
+    assert source_mask.values_per_file["mem://1"] == ["255.255.255.0"]

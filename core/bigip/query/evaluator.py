@@ -651,6 +651,18 @@ def _subscript_step(value: Any, index: Any, ctx: EvalContext) -> Any:
             if index in value.fields:
                 return value.fields[index]
             raise EvalError(f"{value.kind}: no field {index!r}")
+    if isinstance(value, QueryFieldProvider) and isinstance(index, str):
+        # Typed sub-objects (BigipSysNtpRestrict, BigipSysSnmpTrap,
+        # BigipGtmPoolMember, …) expose their fields via
+        # ``query_fields()``.  String subscript honours that map so
+        # hyphenated field names like ``.foo[]["auth-protocol"]``
+        # work the same as bare-name field access.
+        qfields = value.query_fields()
+        if index in qfields:
+            return qfields[index]
+        attr = index.replace("-", "_")
+        if attr in qfields:
+            return qfields[attr]
     raise EvalError(f"cannot subscript {_describe(value)} with {_describe(index)}")
 
 

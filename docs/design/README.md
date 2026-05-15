@@ -43,10 +43,6 @@ rules for the KCS/documentation split live in
   registry by
   [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py)
   and asserted up-to-date by CI.
-- [f5-query-projection-gaps.md](f5-query-projection-gaps.md) —
-  working checklist of every authoritative TMSH property the
-  typed projection does not yet surface, grouped into numbered
-  bundles so each one can land as a focused commit.
 - [bigip-registry-architecture.md](bigip-registry-architecture.md) —
   registry contract for object kinds, value specs (parse / project
   / render / references), source-range fidelity, and the pilot

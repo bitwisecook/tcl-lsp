@@ -41,6 +41,7 @@ from ...model import (
     BigipCmCert,
     BigipCmDevice,
     BigipCmDeviceGroup,
+    BigipCmHaGroup,
     BigipCmKey,
     BigipCmMinimalObject,
     BigipCmTrafficGroup,
@@ -86,6 +87,7 @@ from ...model import (
     BigipLtmMinimalObject,
     BigipLtmNat,
     BigipLtmPolicyStrategy,
+    BigipLtmRateClass,
     BigipLtmSnat,
     BigipLtmSnatTranslation,
     BigipLtmTrafficClass,
@@ -210,7 +212,7 @@ _VS_FIELDS: dict[str, FieldSpec] = {
     "service-down-immediate-action": FieldSpec("service_down_immediate_action"),
     "source-port": FieldSpec("source_port"),
     "serverssl-use-sni": FieldSpec("serverssl_use_sni"),
-    "rate-class": FieldSpec("rate_class"),
+    "rate-class": FieldSpec("rate_class", ref_kind="ltm rate-class"),
     "per-flow-request-access-policy": FieldSpec(
         "per_flow_request_access_policy", ref_kind="apm policy access-policy"
     ),
@@ -359,6 +361,19 @@ _LTM_POLICY_STRATEGY_FIELDS: dict[str, FieldSpec] = {
     "description": FieldSpec("description"),
     "strategy": FieldSpec("strategy"),
     "operands": FieldSpec("operands"),
+}
+
+_LTM_RATE_CLASS_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "rate": FieldSpec("rate"),
+    "ceiling": FieldSpec("ceiling"),
+    "burst-size": FieldSpec("burst_size"),
+    "direction": FieldSpec("direction"),
+    "queue-management": FieldSpec("queue_management"),
+    "parent": FieldSpec("parent", ref_kind="ltm rate-class"),
+    "drop-policy": FieldSpec("drop_policy"),
 }
 
 _LTM_TRAFFIC_CLASS_FIELDS: dict[str, FieldSpec] = {
@@ -600,19 +615,141 @@ _PROFILE_FIELDS: dict[str, FieldSpec] = {
     "type": FieldSpec("profile_type"),
     "defaults-from": FieldSpec("defaults_from", ref_kind="ltm profile"),
     "description": FieldSpec("description"),
+    # HTTP-family fields (http, http-compression, http-proxy-connect,
+    # web-acceleration, fasthttp).  Absent on non-HTTP subtypes.
+    "idle-timeout": FieldSpec("idle_timeout"),
+    "insert-xforwarded-for": FieldSpec("insert_xforwarded_for"),
+    "request-chunking": FieldSpec("request_chunking"),
+    "response-chunking": FieldSpec("response_chunking"),
+    "lws-max-columns": FieldSpec("lws_max_columns"),
+    "lws-separator": FieldSpec("lws_separator"),
+    "server-agent-name": FieldSpec("server_agent_name"),
+    "via-request": FieldSpec("via_request"),
+    "via-response": FieldSpec("via_response"),
+    # SSL profile fields (client-ssl / server-ssl).
+    "ciphers": FieldSpec("ciphers"),
+    "cert": FieldSpec("cert", ref_kind="sys file ssl-cert"),
+    "key": FieldSpec("key", ref_kind="sys file ssl-key"),
+    "chain": FieldSpec("chain", ref_kind="sys file ssl-cert"),
+    "ca-file": FieldSpec("ca_file", ref_kind="sys file ssl-cert"),
+    "crl-file": FieldSpec("crl_file"),
+    "cert-extension-includes": FieldSpec("cert_extension_includes"),
+    "options": FieldSpec("options"),
+    "peer-cert-mode": FieldSpec("peer_cert_mode"),
+    "sni-default": FieldSpec("sni_default"),
+    "sni-require": FieldSpec("sni_require"),
+    "server-name": FieldSpec("server_name"),
+    "renegotiation": FieldSpec("renegotiation"),
+    "secure-renegotiation": FieldSpec("secure_renegotiation"),
+    "proxy-ca-cert": FieldSpec("proxy_ca_cert", ref_kind="sys file ssl-cert"),
+    "proxy-ca-key": FieldSpec("proxy_ca_key", ref_kind="sys file ssl-key"),
+    # TCP-family.
+    "keep-alive-interval": FieldSpec("keep_alive_interval"),
+    "ip-tos-to-client": FieldSpec("ip_tos_to_client"),
+    "ip-tos-to-server": FieldSpec("ip_tos_to_server"),
+    "link-qos-to-client": FieldSpec("link_qos_to_client"),
+    "link-qos-to-server": FieldSpec("link_qos_to_server"),
+    "nagle": FieldSpec("nagle"),
+    "reset-on-timeout": FieldSpec("reset_on_timeout"),
+    "send-buffer-size": FieldSpec("send_buffer_size"),
+    "receive-window-size": FieldSpec("receive_window_size"),
+    "proxy-buffer-low": FieldSpec("proxy_buffer_low"),
+    "proxy-buffer-high": FieldSpec("proxy_buffer_high"),
+    # FastL4 / FastHTTP.
+    "pva-acceleration": FieldSpec("pva_acceleration"),
+    "pva-dynamic-client-packets": FieldSpec("pva_dynamic_client_packets"),
+    "pva-dynamic-server-packets": FieldSpec("pva_dynamic_server_packets"),
+    "loose-close": FieldSpec("loose_close"),
+    "loose-initialization": FieldSpec("loose_initialization"),
+    # UDP.
+    "datagram-load-balancing": FieldSpec("datagram_load_balancing"),
+    "allow-no-payload": FieldSpec("allow_no_payload"),
+    # OneConnect.
+    "source-mask": FieldSpec("source_mask"),
+    "idle-timeout-override": FieldSpec("idle_timeout_override"),
+    "max-age": FieldSpec("max_age"),
+    "max-reuse": FieldSpec("max_reuse"),
+    "max-size": FieldSpec("max_size"),
+    # Stream / HTML / Rewrite.
+    "source": FieldSpec("source"),
+    "target": FieldSpec("target"),
+    "pool": FieldSpec("pool", ref_kind="ltm pool"),
+    # Analytics / classification / request-log.
+    "collected-stats-internal-logging": FieldSpec("collected_stats_internal_logging"),
+    "collected-stats-external-logging": FieldSpec("collected_stats_external_logging"),
+    "publisher": FieldSpec("publisher", ref_kind="sys log-config publisher"),
 }
 
-_MONITOR_FIELDS: dict[str, FieldSpec] = {
+# Per-subtype fields surfaced on the unified BigipMonitor dataclass.
+# Consumers branch on ``type`` to decide which fields are meaningful
+# for a given monitor — e.g. ``.send`` is HTTP/HTTPS/TCP/UDP-specific,
+# ``.cpu-threshold`` is SNMP-DCA-specific.  Absent fields stay empty
+# strings so filters like ``select(.send | contains("HTTP/1.1"))``
+# silently skip subtypes that don't carry the field.
+_MONITOR_COMMON_FIELDS: dict[str, FieldSpec] = {
     "name": FieldSpec("name"),
     "full-path": FieldSpec("full_path"),
     "type": FieldSpec("monitor_type"),
-    "defaults-from": FieldSpec("defaults_from", ref_kind="ltm monitor"),
     "description": FieldSpec("description"),
     "interval": FieldSpec("interval"),
     "timeout": FieldSpec("timeout"),
     "destination": FieldSpec("destination"),
+    # Send-receive matchers (http/https/tcp/udp/diameter/sip/snmp).
     "send": FieldSpec("send"),
     "recv": FieldSpec("recv"),
+    "recv-disable": FieldSpec("recv_disable"),
+    # Authentication probes (ldap/mysql/oracle/postgresql/radius).
+    "username": FieldSpec("username"),
+    "password": FieldSpec("password"),
+    "base": FieldSpec("base"),
+    "filter": FieldSpec("filter"),
+    "count": FieldSpec("count"),
+    "database": FieldSpec("database"),
+    # External monitor (run + args).
+    "args": FieldSpec("args"),
+    "run": FieldSpec("run"),
+    # Adaptive timing knobs.
+    "adaptive": FieldSpec("adaptive"),
+    "adaptive-divergence-type": FieldSpec("adaptive_divergence_type"),
+    "adaptive-divergence-value": FieldSpec("adaptive_divergence_value"),
+    "adaptive-limit": FieldSpec("adaptive_limit"),
+    "adaptive-sampling-timespan": FieldSpec("adaptive_sampling_timespan"),
+    # Behaviour flags.
+    "transparent": FieldSpec("transparent"),
+    "reverse": FieldSpec("reverse"),
+    "manual-resume": FieldSpec("manual_resume"),
+    "ignore-down-response": FieldSpec("ignore_down_response"),
+    "ip-dscp": FieldSpec("ip_dscp"),
+    "up-interval": FieldSpec("up_interval"),
+    "time-until-up": FieldSpec("time_until_up"),
+    # HTTPS-specific.
+    "cipherlist": FieldSpec("cipherlist"),
+    "cert": FieldSpec("cert", ref_kind="sys file ssl-cert"),
+    "key": FieldSpec("key", ref_kind="sys file ssl-key"),
+    "compatibility": FieldSpec("compatibility"),
+    # SNMP-DCA / SNMP-DCA-Base.
+    "community": FieldSpec("community"),
+    "version": FieldSpec("version"),
+    "agent-type": FieldSpec("agent_type"),
+    "cpu-coefficient": FieldSpec("cpu_coefficient"),
+    "cpu-threshold": FieldSpec("cpu_threshold"),
+    "disk-coefficient": FieldSpec("disk_coefficient"),
+    "disk-threshold": FieldSpec("disk_threshold"),
+    "memory-coefficient": FieldSpec("memory_coefficient"),
+    "memory-threshold": FieldSpec("memory_threshold"),
+    # SIP / Diameter / RADIUS / HTTPS specific.
+    "headers": FieldSpec("headers"),
+    "request": FieldSpec("request"),
+    "response": FieldSpec("response"),
+    "mode": FieldSpec("mode"),
+    # Address-translation override (gateway-icmp / portping).
+    "alias-address": FieldSpec("alias_address"),
+    "alias-service-port": FieldSpec("alias_service_port"),
+}
+
+_MONITOR_FIELDS: dict[str, FieldSpec] = {
+    **_MONITOR_COMMON_FIELDS,
+    "defaults-from": FieldSpec("defaults_from", ref_kind="ltm monitor"),
 }
 
 # Same shape as ``_MONITOR_FIELDS`` but ``defaults-from`` resolves
@@ -621,16 +758,8 @@ _MONITOR_FIELDS: dict[str, FieldSpec] = {
 # chain within GTM, not into the (potentially same-path) LTM
 # monitor.
 _GTM_MONITOR_FIELDS: dict[str, FieldSpec] = {
-    "name": FieldSpec("name"),
-    "full-path": FieldSpec("full_path"),
-    "type": FieldSpec("monitor_type"),
+    **_MONITOR_COMMON_FIELDS,
     "defaults-from": FieldSpec("defaults_from", ref_kind="gtm monitor"),
-    "description": FieldSpec("description"),
-    "interval": FieldSpec("interval"),
-    "timeout": FieldSpec("timeout"),
-    "destination": FieldSpec("destination"),
-    "send": FieldSpec("send"),
-    "recv": FieldSpec("recv"),
 }
 
 _PERSIST_FIELDS: dict[str, FieldSpec] = {
@@ -870,6 +999,10 @@ _SYS_NTP_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "servers": FieldSpec("servers"),
     "timezone": FieldSpec("timezone"),
+    # Per-network ACL entries (BigipSysNtpRestrict).  Each entry
+    # exposes ``address`` / ``mask`` / ``default-entry`` / ``flags`` /
+    # ``description`` via :meth:`BigipSysNtpRestrict.query_fields`.
+    "restrict": FieldSpec("restrict"),
 }
 
 _SYS_SNMP_FIELDS: dict[str, FieldSpec] = {
@@ -877,6 +1010,18 @@ _SYS_SNMP_FIELDS: dict[str, FieldSpec] = {
     "full-path": FieldSpec("full_path"),
     "agent-addresses": FieldSpec("agent_addresses"),
     "communities": FieldSpec("communities"),
+    "sys-contact": FieldSpec("sys_contact"),
+    "sys-location": FieldSpec("sys_location"),
+    "sys-services": FieldSpec("sys_services"),
+    "trap-community": FieldSpec("trap_community"),
+    # Sub-block entries are tuples of typed sub-objects with their own
+    # :meth:`query_fields`.  The DSL exposes each entry's TMSH-spelt
+    # fields via that map so ``.sys.snmp[].users[].auth-protocol``
+    # works without an explicit sub-kind.
+    "users": FieldSpec("users"),
+    "traps": FieldSpec("traps"),
+    "process-monitors": FieldSpec("process_monitors"),
+    "disk-monitors": FieldSpec("disk_monitors"),
 }
 
 _SYS_GLOBAL_SETTINGS_FIELDS: dict[str, FieldSpec] = {
@@ -1413,9 +1558,21 @@ _CM_TRAFFIC_GROUP_FIELDS: dict[str, FieldSpec] = {
     "default-device": FieldSpec("default_device", ref_kind="cm device"),
     "ha-load-factor": FieldSpec("ha_load_factor"),
     "ha-order": FieldSpec("ha_order", ref_kind="cm device", list_ref=True),
+    "ha-group": FieldSpec("ha_group", ref_kind="cm ha-group"),
     "auto-failback-enabled": FieldSpec("auto_failback_enabled"),
     "auto-failback-time": FieldSpec("auto_failback_time"),
     "mac": FieldSpec("mac"),
+}
+
+
+_CM_HA_GROUP_FIELDS: dict[str, FieldSpec] = {
+    "name": FieldSpec("name"),
+    "full-path": FieldSpec("full_path"),
+    "description": FieldSpec("description"),
+    "enabled-state": FieldSpec("enabled_state"),
+    "active-bonus": FieldSpec("active_bonus"),
+    "pools": FieldSpec("pools", ref_kind="ltm pool", list_ref=True),
+    "trunks": FieldSpec("trunks", ref_kind="net trunk", list_ref=True),
 }
 
 _CM_TRUST_DOMAIN_FIELDS: dict[str, FieldSpec] = {
@@ -1880,6 +2037,7 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "ltm snat": (BigipLtmSnat, _LTM_SNAT_FIELDS),
     "ltm snat-translation": (BigipLtmSnatTranslation, _LTM_SNAT_TRANSLATION_FIELDS),
     "ltm policy-strategy": (BigipLtmPolicyStrategy, _LTM_POLICY_STRATEGY_FIELDS),
+    "ltm rate-class": (BigipLtmRateClass, _LTM_RATE_CLASS_FIELDS),
     "ltm traffic-class": (BigipLtmTrafficClass, _LTM_TRAFFIC_CLASS_FIELDS),
     "ltm traffic-matching-criteria": (
         BigipLtmTrafficMatchingCriteria,
@@ -2638,7 +2796,7 @@ _KIND_FIELD_MAPS: dict[str, tuple[type, dict[str, FieldSpec]]] = {
     "vcmp virtual-disk": (BigipVcmpMinimalObject, _VCMP_MINIMAL_FIELDS),
     "vcmp virtual-disk-template": (BigipVcmpMinimalObject, _VCMP_MINIMAL_FIELDS),
     # Bundle 43 — cm.* follow-ons.
-    "cm ha-group": (BigipCmMinimalObject, _CM_MINIMAL_FIELDS),
+    "cm ha-group": (BigipCmHaGroup, _CM_HA_GROUP_FIELDS),
     "cm config-sync": (BigipCmMinimalObject, _CM_MINIMAL_FIELDS),
     # Bundle 44 — cli.* minimal kinds.
     "cli admin-partitions": (BigipCliMinimalObject, _CLI_MINIMAL_FIELDS),
@@ -2674,6 +2832,7 @@ _MODULE_KINDS: dict[str, dict[str, tuple[str, str]]] = {
         "snat": ("ltm_snats", "ltm snat"),
         "snat-translation": ("ltm_snat_translations", "ltm snat-translation"),
         "policy-strategy": ("ltm_policy_strategies", "ltm policy-strategy"),
+        "rate-class": ("ltm_rate_classes", "ltm rate-class"),
         "traffic-class": ("ltm_traffic_classes", "ltm traffic-class"),
         "traffic-matching-criteria": (
             "ltm_traffic_matching_criteria",
