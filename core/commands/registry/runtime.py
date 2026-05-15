@@ -748,18 +748,11 @@ def configure_signatures(
     _dialect_var.set(next_dialect)
     _extra_commands_var.set(next_extra)
 
-    # Configure lexer flags for the active dialect.  These remain process-
-    # wide because the lexer is invoked from contexts that don't enter
-    # ``dialect_scope`` (e.g. f5-grep, the BIG-IP parser).
-    from core.parsing.lexer import TclLexer
-
-    from .dialects import dialects_since
-
-    TclLexer.irules_brace_separator = next_dialect == "f5-irules"
-    # {*} argument expansion was introduced in Tcl 8.5.  Disable it for
-    # 8.4-based dialects (tcl8.4, f5-irules) so ``cmd {*}$args`` is
-    # lexed as a single ``*${args}`` word rather than an expansion.
-    TclLexer.expand_syntax = next_dialect in dialects_since("tcl8.5")
+    # Lexer flags (``{*}`` word expansion, iRules ``}{`` brace-word
+    # separator) are read per-call from ``_dialect_var`` via
+    # :func:`core.parsing.lexer._expand_syntax_active` /
+    # :func:`_irules_brace_separator_active`, so no class-attribute
+    # mutation is needed here.
 
     return True
 

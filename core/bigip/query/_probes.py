@@ -348,7 +348,7 @@ class _CertCapturingHTTPSHandler(urllib.request.HTTPSHandler):
         self.peer_cert_pem: str | None = None
         self._ctx = ctx
 
-    def https_open(self, req):  # type: ignore[override]
+    def https_open(self, req):
         import http.client
 
         handler_self = self
