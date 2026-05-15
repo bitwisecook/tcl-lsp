@@ -150,25 +150,5 @@ def register_spec() -> BigipObjectSpec:
                 shape_kind="boolean",
                 default="enabled",
             ),
-            BigipPropertySpec(
-                name="dynamic-ratio",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="min-members-up-mode",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="min-members-up-value",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="disabled",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

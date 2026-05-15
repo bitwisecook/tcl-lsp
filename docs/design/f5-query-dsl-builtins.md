@@ -26,7 +26,7 @@ exactly the same content for one builtin.
 - **[stream](#stream)** — Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `unique` / `sort`), and the object-introspection helpers (`keys` / `values` / `first` / `last`).
   - [`all`](#all), [`any`](#any), [`count`](#count), [`first`](#first), [`keys`](#keys), [`last`](#last), [`map`](#map), [`select`](#select), [`sort`](#sort), [`unique`](#unique), [`values`](#values)
 - **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `sub` / `gsub`, plain `split` / `join`, casing.
-  - [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`gsub`](#gsub), [`join`](#join), [`match`](#match), [`split`](#split), [`startswith`](#startswith), [`sub`](#sub), [`tsv`](#tsv), [`upcase`](#upcase)
+  - [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`gsub`](#gsub), [`index`](#index), [`join`](#join), [`match`](#match), [`split`](#split), [`startswith`](#startswith), [`sub`](#sub), [`tsv`](#tsv), [`upcase`](#upcase)
 - **[path](#path)** — BIG-IP full-path string helpers — extract the partition or basename, swap a partition prefix.  These are *string* transforms; they don't move objects.  For object renames, reach for the **rename** category.
   - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with_partition)
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
@@ -36,7 +36,7 @@ exactly the same content for one builtin.
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
-  - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`str`](#str), [`type`](#type)
+  - [`defined`](#defined), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
 
 ## stream
 
@@ -539,6 +539,40 @@ Related: ``sub``, ``match``, ``rename``, ``rename_partition``.
 ```
 gsub(.body, "/Common/old_", "/Common/new_")
 .ltm.virtual[].destination |= gsub(., "%5", "%7")  # bulk RD change
+```
+
+### `index`
+
+Position of a needle inside a string or list (jq-compatible).
+
+**Signatures**
+
+- `index(value: string, needle: string) -> integer | null`
+- `index(value: list, needle: any) -> integer | null`
+
+**Details**
+
+Mirrors jq's ``index`` builtin.  Returns the zero-based offset of
+the first occurrence of *needle* inside *value*, or ``null`` when
+*needle* is not present.
+
+For strings, ``index`` does substring search.  For lists / streams
+/ :class:`BigipList` values, ``index`` matches element-wise on
+``full_path`` when items are :class:`PathRef`, otherwise on
+equality.
+
+Common predicate idiom (paralleling jq):
+``.ltm.virtual[] | select(.name | index(":443"))`` — keeps every
+virtual whose name contains the substring.
+
+Related: ``contains`` (boolean variant), ``startswith`` /
+``endswith``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(.name | index(":443"))
+[.profiles[].name] | index("http")     # 0..n-1 or null
 ```
 
 ### `join`
@@ -2103,6 +2137,37 @@ Related: ``kind``, ``partition``, ``basename``.
 ```
 path(.ltm.virtual.web_vs)                # -> '/Common/web_vs'
 [.ltm.virtual[] | path(.)]               # collect every VS full-path
+```
+
+### `source_file`
+
+Return the source file URI of the current object.
+
+**Signatures**
+
+- `source_file(value: object) -> string | null`
+
+**Details**
+
+Resolves the source URI of the BIG-IP object passed in (the file
+a ``ltm pool`` / ``ltm virtual`` / ... stanza was parsed from).
+Most useful in ``--merge`` mode, where a single query streams
+objects from several inputs and the consumer wants to label each
+by origin: ``.ltm.virtual[] | {name: .name, src: source_file}``.
+
+Returns ``null`` for synthetic / non-object values.  The result is
+the source URI as stored on the underlying :class:`ObjectRef`
+(typically a ``file:///`` URL); pair with ``basename`` for a
+short filename.
+
+Related: ``--merge`` mode, ``$name`` for explicit per-source
+binding.
+
+**Examples**
+
+```
+.ltm.virtual[] | {name: .name, src: source_file}
+.ltm.pool[] | {name: .name, file: basename(source_file)}
 ```
 
 ### `str`

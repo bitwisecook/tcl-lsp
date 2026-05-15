@@ -1018,6 +1018,16 @@ class BigipConfig:
     analytics_global_settings: dict[str, BigipAnalyticsMinimalObject] = field(default_factory=dict)
     generic_objects: dict[str, BigipGenericObject] = field(default_factory=dict)
 
+    # Partition this config was loaded from.  BIG-IP names may be
+    # written either as full paths (``/Common/web_pool``) or as
+    # short / partition-relative names (``web_pool``); the latter
+    # implicitly belong to whichever partition the surrounding
+    # ``.conf`` was extracted from.  When the user knows the source
+    # partition, they can set ``default_partition`` so name
+    # resolution prefixes short names with ``/<partition>/`` instead
+    # of always falling back to ``/Common/``.
+    default_partition: str = "Common"
+
     def merge(self, other: "BigipConfig") -> None:
         """In-place merge of every dict-valued field on *other* into ``self``.
 
@@ -1043,17 +1053,30 @@ class BigipConfig:
     def resolve_name(self, name: str, objects: Mapping[str, object]) -> str | None:
         """Resolve a possibly-short name to a full path in *objects*.
 
-        BIG-IP configs use full paths like ``/Common/my_pool`` but iRules
-        may reference just ``my_pool``.  This tries exact match first, then
-        falls back to a suffix match.
+        BIG-IP configs use full paths like ``/Common/my_pool`` but
+        iRules and short references may name just ``my_pool``.  This
+        tries: exact match first; then a prefix-qualified match
+        against ``self.default_partition`` (the partition the config
+        was loaded from); then ``/Common/`` as a final fallback; and
+        finally a suffix match against any partition.
         """
         if name in objects:
             return name
-        # Try with /Common/ prefix
-        candidate = f"/Common/{name}"
-        if candidate in objects:
-            return candidate
-        # Suffix match: look for any key ending with /<name>
+        # Already a full path?  Don't try to re-prefix.
+        if not name.startswith("/"):
+            # Partition-relative: try the loaded config's partition
+            # first, then fall back to ``/Common/`` for legacy
+            # cross-partition references.
+            partition = (self.default_partition or "Common").strip("/")
+            if partition:
+                candidate = f"/{partition}/{name}"
+                if candidate in objects:
+                    return candidate
+            if partition != "Common":
+                candidate = f"/Common/{name}"
+                if candidate in objects:
+                    return candidate
+        # Suffix match: look for any key ending with /<name>.
         suffix = f"/{name}"
         for key in objects:
             if key.endswith(suffix):

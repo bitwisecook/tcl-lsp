@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -277,11 +278,16 @@ def _safe_regex_compile(pattern: str, *, name: str) -> re.Pattern[str]:
 
 
 def _as_sequence(value: object, *, name: str, arg: int) -> list[Any]:
-    if isinstance(value, Stream):
-        return list(value.items)
-    if isinstance(value, list):
-        return list(value)
-    if isinstance(value, tuple):
+    """Coerce a list-shaped DSL value to a plain Python list.
+
+    Every list-shaped class in the DSL (``Stream``, ``BigipList``, the
+    native list/tuple, monitor-expression wrappers) implements
+    :class:`collections.abc.Iterable` — so the only thing this
+    function does beyond ``list(value)`` is reject scalars that
+    *happen* to be iterable: strings/bytes (semantically scalar) and
+    dict-likes (which go through ``_as_object``).
+    """
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, dict)):
         return list(value)
     raise BuiltinError(f"{name}: argument {arg} must be a list or stream, got {_type_name(value)}")
 
@@ -2563,6 +2569,116 @@ def _builtin_split(value: Any, sep: Any) -> list[str]:
 
 
 @_register(
+    "index",
+    summary="Position of a needle inside a string or list (jq-compatible).",
+    signatures=(
+        "index(value: string, needle: string) -> integer | null",
+        "index(value: list, needle: any) -> integer | null",
+    ),
+    details="""
+    Mirrors jq's ``index`` builtin.  Returns the zero-based offset of
+    the first occurrence of *needle* inside *value*, or ``null`` when
+    *needle* is not present.
+
+    For strings, ``index`` does substring search.  For lists / streams
+    / :class:`BigipList` values, ``index`` matches element-wise on
+    ``full_path`` when items are :class:`PathRef`, otherwise on
+    equality.
+
+    Common predicate idiom (paralleling jq):
+    ``.ltm.virtual[] | select(.name | index(":443"))`` — keeps every
+    virtual whose name contains the substring.
+
+    Related: ``contains`` (boolean variant), ``startswith`` /
+    ``endswith``.
+    """,
+    examples=(
+        '.ltm.virtual[] | select(.name | index(":443"))',
+        '[.profiles[].name] | index("http")     # 0..n-1 or null',
+    ),
+    category="string",
+    min_args=2,
+    max_args=2,
+)
+@_register(
+    "source_file",
+    summary="Return the source file URI of the current object.",
+    signatures=("source_file(value: object) -> string | null",),
+    details="""
+    Resolves the source URI of the BIG-IP object passed in (the file
+    a ``ltm pool`` / ``ltm virtual`` / ... stanza was parsed from).
+    Most useful in ``--merge`` mode, where a single query streams
+    objects from several inputs and the consumer wants to label each
+    by origin: ``.ltm.virtual[] | {name: .name, src: source_file}``.
+
+    Returns ``null`` for synthetic / non-object values.  The result is
+    the source URI as stored on the underlying :class:`ObjectRef`
+    (typically a ``file:///`` URL); pair with ``basename`` for a
+    short filename.
+
+    Related: ``--merge`` mode, ``$name`` for explicit per-source
+    binding.
+    """,
+    examples=(
+        ".ltm.virtual[] | {name: .name, src: source_file}",
+        ".ltm.pool[] | {name: .name, file: basename(source_file)}",
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+    with_ctx=True,
+)
+def _builtin_source_file(value: Any, *, ctx: Any) -> str | None:
+    if isinstance(value, ObjectRef):
+        return value.config_uri or None
+    if isinstance(value, PathRef):
+        # Path-refs don't directly carry a source URI; resolve to the
+        # backing ObjectRef when possible so the user gets a result
+        # without an explicit ``refs`` traversal.
+        target = _resolve_pathref_via_ctx(value, ctx)
+        if target is not None:
+            return target.config_uri or None
+    return None
+
+
+def _resolve_pathref_via_ctx(ref: Any, ctx: Any) -> Any:
+    """Best-effort PathRef → ObjectRef lookup using the evaluator's
+    context.  Returns ``None`` when the path cannot be resolved."""
+    try:
+        from .evaluator import _resolve_pathref  # local import to avoid cycle
+    except Exception:
+        return None
+    try:
+        return _resolve_pathref(ref, ctx)
+    except Exception:
+        return None
+
+
+def _builtin_index(value: Any, needle: Any) -> int | None:
+    def _eq(item: Any, target: Any) -> bool:
+        a = item.full_path if isinstance(item, PathRef) else item
+        b = target.full_path if isinstance(target, PathRef) else target
+        return a == b
+
+    if isinstance(value, str):
+        nstr = _as_str(needle, name="index", arg=2)
+        pos = value.find(nstr)
+        return pos if pos >= 0 else None
+    if isinstance(value, PathRef):
+        nstr = _as_str(needle, name="index", arg=2)
+        pos = value.full_path.find(nstr)
+        return pos if pos >= 0 else None
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, dict)):
+        items = list(value)
+    else:
+        raise BuiltinError(f"index: cannot search inside {_type_name(value)}")
+    for i, item in enumerate(items):
+        if _eq(item, needle):
+            return i
+    return None
+
+
+@_register(
     "join",
     summary="Join a list of strings with a separator.",
     signatures=("join(values: list, separator: string) -> string",),
@@ -2791,12 +2907,16 @@ def _builtin_downcase(value: Any) -> str:
     max_args=1,
     stream_aware=True,
 )
-def _builtin_keys(value: Any) -> list[str]:
+def _builtin_keys(value: Any) -> list[Any]:
     if isinstance(value, ObjectRef):
         return sorted(value.fields)
     if isinstance(value, dict):
         return sorted(value)
-    raise BuiltinError(f"keys: argument 1 must be an object, got {_type_name(value)}")
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray, dict)):
+        # ``BigipList`` / ``list`` / ``tuple`` / ``Stream`` — match
+        # jq, where ``keys`` on a list returns its indices.
+        return list(range(len(list(value))))
+    raise BuiltinError(f"keys: argument 1 must be an object or list, got {_type_name(value)}")
 
 
 @_register(

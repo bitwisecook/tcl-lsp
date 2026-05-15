@@ -20,25 +20,5 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="local-path", value_type="string", required=True),
             BigipPropertySpec(name="server", value_type="string", allow_none=True),
-            BigipPropertySpec(
-                name="cache-path",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="oesis-version",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="revision",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="version",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

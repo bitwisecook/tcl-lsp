@@ -291,20 +291,5 @@ def register_spec() -> BigipObjectSpec:
                 value_type="string",
                 in_sections=("uri-rules", "server"),
             ),
-            BigipPropertySpec(
-                name="request",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="response",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="java-sign-key-passphrase-encrypted",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

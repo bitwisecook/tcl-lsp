@@ -37,20 +37,5 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="issuer-cert", value_type="reference"),
             BigipPropertySpec(name="source-path", value_type="unknown"),
-            BigipPropertySpec(
-                name="cache-path",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="revision",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="system-path",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

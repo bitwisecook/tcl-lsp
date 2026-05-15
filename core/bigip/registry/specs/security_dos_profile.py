@@ -3238,30 +3238,5 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 references=("security_dos_network_whitelist",),
             ),
-            BigipPropertySpec(
-                name="creation-time",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="creation-user",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="last-modified-time",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="modify-user",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="threshold-sensitivity",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

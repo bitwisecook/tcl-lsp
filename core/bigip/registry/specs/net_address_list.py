@@ -25,10 +25,5 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="app-service", value_type="reference"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="address-lists",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

@@ -226,30 +226,5 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("http",),
             ),
-            BigipPropertySpec(
-                name="customization-key",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="generation",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="modified-since-last-policy-sync",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="exchange-profile",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="ntlm-auth-name",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

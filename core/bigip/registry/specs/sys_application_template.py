@@ -126,5 +126,25 @@ def register_spec() -> BigipObjectSpec:
                 list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
             BigipPropertySpec(name="value", value_type="string"),
+            BigipPropertySpec(
+                name="ignore-verification",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="signing-key",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="tmpl-checksum",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="tmpl-signature",
+                value_type="string",
+                usage_flags=frozenset(("read_only",)),
+            ),
         ),
     )

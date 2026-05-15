@@ -190,10 +190,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("customer", "double", "none", "service"),
                 default="none",
             ),
-            BigipPropertySpec(
-                name="if-index",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

@@ -111,10 +111,5 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="external-logging-publisher", value_type="string"),
-            BigipPropertySpec(
-                name="app-service",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

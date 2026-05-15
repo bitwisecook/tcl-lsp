@@ -46,20 +46,5 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 enum_values=("STRING", "none"),
             ),
-            BigipPropertySpec(
-                name="requires",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="controls",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="description",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

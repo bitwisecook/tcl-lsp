@@ -573,6 +573,25 @@ def _eval_call(node: Call, current: Any, ctx: EvalContext) -> Any:
             return spec.impl(current, ctx=ctx)
         return spec.impl(current)
 
+    # jq-style implicit-receiver for multi-arg builtins: ``.x |
+    # contains("foo")`` is equivalent to ``contains(.x, "foo")``.
+    # When a non-special-form builtin is called with exactly one
+    # fewer argument than its minimum, prepend the current value as
+    # the receiver.  Skips ``with_ctx`` builtins (they reach into
+    # evaluator state and are usually free-standing) and stream-
+    # aware builtins (their broadcast rules clash with implicit
+    # prepending).
+    if (
+        not spec.special_form
+        and not spec.with_ctx
+        and not spec.stream_aware
+        and spec.min_args >= 2
+        and arity == spec.min_args - 1
+        and (spec.max_args is None or arity + 1 <= spec.max_args)
+    ):
+        prepended_args = [_eval(a, current, ctx) for a in node.args]
+        return spec.impl(current, *prepended_args)
+
     if arity < spec.min_args or (spec.max_args is not None and arity > spec.max_args):
         if spec.min_args == spec.max_args:
             expected = f"{spec.min_args}"

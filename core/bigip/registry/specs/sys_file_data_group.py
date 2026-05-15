@@ -42,15 +42,5 @@ def register_spec() -> BigipObjectSpec:
                 required=True,
                 enum_values=("ip",),
             ),
-            BigipPropertySpec(
-                name="cache-path",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="revision",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

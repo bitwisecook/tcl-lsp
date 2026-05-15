@@ -211,10 +211,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
                 shape_kind="boolean",
             ),
-            BigipPropertySpec(
-                name="if-index",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

@@ -38,10 +38,5 @@ def register_spec() -> BigipObjectSpec:
                 repeated=True,
                 list_operators=frozenset(("add",)),
             ),
-            BigipPropertySpec(
-                name="ordering",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

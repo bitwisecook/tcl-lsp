@@ -111,11 +111,24 @@ def _active_root(root: Root):
         _ACTIVE_ROOTS.reset(token)
 
 
-def _build_root(uri: str, source: str) -> Root:
+_ACTIVE_PARTITIONS: ContextVar[dict[str, str]] = ContextVar(
+    "_bigip_query_active_partitions", default={}
+)
+
+
+def _partition_for_uri(uri: str) -> str:
+    """Return the partition associated with *uri* for the current run,
+    or ``"Common"`` when no per-URI mapping was supplied."""
+    return _ACTIVE_PARTITIONS.get().get(uri, "Common")
+
+
+def _build_root(uri: str, source: str, *, default_partition: str | None = None) -> Root:
+    if default_partition is None:
+        default_partition = _partition_for_uri(uri)
     return Root(
         uri=uri,
         source=source,
-        config=parse_bigip_conf(source),
+        config=parse_bigip_conf(source, default_partition=default_partition),
         source_map=SourceMap.build(source),
     )
 
@@ -126,6 +139,7 @@ def run_query(
     *,
     names: dict[str, str] | None = None,
     merge: bool = False,
+    partitions: dict[str, str] | None = None,
 ) -> QueryResult:
     """Parse *query* and run it against each file in *sources*.
 
@@ -162,117 +176,125 @@ def run_query(
     program = parse_query(query)
     from ..rewrite import RenameReport
 
-    result = QueryResult()
-    if merge:
-        return _run_query_merged(program, sources, names)
+    # Bind per-URI partitions for the duration of this call so every
+    # ``_build_root`` (per-file, merge, or variable-rooted) sees the
+    # correct partition without each dispatch path threading the
+    # mapping through its signature.
+    _partition_token = _ACTIVE_PARTITIONS.set(dict(partitions or {}))
+    try:
+        result = QueryResult()
+        if merge:
+            return _run_query_merged(program, sources, names)
 
-    # When every top-level statement is rooted at a ``$name``
-    # variable rather than the bare identity ``.``, the query has no
-    # per-primary semantics — running it once per source would only
-    # duplicate the same result into every URI bucket.  Evaluate
-    # once against the first source so the result lands under one
-    # URI; the named-source binding map is built against all loaded
-    # sources so ``$ltm`` / ``$gtm`` still resolve.  Edits route via
-    # ``target.obj.config_uri`` so the rewritten source still lands
-    # on the originating file.
-    if sources and _is_purely_variable_rooted(program):
-        return _run_query_variable_rooted(program, sources, names)
+        # When every top-level statement is rooted at a ``$name``
+        # variable rather than the bare identity ``.``, the query has no
+        # per-primary semantics — running it once per source would only
+        # duplicate the same result into every URI bucket.  Evaluate
+        # once against the first source so the result lands under one
+        # URI; the named-source binding map is built against all loaded
+        # sources so ``$ltm`` / ``$gtm`` still resolve.  Edits route via
+        # ``target.obj.config_uri`` so the rewritten source still lands
+        # on the originating file.
+        if sources and _is_purely_variable_rooted(program):
+            return _run_query_variable_rooted(program, sources, names)
 
-    # Per-file iteration (default).  Each source takes its turn as the
-    # primary input; variables bind to every loaded source so ``$other``
-    # remains reachable from inside each iteration.
-    for uri, source in sources.items():
-        named_roots = _build_named_roots(
-            sources={u: (s if u != uri else source) for u, s in sources.items()},
-            names=names,
-        )
-        # Replace the entry for the iterating source so it tracks
-        # current_source as edits accumulate.
-        current_source = source
-        accumulated_renames: list[RenameReport] = []
-        accumulated_field_edits = 0
-        last_values: list[Any] = []
-
-        attempted_mutation = False
-        for index, stmt in enumerate(program.statements):
-            root = _build_root(uri, current_source)
-            # Rebuild the named-root for the iterating source against
-            # the current_source so ``$self.x`` reads post-edit state
-            # within multi-statement queries.
-            named_roots_for_step = dict(named_roots)
-            for nm, r in list(named_roots_for_step.items()):
-                if r.uri == uri:
-                    named_roots_for_step[nm] = root
-            ctx = EvalContext(root=root, named_roots=named_roots_for_step, merge_mode=False)
-            with _active_roots({root.uri: root}):
-                values = evaluate_statement(stmt, ctx)
-            if index == len(program.statements) - 1:
-                last_values = values
-            if ctx.edits.has_edits():
-                attempted_mutation = True
-                # Edits may target the iterating source or any named
-                # source the query reached via ``$name``.  Apply across
-                # every source — :func:`apply` partitions by URI.
-                all_sources_now = dict(sources)
-                all_sources_now[uri] = current_source
-                applied_per = apply(ctx.edits, all_sources_now)
-                self_applied = applied_per.get(uri)
-                if self_applied is not None:
-                    current_source = self_applied.new_source
-                    for rep in self_applied.rename_reports:
-                        accumulated_renames.append(
-                            RenameReport(
-                                old=rep.old,
-                                new=rep.new,
-                                occurrences=rep.occurrences,
-                                new_source="",
-                            )
-                        )
-                    accumulated_field_edits += self_applied.field_edits
-                # Cross-file edits (``$other.x.y = ...`` from inside a
-                # per-file iteration) land directly on result.edits_per_file —
-                # they originated from this iteration but target a different
-                # source, so we merge them in below.
-                for other_uri, other_applied in applied_per.items():
-                    if other_uri == uri:
-                        continue
-                    existing = result.edits_per_file.get(other_uri)
-                    base_original = (
-                        existing.original if existing is not None else sources[other_uri]
-                    )
-                    base_renames = existing.rename_reports if existing is not None else ()
-                    base_edits = existing.field_edits if existing is not None else 0
-                    result.edits_per_file[other_uri] = AppliedSource(
-                        uri=other_uri,
-                        original=base_original,
-                        new_source=other_applied.new_source,
-                        rename_reports=base_renames
-                        + tuple(
-                            RenameReport(
-                                old=r.old,
-                                new=r.new,
-                                occurrences=r.occurrences,
-                                new_source="",
-                            )
-                            for r in other_applied.rename_reports
-                        ),
-                        field_edits=base_edits + other_applied.field_edits,
-                    )
-
-        result.values_per_file[uri] = last_values
-        if attempted_mutation:
-            result.has_mutation = True
-            existing = result.edits_per_file.get(uri)
-            base_renames = existing.rename_reports if existing is not None else ()
-            base_edits = existing.field_edits if existing is not None else 0
-            result.edits_per_file[uri] = AppliedSource(
-                uri=uri,
-                original=source,
-                new_source=current_source,
-                rename_reports=base_renames + tuple(accumulated_renames),
-                field_edits=base_edits + accumulated_field_edits,
+        # Per-file iteration (default).  Each source takes its turn as the
+        # primary input; variables bind to every loaded source so ``$other``
+        # remains reachable from inside each iteration.
+        for uri, source in sources.items():
+            named_roots = _build_named_roots(
+                sources={u: (s if u != uri else source) for u, s in sources.items()},
+                names=names,
             )
-    return result
+            # Replace the entry for the iterating source so it tracks
+            # current_source as edits accumulate.
+            current_source = source
+            accumulated_renames: list[RenameReport] = []
+            accumulated_field_edits = 0
+            last_values: list[Any] = []
+
+            attempted_mutation = False
+            for index, stmt in enumerate(program.statements):
+                root = _build_root(uri, current_source)
+                # Rebuild the named-root for the iterating source against
+                # the current_source so ``$self.x`` reads post-edit state
+                # within multi-statement queries.
+                named_roots_for_step = dict(named_roots)
+                for nm, r in list(named_roots_for_step.items()):
+                    if r.uri == uri:
+                        named_roots_for_step[nm] = root
+                ctx = EvalContext(root=root, named_roots=named_roots_for_step, merge_mode=False)
+                with _active_roots({root.uri: root}):
+                    values = evaluate_statement(stmt, ctx)
+                if index == len(program.statements) - 1:
+                    last_values = values
+                if ctx.edits.has_edits():
+                    attempted_mutation = True
+                    # Edits may target the iterating source or any named
+                    # source the query reached via ``$name``.  Apply across
+                    # every source — :func:`apply` partitions by URI.
+                    all_sources_now = dict(sources)
+                    all_sources_now[uri] = current_source
+                    applied_per = apply(ctx.edits, all_sources_now)
+                    self_applied = applied_per.get(uri)
+                    if self_applied is not None:
+                        current_source = self_applied.new_source
+                        for rep in self_applied.rename_reports:
+                            accumulated_renames.append(
+                                RenameReport(
+                                    old=rep.old,
+                                    new=rep.new,
+                                    occurrences=rep.occurrences,
+                                    new_source="",
+                                )
+                            )
+                        accumulated_field_edits += self_applied.field_edits
+                    # Cross-file edits (``$other.x.y = ...`` from inside a
+                    # per-file iteration) land directly on result.edits_per_file —
+                    # they originated from this iteration but target a different
+                    # source, so we merge them in below.
+                    for other_uri, other_applied in applied_per.items():
+                        if other_uri == uri:
+                            continue
+                        existing = result.edits_per_file.get(other_uri)
+                        base_original = (
+                            existing.original if existing is not None else sources[other_uri]
+                        )
+                        base_renames = existing.rename_reports if existing is not None else ()
+                        base_edits = existing.field_edits if existing is not None else 0
+                        result.edits_per_file[other_uri] = AppliedSource(
+                            uri=other_uri,
+                            original=base_original,
+                            new_source=other_applied.new_source,
+                            rename_reports=base_renames
+                            + tuple(
+                                RenameReport(
+                                    old=r.old,
+                                    new=r.new,
+                                    occurrences=r.occurrences,
+                                    new_source="",
+                                )
+                                for r in other_applied.rename_reports
+                            ),
+                            field_edits=base_edits + other_applied.field_edits,
+                        )
+
+            result.values_per_file[uri] = last_values
+            if attempted_mutation:
+                result.has_mutation = True
+                existing = result.edits_per_file.get(uri)
+                base_renames = existing.rename_reports if existing is not None else ()
+                base_edits = existing.field_edits if existing is not None else 0
+                result.edits_per_file[uri] = AppliedSource(
+                    uri=uri,
+                    original=source,
+                    new_source=current_source,
+                    rename_reports=base_renames + tuple(accumulated_renames),
+                    field_edits=base_edits + accumulated_field_edits,
+                )
+        return result
+    finally:
+        _ACTIVE_PARTITIONS.reset(_partition_token)
 
 
 def _run_query_merged(
@@ -296,7 +318,9 @@ def _run_query_merged(
     if not sources:
         return result
 
-    # Build all roots once.
+    # Build all roots once.  The active partition mapping is set by
+    # ``run_query`` via ``_active_partitions``; ``_build_root`` reads
+    # it from the contextvar so each URI gets its correct partition.
     roots: dict[str, Root] = {uri: _build_root(uri, src) for uri, src in sources.items()}
     _detect_collisions(roots)
     named_roots = _build_named_roots(sources=sources, names=names, prebuilt=roots)
@@ -345,7 +369,8 @@ def _run_merge_statements(
 
     for index, stmt in enumerate(program.statements):
         # Rebuild roots against current_sources so each statement sees
-        # the post-edit text of every preceding statement.
+        # the post-edit text of every preceding statement.  Preserve
+        # the per-URI partition discovered on the initial parse.
         step_roots = {uri: _build_root(uri, current_sources[uri]) for uri in sources}
         step_named_roots = _build_named_roots(
             sources=current_sources, names=names, prebuilt=step_roots

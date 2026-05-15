@@ -20,9 +20,8 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(
                 name="activation-modes",
-                value_type="block",
+                value_type="list",
                 repeated=True,
-                shape_kind="list",
                 default="{ alpn }",
             ),
             BigipPropertySpec(name="concurrent-streams-per-connection", value_type="integer"),
@@ -54,15 +53,5 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="insert-header-name", value_type="unknown", default='"X-HTTP2"'),
             BigipPropertySpec(name="receive-window", value_type="integer", default="32"),
             BigipPropertySpec(name="write-size", value_type="integer", default="16384"),
-            BigipPropertySpec(
-                name="app-service",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="include-content-length",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

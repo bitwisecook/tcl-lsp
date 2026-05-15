@@ -31,57 +31,5 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="syslog-include", value_type="string", default="none"),
             BigipPropertySpec(name="tomcat-include", value_type="string", default="none"),
             BigipPropertySpec(name="wa-include", value_type="string", default="none"),
-            BigipPropertySpec(
-                name="/var/log/irules*log",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="maxsize",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="compress",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="missingok",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="notifempty",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="sharedscripts",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="rotate",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="postrotate",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="touch",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="endscript",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(name="}", value_type="string", usage_flags=frozenset(("read_only",))),
-            BigipPropertySpec(name='"', value_type="string", usage_flags=frozenset(("read_only",))),
         ),
     )

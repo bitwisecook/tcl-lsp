@@ -40,20 +40,5 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="time-until-up", value_type="integer", default="0 (zero)"),
             BigipPropertySpec(name="timeout", value_type="integer", default="16 seconds"),
-            BigipPropertySpec(
-                name="agent",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="command",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="method",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

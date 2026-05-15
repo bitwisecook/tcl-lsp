@@ -61,10 +61,5 @@ def register_spec() -> BigipObjectSpec:
                 value_type="enum",
                 enum_values=("active", "passive"),
             ),
-            BigipPropertySpec(
-                name="thing",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

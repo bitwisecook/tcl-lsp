@@ -51,12 +51,7 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("false", "true"),
                 shape_kind="boolean",
             ),
-            BigipPropertySpec(
-                name="sender-tag-class",
-                value_type="block",
-                repeated=True,
-                shape_kind="list",
-            ),
+            BigipPropertySpec(name="sender-tag-class", value_type="list", repeated=True),
             BigipPropertySpec(name="statistics-sample-interval", value_type="integer"),
         ),
     )

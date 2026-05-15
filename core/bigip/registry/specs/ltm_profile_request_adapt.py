@@ -44,10 +44,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("drop", "ignore", "reset"),
             ),
             BigipPropertySpec(name="timeout", value_type="integer"),
-            BigipPropertySpec(
-                name="app-service",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

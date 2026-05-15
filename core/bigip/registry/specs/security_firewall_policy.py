@@ -557,15 +557,5 @@ def register_spec() -> BigipObjectSpec:
                 value_type="reference",
                 in_sections=("rules",),
             ),
-            BigipPropertySpec(
-                name="app-service",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="partition",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

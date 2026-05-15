@@ -19,10 +19,5 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "dos bot-signature-category"),),
         properties=(
             BigipPropertySpec(name="type", value_type="enum", enum_values=("benign", "malicious")),
-            BigipPropertySpec(
-                name="user-defined",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

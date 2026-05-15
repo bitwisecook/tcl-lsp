@@ -40,10 +40,5 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="required-numeric", value_type="integer", default="0 (zero)"),
             BigipPropertySpec(name="required-special", value_type="integer", default="0 (zero)"),
             BigipPropertySpec(name="required-uppercase", value_type="integer", default="0 (zero)"),
-            BigipPropertySpec(
-                name="manual-unlock-disabled",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

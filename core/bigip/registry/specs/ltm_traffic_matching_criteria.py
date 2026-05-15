@@ -47,10 +47,5 @@ def register_spec() -> BigipObjectSpec:
                 default="any",
             ),
             BigipPropertySpec(name="source-port-inline", value_type="unknown", default="none"),
-            BigipPropertySpec(
-                name="protocol",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

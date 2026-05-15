@@ -597,8 +597,16 @@ def test_cli_json_mode_skips_multi_file_banners(tmp_path, capsys):
 
 
 def test_cli_exit_code_when_no_matches(sample_conf, capsys):
+    """Read-only queries that produce no matches exit 0 — mirrors jq's
+    default.  Pipelines that need "empty result is an error" opt in
+    via ``--strict`` (jq-style ``-e``)."""
     rc, _, _ = _cli(["query", '.ltm.virtual["~no-match"] | .name', str(sample_conf)], capsys)
-    assert rc == 1
+    assert rc == 0
+    rc_strict, _, _ = _cli(
+        ["query", "--strict", '.ltm.virtual["~no-match"] | .name', str(sample_conf)],
+        capsys,
+    )
+    assert rc_strict == 1
 
 
 def test_cli_parse_error_returns_two(sample_conf, capsys):

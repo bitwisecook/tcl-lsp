@@ -168,6 +168,22 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     p.add_argument(
+        "--partition",
+        action="append",
+        default=[],
+        metavar="PATH=PARTITION",
+        help=(
+            "Tell the loader which BIG-IP partition a given source file "
+            "belongs to.  Short / partition-relative names inside that "
+            "file (``ltm pool web_pool {...}`` without a leading "
+            "``/Common/``) get qualified with ``/<partition>/`` so the "
+            "rest of the system sees canonical full-paths.  Repeatable; "
+            "without ``=`` the value applies to every loaded source.  "
+            "Defaults to ``Common`` when unset, matching tmsh's "
+            "implicit partition."
+        ),
+    )
+    p.add_argument(
         "--merge",
         action="store_true",
         help=(
@@ -311,6 +327,11 @@ def _run_query(args: argparse.Namespace) -> int:
         print(f"error: {name_err}", file=sys.stderr)
         return 2
 
+    partitions_by_path, partition_err = _parse_partition_bindings(args.partition, args.paths)
+    if partition_err is not None:
+        print(f"error: {partition_err}", file=sys.stderr)
+        return 2
+
     sources: dict[str, str] = {}
     path_for_uri: dict[str, str] = {}
     for path_str in args.paths:
@@ -363,12 +384,35 @@ def _run_query(args: argparse.Namespace) -> int:
             return 2
         resolved_names[nm] = uri
 
+    # Translate ``--partition PATH=PARTITION`` keys into URI form so
+    # ``run_query``'s contextvar lookup uses the same key shape the
+    # source map does.  ``args.partition`` may also include a bare
+    # ``--partition NAME`` (applied to every source) which the
+    # parser surfaces with ``path_str == ""``.
+    resolved_partitions: dict[str, str] = {}
+    uri_for_path = {p: u for u, p in path_for_uri.items()}
+    for path_str, partition in partitions_by_path.items():
+        if path_str == "":
+            for uri in sources:
+                resolved_partitions.setdefault(uri, partition)
+            continue
+        uri = uri_for_path.get(path_str)
+        if uri is None:
+            print(
+                f"error: --partition {path_str}={partition}: path was "
+                "not loaded (must also appear as a positional argument)",
+                file=sys.stderr,
+            )
+            return 2
+        resolved_partitions[uri] = partition
+
     try:
         result = run_query(
             expression,
             sources,
             names=resolved_names or None,
             merge=args.merge,
+            partitions=resolved_partitions or None,
         )
     except QueryError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -412,6 +456,50 @@ def _parse_name_bindings(raw: list[str], paths: list[str]) -> tuple[dict[str, st
                 "input (so the runner would have no source text for it)"
             )
         bindings[nm] = pth
+    return bindings, None
+
+
+def _parse_partition_bindings(
+    raw: list[str], paths: list[str]
+) -> tuple[dict[str, str], str | None]:
+    """Parse ``--partition PATH=PARTITION`` (or bare ``--partition PARTITION``)
+    entries.
+
+    Returns ``(bindings, error_or_None)`` where ``bindings`` maps:
+
+    * an empty string (``""``) to a partition applied to every loaded
+      source — the bare ``--partition NAME`` form;
+    * each loaded ``PATH`` to its explicit partition name.
+
+    Validates that each ``PATH=`` form names a positional input, that
+    a single source isn't bound twice, and that the bare-form is used
+    at most once.
+    """
+    bindings: dict[str, str] = {}
+    paths_set = set(paths)
+    seen_paths: set[str] = set()
+    for entry in raw:
+        if "=" in entry:
+            pth, _, partition = entry.partition("=")
+            if not pth:
+                return {}, f"--partition {entry!r}: PATH side cannot be empty"
+            if not partition:
+                return {}, f"--partition {entry!r}: PARTITION side cannot be empty"
+            if pth not in paths_set:
+                return {}, (
+                    f"--partition {pth}={partition}: path was not given as "
+                    "a positional input (so the runner would have no source "
+                    "for it)"
+                )
+            if pth in seen_paths:
+                return {}, f"--partition {pth}: duplicate binding"
+            seen_paths.add(pth)
+            bindings[pth] = partition
+        else:
+            # Bare ``--partition NAME`` applies to every source.
+            if "" in bindings:
+                return {}, "--partition: bare PARTITION may only be given once"
+            bindings[""] = entry
     return bindings, None
 
 
@@ -523,7 +611,7 @@ def _emit_values(
                 }
             )
         sys.stdout.write(json.dumps(envelope, indent=2) + "\n")
-        return 0 if any_matched else 1
+        return _empty_match_exit_code(args, any_matched)
 
     for uri, values in result.values_per_file.items():
         # "Matched" means the evaluator produced at least one value
@@ -537,4 +625,20 @@ def _emit_values(
         if use_banner:
             sys.stdout.write(f"# === {uri} ===\n")
         sys.stdout.write(render(values, mode=args.output_mode))
-    return 0 if any_matched else 1
+    return _empty_match_exit_code(args, any_matched)
+
+
+def _empty_match_exit_code(args: argparse.Namespace, any_matched: bool) -> int:
+    """Decide the read-only query exit code.
+
+    Default mirrors jq: ``0`` whether or not the query produced
+    matches — successful evaluation is its own success signal.
+    ``--strict`` opts in to jq's ``-e``-style "exit 1 when nothing
+    matched" semantics, which is what scripted pipelines that treat
+    a zero-result run as an error want.
+    """
+    if any_matched:
+        return 0
+    if getattr(args, "strict", False):
+        return 1
+    return 0

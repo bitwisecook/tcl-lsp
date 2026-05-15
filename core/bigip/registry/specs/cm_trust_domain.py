@@ -121,35 +121,5 @@ def register_spec() -> BigipObjectSpec:
                 usage_flags=frozenset(("optional",)),
             ),
             BigipPropertySpec(name="username", value_type="string", required=True),
-            BigipPropertySpec(
-                name="ca-cert",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="ca-cert-bundle",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="ca-key",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="guid",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="status",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="trust-group",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

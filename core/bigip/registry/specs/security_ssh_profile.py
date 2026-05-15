@@ -535,10 +535,5 @@ def register_spec() -> BigipObjectSpec:
                 list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(name="timeout", value_type="integer"),
-            BigipPropertySpec(
-                name="app-service",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

@@ -79,10 +79,5 @@ def register_spec() -> BigipObjectSpec:
                 default="webacceleration",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="metadata-cache-max-size",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

@@ -93,15 +93,5 @@ def register_spec() -> BigipObjectSpec:
                 references=("cm_traffic_group",),
             ),
             BigipPropertySpec(name="value", value_type="string"),
-            BigipPropertySpec(
-                name="inherited-traffic-group",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="partition",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

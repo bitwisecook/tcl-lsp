@@ -17,12 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("bot-defense signature-category",),
         ),
         header_types=(("security", "bot-defense signature-category"),),
-        properties=(
-            BigipPropertySpec(name="class", value_type="unknown"),
-            BigipPropertySpec(
-                name="user-defined",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-        ),
+        properties=(BigipPropertySpec(name="class", value_type="unknown"),),
     )

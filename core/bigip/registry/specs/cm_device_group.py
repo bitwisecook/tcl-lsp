@@ -75,10 +75,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("sync-failover", "sync-only"),
                 default="sync-only",
             ),
-            BigipPropertySpec(
-                name="hidden",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

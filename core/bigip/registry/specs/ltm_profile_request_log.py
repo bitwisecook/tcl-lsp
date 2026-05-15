@@ -190,10 +190,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("disabled", "enabled"),
                 shape_kind="boolean",
             ),
-            BigipPropertySpec(
-                name="log-response-logging-errors",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

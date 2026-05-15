@@ -87,25 +87,5 @@ def register_spec() -> BigipObjectSpec:
                 enum_values=("days", "none"),
                 default="365 days",
             ),
-            BigipPropertySpec(
-                name="orgId",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="certType",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="serverType",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name='}"',
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )

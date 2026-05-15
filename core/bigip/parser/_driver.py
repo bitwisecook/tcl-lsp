@@ -55,13 +55,35 @@ from ._parsers import (  # noqa: F401 — explicit imports for the names the dri
 # Public API
 
 
-def parse_bigip_conf(source: str) -> BigipConfig:
+def parse_bigip_conf(source: str, *, default_partition: str = "Common") -> BigipConfig:
     """Parse a BIG-IP configuration file and return a :class:`BigipConfig`.
 
-    Handles ``ltm`` and ``gtm`` stanzas.  Unknown stanza types are silently
-    skipped.
+    Handles ``ltm`` and ``gtm`` stanzas.  Unknown stanza types are
+    silently skipped.
+
+    *default_partition* names the partition this source belongs to —
+    BIG-IP keeps per-partition configs under
+    ``config/partitions/<NAME>/bigip.conf`` where short identifiers
+    inside a stanza body refer to whichever partition the file lives
+    in.  Object headers whose identifier already starts with ``/`` are
+    fully-qualified and left alone; bare identifiers
+    (``ltm pool web_pool { ... }``) are rewritten to
+    ``/<default_partition>/web_pool`` so the rest of the system sees
+    canonical full-paths.  ``resolve_name`` falls back to
+    ``/Common/`` after the loaded partition fails to match.
     """
-    config = BigipConfig()
+    partition_prefix = "/" + (default_partition or "Common").strip("/") + "/"
+    # ``(module, object_type)`` pairs whose identifier is *itself* a
+    # partition or other cluster-wide reference, not a partition-
+    # scoped name.  These must not be re-prefixed — ``auth partition
+    # Common`` is the definition of the ``Common`` partition, not an
+    # object inside it.
+    _no_partition_prefix: frozenset[tuple[str, str]] = frozenset(
+        {
+            ("auth", "partition"),
+        }
+    )
+    config = BigipConfig(default_partition=default_partition)
     blocks = _extract_blocks(source)
     source_map = DocumentBuffer.from_source(source)
 
@@ -80,6 +102,13 @@ def parse_bigip_conf(source: str) -> BigipConfig:
         generic = _parse_generic_header(block.header)
         if generic is not None:
             module_g, obj_type_g, identifier_g = generic
+            if (
+                identifier_g
+                and not identifier_g.startswith("/")
+                and (module_g, obj_type_g) not in _no_partition_prefix
+            ):
+                identifier_g = partition_prefix + identifier_g
+                generic = (module_g, obj_type_g, identifier_g)
             generic_key = f"{module_g}::{obj_type_g}::{identifier_g or '<singleton>'}"
             config.generic_objects[generic_key] = BigipGenericObject(
                 module=module_g,
@@ -90,6 +119,13 @@ def parse_bigip_conf(source: str) -> BigipConfig:
             )
 
         parsed = _parse_header(block.header)
+        if (
+            parsed is not None
+            and parsed[2]
+            and not parsed[2].startswith("/")
+            and (parsed[0], parsed[1]) not in _no_partition_prefix
+        ):
+            parsed = (parsed[0], parsed[1], partition_prefix + parsed[2])
         if parsed is None:
             # Two-token / three-token bare singleton headers (e.g.
             # ``sys dns {``, ``auth password {``, ``net lacp-globals

@@ -106,25 +106,5 @@ def register_spec() -> BigipObjectSpec:
                 default="0 (zero), which specifies that the system uses the value of the interval option whether the resource is up or down",
             ),
             BigipPropertySpec(name="username", value_type="reference", allow_none=True),
-            BigipPropertySpec(
-                name="timeout",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="Foo2:",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="Foo3:",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
-            BigipPropertySpec(
-                name="Foo4:",
-                value_type="string",
-                usage_flags=frozenset(("read_only",)),
-            ),
         ),
     )
