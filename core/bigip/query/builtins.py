@@ -224,6 +224,27 @@ def _as_str(value: object, *, name: str, arg: int) -> str:
     raise BuiltinError(f"{name}: argument {arg} must be a string, got {_type_name(value)}")
 
 
+def _coerce_pathlike(value: object, *, name: str, arg: int) -> str:
+    """Return a path-string from any value the user could plausibly pass.
+
+    Accepts a plain ``str``, a :class:`PathRef`, or an :class:`ObjectRef`
+    (whose :attr:`full_path` names the object).  Lets users write the
+    obvious ``select(in_partition(., "Common"))`` form without forcing
+    an explicit ``.name`` / ``.full-path`` projection — the predicate
+    is about *the object*, so the engine should accept the object.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, PathRef):
+        return value.full_path
+    if isinstance(value, ObjectRef):
+        return value.full_path
+    raise BuiltinError(
+        f"{name}: argument {arg} must be a path-string or object, "
+        f"got {_type_name(value)}"
+    )
+
+
 def _as_int(value: object, *, name: str, arg: int) -> int:
     if isinstance(value, bool):
         # Bool is a subclass of int — disallow to avoid silent surprises.
@@ -2436,7 +2457,7 @@ def _builtin_with_name(path: Any, name: Any) -> str:
 def _builtin_in_partition(path: Any, partition: Any) -> bool:
     from ..types import ObjectPath, Partition
 
-    p = _as_str(path, name="in_partition", arg=1)
+    p = _coerce_pathlike(path, name="in_partition", arg=1)
     part_text = _as_str(partition, name="in_partition", arg=2)
     obj = ObjectPath.try_parse(p)
     if obj is None:
@@ -2472,7 +2493,7 @@ def _builtin_in_partition(path: Any, partition: Any) -> bool:
 def _builtin_in_folder(path: Any, folder: Any) -> bool:
     from ..types import Folder, ObjectPath
 
-    p = _as_str(path, name="in_folder", arg=1)
+    p = _coerce_pathlike(path, name="in_folder", arg=1)
     f = _as_str(folder, name="in_folder", arg=2)
     obj = ObjectPath.try_parse(p)
     target_folder = Folder.try_parse(f)
@@ -3571,10 +3592,42 @@ def _builtin_unique(value: Any) -> list[Any]:
 )
 def _builtin_sort(value: Any) -> list[Any]:
     items = _as_sequence(value, name="sort", arg=1)
-    return sorted(
-        items,
-        key=lambda v: v.full_path if isinstance(v, PathRef) else v,
-    )
+    return sorted(items, key=_sort_key)
+
+
+def _sort_key(value: Any) -> tuple:
+    """Order key compatible with jq's ordering across scalar + composite types.
+
+    jq orders ``null < false < true < numbers < strings < arrays <
+    objects``.  Inside each category lexicographic / numeric ordering
+    applies.  Objects sort by their *sorted* ``[key, value]`` tuple
+    sequence so two dicts with the same shape collate consistently
+    rather than raising ``TypeError`` on Python's native ``<``.
+
+    The returned tuple has the type-tag as its first slot so values of
+    different families never compare against each other — they fall
+    out into stable buckets.
+    """
+    if value is None:
+        return (0,)
+    if isinstance(value, bool):
+        # Important: check bool before int because ``isinstance(True, int)`` is True.
+        return (1, value)
+    if isinstance(value, (int, float)):
+        return (2, value)
+    if isinstance(value, PathRef):
+        return (3, value.full_path)
+    if isinstance(value, str):
+        return (3, value)
+    if isinstance(value, (list, tuple)):
+        return (4, tuple(_sort_key(v) for v in value))
+    if isinstance(value, dict):
+        return (5, tuple((k, _sort_key(value[k])) for k in sorted(value)))
+    if isinstance(value, ObjectRef):
+        return (5, tuple((k, _sort_key(value.fields[k])) for k in sorted(value.fields)))
+    # Fallback: try string repr so heterogeneous unknowns sort
+    # deterministically rather than blowing up.
+    return (6, str(value))
 
 
 @_register(
@@ -4454,6 +4507,360 @@ def _builtin_json_load(path: Any) -> object:
 
 
 @_register(
+    "cert_load",
+    summary="Load and parse an X.509 cert from disk (PEM / DER / PKCS#12).",
+    signatures=(
+        "cert_load(path: string) -> object | list[object]",
+        "cert_load(path: string, password: string) -> object | list[object]",
+    ),
+    details="""
+    Reads *path* from disk and returns a structured cert dict in the
+    same shape :func:`x509_parse` produces.  The file format is
+    sniffed from the bytes — extension hints (``.crt``, ``.pem``,
+    ``.cer``, ``.der``, ``.pfx``, ``.p12``) are tolerated but not
+    required:
+
+    - **PEM** (``-----BEGIN CERTIFICATE-----``): parsed directly.
+      When the file contains a *chain* (multiple PEM blocks) a
+      list is returned, leaf first.
+    - **DER**: re-encoded to PEM and parsed.
+    - **PKCS#12** (``.pfx`` / ``.p12``): unpacked into the
+      end-entity cert plus any chain certs.  Pass *password* as
+      the optional second argument when the bundle is encrypted;
+      omit it for plain bundles.  Returns ``[leaf, *chain]`` when
+      a chain is present, otherwise just the leaf dict.
+
+    Tilde expansion is honoured.  Raises :class:`BuiltinError` for
+    missing files, unreadable formats, or wrong passwords.  No
+    network access — purely local file IO.
+
+    Related: ``x509_parse`` (parse an in-memory PEM string),
+    ``tls_handshake`` (peer cert pre-parsed in ``peer_cert``).
+    """,
+    examples=(
+        'cert_load("/etc/ssl/certs/server.crt")',
+        'cert_load("./bundle.pfx", "trustno1")',
+        'cert_load("chain.pem") | first | .subject',
+    ),
+    category="value",
+    min_args=1,
+    max_args=2,
+)
+def _builtin_cert_load(*args: Any) -> Any:
+    import os.path
+
+    from ._probes import x509_parse
+
+    p = _as_str(args[0], name="cert_load", arg=1)
+    expanded = os.path.expanduser(p)
+    password: bytes | None = None
+    if len(args) > 1:
+        password = _as_str(args[1], name="cert_load", arg=2).encode("utf-8")
+    try:
+        with open(expanded, "rb") as f:
+            raw = f.read()
+    except FileNotFoundError as exc:
+        raise BuiltinError(f"cert_load: file not found: {expanded}") from exc
+    except OSError as exc:
+        raise BuiltinError(f"cert_load: cannot read {expanded}: {exc}") from exc
+    # PEM is the easy path — split on the END markers and parse
+    # each block; one block returns a dict, several return a list
+    # (chain order preserved from the file).
+    if b"-----BEGIN" in raw:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise BuiltinError(f"cert_load: {expanded}: not UTF-8 PEM ({exc})") from exc
+        blocks = _split_pem_blocks(text)
+        if not blocks:
+            raise BuiltinError(
+                f"cert_load: {expanded}: no PEM CERTIFICATE blocks found"
+            )
+        parsed = [x509_parse(b) for b in blocks]
+        return parsed[0] if len(parsed) == 1 else parsed
+    # PKCS#12 — needs cryptography.  Detect by the leading magic
+    # (``0x30`` = ASN.1 SEQUENCE) plus the ``.pfx`` / ``.p12``
+    # extension; we don't try to disambiguate from a raw DER cert
+    # without the extension hint because both start with 0x30.
+    suffix = os.path.splitext(expanded)[1].lower()
+    if suffix in {".pfx", ".p12"}:
+        return _load_pkcs12(expanded, raw, password)
+    # Assume DER cert.  Re-encode to PEM and parse.
+    try:
+        import ssl as _ssl
+
+        pem = _ssl.DER_cert_to_PEM_cert(raw)
+    except Exception as exc:
+        raise BuiltinError(
+            f"cert_load: {expanded}: not PEM / DER / PKCS#12 ({exc})"
+        ) from exc
+    return x509_parse(pem)
+
+
+def _split_pem_blocks(text: str) -> list[str]:
+    """Split a multi-cert PEM file into one PEM string per cert.
+
+    Only blocks tagged ``CERTIFICATE`` are returned — keys and other
+    block types are skipped so a combined ``cert+key.pem`` produces
+    just the certs.  Block order from the file is preserved.
+    """
+    blocks: list[str] = []
+    lines = text.splitlines(keepends=True)
+    in_cert = False
+    buf: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("-----BEGIN CERTIFICATE-----"):
+            in_cert = True
+            buf = [line]
+            continue
+        if in_cert:
+            buf.append(line)
+            if stripped.startswith("-----END CERTIFICATE-----"):
+                blocks.append("".join(buf))
+                in_cert = False
+                buf = []
+    return blocks
+
+
+def _load_pkcs12(expanded: str, raw: bytes, password: bytes | None) -> Any:
+    """Decode a PKCS#12 bundle and return the parsed cert(s).
+
+    Returns the end-entity cert dict when no chain is present,
+    otherwise ``[leaf, *chain]`` in file order.  Requires the
+    ``cryptography`` package — raises a clear ``BuiltinError`` when
+    it isn't installed.
+    """
+    from importlib import import_module
+
+    from ._probes import x509_parse
+
+    try:
+        pkcs12 = import_module("cryptography.hazmat.primitives.serialization.pkcs12")
+        serialization = import_module("cryptography.hazmat.primitives.serialization")
+    except ImportError as exc:
+        raise BuiltinError(
+            f"cert_load: {expanded}: PKCS#12 parsing needs the "
+            "``cryptography`` package — install it to load .pfx / .p12 files"
+        ) from exc
+    try:
+        leaf_cert, additional = _pkcs12_unpack(pkcs12, raw, password)
+    except Exception as exc:
+        raise BuiltinError(f"cert_load: {expanded}: failed to decode PKCS#12 ({exc})") from exc
+    if leaf_cert is None and not additional:
+        raise BuiltinError(f"cert_load: {expanded}: PKCS#12 bundle contains no certificates")
+    pem_blocks: list[str] = []
+    if leaf_cert is not None:
+        pem_blocks.append(
+            leaf_cert.public_bytes(serialization.Encoding.PEM).decode("utf-8")
+        )
+    for cert in additional:
+        pem_blocks.append(cert.public_bytes(serialization.Encoding.PEM).decode("utf-8"))
+    parsed = [x509_parse(b) for b in pem_blocks]
+    return parsed[0] if len(parsed) == 1 else parsed
+
+
+def _pkcs12_unpack(pkcs12: Any, raw: bytes, password: bytes | None) -> tuple[Any, list[Any]]:
+    """Return ``(end_entity_cert, additional_certs)`` from a PKCS#12 blob.
+
+    Tries :func:`load_key_and_certificates` first (the modern API);
+    falls back to :func:`load_pkcs12` (returns a PKCS12KeyAndCertificates
+    object) for older / different ``cryptography`` versions.
+    """
+    if hasattr(pkcs12, "load_key_and_certificates"):
+        _, cert, additional = pkcs12.load_key_and_certificates(raw, password)
+        return cert, list(additional or [])
+    bundle = pkcs12.load_pkcs12(raw, password)
+    leaf = bundle.cert.certificate if bundle.cert is not None else None
+    additional = [entry.certificate for entry in (bundle.additional_certs or [])]
+    return leaf, additional
+
+
+@_register(
+    "jsonl_load",
+    summary="Read a file from disk and parse it as JSON Lines (NDJSON).",
+    signatures=("jsonl_load(path: string) -> list",),
+    details="""
+    Reads *path* line by line and parses each non-blank line as a
+    JSON value, returning the list in file order.  This is the
+    natural shape for log streams, event archives, and any other
+    one-record-per-line dump where loading the whole file as one
+    JSON value would force every consumer to know about the
+    framing.
+
+    Blank lines are skipped.  Any line that fails to parse raises
+    :class:`BuiltinError` with the offending line number so a bad
+    record in a large dump is easy to find.
+
+    Tilde expansion is honoured.
+
+    Related: ``json_load`` (whole-file JSON), ``json_parse``
+    (in-memory string), ``csv_load`` (CSV with or without headers).
+    """,
+    examples=(
+        'jsonl_load("/var/log/events.jsonl")',
+        '.ltm.virtual[].name as $n | jsonl_load("events.jsonl")[] | select(.vs == $n)',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_jsonl_load(path: Any) -> list[Any]:
+    import os.path
+
+    from ._inputs import InputError, parse_jsonl
+
+    p = _as_str(path, name="jsonl_load", arg=1)
+    expanded = os.path.expanduser(p)
+    try:
+        with open(expanded, encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError as exc:
+        raise BuiltinError(f"jsonl_load: file not found: {expanded}") from exc
+    except OSError as exc:
+        raise BuiltinError(f"jsonl_load: cannot read {expanded}: {exc}") from exc
+    try:
+        return parse_jsonl(text, source=expanded)
+    except InputError as exc:
+        raise BuiltinError(f"jsonl_load: {exc}") from exc
+
+
+@_register(
+    "csv_load",
+    summary="Read a CSV file from disk and parse it into a list of records.",
+    signatures=(
+        "csv_load(path: string) -> list[object]",
+        "csv_load(path: string, headers: list[string]) -> list[object]",
+    ),
+    details="""
+    Reads *path* as CSV.  With one argument the first row of the
+    file names the columns (the jq-natural shape, matches what most
+    spreadsheet exports look like).  With two arguments *headers*
+    is a list of column names and every row of the file is treated
+    as data — use this form for header-less CSVs (firewall NAT
+    exports, RFC 4180 fragments, etc.).
+
+    Values are returned as strings.  The DSL's ``+`` operator
+    coerces scalars when one side is a string, so number-shaped
+    cells (``"443"``) flow through arithmetic without an explicit
+    cast.  Missing trailing columns become empty strings; rows
+    that overflow the header list land their extras in an
+    ``_extra`` list.
+
+    Tilde expansion is honoured.  Raises :class:`BuiltinError` for
+    missing files or unreadable CSV.
+
+    Related: ``jsonl_load``, ``json_load``, ``csv`` /
+    ``tsv`` (render to one-row strings).
+    """,
+    examples=(
+        'csv_load("/etc/inventory/servers.csv")',
+        'csv_load("nats.csv", ["internal", "external"])',
+        'csv_load("vips.csv") | map(.name)',
+    ),
+    category="value",
+    min_args=1,
+    max_args=2,
+)
+def _builtin_csv_load(*args: Any) -> list[dict[str, Any]]:
+    import os.path
+
+    from ._inputs import InputError, parse_csv
+
+    p = _as_str(args[0], name="csv_load", arg=1)
+    expanded = os.path.expanduser(p)
+    headers: list[str] | None = None
+    if len(args) > 1:
+        raw_headers = args[1]
+        if not isinstance(raw_headers, list):
+            raise BuiltinError(
+                f"csv_load: argument 2 must be a list of strings, got {_type_name(raw_headers)}"
+            )
+        headers = []
+        for i, h in enumerate(raw_headers):
+            if not isinstance(h, str):
+                raise BuiltinError(
+                    f"csv_load: argument 2: header {i} must be a string, got {_type_name(h)}"
+                )
+            headers.append(h)
+    try:
+        with open(expanded, encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError as exc:
+        raise BuiltinError(f"csv_load: file not found: {expanded}") from exc
+    except OSError as exc:
+        raise BuiltinError(f"csv_load: cannot read {expanded}: {exc}") from exc
+    try:
+        return parse_csv(text, headers=headers, source=expanded)
+    except InputError as exc:
+        raise BuiltinError(f"csv_load: {exc}") from exc
+
+
+@_register(
+    "f5log_load",
+    summary="Read a BIG-IP log file from disk and parse it into structured events.",
+    signatures=("f5log_load(path: string) -> list[object]",),
+    details="""
+    Reads *path* as a BIG-IP log and parses each line into a
+    structured event dict:
+
+    .. code-block:: text
+
+       { "timestamp": "Nov 28 09:53:00"
+       , "host": "bigip01"
+       , "severity": "info"
+       , "daemon": "tmm"
+       , "pid": 12345
+       , "code": "01230140:6"
+       , "module": "01230140"
+       , "level": 6
+       , "message": "Connection limit reached for pool /Common/web_pool"
+       , "raw": "<original line>"
+       }
+
+    Handles classic syslog, RFC3164-with-PRI, and the F5
+    ``XXXXXXXX:N:`` message-code form.  Lines that don't match
+    land with ``message`` set to the original text and the typed
+    fields blank, so a grep / filter pipeline never silently
+    drops unknown shapes.
+
+    Tilde expansion is honoured.  Pairs naturally with the
+    classification predicates (``in_cidr`` / ``is_private``) when
+    the message body contains an IP — split on whitespace inside
+    the message and feed candidates through.
+
+    Related: ``jsonl_load``, ``csv_load``, ``json_load``.
+    """,
+    examples=(
+        'f5log_load("/var/log/ltm") | last',
+        '[f5log_load("/var/log/tmm") | select(.severity == "err")] | count',
+        'f5log_load("audit.log") | select(.daemon == "logger" and .module == "01070417")',
+    ),
+    category="value",
+    min_args=1,
+    max_args=1,
+)
+def _builtin_f5log_load(path: Any) -> list[dict[str, Any]]:
+    import os.path
+
+    from ._inputs import InputError, parse_f5log
+
+    p = _as_str(path, name="f5log_load", arg=1)
+    expanded = os.path.expanduser(p)
+    try:
+        with open(expanded, encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError as exc:
+        raise BuiltinError(f"f5log_load: file not found: {expanded}") from exc
+    except OSError as exc:
+        raise BuiltinError(f"f5log_load: cannot read {expanded}: {exc}") from exc
+    try:
+        return parse_f5log(text, source=expanded)
+    except InputError as exc:
+        raise BuiltinError(f"f5log_load: {exc}") from exc
+
+
+@_register(
     "json_parse",
     summary="Parse a JSON string into its native value.",
     signatures=("json_parse(text: string) -> any",),
@@ -4577,6 +4984,13 @@ def _builtin_http_body_json(value: Any) -> object:
     import json as _json
 
     resp = _http_response(value, name="http_body_json")
+    # Fetchers pre-parse JSON bodies into ``body_json`` when the
+    # response's content-type indicates JSON, so the common path
+    # never re-parses on traversal.  Synthetic responses built by
+    # hand can either set ``body_json`` directly or rely on the
+    # fallback that re-parses ``body``.
+    if "body_json" in resp and resp["body_json"] is not None:
+        return resp["body_json"]
     body = resp.get("body", "")
     if not isinstance(body, str):
         body = str(body)

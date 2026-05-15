@@ -63,6 +63,9 @@ Complex worked examples live in KCS How-Tos:
 - `--write` — when the query mutates, print the rewritten config to stdout (default: print a unified-diff preview).  Mutually exclusive with `--in-place`.
 - `--in-place` — when the query mutates, overwrite each input file with the rewritten config.  Reads strictly UTF-8 (refuses undecodable bytes rather than substituting U+FFFD), and refuses `--format tmsh` (which would silently overwrite SCF source with a tmsh script).
 - `--format scf|tmsh` — output format for the rewritten config.  `scf` (default) emits the source with edits applied in-place, preserving comments / whitespace / field order.  `tmsh` emits a `tmsh modify` script suitable for piping to a remote device or redirecting to a file.
+- `--input-json NAME=PATH`, `--input-jsonl NAME=PATH`, `--input-csv NAME=PATH[:hdr1,hdr2]`, and `--input-f5log NAME=PATH` — bind structured side inputs to `$NAME` without making them primary BIG-IP configs.  Use these for inventories, NAT maps, event streams, and BIG-IP logs that enrich a config query.
+- `--enable-probes` — allow network probe builtins such as `ping`, `portping`, `url_get`, `socket_get`, and `tls_handshake`.  Probes are disabled by default so ordinary queries stay offline-safe.
+- `--ca-bundle PATH` — trust a specific CA bundle for TLS probes.  This is useful for internal endpoints and lab certificates.
 - `--help-dsl` — print the DSL grammar reference and exit.
 - `--help-builtins [NAME]` — print every builtin's signature and example, or one named entry.
 - `--help-examples` — print the worked-example cookbook.
@@ -208,7 +211,7 @@ A `renamed /Common/web_pool -> /Common/app_pool (3 occurrence(s))` line is also 
 
 - General command-argument rewriting inside iRule bodies is deferred to v2.  In v1 the only writable slots inside an iRule are the reference lists `.refs.pools[]`, `.refs.persists[]`, and `.refs.data-groups[]`, which are rewritten via the same token-bounded engine `f5 rename` uses.
 - Compound property values are partially writable.  Per-member fields on a pool member (`.ltm.pool[].members[].address` and siblings) carry real byte-offset slots and accept field edits in place; other sub-block compound values (e.g. policy rule actions, persistence body) are still v2.  Add or remove pool members by editing the pool object directly, or pipe through `f5 cleanup` after a query that emits SCF stanzas.
-- The DSL has lexical variable bindings — `expr as $name | body` (jq-flavoured) — and a top-level `$name` form addressing each loaded source by its filename stem.  There is no user-defined-function syntax and no stream-comma operator; both stay non-goals.  Compose with `;`-separated statements or with explicit `[...]` collectors when you want to fan a stream into a list.
+- The DSL has lexical variable bindings — `expr as $name | body` (jq-flavoured) — and a top-level `$name` form addressing each loaded source by its filename stem.  It also supports jq-style stream comma (`a, b`) and conditionals.  There is no user-defined-function syntax; compose larger queries with `as` bindings, comma streams, pipes, and `;`-separated statements.
 
 ## Related
 

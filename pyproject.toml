@@ -19,6 +19,11 @@ dev = [
     "ty>=0.0.24,<0.0.25",
     "wasmtime>=20.0",
     "flask>=3.0",
+    # Used by the test-slow TLS / x509 suites that spin up an HTTPS
+    # server with a generated self-signed cert and exercise
+    # ``url_get`` / ``tls_handshake`` / ``cert_load`` against it.
+    # Also unlocks PKCS#12 parsing in ``cert_load``.
+    "cryptography>=42.0",
 ]
 
 [build-system]

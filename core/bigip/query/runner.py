@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..parser import parse_bigip_conf
+from ._inputs import InputSpec
 from .edit_plan import AppliedSource, apply
 from .errors import QueryError
 from .evaluator import EvalContext, evaluate_statement
@@ -111,60 +112,95 @@ def _active_root(root: Root):
         _ACTIVE_ROOTS.reset(token)
 
 
-_ACTIVE_PARTITIONS: ContextVar[dict[str, str]] = ContextVar(
-    "_bigip_query_active_partitions", default={}
+_ACTIVE_PARTITIONS: ContextVar[dict[str, str] | None] = ContextVar(
+    "_bigip_query_active_partitions", default=None
 )
 
 
 def _partition_for_uri(uri: str) -> str:
     """Return the partition associated with *uri* for the current run,
     or ``"Common"`` when no per-URI mapping was supplied."""
-    return _ACTIVE_PARTITIONS.get().get(uri, "Common")
+    return (_ACTIVE_PARTITIONS.get() or {}).get(uri, "Common")
 
 
-_JSON_SOURCES: ContextVar[frozenset[str]] = ContextVar(
-    "_bigip_query_json_sources", default=frozenset()
+_INPUT_SPECS: ContextVar[dict[str, "InputSpec"] | None] = ContextVar(
+    "_bigip_query_input_specs", default=None
 )
 
 
+def _input_spec(uri: str) -> "InputSpec | None":
+    """Return the structured-input spec for *uri*, or ``None`` for
+    a regular BIG-IP source."""
+    return (_INPUT_SPECS.get() or {}).get(uri)
+
+
 def _is_json_source(uri: str) -> bool:
-    """Return ``True`` when *uri* was tagged as external-JSON by
-    the caller of :func:`run_query`."""
-    return uri in _JSON_SOURCES.get()
+    """Return ``True`` when *uri* is any kind of structured side-input.
+
+    Kept as a compatibility shim for call sites that previously
+    asked "should this source be excluded from the primary-input
+    loop?" — JSON / JSONL / CSV / F5-log roots are all side-inputs
+    by the same rule: they're bound to ``$name`` but never act as
+    the implicit ``.`` for a top-level ``.ltm.foo`` statement.
+    """
+    return _input_spec(uri) is not None
 
 
 def _build_root(uri: str, source: str, *, default_partition: str | None = None) -> Root:
     if default_partition is None:
         default_partition = _partition_for_uri(uri)
-    if _is_json_source(uri):
-        # External JSON side-input — bypass the BIG-IP parser
-        # entirely and bind the parsed value as the root's
-        # queryable shape.  Caller marks the URI via the
-        # ``json_sources`` arg on :func:`run_query`; no source
-        # auto-sniffing.
-        import json as _json
-
-        from ..model import BigipConfig
-
-        try:
-            parsed = _json.loads(source)
-        except _json.JSONDecodeError as exc:
-            raise QueryError(
-                f"{uri}: --<name>-json: invalid JSON ({exc.msg} at "
-                f"line {exc.lineno} col {exc.colno})"
-            ) from exc
-        return Root(
-            uri=uri,
-            source=source,
-            config=BigipConfig(),
-            source_map=SourceMap.build(source),
-            json_value=parsed,
-        )
+    spec = _input_spec(uri)
+    if spec is not None:
+        return _build_structured_root(uri, source, spec)
     return Root(
         uri=uri,
         source=source,
         config=parse_bigip_conf(source, default_partition=default_partition),
         source_map=SourceMap.build(source),
+    )
+
+
+def _build_structured_root(uri: str, source: str, spec: "InputSpec") -> Root:
+    """Parse *source* according to *spec.kind* and bind it as a JSON-root.
+
+    Each side-input format produces a Python value that the DSL can
+    navigate the same way it navigates a parsed JSON tree.  JSONL /
+    CSV produce a list of dicts; F5 logs produce a list of event
+    dicts; JSON produces whatever the file said.  The BIG-IP
+    config tree is empty for structured roots — projections /
+    ``.ltm.foo`` paths against them naturally yield nothing.
+    """
+    from ..model import BigipConfig
+    from ._inputs import InputError, parse_csv, parse_f5log, parse_jsonl
+
+    try:
+        if spec.kind == "json":
+            import json as _json
+
+            parsed: object = _json.loads(source)
+        elif spec.kind == "jsonl":
+            parsed = parse_jsonl(source, source=uri)
+        elif spec.kind == "csv":
+            headers = spec.get("headers")
+            parsed = parse_csv(
+                source,
+                headers=list(headers) if headers else None,
+                source=uri,
+            )
+        elif spec.kind == "f5log":
+            parsed = parse_f5log(source, source=uri)
+        else:  # pragma: no cover — spec.kind is set by the CLI / runner
+            raise QueryError(f"{uri}: unknown input format {spec.kind!r}")
+    except (ValueError, InputError) as exc:
+        # ``json.JSONDecodeError`` is a ``ValueError`` subclass;
+        # ``InputError`` covers JSONL / CSV / f5log parse failures.
+        raise QueryError(f"{uri}: invalid {spec.kind} input ({exc})") from exc
+    return Root(
+        uri=uri,
+        source=source,
+        config=BigipConfig(),
+        source_map=SourceMap.build(source),
+        json_value=parsed,
     )
 
 
@@ -176,6 +212,7 @@ def run_query(
     merge: bool = False,
     partitions: dict[str, str] | None = None,
     json_sources: frozenset[str] | set[str] | None = None,
+    input_specs: dict[str, "InputSpec"] | None = None,
 ) -> QueryResult:
     """Parse *query* and run it against each file in *sources*.
 
@@ -218,7 +255,20 @@ def run_query(
     # mapping through its signature.  Same trick for the JSON-source
     # marker set: ``_build_root`` reads it from the contextvar.
     _partition_token = _ACTIVE_PARTITIONS.set(dict(partitions or {}))
-    _json_token = _JSON_SOURCES.set(frozenset(json_sources or ()))
+    # Build the unified input-spec table from both surfaces:
+    # *input_specs* (the explicit format-aware form, used by the
+    # CLI's ``--input-{json,jsonl,csv,f5log}`` flags) and the
+    # historical *json_sources* set (kept for backwards
+    # compatibility — anything in it defaults to JSON).
+    merged_specs: dict[str, "InputSpec"] = {}
+    if input_specs:
+        merged_specs.update(input_specs)
+    if json_sources:
+        from ._inputs import InputSpec as _InputSpec
+
+        for uri in json_sources:
+            merged_specs.setdefault(uri, _InputSpec(kind="json"))
+    _input_token = _INPUT_SPECS.set(merged_specs)
     try:
         result = QueryResult()
         if merge:
@@ -342,7 +392,7 @@ def run_query(
         return result
     finally:
         _ACTIVE_PARTITIONS.reset(_partition_token)
-        _JSON_SOURCES.reset(_json_token)
+        _INPUT_SPECS.reset(_input_token)
 
 
 def _run_query_merged(

@@ -180,6 +180,16 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     p.add_argument(
+        "--ca-bundle",
+        metavar="PATH",
+        help=(
+            "CA bundle to trust for TLS-aware probes such as "
+            "``url_get`` and ``tls_handshake``.  Defaults to the "
+            "platform trust store.  Only used when a query runs a "
+            "TLS probe."
+        ),
+    )
+    p.add_argument(
         "--input-json",
         action="append",
         default=[],
@@ -194,6 +204,59 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "query without reaching for a sidecar tool.  Inside "
             "the DSL you can also use the ``json_load(path)`` "
             "builtin to read JSON ad-hoc."
+        ),
+    )
+    p.add_argument(
+        "--input-jsonl",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help=(
+            "Bind a JSON Lines (NDJSON) file to ``$NAME`` as a side "
+            "input (repeatable).  Each non-blank line of the file "
+            "is parsed as one JSON value and ``$NAME`` resolves to "
+            "the resulting list, so a query can iterate logs / "
+            "event archives the same way it iterates a BIG-IP "
+            "collection: ``$NAME[] | select(.severity == \"err\")``.  "
+            "Inside the DSL the ``jsonl_load(path)`` builtin gives "
+            "the same shape ad-hoc."
+        ),
+    )
+    p.add_argument(
+        "--input-csv",
+        action="append",
+        default=[],
+        metavar="NAME=PATH[:hdr1,hdr2,…]",
+        help=(
+            "Bind a CSV file to ``$NAME`` as a side input "
+            "(repeatable).  Without the trailing ``:hdr1,hdr2,…`` "
+            "the first row of the file names the columns (the "
+            "common spreadsheet shape).  With the trailing "
+            "header list every row is data and the supplied "
+            "names label each column — use this form for "
+            "header-less CSVs (firewall NAT exports, RFC 4180 "
+            "fragments).  Values are strings; the DSL's "
+            "``+`` operator coerces them on demand.  Inside the "
+            "DSL the ``csv_load(path[, headers])`` builtin "
+            "gives the same shape ad-hoc."
+        ),
+    )
+    p.add_argument(
+        "--input-f5log",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help=(
+            "Bind a BIG-IP log file (``/var/log/ltm``, "
+            "``/var/log/tmm``, audit, hsl) to ``$NAME`` as a "
+            "side input (repeatable).  Each line is parsed into "
+            "a structured event dict (``{timestamp, host, "
+            "severity, daemon, pid, code, module, level, "
+            "message, raw}``) so a query can filter by F5 "
+            "message code or severity without sub-parsing the "
+            "line: ``$NAME[] | select(.module == \"01070417\")``.  "
+            "Inside the DSL the ``f5log_load(path)`` builtin "
+            "gives the same shape ad-hoc."
         ),
     )
     p.add_argument(
@@ -389,6 +452,27 @@ def _run_query(args: argparse.Namespace) -> int:
         print(f"error: {json_err}", file=sys.stderr)
         return 2
 
+    jsonl_bindings, jsonl_err = _parse_input_bindings(
+        args.input_jsonl, flag="--input-jsonl"
+    )
+    if jsonl_err is not None:
+        print(f"error: {jsonl_err}", file=sys.stderr)
+        return 2
+
+    csv_bindings, csv_err = _parse_input_bindings(
+        args.input_csv, flag="--input-csv", allow_csv_headers=True
+    )
+    if csv_err is not None:
+        print(f"error: {csv_err}", file=sys.stderr)
+        return 2
+
+    f5log_bindings, f5log_err = _parse_input_bindings(
+        args.input_f5log, flag="--input-f5log"
+    )
+    if f5log_err is not None:
+        print(f"error: {f5log_err}", file=sys.stderr)
+        return 2
+
     sources: dict[str, str] = {}
     path_for_uri: dict[str, str] = {}
     for path_str in args.paths:
@@ -423,31 +507,74 @@ def _run_query(args: argparse.Namespace) -> int:
         sources[uri] = src
         path_for_uri[uri] = path_str
 
-    # Load JSON side-inputs (one per ``--json NAME=PATH`` entry).
-    # They're added to ``sources`` so the runner sees them through
-    # the same lookup map, but tagged in ``json_source_uris`` so
-    # the per-file loop knows to skip them as primaries and the
-    # builder treats them as JSON.  URIs collide-check against the
-    # positional inputs so a typo doesn't silently overwrite a
-    # config.
-    json_source_uris: set[str] = set()
-    json_resolved_names: dict[str, str] = {}
-    for nm, json_path in json_name_to_path.items():
+    # Load every structured side-input (JSON / JSONL / CSV / F5
+    # logs) into ``sources`` with a per-URI :class:`InputSpec` so
+    # the runner knows how to parse each one.  Names are merged
+    # into ``side_resolved_names`` for the ``$NAME`` lookup map.
+    # URIs collide-check against positional inputs so a typo
+    # doesn't silently overwrite a config.
+    from core.bigip.query._inputs import InputSpec as _InputSpec
+
+    input_specs: dict[str, _InputSpec] = {}
+    side_resolved_names: dict[str, str] = {}
+
+    def _load_side_input(
+        nm: str,
+        pth: str,
+        flag: str,
+        spec: _InputSpec,
+    ) -> str | None:
+        """Read *pth*, register it under *nm* with *spec*; returns
+        an error string or ``None`` on success."""
         try:
-            uri, src = read_path(json_path, strict=False)
+            uri, src = read_path(pth, strict=False)
         except (OSError, UnicodeDecodeError) as exc:
-            print(f"error: --json {nm}={json_path}: {exc}", file=sys.stderr)
-            return 2
+            return f"{flag} {nm}={pth}: {exc}"
         if uri in sources:
-            print(
-                f"error: --json {nm}={json_path}: URI {uri} is already "
-                "loaded as a positional input",
-                file=sys.stderr,
-            )
-            return 2
+            return f"{flag} {nm}={pth}: URI {uri} is already loaded as a positional input"
+        if uri in input_specs:
+            return f"{flag} {nm}={pth}: URI {uri} is already loaded as a side input"
         sources[uri] = src
-        json_source_uris.add(uri)
-        json_resolved_names[nm] = uri
+        input_specs[uri] = spec
+        side_resolved_names[nm] = uri
+        return None
+
+    for nm, json_path in json_name_to_path.items():
+        err = _load_side_input(nm, json_path, "--input-json", _InputSpec(kind="json"))
+        if err is not None:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+
+    for nm, (jsonl_path, _hdr) in jsonl_bindings.items():
+        err = _load_side_input(nm, jsonl_path, "--input-jsonl", _InputSpec(kind="jsonl"))
+        if err is not None:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+
+    for nm, (csv_path, csv_hdr) in csv_bindings.items():
+        options: tuple[tuple[str, object], ...] = (
+            (("headers", tuple(csv_hdr)),) if csv_hdr else ()
+        )
+        err = _load_side_input(
+            nm, csv_path, "--input-csv", _InputSpec(kind="csv", options=options)
+        )
+        if err is not None:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+
+    for nm, (f5log_path, _hdr) in f5log_bindings.items():
+        err = _load_side_input(
+            nm, f5log_path, "--input-f5log", _InputSpec(kind="f5log")
+        )
+        if err is not None:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+
+    # Back-compat: the runner used to take a frozenset of JSON-source
+    # URIs.  ``input_specs`` is the strictly-more-general successor;
+    # keep ``json_source_uris`` available for the legacy ``--json``
+    # path-only entries because nothing downstream relies on it yet.
+    json_resolved_names = side_resolved_names
 
     # Translate ``--name N=PATH`` from path-string to URI keys so the
     # runner can look each one up in ``sources``.  Paths that didn't
@@ -498,9 +625,10 @@ def _run_query(args: argparse.Namespace) -> int:
     # themselves on the ``PROBES_ENABLED`` contextvar.  Set it for
     # the duration of the run_query call so the default invocation
     # stays offline-safe.
-    from core.bigip.query._probes import PROBES_ENABLED
+    from core.bigip.query._probes import PROBES_ENABLED, TLS_CA_BUNDLE
 
     _probe_token = PROBES_ENABLED.set(bool(args.enable_probes))
+    _ca_bundle_token = TLS_CA_BUNDLE.set(args.ca_bundle)
     try:
         result = run_query(
             expression,
@@ -508,13 +636,14 @@ def _run_query(args: argparse.Namespace) -> int:
             names=full_names or None,
             merge=args.merge,
             partitions=resolved_partitions or None,
-            json_sources=frozenset(json_source_uris) or None,
+            input_specs=input_specs or None,
         )
     except QueryError as exc:
-        PROBES_ENABLED.reset(_probe_token)
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    PROBES_ENABLED.reset(_probe_token)
+    finally:
+        PROBES_ENABLED.reset(_probe_token)
+        TLS_CA_BUNDLE.reset(_ca_bundle_token)
 
     if result.has_mutation:
         return _emit_mutation(args, sources, result, path_for_uri)
@@ -557,32 +686,97 @@ def _parse_name_bindings(raw: list[str], paths: list[str]) -> tuple[dict[str, st
     return bindings, None
 
 
-def _parse_json_bindings(raw: list[str]) -> tuple[dict[str, str], str | None]:
-    """Parse ``--input-json NAME=PATH`` entries.
+def _parse_input_bindings(
+    raw: list[str],
+    *,
+    flag: str,
+    allow_csv_headers: bool = False,
+) -> tuple[dict[str, tuple[str, list[str] | None]], str | None]:
+    """Parse a ``--input-<kind> NAME=PATH[:hdr,…]`` flag group.
 
-    Returns ``(bindings, error_or_None)`` where ``bindings`` maps
-    each ``$NAME`` to the JSON file path it should read.  Names
-    must be valid DSL identifiers and unique across the run.
+    Returns ``(bindings, error)``.  ``bindings`` maps each ``$NAME``
+    to a tuple ``(path, csv_headers_or_None)``; the headers list is
+    only populated when *allow_csv_headers* is set and the entry has
+    a trailing ``:hdr1,hdr2,…`` segment.  All formats share the
+    NAME=PATH skeleton so one parser drives JSON / JSONL / CSV /
+    f5log entries — the CSV form adds the optional trailing header
+    list.
     """
     import re as _re
 
     name_re = _re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
-    bindings: dict[str, str] = {}
+    bindings: dict[str, tuple[str, list[str] | None]] = {}
     for entry in raw:
         if "=" not in entry:
-            return {}, f"--input-json expects NAME=PATH (got {entry!r})"
+            return {}, f"{flag} expects NAME=PATH (got {entry!r})"
         nm, _, pth = entry.partition("=")
         if not name_re.match(nm):
             return {}, (
-                f"--input-json {entry!r}: {nm!r} is not a valid DSL identifier "
+                f"{flag} {entry!r}: {nm!r} is not a valid DSL identifier "
                 "(letters, digits, '_', '-'; cannot start with a digit)"
             )
         if not pth:
-            return {}, f"--input-json {entry!r}: PATH side cannot be empty"
+            return {}, f"{flag} {entry!r}: PATH side cannot be empty"
         if nm in bindings:
-            return {}, f"--input-json {nm}: duplicate binding"
-        bindings[nm] = pth
+            return {}, f"{flag} {nm}: duplicate binding"
+        headers: list[str] | None = None
+        if allow_csv_headers:
+            pth, headers, err = _split_csv_path_headers(pth, flag=flag, entry=entry)
+            if err is not None:
+                return {}, err
+        bindings[nm] = (pth, headers)
     return bindings, None
+
+
+def _split_csv_path_headers(
+    value: str,
+    *,
+    flag: str,
+    entry: str,
+) -> tuple[str, list[str] | None, str | None]:
+    """Split ``PATH[:hdr1,hdr2]`` without treating path colons as headers.
+
+    The optional header suffix is only recognised when the final
+    colon segment looks like a comma-separated list of simple field
+    names.  That keeps POSIX paths containing ``:`` and Windows
+    drive paths intact, while preserving the documented compact CSV
+    form for header-less files.
+    """
+    if ":" not in value:
+        return value, None, None
+    path_part, _, headers_part = value.rpartition(":")
+    if not headers_part:
+        return (
+            value,
+            None,
+            f"{flag} {entry!r}: trailing ``:`` requires one or more header names (hdr1,hdr2,…)",
+        )
+    split_headers = [h.strip() for h in headers_part.split(",") if h.strip()]
+    if not split_headers:
+        return (
+            value,
+            None,
+            f"{flag} {entry!r}: trailing ``:`` requires one or more header names (hdr1,hdr2,…)",
+        )
+    import re as _re
+
+    header_re = _re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+    if not all(header_re.match(header) for header in split_headers):
+        return value, None, None
+    if not path_part:
+        return "", None, f"{flag} {entry!r}: PATH side cannot be empty"
+    return path_part, split_headers, None
+
+
+def _parse_json_bindings(raw: list[str]) -> tuple[dict[str, str], str | None]:
+    """Back-compat wrapper for ``--input-json``: returns the legacy
+    ``{name: path}`` shape so older call sites don't have to know
+    about the headers tuple form.
+    """
+    raw_bindings, err = _parse_input_bindings(raw, flag="--input-json")
+    if err is not None:
+        return {}, err
+    return {nm: pth for nm, (pth, _) in raw_bindings.items()}, None
 
 
 def _parse_partition_bindings(

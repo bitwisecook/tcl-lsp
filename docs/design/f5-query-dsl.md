@@ -49,7 +49,8 @@ stages joined by `|`; statements are separated by `;`.
 
 ```
 program       := pipeline (';' pipeline)*
-pipeline      := pipe_stage ('|' pipe_stage)*
+pipeline      := comma_expr ('|' comma_expr)*
+comma_expr    := pipe_stage (',' pipe_stage)*
 pipe_stage    := or_expr (ASSIGN_OP pipe_stage)?
 ASSIGN_OP     := '=' | '|=' | '+=' | '-='
 or_expr       := and_expr ('or' and_expr)*
@@ -61,10 +62,14 @@ add_expr      := mul_expr (('+' | '-') mul_expr)*
 mul_expr      := unary    (('*' | '/') unary)*
 unary         := '-' unary | postfix
 postfix       := primary path_tail
-primary       := literal | call | path | list_literal | '(' pipeline ')'
+primary       := literal | call | path | list_literal | if_expr
+              | '(' pipeline ')'
+if_expr       := 'if' pipeline 'then' pipeline
+                 ('elif' pipeline 'then' pipeline)*
+                 ('else' pipeline)? 'end'
 list_literal  := '[' pipeline? ']'
 path          := '.' | '.' field path_tail | '.' subscript path_tail
-path_tail     := ('.' field | subscript)*
+path_tail     := ('.' field '?'? | subscript '?'?)*
 field         := IDENT | STRING
 subscript     := '[' (pipeline | /* empty stream */) ']'
                  /* A STRING subscript whose contents start with "~"
@@ -104,6 +109,8 @@ docs with jq experience should be able to use `f5 query` without
 surprise.  Shared semantics:
 
 - `.X[]` is a stream-generator; `|` iterates it.
+- `a, b` concatenates streams, and `[a, b, c]` collects the resulting
+  stream into a list.
 - `[ ... ]` is the array constructor — collects a stream into a list
   for aggregators (`[.X[].name] | sort | first`).
 - Bare builtin names (`length`, `sort`, `unique`, …) operate on `.`.
@@ -117,14 +124,16 @@ Deliberate divergences:
 | Concern | jq | f5 query |
 |---|---|---|
 | Function arguments | `;` separated | `,` separated |
-| Stream concat `,` | yes | not present — use lists or `;` statements |
+| Stream concat `,` | yes | yes — except inside function arguments and object entries, where comma remains the separator; wrap a comma stream in parens when it is a single argument or value |
+| Conditional `if … then … elif … else … end` | yes | yes — with the broader `f5 query` truthiness described below |
 | Regex test | `test("pat")` builtin | `["~pat"]` subscript form, **and** `match()` builtin (jq's `match()` returns match objects; ours returns boolean — equivalent to jq's `test()`) |
 | Identifier hyphens | quoted only | bareword (`source-address-translation`) |
 | Object literals `{...}` | yes | yes — `{name, dest: .destination}` bareword keys desugar to `key: .key`; stream-valued fields broadcast element-wise into one row per item |
 | `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain Python lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
 | `$name` variable | yes (let-binding only) | also names each loaded source — `$ltm`, `$gtm`, ... — for cross-config queries.  Auto-named from filename stem; `--name N=PATH` overrides |
 | String interpolation `"\(.x)"` | yes | not present in v1 |
-| `//` / `?` / `try-catch` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
+| Optional path suffix `?` | yes | yes for path steps (`.foo?`, `.items[]?`, `.[expr]?`); `try-catch` is still absent |
+| `//` / `try-catch` / `reduce` / `foreach` / `paths` / `getpath` / `setpath` / `del` / `to_entries` / `from_entries` | yes | not present in v1 — practical query language, not a jq subset |
 | Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
 | Assignment + pipe | `path \|= f` binds tight via custom precedence | `\|=` is a pipe-stage trailing operator, so `a \| b \|= c` parses as `a \| (b \|= c)` |
 | `--format` flag | not applicable | `--format scf` (default) emits the rewritten config; `--format tmsh` emits a `tmsh modify` script suitable for piping to a live device.  Refused with `--in-place` (would silently overwrite SCF with a different file format) |

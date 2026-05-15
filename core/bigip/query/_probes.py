@@ -22,6 +22,7 @@ import urllib.error
 import urllib.request
 from contextvars import ContextVar
 from typing import Any
+from urllib.parse import urlsplit
 
 from .errors import BuiltinError
 
@@ -30,13 +31,22 @@ from .errors import BuiltinError
 # disabled gets a clear error instead of a silent network call.
 PROBES_ENABLED: ContextVar[bool] = ContextVar("_bigip_query_probes_enabled", default=False)
 
+# Optional path to a CA bundle used by ``url_request`` and
+# ``tls_handshake`` for chain verification.  ``None`` falls back to
+# the system trust store.  Set this from a test fixture (or the
+# CLI's ``--ca-bundle`` flag) when probing an endpoint signed by an
+# internal / self-signed CA.
+TLS_CA_BUNDLE: ContextVar[str | None] = ContextVar(
+    "_bigip_query_tls_ca_bundle", default=None
+)
+
 # Process-lifetime caches.
 _PING_CACHE: dict[str, dict[str, Any]] = {}
 _PORTPING_CACHE: dict[tuple[str, int, str], dict[str, Any]] = {}
 _TRACEROUTE_CACHE: dict[str, list[dict[str, Any]]] = {}
-_URL_CACHE: dict[tuple[str, str, frozenset], dict[str, Any]] = {}
+_URL_CACHE: dict[tuple[str, str, frozenset, str | None], dict[str, Any]] = {}
 _SOCKET_CACHE: dict[tuple[str, int, bytes, int], bytes] = {}
-_TLS_CACHE: dict[tuple[str, int, str | None], dict[str, Any]] = {}
+_TLS_CACHE: dict[tuple[str, int, str | None, str | None], dict[str, Any]] = {}
 
 
 def _require_probes(name: str) -> None:
@@ -185,13 +195,29 @@ def url_request(
 ) -> dict[str, Any]:
     """Generic HTTP request via :mod:`urllib`.
 
-    Returns ``{"status", "headers", "body", "error"}``.  Body is
-    decoded as UTF-8 with replacement; non-text payloads round-
-    trip as ``str`` with U+FFFD substitutions.
+    Returns ``{"status", "headers", "body", "body_json", "error"}``.
+    ``body`` is the raw response body decoded as UTF-8 with
+    replacement.  ``body_json`` is the pre-parsed JSON value when the
+    response's ``content-type`` header includes ``json`` and the body
+    is valid JSON; otherwise ``None``.  Pre-parsing here lets callers
+    write ``url_get(...) | http_body_json(.)`` without re-parsing on
+    every traversal, and means a query that only needs structured
+    fields doesn't pay the regex cost twice.
     """
     _require_probes(f"url_{method.lower()}")
+    scheme = urlsplit(url).scheme.lower()
+    if scheme not in {"http", "https"}:
+        out = {
+            "status": None,
+            "headers": {},
+            "body": "",
+            "body_json": None,
+            "error": f"unsupported URL scheme: {scheme or '<none>'}",
+        }
+        return out
+    ca_bundle = TLS_CA_BUNDLE.get()
     hdr_items = frozenset((headers or {}).items())
-    cache_key = (method.upper(), url, hdr_items)
+    cache_key = (method.upper(), url, hdr_items, ca_bundle)
     if cache_key in _URL_CACHE:
         return dict(_URL_CACHE[cache_key])
     data: bytes | None
@@ -202,8 +228,14 @@ def url_request(
     else:
         data = body
     req = urllib.request.Request(url, data=data, method=method.upper(), headers=headers or {})
+    # When a custom CA bundle is bound, build a verifying context
+    # that trusts it (and only it).  Otherwise let urllib fall back
+    # to the platform default.
+    opener_kwargs: dict[str, Any] = {"timeout": timeout_s}
+    if ca_bundle:
+        opener_kwargs["context"] = ssl.create_default_context(cafile=ca_bundle)
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        with urllib.request.urlopen(req, **opener_kwargs) as resp:
             payload = resp.read()
             out = {
                 "status": resp.status,
@@ -220,8 +252,34 @@ def url_request(
         }
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
         out = {"status": None, "headers": {}, "body": "", "error": str(exc)}
+    out["body_json"] = _maybe_parse_body_json(out["body"], out["headers"])
     _URL_CACHE[cache_key] = out
     return dict(out)
+
+
+def _maybe_parse_body_json(body: str, headers: dict[str, Any]) -> Any:
+    """Parse *body* as JSON when *headers* declare a JSON content-type.
+
+    Returns the parsed value or ``None``.  The content-type sniff
+    matches any ``content-type`` whose value contains ``json``
+    (covers ``application/json``, ``application/problem+json``,
+    ``application/vnd.api+json``, etc.) — gives the
+    pre-parsed-body ergonomics without locking the heuristic to one
+    spelling.  Falls back to ``None`` on a parse error rather than
+    raising so a bad-shape body still leaves ``body`` available for
+    the caller to inspect.
+    """
+    if not body:
+        return None
+    ctype = headers.get("content-type", "") if isinstance(headers, dict) else ""
+    if "json" not in str(ctype).lower():
+        return None
+    import json as _json
+
+    try:
+        return _json.loads(body)
+    except _json.JSONDecodeError:
+        return None
 
 
 def socket_get(
@@ -273,10 +331,11 @@ def tls_handshake(
     """
     _require_probes("tls_handshake")
     sni_value = sni if sni is not None else host
-    key = (host, int(port), sni_value)
+    ca_bundle = TLS_CA_BUNDLE.get()
+    key = (host, int(port), sni_value, ca_bundle)
     if key in _TLS_CACHE:
         return dict(_TLS_CACHE[key])
-    ctx = ssl.create_default_context()
+    ctx = ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
     if alpn:
         ctx.set_alpn_protocols(alpn)
     out: dict[str, Any]
@@ -285,11 +344,24 @@ def tls_handshake(
             with ctx.wrap_socket(sock, server_hostname=sni_value) as ssock:
                 cipher = ssock.cipher()
                 peer = ssock.getpeercert()
+                peer_der = ssock.getpeercert(binary_form=True)
                 alpn_selected = ssock.selected_alpn_protocol() if alpn else None
+                # Pre-parse the peer cert into the structured shape
+                # ``x509_parse`` produces so callers can navigate it
+                # directly: ``tls_handshake(h, p).peer_cert.subject``.
+                # When the DER is unavailable (very old Pythons /
+                # alpine variants) fall back to the raw ssl dict.
+                peer_cert: Any = peer
+                if peer_der is not None:
+                    try:
+                        pem = ssl.DER_cert_to_PEM_cert(peer_der)
+                        peer_cert = x509_parse(pem)
+                    except Exception:
+                        peer_cert = peer
                 out = {
                     "protocol": ssock.version(),
                     "cipher": cipher[0] if cipher else None,
-                    "peer_cert": peer,
+                    "peer_cert": peer_cert,
                     "alpn_selected": alpn_selected,
                     "verify_status": "ok",
                     "error": None,
@@ -328,17 +400,9 @@ def x509_parse(pem: str) -> dict[str, Any]:
     ``subjectAltName``).  Raises :class:`BuiltinError` for input
     that doesn't decode as a certificate.
     """
-    # Lazy / dynamic import so ``ty`` doesn't fail to resolve the
-    # optional ``cryptography`` dependency on hosts without it.
-    # The runtime import either succeeds (rich path) or raises
-    # ``ImportError`` (we fall through to the stdlib subset).
-    import importlib
-
     try:
-        _x509 = importlib.import_module("cryptography.x509")
-        _crypto_primitives = importlib.import_module("cryptography.hazmat.primitives")
-        hashes = _crypto_primitives.hashes
-        serialization = _crypto_primitives.serialization
+        from cryptography import x509 as _x509
+        from cryptography.hazmat.primitives import hashes, serialization
     except ImportError:
         return _x509_parse_ssl_fallback(pem)
     pem_bytes = pem.encode("utf-8") if isinstance(pem, str) else pem
@@ -353,10 +417,7 @@ def x509_parse(pem: str) -> dict[str, Any]:
     except _x509.ExtensionNotFound:
         pass
     public_key = cert.public_key()
-    try:
-        key_size = public_key.key_size
-    except AttributeError:
-        key_size = None
+    key_size = getattr(public_key, "key_size", None)
     fingerprint = cert.fingerprint(hashes.SHA256()).hex().upper()
     return {
         "subject": cert.subject.rfc4514_string(),

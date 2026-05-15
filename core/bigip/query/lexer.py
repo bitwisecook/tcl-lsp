@@ -49,6 +49,11 @@ class TokenKind(Enum):
     FALSE = auto()
     NULL = auto()
     AS = auto()  # `expr as $name | body` — jq's let-binding form
+    IF = auto()  # `if COND then BODY [elif ...] [else ...] end`
+    THEN = auto()
+    ELIF = auto()
+    ELSE = auto()
+    END = auto()
     DOLLAR_IDENT = auto()  # $name — variable reference to a named source
     QUESTION = auto()  # `?` — optional-marker suffix on a path step
     EOF = auto()
@@ -72,6 +77,11 @@ _KEYWORDS = {
     "false": TokenKind.FALSE,
     "null": TokenKind.NULL,
     "as": TokenKind.AS,
+    "if": TokenKind.IF,
+    "then": TokenKind.THEN,
+    "elif": TokenKind.ELIF,
+    "else": TokenKind.ELSE,
+    "end": TokenKind.END,
 }
 
 

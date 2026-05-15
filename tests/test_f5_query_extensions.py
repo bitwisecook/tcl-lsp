@@ -464,6 +464,17 @@ class TestProbeGate:
         with pytest.raises(QueryError, match="probes are disabled"):
             run_query('url_get("http://127.0.0.1/")', {"mem://x": _CFG})
 
+    def test_url_get_rejects_non_http_schemes_when_enabled(self):
+        token = PROBES_ENABLED.set(True)
+        try:
+            result = run_query('url_get("file:///etc/passwd")', {"mem://x": _CFG})
+        finally:
+            PROBES_ENABLED.reset(token)
+        [row] = result.values_per_file["mem://x"]
+        assert row["status"] is None
+        assert row["body"] == ""
+        assert row["error"] == "unsupported URL scheme: file"
+
     def test_ping_succeeds_when_enabled(self):
         token = PROBES_ENABLED.set(True)
         try:

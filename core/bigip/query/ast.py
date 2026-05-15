@@ -215,6 +215,48 @@ class Assignment:
 
 
 @dataclass(frozen=True, slots=True)
+class CommaStream:
+    """``a, b, c`` — jq's stream-concatenation operator.
+
+    Evaluates each part against the current input and emits their
+    outputs in order as a single :class:`Stream`.  Comma's precedence
+    sits between ``|`` (lowest) and the next layer (assignment / let
+    / boolean ops), so ``a, b | c`` parses as ``(a, b) | c``: each
+    stream item is piped through ``c`` and the outputs concatenated.
+
+    Inside list literals (``[a, b, c]``) the comma stream is the
+    natural way to collect discrete values into one list — the list
+    constructor receives the flattened stream.  In object-literal
+    *values* and call arguments the comma is a structural separator,
+    not this operator; use parens to introduce a stream explicitly:
+    ``{x: (a, b)}`` and ``f((a, b))``.
+    """
+
+    parts: tuple["Expr", ...]
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
+class IfThenElse:
+    """``if COND then BODY [elif COND then BODY]* [else BODY] end``.
+
+    Evaluates *cond* against the current input.  When *cond* is a
+    :class:`Stream` each item branches independently (matching jq's
+    generator semantics).  *elifs* is a tuple of ``(cond, body)``
+    pairs tried in order.  *else_body* is ``None`` when the user
+    omitted ``else``; jq's semantics in that case is "if no branch
+    matches, pass the input through unchanged" so the evaluator
+    yields ``current`` for falsy conds with no else.
+    """
+
+    cond: "Expr"
+    then_body: "Expr"
+    elifs: tuple[tuple["Expr", "Expr"], ...]
+    else_body: "Expr | None"
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
 class Program:
     """One or more semicolon-separated statements."""
 
@@ -234,4 +276,6 @@ Expr = Union[
     Pipe,
     LetBinding,
     Assignment,
+    IfThenElse,
+    CommaStream,
 ]

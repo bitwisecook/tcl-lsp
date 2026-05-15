@@ -48,9 +48,11 @@ from .ast import (
     Assignment,
     BinOp,
     Call,
+    CommaStream,
     Expr,
     Field,
     Identity,
+    IfThenElse,
     LetBinding,
     ListLiteral,
     Literal,
@@ -131,6 +133,56 @@ class _Parser:
     # --- expressions --------------------------------------------------------
 
     def _parse_pipeline(self) -> Expr:
+        """Parse a full pipeline, including the ``,`` stream-comma operator.
+
+        Precedence: ``|`` is the lowest precedence, ``,`` is the
+        second-lowest — matching jq.  So ``a, b | c`` parses as
+        ``(a, b) | c``: the comma chain on the LHS feeds two values
+        through the pipe to ``c``, and each value's transform is
+        concatenated into the output stream.
+
+        Comma is *not* allowed inside contexts where the comma is a
+        separator (call arguments, object-literal entries) — those
+        callers use :meth:`_parse_pipeline_no_comma` so the existing
+        spelling ``f(a, b)`` and ``{a: 1, b: 2}`` keep working.
+        """
+        expr = self._parse_comma_chain()
+        while True:
+            tok = self._peek()
+            if tok.kind is TokenKind.PIPE:
+                self._consume()
+                rhs = self._parse_comma_chain()
+                expr = Pipe(lhs=expr, rhs=rhs, offset=tok.offset)
+                continue
+            break
+        return expr
+
+    def _parse_comma_chain(self) -> Expr:
+        """``pipe_stage (',' pipe_stage)*`` — jq's stream concatenation.
+
+        Comma combines streams, so the AST keeps it as a dedicated
+        node and lets the evaluator concatenate each part's output
+        against the same input.
+        """
+        first = self._parse_pipe_stage()
+        parts: list[Expr] = []
+        while self._peek().kind is TokenKind.COMMA:
+            if not parts:
+                parts.append(first)
+            self._consume()
+            parts.append(self._parse_pipe_stage())
+        if not parts:
+            return first
+        return CommaStream(parts=tuple(parts), offset=first.offset if hasattr(first, "offset") else 0)
+
+    def _parse_pipeline_no_comma(self) -> Expr:
+        """Pipeline form that excludes the stream-comma operator.
+
+        Used in contexts where ``,`` is a structural separator: call
+        arguments (``f(a, b)``), object-literal entries (``{x: 1, y:
+        2}``).  Allows pipes (``f(.x | basename(.))``) but never
+        commas.
+        """
         expr = self._parse_pipe_stage()
         while True:
             tok = self._peek()
@@ -349,23 +401,9 @@ class _Parser:
             if self._peek().kind is TokenKind.RBRACKET:
                 self._consume()
                 return ListLiteral(inner=None, offset=tok.offset)
+            # List-literal contents are a full pipeline (commas included)
+            # — jq's ``[a, b, c]`` is exactly the comma-stream collected.
             inner_expr = self._parse_pipeline()
-            if self._peek().kind is TokenKind.COMMA:
-                # ``[a, b, c]`` is jq's array literal that collects
-                # multiple values, but our DSL doesn't expose ``,``
-                # as a pipeline operator (yet).  Give a more useful
-                # error than the generic "expected ']'" so the user
-                # knows what's wrong: the comma, not the bracket.
-                comma_tok = self._peek()
-                raise ParseError(
-                    "',' is not a pipeline operator in this DSL — list "
-                    "literals collect a single pipeline expression "
-                    "(``[stream | sort]``).  To build a list of "
-                    "discrete values, use a single pipeline that "
-                    "produces them (``[.ltm.virtual[].name]``) or "
-                    "explicit ``select`` / ``[]`` constructions.",
-                    comma_tok.offset,
-                )
             self._expect(TokenKind.RBRACKET, msg="expected ']' to close list literal")
             return ListLiteral(inner=inner_expr, offset=tok.offset)
 
@@ -380,9 +418,14 @@ class _Parser:
             if self._peek().kind is TokenKind.LPAREN:
                 self._consume()
                 if self._peek().kind is not TokenKind.RPAREN:
-                    args.append(self._parse_pipeline())
+                    # Inside call arguments the comma is a separator,
+                    # not the stream-concat operator — use the
+                    # no-comma pipeline form.  Callers that want to
+                    # pass a comma stream as a single argument wrap
+                    # it in parens: ``f((a, b))``.
+                    args.append(self._parse_pipeline_no_comma())
                     while self._match(TokenKind.COMMA):
-                        args.append(self._parse_pipeline())
+                        args.append(self._parse_pipeline_no_comma())
                 self._expect(TokenKind.RPAREN, msg="expected ')' to close call")
             return Call(name=tok.text, args=tuple(args), offset=tok.offset)
 
@@ -401,7 +444,42 @@ class _Parser:
             self._consume()
             return Variable(name=str(tok.value), offset=tok.offset)
 
+        if tok.kind is TokenKind.IF:
+            return self._parse_if_then_else()
+
         raise ParseError(f"unexpected token {tok.text!r}", tok.offset)
+
+    def _parse_if_then_else(self) -> "IfThenElse":
+        """Parse ``if COND then BODY [elif COND then BODY]* [else BODY] end``.
+
+        Matches jq's conditional form.  ``else`` is optional; without
+        it the evaluator passes the input through on falsy conds.
+        Each ``COND`` / ``BODY`` is a full pipeline so let-bindings,
+        pipes, and assignments compose naturally.
+        """
+        if_tok = self._expect(TokenKind.IF, msg="expected 'if'")
+        cond = self._parse_pipeline()
+        self._expect(TokenKind.THEN, msg="expected 'then' after if-condition")
+        then_body = self._parse_pipeline()
+        elifs: list[tuple[Expr, Expr]] = []
+        while self._peek().kind is TokenKind.ELIF:
+            self._consume()
+            elif_cond = self._parse_pipeline()
+            self._expect(TokenKind.THEN, msg="expected 'then' after elif-condition")
+            elif_body = self._parse_pipeline()
+            elifs.append((elif_cond, elif_body))
+        else_body: Expr | None = None
+        if self._peek().kind is TokenKind.ELSE:
+            self._consume()
+            else_body = self._parse_pipeline()
+        self._expect(TokenKind.END, msg="expected 'end' to close if-expression")
+        return IfThenElse(
+            cond=cond,
+            then_body=then_body,
+            elifs=tuple(elifs),
+            else_body=else_body,
+            offset=if_tok.offset,
+        )
 
     # --- path expressions --------------------------------------------------
 

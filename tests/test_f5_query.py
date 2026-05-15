@@ -6039,15 +6039,14 @@ def test_stress_bug1_any_over_mapped_stream_returns_false_when_all_false():
     assert pass_all is True
 
 
-def test_stress_bug2_comma_in_list_literal_has_targeted_error():
-    # Bug 2 — ``count([1, 2])`` used to report "expected ']' to
-    # close list literal" pointing past the comma.  The error now
-    # names the comma and explains the DSL doesn't expose ``,``
-    # as a pipeline operator.
-    with pytest.raises(ParseError) as exc:
-        _run("count([1, 2])", source="")
-    assert "','" in str(exc.value)
-    assert "pipeline operator" in str(exc.value)
+def test_stream_comma_in_list_literal_collects_discrete_values():
+    # ``[a, b, c]`` is jq's array constructor over a comma stream:
+    # the three discrete values land in one list.  ``count`` then
+    # sees that list and returns its length.
+    [n] = _run("count([1, 2, 3])", source="").values_per_file["mem://1"]
+    assert n == 3
+    [items] = _run('[1, "a", true, null]', source="").values_per_file["mem://1"]
+    assert items == [1, "a", True, None]
 
 
 def test_stress_bug3_profile_rename_hits_stanza_and_attachments():

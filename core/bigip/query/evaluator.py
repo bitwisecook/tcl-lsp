@@ -24,9 +24,11 @@ from .ast import (
     Assignment,
     BinOp,
     Call,
+    CommaStream,
     Expr,
     Field,
     Identity,
+    IfThenElse,
     LetBinding,
     ListLiteral,
     Literal,
@@ -140,7 +142,64 @@ def _eval(node: Expr, current: Any, ctx: EvalContext) -> Any:
         return _eval_unop(node, current, ctx)
     if isinstance(node, Assignment):
         return _eval_assignment(node, current, ctx)
+    if isinstance(node, IfThenElse):
+        return _eval_if_then_else(node, current, ctx)
+    if isinstance(node, CommaStream):
+        return _eval_comma_stream(node, current, ctx)
     raise EvalError(f"unsupported AST node: {type(node).__name__}")
+
+
+def _eval_comma_stream(node: CommaStream, current: Any, ctx: EvalContext) -> Stream:
+    """Concatenate the output of each part — jq's stream-comma operator.
+
+    Each *part* is evaluated against the same input, and their
+    outputs are flattened in order into a single :class:`Stream`.
+    This is what makes ``[a, b, c]`` collect three discrete values
+    into a list and ``a, b | f`` apply ``f`` to each in turn.
+    """
+    out: list[Any] = []
+    for part in node.parts:
+        value = _eval(part, current, ctx)
+        out.extend(_flatten(value))
+    return Stream(items=out)
+
+
+def _eval_if_then_else(node: IfThenElse, current: Any, ctx: EvalContext) -> Any:
+    """Evaluate ``if COND then BODY [elif ...] [else ...] end``.
+
+    The condition is evaluated against *current* and tested for
+    truthiness via :func:`_truthy` (the same predicate ``select``
+    uses).  Stream-valued conditions iterate: each item branches
+    independently and the body's output is concatenated, matching
+    jq's generator semantics for conditionals.  When no branch
+    matches and no ``else`` is provided the input passes through
+    unchanged (also matching jq).
+    """
+    cond_value = _eval(node.cond, current, ctx)
+    if isinstance(cond_value, Stream):
+        out: list[Any] = []
+        for item in cond_value.items:
+            picked = _pick_if_branch(node, item, current, ctx)
+            out.extend(_flatten(picked))
+        return Stream(items=out)
+    return _pick_if_branch(node, cond_value, current, ctx)
+
+
+def _pick_if_branch(node: IfThenElse, cond_value: Any, current: Any, ctx: EvalContext) -> Any:
+    if _truthy(cond_value):
+        return _eval(node.then_body, current, ctx)
+    for elif_cond, elif_body in node.elifs:
+        ec = _eval(elif_cond, current, ctx)
+        if isinstance(ec, Stream):
+            # Stream-valued elif: any truthy item commits to this branch.
+            if any(_truthy(item) for item in ec.items):
+                return _eval(elif_body, current, ctx)
+            continue
+        if _truthy(ec):
+            return _eval(elif_body, current, ctx)
+    if node.else_body is not None:
+        return _eval(node.else_body, current, ctx)
+    return current
 
 
 def _pipe_through(values: Any, rhs: Expr, ctx: EvalContext) -> Any:

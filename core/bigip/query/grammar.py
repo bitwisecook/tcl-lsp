@@ -18,7 +18,8 @@ be chained with ``;`` to evaluate multiple statements against the same
 root.
 
   program       := pipeline (';' pipeline)*
-  pipeline      := pipe_stage ('|' pipe_stage)*
+  pipeline      := comma_expr ('|' comma_expr)*
+  comma_expr    := pipe_stage (',' pipe_stage)*
   pipe_stage    := or_expr (ASSIGN_OP pipe_stage)?
   ASSIGN_OP     := '=' | '|=' | '+=' | '-='
   or_expr       := and_expr ('or' and_expr)*
@@ -30,7 +31,10 @@ root.
   unary         := '-' unary | postfix
   postfix       := primary path_tail
   primary       := literal | call | path | variable | list_literal
-                 | object_literal | '(' pipeline ')'
+                 | object_literal | if_expr | '(' pipeline ')'
+  if_expr       := 'if' pipeline 'then' pipeline
+                   ('elif' pipeline 'then' pipeline)*
+                   ('else' pipeline)? 'end'
   variable      := '$' IDENT          /* root container of a named
                                          source loaded alongside this
                                          query (`f5 query` accepts
@@ -50,10 +54,12 @@ root.
                                           element-wise so one stream
                                           field becomes one row per
                                           item.                        */
-  entry         := IDENT (':' pipeline)?
-                 | STRING ':' pipeline
+  entry         := IDENT (':' pipe_stage)?
+                 | STRING ':' pipe_stage
                                        /* Bareword shorthand: { name }
-                                          desugars to { name: .name }. */
+                                          desugars to { name: .name }.
+                                          Wrap pipe/comma values in
+                                          parens: {x: (.a | .b)}.     */
   pipe_stage    := or_expr (ASSIGN_OP pipe_stage)?
                  | or_expr 'as' '$' IDENT '|' pipeline
                                        /* let-binding: bind each
@@ -69,7 +75,7 @@ root.
   path          := '.'
                  | '.' field path_tail
                  | '.' '[' subscript ']' path_tail
-  path_tail     := ('.' field | '[' subscript ']')*
+  path_tail     := ('.' field '?'? | '[' subscript ']' '?'?)*
   field         := IDENT | STRING
   subscript     := /* empty -> stream */
                  | NUMBER
@@ -78,7 +84,7 @@ root.
                                             inside [ ] is the regex
                                             subscript form            */
                  | pipeline              /* dynamic subscript          */
-  call          := IDENT ('(' (pipeline (',' pipeline)*)? ')')?
+  call          := IDENT ('(' (pipe_stage (',' pipe_stage)*)? ')')?
                                          /* parens optional for 1-arg
                                             builtins — bare ``length``
                                             is equivalent to
@@ -90,6 +96,12 @@ stream and stream-returning builtins do too; ``|`` then runs the next
 stage once per item.  Plain lists (e.g. the value of ``.rules``) pass
 through ``|`` whole — to fold a stream into a list for aggregators
 like ``sort`` / ``unique``, wrap it: ``[.ltm.virtual[].name] | sort``.
+
+Comma concatenates streams, matching jq's array-constructor idiom:
+``[1, 2, .ltm.virtual[].name]`` evaluates each comma part against the
+same input and collects the flattened stream.  Commas inside function
+arguments and object entries remain structural separators; wrap a comma
+stream in parentheses when it is a single argument or field value.
 
 Assignment is a *trailing operator* on a pipe-stage, not a top-level
 statement.  That makes ``.ltm.virtual[] | .destination |= ip(...)``

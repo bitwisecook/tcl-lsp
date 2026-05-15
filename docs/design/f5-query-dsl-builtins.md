@@ -36,7 +36,7 @@ exactly the same content for one builtin.
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
 - **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
-  - [`defined`](#defined), [`json_load`](#json_load), [`json_parse`](#json_parse), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
+  - [`cert_load`](#cert_load), [`csv_load`](#csv_load), [`defined`](#defined), [`f5log_load`](#f5log_load), [`json_load`](#json_load), [`json_parse`](#json_parse), [`jsonl_load`](#jsonl_load), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
 
 ## stream
 
@@ -3023,6 +3023,87 @@ refs(.ltm.virtual.web_vs)
 
 Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
 
+### `cert_load`
+
+Load and parse an X.509 cert from disk (PEM / DER / PKCS#12).
+
+**Signatures**
+
+- `cert_load(path: string) -> object | list[object]`
+- `cert_load(path: string, password: string) -> object | list[object]`
+
+**Details**
+
+Reads *path* from disk and returns a structured cert dict in the
+same shape :func:`x509_parse` produces.  The file format is
+sniffed from the bytes — extension hints (``.crt``, ``.pem``,
+``.cer``, ``.der``, ``.pfx``, ``.p12``) are tolerated but not
+required:
+
+- **PEM** (``-----BEGIN CERTIFICATE-----``): parsed directly.
+  When the file contains a *chain* (multiple PEM blocks) a
+  list is returned, leaf first.
+- **DER**: re-encoded to PEM and parsed.
+- **PKCS#12** (``.pfx`` / ``.p12``): unpacked into the
+  end-entity cert plus any chain certs.  Pass *password* as
+  the optional second argument when the bundle is encrypted;
+  omit it for plain bundles.  Returns ``[leaf, *chain]`` when
+  a chain is present, otherwise just the leaf dict.
+
+Tilde expansion is honoured.  Raises :class:`BuiltinError` for
+missing files, unreadable formats, or wrong passwords.  No
+network access — purely local file IO.
+
+Related: ``x509_parse`` (parse an in-memory PEM string),
+``tls_handshake`` (peer cert pre-parsed in ``peer_cert``).
+
+**Examples**
+
+```
+cert_load("/etc/ssl/certs/server.crt")
+cert_load("./bundle.pfx", "trustno1")
+cert_load("chain.pem") | first | .subject
+```
+
+### `csv_load`
+
+Read a CSV file from disk and parse it into a list of records.
+
+**Signatures**
+
+- `csv_load(path: string) -> list[object]`
+- `csv_load(path: string, headers: list[string]) -> list[object]`
+
+**Details**
+
+Reads *path* as CSV.  With one argument the first row of the
+file names the columns (the jq-natural shape, matches what most
+spreadsheet exports look like).  With two arguments *headers*
+is a list of column names and every row of the file is treated
+as data — use this form for header-less CSVs (firewall NAT
+exports, RFC 4180 fragments, etc.).
+
+Values are returned as strings.  The DSL's ``+`` operator
+coerces scalars when one side is a string, so number-shaped
+cells (``"443"``) flow through arithmetic without an explicit
+cast.  Missing trailing columns become empty strings; rows
+that overflow the header list land their extras in an
+``_extra`` list.
+
+Tilde expansion is honoured.  Raises :class:`BuiltinError` for
+missing files or unreadable CSV.
+
+Related: ``jsonl_load``, ``json_load``, ``csv`` /
+``tsv`` (render to one-row strings).
+
+**Examples**
+
+```
+csv_load("/etc/inventory/servers.csv")
+csv_load("nats.csv", ["internal", "external"])
+csv_load("vips.csv") | map(.name)
+```
+
 ### `defined`
 
 True when the argument is not null and not the empty string.
@@ -3050,6 +3131,54 @@ Related: ``not``, ``select``.
 ```
 select(defined(.pool))
 .ltm.virtual[] | select(defined(.snatpool)) | .name
+```
+
+### `f5log_load`
+
+Read a BIG-IP log file from disk and parse it into structured events.
+
+**Signatures**
+
+- `f5log_load(path: string) -> list[object]`
+
+**Details**
+
+Reads *path* as a BIG-IP log and parses each line into a
+structured event dict:
+
+.. code-block:: text
+
+   { "timestamp": "Nov 28 09:53:00"
+   , "host": "bigip01"
+   , "severity": "info"
+   , "daemon": "tmm"
+   , "pid": 12345
+   , "code": "01230140:6"
+   , "module": "01230140"
+   , "level": 6
+   , "message": "Connection limit reached for pool /Common/web_pool"
+   , "raw": "<original line>"
+   }
+
+Handles classic syslog, RFC3164-with-PRI, and the F5
+``XXXXXXXX:N:`` message-code form.  Lines that don't match
+land with ``message`` set to the original text and the typed
+fields blank, so a grep / filter pipeline never silently
+drops unknown shapes.
+
+Tilde expansion is honoured.  Pairs naturally with the
+classification predicates (``in_cidr`` / ``is_private``) when
+the message body contains an IP — split on whitespace inside
+the message and feed candidates through.
+
+Related: ``jsonl_load``, ``csv_load``, ``json_load``.
+
+**Examples**
+
+```
+f5log_load("/var/log/ltm") | last
+[f5log_load("/var/log/tmm") | select(.severity == "err")] | count
+f5log_load("audit.log") | select(.daemon == "logger" and .module == "01070417")
 ```
 
 ### `json_load`
@@ -3110,6 +3239,39 @@ Raises :class:`BuiltinError` on invalid JSON.
 ```
 json_parse("[1, 2, 3]")                          # -> [1, 2, 3]
 url_get("https://api/v1") | json_parse(.body)
+```
+
+### `jsonl_load`
+
+Read a file from disk and parse it as JSON Lines (NDJSON).
+
+**Signatures**
+
+- `jsonl_load(path: string) -> list`
+
+**Details**
+
+Reads *path* line by line and parses each non-blank line as a
+JSON value, returning the list in file order.  This is the
+natural shape for log streams, event archives, and any other
+one-record-per-line dump where loading the whole file as one
+JSON value would force every consumer to know about the
+framing.
+
+Blank lines are skipped.  Any line that fails to parse raises
+:class:`BuiltinError` with the offending line number so a bad
+record in a large dump is easy to find.
+
+Tilde expansion is honoured.
+
+Related: ``json_load`` (whole-file JSON), ``json_parse``
+(in-memory string), ``csv_load`` (CSV with or without headers).
+
+**Examples**
+
+```
+jsonl_load("/var/log/events.jsonl")
+.ltm.virtual[].name as $n | jsonl_load("events.jsonl")[] | select(.vs == $n)
 ```
 
 ### `kind`
