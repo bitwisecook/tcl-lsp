@@ -85,9 +85,9 @@ statement sees the edits applied by the previous one.
                     ▼                                │
             ┌────────────────┐                       │
             │ projection/    │  ◄──────── lazy access from evaluator
-            │ _engine.py     │
-            │ Container /    │
-            │ ObjectRef tree │
+            │ _engine.py     │                       │
+            │ Container /    │                       │
+            │ ObjectRef tree │                       │
             └───────┬────────┘                       │
                     │                                ▼
                     │            ┌──────────────────────────────┐
@@ -345,35 +345,35 @@ objects the query actually touches.
 
 ```
                 Root                                    BigipConfig
-                 │                                          ▲
-                 │ root_container()                         │
-                 ▼                                          │
-        ┌────────────────────┐                              │
-        │  <root> Container  │   .virtuals / .pools / …     │
-        │   kind = "<root>"  │  ◄───────────────────────────┤
-        └─────────┬──────────┘                              │
-                  │ .ltm                                    │
-                  ▼                                         │
-        ┌────────────────────┐                              │
-        │  ltm Container     │                              │
-        │   kind = "ltm"     │                              │
-        └─────────┬──────────┘                              │
-                  │ .virtual                                │
-                  ▼                                         │
-        ┌─────────────────────┐                             │
-        │ ltm virtual         │  _MODULE_KINDS["ltm"]       │
+                 │                                           ▲
+                 │ root_container()                          │
+                 ▼                                           │
+        ┌────────────────────┐                               │
+        │  <root> Container  │   .virtuals / .pools / …      │
+        │   kind = "<root>"  │  ◄────────────────────────────┤
+        └─────────┬──────────┘                               │
+                  │ .ltm                                     │
+                  ▼                                          │
+        ┌────────────────────┐                               │
+        │  ltm Container     │                               │
+        │   kind = "ltm"     │                               │
+        └─────────┬──────────┘                               │
+                  │ .virtual                                 │
+                  ▼                                          │
+        ┌─────────────────────┐                              │
+        │ ltm virtual         │  _MODULE_KINDS["ltm"]        │
         │ Container           │    ["virtual"] = ("virtuals",│
         │ kind = "ltm virtual"│     "ltm virtual")           │
-        └─────────┬───────────┘                             │
-                  │ ["/Common/web_vs"]                      │
-                  ▼                                         │
-        ┌─────────────────────┐  _build_object_ref()        │
+        └─────────┬───────────┘                              │
+                  │ ["/Common/web_vs"]                       │
+                  ▼                                          │
+        ┌─────────────────────┐  _build_object_ref()         │
         │  ObjectRef          │ ─── caches in ──────► Root._object_cache
         │   kind, full_path   │                       [(kind, full_path)]
         │   fields            │                              │
         │   field_slots ◄─────┼── _project_field via         │
-        │   stanza_slot       │   _KIND_FIELD_MAPS["ltm     │
-        └─────────────────────┘   virtual"] = (BigipVirtual,│
+        │   stanza_slot       │   _KIND_FIELD_MAPS["ltm      │
+        └─────────────────────┘   virtual"] = (BigipVirtual, │
                                   _VS_FIELDS)                │
 ```
 
@@ -596,11 +596,11 @@ or peer cert may be absent.
             └──────────┬──────────┘
                        │ connect
                        ▼
-                ┌──────────────┐                ┌────────────────┐
-            ┌───┤  success     │──► ok ───►     │ peer_cert from │
-            │   └──────────────┘                │ same handshake │
-            │                                   │ reason.kind="ok"│
-            │   ┌──────────────┐                └────────────────┘
+                ┌──────────────┐             ┌─────────────────┐
+            ┌───┤  success     ├──► ok ───►  │ peer_cert from  │
+            │   └──────────────┘             │ same handshake  │
+            │                                │ reason.kind="ok"│
+            │   ┌──────────────┐             └─────────────────┘
             └───┤  SSL verify  │
                 │  failure     │
                 └──────┬───────┘
@@ -619,7 +619,7 @@ or peer cert may be absent.
                        │ retry
                        ▼
                 ┌──────────────┐                ┌────────────────┐
-            ┌───┤  success     │──► ok ───►     │ peer_cert from │
+            ┌───┤  success     ├──► ok ──────►  │ peer_cert from │
             │   └──────────────┘                │ retry handshake│
             │                                   │ reason.kind=   │
             │                                   │   <classified> │
@@ -628,7 +628,7 @@ or peer cert may be absent.
             │                                   └────────────────┘
             │
             │   ┌──────────────┐                ┌────────────────┐
-            └───┤  socket fail │──► error ───►  │ peer_cert=null │
+            └───┤  socket fail ├──► error ───►  │ peer_cert=null │
                 │ (DNS/refused │                │ reason.kind=   │
                 │  /timeout)   │                │   "connection_ │
                 └──────────────┘                │    error"      │
@@ -698,20 +698,20 @@ of later edits.  Split the work across statements with `;`.
 
 ```
               EditPlan                                source text
-              ┌───────────────┐                  ┌─────────────────┐
-              │ prefix_rewrites│ ── 1 ──►        │  bigip.conf     │
-              │  PrefixRewrite │                  │   (bytes)       │
-              │  PrefixRewrite │                  └────────┬────────┘
-              ├───────────────┤                            │
-              │     ops       │ ── 2 ──► rename_object()  │
-              │  EditOp (name)│                            │
-              │  EditOp (name)│                            ▼
-              ├───────────────┤                  ┌─────────────────┐
-              │     ops       │ ── 3 ──►         │  rewritten      │
-              │  EditOp (field)│  splice in       │  bytes          │
-              │  EditOp (field)│  reverse offset  └────────┬────────┘
-              │  EditOp (field)│  order                    │
-              └───────────────┘                            ▼
+              ┌─────────────────┐                 ┌─────────────────┐
+              │ prefix_rewrites ├── 1 ─────────►  │  bigip.conf     │
+              │  PrefixRewrite  │                 │   (bytes)       │
+              │  PrefixRewrite  │                 └────────┬────────┘
+              ├─────────────────┤                          │
+              │     ops         ├── 2 ──► rename_object()  │
+              │  EditOp (name)  │                          │
+              │  EditOp (name)  │                          ▼
+              ├─────────────────┤                 ┌─────────────────┐
+              │     ops         ├── 3 ─────────►  │  rewritten      │
+              │  EditOp (field) │  splice in      │  bytes          │
+              │  EditOp (field) │  reverse offset └────────┬────────┘
+              │  EditOp (field) │  order                   │
+              └─────────────────┘                          ▼
                                                   parse_bigip_conf()
                                                            │
                                                            ▼
@@ -784,37 +784,37 @@ statement parses the renamed source.
 ```
     program.statements = [stmt₁, stmt₂, stmt₃]
 
-       sources₀                          ┌──────────────┐
-          │                              │   stmt₁      │
-          │                ┌────────────►│  evaluate    │
-          │                │              │   ↓ emits   │
-          ▼                │              │  EditPlan₁  │
-    ┌────────────┐         │              └──────┬──────┘
-    │ build ctx, │─────────┘                     │ apply
+       sources₀                           ┌──────────────┐
+          │                               │   stmt₁      │
+          │                ┌────────────► │  evaluate    │
+          │                │              │   ↓ emits    │
+          ▼                │              │  EditPlan₁   │
+    ┌────────────┐         │              └──────┬───────┘
+    │ build ctx, ├─────────┘                     │ apply
     │ ctx.root   │                               ▼
     └────────────┘                        ┌──────────────┐
           ▲                               │  sources₁    │
           │                               │  (rewritten) │
           │ rebuild root                  └──────┬───────┘
-          │                                      │
-          │                ┌────────────►┌──────────────┐
+          │                                      ▼
+          │                ┌────────────► ┌──────────────┐
           │                │              │   stmt₂      │
-          └────────────────┤              │  evaluate    │
-          ▲                │              │   ↓ emits   │
-          │                │              │  EditPlan₂  │
-          │ rebuild root   │              └──────┬──────┘
+          ├────────────────┤              │  evaluate    │
+          ▲                │              │   ↓ emits    │
+          │                │              │  EditPlan₂   │
+          │ rebuild root   │              └──────┬───────┘
           │                │                     │ apply
           │                │                     ▼
           │                │              ┌──────────────┐
           │                │              │  sources₂    │
           │                │              └──────┬───────┘
-          │                │                     │
-          │                └────────────►┌──────────────┐
+          │                │                     ▼
+          │                ├────────────► ┌──────────────┐
           └────────────────┤              │   stmt₃      │
-                            │              │ ← values     │
-                            │              │   returned   │
-                            │              └──────────────┘
-                            │
+                           │              │ ← values     │
+                           │              │   returned   │
+                           │              └──────────────┘
+                           │
                           (loop)
 ```
 
