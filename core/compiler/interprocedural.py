@@ -18,7 +18,8 @@ from dataclasses import dataclass, field
 
 from ..analysis.proc_arg_traits import infer_param_traits
 from ..analysis.semantic_model import ProcArgTrait
-from ..commands.registry.signatures import Arity
+from ..commands.registry.runtime import arg_indices_for_role
+from ..commands.registry.signatures import ArgRole, Arity
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -31,6 +32,15 @@ from .cfg import CFGFunction, CFGReturn, build_cfg
 from .core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
 from .core_analyses import _expr_has_command as _expr_has_command_sub
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
+from .expr_ast import (
+    ExprBinary,
+    ExprCall,
+    ExprCommand,
+    ExprNode,
+    ExprRaw,
+    ExprTernary,
+    ExprUnary,
+)
 from .ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -240,6 +250,100 @@ def _apply_effect(facts: _LocalFacts, effect) -> None:
         facts.writes_global = True
 
 
+def _strip_braces(text: str) -> str:
+    stripped = text.strip()
+    if len(stripped) >= 2 and stripped[0] == "{" and stripped[-1] == "}":
+        return stripped[1:-1]
+    return stripped
+
+
+def _scan_script_text(
+    text: str,
+    *,
+    caller_qname: str,
+    known_procs: set[str],
+    facts: _LocalFacts,
+) -> None:
+    """Lex *text* as a Tcl script and record call targets / side effects.
+
+    Recognises the first word of each command as the command word and
+    recurses into ``ArgRole.BODY`` arguments (e.g. the script body
+    of ``catch``, ``eval``, ``if``, ``while``, ``foreach``, ``for``)
+    so embedded user-proc calls are picked up by the call-graph
+    builder.
+    """
+    if not text:
+        return
+    lexer = TclLexer(text)
+    current: list[tuple[str, bool]] = []  # (text, is_braced)
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type is TokenType.EOL:
+            if current:
+                _process_command_words(
+                    current,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
+                current = []
+            continue
+        if tok.type is TokenType.SEP:
+            continue
+        if tok.type is TokenType.CMD:
+            # Nested ``[...]`` substitution — scan its contents as a script.
+            _scan_script_text(
+                tok.text,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+            continue
+        current.append((tok.text, tok.type is TokenType.STR))
+    if current:
+        _process_command_words(
+            current,
+            caller_qname=caller_qname,
+            known_procs=known_procs,
+            facts=facts,
+        )
+
+
+def _process_command_words(
+    words: list[tuple[str, bool]],
+    *,
+    caller_qname: str,
+    known_procs: set[str],
+    facts: _LocalFacts,
+) -> None:
+    if not words:
+        return
+    cmd_word = _strip_braces(words[0][0])
+    if not cmd_word:
+        return
+    arg_words = [w for w, _ in words[1:]]
+    cmd_args = tuple(arg_words)
+    target = resolve_call_target(cmd_word, cmd_args, caller_qname, known_procs)
+    if target is not None:
+        facts.calls.add(target)
+    else:
+        _apply_effect(facts, classify_side_effects(cmd_word, cmd_args))
+
+    body_indices = arg_indices_for_role(cmd_word, list(arg_words), ArgRole.BODY)
+    for idx in body_indices:
+        if 0 <= idx < len(arg_words):
+            raw, braced = words[idx + 1]
+            body_text = _strip_braces(raw) if braced else raw
+            _scan_script_text(
+                body_text,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+
+
 def _scan_embedded_commands(
     text: str,
     *,
@@ -254,19 +358,69 @@ def _scan_embedded_commands(
             break
         if tok2.type is not TokenType.CMD:
             continue
-        cmd_text = tok2.text.strip()
-        if not cmd_text:
-            continue
-        parts = cmd_text.split()
-        if not parts:
-            continue
-        cmd_word = parts[0]
-        cmd_args = tuple(parts[1:])
-        target = resolve_call_target(cmd_word, cmd_args, caller_qname, known_procs)
-        if target is not None:
-            facts.calls.add(target)
-        else:
-            _apply_effect(facts, classify_side_effects(cmd_word, cmd_args))
+        _scan_script_text(
+            tok2.text,
+            caller_qname=caller_qname,
+            known_procs=known_procs,
+            facts=facts,
+        )
+
+
+def _scan_expr_for_calls(
+    node: ExprNode,
+    *,
+    caller_qname: str,
+    known_procs: set[str],
+    facts: _LocalFacts,
+) -> None:
+    """Walk *node* and scan every ``[cmd ...]`` substitution as a script."""
+    match node:
+        case ExprCommand(text=text):
+            # text includes surrounding ``[...]``.  Drop the brackets and
+            # scan the inner script for call targets.
+            inner = text.strip()
+            if len(inner) >= 2 and inner[0] == "[" and inner[-1] == "]":
+                inner = inner[1:-1]
+            _scan_script_text(
+                inner,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+        case ExprRaw(text=text):
+            if "[" in text:
+                _scan_embedded_commands(
+                    text,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
+        case ExprBinary(left=left, right=right):
+            _scan_expr_for_calls(
+                left, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+            _scan_expr_for_calls(
+                right, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+        case ExprUnary(operand=operand):
+            _scan_expr_for_calls(
+                operand, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            _scan_expr_for_calls(
+                cond, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+            _scan_expr_for_calls(
+                tb, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+            _scan_expr_for_calls(
+                fb, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+        case ExprCall(args=args):
+            for arg in args:
+                _scan_expr_for_calls(
+                    arg, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+                )
 
 
 def _scan_local_facts(
@@ -343,6 +497,12 @@ def _scan_local_facts(
 
         if isinstance(stmt, IRIf):
             for clause in stmt.clauses:
+                _scan_expr_for_calls(
+                    clause.condition,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
                 _scan_local_facts(
                     clause.body,
                     caller_qname=caller_qname,
@@ -377,11 +537,24 @@ def _scan_local_facts(
                 known_procs=known_procs,
                 facts=facts,
             )
+            _scan_expr_for_calls(
+                stmt.condition,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
             if _expr_has_command_sub(stmt.condition):
                 facts.has_unknown_calls = True
             continue
 
         if isinstance(stmt, IRSwitch):
+            if _contains_command_substitution(stmt.subject):
+                _scan_embedded_commands(
+                    stmt.subject,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
             for arm in stmt.arms:
                 if arm.body is not None:
                     _scan_local_facts(
@@ -402,6 +575,12 @@ def _scan_local_facts(
         if isinstance(stmt, IRWhile):
             _scan_local_facts(
                 stmt.body,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+            _scan_expr_for_calls(
+                stmt.condition,
                 caller_qname=caller_qname,
                 known_procs=known_procs,
                 facts=facts,

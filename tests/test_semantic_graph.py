@@ -88,6 +88,42 @@ class TestBuildCallGraph:
         assert data["roots"] == []
         assert data["leaf_procs"] == []
 
+    def test_proc_call_inside_if_condition(self):
+        # Regression test for issue #409: proc calls inside an ``if``
+        # condition (whether directly or nested inside ``catch``) must
+        # appear as call-graph edges.
+        source = textwrap.dedent("""\
+            proc p {} {}
+            proc q {} {}
+            proc r {} {}
+
+            proc main {} {
+                if {[catch {p}]} {}
+                if {[q]} {}
+                r
+            }
+        """)
+        data = build_call_graph(source)
+        edge_pairs = {(e["caller"], e["callee"]) for e in data["edges"]}
+        assert ("::main", "::p") in edge_pairs
+        assert ("::main", "::q") in edge_pairs
+        assert ("::main", "::r") in edge_pairs
+
+    def test_proc_call_inside_while_and_for_conditions(self):
+        source = textwrap.dedent("""\
+            proc cond_w {} { return 0 }
+            proc cond_f {} { return 0 }
+
+            proc main {} {
+                while {[cond_w]} {}
+                for {set i 0} {[cond_f]} {incr i} {}
+            }
+        """)
+        data = build_call_graph(source)
+        edge_pairs = {(e["caller"], e["callee"]) for e in data["edges"]}
+        assert ("::main", "::cond_w") in edge_pairs
+        assert ("::main", "::cond_f") in edge_pairs
+
 
 # Symbol Graph
 
