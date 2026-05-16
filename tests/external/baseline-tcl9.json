@@ -116,7 +116,7 @@
     "obj"
   ],
   "trap_reason_buckets": {
-    "E   Failed: brodnik.test trapped: tcl trap: unknown math function \"log2\"": 1
+    "E   Failed: brodnik.test trapped: tcl trap: can't read \"k\": no such variable": 1
   },
   "entries": [
     {
@@ -127,7 +127,7 @@
       "summary": "Total\t146\tPassed\t74\tSkipped\t59\tFailed\t13",
       "trap": "",
       "first_failing": "==== basic-47.5.0 FAILED",
-      "duration_s": 4.127
+      "duration_s": 3.191
     },
     {
       "name": "cmdAH",
@@ -137,7 +137,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 24.36
+      "duration_s": 21.285
     },
     {
       "name": "cmdIL",
@@ -147,17 +147,17 @@
       "summary": "Total\t168\tPassed\t125\tSkipped\t2\tFailed\t41",
       "trap": "",
       "first_failing": "==== cmdIL-5.4 FAILED",
-      "duration_s": 4.138
+      "duration_s": 3.11
     },
     {
       "name": "cmdMZ",
       "classname": "cmdMZ",
       "outcome": "fail",
       "rc": 1,
-      "summary": "Total\t97\tPassed\t60\tSkipped\t0\tFailed\t37",
+      "summary": "Total\t97\tPassed\t75\tSkipped\t0\tFailed\t22",
       "trap": "",
       "first_failing": "==== cmdMZ-6.12 FAILED",
-      "duration_s": 4.098
+      "duration_s": 2.999
     },
     {
       "name": "compile",
@@ -167,7 +167,7 @@
       "summary": "Total\t171\tPassed\t145\tSkipped\t15\tFailed\t11",
       "trap": "",
       "first_failing": "==== compile-21.2 FAILED",
-      "duration_s": 4.309
+      "duration_s": 3.396
     },
     {
       "name": "dict",
@@ -177,7 +177,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 6.064
+      "duration_s": 5.15
     },
     {
       "name": "error",
@@ -187,7 +187,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.394
+      "duration_s": 3.486
     },
     {
       "name": "eval",
@@ -197,7 +197,7 @@
       "summary": "Total\t12\tPassed\t11\tSkipped\t0\tFailed\t1",
       "trap": "",
       "first_failing": "==== eval-2.5 FAILED",
-      "duration_s": 3.649
+      "duration_s": 2.781
     },
     {
       "name": "execute",
@@ -207,7 +207,7 @@
       "summary": "Total\t157\tPassed\t77\tSkipped\t77\tFailed\t3",
       "trap": "",
       "first_failing": "==== execute-7.28 FAILED",
-      "duration_s": 3.821
+      "duration_s": 3.141
     },
     {
       "name": "expr",
@@ -217,7 +217,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 27.66
+      "duration_s": 24.021
     },
     {
       "name": "expr-old",
@@ -227,7 +227,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 152.349
+      "duration_s": 136.208
     },
     {
       "name": "for",
@@ -237,7 +237,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.905
+      "duration_s": 3.114
     },
     {
       "name": "foreach",
@@ -247,7 +247,7 @@
       "summary": "Total\t43\tPassed\t42\tSkipped\t0\tFailed\t1",
       "trap": "",
       "first_failing": "==== foreach-1.14 FAILED",
-      "duration_s": 3.706
+      "duration_s": 3.069
     },
     {
       "name": "format",
@@ -257,7 +257,7 @@
       "summary": "Total\t269\tPassed\t229\tSkipped\t19\tFailed\t21",
       "trap": "",
       "first_failing": "==== format-11.14 FAILED",
-      "duration_s": 4.214
+      "duration_s": 3.386
     },
     {
       "name": "get",
@@ -267,7 +267,7 @@
       "summary": "Total\t23\tPassed\t3\tSkipped\t17\tFailed\t3",
       "trap": "",
       "first_failing": "==== get-3.2 FAILED",
-      "duration_s": 3.673
+      "duration_s": 2.895
     },
     {
       "name": "if-old",
@@ -277,7 +277,7 @@
       "summary": "Total\t33\tPassed\t32\tSkipped\t0\tFailed\t1",
       "trap": "",
       "first_failing": "==== if-old-1.9 FAILED",
-      "duration_s": 3.852
+      "duration_s": 3.048
     },
     {
       "name": "incr-old",
@@ -287,7 +287,7 @@
       "summary": "Total\t14\tPassed\t13\tSkipped\t0\tFailed\t1",
       "trap": "",
       "first_failing": "==== incr-old-2.4 FAILED",
-      "duration_s": 3.387
+      "duration_s": 2.882
     },
     {
       "name": "info",
@@ -297,7 +297,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.444
+      "duration_s": 3.937
     },
     {
       "name": "interp",
@@ -307,7 +307,7 @@
       "summary": "Total\t354\tPassed\t218\tSkipped\t8\tFailed\t128",
       "trap": "",
       "first_failing": "==== interp-29.6.10 FAILED",
-      "duration_s": 5.368
+      "duration_s": 4.459
     },
     {
       "name": "join",
@@ -317,7 +317,7 @@
       "summary": "Total\t10\tPassed\t9\tSkipped\t0\tFailed\t1",
       "trap": "",
       "first_failing": "==== join-2.3 FAILED",
-      "duration_s": 3.661
+      "duration_s": 2.88
     },
     {
       "name": "lindex",
@@ -327,7 +327,7 @@
       "summary": "Total\t84\tPassed\t49\tSkipped\t22\tFailed\t13",
       "trap": "",
       "first_failing": "==== lindex-14.2 FAILED",
-      "duration_s": 3.509
+      "duration_s": 3.023
     },
     {
       "name": "linsert",
@@ -337,7 +337,7 @@
       "summary": "Total\t28\tPassed\t21\tSkipped\t0\tFailed\t7",
       "trap": "",
       "first_failing": "==== linsert-2.3 FAILED",
-      "duration_s": 3.636
+      "duration_s": 3.004
     },
     {
       "name": "listObj",
@@ -347,7 +347,7 @@
       "summary": "Total\t59\tPassed\t46\tSkipped\t7\tFailed\t6",
       "trap": "",
       "first_failing": "==== listobj-7.2 FAILED",
-      "duration_s": 3.472
+      "duration_s": 3.266
     },
     {
       "name": "lmap",
@@ -357,7 +357,7 @@
       "summary": "Total\t66\tPassed\t63\tSkipped\t0\tFailed\t3",
       "trap": "",
       "first_failing": "==== lmap-4.15 FAILED",
-      "duration_s": 3.44
+      "duration_s": 2.962
     },
     {
       "name": "lrange",
@@ -367,17 +367,17 @@
       "summary": "Total\t1766\tPassed\t1755\tSkipped\t0\tFailed\t11",
       "trap": "",
       "first_failing": "==== lrange-3.5 FAILED",
-      "duration_s": 8.304
+      "duration_s": 8.093
     },
     {
       "name": "lreplace",
       "classname": "lreplace",
       "outcome": "fail",
       "rc": 1,
-      "summary": "Total\t3579\tPassed\t3528\tSkipped\t0\tFailed\t51",
+      "summary": "Total\t3579\tPassed\t3570\tSkipped\t0\tFailed\t9",
       "trap": "",
-      "first_failing": "==== ledit-5.1 FAILED",
-      "duration_s": 14.262
+      "first_failing": "==== ledit-4.9.1 FAILED",
+      "duration_s": 13.705
     },
     {
       "name": "lsearch",
@@ -387,7 +387,7 @@
       "summary": "Total\t165\tPassed\t114\tSkipped\t0\tFailed\t51",
       "trap": "",
       "first_failing": "==== lsearch-27.7 FAILED",
-      "duration_s": 4.123
+      "duration_s": 3.451
     },
     {
       "name": "lseq",
@@ -397,7 +397,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.926
+      "duration_s": 3.324
     },
     {
       "name": "lsetComp",
@@ -407,7 +407,7 @@
       "summary": "Total\t19\tPassed\t15\tSkipped\t0\tFailed\t4",
       "trap": "",
       "first_failing": "==== lsetComp-3.8 FAILED",
-      "duration_s": 3.471
+      "duration_s": 3.09
     },
     {
       "name": "mathop",
@@ -417,7 +417,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 5.409
+      "duration_s": 4.266
     },
     {
       "name": "misc",
@@ -427,7 +427,7 @@
       "summary": "Total\t301\tPassed\t0\tSkipped\t299\tFailed\t2",
       "trap": "",
       "first_failing": "==== misc-1.2 FAILED",
-      "duration_s": 3.873
+      "duration_s": 3.289
     },
     {
       "name": "namespace-old",
@@ -437,7 +437,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.842
+      "duration_s": 3.216
     },
     {
       "name": "oo",
@@ -447,7 +447,7 @@
       "summary": "Total\t388\tPassed\t347\tSkipped\t2\tFailed\t39",
       "trap": "",
       "first_failing": "==== oo-42.6 FAILED",
-      "duration_s": 4.555
+      "duration_s": 4.758
     },
     {
       "name": "ooNext2",
@@ -457,7 +457,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.853
+      "duration_s": 3.23
     },
     {
       "name": "ooUtil",
@@ -467,7 +467,7 @@
       "summary": "Total\t33\tPassed\t32\tSkipped\t0\tFailed\t1",
       "trap": "",
       "first_failing": "==== ooUtil-1.7 FAILED",
-      "duration_s": 3.419
+      "duration_s": 3.257
     },
     {
       "name": "opt",
@@ -477,7 +477,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.954
+      "duration_s": 3.175
     },
     {
       "name": "parse",
@@ -487,17 +487,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.023
+      "duration_s": 3.543
     },
     {
       "name": "parseOld",
       "classname": "parseOld",
       "outcome": "fail",
       "rc": 1,
-      "summary": "Total\t158\tPassed\t144\tSkipped\t0\tFailed\t14",
+      "summary": "Total\t158\tPassed\t148\tSkipped\t0\tFailed\t10",
       "trap": "",
       "first_failing": "==== parseOld-10.14 FAILED",
-      "duration_s": 3.957
+      "duration_s": 3.273
     },
     {
       "name": "reg",
@@ -507,7 +507,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 14.742
+      "duration_s": 15.385
     },
     {
       "name": "regexpComp",
@@ -517,7 +517,7 @@
       "summary": "Total\t179\tPassed\t166\tSkipped\t0\tFailed\t13",
       "trap": "",
       "first_failing": "==== regexpComp-24.6 FAILED",
-      "duration_s": 4.261
+      "duration_s": 3.518
     },
     {
       "name": "rename",
@@ -527,7 +527,7 @@
       "summary": "Total\t19\tPassed\t10\tSkipped\t8\tFailed\t1",
       "trap": "",
       "first_failing": "==== rename-5.1 FAILED",
-      "duration_s": 3.641
+      "duration_s": 2.974
     },
     {
       "name": "result",
@@ -537,7 +537,7 @@
       "summary": "Total\t26\tPassed\t6\tSkipped\t19\tFailed\t1",
       "trap": "",
       "first_failing": "==== result-6.3 FAILED",
-      "duration_s": 3.548
+      "duration_s": 2.917
     },
     {
       "name": "safe",
@@ -547,7 +547,7 @@
       "summary": "Total\t155\tPassed\t149\tSkipped\t2\tFailed\t4",
       "trap": "",
       "first_failing": "==== safe-7.3 FAILED",
-      "duration_s": 4.051
+      "duration_s": 3.36
     },
     {
       "name": "scan",
@@ -557,7 +557,7 @@
       "summary": "Total\t185\tPassed\t131\tSkipped\t0\tFailed\t54",
       "trap": "",
       "first_failing": "==== scan-15.1 FAILED",
-      "duration_s": 4.054
+      "duration_s": 3.319
     },
     {
       "name": "string",
@@ -567,7 +567,7 @@
       "summary": "Total\t705\tPassed\t456\tSkipped\t7\tFailed\t242",
       "trap": "",
       "first_failing": "==== string-29.4.0 FAILED",
-      "duration_s": 5.551
+      "duration_s": 5.069
     },
     {
       "name": "switch",
@@ -577,7 +577,7 @@
       "summary": "Total\t113\tPassed\t84\tSkipped\t0\tFailed\t29",
       "trap": "",
       "first_failing": "==== switch-13.6 FAILED",
-      "duration_s": 3.632
+      "duration_s": 3.181
     },
     {
       "name": "tailcall",
@@ -587,7 +587,7 @@
       "summary": "Total\t37\tPassed\t33\tSkipped\t0\tFailed\t4",
       "trap": "",
       "first_failing": "==== tailcall-13.1 FAILED",
-      "duration_s": 3.564
+      "duration_s": 3.741
     },
     {
       "name": "uplevel",
@@ -597,7 +597,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.781
+      "duration_s": 3.005
     },
     {
       "name": "while-old",
@@ -607,7 +607,7 @@
       "summary": "Total\t15\tPassed\t11\tSkipped\t0\tFailed\t4",
       "trap": "",
       "first_failing": "==== while-old-4.6 FAILED",
-      "duration_s": 3.6
+      "duration_s": 2.96
     },
     {
       "name": "aaa_exit",
@@ -617,7 +617,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.338
+      "duration_s": 2.756
     },
     {
       "name": "abstractlist",
@@ -627,7 +627,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.545
+      "duration_s": 2.835
     },
     {
       "name": "append",
@@ -637,7 +637,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.276
+      "duration_s": 2.857
     },
     {
       "name": "appendComp",
@@ -647,7 +647,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.622
+      "duration_s": 2.818
     },
     {
       "name": "apply",
@@ -657,7 +657,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.848
+      "duration_s": 2.862
     },
     {
       "name": "assocd",
@@ -667,7 +667,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.275
+      "duration_s": 2.786
     },
     {
       "name": "cmdInfo",
@@ -677,7 +677,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.675
+      "duration_s": 2.801
     },
     {
       "name": "compExpr",
@@ -687,7 +687,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.9
+      "duration_s": 3.015
     },
     {
       "name": "compExpr-old",
@@ -697,7 +697,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 6.566
+      "duration_s": 5.681
     },
     {
       "name": "concat",
@@ -707,7 +707,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.474
+      "duration_s": 2.81
     },
     {
       "name": "coroutine",
@@ -717,7 +717,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.754
+      "duration_s": 2.934
     },
     {
       "name": "dstring",
@@ -727,7 +727,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.616
+      "duration_s": 3.106
     },
     {
       "name": "for-old",
@@ -737,7 +737,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.721
+      "duration_s": 2.996
     },
     {
       "name": "if",
@@ -747,7 +747,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.862
+      "duration_s": 3.18
     },
     {
       "name": "incr",
@@ -757,7 +757,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.733
+      "duration_s": 3.126
     },
     {
       "name": "indexObj",
@@ -767,7 +767,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.562
+      "duration_s": 2.886
     },
     {
       "name": "list",
@@ -777,7 +777,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.718
+      "duration_s": 3.024
     },
     {
       "name": "listRep",
@@ -787,7 +787,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.422
+      "duration_s": 3.686
     },
     {
       "name": "llength",
@@ -797,7 +797,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.457
+      "duration_s": 3.006
     },
     {
       "name": "lpop",
@@ -807,7 +807,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.49
+      "duration_s": 3.315
     },
     {
       "name": "lrepeat",
@@ -817,7 +817,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.731
+      "duration_s": 2.913
     },
     {
       "name": "lset",
@@ -827,7 +827,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.639
+      "duration_s": 3.147
     },
     {
       "name": "namespace",
@@ -837,7 +837,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.393
+      "duration_s": 3.74
     },
     {
       "name": "nre",
@@ -847,7 +847,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.605
+      "duration_s": 3.063
     },
     {
       "name": "ooProp",
@@ -857,7 +857,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.707
+      "duration_s": 3.068
     },
     {
       "name": "parseExpr",
@@ -867,7 +867,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.334
+      "duration_s": 3.627
     },
     {
       "name": "proc",
@@ -877,7 +877,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.588
+      "duration_s": 3.197
     },
     {
       "name": "proc-old",
@@ -887,7 +887,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.528
+      "duration_s": 3.323
     },
     {
       "name": "range",
@@ -897,7 +897,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.6
+      "duration_s": 3.192
     },
     {
       "name": "regexp",
@@ -907,7 +907,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.228
+      "duration_s": 3.464
     },
     {
       "name": "resolver",
@@ -917,7 +917,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.534
+      "duration_s": 3.059
     },
     {
       "name": "safe-stock",
@@ -927,7 +927,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.945
+      "duration_s": 3.114
     },
     {
       "name": "safe-stock86",
@@ -937,7 +937,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.274
+      "duration_s": 3.36
     },
     {
       "name": "set",
@@ -947,7 +947,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.513
+      "duration_s": 3.205
     },
     {
       "name": "set-old",
@@ -957,7 +957,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 4.144
+      "duration_s": 3.779
     },
     {
       "name": "source",
@@ -967,7 +967,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.78
+      "duration_s": 2.983
     },
     {
       "name": "split",
@@ -977,7 +977,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.336
+      "duration_s": 3.421
     },
     {
       "name": "stack",
@@ -987,7 +987,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.36
+      "duration_s": 3.296
     },
     {
       "name": "stringObj",
@@ -997,7 +997,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.666
+      "duration_s": 2.907
     },
     {
       "name": "subst",
@@ -1007,7 +1007,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.409
+      "duration_s": 3.213
     },
     {
       "name": "unknown",
@@ -1017,7 +1017,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.441
+      "duration_s": 2.664
     },
     {
       "name": "upvar",
@@ -1027,7 +1027,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.744
+      "duration_s": 3.013
     },
     {
       "name": "var",
@@ -1037,7 +1037,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.878
+      "duration_s": 3.22
     },
     {
       "name": "while",
@@ -1047,7 +1047,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.472
+      "duration_s": 2.831
     },
     {
       "name": "word",
@@ -1057,7 +1057,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.652
+      "duration_s": 2.726
     },
     {
       "name": "trace",
@@ -1067,7 +1067,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 181.128
+      "duration_s": 180.822
     },
     {
       "name": "brodnik",
@@ -1075,9 +1075,9 @@
       "outcome": "trap",
       "rc": 1,
       "summary": "",
-      "trap": "E   Failed: brodnik.test trapped: tcl trap: unknown math function \"log2\"",
+      "trap": "E   Failed: brodnik.test trapped: tcl trap: can't read \"k\": no such variable",
       "first_failing": "",
-      "duration_s": 3.624
+      "duration_s": 2.752
     },
     {
       "name": "obj",
@@ -1087,7 +1087,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 1.035
+      "duration_s": 0.826
     }
   ]
 }
