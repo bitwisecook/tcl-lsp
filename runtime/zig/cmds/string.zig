@@ -382,6 +382,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "last") and words.len >= 4) return result_mod.from_globals(rt.string_last(words[2], words[3]));
     if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
     if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
+    if (str_eq(sp, sub.len, "totitle")) return result_mod.from_globals(rt.string_totitle(words[2]));
     if (str_eq(sp, sub.len, "reverse")) return result_mod.from_globals(rt.string_reverse(words[2]));
     if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
