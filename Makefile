@@ -132,7 +132,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -212,15 +212,15 @@ lint: lint-py typecheck-py lint-ts ## Run all lint and style checks
 
 format: format-py format-ts ## Format Python and TypeScript code
 
-test-py: $(UV_STAMP) ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
+test-py: $(UV_STAMP) ensure-python-test-deps ## Run the Python test suite (excludes VM tcltest and fuzz campaign tests)
 	@echo "==> Running Python tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/ -q -n 4 --ignore-glob='*/test_vm_*_test.py' --ignore=tests/test_optimiser_coverage.py --ignore=tests/test_optimiser_vm_equivalence.py
 
-test-tclpkg: $(UV_STAMP) ## Run tclpkg package manager tests only
+test-tclpkg: $(UV_STAMP) ensure-tcl-deps ## Run tclpkg package manager tests only
 	@echo "==> Running tclpkg tests"
 	cd $(ROOT) && $(UV) run --extra dev pytest tests/tclpkg/ tests/test_vm_safe_mode.py -v
 
-test-tclpkg-tcl: ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
+test-tclpkg-tcl: ensure-tcl-deps ## Run pure-Tcl tclpkg tests (requires tclsh8.6+)
 	@echo "==> Running pure-Tcl tclpkg tests"
 	cd $(ROOT)/tclpkg-tcl && for t in tests/*_test.tcl; do tclsh8.6 "$$t" || exit 1; done
 
@@ -315,7 +315,7 @@ typecheck-ts: $(NPM_STAMP) copy-canonical ## Type-check TypeScript extension cod
 	@echo "==> Type-checking TypeScript code with tsc"
 	cd $(EXT_DIR) && $(NPM) run compile
 
-test-ext: compile ## Run VS Code extension integration tests
+test-ext: compile ensure-vscode-test-deps ## Run VS Code extension integration tests
 	@echo "==> Running VS Code extension tests"
 	@if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
 		if command -v xvfb-run >/dev/null 2>&1; then \
@@ -345,7 +345,7 @@ coverage-py: $(UV_STAMP) ## Run Python tests with coverage (HTML + XML in tmp/co
 	@echo ""
 	@echo "Python coverage report: $(COV_DIR)/python/index.html"
 
-coverage-ext: compile $(NPM_STAMP) ## Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
+coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extension tests with coverage (HTML in tmp/coverage/vscode/)
 	@echo "==> Bundling extension with esbuild"
 	cd $(EXT_DIR) && $(NPM) run bundle
 	@echo "==> Running VS Code extension tests with coverage"
@@ -453,7 +453,7 @@ test-rust: ## Run Rust workspace tests if a top-level Cargo.toml is present (ski
 
 # Zig: format check + full compile (Zig has no separate type-checker; the
 # build itself catches type errors).  Skip with SKIP_CHECK_ZIG=1.
-check-zig: ## Zig format check + compile (no tests); skip with SKIP_CHECK_ZIG=1
+check-zig: ensure-check-zig-deps ## Zig format check + compile (no tests); skip with SKIP_CHECK_ZIG=1
 	@set -eu; \
 	if [ -n "$${SKIP_CHECK_ZIG:-}" ]; then \
 		echo "==> SKIP_CHECK_ZIG set — skipping Zig lint/typecheck"; \
@@ -472,11 +472,16 @@ check-zig: ## Zig format check + compile (no tests); skip with SKIP_CHECK_ZIG=1
 # Rust: cargo fmt --check + cargo clippy on the Zed extension (always
 # present) and on a top-level Cargo.toml when it exists (Rust branches).
 # Skip with SKIP_CHECK_RUST=1.
-check-rust: ## Rust fmt-check + clippy on Zed extension and top-level workspace if present
+check-rust: ensure-rust-deps ## Rust fmt-check + clippy on Zed extension and top-level workspace if present
 	@set -eu; \
 	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
 		echo "==> SKIP_CHECK_RUST set — skipping Rust lint/typecheck"; \
 		exit 0; \
+	fi; \
+	if [ -x "$$HOME/.cargo/bin/rustup" ]; then \
+		export PATH="$$HOME/.cargo/bin:$$PATH"; \
+	elif [ -f "$$HOME/.cargo/env" ]; then \
+		. "$$HOME/.cargo/env"; \
 	fi; \
 	if ! command -v cargo >/dev/null 2>&1; then \
 		echo "ERROR: 'cargo' not found on PATH (need Rust 1.95+)."; \
@@ -490,7 +495,6 @@ check-rust: ## Rust fmt-check + clippy on Zed extension and top-level workspace 
 	fi; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2)"; \
-		if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 		cd $(ZED_DIR) && cargo fmt --all --check && \
 			cargo clippy --target wasm32-wasip2 --all-targets -- -D warnings; \
 	fi
@@ -534,10 +538,139 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 install-hooks: ## Install project git hooks (pre-push gate enforcing check-all stamp)
 	@bash $(ROOT)scripts/install-hooks.sh
 
-ensure-test-deps: ## Install optional test-slow deps (tclsh9.0, node, kotlinc) for the host platform
+ensure-test-deps: ## Install optional test-slow host deps for the host platform
 	@bash $(ROOT)scripts/dev/ensure-test-deps.sh
 
-capture-bytecode-refs: ## Capture missing tests/bytecode_reference/<ver>/*.disasm files using local tclsh
+ensure-python-test-deps: ## Install host deps exercised by the full Python pytest suite
+	@env \
+		SKIP_RUST=1 \
+		SKIP_WASMTIME=1 \
+		SKIP_EMACS=1 \
+		SKIP_XVFB=1 \
+		bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode capture
+	@env \
+		SKIP_NODE=1 \
+		SKIP_KOTLINC=1 \
+		SKIP_RUST=1 \
+		SKIP_ZIG=1 \
+		SKIP_WASMTIME=1 \
+		SKIP_BINARYEN=1 \
+		SKIP_TCL_REGEX=1 \
+		SKIP_EMACS=1 \
+		SKIP_XVFB=1 \
+		SKIP_TSHARK=1 \
+		SKIP_OPENSSL=1 \
+		SKIP_PING=1 \
+		SKIP_RGXG=1 \
+		SKIP_TCLLIB=1 \
+		bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+ensure-check-zig-deps: ## Install Zig build deps needed by check-zig
+	@if [ -n "$${SKIP_CHECK_ZIG:-}" ]; then \
+		echo "==> Zig dependency install skipped"; \
+	else \
+		env \
+			SKIP_TCLSH=1 \
+			SKIP_NODE=1 \
+			SKIP_KOTLINC=1 \
+			SKIP_RUST=1 \
+			SKIP_WASMTIME=1 \
+			SKIP_BINARYEN=1 \
+			SKIP_EMACS=1 \
+			SKIP_XVFB=1 \
+			SKIP_TSHARK=1 \
+			SKIP_OPENSSL=1 \
+			SKIP_PING=1 \
+			SKIP_RGXG=1 \
+			SKIP_TCLLIB=1 \
+			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+	fi
+
+ensure-test-zig-deps: ## Install Zig + Wasmtime CLI deps needed by test-zig
+	@if [ -n "$${SKIP_TEST_ZIG:-}" ]; then \
+		echo "==> Zig test dependency install skipped"; \
+	else \
+		env \
+			SKIP_TCLSH=1 \
+			SKIP_NODE=1 \
+			SKIP_KOTLINC=1 \
+			SKIP_RUST=1 \
+			SKIP_BINARYEN=1 \
+			SKIP_EMACS=1 \
+			SKIP_XVFB=1 \
+			SKIP_TSHARK=1 \
+			SKIP_OPENSSL=1 \
+			SKIP_PING=1 \
+			SKIP_RGXG=1 \
+			SKIP_TCLLIB=1 \
+			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+	fi
+
+ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-rust
+	@if [ -n "$${SKIP_CHECK_RUST:-}" ] || [ -n "$${SKIP_RUST:-}" ]; then \
+		echo "==> Rust dependency install skipped"; \
+	else \
+		env \
+			SKIP_TCLSH=1 \
+			SKIP_NODE=1 \
+			SKIP_KOTLINC=1 \
+			SKIP_ZIG=1 \
+			SKIP_WASMTIME=1 \
+			SKIP_BINARYEN=1 \
+			SKIP_TCL_REGEX=1 \
+			SKIP_EMACS=1 \
+			SKIP_XVFB=1 \
+			SKIP_TSHARK=1 \
+			SKIP_OPENSSL=1 \
+			SKIP_PING=1 \
+			SKIP_RGXG=1 \
+			SKIP_TCLLIB=1 \
+			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+	fi
+
+ensure-emacs-deps: ## Install Emacs needed by test-emacs
+	@if [ -n "$${SKIP_TEST_EMACS:-}" ]; then \
+		echo "==> Emacs dependency install skipped"; \
+	else \
+		env \
+			SKIP_TCLSH=1 \
+			SKIP_NODE=1 \
+			SKIP_KOTLINC=1 \
+			SKIP_RUST=1 \
+			SKIP_ZIG=1 \
+			SKIP_WASMTIME=1 \
+			SKIP_BINARYEN=1 \
+			SKIP_TCL_REGEX=1 \
+			SKIP_XVFB=1 \
+			SKIP_TSHARK=1 \
+			SKIP_OPENSSL=1 \
+			SKIP_PING=1 \
+			SKIP_RGXG=1 \
+			SKIP_TCLLIB=1 \
+			bash $(ROOT)scripts/dev/ensure-test-deps.sh; \
+	fi
+
+ensure-vscode-test-deps: ## Install xvfb for Linux headless VS Code extension tests
+	@env \
+		SKIP_TCLSH=1 \
+		SKIP_NODE=1 \
+		SKIP_KOTLINC=1 \
+		SKIP_RUST=1 \
+		SKIP_ZIG=1 \
+		SKIP_WASMTIME=1 \
+		SKIP_BINARYEN=1 \
+		SKIP_TCL_REGEX=1 \
+		SKIP_EMACS=1 \
+		SKIP_TSHARK=1 \
+		SKIP_OPENSSL=1 \
+		SKIP_PING=1 \
+		SKIP_RGXG=1 \
+		SKIP_TCLLIB=1 \
+		bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+capture-bytecode-refs: ensure-tcl-deps ## Capture missing tests/bytecode_reference/<ver>/*.disasm files using local tclsh
 	@set -eu; \
 	missing=0; \
 	for snippet in $(ROOT)tests/bytecode_snippets/*.tcl; do \
@@ -557,7 +690,7 @@ capture-bytecode-refs: ## Capture missing tests/bytecode_reference/<ver>/*.disas
 	echo "==> capture-bytecode-refs: $$missing missing — running scripts/capture_reference_bytecode.sh"; \
 	bash $(ROOT)scripts/capture_reference_bytecode.sh
 
-test-emacs: ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
+test-emacs: ensure-emacs-deps ## Run headless eglot regression suite for tcl-lsp (issue #333 + delta correctness)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_EMACS:-}" ]; then \
 		echo "==> SKIP_TEST_EMACS set — skipping Emacs eglot tests"; \
@@ -571,7 +704,7 @@ test-emacs: ## Run headless eglot regression suite for tcl-lsp (issue #333 + del
 	fi; \
 	bash $(ROOT)scripts/eglot_test/run.sh
 
-test-zig: ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/) — set SKIP_TEST_ZIG=1 to skip
+test-zig: ensure-test-zig-deps ## Run Zig WASM runtime unit tests (test_*.zig under runtime/zig/) — set SKIP_TEST_ZIG=1 to skip
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_ZIG:-}" ]; then \
 		echo "==> SKIP_TEST_ZIG set — skipping Zig WASM runtime tests"; \
