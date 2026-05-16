@@ -517,6 +517,69 @@ Empty result = clean. On a leaky config it prints a list of
 `"<referrer> -> <target>"` strings. Pair with
 `rename_partition` (Section 9) to plan the cleanup.
 
+### 3.4 VS complexity rollup
+
+**Question.** *"Which VSes carry the most plumbing? Those are
+the ones a change will have to touch first."*
+
+```
+$ f5 query --raw '
+    .ltm.virtual[]
+    | tsv(.name, .destination,
+          ([.profiles[]."full-path"] | count),
+          ([.rules[]] | count),
+          ([.profiles[]."full-path"] | count) + ([.rules[]] | count))
+  ' ltm.conf | sort -t$'\t' -k5 -rn
+```
+
+```
+api_vs	/Common/10.0.0.20:443	2	4	6
+web_vs	/Common/10.0.0.10:80	2	1	3
+vpn_vs	/Common/10.0.0.30:443	3	0	3
+web_secure_vs	/Common/10.0.0.10:443	2	0	2
+forwarder_vs	/Common/0.0.0.0:0	1	0	1
+legacy_vs	/Common/192.168.50.100:80	0	0	0
+```
+
+Columns: name → destination → profile count → rule count →
+total. `api_vs` is the most complex (4 iRules including the
+ip-blocklist + auth + router stack); `legacy_vs` is a bare
+forwarder with nothing attached. Run before a major upgrade
+to budget review time per listener.
+
+### 3.5 Pool monitor layer audit
+
+**Question.** *"My HTTP pool members keep getting marked up
+even when the app's broken — what monitors are we actually
+running?"* — TCP-only monitors will say "up" as long as the
+server's TCP stack is listening, regardless of whether the
+HTTP service behind it is healthy. F5 KB **K3224** is the
+classic write-up.
+
+```
+$ f5 query --raw '
+    .ltm.pool[]
+    | join(.monitor.monitors, ",") as $mons
+    | tsv(.name, $mons, ([.members[]] | count),
+          (if startswith($mons, "/Common/http") then "L7"
+           elif contains($mons, "icmp") then "L3-only"
+           else "L4-only" end))
+  ' ltm.conf
+```
+
+```
+web_pool	/Common/http	2	L7
+api_pool	/Common/https	2	L7
+legacy_pool	/Common/http	1	L7
+unused_pool	/Common/tcp	0	L4-only
+```
+
+`unused_pool` is the orphan from §3.1 — its `/Common/tcp` monitor
+would never catch an L7 outage if it ever got attached. Real-world
+queries usually filter `select(."L4-only")` or
+`select(."L3-only")` to surface only the pools that need a
+monitor upgrade.
+
 ---
 
 ## 4. iRules + data-groups
@@ -843,9 +906,57 @@ For a forward-DNS audit, this is the "what is GTM authoritative
 for?" answer. Live verification — *does* DNS actually return
 that record? — is in [Section 8](#8-live-probes).
 
----
+### 6.5 SNAT pool reverse-lookup
 
-## 7. Logs & timeline
+**Question.** *"Which VS uses internet_snat, and what addresses
+will it source-NAT outbound traffic from?"*
+
+```
+$ f5 query --raw '
+    .ltm.snatpool[] as $sp
+    | $sp.members[] as $m
+    | (.ltm["snat-translation"][str($m)].address) as $a
+    | tsv($sp.name, $m, $a,
+          join(references_to($sp."full-path"), ","))
+  ' multitier/tier3-reaggregator.conf
+```
+
+```
+internet_snat	/Common/snat_xlat_1	198.51.100.101	/Common/internet_egress_vs
+internet_snat	/Common/snat_xlat_2	198.51.100.102	/Common/internet_egress_vs
+internet_snat	/Common/snat_xlat_3	198.51.100.103	/Common/internet_egress_vs
+```
+
+Three SNAT translation addresses round-robined by
+`internet_snat`, with `internet_egress_vs` as the only
+consumer. Pair with `traceroute` (§8) to verify the routed
+return path actually goes through one of the three.
+
+### 6.6 SSL-terminating VS roster
+
+**Question.** *"Which VSes terminate TLS so I know which ones to
+audit cert expiry on?"*
+
+```
+$ f5 query --raw '
+    .ltm.virtual[]
+    | [.profiles[]."full-path"] as $profs
+    | select(any($profs[] | contains(., "clientssl")))
+    | tsv(.name, .destination,
+          join([$profs[] | select(contains(., "ssl"))], ","))
+  ' multitier/tier2-c01-ltm-ha.conf
+```
+
+```
+app_vs	/Common/10.2.0.10:443	/Common/clientssl,/Common/serverssl
+```
+
+`app_vs` does double-termination: clientssl on the inbound
+side (clients see the BIG-IP cert), serverssl on the outbound
+side (backend pool members get a re-encrypted TLS session).
+On a real box this is exactly the list to feed into
+`tls_handshake` for the cert expiry audit
+([§8](#8-live-probes)).
 
 The `multitier/logs/` directory carries representative syslog
 from every device in the multitier. Standard message-code
