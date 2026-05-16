@@ -38,7 +38,10 @@ _ZERO = Range(
 )
 
 
-def _stub(name: str, *args: tuple[str, str, bool], **flags: bool) -> StubCommandDef:
+from typing import Any  # noqa: E402
+
+
+def _stub(name: str, *args: tuple[str, str, bool], **flags: Any) -> StubCommandDef:
     return StubCommandDef(
         name=name,
         args=tuple(StubArgDef(name=n, role=r, optional=o) for n, r, o in args),
