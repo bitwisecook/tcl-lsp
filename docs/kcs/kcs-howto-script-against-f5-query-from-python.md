@@ -355,8 +355,12 @@ plugin types and the XDG loader's pickup list.
 
 ## Related
 
+- **Python API reference** — Sphinx autodoc-generated reference at
+  `docs/sphinx/_build/html/index.html` (run `make docs-html`).
+  The same source builds on Read the Docs via
+  [`.readthedocs.yaml`](../../.readthedocs.yaml).
 - [KCS index](README.md)
-- [KCS: feature — `f5 query` renderers](features/kcs-feature-f5-query-renderers.md)
+- [KCS: feature — `f5 query` plugins](features/kcs-feature-f5-query-renderers.md)
 - [KCS: how-to — reproduce an HTTP monitor with `f5 query`](kcs-howto-reproduce-http-monitor-with-query.md)
 - [`f5 query` reference manual](../references/f5_query/manual.md)
 - [Design — `f5 query` plugin contract](../design/f5-query-renderer-contract.md)

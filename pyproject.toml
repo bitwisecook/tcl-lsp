@@ -25,6 +25,16 @@ dev = [
     # Also unlocks PKCS#12 parsing in ``cert_load``.
     "cryptography>=42.0",
 ]
+# Sphinx + autodoc + furo theme — for building the f5q Python API
+# reference (``docs/sphinx/``).  Read the Docs uses this extras
+# group via ``.readthedocs.yaml``; locally, build with
+# ``uv run --extra docs sphinx-build -b html docs/sphinx docs/sphinx/_build/html``.
+docs = [
+    "sphinx>=7.0",
+    "myst-parser>=2.0",
+    "sphinx-autodoc-typehints>=1.25",
+    "furo>=2024.1.29",
+]
 
 [build-system]
 requires = ["hatchling"]

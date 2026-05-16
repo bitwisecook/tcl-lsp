@@ -878,11 +878,19 @@ first registry access, no import dance required.  Broken plugins
 warn to stderr and are skipped; `f5 q --help-plugins` shows what
 loaded.
 
-See
-[KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
-for the full API tour, and
-[KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
-for the built-in plugin catalogue.
+**Documentation**:
+
+- **Python API reference** — autodoc-generated, every public
+  symbol with full signature, docstring, and `[source]` links.
+  Build locally with `make docs-html` (output at
+  `docs/sphinx/_build/html/index.html`); the same Sphinx tree
+  builds on Read the Docs via [`.readthedocs.yaml`](.readthedocs.yaml).
+- [KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
+  — task-oriented walkthrough.
+- [KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
+  — built-in plugin catalogue and CLI flag reference.
+- [Design — `f5 query` plugin contract](docs/design/f5-query-renderer-contract.md)
+  — formal contracts, registration lifecycle, error mapping.
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
