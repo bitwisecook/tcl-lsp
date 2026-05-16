@@ -1092,10 +1092,16 @@ pub fn eval_if(words: []const i32) i32 {
     var i: u32 = 1;
     var seen_cond_body: bool = false;
     while (i < words.len) {
-        // ``else BODY`` — terminal branch.
+        // ``else BODY`` — terminal branch.  Empty / null word
+        // (kw.ptr == 0) can't match any keyword, so don't waste
+        // a ``@ptrFromInt(0)`` (which Debug-build Zig panics on).
         const kw = obj_ensure_string(words[i]);
-        const kp: [*]const u8 = @ptrFromInt(kw.ptr);
-        if (str_eq(kp, kw.len, "else")) {
+        const kw_is_else = kw.ptr != 0 and str_eq(
+            @as([*]const u8, @ptrFromInt(kw.ptr)),
+            kw.len,
+            "else",
+        );
+        if (kw_is_else) {
             if (i + 1 < words.len) {
                 const bs = obj_ensure_string(words[i + 1]);
                 return eval_script(bs.ptr, bs.len);
@@ -1125,8 +1131,11 @@ pub fn eval_if(words: []const i32) i32 {
         var saw_then: bool = false;
         if (i < words.len) {
             const tk = obj_ensure_string(words[i]);
-            const tp: [*]const u8 = @ptrFromInt(tk.ptr);
-            if (str_eq(tp, tk.len, "then")) {
+            if (tk.ptr != 0 and str_eq(
+                @as([*]const u8, @ptrFromInt(tk.ptr)),
+                tk.len,
+                "then",
+            )) {
                 saw_then = true;
                 i += 1;
             }
@@ -1150,11 +1159,15 @@ pub fn eval_if(words: []const i32) i32 {
         // Consume an ``elseif`` keyword so the next iteration's
         // cond probe lands on the actual expression word.  An
         // ``else`` keyword (or a bare trailing body) is handled at
-        // the loop head.
+        // the loop head.  Empty/null word can't match — guard the
+        // ``@ptrFromInt(0)``.
         if (i < words.len) {
             const ek = obj_ensure_string(words[i]);
-            const ep: [*]const u8 = @ptrFromInt(ek.ptr);
-            if (str_eq(ep, ek.len, "elseif")) {
+            if (ek.ptr != 0 and str_eq(
+                @as([*]const u8, @ptrFromInt(ek.ptr)),
+                ek.len,
+                "elseif",
+            )) {
                 i += 1;
                 if (i >= words.len) {
                     stubs.raise("wrong # args: no expression after \"elseif\" argument");
@@ -1170,7 +1183,8 @@ fn raise_no_script_after(name_ptr: u32, name_len: u32) void {
     const stubs = @import("../stubs/tcl_stubs.zig");
     const prefix = "wrong # args: no script following \"";
     const suffix = "\" argument";
-    const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+    const safe_len: u32 = if (name_ptr == 0) 0 else name_len;
+    const total: u32 = @intCast(prefix.len + safe_len + suffix.len);
     const buf = obj_mod.alloc(total);
     if (buf == 0) {
         stubs.raise("wrong # args: no script following argument");
@@ -1182,12 +1196,14 @@ fn raise_no_script_after(name_ptr: u32, name_len: u32) void {
         dst[off] = c;
         off += 1;
     }
-    const src: [*]const u8 = @ptrFromInt(name_ptr);
-    var k: u32 = 0;
-    while (k < name_len) : (k += 1) {
-        dst[off + k] = src[k];
+    if (safe_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        while (k < safe_len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += safe_len;
     }
-    off += name_len;
     for (suffix) |c| {
         dst[off] = c;
         off += 1;
