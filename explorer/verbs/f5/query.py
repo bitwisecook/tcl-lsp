@@ -144,6 +144,40 @@ class _HelpManualAction(argparse.Action):
         parser.exit()
 
 
+class _HelpRenderersAction(argparse.Action):
+    """Print the catalogue of registered renderer plugins.
+
+    Mirrors ``--help-builtins`` for the renderer registry: imports
+    every built-in renderer (mermaid / gantt / ascii-blocks) so they
+    self-register, then prints each spec's name, summary, and
+    accepted input shape so a user can pick the right ``--render
+    NAME`` from one terminal command.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from core.bigip.query import list_renderers
+
+        specs = list_renderers()
+        if not specs:
+            sys.stdout.write("(no renderers registered)\n")
+            parser.exit()
+        sys.stdout.write("Registered renderers:\n\n")
+        for spec in specs:
+            sys.stdout.write(f"  {spec.name}\n")
+            sys.stdout.write(f"    summary: {spec.summary}\n")
+            sys.stdout.write(f"    accepts: {spec.accepts}\n")
+            if spec.details:
+                # Indent details under the spec; soft-wrap is the
+                # renderer author's responsibility.
+                for line in spec.details.splitlines():
+                    sys.stdout.write(f"    {line}\n")
+            sys.stdout.write("\n")
+        sys.stdout.write(
+            "Use --render NAME to dispatch, --render-opt KEY=VALUE for per-renderer options.\n"
+        )
+        parser.exit()
+
+
 class _HelpReferencesAction(argparse.Action):
     """Print the comprehensive `f5 query` reference manual.
 
@@ -415,6 +449,32 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "terminals."
         ),
     )
+    out_group.add_argument(
+        "-R",
+        "--render",
+        dest="render_name",
+        metavar="NAME",
+        default=None,
+        help=(
+            "Dispatch the result to the named renderer plugin "
+            "(``mermaid`` / ``gantt`` / ``ascii-blocks`` built-in, "
+            "plus any user-registered renderers).  See "
+            "``--help-renderers`` for the catalogue and "
+            "``--render-opt KEY=VALUE`` for per-renderer options."
+        ),
+    )
+    p.add_argument(
+        "--render-opt",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Pass an option to ``--render NAME`` (repeatable).  Keys "
+            "and values are renderer-specific — e.g. ``--render gantt "
+            "--render-opt unit-minutes=10`` or ``--render mermaid "
+            "--render-opt direction=TB``."
+        ),
+    )
 
     write_group = p.add_mutually_exclusive_group()
     write_group.add_argument(
@@ -495,8 +555,18 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "figuring out which probe builtin matches a device behaviour."
         ),
     )
+    p.add_argument(
+        "--help-renderers",
+        nargs=0,
+        action=_HelpRenderersAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Show the catalogue of registered renderer plugins "
+            "(``mermaid``, ``gantt``, ``ascii-blocks`` built-in) and exit."
+        ),
+    )
 
-    p.set_defaults(handler=_run_query, output_mode="auto")
+    p.set_defaults(handler=_run_query, output_mode="auto", render_name=None)
 
 
 def _run_query(args: argparse.Namespace) -> int:
@@ -735,9 +805,42 @@ def _run_query(args: argparse.Namespace) -> int:
         PROBES_ENABLED.reset(_probe_token)
         TLS_CA_BUNDLE.reset(_ca_bundle_token)
 
+    # ``--render NAME`` re-uses the same output dispatch path as the
+    # built-in modes: ``output.render`` falls through to the renderer
+    # registry on an unknown mode, so we just swap ``args.output_mode``
+    # for the requested name and let ``_emit_values`` drive the rest.
+    if args.render_name is not None:
+        args.output_mode = args.render_name
+        render_opts, render_err = _parse_render_opts(args.render_opt)
+        if render_err is not None:
+            print(f"error: {render_err}", file=sys.stderr)
+            return 2
+        args.render_opts = render_opts
+    else:
+        args.render_opts = {}
+
     if result.has_mutation:
         return _emit_mutation(args, sources, result, path_for_uri)
     return _emit_values(args, result, sources)
+
+
+def _parse_render_opts(raw: list[str]) -> tuple[dict[str, str], str | None]:
+    """Parse repeated ``--render-opt KEY=VALUE`` into a flat dict.
+
+    Duplicate keys take the last value (matches argparse's natural
+    last-wins semantics on repeated flags).  Returns an error string
+    when any entry is malformed; the runner prints it with the
+    standard ``error:`` prefix.
+    """
+    opts: dict[str, str] = {}
+    for entry in raw:
+        if "=" not in entry:
+            return {}, f"--render-opt expects KEY=VALUE (got {entry!r})"
+        k, _, v = entry.partition("=")
+        if not k:
+            return {}, f"--render-opt {entry!r}: KEY side cannot be empty"
+        opts[k] = v
+    return opts, None
 
 
 def _parse_name_bindings(raw: list[str], paths: list[str]) -> tuple[dict[str, str], str | None]:
@@ -1023,6 +1126,7 @@ def _emit_values(
         sys.stdout.write(json.dumps(envelope, indent=2) + "\n")
         return _empty_match_exit_code(args, any_matched)
 
+    render_opts = getattr(args, "render_opts", {}) or {}
     for uri, values in result.values_per_file.items():
         # "Matched" means the evaluator produced at least one value
         # for this source — empty strings, ``null``, ``false``, and
@@ -1034,7 +1138,18 @@ def _emit_values(
             any_matched = True
         if use_banner:
             sys.stdout.write(f"# === {uri} ===\n")
-        sys.stdout.write(render(values, mode=args.output_mode))
+        try:
+            sys.stdout.write(render(values, mode=args.output_mode, **render_opts))
+        except QueryError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except ValueError as exc:
+            # Surface unknown-mode errors as ``error:`` rather than a
+            # traceback — ``output.render`` raises ValueError for an
+            # unregistered renderer name, matching the historical
+            # contract for the built-in modes.
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     return _empty_match_exit_code(args, any_matched)
 
 

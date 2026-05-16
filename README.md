@@ -803,6 +803,49 @@ Highlights of the newer verbs:
 - **`f5 tmsh`** — emit `tmsh create` (or `--modify`) commands for every
   object in a config, in dependency order so the script can be pasted
   into a BIG-IP shell unchanged.
+- **`f5 query` (alias `f5 q`)** — small jq-flavoured DSL for inspecting
+  and rewriting BIG-IP configs.  Built-in **renderer plugins** turn
+  query output into a Mermaid diagram, an ASCII Gantt timeline of
+  monitor up/down transitions, or a Unicode line-art block diagram —
+  no sidecar Python scripts required.  Run
+  `f5 q --help-renderers` for the catalogue:
+
+  ```sh
+  # ASCII Gantt of pool-member up/down events from a BIG-IP log
+  f5 q --render gantt '
+      f5log_load("ltm.log")[]
+      | select(.module == "01340011" or .module == "01340012")
+      | tsv(.timestamp,
+            (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
+            (if .module == "01340011" then "DOWN" else "UP" end))
+  ' bigip.conf
+
+  # Mermaid diagram of every web virtual server and its references
+  f5 q --render mermaid '.ltm.virtual["~/web_"]' bigip.conf
+  ```
+
+**Use the query engine from Python** — the same engine is importable
+as `f5q` so external scripts can drive queries, get typed values back,
+and ship custom renderers as plugins via a one-line decorator:
+
+```python
+from f5q import Query, renderer
+
+# Run a query and iterate typed results.
+for name in Query(".ltm.virtual[] | .name").run(paths=["bigip.conf"]):
+    print(name)
+
+# Ship a custom renderer the f5 CLI can dispatch via --render NAME.
+@renderer("md-table", summary="Markdown table of results.", accepts="any")
+def _render(values, **opts):
+    return "| name |\n| ---- |\n" + "\n".join(f"| {v} |" for v in values)
+```
+
+See
+[KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
+for the full API tour, and
+[KCS: feature — `f5 query` renderers](docs/kcs/features/kcs-feature-f5-query-renderers.md)
+for the built-in renderer catalogue.
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.
