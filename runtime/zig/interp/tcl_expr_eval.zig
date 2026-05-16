@@ -1485,6 +1485,11 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
 }
 
 fn try_user_math_func(name: []const u8, args: []const i32) ?i32 {
+    // Build the qualified command name ``::tcl::mathfunc::NAME`` and
+    // dispatch to a registered proc if one exists.  We pre-check via
+    // ``proc_lookup`` so a miss falls through to the canonical
+    // ``unknown math function "NAME"`` diagnostic instead of leaking
+    // an ``invalid command name`` trap when no user proc is present.
     const procs = @import("tcl_procs.zig");
     if (!procs.proc_buf_nonzero()) return null;
     const prefix = "::tcl::mathfunc::";
@@ -1497,15 +1502,14 @@ fn try_user_math_func(name: []const u8, args: []const i32) ?i32 {
     const cmd_obj = obj.obj_new_string_copy(buf_addr, total_len);
     obj.free_sized(buf_addr, total_len);
     if (cmd_obj == 0) return null;
-    const bucket = procs.proc_lookup(cmd_obj);
-    if (bucket == 0) {
+
+    // Probe the proc registry first.  When the FQN isn't registered
+    // we want to surface the canonical math-func diagnostic, not the
+    // "invalid command name" wording ``eval_command`` would emit.
+    if (procs.proc_lookup(cmd_obj) == 0) {
         obj.tcl_obj_release(cmd_obj);
         return null;
     }
-    // Build a words[] slice with the resolved command name at slot 0
-    // and the parsed arg TclObjs at slot 1..n.  Args are still owned
-    // by the caller; ``eval_command`` borrows them for the duration
-    // of the call (and the caller releases them after we return).
     const parse_mod = @import("../parse/tcl_parse.zig");
     if (args.len + 1 > parse_mod.MAX_WORDS) {
         obj.tcl_obj_release(cmd_obj);
