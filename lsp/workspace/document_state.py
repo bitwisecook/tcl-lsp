@@ -20,13 +20,14 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from core.analysis import Analyser, AnalyserSnapshot, AnalysisResult
 from core.commands.registry.namespace_registry import NAMESPACE_REGISTRY as EVENT_REGISTRY
 from core.commands.registry.runtime import is_irules_dialect
 from core.common.codes import default_disabled_diagnostics
+from core.common.dialect import detect_dialect_from_source, dialect_scope
 from core.common.document_buffer import DocumentBuffer
 from core.compiler.compilation_unit import CompilationUnit, FunctionUnit, compile_source
 from core.compiler.interprocedural import ProcLocalSummary
@@ -139,6 +140,31 @@ def _extract_chunk_ir(
 
 
 log = logging.getLogger(__name__)
+
+_IRULES_EXTENSIONS = (".irul", ".irule")
+_IAPPS_EXTENSIONS = (".iapp", ".iappimpl", ".impl", ".apl")
+_EXPECT_EXTENSIONS = (".exp",)
+
+
+def infer_document_dialect(uri: str, source: str, language_id: str = "") -> str | None:
+    """Infer the best dialect hint for a single document."""
+    lang = language_id.lower()
+    if lang in {"irules", "f5-irules", "tcl-irules"}:
+        return "f5-irules"
+    if lang in {"iapps", "f5-iapps", "tcl-iapps", "apl", "tcl-apl", "apl-lang"}:
+        return "f5-iapps"
+    if lang == "expect":
+        return "expect"
+
+    basename = uri.rsplit("/", 1)[-1].lower() if "/" in uri else uri.lower()
+    if basename.endswith(_IRULES_EXTENSIONS):
+        return "f5-irules"
+    if basename.endswith(_IAPPS_EXTENSIONS) or basename == "presentation":
+        return "f5-iapps"
+    if basename.endswith(_EXPECT_EXTENSIONS):
+        return "expect"
+
+    return detect_dialect_from_source(source)
 
 
 # ---------------------------------------------------------------------------
@@ -499,8 +525,9 @@ class DocumentState:
 
     uri: str
     language_id: str = ""
+    dialect_hint: str | None = None
     _snap: _StateSnapshot = field(default_factory=_StateSnapshot, repr=False)
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     # Internal caches for the compilation pipeline — not accessed by
     # request handlers, so they live outside the snapshot.
     _proc_cache: dict[tuple[str, int], FunctionUnit] = field(
@@ -512,14 +539,30 @@ class DocumentState:
         repr=False,
     )
 
+    def _swap_snapshot(self, snapshot: _StateSnapshot) -> None:
+        """Install a fully-built state snapshot under the document lock."""
+        with self._lock:
+            self._snap = snapshot
+
+    def _replace_snapshot(self, **changes: Any) -> None:
+        """Replace the current snapshot with selected fields changed."""
+        with self._lock:
+            self._snap = replace(self._snap, **changes)
+
+    def refresh_dialect_hint(self, source: str) -> None:
+        """Refresh the per-document dialect hint from metadata and source."""
+        self.dialect_hint = infer_document_dialect(self.uri, source, self.language_id)
+
+    def _signature_profile(self) -> Any:
+        """Return a context manager for this document's dialect hint."""
+        if self.dialect_hint is None:
+            return dialect_scope()
+        return dialect_scope(self.dialect_hint)
+
     # -- Property accessors delegating to the snapshot ----------------
     # Getters provide atomic reads (single attribute load from ``_snap``).
-    # **Setters are NOT thread-safe** — they mutate the live snapshot
-    # without going through the lock-protected swap path.  They exist
-    # only for test/script convenience and MUST NOT be called from
-    # request handlers or background threads.  Production code should
-    # use ``update()`` / ``update_source_quick()`` which build and swap
-    # a complete ``_StateSnapshot`` atomically.
+    # Setters exist for tests and scripts; they replace the current snapshot
+    # under the document lock so readers do not observe in-place mutations.
 
     @property
     def snap(self) -> _StateSnapshot:
@@ -532,7 +575,7 @@ class DocumentState:
 
     @source.setter
     def source(self, value: str) -> None:
-        self._snap.source = value
+        self._replace_snapshot(source=value, _tokens=None, buffer=None)
 
     @property
     def version(self) -> int | None:
@@ -540,22 +583,25 @@ class DocumentState:
 
     @version.setter
     def version(self, value: int | None) -> None:
-        self._snap.version = value
+        self._replace_snapshot(version=value)
 
     @property
     def tokens(self) -> list[Token]:
         snap = self._snap
-        if snap._tokens is None:
-            with self._lock:
-                # Double-checked locking: re-read after acquiring lock.
-                snap = self._snap
-                if snap._tokens is None:
-                    snap._tokens = TclLexer(snap.source).tokenise_all()
-        return snap._tokens
+        if snap._tokens is not None:
+            return snap._tokens
+        with self._lock:
+            snap = self._snap
+            if snap._tokens is None:
+                with self._signature_profile():
+                    tokens = TclLexer(snap.source).tokenise_all()
+                self._snap = replace(snap, _tokens=tokens)
+                return tokens
+            return snap._tokens
 
     @tokens.setter
     def tokens(self, value: list[Token]) -> None:
-        self._snap._tokens = value
+        self._replace_snapshot(_tokens=value)
 
     @property
     def analysis(self) -> AnalysisResult | None:
@@ -563,7 +609,7 @@ class DocumentState:
 
     @analysis.setter
     def analysis(self, value: AnalysisResult | None) -> None:
-        self._snap.analysis = value
+        self._replace_snapshot(analysis=value)
 
     @property
     def compilation_unit(self) -> CompilationUnit | None:
@@ -571,7 +617,7 @@ class DocumentState:
 
     @compilation_unit.setter
     def compilation_unit(self, value: CompilationUnit | None) -> None:
-        self._snap.compilation_unit = value
+        self._replace_snapshot(compilation_unit=value)
 
     @property
     def chunks(self) -> list[TopLevelChunk]:
@@ -579,7 +625,7 @@ class DocumentState:
 
     @chunks.setter
     def chunks(self, value: list[TopLevelChunk]) -> None:
-        self._snap.chunks = value
+        self._replace_snapshot(chunks=value)
 
     @property
     def has_partial_commands(self) -> bool:
@@ -587,7 +633,7 @@ class DocumentState:
 
     @has_partial_commands.setter
     def has_partial_commands(self, value: bool) -> None:
-        self._snap.has_partial_commands = value
+        self._replace_snapshot(has_partial_commands=value)
 
     @property
     def file_profiles(self) -> frozenset[str]:
@@ -595,7 +641,7 @@ class DocumentState:
 
     @file_profiles.setter
     def file_profiles(self, value: frozenset[str]) -> None:
-        self._snap.file_profiles = value
+        self._replace_snapshot(file_profiles=value)
 
     @property
     def _chunk_caches(self) -> list[ChunkCache | None]:
@@ -603,7 +649,7 @@ class DocumentState:
 
     @_chunk_caches.setter
     def _chunk_caches(self, value: list[ChunkCache | None]) -> None:
-        self._snap.chunk_caches = value
+        self._replace_snapshot(chunk_caches=value)
 
     @property
     def _buffer(self) -> DocumentBuffer | None:
@@ -611,7 +657,7 @@ class DocumentState:
 
     @_buffer.setter
     def _buffer(self, value: DocumentBuffer | None) -> None:
-        self._snap.buffer = value
+        self._replace_snapshot(buffer=value)
 
     @property
     def conf_wrapped(self) -> bool:
@@ -629,7 +675,7 @@ class DocumentState:
 
     @_deep_diag_proc_key.setter
     def _deep_diag_proc_key(self, value: frozenset[tuple[str, int]] | None) -> None:
-        self._snap.deep_diag_proc_key = value
+        self._replace_snapshot(deep_diag_proc_key=value)
 
     @property
     def _deep_diag_result(self) -> list[Any] | None:
@@ -637,19 +683,7 @@ class DocumentState:
 
     @_deep_diag_result.setter
     def _deep_diag_result(self, value: list[Any] | None) -> None:
-        self._snap.deep_diag_result = value
-
-    @property
-    def tokens(self) -> list[Token]:
-        """Flat token list, lazily computed on first access.
-
-        Most of the LSP pipeline works from chunks and commands rather
-        than the flat token list, so deferring tokenisation avoids
-        redundant O(n) work on every edit.
-        """
-        if self._tokens is None:
-            self._tokens = TclLexer(self.source).tokenise_all()
-        return self._tokens
+        self._replace_snapshot(deep_diag_result=value)
 
     @property
     def buffer(self) -> DocumentBuffer:
@@ -659,8 +693,13 @@ class DocumentState:
         changes (by setting ``_buffer = None``).
         """
         snap = self._snap
-        if snap.buffer is None or snap.buffer.source is not snap.source:
-            snap.buffer = DocumentBuffer.from_source(snap.source, snap.version)
+        if snap.buffer is None or snap.buffer.source != snap.source:
+            with self._lock:
+                snap = self._snap
+                if snap.buffer is None or snap.buffer.source != snap.source:
+                    buffer = DocumentBuffer.from_source(snap.source, snap.version)
+                    self._snap = replace(snap, buffer=buffer)
+                    return buffer
         return snap.buffer
 
     @property
@@ -737,13 +776,20 @@ class DocumentState:
         chunk_token_cache: list[list[tuple[int, int, int, int, int]] | None],
     ) -> None:
         """Write back computed semantic tokens to chunk caches."""
-        for i, tokens in enumerate(chunk_token_cache):
-            if (
-                tokens is not None
-                and i < len(self._chunk_caches)
-                and self._chunk_caches[i] is not None
-            ):
-                self._chunk_caches[i].semantic_tokens_abs = tokens  # type: ignore[union-attr, invalid-assignment]
+        with self._lock:
+            snap = self._snap
+            chunk_caches = list(snap.chunk_caches)
+            changed = False
+            for i, tokens in enumerate(chunk_token_cache):
+                if tokens is None or i >= len(chunk_caches):
+                    continue
+                cache = chunk_caches[i]
+                if cache is None:
+                    continue
+                chunk_caches[i] = replace(cache, semantic_tokens_abs=tokens)
+                changed = True
+            if changed:
+                self._snap = replace(snap, chunk_caches=chunk_caches)
 
     def apply_subprocess_result(self, result: dict, version: int | None) -> None:
         """Apply the result from ``_analyse_document_fresh`` (subprocess).
@@ -755,18 +801,20 @@ class DocumentState:
         cu = result.get("compilation_unit")
         has_partial = result.get("has_partial", False)
         self._do_update_proc_cache(cu, has_partial)
-        self._snap = _StateSnapshot(
-            source=result.get("source", self._snap.source),
-            version=version,
-            analysis=result.get("analysis"),
-            compilation_unit=cu,
-            chunks=result.get("chunks", []),
-            has_partial_commands=has_partial,
-            file_profiles=result.get("file_profiles", frozenset()),
-            chunk_caches=result.get("chunk_caches", []),
-            buffer=result.get("buffer"),
-            conf_wrapped=result.get("conf_wrapped", False),
-            embedded_rules=result.get("embedded_rules", []),
+        self._swap_snapshot(
+            _StateSnapshot(
+                source=result.get("source", self._snap.source),
+                version=version,
+                analysis=result.get("analysis"),
+                compilation_unit=cu,
+                chunks=result.get("chunks", []),
+                has_partial_commands=has_partial,
+                file_profiles=result.get("file_profiles", frozenset()),
+                chunk_caches=result.get("chunk_caches", []),
+                buffer=result.get("buffer"),
+                conf_wrapped=result.get("conf_wrapped", False),
+                embedded_rules=result.get("embedded_rules", []),
+            )
         )
 
     def precompute_syntax_tokens(
@@ -797,14 +845,15 @@ class DocumentState:
         t0 = time.perf_counter()
         buf = snap.buffer
         chunk_ranges = [_chunk_line_range(buf, chunk) for chunk in snap.chunks]
-        token_lists = precompute_chunk_tokens(
-            snap.source,
-            chunk_ranges,
-            analysis=None,
-            is_bigip_conf=is_bigip_conf,
-            is_irules=is_irules,
-            is_apl=is_apl,
-        )
+        with self._signature_profile():
+            token_lists = precompute_chunk_tokens(
+                snap.source,
+                chunk_ranges,
+                analysis=None,
+                is_bigip_conf=is_bigip_conf,
+                is_irules=is_irules,
+                is_apl=is_apl,
+            )
         # Build minimal chunk caches with just token data.
         caches: list[ChunkCache | None] = []
         for i, chunk in enumerate(snap.chunks):
@@ -817,15 +866,7 @@ class DocumentState:
             )
             caches.append(cc)
         # Atomic swap: readers see either old (no caches) or new (with tokens).
-        self._snap = _StateSnapshot(
-            source=snap.source,
-            version=snap.version,
-            chunks=snap.chunks,
-            has_partial_commands=snap.has_partial_commands,
-            buffer=snap.buffer,
-            chunk_caches=caches,
-            file_profiles=snap.file_profiles,
-        )
+        self._swap_snapshot(replace(snap, chunk_caches=caches))
         log.info(
             "[timing] precompute_syntax_tokens %.0fms (tokens=%d, chunks=%d)",
             (time.perf_counter() - t0) * 1000,
@@ -857,10 +898,21 @@ class DocumentState:
 
     def store_deep_diagnostics(self, diagnostics: list[Any]) -> None:
         """Cache deep diagnostics with the current proc identity key."""
-        self._deep_diag_proc_key = self.get_deep_diag_proc_key()
-        self._deep_diag_result = diagnostics
+        self._replace_snapshot(
+            deep_diag_proc_key=self.get_deep_diag_proc_key(),
+            deep_diag_result=diagnostics,
+        )
 
     def update_source_quick(
+        self,
+        source: str,
+        version: int | None = None,
+    ) -> bool:
+        self.refresh_dialect_hint(source)
+        with self._signature_profile():
+            return self._update_source_quick_for_active_profile(source, version)
+
+    def _update_source_quick_for_active_profile(
         self,
         source: str,
         version: int | None = None,
@@ -899,17 +951,36 @@ class DocumentState:
                         new_caches.append(cc)
                         continue
                 new_caches.append(None)
-        self._snap = _StateSnapshot(
-            source=source,
-            version=version,
-            chunks=new_chunks,
-            has_partial_commands=has_partial,
-            chunk_caches=new_caches,
-            file_profiles=old.file_profiles,
+        self._swap_snapshot(
+            _StateSnapshot(
+                source=source,
+                version=version,
+                chunks=new_chunks,
+                has_partial_commands=has_partial,
+                chunk_caches=new_caches,
+                file_profiles=old.file_profiles,
+            )
         )
         return True
 
     def update(
+        self,
+        source: str,
+        version: int | None = None,
+        *,
+        force_reanalyse: bool = False,
+        line_length: int = 120,
+    ) -> None:
+        self.refresh_dialect_hint(source)
+        with self._signature_profile():
+            self._update_for_active_profile(
+                source,
+                version,
+                force_reanalyse=force_reanalyse,
+                line_length=line_length,
+            )
+
+    def _update_for_active_profile(
         self,
         source: str,
         version: int | None = None,
@@ -972,7 +1043,7 @@ class DocumentState:
                     deep_diag_proc_key=old_snap.deep_diag_proc_key,
                     deep_diag_result=old_snap.deep_diag_result,
                 )
-                self._snap = new_snap
+                self._swap_snapshot(new_snap)
                 log.debug(
                     "[timing] document update %.0fms (all chunks match)",
                     (time.perf_counter() - t0) * 1000,
@@ -1033,7 +1104,6 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        self._snap._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
         # Build chunk IR cache: reuse cached entries for clean chunks,
@@ -1131,15 +1201,17 @@ class DocumentState:
 
         # Atomic swap: build and install the new snapshot.
         # Tokens are left as None (lazy) — computed on first access.
-        self._snap = _StateSnapshot(
-            source=source,
-            version=version,
-            analysis=analysis,
-            compilation_unit=compilation_unit,
-            chunks=new_chunks,
-            has_partial_commands=has_partial,
-            file_profiles=file_profiles,
-            chunk_caches=new_chunk_caches,
+        self._swap_snapshot(
+            _StateSnapshot(
+                source=source,
+                version=version,
+                analysis=analysis,
+                compilation_unit=compilation_unit,
+                chunks=new_chunks,
+                has_partial_commands=has_partial,
+                file_profiles=file_profiles,
+                chunk_caches=new_chunk_caches,
+            )
         )
 
         log.info(
@@ -1263,7 +1335,6 @@ class DocumentState:
         file_profiles = (
             EVENT_REGISTRY.compute_file_profiles(source) if is_irules_dialect() else frozenset()
         )
-        self._snap._tokens = None  # invalidate — rebuilt lazily on access
         t_tok = time.perf_counter()
 
         # Conf-wrapped iRules: extract rule bodies and analyse each
@@ -1335,15 +1406,17 @@ class DocumentState:
 
         # Atomic swap: install the new snapshot.
         # Tokens left as None (lazy) — computed on first access.
-        self._snap = _StateSnapshot(
-            source=source,
-            version=version,
-            analysis=analysis,
-            compilation_unit=compilation_unit,
-            chunks=new_chunks,
-            has_partial_commands=has_partial,
-            file_profiles=file_profiles,
-            chunk_caches=chunk_caches,
+        self._swap_snapshot(
+            _StateSnapshot(
+                source=source,
+                version=version,
+                analysis=analysis,
+                compilation_unit=compilation_unit,
+                chunks=new_chunks,
+                has_partial_commands=has_partial,
+                file_profiles=file_profiles,
+                chunk_caches=chunk_caches,
+            )
         )
 
         n_procs = len(compilation_unit.procedures) if compilation_unit else 0
@@ -1388,18 +1461,20 @@ class DocumentState:
 
         buf = DocumentBuffer.from_source(source, version)
 
-        self._snap = _StateSnapshot(
-            source=source,
-            version=version,
-            analysis=analysis,
-            compilation_unit=None,
-            chunks=new_chunks,
-            has_partial_commands=has_partial,
-            file_profiles=file_profiles,
-            chunk_caches=[],
-            buffer=buf,
-            conf_wrapped=True,
-            embedded_rules=embedded_rules,
+        self._swap_snapshot(
+            _StateSnapshot(
+                source=source,
+                version=version,
+                analysis=analysis,
+                compilation_unit=None,
+                chunks=new_chunks,
+                has_partial_commands=has_partial,
+                file_profiles=file_profiles,
+                chunk_caches=[],
+                buffer=buf,
+                conf_wrapped=True,
+                embedded_rules=embedded_rules,
+            )
         )
 
     def _build_full_chunk_caches(
@@ -1543,10 +1618,12 @@ class WorkspaceState:
     """Manages DocumentState objects for all open documents."""
 
     def __init__(self) -> None:
+        self._lock = threading.RLock()
         self._documents: dict[str, DocumentState] = {}
 
     def get(self, uri: str) -> DocumentState | None:
-        return self._documents.get(uri)
+        with self._lock:
+            return self._documents.get(uri)
 
     def open(
         self,
@@ -1572,7 +1649,11 @@ class WorkspaceState:
         line_length:
             Maximum line length for style diagnostics.
         """
-        state = DocumentState(uri=uri, language_id=language_id)
+        state = DocumentState(
+            uri=uri,
+            language_id=language_id,
+            dialect_hint=infer_document_dialect(uri, source, language_id),
+        )
         if analyse:
             state.update(source, version, force_reanalyse=force_reanalyse, line_length=line_length)
         else:
@@ -1583,14 +1664,17 @@ class WorkspaceState:
             # editor gets syntax highlighting before the heavy analysis.
             chunks = segment_top_level_chunks(source)
             has_partial = any(cmd.is_partial for chunk in chunks for cmd in chunk.commands)
-            state._snap = _StateSnapshot(
-                source=source,
-                version=version,
-                chunks=chunks,
-                has_partial_commands=has_partial,
-                buffer=DocumentBuffer.from_source(source, version),
+            state._swap_snapshot(
+                _StateSnapshot(
+                    source=source,
+                    version=version,
+                    chunks=chunks,
+                    has_partial_commands=has_partial,
+                    buffer=DocumentBuffer.from_source(source, version),
+                )
             )
-        self._documents[uri] = state
+        with self._lock:
+            self._documents[uri] = state
         return state
 
     def update(
@@ -1602,7 +1686,8 @@ class WorkspaceState:
         force_reanalyse: bool = False,
         line_length: int = 120,
     ) -> DocumentState:
-        state = self._documents.get(uri)
+        with self._lock:
+            state = self._documents.get(uri)
         if state is None:
             return self.open(
                 uri,
@@ -1615,13 +1700,16 @@ class WorkspaceState:
         return state
 
     def close(self, uri: str) -> None:
-        self._documents.pop(uri, None)
+        with self._lock:
+            self._documents.pop(uri, None)
 
     def get_language_id(self, uri: str) -> str:
         """Return the ``language_id`` from the editor for *uri*, or ``""``."""
-        state = self._documents.get(uri)
+        with self._lock:
+            state = self._documents.get(uri)
         return state.language_id if state is not None else ""
 
     def items(self) -> list[tuple[str, DocumentState]]:
         """Return all open documents."""
-        return list(self._documents.items())
+        with self._lock:
+            return list(self._documents.items())

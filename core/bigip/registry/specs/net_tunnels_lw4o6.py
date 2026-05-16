@@ -18,12 +18,28 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels lw4o6"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="all-protocols-pass",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                allow_none=True,
+                references=("net_tunnels_lw4o6",),
+                default="lw4o6",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(name="lwtbl-file", value_type="string"),
-            BigipPropertySpec(name="psid-length", value_type="integer"),
-            BigipPropertySpec(
-                name="all-protocols-pass", value_type="enum", enum_values=("enabled", "disabled")
-            ),
+            BigipPropertySpec(name="psid-length", value_type="integer", default="0"),
         ),
     )

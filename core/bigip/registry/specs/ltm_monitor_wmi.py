@@ -19,26 +19,36 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "monitor wmi"),),
         properties=(
             BigipPropertySpec(name="agent", value_type="string"),
-            BigipPropertySpec(name="command", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="defaults-from", value_type="reference", references=("ltm_monitor_wmi",)
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="command", value_type="unknown", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                references=("ltm_monitor_wmi",),
+                default="wmi",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="interval", value_type="integer"),
-            BigipPropertySpec(name="metrics", value_type="boolean", allow_none=True),
+            BigipPropertySpec(name="interval", value_type="integer", default="5 seconds"),
             BigipPropertySpec(
-                name="password",
-                value_type="enum",
+                name="metrics",
+                value_type="unknown",
                 allow_none=True,
-                enum_values=("none", "password"),
+                default="LoadPercentage, DiskUsage, PhysicalMemoryUsage:1",
             ),
-            BigipPropertySpec(name="time-until-up", value_type="integer"),
-            BigipPropertySpec(name="timeout", value_type="integer"),
+            BigipPropertySpec(name="password", value_type="unknown", default="none"),
+            BigipPropertySpec(name="time-until-up", value_type="integer", default="0 (zero)"),
+            BigipPropertySpec(name="timeout", value_type="integer", default="16 seconds"),
+            BigipPropertySpec(name="url", value_type="unknown", default="/scripts/f5Isapi"),
             BigipPropertySpec(
-                name="url", value_type="enum", allow_none=True, enum_values=("none", "url")
-            ),
-            BigipPropertySpec(
-                name="username", value_type="reference", allow_none=True, references=("auth_user",)
+                name="username",
+                value_type="reference",
+                allow_none=True,
+                default="none",
             ),
         ),
     )

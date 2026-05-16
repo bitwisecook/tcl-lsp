@@ -17,12 +17,17 @@ from .object_registry import (
     kind_for_header,
     resolve_kind_in_configs,
 )
-from .parser import (
+from .parser._helpers import (
     _extract_blocks,
     _parse_generic_header,
     _parse_list_block,
     _parse_properties_with_spans,
 )
+from .registry import (
+    candidate_registry_kinds_for_display,
+    references_via_spec,
+)
+from .registry.pilot import pilot_property_spec_for
 
 # Mapping from config file basenames to source-origin tags.
 _SOURCE_ORIGIN_MAP: dict[str, str] = {
@@ -211,6 +216,66 @@ def _build_forward_edges(
         for node in by_id.values():
             prop_map = _parse_properties_with_spans(node.body)
             for key, prop in prop_map.items():
+                # Registry-first dispatch: if a pilot value-spec
+                # owns this property, walk its references through
+                # ``references_via_spec`` and resolve each typed
+                # ``Reference`` to a registry kind via
+                # ``candidate_registry_kinds_for_display``.  Falls
+                # through to the legacy token-scan path for
+                # unmigrated properties so the graph stays complete
+                # while the migration is in flight — duplicate
+                # edges are filtered by ``seen``.
+                if pilot_property_spec_for(node.module, node.object_type, key) is not None:
+                    # Absolute byte offset of ``prop.value`` in the
+                    # source: ``node.start_offset`` is the position of
+                    # the block's opening ``{``, so body starts at
+                    # ``+ 1`` and ``prop.value_start`` is the local
+                    # offset within the body.  Threading this through
+                    # lets the spec layer populate ``Reference.range``
+                    # for downstream LSP features.
+                    value_base = (
+                        node.start_offset + 1 + (prop.value_start or 0)
+                        if prop.value_start is not None
+                        else 0
+                    )
+                    spec_refs = references_via_spec(
+                        module=node.module,
+                        object_type=node.object_type,
+                        property_name=key,
+                        value=prop.value,
+                        owner_path=f"/Common/{node.identifier}"
+                        if not node.identifier.startswith("/")
+                        else node.identifier,
+                        source_uri=node.uri,
+                        base_offset=value_base,
+                    )
+                    for spec_ref in spec_refs or ():
+                        candidate_kinds = candidate_registry_kinds_for_display(spec_ref.target_kind)
+                        for kind in candidate_kinds:
+                            ref_norm = _normalise_reference_for_kind(kind, spec_ref.target_path)
+                            target_id = _resolve_target_node_id(
+                                kind,
+                                ref_norm,
+                                node.module,
+                                configs,
+                                nodes_by_range,
+                                nodes_by_uri,
+                            )
+                            if target_id is None:
+                                continue
+                            edge_key = (node.node_id, target_id, key, kind)
+                            if edge_key in seen:
+                                continue
+                            seen.add(edge_key)
+                            edges.append(
+                                _Edge(
+                                    source_id=node.node_id,
+                                    target_id=target_id,
+                                    via_property=key,
+                                    via_kind=kind,
+                                )
+                            )
+
                 key_kinds = candidate_kinds_for_key(
                     key,
                     section=None,

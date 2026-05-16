@@ -17,5 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("datasync background-tasks",),
         ),
         header_types=(("security", "datasync background-tasks"),),
-        properties=(BigipPropertySpec(name="daily-start-time", value_type="string"),),
+        properties=(BigipPropertySpec(name="daily-start-time", value_type="unknown"),),
     )

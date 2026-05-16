@@ -18,10 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "classification url-category"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="url-category-id", value_type="integer"),
             BigipPropertySpec(
-                name="irule-event", value_type="enum", enum_values=("enabled", "disabled")
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
             ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(
+                name="irule-event",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(name="url-category-id", value_type="integer"),
         ),
     )

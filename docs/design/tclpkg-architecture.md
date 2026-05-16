@@ -88,7 +88,9 @@ tclpkg.tcl (manifest)
 ### LSP integration
 
 23. `_KNOWN_TCL_LSP_SECTIONS` includes `"packageManager"`.
-24. `tcl-lsp.tclpkg.install` and `tcl-lsp.tclpkg.search` command handlers.
+24. `tcl-lsp.tclpkg.install` adds missing manifest requirements, rewrites
+    `tclpkg.lock`, and returns a status dict; `tcl-lsp.tclpkg.search`
+    searches the offline registry cache.
 25. W120 code action offers "Install '<pkg>' via tclpkg" alongside the
     existing "Add 'package require'" action.
 26. VS Code settings under `tclLsp.packageManager.*`.
@@ -109,8 +111,9 @@ tclpkg.tcl (manifest)
 - `vm/interp.py:102` — `TclInterp(safe=…)` parameter
 - `vm/commands/interp_cmds.py:65` — `interp issafe` handler
 - `core/common/user_config.py:126` — `_cache_dir()` helper
-- `lsp/server.py:424` — `_KNOWN_TCL_LSP_SECTIONS`
-- `lsp/features/code_actions.py:381` — `_tclpkg_install_action()`
+- `lsp/settings.py:58` — `_KNOWN_TCL_LSP_SECTIONS`
+- `lsp/commands.py:825` — `tcl-lsp.tclpkg.install` command handler
+- `lsp/features/code_actions.py:383` — `_tclpkg_install_action()`
 
 ## Failure modes
 

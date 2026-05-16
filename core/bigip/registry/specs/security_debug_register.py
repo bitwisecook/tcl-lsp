@@ -19,51 +19,69 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("security", "debug register"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="destination", value_type="string"),
             BigipPropertySpec(
-                name="address",
-                value_type="string",
-                in_sections=("destination",),
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
+                name="destination",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="address",
+                        value_type="unknown",
+                        in_sections=("destination",),
+                    ),
+                    BigipPropertySpec(
+                        name="port", value_type="unknown", in_sections=("destination",)
+                    ),
+                ),
             ),
+            BigipPropertySpec(name="address", value_type="unknown", in_sections=("destination",)),
+            BigipPropertySpec(name="port", value_type="unknown", in_sections=("destination",)),
             BigipPropertySpec(
-                name="port",
-                value_type="integer",
-                in_sections=("destination",),
-                min_value=0,
-                max_value=65535,
+                name="match-ip-version",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
             ),
+            BigipPropertySpec(name="protocol", value_type="unknown", default="any"),
             BigipPropertySpec(
-                name="match-ip-version", value_type="enum", enum_values=("false", "true")
+                name="source",
+                value_type="unknown",
+                shape_kind="object",
+                block=(
+                    BigipPropertySpec(
+                        name="address", value_type="unknown", in_sections=("source",)
+                    ),
+                    BigipPropertySpec(name="port", value_type="unknown", in_sections=("source",)),
+                    BigipPropertySpec(
+                        name="vlan",
+                        value_type="reference",
+                        in_sections=("source",),
+                        references=(
+                            "net_fdb_vlan",
+                            "net_vlan",
+                            "net_vlan_allowed",
+                            "net_vlan_group",
+                            "sys_sflow_data_source_vlan",
+                            "sys_sflow_global_settings_vlan",
+                        ),
+                    ),
+                ),
             ),
-            BigipPropertySpec(name="protocol", value_type="enum", enum_values=("any", "protocol")),
-            BigipPropertySpec(name="source", value_type="string"),
-            BigipPropertySpec(
-                name="address",
-                value_type="string",
-                in_sections=("source",),
-                pattern="^(?:\\\\d{1,3}(?:\\\\.\\\\d{1,3}){3})(?:/\\\\d{1,2})?$",
-            ),
-            BigipPropertySpec(
-                name="port",
-                value_type="integer",
-                in_sections=("source",),
-                min_value=0,
-                max_value=65535,
-            ),
+            BigipPropertySpec(name="address", value_type="unknown", in_sections=("source",)),
+            BigipPropertySpec(name="port", value_type="unknown", in_sections=("source",)),
             BigipPropertySpec(
                 name="vlan",
                 value_type="reference",
                 in_sections=("source",),
-                references=("net_vlan",),
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="list", repeated=True),
-            BigipPropertySpec(name="yotta", value_type="string"),
-            BigipPropertySpec(name="filename", value_type="string"),
-            BigipPropertySpec(name="max-file-mb", value_type="integer"),
-            BigipPropertySpec(name="max-packets", value_type="integer"),
-            BigipPropertySpec(
-                name="unidirectional", value_type="enum", enum_values=("true", "false")
+                references=(
+                    "net_fdb_vlan",
+                    "net_vlan",
+                    "net_vlan_allowed",
+                    "net_vlan_group",
+                    "sys_sflow_data_source_vlan",
+                    "sys_sflow_global_settings_vlan",
+                ),
             ),
         ),
     )

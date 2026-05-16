@@ -18,16 +18,33 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "bwc priority-group"),),
         properties=(
+            BigipPropertySpec(name="app-service", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="priority-classes", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="description", value_type="string", in_sections=("priority-classes",)
+                name="priority-classes",
+                value_type="list",
+                block=(
+                    BigipPropertySpec(
+                        name="description",
+                        value_type="string",
+                        in_sections=("priority-classes",),
+                    ),
+                    BigipPropertySpec(
+                        name="weight-percentage",
+                        value_type="integer",
+                        in_sections=("priority-classes",),
+                    ),
+                ),
             ),
             BigipPropertySpec(
-                name="weight-percentage", value_type="integer", in_sections=("priority-classes",)
+                name="description",
+                value_type="string",
+                in_sections=("priority-classes",),
             ),
-            BigipPropertySpec(name="net", value_type="string"),
-            BigipPropertySpec(name="priority-classes", value_type="string", in_sections=("net",)),
-            BigipPropertySpec(name="weight-percentage", value_type="string", in_sections=("net",)),
+            BigipPropertySpec(
+                name="weight-percentage",
+                value_type="integer",
+                in_sections=("priority-classes",),
+            ),
         ),
     )

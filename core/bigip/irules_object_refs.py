@@ -768,13 +768,23 @@ def _resolve_persist_refs(args: list[str]) -> list[tuple[int, tuple[str, ...]]]:
     etc. are type-keyword forms whose subsequent args are session keys, not
     object references.  We match the first form when ``args[0]`` is a full
     path or otherwise not a persistence-type keyword.
+
+    Some configurations use the ``persist <kind> insert <value>`` form
+    with a TMSH-shaped path as the session key (``persist cookie insert
+    /Common/my_persist``) — treat the path-shaped value as a
+    persistence-profile reference too so cross-config audits catch it.
     """
     if not args:
         return []
     head = args[0].lower()
-    if head in _PERSIST_NON_REFERENCE_KEYWORDS and not args[0].startswith("/"):
-        return []
-    return [(0, PERSISTENCE_KINDS)]
+    if head not in _PERSIST_NON_REFERENCE_KEYWORDS or args[0].startswith("/"):
+        return [(0, PERSISTENCE_KINDS)]
+    # ``persist <kind> {insert|lookup} <path>`` — the third arg is the
+    # session-key value, but real-world iRules sometimes use a TMSH
+    # path there.  Pick up the ref when args[2] is path-shaped.
+    if len(args) >= 3 and args[1].lower() in ("insert", "lookup") and args[2].startswith("/"):
+        return [(2, PERSISTENCE_KINDS)]
+    return []
 
 
 _CUSTOM_RESOLVERS: dict[str, Callable[[list[str]], list[tuple[int, tuple[str, ...]]]]] = {

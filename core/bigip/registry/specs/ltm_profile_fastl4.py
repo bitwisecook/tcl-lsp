@@ -19,160 +19,313 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile fastl4"),),
         properties=(
             BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="client-timeout", value_type="integer"),
+            BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_fastl4",),
+                default="fastl4",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="hardware-syn-cookie", value_type="enum", enum_values=("disabled", "enabled")
+                name="explicit-flow-migration",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="idle-timeout", value_type="integer"),
-            BigipPropertySpec(name="ip-tos-to-client", value_type="integer"),
-            BigipPropertySpec(name="ip-tos-to-server", value_type="integer"),
-            BigipPropertySpec(name="keep-alive-interval", value_type="integer"),
             BigipPropertySpec(
-                name="ip-df-mode", value_type="enum", enum_values=("preserve", "set", "clear")
+                name="hardware-syn-cookie",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(name="idle-timeout", value_type="integer", default="300 seconds"),
+            BigipPropertySpec(
+                name="ip-df-mode",
+                value_type="enum",
+                enum_values=("clear", "preserve", "set"),
+            ),
+            BigipPropertySpec(
+                name="ip-tos-to-client",
+                value_type="integer",
+                default="65535, which indicates, do not modify",
+            ),
+            BigipPropertySpec(
+                name="ip-tos-to-server",
+                value_type="integer",
+                default="65535, which indicates, do not modify",
             ),
             BigipPropertySpec(
                 name="ip-ttl-mode",
                 value_type="enum",
-                enum_values=("proxy", "preserve", "decrement", "set"),
+                enum_values=("decrement", "preserve", "proxy", "set"),
             ),
             BigipPropertySpec(name="ip-ttl-value", value_type="integer"),
-            BigipPropertySpec(name="link-qos-to-client", value_type="integer"),
-            BigipPropertySpec(name="link-qos-to-server", value_type="integer"),
-            BigipPropertySpec(name="priority-to-client", value_type="integer"),
-            BigipPropertySpec(name="priority-to-server", value_type="integer"),
             BigipPropertySpec(
-                name="loose-close", value_type="enum", enum_values=("disabled", "enabled")
+                name="keep-alive-interval",
+                value_type="integer",
+                default="disabled (0 seconds)",
             ),
             BigipPropertySpec(
-                name="loose-initialization", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="mss-override", value_type="integer"),
-            BigipPropertySpec(
-                name="pva-acceleration",
+                name="late-binding",
                 value_type="enum",
-                allow_none=True,
-                enum_values=("full", "none", "partial", "dedicated"),
-            ),
-            BigipPropertySpec(name="pva-dynamic-client-packets", value_type="integer"),
-            BigipPropertySpec(name="pva-dynamic-server-packets", value_type="integer"),
-            BigipPropertySpec(
-                name="pva-offload-dynamic", value_type="enum", enum_values=("enabled", "disabled")
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="pva-offload-state", value_type="enum", enum_values=("embryonic", "establish")
+                name="link-qos-to-client",
+                value_type="integer",
+                default="65535, which indicates, do not modify",
             ),
             BigipPropertySpec(
-                name="pva-offload-dynamic-priority",
+                name="link-qos-to-server",
+                value_type="integer",
+                default="65535, which indicates, do not modify",
+            ),
+            BigipPropertySpec(
+                name="loose-close",
                 value_type="enum",
-                enum_values=("enable", "disable"),
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="pva-offload-initial-priority",
+                name="loose-initialization",
                 value_type="enum",
-                enum_values=("low", "medium", "high"),
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="pva-flow-aging", value_type="enum", enum_values=("enabled", "disabled")
+                name="mss-override",
+                value_type="integer",
+                default="0 (zero), which disables this option",
             ),
             BigipPropertySpec(
-                name="pva-flow-evict", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-            BigipPropertySpec(
-                name="tcp-pva-whento-offload",
-                value_type="enum",
-                enum_values=("embryonic", "establish"),
-            ),
-            BigipPropertySpec(
-                name="tcp-pva-offload-direction",
-                value_type="enum",
-                enum_values=("bidirectional", "client-to-server-only", "server-to-client-only"),
-            ),
-            BigipPropertySpec(
-                name="other-pva-whento-offload",
-                value_type="enum",
-                enum_values=("after-packets-per-direction", "after-packets-both-direction"),
+                name="other-pva-clientpkts-threshold",
+                value_type="integer",
+                default="2",
             ),
             BigipPropertySpec(
                 name="other-pva-offload-direction",
                 value_type="enum",
                 enum_values=("bidirectional", "client-to-server-only", "server-to-client-only"),
-            ),
-            BigipPropertySpec(name="other-pva-clientpkts-threshold", value_type="integer"),
-            BigipPropertySpec(name="other-pva-serverpkts-threshold", value_type="integer"),
-            BigipPropertySpec(
-                name="reassemble-fragments", value_type="enum", enum_values=("disabled", "enabled")
+                default="bidirectional which implies both side is permitted to offload if threshold exceeds",
             ),
             BigipPropertySpec(
-                name="reset-on-timeout", value_type="enum", enum_values=("disabled", "enabled")
+                name="other-pva-serverpkts-threshold",
+                value_type="integer",
+                default="1",
             ),
             BigipPropertySpec(
-                name="rtt-from-client", value_type="enum", enum_values=("disabled", "enabled")
+                name="other-pva-whento-offload",
+                value_type="enum",
+                enum_values=("after-packets-both-direction", "after-packets-per-direction"),
+                default="after-packets-per-direction and implies the client and server traffic is offloaded independently after exceeding their own thresholds",
             ),
             BigipPropertySpec(
-                name="rtt-from-server", value_type="enum", enum_values=("disabled", "enabled")
+                name="priority-to-client",
+                value_type="integer",
+                default="65535, which indicates, do not modify",
             ),
             BigipPropertySpec(
-                name="server-sack", value_type="enum", enum_values=("disabled", "enabled")
+                name="priority-to-server",
+                value_type="integer",
+                default="65535, which indicates, do not modify",
             ),
             BigipPropertySpec(
-                name="server-timestamp", value_type="enum", enum_values=("disabled", "enabled")
+                name="pva-acceleration",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("dedicated", "full", "none", "partial"),
+                default="full",
             ),
-            BigipPropertySpec(name="receive-window-size", value_type="string"),
+            BigipPropertySpec(name="pva-dynamic-client-packets", value_type="integer", default="2"),
+            BigipPropertySpec(name="pva-dynamic-server-packets", value_type="integer", default="2"),
             BigipPropertySpec(
-                name="software-syn-cookie", value_type="enum", enum_values=("disabled", "enabled")
+                name="pva-flow-aging",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="pva-flow-evict",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="pva-offload-dynamic",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="pva-offload-dynamic-priority",
+                value_type="enum",
+                enum_values=("disable", "enable"),
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="pva-offload-initial-priority",
+                value_type="enum",
+                enum_values=("high", "low", "medium"),
+                default="medium",
+            ),
+            BigipPropertySpec(
+                name="pva-offload-state",
+                value_type="enum",
+                enum_values=("embryonic", "establish"),
+                default="embryonic and implies at TCP CSYN or the first client UDP packet",
+                usage_flags=frozenset(("deprecated",)),
+            ),
+            BigipPropertySpec(
+                name="reassemble-fragments",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(name="receive-window-size", value_type="unknown"),
+            BigipPropertySpec(
+                name="reset-on-client-fin",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="reset-on-timeout",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="rtt-from-client",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="rtt-from-server",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="server-sack",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="server-timestamp",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="software-syn-cookie",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+                usage_flags=frozenset(("deprecated",)),
             ),
             BigipPropertySpec(
                 name="syn-cookie-dsr-flow-reset-by",
                 value_type="enum",
                 allow_none=True,
                 enum_values=("bigip", "client", "none"),
+                default="none, which is backward-compatible with syn-cookie-whitelist feature in non-DSR mode",
             ),
             BigipPropertySpec(
-                name="syn-cookie-enable", value_type="enum", enum_values=("disabled", "enabled")
+                name="syn-cookie-enable",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="syn-cookie-mss", value_type="integer"),
             BigipPropertySpec(
-                name="syn-cookie-whitelist", value_type="enum", enum_values=("disabled", "enabled")
+                name="syn-cookie-mss",
+                value_type="integer",
+                default="0 (zero), which disables this option",
             ),
-            BigipPropertySpec(name="tcp-close-timeout", value_type="integer"),
             BigipPropertySpec(
-                name="tcp-generate-is", value_type="enum", enum_values=("disabled", "enabled")
+                name="syn-cookie-whitelist",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="tcp-handshake-timeout", value_type="integer"),
+            BigipPropertySpec(name="tcp-close-timeout", value_type="integer", default="5 seconds"),
             BigipPropertySpec(
-                name="tcp-strip-sack", value_type="enum", enum_values=("disabled", "enabled")
+                name="tcp-generate-is",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="tcp-handshake-timeout",
+                value_type="integer",
+                default="5 seconds",
+            ),
+            BigipPropertySpec(
+                name="tcp-pva-offload-direction",
+                value_type="enum",
+                enum_values=("bidirectional", "client-to-server-only", "server-to-client-only"),
+                default="bidirectional which implies both side is permitted to offload if threshold exceeds",
+            ),
+            BigipPropertySpec(
+                name="tcp-pva-whento-offload",
+                value_type="enum",
+                enum_values=("embryonic", "establish"),
+                default="embryonic and implies at TCP SYN packet",
+            ),
+            BigipPropertySpec(
+                name="tcp-strip-sack",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="tcp-time-wait-timeout",
+                value_type="integer",
+                default="0 milliseconds",
             ),
             BigipPropertySpec(
                 name="tcp-timestamp-mode",
                 value_type="enum",
                 enum_values=("preserve", "rewrite", "strip"),
+                default="preserve",
             ),
-            BigipPropertySpec(name="tcp-time-wait-timeout", value_type="integer"),
             BigipPropertySpec(
                 name="tcp-wscale-mode",
                 value_type="enum",
                 enum_values=("preserve", "rewrite", "strip"),
+                default="preserve",
             ),
             BigipPropertySpec(
-                name="late-binding", value_type="enum", enum_values=("enabled", "disabled")
-            ),
-            BigipPropertySpec(
-                name="explicit-flow-migration",
+                name="timeout-recovery",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
+                enum_values=("disconnect", "fallback"),
             ),
-            BigipPropertySpec(name="client-timeout", value_type="integer"),
-            BigipPropertySpec(
-                name="timeout-recovery", value_type="enum", enum_values=("disconnect", "fallback")
-            ),
-            BigipPropertySpec(
-                name="reset-on-client-fin", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

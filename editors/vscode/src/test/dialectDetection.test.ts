@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { activate, getDocUri, sleep } from "./helper";
+import { activate, getDocUri, getServerLog, sleep } from "./helper";
 
 async function completionLabels(uri: vscode.Uri, position: vscode.Position): Promise<string[]> {
   const result = (await vscode.commands.executeCommand(
@@ -67,27 +67,41 @@ suite("Dialect Detection", () => {
 
   test("maps .irul extension to f5-irules", async () => {
     const uri = getDocUri("dialect.irul");
-    await activate(uri);
+    const doc = await activate(uri);
 
     const labels = await waitForCompletions(uri, new vscode.Position(2, 11), (l) =>
       l.includes("HTTP::header"),
     );
+    const httpLabels = labels.filter((l) => l.startsWith("HTTP::"));
+    const dialectLines = getServerLog()
+      .filter((m) => /Auto-switch|Switched|Dialect|dialect/.test(m))
+      .slice(-8);
     assert.ok(
       labels.includes("HTTP::header"),
-      'Expected "HTTP::header" completion for .irule file',
+      `Expected "HTTP::header" completion for .irule file ` +
+        `(languageId=${doc.languageId}, totalLabels=${labels.length}, ` +
+        `httpLabels=${JSON.stringify(httpLabels.slice(0, 5))}, ` +
+        `recentServerDialectLog=${JSON.stringify(dialectLines)})`,
     );
   });
 
   test("maps .iapp extension to f5-iapps", async () => {
     const uri = getDocUri("dialect.iapp");
-    await activate(uri);
+    const doc = await activate(uri);
 
     const labels = await waitForCompletions(uri, new vscode.Position(1, 6), (l) =>
       l.includes("iapp::template"),
     );
+    const iappLabels = labels.filter((l) => l.startsWith("iapp::"));
+    const dialectLines = getServerLog()
+      .filter((m) => /Auto-switch|Switched|Dialect|dialect/.test(m))
+      .slice(-8);
     assert.ok(
       labels.includes("iapp::template"),
-      'Expected "iapp::template" completion for .iapp file',
+      `Expected "iapp::template" completion for .iapp file ` +
+        `(languageId=${doc.languageId}, totalLabels=${labels.length}, ` +
+        `iappLabels=${JSON.stringify(iappLabels.slice(0, 5))}, ` +
+        `recentServerDialectLog=${JSON.stringify(dialectLines)})`,
     );
   });
 

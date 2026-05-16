@@ -18,7 +18,7 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "autoscale-group"),),
         properties=(
-            BigipPropertySpec(name="autoscale-group-id", value_type="integer", allow_none=True),
+            BigipPropertySpec(name="autoscale-group-id", value_type="string", allow_none=True),
             BigipPropertySpec(name="description", value_type="string"),
         ),
     )

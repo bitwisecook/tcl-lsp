@@ -17,5 +17,12 @@ def register_spec() -> BigipObjectSpec:
             object_types=("profile mqtt",),
         ),
         header_types=(("ltm", "profile mqtt"),),
-        properties=(BigipPropertySpec(name="reset-stats", value_type="string"),),
+        properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+        ),
     )

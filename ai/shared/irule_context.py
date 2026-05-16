@@ -302,14 +302,17 @@ def build_irule_context(
 def _summarise_pool(pool: BigipPool) -> dict[str, Any]:
     return {
         "fullPath": pool.full_path,
-        "monitor": pool.monitor or None,
+        "monitor": str(pool.monitor) if pool.monitor else None,
         "loadBalancingMode": pool.load_balancing_mode or None,
         "members": [
             {
                 "name": m.name,
-                "address": m.address or None,
+                # ``m.address`` is now a typed :class:`IPAddress` /
+                # ``Address`` value — render to its canonical string
+                # spelling so the JSON payload stays a flat str.
+                "address": str(m.address) if m.address else None,
                 "port": m.port or None,
-                "monitor": m.monitor or None,
+                "monitor": str(m.monitor) if m.monitor else None,
             }
             for m in pool.members
         ],
@@ -346,7 +349,11 @@ def _summarise_monitor(m: BigipMonitor) -> dict[str, Any]:
 
 
 def _summarise_node(n: BigipNode) -> dict[str, Any]:
-    return {"fullPath": n.full_path, "address": n.address or None}
+    # ``n.address`` is now a typed :class:`IPAddress` / ``FQDN`` value.
+    return {
+        "fullPath": n.full_path,
+        "address": str(n.address) if n.address else None,
+    }
 
 
 def context_bundle_to_dict(bundle: IruleContextBundle) -> dict[str, Any]:

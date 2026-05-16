@@ -18,12 +18,25 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "url-db download-schedule"),),
         properties=(
-            BigipPropertySpec(name="start-time", value_type="string"),
-            BigipPropertySpec(name="end-time", value_type="string"),
             BigipPropertySpec(
-                name="download-now", value_type="enum", enum_values=("true", "false")
+                name="download-now",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="status", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="use-proxy", value_type="enum", enum_values=("true", "false")),
+            BigipPropertySpec(name="end-time", value_type="unknown"),
+            BigipPropertySpec(name="start-time", value_type="unknown"),
+            BigipPropertySpec(
+                name="status",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="use-proxy",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
         ),
     )

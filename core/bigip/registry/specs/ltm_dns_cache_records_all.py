@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dns cache records all",),
         ),
         header_types=(("ltm", "dns cache records all"),),
+        properties=(),
     )

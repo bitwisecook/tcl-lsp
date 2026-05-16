@@ -18,8 +18,19 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "protocol-inspection common-config"),),
         properties=(
-            BigipPropertySpec(name="compliance", value_type="list", repeated=True),
+            BigipPropertySpec(name="app-service", value_type="string"),
+            BigipPropertySpec(
+                name="compliance",
+                value_type="unknown",
+                repeated=True,
+                shape_kind="object",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="service", value_type="list", repeated=True),
+            BigipPropertySpec(
+                name="service",
+                value_type="unknown",
+                repeated=True,
+                shape_kind="object",
+            ),
         ),
     )

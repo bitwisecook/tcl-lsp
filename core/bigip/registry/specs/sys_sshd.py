@@ -19,17 +19,48 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "sshd"),),
         properties=(
             BigipPropertySpec(
-                name="allow", value_type="enum", enum_values=("add", "delete", "replace-all-with")
+                name="allow",
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
+                default="all",
             ),
             BigipPropertySpec(
-                name="banner", value_type="enum", enum_values=("disabled", "enabled")
+                name="banner",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(name="banner-text", value_type="string"),
-            BigipPropertySpec(name="inactivity-timeout", value_type="integer"),
+            BigipPropertySpec(
+                name="inactivity-timeout",
+                value_type="integer",
+                default="0 (zero) seconds, which indicates that inactivity timeout is disabled",
+            ),
             BigipPropertySpec(name="include", value_type="string"),
-            BigipPropertySpec(name="login", value_type="enum", enum_values=("disabled", "enabled")),
-            BigipPropertySpec(name="log-level", value_type="string"),
-            BigipPropertySpec(name="info", value_type="string"),
-            BigipPropertySpec(name="port", value_type="integer", min_value=0, max_value=65535),
+            BigipPropertySpec(
+                name="log-level",
+                value_type="enum",
+                enum_values=(
+                    "debug",
+                    "debug1",
+                    "debug2",
+                    "debug3",
+                    "error",
+                    "fatal",
+                    "info",
+                    "quiet",
+                    "verbose",
+                ),
+            ),
+            BigipPropertySpec(
+                name="login",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(name="port", value_type="integer", default="22"),
         ),
     )

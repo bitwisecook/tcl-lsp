@@ -22,7 +22,7 @@ def register_spec() -> BigipObjectSpec:
                 name="audit",
                 value_type="enum",
                 allow_none=True,
-                enum_values=("none", "modifications", "all"),
+                enum_values=("all", "modifications", "none"),
             ),
         ),
     )

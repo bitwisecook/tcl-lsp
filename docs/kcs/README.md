@@ -53,6 +53,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 
 - [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md) —
   when (and when not) to restart the Tcl Language Server.
+- [kcs-qa-query-vs-grep-vs-rename.md](kcs-qa-query-vs-grep-vs-rename.md) —
+  which `f5` verb to pick for filter / find / rename tasks.
 
 ## How-Tos
 
@@ -76,6 +78,32 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-readdress-virtuals-with-query.md](kcs-howto-readdress-virtuals-with-query.md)
+  — bulk-readdress virtual servers into a new subnet with `f5 query`.
+- [kcs-howto-migrate-partition-with-query.md](kcs-howto-migrate-partition-with-query.md)
+  — move every object from one partition into another, including
+  route-domain transforms.
+- [kcs-howto-compose-query-streams.md](kcs-howto-compose-query-streams.md)
+  — filter and transform streams of BIG-IP objects with `select`,
+  `map`, `any`, `all`, `sort`, `unique`, and friends.
+- [kcs-howto-audit-config-with-query.md](kcs-howto-audit-config-with-query.md)
+  — audit a config for orphans, naming-convention violations, port
+  policy, partition leaks, and pool-member sanity using `f5 query`.
+- [kcs-howto-audit-server-certs-with-query.md](kcs-howto-audit-server-certs-with-query.md)
+  — verify the cert on each device's `sys file ssl-cert` matches
+  the cert each virtual is actually serving; find devices where a
+  cert push failed in a multi-tier deployment.
+- [kcs-howto-reproduce-http-monitor-with-query.md](kcs-howto-reproduce-http-monitor-with-query.md)
+  — reproduce an `ltm monitor http(s)` from your laptop, honouring
+  the 5,120-byte response-check ceiling (F5 KB K3451) so the
+  result matches what the device sees.
+- [kcs-howto-cross-config-transforms-with-query.md](kcs-howto-cross-config-transforms-with-query.md)
+  — compose multi-step transformations (rename + readdress + policy
+  edit) across the config in one `;`-separated query.
+- [kcs-howto-rewrite-pool-refs-in-irules.md](kcs-howto-rewrite-pool-refs-in-irules.md)
+  — rename a pool everywhere, including inside iRule bodies.
+- [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)
+  — filter BIG-IP objects by arbitrary property predicates.
 - [kcs-tcl-corner-cases.md](kcs-tcl-corner-cases.md)
   — empirical reference of Tcl 9.0.3 variable-handling behaviour
   with a machine-runnable probe set in `tests/data/tcl_probes_full.tcl`.

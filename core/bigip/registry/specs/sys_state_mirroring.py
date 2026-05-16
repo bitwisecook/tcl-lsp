@@ -18,10 +18,36 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "state-mirroring"),),
         properties=(
-            BigipPropertySpec(name="addr", value_type="string"),
-            BigipPropertySpec(name="peer-addr", value_type="string"),
-            BigipPropertySpec(name="secondary-addr", value_type="string"),
-            BigipPropertySpec(name="secondary-peer-addr", value_type="string"),
-            BigipPropertySpec(name="state", value_type="enum", enum_values=("enabled", "disabled")),
+            BigipPropertySpec(
+                name="addr",
+                value_type="string",
+                shape_kind="ip-address",
+                default="::",
+            ),
+            BigipPropertySpec(
+                name="peer-addr",
+                value_type="string",
+                shape_kind="ip-address",
+                default="::",
+            ),
+            BigipPropertySpec(
+                name="secondary-addr",
+                value_type="string",
+                shape_kind="ip-address",
+                default="::",
+            ),
+            BigipPropertySpec(
+                name="secondary-peer-addr",
+                value_type="string",
+                shape_kind="ip-address",
+                default="::",
+            ),
+            BigipPropertySpec(
+                name="state",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
         ),
     )

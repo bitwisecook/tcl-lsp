@@ -42,10 +42,13 @@ def _resolve_target(
 
 def _explain_virtual(cfg: BigipConfig, vs: BigipVirtualServer) -> list[tuple[str, list[str]]]:
     sections: list[tuple[str, list[str]]] = []
-    sections.append(("destination", [vs.destination or "(none)"]))
+    # ``vs.destination`` is a typed :class:`Destination` | None — render
+    # to its canonical text spelling for the explainer output.
+    dest_text = str(vs.destination) if vs.destination is not None else "(none)"
+    sections.append(("destination", [dest_text]))
 
     profiles = []
-    for pref in vs.profiles:
+    for pref in vs.profiles.paths:
         resolved = cfg.resolve_profile(pref) or pref
         profile = cfg.profiles.get(resolved)
         if profile is not None:
@@ -70,7 +73,7 @@ def _explain_virtual(cfg: BigipConfig, vs: BigipVirtualServer) -> list[tuple[str
     sections.append(("iRules", rules or ["(none)"]))
 
     persist = []
-    for pref in vs.persist:
+    for pref in vs.persist.paths:
         resolved = cfg.resolve_persistence(pref) or pref
         prof = cfg.persistence.get(resolved)
         if prof is not None:

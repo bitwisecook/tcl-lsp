@@ -17,5 +17,13 @@ def register_spec() -> BigipObjectSpec:
             object_types=("file ssl-crl",),
         ),
         header_types=(("sys", "file ssl-crl"),),
-        properties=(BigipPropertySpec(name="source-path", value_type="string"),),
+        properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="source-path", value_type="unknown"),
+        ),
     )

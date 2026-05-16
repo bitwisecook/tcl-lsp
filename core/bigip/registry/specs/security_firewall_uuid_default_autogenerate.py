@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("firewall uuid-default-autogenerate",),
         ),
         header_types=(("security", "firewall uuid-default-autogenerate"),),
+        properties=(),
     )

@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,8 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("software volume",),
         ),
         header_types=(("sys", "software volume"),),
-        properties=(
-            BigipPropertySpec(name="reboot", value_type="string"),
-            BigipPropertySpec(name="media", value_type="string"),
-        ),
+        properties=(),
     )

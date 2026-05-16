@@ -12,6 +12,7 @@ from ._bigip import (
     _collect_bigip_tokens,
     _collect_embedded_tcl_tokens,
     _collect_irules_object_tokens,
+    _collect_registry_property_ref_tokens,
 )
 from ._collect import _collect_tokens
 
@@ -93,6 +94,7 @@ def semantic_tokens_full(
         raw_tokens.extend(base_tokens)
         raw_tokens.extend(embedded_tokens)
         _collect_bigip_tokens(raw_tokens, source)
+        _collect_registry_property_ref_tokens(raw_tokens, source)
         _collect_bigip_embedded_irules_object_tokens(raw_tokens, source)
     else:
         raw_tokens.extend(base_tokens)
@@ -182,6 +184,7 @@ def precompute_chunk_tokens(
         raw_tokens.extend(base_tokens)
         raw_tokens.extend(embedded_tokens)
         _collect_bigip_tokens(raw_tokens, source)
+        _collect_registry_property_ref_tokens(raw_tokens, source)
         _collect_bigip_embedded_irules_object_tokens(raw_tokens, source)
     else:
         raw_tokens.extend(base_tokens)

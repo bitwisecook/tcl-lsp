@@ -17,8 +17,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("tacdb licenseddb",),
         ),
         header_types=(("ltm", "tacdb licenseddb"),),
-        properties=(
-            BigipPropertySpec(name="poll-interval", value_type="integer"),
-            BigipPropertySpec(name="load", value_type="string"),
-        ),
+        properties=(BigipPropertySpec(name="poll-interval", value_type="integer"),),
     )

@@ -18,18 +18,21 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "profile quic"),),
         properties=(
+            BigipPropertySpec(name="bidi-concurrent-streams-per-connection", value_type="integer"),
             BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_quic",),
+                default="quic",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="bidi-concurrent-streams-per-connection", value_type="integer"),
             BigipPropertySpec(
-                name="spin-bit", value_type="enum", enum_values=("disabled", "enabled")
+                name="spin-bit",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="uni-concurrent-streams-per-connection", value_type="integer"),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

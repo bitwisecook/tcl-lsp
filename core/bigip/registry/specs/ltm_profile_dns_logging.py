@@ -20,22 +20,54 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="enable-query-logging", value_type="enum", enum_values=("no", "yes")
+                name="enable-query-logging",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes",
             ),
             BigipPropertySpec(
-                name="enable-response-logging", value_type="enum", enum_values=("no", "yes")
+                name="enable-response-logging",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
             ),
             BigipPropertySpec(
-                name="include-complete-answer", value_type="enum", enum_values=("no", "yes")
+                name="include-complete-answer",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes (complete-answer)",
             ),
             BigipPropertySpec(
-                name="include-query-id", value_type="enum", enum_values=("no", "yes")
+                name="include-query-id",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
             ),
-            BigipPropertySpec(name="include-source", value_type="enum", enum_values=("no", "yes")),
             BigipPropertySpec(
-                name="include-timestamp", value_type="enum", enum_values=("no", "yes")
+                name="include-source",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes",
             ),
-            BigipPropertySpec(name="include-view", value_type="enum", enum_values=("no", "yes")),
-            BigipPropertySpec(name="log-publisher", value_type="string"),
+            BigipPropertySpec(
+                name="include-timestamp",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes",
+            ),
+            BigipPropertySpec(
+                name="include-view",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes",
+            ),
+            BigipPropertySpec(name="log-publisher", value_type="reference"),
         ),
     )

@@ -17,5 +17,13 @@ def register_spec() -> BigipObjectSpec:
             object_types=("classification category",),
         ),
         header_types=(("ltm", "classification category"),),
-        properties=(BigipPropertySpec(name="description", value_type="string"),),
+        properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="description", value_type="string"),
+        ),
     )

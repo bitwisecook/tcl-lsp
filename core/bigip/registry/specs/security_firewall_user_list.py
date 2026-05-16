@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("firewall user-list",),
         ),
         header_types=(("security", "firewall user-list"),),
+        properties=(),
     )

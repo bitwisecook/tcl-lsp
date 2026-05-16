@@ -19,11 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("sys", "management-proxy-config"),),
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="proxy-ip-addr", value_type="string"),
-            BigipPropertySpec(
-                name="proxy-port", value_type="integer", min_value=0, max_value=65535
-            ),
-            BigipPropertySpec(name="username", value_type="reference", references=("auth_user",)),
             BigipPropertySpec(name="password", value_type="string"),
+            BigipPropertySpec(name="proxy-ip-addr", value_type="string", shape_kind="ip-address"),
+            BigipPropertySpec(name="proxy-port", value_type="unknown", default="3128)"),
+            BigipPropertySpec(name="username", value_type="string"),
         ),
     )

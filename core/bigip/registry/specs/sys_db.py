@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("db",),
         ),
         header_types=(("sys", "db"),),
+        properties=(),
     )

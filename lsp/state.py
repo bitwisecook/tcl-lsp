@@ -283,12 +283,21 @@ def get_or_init_folder_feature_config(folder_uri: str) -> FeatureConfig:
     """Initialise the FeatureConfig for ``folder_uri`` if missing, then return it.
 
     A new folder inherits a deep copy of the fallback so it starts aligned
-    with workspace/user defaults.
+    with workspace/user defaults — except for ``dialect_explicitly_set``,
+    which is per-scope: an explicit dialect choice at the workspace level
+    is *not* an explicit choice for this folder, so the folder starts
+    with the flag cleared.  Otherwise ``did_open``'s iRules / iApps
+    auto-switch would be silently disabled for every folder created
+    after a workspace-level ``setDialect`` (e.g. opening a ``.irul``
+    file in a workspace whose top-level was previously pinned to a
+    Tcl version).
     """
     from copy import deepcopy
 
     if folder_uri not in _per_folder_feature_configs:
-        _per_folder_feature_configs[folder_uri] = deepcopy(feature_config)
+        cfg = deepcopy(feature_config)
+        cfg.dialect_explicitly_set = False
+        _per_folder_feature_configs[folder_uri] = cfg
     return _per_folder_feature_configs[folder_uri]
 
 

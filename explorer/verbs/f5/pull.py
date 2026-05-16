@@ -87,5 +87,12 @@ def _run_pull(args: argparse.Namespace) -> int:
         sys.stdout.write(json.dumps(obj, indent=2) + "\n")
     else:
         scf = object_to_scf_stanza(args.kind, obj)
-        sys.stdout.write(render_config(scf, fmt=args.output_format, tmsh_verb="create"))
+        sys.stdout.write(
+            render_config(
+                scf,
+                fmt=args.output_format,
+                tmsh_verb="create",
+                transaction=getattr(args, "output_transaction", False),
+            )
+        )
     return 0

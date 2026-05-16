@@ -19,7 +19,9 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("net", "routing profile bgp"),),
         properties=(
             BigipPropertySpec(
-                name="adj-out", value_type="enum", enum_values=("disabled", "enabled")
+                name="adj-out",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
             BigipPropertySpec(
                 name="aggregate-nexthop-check",
@@ -28,17 +30,53 @@ def register_spec() -> BigipObjectSpec:
             ),
             BigipPropertySpec(name="as-local-count", value_type="integer"),
             BigipPropertySpec(
-                name="bgp-multiple-instance", value_type="enum", enum_values=("disabled", "enabled")
+                name="bgp-multiple-instance",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="defaults-from", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="boolean",
+                allow_none=True,
+                references=("net_routing_profile_bgp",),
+            ),
             BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="extended-asn-cap", value_type="enum", enum_values=("disabled", "enabled")
+                name="extended-asn-cap",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="max-paths", value_type="string"),
+            BigipPropertySpec(
+                name="max-paths",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="ebgp", value_type="integer", in_sections=("max-paths",)
+                    ),
+                    BigipPropertySpec(
+                        name="ibgp", value_type="integer", in_sections=("max-paths",)
+                    ),
+                ),
+            ),
             BigipPropertySpec(name="ebgp", value_type="integer", in_sections=("max-paths",)),
             BigipPropertySpec(name="ibgp", value_type="integer", in_sections=("max-paths",)),
-            BigipPropertySpec(name="nexthop-trigger", value_type="string"),
+            BigipPropertySpec(
+                name="nexthop-trigger",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="delay",
+                        value_type="integer",
+                        in_sections=("nexthop-trigger",),
+                    ),
+                    BigipPropertySpec(
+                        name="state",
+                        value_type="enum",
+                        in_sections=("nexthop-trigger",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(name="delay", value_type="integer", in_sections=("nexthop-trigger",)),
             BigipPropertySpec(
                 name="state",
@@ -46,7 +84,24 @@ def register_spec() -> BigipObjectSpec:
                 in_sections=("nexthop-trigger",),
                 enum_values=("disabled", "enabled"),
             ),
-            BigipPropertySpec(name="rfc1771", value_type="string"),
+            BigipPropertySpec(
+                name="rfc1771",
+                value_type="string",
+                block=(
+                    BigipPropertySpec(
+                        name="path-select",
+                        value_type="enum",
+                        in_sections=("rfc1771",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                    BigipPropertySpec(
+                        name="strict",
+                        value_type="enum",
+                        in_sections=("rfc1771",),
+                        enum_values=("disabled", "enabled"),
+                    ),
+                ),
+            ),
             BigipPropertySpec(
                 name="path-select",
                 value_type="enum",

@@ -18,19 +18,38 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "core"),),
         properties=(
-            BigipPropertySpec(name="tmm-manage", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="tmm-max", value_type="string"),
-            BigipPropertySpec(name="tmm-action", value_type="enum", enum_values=("skip", "rotate")),
-            BigipPropertySpec(name="mcpd-manage", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="mcpd-max", value_type="string"),
             BigipPropertySpec(
-                name="mcpd-action", value_type="enum", enum_values=("skip", "rotate")
+                name="bigd-action",
+                value_type="enum",
+                enum_values=("rotate", "skip"),
             ),
-            BigipPropertySpec(name="bigd-manage", value_type="enum", enum_values=("true", "false")),
-            BigipPropertySpec(name="bigd-max", value_type="string"),
             BigipPropertySpec(
-                name="bigd-action", value_type="enum", enum_values=("skip", "rotate")
+                name="bigd-manage",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
             ),
-            BigipPropertySpec(name="retention", value_type="string"),
+            BigipPropertySpec(name="bigd-max", value_type="unknown"),
+            BigipPropertySpec(
+                name="mcpd-action",
+                value_type="enum",
+                enum_values=("rotate", "skip"),
+            ),
+            BigipPropertySpec(
+                name="mcpd-manage",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(name="mcpd-max", value_type="unknown"),
+            BigipPropertySpec(name="retention", value_type="integer"),
+            BigipPropertySpec(name="tmm-action", value_type="enum", enum_values=("rotate", "skip")),
+            BigipPropertySpec(
+                name="tmm-manage",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(name="tmm-max", value_type="unknown"),
         ),
     )

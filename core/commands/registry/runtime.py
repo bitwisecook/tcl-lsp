@@ -748,6 +748,12 @@ def configure_signatures(
     _dialect_var.set(next_dialect)
     _extra_commands_var.set(next_extra)
 
+    # Lexer flags (``{*}`` word expansion, iRules ``}{`` brace-word
+    # separator) are read per-call from ``_dialect_var`` via
+    # :func:`core.parsing.lexer._expand_syntax_active` /
+    # :func:`_irules_brace_separator_active`, so no class-attribute
+    # mutation is needed here.
+
     return True
 
 

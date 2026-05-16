@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from lsprotocol import types
 from pygls.lsp.server import LanguageServer
@@ -26,8 +28,6 @@ from core.common.optimisation_profiles import (
 from core.common.user_config import save_settings_to_config
 from core.compiler.optimiser import optimise_source
 from core.minifier import minify_tcl
-from explorer.pipeline import run_pipeline as explorer_run_pipeline
-from explorer.serialise import serialise_result as explorer_serialise_result
 
 from .feature_config import FeatureConfig
 from .features.diagnostics import get_basic_diagnostics
@@ -52,6 +52,7 @@ _DIALECT_LABELS = {
     "f5-iapps": "F5 iApps",
     "eda-tools": "EDA Tools",
 }
+_TCLPKG_NAME_RE = re.compile(r"^[A-Za-z0-9_:.+-]+$")
 
 
 def configure(server_instance: LanguageServer) -> None:
@@ -422,6 +423,9 @@ def on_compiler_explorer(source: str, dialect: str) -> dict | None:
             "details": "Open a Tcl/iRule file in the active editor and try again.",
         }
     try:
+        from explorer.pipeline import run_pipeline as explorer_run_pipeline
+        from explorer.serialise import serialise_result as explorer_serialise_result
+
         result = explorer_run_pipeline(source, dialect=dialect or None)
         if not result.snapshots:
             basic_diags, _, _ = get_basic_diagnostics(
@@ -716,6 +720,31 @@ def on_bigip_cleanup(
     return report_to_dict(report)
 
 
+def on_rename_partition(uri: str, old_partition: str, new_partition: str) -> dict[str, Any]:
+    """Return the query-backed WorkspaceEdit for a BIG-IP partition rename."""
+    from core.bigip.query.errors import BuiltinError
+    from lsp.features._bigip_code_actions import run_rename_partition
+
+    try:
+        source = _state._get_doc_source(uri)
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"Could not read document: {exc}"}
+
+    try:
+        edit = run_rename_partition(
+            source=source,
+            old_partition=old_partition,
+            new_partition=new_partition,
+            uri=uri,
+        )
+    except BuiltinError as exc:
+        return {"success": False, "error": str(exc)}
+
+    if edit is None:
+        return {"success": False, "error": "No partition rename edits were produced."}
+    return {"success": True, "edit": edit}
+
+
 def on_write_rule_back(
     uri: str,
     body_start_offset: int,
@@ -751,11 +780,114 @@ def on_write_rule_back(
     return True
 
 
+def _find_tclpkg_manifest(uri: str = "") -> Path | None:
+    """Find the nearest ``tclpkg.tcl`` for a document or workspace root."""
+    starts: list[Path] = []
+    if uri:
+        path = uri_to_path(uri)
+        if path:
+            doc_path = Path(path)
+            starts.append(doc_path if doc_path.is_dir() else doc_path.parent)
+    starts.extend(Path(root) for root in _state.background_scanner.workspace_roots)
+
+    seen: set[Path] = set()
+    for start in starts:
+        try:
+            current = start.expanduser().resolve()
+        except OSError:
+            continue
+        if current in seen:
+            continue
+        seen.add(current)
+        for _ in range(20):
+            manifest = current / "tclpkg.tcl"
+            if manifest.is_file():
+                return manifest
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+    return None
+
+
+def _add_tclpkg_requirement(
+    manifest_path: Path,
+    package_name: str,
+    minimum_version: str = "0.0.1",
+) -> tuple[Any, bool]:
+    """Append a manifest requirement when it is not already declared."""
+    from tclpkg.manifest import load_manifest, load_manifest_text
+
+    manifest = load_manifest(manifest_path)
+    existing = {req.name for req in manifest.requires}
+    existing.update(req.name for req in manifest.dev_requires)
+    if package_name in existing:
+        return manifest, False
+
+    text = manifest_path.read_text(encoding="utf-8")
+    next_text = text.rstrip("\n") + f"\nrequire {package_name} {minimum_version}\n"
+    manifest = load_manifest_text(next_text, path=str(manifest_path))
+    manifest_path.write_text(next_text, encoding="utf-8")
+    return manifest, True
+
+
+def _write_tclpkg_lock(manifest: Any, manifest_path: Path) -> tuple[Path, int]:
+    """Resolve the manifest and write ``tclpkg.lock``."""
+    from tclpkg.lockfile import LockedPackage, LockFile, SourceSpec, write_lockfile
+    from tclpkg.resolver import ExcludeSpec, PackageRef, ReplaceSpec, resolve
+
+    direct = [PackageRef(name=req.name, version=req.minimum) for req in manifest.requires]
+    dev_direct = [PackageRef(name=req.name, version=req.minimum) for req in manifest.dev_requires]
+    replaces = [ReplaceSpec(name=req.name, version=req.version) for req in manifest.replaces]
+    excludes = [ExcludeSpec(name=req.name, version=req.version) for req in manifest.excludes]
+    resolved = resolve(direct, dev_direct, replaces=replaces, excludes=excludes, include_dev=True)
+
+    lockfile = LockFile(name=manifest.name, tcl=manifest.tcl_constraint)
+    lockfile.stamp()
+    for resolved_pkg in resolved:
+        lockfile.packages.append(
+            LockedPackage(
+                name=resolved_pkg.ref.name,
+                version=str(resolved_pkg.ref.version),
+                source=SourceSpec(type="tarball", url=""),
+                integrity="",
+                dev=resolved_pkg.dev,
+                requires=[str(req) for req in resolved_pkg.requires],
+            )
+        )
+
+    lockfile_path = manifest_path.parent / "tclpkg.lock"
+    write_lockfile(lockfile, lockfile_path)
+    return lockfile_path, len(lockfile.packages)
+
+
 def on_tclpkg_install(package_name: str, uri: str = "") -> dict:
-    """Install a Tcl package via the tclpkg manifest (stub)."""
+    """Add a package to ``tclpkg.tcl`` and refresh ``tclpkg.lock``."""
+    package_name = package_name.strip()
+    if not package_name or not _TCLPKG_NAME_RE.match(package_name):
+        return {"success": False, "message": f"Invalid package name: {package_name!r}"}
+
+    manifest_path = _find_tclpkg_manifest(uri)
+    if manifest_path is None:
+        return {
+            "success": False,
+            "message": "No tclpkg.tcl manifest found for this document or workspace.",
+        }
+
+    try:
+        manifest, added = _add_tclpkg_requirement(manifest_path, package_name)
+        lockfile_path, package_count = _write_tclpkg_lock(manifest, manifest_path)
+    except Exception as exc:
+        return {"success": False, "message": str(exc), "manifest": str(manifest_path)}
+
+    verb = "Added" if added else "Kept existing"
     return {
-        "success": False,
-        "message": f"tclpkg install for '{package_name}' not yet wired (use the CLI: tcl pkg add {package_name})",
+        "success": True,
+        "message": f"{verb} {package_name} and wrote {lockfile_path.name}.",
+        "manifest": str(manifest_path),
+        "lockfile": str(lockfile_path),
+        "packages": package_count,
+        "added": added,
     }
 
 
@@ -928,6 +1060,7 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.command("tcl-lsp.listRules")(on_list_rules)
     server_instance.command("tcl-lsp.extractLinkedObjects")(on_extract_linked_objects)
     server_instance.command("tcl-lsp.bigipCleanup")(on_bigip_cleanup)
+    server_instance.command("tcl-lsp.renamePartition")(on_rename_partition)
     server_instance.command("tcl-lsp.writeRuleBack")(on_write_rule_back)
     server_instance.command("tcl-lsp.tclpkg.install")(on_tclpkg_install)
     server_instance.command("tcl-lsp.tclpkg.search")(on_tclpkg_search)

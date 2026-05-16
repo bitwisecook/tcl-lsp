@@ -82,6 +82,7 @@ def get_code_actions(
     range_: types.Range,
     context: types.CodeActionContext,
     *,
+    uri: str = "",
     package_names: list[str] | None = None,
     lines: list[str] | None = None,
 ) -> list[types.CodeAction]:
@@ -202,7 +203,7 @@ def get_code_actions(
         # W120: offer to insert the missing ``package require``.
         if code == "W120":
             actions.extend(_missing_package_require_action(source, lsp_diag))
-            actions.extend(_tclpkg_install_action(source, lsp_diag))
+            actions.extend(_tclpkg_install_action(source, lsp_diag, uri=uri))
 
         key = (code, lsp_diag.range.start.line, lsp_diag.range.start.character)
         fixes = fix_lookup.get(key, [])
@@ -382,6 +383,8 @@ def _missing_package_require_action(
 def _tclpkg_install_action(
     source: str,
     diag: types.Diagnostic,
+    *,
+    uri: str = "",
 ) -> list[types.CodeAction]:
     """Suggest installing a missing package via tclpkg.
 
@@ -401,7 +404,7 @@ def _tclpkg_install_action(
             command=types.Command(
                 title=f"Install {pkg}",
                 command="tcl-lsp.tclpkg.install",
-                arguments=[pkg],
+                arguments=[pkg, uri] if uri else [pkg],
             ),
         )
     ]

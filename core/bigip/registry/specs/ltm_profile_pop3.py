@@ -19,17 +19,25 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile pop3"),),
         properties=(
             BigipPropertySpec(
+                name="activation-mode",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("allow", "none", "require"),
+                default="REQUIRE",
+            ),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 allow_none=True,
                 references=("ltm_profile_pop3",),
+                default="pop3",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(
-                name="activation-mode",
-                value_type="enum",
-                allow_none=True,
-                enum_values=("none", "allow", "require"),
-            ),
         ),
     )

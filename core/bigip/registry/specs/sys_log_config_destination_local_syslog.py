@@ -31,11 +31,13 @@ def register_spec() -> BigipObjectSpec:
                     "local6",
                     "local7",
                 ),
+                default="local0",
             ),
             BigipPropertySpec(
                 name="default-severity",
                 value_type="enum",
                 enum_values=("alert", "crit", "debug", "emerg", "err", "info", "notice", "warn"),
+                default="info",
             ),
             BigipPropertySpec(name="description", value_type="string"),
         ),

@@ -18,10 +18,18 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "snatpool"),),
         properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="members", value_type="enum", allow_none=True, enum_values=("default", "none")
+                name="members",
+                value_type="enum",
+                allow_none=True,
+                enum_values=("default", "none"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

@@ -17,5 +17,13 @@ def register_spec() -> BigipObjectSpec:
             object_types=("dos autodos-file-object",),
         ),
         header_types=(("security", "dos autodos-file-object"),),
-        properties=(BigipPropertySpec(name="source-path", value_type="string"),),
+        properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="source-path", value_type="reference"),
+        ),
     )

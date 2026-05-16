@@ -18,12 +18,24 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "stp-globals"),),
         properties=(
-            BigipPropertySpec(name="config-name", value_type="string"),
-            BigipPropertySpec(name="config-revision", value_type="integer"),
+            BigipPropertySpec(name="config-name", value_type="reference"),
+            BigipPropertySpec(name="config-revision", value_type="integer", default="0 (zero)"),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="fwd-delay", value_type="integer"),
-            BigipPropertySpec(name="hello-time", value_type="integer"),
-            BigipPropertySpec(name="max-age", value_type="integer"),
+            BigipPropertySpec(
+                name="fwd-delay",
+                value_type="integer",
+                default="15 seconds, and the valid range is 4 to 30",
+            ),
+            BigipPropertySpec(
+                name="hello-time",
+                value_type="integer",
+                default="2 seconds, and the valid range is 1 - 10",
+            ),
+            BigipPropertySpec(
+                name="max-age",
+                value_type="integer",
+                default="20 seconds, and the valid range is 6-40 seconds",
+            ),
             BigipPropertySpec(name="max-hops", value_type="integer"),
             BigipPropertySpec(
                 name="mode",

@@ -33,6 +33,25 @@ rules for the KCS/documentation split live in
 - [f5-cli-architecture.md](f5-cli-architecture.md) — verb registry,
   reference graph, IP-redaction model, tmsh emitter, file layout, and
   the recipe for adding a new verb.
+- [f5-query-engine-internals.md](f5-query-engine-internals.md) —
+  internals of the `f5 query` engine: module layout, pipeline,
+  invariants, edit-plan apply order, builtin registration,
+  extension points.  User-facing reference (grammar, every
+  builtin, sample configs, F5 KB cross-references) lives at
+  [`docs/references/f5_query/`](../references/f5_query/); the
+  alphabetical builtin catalogue there is generated from the
+  registry by
+  [`scripts/dev/gen_query_builtins_doc.py`](../../scripts/dev/gen_query_builtins_doc.py)
+  and asserted up-to-date by CI.
+- [bigip-registry-architecture.md](bigip-registry-architecture.md) —
+  registry contract for object kinds, value specs (parse / project
+  / render / references), source-range fidelity, and the pilot
+  migration table that opts properties into the typed dispatch.
+- [bigip-list-operator-audit.md](bigip-list-operator-audit.md) —
+  every list-valued property without ``list_operators``, classified
+  by emission style (real list / sub-block / uncertain), backing
+  the curated override layer in
+  ``core/bigip/registry/specs/_base.py``.
 
 ## tclpkg package manager
 

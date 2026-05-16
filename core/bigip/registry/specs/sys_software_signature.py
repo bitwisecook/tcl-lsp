@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("software signature",),
         ),
         header_types=(("sys", "software signature"),),
+        properties=(),
     )

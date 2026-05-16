@@ -42,12 +42,73 @@ def _build_name_pattern(old: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![A-Za-z0-9_/.\-]){escaped}(?![A-Za-z0-9_/.\-])")
 
 
-def rename_object(source: str, old: str, new: str) -> RenameReport:
+def _other_kind_header_spans(source: str, old: str, kind_scope: str) -> list[tuple[int, int]]:
+    """Return byte-spans of stanza header full-paths that must NOT be
+    rewritten because the stanza belongs to a different object kind.
+
+    BIG-IP allows objects of different kinds (e.g. ``ltm pool`` and
+    ``ltm virtual``) to share a full-path.  When a rename is scoped to
+    one kind, headers of other kinds that happen to share the name
+    must be preserved — only the chosen kind's stanza header and the
+    references to it should be rewritten.  Returns the byte spans of
+    the *path tokens* in those other-kind headers; the caller skips
+    any match whose start offset falls within one of these spans.
+
+    Stanza headers in SCF have the form
+    ``<module> <kind...> <full-path> {`` on a single line.  The
+    ``kind`` segment may be multi-word (``data-group internal``,
+    ``monitor http``, ``profile client-ssl``), so the regex consumes
+    everything between ``<module>`` and the trailing ``<full-path>
+    {`` as the kind, then joins with the module to compare against
+    *kind_scope* (e.g. ``"ltm pool"``).
+    """
+    # Single-line anchored: ``\s+`` would let the regex span newlines
+    # and treat an inner attachment line like ``    /Common/foo { }``
+    # inside a ``profiles { ... }`` block as a phantom header.
+    # ``[ \t]+`` and ``[^\n]+?`` keep the match on one line.
+    header_re = re.compile(
+        rf"^[ \t]*(\w+)[ \t]+([^\n]+?)[ \t]+({re.escape(old)})[ \t]*\{{",
+        re.MULTILINE,
+    )
+    spans: list[tuple[int, int]] = []
+    for match in header_re.finditer(source):
+        header_kind = f"{match.group(1)} {match.group(2).strip()}"
+        if header_kind == kind_scope:
+            continue
+        # Family match — the projection collapses TMSH sub-kinds
+        # (``ltm profile tcp`` / ``ltm profile http`` / …) into a
+        # single navigable kind (``ltm profile``).  When a rename is
+        # scoped via ``.ltm.profile[X].name = Y`` the ObjectRef
+        # carries ``"ltm profile"`` but the on-disk header is
+        # ``ltm profile tcp …`` — treat the header as the same kind
+        # so the stanza name rewrites along with the references.
+        # Same pattern for ``ltm data-group internal|external``,
+        # ``ltm monitor <type>``, ``ltm persistence <type>``,
+        # ``gtm pool <record-type>``, ``gtm wideip <record-type>``.
+        if header_kind.startswith(kind_scope + " "):
+            continue
+        spans.append((match.start(3), match.end(3)))
+    return spans
+
+
+def rename_object(source: str, old: str, new: str, *, kind_scope: str = "") -> RenameReport:
     """Rename *old* to *new* everywhere in *source* (text-level).
 
     Only full-path references are rewritten.  The match is bounded so
     substring collisions don't fire (``/Common/foo`` won't accidentally
     match ``/Common/foobar``).
+
+    *kind_scope* (optional) is the TMSH module + type the rename
+    belongs to — e.g. ``"ltm pool"`` when invoked via
+    ``.ltm.pool[X].name = Y``.  When non-empty, the renamer leaves
+    the *header* of any other-kind stanza that happens to share the
+    same full-path untouched.  References to the renamed object —
+    inside the chosen kind's stanza body, inside iRule bodies, and
+    inside other unrelated stanza bodies — are still rewritten,
+    because BIG-IP's reference graph is name-only (without kind
+    information).  When *kind_scope* is empty (the default, used by
+    ``f5 rename`` and the ``rename`` builtin), the behaviour is the
+    legacy global rewrite.
 
     Short-name references (``foo`` instead of ``/Common/foo``) are
     *not* rewritten: they're unsafe to handle by regex because the same
@@ -60,8 +121,24 @@ def rename_object(source: str, old: str, new: str) -> RenameReport:
         raise ValueError("old name is empty")
     if not new:
         raise ValueError("new name is empty")
+
+    protected = _other_kind_header_spans(source, old, kind_scope) if kind_scope else []
     pattern = _build_name_pattern(old)
-    new_source, count = pattern.subn(new, source)
+
+    if not protected:
+        new_source, count = pattern.subn(new, source)
+    else:
+        count = 0
+
+        def _replace(match: re.Match[str]) -> str:
+            nonlocal count
+            for start, end in protected:
+                if start <= match.start() < end:
+                    return match.group(0)
+            count += 1
+            return new
+
+        new_source = pattern.sub(_replace, source)
 
     # Sanity check: the renamed source must still parse.
     try:

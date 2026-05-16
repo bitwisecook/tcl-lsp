@@ -235,6 +235,16 @@ def optimisation_codes() -> frozenset[str]:
     return frozenset(c for c, info in _registry.items() if info.kind is CodeKind.OPTIMISATION)
 
 
+# Source-level style and package diagnostics.
+# Implementations live in the LSP feature layer because they return editor
+# diagnostics, but the code catalogue is core data and must not import LSP.
+diag("W111", "Line exceeds maximum length (see `tclLsp.style.lineLength`).", section="warning")
+diag("W112", "Trailing whitespace.", section="warning")
+diag("W115", "Backslash-newline in comment silently swallows the next line.", section="warning")
+diag("W118", "Inconsistent line endings.", section="warning")
+diag("W120", "Command used without a corresponding `package require`.", section="warning")
+
+
 # tclpkg package manager diagnostics (W130–W134).
 # Registered here (rather than in tclpkg/) so the codegen script and tests
 # see them without importing the tclpkg package.

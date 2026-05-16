@@ -44,6 +44,7 @@ from .model import (
     BigipNode,
     BigipPersistence,
     BigipPool,
+    BigipPoolMember,
     BigipProfile,
     BigipRule,
     BigipSnatPool,
@@ -167,6 +168,354 @@ def emit_tmsh(
     return TmshScript(text=text, command_count=count)
 
 
+def emit_tmsh_delta(
+    old_cfg: BigipConfig,
+    new_cfg: BigipConfig,
+    *,
+    old_source: str = "",
+    new_source: str = "",
+    include: tuple[str, ...] = _DEFAULT_ORDER,
+) -> TmshScript:
+    """Emit only the *changed* objects between *old_cfg* and *new_cfg*.
+
+    Produces a tighter tmsh script than :func:`emit_tmsh` for the
+    ``f5 query`` change-rollout shape: rather than re-rendering every
+    object in the config (which the full emitter does and which
+    produces a ~126-line script even when only two objects actually
+    changed in the test report's 1906-line corkscrew config), this
+    walks each per-kind container twice and emits:
+
+    - ``tmsh create <kind> <full-path> { ... }`` for objects added in
+      *new_cfg* but absent from *old_cfg*;
+    - ``tmsh modify <kind> <full-path> { ... }`` for objects whose
+      stanza text differs between *old_source* and *new_source*;
+    - ``tmsh delete <kind> <full-path>`` for objects removed in
+      *new_cfg* that were present in *old_cfg*.
+
+    Equality is compared on the parsed stanza text (via the block
+    iterator the SCF emitter also uses): if the textual stanza is
+    byte-identical the object is treated as unchanged and dropped.
+    Falls back to dataclass equality when neither source is supplied.
+
+    Order:
+
+    1. **Modifies** for every kind (in dependency order: nodes →
+       monitors → ... → virtuals).  Modifies typically rewire
+       references away from objects that are about to be deleted,
+       so they fire first.
+    2. **Deletes** for every kind (in reverse dependency order:
+       virtuals → rules → pools → ...).  Running deletes before
+       creates is the rename-shaped diff fix: a renamed virtual
+       (delete old / create new sharing the same destination)
+       would collide on the device's unique-listener constraint if
+       we created the new stanza while the old was still bound.
+       Now the old listener releases first.
+    3. **Creates** for every kind (in dependency order).  By this
+       point any uniqueness collisions with old objects have been
+       resolved and any references the new objects need are
+       already in place (foundation creates come first).
+
+    Foundation modifies / deletes are interleaved at the right ends
+    of phases 1-3 so partition / vlan / route-domain creates
+    precede any LTM creates that reference them.
+    """
+    new_blocks = _index_blocks(new_source)
+    old_blocks = _index_blocks(old_source)
+
+    def _changed(kind_tuple: tuple[str, str, str]) -> bool:
+        return new_blocks.get(kind_tuple, "") != old_blocks.get(kind_tuple, "")
+
+    lines: list[str] = []
+    count = 0
+
+    def _add(line: str) -> None:
+        nonlocal count
+        lines.append(line)
+        count += 1
+
+    kind_table = (
+        ("node", "nodes", _render_node, False),
+        ("monitor", "monitors", _render_monitor, True),
+        ("data-group", "data_groups", _render_data_group, False),
+        ("profile", "profiles", _render_profile, False),
+        ("snatpool", "snat_pools", _render_snatpool, False),
+        ("persistence", "persistence", _render_persistence, True),
+        ("pool", "pools", _render_pool, False),
+        ("rule", "rules", _render_rule, False),
+        ("virtual", "virtual_servers", _render_virtual, False),
+    )
+
+    # ── 1. Modifies (foundation first, then dependency order) ─────
+    if "generic-foundation" in include:
+        for ident, obj in new_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            key = (obj.module, obj.object_type, obj.identifier)
+            old = old_cfg.generic_objects.get(ident)
+            if old is not None and _changed(key):
+                _add(_render_generic("modify", obj, new_blocks))
+    for kind_name, container_attr, render_fn, _src in kind_table:
+        if kind_name not in include:
+            continue
+        new_container = getattr(new_cfg, container_attr)
+        old_container = getattr(old_cfg, container_attr)
+        for full_path, obj in new_container.items():
+            old_obj = old_container.get(full_path)
+            if old_obj is None:
+                continue  # creates handled in phase 3
+            key = _block_key_for(kind_name, obj)
+            if not _changed(key):
+                continue
+            # Pools: emit granular member add/delete/modify commands
+            # when only the members list changed (the common case for
+            # backend-server churn).  Falls back to a full-body
+            # ``tmsh modify`` when other pool properties also changed
+            # or when there's no member-level diff to express.  This
+            # keeps live connections to unchanged members from being
+            # torn down by an unconditional replace-all.
+            if kind_name == "pool":
+                member_lines = _emit_pool_member_delta(old_obj, obj)
+                if member_lines is not None:
+                    for line in member_lines:
+                        _add(line)
+                    # If only members changed, no other modify needed.
+                    if not _pool_non_member_changed(old_obj, obj):
+                        continue
+            _add(_dispatch_render("modify", render_fn, obj, new_source, new_blocks))
+
+    # ── 2. Deletes (reverse dependency order) ─────────────────────
+    delete_kinds = [k for k in reversed(include) if k not in ("generic-foundation",)]
+    for kind_name in delete_kinds:
+        container_attr = {
+            "node": "nodes",
+            "monitor": "monitors",
+            "data-group": "data_groups",
+            "profile": "profiles",
+            "snatpool": "snat_pools",
+            "persistence": "persistence",
+            "pool": "pools",
+            "rule": "rules",
+            "virtual": "virtual_servers",
+        }.get(kind_name)
+        if container_attr is None:
+            continue
+        new_container = getattr(new_cfg, container_attr)
+        old_container = getattr(old_cfg, container_attr)
+        for full_path, old_obj in old_container.items():
+            if full_path in new_container:
+                continue
+            _add(_delete_command(kind_name, old_obj))
+    # Generic foundation deletes (deferred to end of phase 2 so
+    # they don't strand references in objects deleted above).
+    if "generic-foundation" in include:
+        for ident, obj in old_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            if ident in new_cfg.generic_objects:
+                continue
+            _add(f"tmsh delete {obj.module} {obj.object_type} {obj.identifier}")
+
+    # ── 3. Creates (foundation first, then dependency order) ─────
+    # All uniqueness collisions with old objects are gone now —
+    # phase 2 cleared the old stanzas, so the rename-shaped diff's
+    # ``create new virtual same destination`` lands without a
+    # listener collision.
+    if "generic-foundation" in include:
+        for ident, obj in new_cfg.generic_objects.items():
+            if (obj.module, obj.object_type) not in _FOUNDATION_TYPES:
+                continue
+            if ident in old_cfg.generic_objects:
+                continue
+            _add(_render_generic("create", obj, new_blocks))
+    for kind_name, container_attr, render_fn, _src in kind_table:
+        if kind_name not in include:
+            continue
+        new_container = getattr(new_cfg, container_attr)
+        old_container = getattr(old_cfg, container_attr)
+        for full_path, obj in new_container.items():
+            if full_path in old_container:
+                continue  # modify, already emitted in phase 1
+            _add(_dispatch_render("create", render_fn, obj, new_source, new_blocks))
+
+    text = "\n".join(lines) + ("\n" if lines else "")
+    return TmshScript(text=text, command_count=count)
+
+
+def _index_blocks(source: str) -> dict[tuple[str, str, str], str]:
+    if not source:
+        return {}
+    out: dict[tuple[str, str, str], str] = {}
+    for bs in iter_blocks_with_source(source):
+        out[(bs.module, bs.object_type, bs.identifier)] = bs.text
+    return out
+
+
+def _emit_pool_member_delta(old_pool: BigipPool, new_pool: BigipPool) -> list[str] | None:
+    """Return granular ``tmsh modify ltm pool X members <op> { ... }`` lines.
+
+    Compares the old and new member lists and emits one command per
+    operation kind:
+
+    - ``members add { /Common/m:80 { address ... } }`` for members in
+      the new pool but not the old one;
+    - ``members delete { /Common/m:80 }`` for members in the old pool
+      but not the new one;
+    - ``members modify { /Common/m:80 { address ... } }`` for members
+      present in both whose per-member body changed (address /
+      monitor / ratio / state etc.).
+
+    The granular operators leave unchanged members untouched, so
+    backend connections to a healthy member don't drop when a sibling
+    member is added or removed.  Returns ``None`` when the member
+    list is identical between old and new (the caller skips the
+    member-delta path entirely and the regular full-body modify
+    handles whatever non-member field changed).
+    """
+    old_by_name = {m.name: m for m in old_pool.members}
+    new_by_name = {m.name: m for m in new_pool.members}
+
+    added = [new_by_name[name] for name in new_by_name if name not in old_by_name]
+    removed = [old_by_name[name] for name in old_by_name if name not in new_by_name]
+    modified: list[BigipPoolMember] = []
+    for name, new_m in new_by_name.items():
+        old_m = old_by_name.get(name)
+        if old_m is None:
+            continue
+        if _pool_member_body(old_m) != _pool_member_body(new_m):
+            modified.append(new_m)
+
+    if not (added or removed or modified):
+        return None
+
+    head = f"tmsh modify ltm pool {new_pool.full_path}"
+    lines: list[str] = []
+    if added:
+        body = " ".join(_render_member_with_body(m) for m in added)
+        lines.append(f"{head} members add {{ {body} }}")
+    if removed:
+        names = " ".join(m.name for m in removed)
+        lines.append(f"{head} members delete {{ {names} }}")
+    if modified:
+        body = " ".join(_render_member_with_body(m) for m in modified)
+        lines.append(f"{head} members modify {{ {body} }}")
+    return lines
+
+
+def _render_member_with_body(member: BigipPoolMember) -> str:
+    """Render one member's name + ``{ ... }`` body for tmsh list ops."""
+    parts: list[str] = []
+    if member.address:
+        parts.append(f"address {member.address}")
+    if member.monitor:
+        parts.append(f"monitor {_quote(member.monitor)}")
+    if member.state and member.state not in ("enabled", ""):
+        parts.append(f"state {member.state}")
+    if member.ratio:
+        parts.append(f"ratio {member.ratio}")
+    if member.priority_group:
+        parts.append(f"priority-group {member.priority_group}")
+    if member.connection_limit:
+        parts.append(f"connection-limit {member.connection_limit}")
+    if member.rate_limit:
+        parts.append(f"rate-limit {member.rate_limit}")
+    body = " ".join(parts)
+    return f"{member.name} {{ {body} }}" if body else f"{member.name} {{ }}"
+
+
+def _pool_member_body(member: BigipPoolMember) -> tuple:
+    """Hashable representation of a member's body for change detection."""
+    return (
+        str(member.address) if member.address else "",
+        member.monitor,
+        member.state,
+        member.ratio,
+        member.priority_group,
+        member.connection_limit,
+        member.rate_limit,
+        member.description,
+    )
+
+
+def _pool_non_member_changed(old_pool: BigipPool, new_pool: BigipPool) -> bool:
+    """True when any non-``members`` pool field differs between old and new.
+
+    Lets the delta emitter decide whether the member-level commands
+    are sufficient or whether a separate full-body modify is also
+    needed for the pool's other properties (monitor, load-balancing
+    mode, description, ...).
+    """
+    skip = {"members", "range"}
+    from dataclasses import fields
+
+    for fld in fields(old_pool):
+        if fld.name in skip:
+            continue
+        if getattr(old_pool, fld.name) != getattr(new_pool, fld.name):
+            return True
+    return False
+
+
+def _block_key_for(kind_name: str, obj: object) -> tuple[str, str, str]:
+    """Return the (module, object_type, identifier) tuple matching block-index keys.
+
+    Mirrors what :func:`iter_blocks_with_source` produces so the
+    delta emitter can look up the stanza text for an object given
+    its dataclass.  Each *kind_name* maps to a fixed (module,
+    object_type) pair; *identifier* is the object's full-path.
+    """
+    type_map = {
+        "node": ("ltm", "node"),
+        "monitor": ("ltm", "monitor"),
+        "data-group": ("ltm", "data-group"),
+        "profile": ("ltm", "profile"),
+        "snatpool": ("ltm", "snatpool"),
+        "persistence": ("ltm", "persistence"),
+        "pool": ("ltm", "pool"),
+        "rule": ("ltm", "rule"),
+        "virtual": ("ltm", "virtual"),
+    }
+    module, object_type = type_map[kind_name]
+    full_path = getattr(obj, "full_path", "")
+    return (module, object_type, full_path)
+
+
+def _dispatch_render(verb: str, render_fn, obj, new_source: str, new_blocks: dict) -> str:
+    """Call a per-kind renderer with whatever extra args it expects.
+
+    Most renderers take ``(verb, obj)``; iRules / persistence /
+    monitors that may carry block-text bodies take a *source* and
+    *block_text_by_id* argument set too.  We dispatch by inspecting
+    the function signature lazily to keep the call sites compact.
+    """
+    import inspect
+
+    sig = inspect.signature(render_fn)
+    params = sig.parameters
+    if len(params) == 2:
+        return render_fn(verb, obj)
+    # Heuristic for the (verb, obj, source, blocks) and (verb, obj, blocks) shapes.
+    if "source" in params:
+        return render_fn(verb, obj, new_source, new_blocks)
+    return render_fn(verb, obj, new_blocks)
+
+
+def _delete_command(kind_name: str, obj: object) -> str:
+    """Build a ``tmsh delete <kind> <full-path>`` command."""
+    full_path = getattr(obj, "full_path", "")
+    spelt = {
+        "node": "ltm node",
+        "monitor": "ltm monitor",
+        "data-group": "ltm data-group",
+        "profile": "ltm profile",
+        "snatpool": "ltm snatpool",
+        "persistence": "ltm persistence",
+        "pool": "ltm pool",
+        "rule": "ltm rule",
+        "virtual": "ltm virtual",
+    }.get(kind_name, f"ltm {kind_name}")
+    return f"tmsh delete {spelt} {full_path}"
+
+
 # ── Renderers ───────────────────────────────────────────────────────
 
 
@@ -204,9 +553,36 @@ def _render_pool(verb: str, pool: BigipPool) -> str:
                 inner.append(f"monitor {_quote(m.monitor)}")
             inner_str = " ".join(inner)
             member_lines.append(f"{m.name} {{ {inner_str} }}" if inner_str else f"{m.name} {{ }}")
-        fields.append("members { " + " ".join(member_lines) + " }")
+        fields.append(_list_field("ltm", "pool", "members", " ".join(member_lines)))
     body = " ".join(fields)
     return f"tmsh {verb} ltm pool {pool.full_path}" + (f" {{ {body} }}" if body else "")
+
+
+def _list_field(module: str, object_type: str, name: str, items_text: str) -> str:
+    """Render a list-valued field's brace body with the right operator.
+
+    Consults the registry to find whether *name* is list-valued and
+    which operator it accepts.  ``modify`` on a list-valued field
+    requires an explicit operator (``add`` / ``delete`` / ``modify``
+    / ``replace-all-with`` / ``none``) — a bare ``<name> { ... }``
+    body is rejected by the device with "list of items must be ...".
+    Full-body emission prefers ``replace-all-with`` so the resulting
+    script overwrites the whole list, matching the renderer's
+    "write the whole object" semantics; the delta emitter takes a
+    different path with granular add/delete/modify operators.
+
+    Falls back to the bare ``<name> { ... }`` body when the property
+    is unknown to the registry — better to risk one device error
+    than to invent an operator the property doesn't support.  The
+    failure surface for unknown properties is the test suite, not
+    real devices.
+    """
+    from .registry import list_operator_for
+
+    operator = list_operator_for(module, object_type, name)
+    if not operator:
+        return f"{name} {{ {items_text} }}"
+    return f"{name} {operator} {{ {items_text} }}"
 
 
 def _render_monitor(
@@ -235,7 +611,7 @@ def _render_data_group(verb: str, dg: BigipDataGroup) -> str:
         parts.append(f"type {dg.value_type}")
     if dg.records:
         record_block = " ".join(f"{r} {{ }}" for r in dg.records)
-        parts.append(f"records {{ {record_block} }}")
+        parts.append(_list_field("ltm", "data-group internal", "records", record_block))
     body = " ".join(parts)
     head = f"tmsh {verb} ltm data-group {kind} {dg.full_path}"
     return head + (f" {{ {body} }}" if body else "")
@@ -256,7 +632,7 @@ def _render_profile(
 def _render_snatpool(verb: str, sp: BigipSnatPool) -> str:
     body = ""
     if sp.members:
-        body = "members { " + " ".join(sp.members) + " }"
+        body = _list_field("ltm", "snatpool", "members", " ".join(sp.members))
     return f"tmsh {verb} ltm snatpool {sp.full_path}" + (f" {{ {body} }}" if body else "")
 
 
@@ -291,12 +667,31 @@ def _render_virtual(verb: str, vs: BigipVirtualServer) -> str:
         fields.append(f"destination {vs.destination}")
     if vs.pool:
         fields.append(f"pool {vs.pool}")
+    # Each list-valued field reads its operator from the registry
+    # via :func:`_list_field`.  Marking a property as list-valued in
+    # its registry spec is the single source of truth — adding a
+    # new list field on this object requires only the spec entry,
+    # no parallel renderer change.
     if vs.profiles:
-        fields.append("profiles { " + " ".join(f"{p} {{ }}" for p in vs.profiles) + " }")
+        fields.append(
+            _list_field(
+                "ltm",
+                "virtual",
+                "profiles",
+                " ".join(f"{p} {{ }}" for p in vs.profiles.paths),
+            )
+        )
     if vs.rules:
-        fields.append("rules { " + " ".join(vs.rules) + " }")
+        fields.append(_list_field("ltm", "virtual", "rules", " ".join(vs.rules)))
     if vs.persist:
-        fields.append("persist { " + " ".join(f"{p} {{ }}" for p in vs.persist) + " }")
+        fields.append(
+            _list_field(
+                "ltm",
+                "virtual",
+                "persist",
+                " ".join(f"{p} {{ }}" for p in vs.persist.paths),
+            )
+        )
     if vs.snatpool:
         fields.append(f"snatpool {vs.snatpool}")
     if vs.source_address_translation:

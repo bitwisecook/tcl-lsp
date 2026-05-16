@@ -18,22 +18,45 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "tunnels gre"),),
         properties=(
-            BigipPropertySpec(name="defaults-from", value_type="string"),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="defaults-from",
+                value_type="reference",
+                references=("net_tunnels_gre",),
+                default="gre",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="rx-csum", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="tx-csum", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(
-                name="encapsulation", value_type="enum", enum_values=("standard", "nvgre")
+                name="encapsulation",
+                value_type="enum",
+                enum_values=("nvgre", "standard"),
+                default="standard",
             ),
             BigipPropertySpec(
                 name="flooding-type",
                 value_type="enum",
                 allow_none=True,
-                enum_values=("none", "multipoint"),
+                enum_values=("multipoint", "none"),
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="rx-csum",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
+            ),
+            BigipPropertySpec(
+                name="tx-csum",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
         ),
     )

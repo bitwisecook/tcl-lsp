@@ -18,17 +18,26 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "icall script"),),
         properties=(
+            BigipPropertySpec(name="definition", value_type="unknown"),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
                 name="events",
-                value_type="enum",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="contexts",
+                        value_type="list",
+                        in_sections=("events",),
+                        list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
+                    ),
+                ),
             ),
             BigipPropertySpec(
                 name="contexts",
-                value_type="enum",
+                value_type="list",
                 in_sections=("events",),
-                enum_values=("add", "delete", "modify", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

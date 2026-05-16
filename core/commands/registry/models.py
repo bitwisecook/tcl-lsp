@@ -497,9 +497,6 @@ class SubCommand:
     # ``core.compiler.side_effects.classify_side_effects()``.
     side_effect_hints: tuple[SideEffect, ...] | None = None
 
-    # Whether this subcommand is destructive (e.g. file delete, file rename).
-    destructive: bool = False
-
     # Credential arg index for security checks.
     credential_arg: int | None = None
 

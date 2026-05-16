@@ -148,18 +148,37 @@ def _build_matcher(
     *,
     use_regex: bool,
     use_cidr: bool = False,
+    use_exact: bool = False,
 ) -> Callable[[BigipObjectNode], bool]:
     """Return a ``(node) -> bool`` matcher for the given pattern mode.
 
-    The substring and regex modes match against the node's identifier
-    (full path) only — preserving existing behaviour.  CIDR mode
-    inspects the node's path, header, and body so that IP/CIDR
-    references buried inside iRule script bodies are picked up.
+    Modes are mutually exclusive:
+
+    - **Substring** (default): the pattern is a substring of the
+      node's identifier — preserves the historical seed semantics
+      for the ``f5 grep`` CLI where partial paths are useful.
+    - **Regex** (*use_regex*): ``re.search`` against the identifier.
+    - **CIDR** (*use_cidr*): inspects the node's path, header, and
+      body so IP / CIDR references buried inside iRule script
+      bodies are picked up too.
+    - **Exact** (*use_exact*): the pattern must equal the node's
+      identifier exactly.  Used by ``references_to()`` / rename
+      preflights where ``/Common/p`` must not also match
+      ``/Common/p2``.
 
     Raises :class:`ValueError` on a bad regex or unparseable CIDR.
     """
-    if use_cidr and use_regex:
-        raise ValueError("--cidr and --regex are mutually exclusive")
+    selected = [
+        name
+        for name, flag in (
+            ("regex", use_regex),
+            ("cidr", use_cidr),
+            ("exact", use_exact),
+        )
+        if flag
+    ]
+    if len(selected) > 1:
+        raise ValueError(f"match modes are mutually exclusive; got {selected}")
     if use_cidr:
         seed_networks = _parse_cidr_pattern(pattern)
         return lambda node: _node_matches_cidrs(node, seed_networks)
@@ -169,6 +188,8 @@ def _build_matcher(
         except re.error as exc:
             raise ValueError(f"invalid regex pattern {pattern!r}: {exc}") from exc
         return lambda node: compiled.search(node.identifier) is not None
+    if use_exact:
+        return lambda node: node.identifier == pattern
     return lambda node: pattern in node.identifier
 
 
@@ -257,6 +278,7 @@ def compute_grep(
     pattern: str,
     use_regex: bool = False,
     use_cidr: bool = False,
+    use_exact: bool = False,
     direction: str = "both",
     max_depth: int | None = None,
     max_nodes: int = 1000,
@@ -308,7 +330,7 @@ def compute_grep(
     # Validate the pattern before walking the graph so a bad regex or
     # unparseable CIDR surfaces as a user error rather than a silent
     # zero-match result.
-    matches = _build_matcher(pattern, use_regex=use_regex, use_cidr=use_cidr)
+    matches = _build_matcher(pattern, use_regex=use_regex, use_cidr=use_cidr, use_exact=use_exact)
 
     saved = active_signature_profile()
     configure_signatures(dialect="f5-irules")

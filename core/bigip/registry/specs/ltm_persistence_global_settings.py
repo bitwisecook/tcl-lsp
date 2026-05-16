@@ -20,9 +20,12 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="dest-addr-limit-mode", value_type="enum", enum_values=("timeout", "maxcount")
+                name="dest-addr-limit-mode",
+                value_type="enum",
+                enum_values=("maxcount", "timeout"),
+                default="timeout",
             ),
-            BigipPropertySpec(name="dest-addr-max", value_type="integer"),
-            BigipPropertySpec(name="proxy-group", value_type="string"),
+            BigipPropertySpec(name="dest-addr-max", value_type="integer", default="2048 entries"),
+            BigipPropertySpec(name="proxy-group", value_type="string", default="aol"),
         ),
     )
