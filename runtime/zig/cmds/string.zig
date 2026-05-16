@@ -314,8 +314,12 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
     if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));
     if (str_eq(sp, sub.len, "range") and words.len >= 5) return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
-    if (str_eq(sp, sub.len, "compare") and words.len >= 4) return result_mod.from_globals(rt.string_compare(words[2], words[3]));
-    if (str_eq(sp, sub.len, "equal") and words.len >= 4) return result_mod.from_globals(rt.string_equal(words[2], words[3]));
+    if (str_eq(sp, sub.len, "compare")) {
+        return result_mod.from_globals(eval_compare_or_equal(words, .compare));
+    }
+    if (str_eq(sp, sub.len, "equal")) {
+        return result_mod.from_globals(eval_compare_or_equal(words, .equal));
+    }
     if (str_eq(sp, sub.len, "match") and words.len >= 4) return result_mod.from_globals(rt.string_match(words[2], words[3]));
     if (str_eq(sp, sub.len, "map") and words.len >= 4) {
         // ``string map ?-nocase? CHARMAP STRING`` — accept the
@@ -448,6 +452,205 @@ fn raise_class_error(name: []const u8, kind: []const u8) void {
     catch_mod.tcl_cmd_error(m);
 }
 
+/// True when ``arg[0..arg_len]`` is a non-empty prefix of *full*.
+/// Used for option-abbreviation matching (``-fail`` → ``-failindex``).
+fn is_prefix_of(arg: [*]const u8, arg_len: u32, full: []const u8) bool {
+    if (arg_len == 0 or arg_len > full.len) return false;
+    var k: u32 = 0;
+    while (k < arg_len) : (k += 1) {
+        if (arg[k] != full[k]) return false;
+    }
+    return true;
+}
+
+const CompareKind = enum { compare, equal };
+
+/// ``string compare ?-nocase? ?-length N? string1 string2`` and
+/// ``string equal`` share the same option-parsing surface.  Both
+/// accept option-prefix abbreviation (``-noc`` → ``-nocase``,
+/// ``-l`` → ``-length``).
+fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
+    const wrong_args = if (kind == .compare)
+        "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\""
+    else
+        "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\"";
+    // Need at minimum: string compare a b → 4 words.
+    if (words.len < 4) {
+        raise_string_wrong_args(wrong_args);
+        return obj_new_int(0);
+    }
+    // Reference Tcl's StringCmpCmd reserves the LAST TWO words as the
+    // comparison operands; option parsing only runs over the words in
+    // between.  ``string compare -1 -1`` therefore treats the
+    // leading ``-1`` as a string, NOT as a bad option.  When fewer
+    // than two trailing strings are available, we still surface
+    // ``wrong # args`` (too few operands) rather than ``bad option``.
+    var nocase: i32 = 0;
+    var len_limit: i32 = -1;
+    var ai: u32 = 2;
+    const opt_end: u32 = words.len - 2;
+    while (ai < opt_end) {
+        const a = obj_ensure_string(words[ai]);
+        if (a.len == 0 or a.ptr == 0) break;
+        const ap: [*]const u8 = @ptrFromInt(a.ptr);
+        if (ap[0] != '-') break;
+        // ``--`` ends option processing (Tcl 9 norm).
+        if (a.len == 2 and ap[1] == '-') {
+            ai += 1;
+            break;
+        }
+        if (a.len >= 2 and ap[1] == 'n' and is_prefix_of(ap, a.len, "-nocase")) {
+            nocase = 1;
+            ai += 1;
+            continue;
+        }
+        if (a.len >= 2 and ap[1] == 'l' and is_prefix_of(ap, a.len, "-length")) {
+            if (ai + 1 >= words.len) {
+                raise_string_wrong_args(wrong_args);
+                return obj_new_int(0);
+            }
+            const lv = obj_ensure_string(words[ai + 1]);
+            if (lv.len == 0 or lv.ptr == 0) {
+                raise_expected_integer(words[ai + 1]);
+                return obj_new_int(0);
+            }
+            const lp: [*]const u8 = @ptrFromInt(lv.ptr);
+            // Parse optional sign + digits.
+            var neg = false;
+            var k: u32 = 0;
+            if (lp[0] == '+') {
+                k = 1;
+            } else if (lp[0] == '-') {
+                neg = true;
+                k = 1;
+            }
+            if (k >= lv.len) {
+                raise_expected_integer(words[ai + 1]);
+                return obj_new_int(0);
+            }
+            var n: i64 = 0;
+            while (k < lv.len) : (k += 1) {
+                if (lp[k] < '0' or lp[k] > '9') {
+                    raise_expected_integer(words[ai + 1]);
+                    return obj_new_int(0);
+                }
+                n = n * 10 + (lp[k] - '0');
+            }
+            if (neg) n = -n;
+            // Clamp to i32 range used by string_compare_full.  Negative
+            // / over-long becomes "unlimited" sentinel (-1).
+            if (n < 0 or n > std.math.maxInt(i31)) {
+                len_limit = -1;
+            } else {
+                len_limit = @intCast(n);
+            }
+            ai += 2;
+            continue;
+        }
+        // Unknown option — reference Tcl raises ``bad option "X":
+        // must be -nocase or -length``.
+        raise_bad_option(words[ai], if (kind == .compare)
+            "must be -nocase or -length"
+        else
+            "must be -nocase or -length");
+        return obj_new_int(0);
+    }
+    // After option parsing we should be at the two trailing
+    // operand words.  ``opt_end`` was words.len - 2 so the only
+    // way ``ai != opt_end`` is when option processing stopped
+    // early on a non-flag word (handled by the ``--`` break above
+    // or by a non-``-`` word at the start of the option region).
+    // Reference Tcl emits ``bad option "X"`` for the first such
+    // word — string-2.2 (``string compare a b c``) wants ``bad
+    // option "a"``.
+    if (ai != opt_end) {
+        raise_bad_option(words[ai], "must be -nocase or -length");
+        return obj_new_int(0);
+    }
+    // ``ai`` lands on opt_end (== words.len - 2) so the two operands
+    // are the last two words.
+    const cmp = rt.string_compare_full(words[opt_end], words[opt_end + 1], nocase, len_limit);
+    if (kind == .equal) {
+        // string equal returns 1 when cmp is "equal" (string_compare
+        // returns 0 for equal strings).
+        const v = rt.obj_get_int(cmp);
+        return obj_new_int(if (v == 0) 1 else 0);
+    }
+    return cmp;
+}
+
+fn raise_expected_integer(operand: i32) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_mod.obj_ensure_string(operand);
+    const prefix = "expected integer but got \"";
+    const suffix = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: u32 = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
+fn raise_bad_option(option: i32, expected_text: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_mod.obj_ensure_string(option);
+    const prefix = "bad option \"";
+    const middle = "\": ";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + expected_text.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: u32 = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (expected_text) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
 fn eval_string_is(words: []const i32) result_mod.InterpResult {
     // Arity contract: ``string is class ?-strict? ?-failindex var? str``.
     // ``words[0] = string``, ``words[1] = is``, ``words[2] = class``.
@@ -480,12 +683,19 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
         const a = obj_ensure_string(words[i]);
         const ap: [*]const u8 = @ptrFromInt(a.ptr);
         if (a.len == 0 or ap[0] != '-') break;
-        if (str_eq(ap, a.len, "-strict")) {
+        // ``-strict`` / ``-failindex`` accept unambiguous prefixes
+        // (reference Tcl's TclGetIndexFromObj allows option-prefix
+        // matching).  ``-fail`` / ``-faili`` / etc. all map to
+        // ``-failindex``; ``-s`` / ``-str`` map to ``-strict``.
+        // The two flags share no prefix beyond ``-`` so any
+        // ``-f...`` resolves uniquely to ``-failindex`` and any
+        // ``-s...`` to ``-strict``.
+        if (a.len >= 2 and ap[1] == 's' and is_prefix_of(ap, a.len, "-strict")) {
             strict = true;
             i += 1;
             continue;
         }
-        if (str_eq(ap, a.len, "-failindex")) {
+        if (a.len >= 2 and ap[1] == 'f' and is_prefix_of(ap, a.len, "-failindex")) {
             if (i + 1 >= words.len) {
                 raise_string_wrong_args(
                     "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
