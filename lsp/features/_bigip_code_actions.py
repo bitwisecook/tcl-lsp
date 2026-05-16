@@ -29,6 +29,8 @@ reference).
 
 from __future__ import annotations
 
+import json
+
 from lsprotocol import types
 
 from core.bigip.parser import parse_bigip_conf
@@ -78,12 +80,11 @@ def get_bigip_code_actions(
     # Partition rename action — only when the cursor is on an
     # ``auth partition`` stanza.  Routes through the query engine
     # (``rename_partition``) so the same partition-visibility
-    # refusal rules the CLI uses fire here too: renames of
-    # ``/Common`` (or into ``/Common`` from a tenant) raise
-    # ``BuiltinError`` and the action is suppressed rather than
-    # applying an unsafe edit.  ``BigipAuthPartition.full_path``
-    # is stored as the bare name (``"Tenant_A"``) without a
-    # leading slash.
+    # refusal rules the CLI uses fire here too.  Renames of
+    # ``/Common`` are suppressed up front; renames into ``/Common``
+    # from a tenant are rejected by the execute-command handler.
+    # ``BigipAuthPartition.full_path`` is stored as the bare name
+    # (``"Tenant_A"``) without a leading slash.
     for part_path, part_obj in config.auth_partitions.items():
         if part_path != obj_path:
             continue
@@ -91,6 +92,8 @@ def get_bigip_code_actions(
         if rng is None or not (rng.start.line <= cursor_line <= rng.end.line):
             continue
         partition_short = obj_path.lstrip("/")
+        if partition_short == "Common":
+            continue
         # Offer the action as a command that triggers the standard
         # rename UI rather than as a pre-baked WorkspaceEdit with a
         # placeholder name.  The previous behaviour applied a
@@ -106,7 +109,7 @@ def get_bigip_code_actions(
                 kind=types.CodeActionKind.RefactorRewrite,
                 command=types.Command(
                     title="Rename partition",
-                    command="f5.renamePartition",
+                    command="tclLsp.renamePartition",
                     arguments=[uri, partition_short],
                 ),
             )
@@ -147,7 +150,7 @@ def run_rename_partition(
 
     if old_partition == new_partition:
         return None
-    expression = f'rename_partition("{old_partition}", "{new_partition}")'
+    expression = f"rename_partition({json.dumps(old_partition)}, {json.dumps(new_partition)})"
     try:
         result = run_query(expression, {uri: source})
     except BuiltinError:

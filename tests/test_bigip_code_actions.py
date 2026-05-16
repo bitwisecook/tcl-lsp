@@ -49,8 +49,16 @@ def test_rename_partition_action_on_partition_stanza():
     # rather than accepting a placeholder.
     assert partition_action.edit is None
     assert partition_action.command is not None
-    assert partition_action.command.command == "f5.renamePartition"
+    assert partition_action.command.command == "tclLsp.renamePartition"
     assert partition_action.command.arguments == ["file:///t.conf", "Tenant_A"]
+
+
+def test_no_partition_rename_action_for_common_partition():
+    """``rename_partition`` deliberately refuses ``/Common`` moves, so
+    the editor should not offer a partition rename action on that stanza."""
+    source = "auth partition Common { description default }\nltm pool /Common/web_pool { }\n"
+    actions = get_bigip_code_actions(source, uri="file:///t.conf", range_=_range(0))
+    assert all("Rename partition" not in a.title for a in actions)
 
 
 def test_run_rename_partition_drives_through_query_engine():
@@ -71,6 +79,25 @@ def test_run_rename_partition_drives_through_query_engine():
     assert "auth partition Tenant_B" in rewritten
     assert "/Tenant_B/web_pool" in rewritten
     assert "Tenant_A" not in rewritten
+
+
+def test_run_rename_partition_safely_quotes_query_arguments():
+    """Hostile command arguments stay inside one string literal and are
+    rejected by ``rename_partition``'s name validation."""
+    import pytest
+
+    from core.bigip.query.errors import BuiltinError
+    from lsp.features._bigip_code_actions import run_rename_partition
+
+    source = "auth partition Tenant_A { description default }\nltm pool /Tenant_A/web_pool { }\n"
+    with pytest.raises(BuiltinError) as exc:
+        run_rename_partition(
+            source=source,
+            old_partition="Tenant_A",
+            new_partition='Tenant_B"); rename_partition("Tenant_A", "Tenant_C',
+            uri="file:///t.conf",
+        )
+    assert "partition names must match" in str(exc.value)
 
 
 def test_run_rename_partition_refuses_common_renames():

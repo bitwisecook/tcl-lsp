@@ -720,6 +720,31 @@ def on_bigip_cleanup(
     return report_to_dict(report)
 
 
+def on_rename_partition(uri: str, old_partition: str, new_partition: str) -> dict[str, Any]:
+    """Return the query-backed WorkspaceEdit for a BIG-IP partition rename."""
+    from core.bigip.query.errors import BuiltinError
+    from lsp.features._bigip_code_actions import run_rename_partition
+
+    try:
+        source = _state._get_doc_source(uri)
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"Could not read document: {exc}"}
+
+    try:
+        edit = run_rename_partition(
+            source=source,
+            old_partition=old_partition,
+            new_partition=new_partition,
+            uri=uri,
+        )
+    except BuiltinError as exc:
+        return {"success": False, "error": str(exc)}
+
+    if edit is None:
+        return {"success": False, "error": "No partition rename edits were produced."}
+    return {"success": True, "edit": edit}
+
+
 def on_write_rule_back(
     uri: str,
     body_start_offset: int,
@@ -1035,6 +1060,7 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.command("tcl-lsp.listRules")(on_list_rules)
     server_instance.command("tcl-lsp.extractLinkedObjects")(on_extract_linked_objects)
     server_instance.command("tcl-lsp.bigipCleanup")(on_bigip_cleanup)
+    server_instance.command("tcl-lsp.renamePartition")(on_rename_partition)
     server_instance.command("tcl-lsp.writeRuleBack")(on_write_rule_back)
     server_instance.command("tcl-lsp.tclpkg.install")(on_tclpkg_install)
     server_instance.command("tcl-lsp.tclpkg.search")(on_tclpkg_search)

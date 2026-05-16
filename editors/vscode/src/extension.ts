@@ -148,6 +148,32 @@ interface PythonInfo {
   source: string;
 }
 
+interface LspPosition {
+  line: number;
+  character: number;
+}
+
+interface LspRange {
+  start: LspPosition;
+  end: LspPosition;
+}
+
+interface LspTextEdit {
+  range: LspRange;
+  newText?: string;
+  new_text?: string;
+}
+
+interface LspWorkspaceEdit {
+  changes?: Record<string, LspTextEdit[]>;
+}
+
+interface RenamePartitionResult {
+  success: boolean;
+  edit?: LspWorkspaceEdit;
+  error?: string;
+}
+
 let outputChannel: vscode.OutputChannel;
 
 function getOutputChannel(): vscode.OutputChannel {
@@ -734,6 +760,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.extractAllRules", extractAllRules),
     commands.registerCommand("tclLsp.extractLinkedObjects", extractLinkedObjectsAtCursor),
     commands.registerCommand("tclLsp.bigipCleanup", generateBigipCleanupScript),
+    commands.registerCommand("tclLsp.renamePartition", renamePartition),
     commands.registerCommand(
       "tclLsp.renameSymbolAtPosition",
       async (line: number, startChar: number, endChar: number) => {
@@ -811,6 +838,30 @@ function onActiveEditorChanged(editor: TextEditor | undefined): void {
     dialectStatusBarItem.hide();
     versionStatusBarItem.hide();
   }
+}
+
+function workspaceEditFromLsp(edit: LspWorkspaceEdit): vscode.WorkspaceEdit {
+  const workspaceEdit = new vscode.WorkspaceEdit();
+  for (const [uriString, textEdits] of Object.entries(edit.changes ?? {})) {
+    const uri = Uri.parse(uriString);
+    for (const textEdit of textEdits) {
+      const newText = textEdit.newText ?? textEdit.new_text;
+      if (newText === undefined) {
+        continue;
+      }
+      workspaceEdit.replace(
+        uri,
+        new Range(
+          textEdit.range.start.line,
+          textEdit.range.start.character,
+          textEdit.range.end.line,
+          textEdit.range.end.character,
+        ),
+        newText,
+      );
+    }
+  }
+  return workspaceEdit;
 }
 
 // Command handlers
@@ -987,6 +1038,61 @@ async function applyDialectForEditor(editor: TextEditor | undefined): Promise<vo
     return;
   }
   await applyDialectForDocument(editor.document);
+}
+
+async function renamePartition(uriString?: string, oldPartition?: string): Promise<void> {
+  if (!client) {
+    window.showWarningMessage("The Tcl language server is not running.");
+    return;
+  }
+  const editor = window.activeTextEditor;
+  const targetUri = uriString ?? editor?.document.uri.toString();
+  const currentName = (oldPartition ?? "").trim();
+  if (!targetUri || !currentName) {
+    window.showWarningMessage("Place the cursor on a BIG-IP partition stanza first.");
+    return;
+  }
+
+  const newNameInput = await window.showInputBox({
+    title: "Rename BIG-IP Partition",
+    prompt: `New name for ${currentName}`,
+    value: currentName,
+    valueSelection: [0, currentName.length],
+    validateInput: (value) => {
+      const trimmed = value.trim().replace(/^\/+/, "");
+      if (!trimmed) {
+        return "Enter a partition name.";
+      }
+      if (trimmed === "Common") {
+        return "Renaming to or from /Common is not supported.";
+      }
+      if (!/^[A-Za-z0-9_.-]+$/.test(trimmed)) {
+        return "Use letters, digits, underscore, dot, or hyphen.";
+      }
+      return undefined;
+    },
+  });
+  if (newNameInput === undefined) {
+    return;
+  }
+
+  const newName = newNameInput.trim().replace(/^\/+/, "");
+  const result = (await client.sendRequest("workspace/executeCommand", {
+    command: "tcl-lsp.renamePartition",
+    arguments: [targetUri, currentName, newName],
+  })) as RenamePartitionResult | null;
+
+  if (!result?.success || !result.edit) {
+    window.showErrorMessage(result?.error ?? "Partition rename did not produce any edits.");
+    return;
+  }
+
+  const applied = await workspace.applyEdit(workspaceEditFromLsp(result.edit));
+  if (!applied) {
+    window.showErrorMessage("VS Code rejected the partition rename workspace edit.");
+    return;
+  }
+  window.showInformationMessage(`Renamed partition ${currentName} to ${newName}.`);
 }
 
 async function optimiseDocument(): Promise<void> {

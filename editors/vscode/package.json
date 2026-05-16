@@ -424,6 +424,11 @@
         "category": "Tcl"
       },
       {
+        "command": "tclLsp.renamePartition",
+        "title": "Rename BIG-IP Partition",
+        "category": "Tcl"
+      },
+      {
         "command": "tclLsp.toggleAi",
         "title": "Toggle AI Features",
         "category": "Tcl"

@@ -36,6 +36,7 @@ suite("Command Registration", () => {
     "tclLsp.extractRulePick",
     "tclLsp.extractAllRules",
     "tclLsp.extractLinkedObjects",
+    "tclLsp.renamePartition",
     "tclLsp.renameSymbolAtPosition",
     "tclLsp.generateDocstring",
   ];

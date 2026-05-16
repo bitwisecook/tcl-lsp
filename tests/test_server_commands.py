@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
+from lsprotocol import types
 
 import lsp.commands as server_module
 import lsp.state as _lsp_state
@@ -176,3 +178,43 @@ def test_extract_linked_objects_command_with_extra_offsets(
     assert "ltm virtual /Common/vs_b" in headers
     assert "ltm pool /Common/pool_a" in headers
     assert "ltm pool /Common/pool_b" in headers
+
+
+def test_rename_partition_command_returns_workspace_edit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "auth partition Tenant_A { description default }\nltm pool /Tenant_A/web_pool { }\n"
+    uri = "file:///bigip.conf"
+    monkeypatch.setattr(
+        _lsp_state,
+        "_get_doc_source",
+        lambda requested_uri: source if requested_uri == uri else "",
+    )
+
+    result = server_module.on_rename_partition(uri, "Tenant_A", "Tenant_B")
+
+    assert result["success"] is True
+    edit = cast(types.WorkspaceEdit, result["edit"])
+    assert edit.changes is not None
+    changes = edit.changes
+    [text_edit] = changes[uri]
+    new_text = text_edit.new_text
+    assert "auth partition Tenant_B" in new_text
+    assert "/Tenant_B/web_pool" in new_text
+
+
+def test_rename_partition_command_reports_refusals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "auth partition Common { description default }\n"
+    uri = "file:///bigip.conf"
+    monkeypatch.setattr(
+        _lsp_state,
+        "_get_doc_source",
+        lambda requested_uri: source if requested_uri == uri else "",
+    )
+
+    result = server_module.on_rename_partition(uri, "Common", "Tenant_A")
+
+    assert result["success"] is False
+    assert "Common" in cast(str, result["error"])
