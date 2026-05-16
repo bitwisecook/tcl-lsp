@@ -65,6 +65,19 @@ pub const State = struct {
     /// ``catch_leave`` / ``catch_enter`` and after the first
     /// ``log_command_info`` skip.
     error_info_supplied: u32 = 0,
+    /// Pending arbitrary ``-OPT VALUE`` pairs supplied to ``return``
+    /// (cmdMZ-return-2.1: ``return -bar soom``).  Encoded as a
+    /// pre-built dict TclObj.  Snapshotted into
+    /// :attr:`last_return_extras` by :func:`catch_leave` so the
+    /// surrounding catch's :func:`catch_options` can merge them
+    /// into its output dict.
+    pending_return_extras: i32 = 0,
+    /// Snapshot of :attr:`pending_return_extras` at catch_leave
+    /// time.  :func:`catch_options` reads this to populate the
+    /// options dict with the user-supplied ``-OPT VALUE`` pairs.
+    /// Cleared on each catch_leave after a fresh snapshot replaces
+    /// the previous capture.
+    last_return_extras: i32 = 0,
     /// 1 = return pending (absorbed by proc dispatch).
     return_flag: u32 = 0,
     /// TclObj return value paired with ``return_flag``.
@@ -409,6 +422,16 @@ pub export fn catch_leave() i32 {
     state.pending_return_code = 0;
     state.pending_return_level = 1;
     state.pending_return_armed = 0;
+    // Snapshot the user-supplied ``-OPT VALUE`` pairs into
+    // ``last_return_extras`` so :func:`catch_options` (called
+    // after ``catch_leave`` clears the pending slot) sees them.
+    // Release any prior snapshot first.
+    if (state.last_return_extras != 0) {
+        obj.tcl_obj_release(state.last_return_extras);
+        state.last_return_extras = 0;
+    }
+    state.last_return_extras = state.pending_return_extras;
+    state.pending_return_extras = 0;
     // Snapshot the body's payload so ``catch_result`` can hand it back
     // to the caller's result-var writeback.  TCL_RETURN carries
     // ``return_val``; TCL_ERROR carries ``error_msg``.  Retain the
@@ -511,6 +534,32 @@ pub export fn catch_result() i32 {
 // key-modifying path (Copilot review).
 pub export fn catch_options() i32 {
     var d: i32 = dict_mod.dict_create();
+    // Merge in any arbitrary ``-OPT VALUE`` pairs the caller
+    // supplied to ``return`` (cmdMZ-return-2.1 / 2.18 etc.).  These
+    // come FIRST so they sit at the head of the dict in insertion
+    // order before the standard ``-code`` / ``-level`` slots — Tcl
+    // 9's tcltest expects ``-bar soom -code 0 -level 1`` not the
+    // other way around.
+    if (state.last_return_extras != 0) {
+        const keys = dict_mod.dict_keys(state.last_return_extras);
+        if (keys != 0) {
+            const ks = obj.obj_ensure_string(keys);
+            const n = obj.list_count_elements(ks.ptr, ks.len);
+            var i: i64 = 0;
+            while (i < n) : (i += 1) {
+                const elem = obj.list_element_at(ks.ptr, ks.len, i);
+                const key_obj = obj.obj_new_string_copy(ks.ptr + elem.start, elem.len);
+                const val_obj = dict_mod.dict_get(state.last_return_extras, key_obj);
+                if (val_obj != 0) {
+                    const new_d = dict_mod.dict_set(d, key_obj, val_obj);
+                    if (new_d != d) obj.tcl_obj_release(d);
+                    d = new_d;
+                }
+                obj.tcl_obj_release(key_obj);
+            }
+            obj.tcl_obj_release(keys);
+        }
+    }
     // TIP 90: the ``-code`` / ``-level`` slots report the
     // user-supplied codes from ``return`` (or the conventional
     // mapping for raw break/continue/error), NOT the catch's
