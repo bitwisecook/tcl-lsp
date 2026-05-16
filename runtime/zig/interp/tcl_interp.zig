@@ -3385,6 +3385,25 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
             }
             return result;
         }
+        if (cmd.unterminated_brace or cmd.unterminated_quote) {
+            // ``parseOld-10.1`` / ``-10.2`` / ``-10.3`` / ``-10.4`` —
+            // unbalanced ``{`` / ``"`` should produce the canonical
+            // ``missing close-brace`` / ``missing "`` diagnostic at
+            // parse time.
+            const msg_text: []const u8 = if (cmd.unterminated_quote)
+                "missing \""
+            else
+                "missing close-brace";
+            const buf = obj_mod.alloc(@intCast(msg_text.len));
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                for (msg_text, 0..) |b, k| dst[k] = b;
+                const tcl_catch = @import("tcl_catch.zig");
+                const msg = obj_mod.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+                tcl_catch.tcl_cmd_error(msg);
+            }
+            return result;
+        }
         if (cmd.n_words == 0) continue;
 
         // Release the previous command's result obj before
