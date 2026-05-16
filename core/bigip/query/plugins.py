@@ -35,6 +35,15 @@ from pathlib import Path
 from typing import Iterable
 
 _PLUGINS_LOADED = False
+# Paths of plugin files that imported successfully on some prior call.
+# Tracked so ``load_user_plugins(force=True)`` skips them on re-scan
+# instead of re-executing their decorators — the second pass would
+# trip the duplicate-registration guard in ``@renderer`` / ``@builtin``
+# / ``@input_format`` and surface as a spurious "failed to load
+# plugin" warning on stderr.  Files that previously *failed* to
+# import stay out of this set, so a force-reload still retries them
+# in case the user just fixed the syntax error.
+_LOADED_FILES: set[str] = set()
 
 
 def xdg_plugin_dir() -> Path:
@@ -70,14 +79,21 @@ def iter_plugin_files(directory: Path | None = None) -> Iterable[Path]:
 def load_user_plugins(*, force: bool = False) -> list[Path]:
     """Import every plugin file under the XDG plugin directory.
 
-    Returns the list of files that imported successfully.  Files
-    that raise during import are reported on stderr and skipped.
+    Returns the list of files that imported **on this call**.  Files
+    that imported successfully on a prior call are skipped — the
+    decorator registries reject duplicate names, so re-executing a
+    plugin module would only emit spurious "failed to load" warnings
+    and report it as failed.  Files that *failed* on a prior call
+    are retried in case the user just fixed the syntax error.  Files
+    that raise on this call are reported on stderr and skipped.
 
     Idempotent — subsequent calls return immediately unless *force*
     is set (used by tests that need to re-scan after dropping a new
-    file).  The first call to a registry helper (renderers,
-    builtins, inputs) triggers this; explicit invocation from a
-    script is also fine and lets callers control timing.
+    file).  Even with *force*, this only imports files the loader
+    hasn't already imported, so the documented "drop a new file in
+    ``~/.config/f5q/plugins/`` and re-scan" workflow surfaces just
+    the new file in the return value rather than burying it among
+    duplicate-registration warnings.
     """
     global _PLUGINS_LOADED
     if _PLUGINS_LOADED and not force:
@@ -86,6 +102,8 @@ def load_user_plugins(*, force: bool = False) -> list[Path]:
 
     loaded: list[Path] = []
     for path in iter_plugin_files():
+        if str(path) in _LOADED_FILES:
+            continue
         if _import_plugin_file(path):
             loaded.append(path)
     return loaded
@@ -109,6 +127,7 @@ def _import_plugin_file(path: Path) -> bool:
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)
+        _LOADED_FILES.add(str(path))
         return True
     except Exception as exc:  # noqa: BLE001  (any exception is a warn-not-crash event)
         print(f"f5q: warning: failed to load plugin {path}: {exc}", file=sys.stderr)
@@ -120,9 +139,12 @@ def _reset_for_tests() -> None:
 
     Tests parameterise ``XDG_CONFIG_HOME`` with ``monkeypatch.setenv``
     or ``tmp_path`` fixtures; without resetting the flag the second
-    test in a run would skip the scan entirely.  Not part of the
-    public API — call ``load_user_plugins(force=True)`` from script
-    code instead.
+    test in a run would skip the scan entirely.  Also clears the
+    "already imported" set so the next test starts from a clean slate
+    even when its plugin files live under the same paths as a prior
+    test's fixtures.  Not part of the public API — call
+    ``load_user_plugins(force=True)`` from script code instead.
     """
     global _PLUGINS_LOADED
     _PLUGINS_LOADED = False
+    _LOADED_FILES.clear()

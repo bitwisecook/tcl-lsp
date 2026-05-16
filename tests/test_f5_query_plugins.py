@@ -130,6 +130,68 @@ def test_loader_is_idempotent(xdg: Path) -> None:
     _RENDERER_REGISTRY.pop("once-test", None)
 
 
+def test_force_reload_skips_already_loaded_files(xdg: Path, capsys: pytest.CaptureFixture) -> None:
+    """``load_user_plugins(force=True)`` must not re-execute a plugin
+    that loaded successfully on a prior call.
+
+    Re-executing would trip the duplicate-registration guard in
+    every ``@renderer`` / ``@builtin`` / ``@input_format`` decorator
+    the plugin used, and surface as misleading "failed to load
+    plugin" warnings on stderr.  The documented use case — drop a
+    new file in ``~/.config/f5q/plugins/`` and force-reload — should
+    surface just the new file and stay quiet about the rest.
+    """
+    (xdg / "first.py").write_text(
+        "from f5q import renderer\n"
+        "@renderer('force-test-first', summary='x', accepts='any')\n"
+        "def _(values, **opts): return ''\n"
+    )
+    first = f5q.load_user_plugins(force=True)
+    assert any(p.name == "first.py" for p in first)
+    capsys.readouterr()  # drain any first-load output
+
+    # Drop a NEW plugin file and re-scan.  The already-loaded
+    # ``first.py`` should be skipped silently; only ``second.py``
+    # should appear in the return value, and stderr should stay
+    # clean.
+    (xdg / "second.py").write_text(
+        "from f5q import renderer\n"
+        "@renderer('force-test-second', summary='y', accepts='any')\n"
+        "def _(values, **opts): return ''\n"
+    )
+    second = f5q.load_user_plugins(force=True)
+    captured = capsys.readouterr()
+    try:
+        assert [p.name for p in second] == ["second.py"]
+        assert "warning" not in captured.err.lower()
+        assert "duplicate" not in captured.err.lower()
+    finally:
+        _RENDERER_REGISTRY.pop("force-test-first", None)
+        _RENDERER_REGISTRY.pop("force-test-second", None)
+
+
+def test_force_reload_retries_previously_broken_files(xdg: Path) -> None:
+    """A plugin that failed to import on the first pass should be
+    retried on subsequent force-reloads — the user might have just
+    fixed the syntax error."""
+    plugin = xdg / "fixable.py"
+    plugin.write_text("this is not valid python !!!\n")
+    f5q.load_user_plugins(force=True)
+    # Now "fix" the file and re-scan.
+    plugin.write_text(
+        "from f5q import renderer\n"
+        "@renderer('retry-test', summary='ok', accepts='any')\n"
+        "def _(values, **opts): return ''\n"
+    )
+    second = f5q.load_user_plugins(force=True)
+    try:
+        assert any(p.name == "fixable.py" for p in second)
+        # The decorator side-effect registered the renderer.
+        assert any(s.name == "retry-test" for s in f5q.list_renderers())
+    finally:
+        _RENDERER_REGISTRY.pop("retry-test", None)
+
+
 def test_iter_plugin_files_top_level_before_subdirs(xdg: Path) -> None:
     (xdg / "z-top.py").write_text("")
     (xdg / "sub").mkdir()
