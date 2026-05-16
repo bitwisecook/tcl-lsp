@@ -288,6 +288,10 @@ fn eval_error(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_catch(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2 or words.len > 4) {
+        stubs.raise("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
+        return result_mod.from_globals(0);
+    }
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
         rt.catch_enter();
