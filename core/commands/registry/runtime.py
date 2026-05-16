@@ -796,40 +796,125 @@ def stub_to_command_sig(stub: "StubCommandDef") -> CommandSig:
     ``var_read``, ``pattern``, ``channel``, ``name``) are translated to
     the matching :class:`ArgRole` so consumers like
     :func:`arg_indices_for_role` and the call-graph scanner see stubbed
-    commands as if they were registry entries.  Arity is inferred from
-    the declared argument count, honouring trailing optional / ``args``
-    forms via :attr:`StubArgDef.optional`.
+    commands as if they were registry entries.
+
+    Optional arguments (``?arg?``) and the variadic ``args`` tail are
+    honoured: when a stub has optional args before a role-bearing one
+    (e.g. ``{sql ?rowvar? script:body}``), the returned signature has
+    a dynamic ``arg_role_resolver`` that shifts the role indices based
+    on the actual call's argument count.  This makes positional
+    stubs work for commands like ``db eval ?-withoutnulls? sql ?array?
+    script`` where the BODY arg's index moves with the optionals.
     """
-    roles: dict[int, frozenset[ArgRole]] = {}
-    min_required = 0
-    max_args: int | None = 0
-    for idx, arg in enumerate(stub.args):
+    # Filter out the variadic ``args`` tail — it accepts zero or more
+    # arguments and contributes nothing to arity or roles.
+    positional = [a for a in stub.args if a.name != "args"]
+    has_variadic = len(positional) != len(stub.args)
+
+    min_required = sum(1 for a in positional if not a.optional)
+    max_args: int | None
+    if has_variadic:
+        max_args = None
+    else:
+        max_args = len(positional)
+
+    arity = Arity(min_required, max_args) if max_args is not None else Arity(min_required)
+
+    # Static role map — used when there are no optional positional
+    # args, so the declared indices match the actual argument indices.
+    static_roles: dict[int, frozenset[ArgRole]] = {}
+    has_optional = any(a.optional for a in positional)
+    for idx, arg in enumerate(positional):
         role = _STUB_ROLE_MAP.get(arg.role)
         if role is not None:
-            roles[idx] = frozenset({role})
-        if arg.optional:
-            if max_args is not None:
-                max_args = max_args + 1
-        else:
-            min_required += 1
-            if max_args is not None:
-                max_args = max_args + 1
-        if arg.name == "args":
-            max_args = None  # variadic tail
-    arity = Arity(min_required, max_args) if max_args is not None else Arity(min_required)
-    return CommandSig(arity=arity, arg_roles=roles)
+            static_roles[idx] = frozenset({role})
+
+    if not has_optional:
+        return CommandSig(arity=arity, arg_roles=static_roles)
+
+    # Build a dynamic resolver that walks the actual argument list and
+    # decides which optional slots are filled (left-to-right).
+    declared = tuple(positional)
+    role_lookup = tuple(_STUB_ROLE_MAP.get(a.role) for a in positional)
+
+    def _resolver(call_args: list[str]) -> dict[int, frozenset[ArgRole]]:
+        n = len(call_args)
+        n_required = sum(1 for a in declared if not a.optional)
+        n_optional = len(declared) - n_required
+        # How many optionals are actually present, left-to-right.
+        extras = max(0, n - n_required)
+        opts_present = min(extras, n_optional)
+
+        result: dict[int, frozenset[ArgRole]] = {}
+        actual_idx = 0
+        opts_filled = 0
+        for decl_idx, arg in enumerate(declared):
+            if arg.optional:
+                if opts_filled >= opts_present:
+                    # This optional is absent — its declared role does
+                    # not map to any actual argument position.
+                    continue
+                opts_filled += 1
+            role = role_lookup[decl_idx]
+            if role is not None and actual_idx < n:
+                result[actual_idx] = frozenset({role})
+            actual_idx += 1
+        return result
+
+    return CommandSig(arity=arity, arg_roles=static_roles, arg_role_resolver=_resolver)
 
 
 def signatures_from_stubs(
     stubs: "Iterable[StubCommandDef]",
 ) -> dict[str, CommandSig | SubcommandSig]:
-    """Convert a list of :class:`StubCommandDef` to a signature overlay."""
-    overlay: dict[str, CommandSig | SubcommandSig] = {}
+    """Convert a list of :class:`StubCommandDef` to a signature overlay.
+
+    Stubs with a ``subcommand`` field are folded into a single
+    :class:`SubcommandSig` keyed by the command name so an ensemble
+    like ``db`` can carry separate signatures for ``db eval``,
+    ``db transaction``, ``db function``, etc.  Plain stubs (no
+    subcommand) produce a :class:`CommandSig` directly.
+
+    Each declared name is registered under both its qualified
+    (``::foo::bar``) and unqualified (``foo::bar``) spellings so
+    :func:`_resolve_arg_roles` finds the overlay whether the call
+    site writes the bare or fully-qualified form.
+    """
+    # First pass: group stubs by base command name so we can decide
+    # CommandSig vs SubcommandSig per group.
+    grouped: dict[str, list[StubCommandDef]] = {}
     for stub in stubs:
-        # Strip a leading ``::`` so callers can stub fully-qualified
-        # names; lookups happen via the bare key the parser produces.
-        name = stub.name.lstrip(":")
-        overlay[name] = stub_to_command_sig(stub)
+        bare = stub.name.lstrip(":")
+        grouped.setdefault(bare, []).append(stub)
+
+    overlay: dict[str, CommandSig | SubcommandSig] = {}
+    for bare, group in grouped.items():
+        subcommand_stubs = [s for s in group if s.subcommand]
+        plain_stubs = [s for s in group if not s.subcommand]
+
+        sig: CommandSig | SubcommandSig
+        if subcommand_stubs:
+            sub_sigs: dict[str, CommandSig] = {}
+            for sub_stub in subcommand_stubs:
+                sub_sigs[sub_stub.subcommand or ""] = stub_to_command_sig(sub_stub)
+            sig = SubcommandSig(subcommands=sub_sigs, allow_unknown=bool(plain_stubs))
+            # A plain stub for the same name is taken as the fallback
+            # for unknown subcommands — represent it by leaving
+            # ``allow_unknown=True`` so the analyser doesn't fire
+            # an "unknown subcommand" diagnostic; the fallback sig
+            # isn't attached because :class:`SubcommandSig` doesn't
+            # model a default arm.  Users wanting a fully untyped
+            # fallback should drop the subcommand stubs.
+        else:
+            # Either one plain stub or multiple plain stubs (the last
+            # wins; duplicate plain stubs for the same name are
+            # already a user authoring error).
+            sig = stub_to_command_sig(plain_stubs[-1])
+
+        overlay[bare] = sig
+        # Also store the fully-qualified spelling.
+        qualified = bare if bare.startswith("::") else f"::{bare}"
+        overlay[qualified] = sig
     return overlay
 
 

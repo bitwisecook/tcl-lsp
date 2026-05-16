@@ -87,8 +87,11 @@ _VALID_FLAGS: frozenset[str] = frozenset(
 )
 
 # Matches a stub definition line (with or without ``# tcl-lsp:`` prefix).
+# An optional subcommand word may appear between the command name and the
+# braced argument list: ``stub db eval {sql script:body}``.  The
+# subcommand cannot start with ``{`` (which would be the args list).
 _STUB_RE = re.compile(
-    r"stub\s+(\S+)\s+\{([^}]*)\}(.*)",
+    r"stub\s+(\S+)(?:\s+([^\s{][^\s]*))?\s+\{([^}]*)\}(.*)",
     re.IGNORECASE,
 )
 
@@ -126,8 +129,17 @@ def parse_stub_line(line: str, line_range: Range) -> StubCommandDef | None:
         return None
 
     cmd_name = m.group(1)
-    args_str = m.group(2).strip()
-    flags_str = m.group(3).strip()
+    sub_name = m.group(2)
+    args_str = m.group(3).strip()
+    flags_str = m.group(4).strip()
+
+    # ``stub expr-func`` / ``stub expr-op`` are expression stubs and
+    # handled by :func:`parse_expr_stub_line`.  The regex would
+    # otherwise match ``expr-func`` as the command name with
+    # ``<name>`` as the subcommand word — bail out so the caller can
+    # dispatch correctly.
+    if cmd_name.lower().startswith("expr-"):
+        return None
 
     args = _parse_args(args_str)
     if args is None:
@@ -137,6 +149,7 @@ def parse_stub_line(line: str, line_range: Range) -> StubCommandDef | None:
 
     return StubCommandDef(
         name=cmd_name,
+        subcommand=sub_name,
         args=tuple(args),
         range=line_range,
         barrier="-barrier" in flags,

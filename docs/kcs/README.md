@@ -84,6 +84,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — declare third-party Tcl commands (sqlite `eval`, vendor builtins,
   factory-created instance commands) so the call graph, arity checker,
   and trait inferencer understand them.
+- [kcs-howto-add-command-registry-package.md](kcs-howto-add-command-registry-package.md)
+  — add first-class registry support for a Tcl package (sqlite3,
+  tcllib, etc.) so the shipped distribution recognises its commands
+  with hover docs, completion, arity checks, and side-effect
+  classification.
 - [kcs-howto-readdress-virtuals-with-query.md](kcs-howto-readdress-virtuals-with-query.md)
   — bulk-readdress virtual servers into a new subnet with `f5 query`.
 - [kcs-howto-migrate-partition-with-query.md](kcs-howto-migrate-partition-with-query.md)

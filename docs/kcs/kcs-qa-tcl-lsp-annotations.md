@@ -71,10 +71,17 @@ The same syntax works in a workspace-wide `<dialect>.tcl.stubs` file, with
 the `# tcl-lsp:` prefix optional.
 
 Argument roles include `body` (recursively analysed script), `expr`, `var`,
-`var_read`, `name`, `pattern`, `channel`, and the default `value`. Flags
-(`-barrier`, `-loop`, `-pure`, `-mutator`, `-unsafe`, `-scope_alias`) refine
-the stub's purity and side-effect shape so the call graph, taint
-propagation, and constant-folding passes treat the command correctly.
+`var_read`, `name`, `pattern`, `channel`, and the default `value`. Roles
+plus arity drive the analyses today — adding a `body` role makes the call
+graph descend into the script, adding `var` lets the variable-usage
+analyser see the write, and so on.
+
+Flags (`-barrier`, `-loop`, `-pure`, `-mutator`, `-unsafe`, `-scope_alias`)
+are parsed and recorded on the `StubCommandDef`, but most of them are
+not yet wired into downstream passes — only `-barrier` is consulted by
+the call-graph scanner. See
+[kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
+for which flags affect analysis today.
 
 **Worked example — sqlite `eval`:** sqlite's per-row callback is the
 trailing argument, which is a Tcl script. Stubbing it as `body` lets the

@@ -391,6 +391,14 @@ class StubCommandDef:
     Allows users to declare command signatures for unknown dialect
     extensions so the LSP can provide diagnostics, completion, and
     semantic understanding without a full registry entry.
+
+    ``subcommand`` is the optional dispatch word for ensemble-style
+    commands.  ``stub db eval {sql script:body}`` parses as
+    ``name="db"``, ``subcommand="eval"``, args after the subcommand
+    word.  Multiple stubs with the same ``name`` but different
+    ``subcommand`` values fold into a single :class:`SubcommandSig`
+    in the signature overlay so consumers can dispatch on the actual
+    subcommand at the call site.
     """
 
     name: str
@@ -402,6 +410,7 @@ class StubCommandDef:
     mutator: bool = False
     unsafe: bool = False
     scope_alias: bool = False  # creates_scope_alias (upvar-like)
+    subcommand: str | None = None
 
 
 # Stub expression function/operator definition

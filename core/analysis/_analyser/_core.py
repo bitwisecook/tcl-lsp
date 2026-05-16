@@ -254,15 +254,23 @@ class _AnalyserBase:
             else:
                 self.result.suppressed_lines[ln] = codes
 
+        # Make declared stubs visible to registry-driven role lookups
+        # for both the freshly-scanned chunk and any stubs threaded in
+        # from a restored snapshot.  Wrapping the chunk loop matches
+        # the full ``analyse()`` path so editor diagnostics on
+        # incremental edits also see stub roles.
+        from core.commands.registry.runtime import stub_signature_scope
+
         snapshots: list[AnalyserSnapshot] = []
-        for cmds in chunk_commands:
-            self._analyse_commands_inner(cmds, self._current_scope, source)
-            snapshots.append(self.snapshot())
-            time.sleep(0)  # Yield GIL between chunks
-        self._emit_unresolved_command_diagnostics(cu=cu)
-        self._emit_variable_usage_diagnostics()
-        self._emit_cfg_ssa_diagnostics(source, cu=cu)
-        self._dedupe_diagnostics()
+        with stub_signature_scope(self.result.stub_commands):
+            for cmds in chunk_commands:
+                self._analyse_commands_inner(cmds, self._current_scope, source)
+                snapshots.append(self.snapshot())
+                time.sleep(0)  # Yield GIL between chunks
+            self._emit_unresolved_command_diagnostics(cu=cu)
+            self._emit_variable_usage_diagnostics()
+            self._emit_cfg_ssa_diagnostics(source, cu=cu)
+            self._dedupe_diagnostics()
         return self.result, snapshots
 
     def analyse_commands(
@@ -297,12 +305,19 @@ class _AnalyserBase:
                 self.result.suppressed_lines[ln] = existing | codes
             else:
                 self.result.suppressed_lines[ln] = codes
-        self._analyse_commands_inner(commands, self._current_scope, source)
-        if finalise:
-            self._emit_unresolved_command_diagnostics()
-            self._emit_variable_usage_diagnostics()
-            self._emit_cfg_ssa_diagnostics(source, cu=cu)
-            self._dedupe_diagnostics()
+        # Apply the stub signature overlay so role lookups inside the
+        # incremental analysis path see the file's declared stubs.  The
+        # snapshot we restored from carries any earlier stubs along
+        # with it in ``self.result.stub_commands``.
+        from core.commands.registry.runtime import stub_signature_scope
+
+        with stub_signature_scope(self.result.stub_commands):
+            self._analyse_commands_inner(commands, self._current_scope, source)
+            if finalise:
+                self._emit_unresolved_command_diagnostics()
+                self._emit_variable_usage_diagnostics()
+                self._emit_cfg_ssa_diagnostics(source, cu=cu)
+                self._dedupe_diagnostics()
         return self.result
 
     def _analyse_commands_inner(

@@ -451,16 +451,19 @@ def _build_proc_cache(
 ) -> dict[tuple[str, int], FunctionUnit]:
     """Build a proc cache from a CompilationUnit.
 
-    Keys are ``(qualified_name, hash(proc_source_text))`` so that a
-    procedure's FunctionUnit can be reused across edits as long as
-    the body text is identical.
+    Keys are ``(qualified_name, hash((proc_source_text, stub_fingerprint)))``
+    so a procedure's FunctionUnit can be reused across edits as long as
+    both the body text and the active stub overlay are unchanged.
     """
+    from core.compiler.compilation_unit import compute_stub_fingerprint
+
     cache: dict[tuple[str, int], FunctionUnit] = {}
+    stub_fingerprint = compute_stub_fingerprint(cu.source)
     for qname, fu in cu.procedures.items():
         ir_proc = cu.ir_module.procedures.get(qname)
         if ir_proc is not None:
             proc_src = cu.source[ir_proc.range.start.offset : ir_proc.range.end.offset]
-            cache[(qname, hash(proc_src))] = fu
+            cache[(qname, hash((proc_src, stub_fingerprint)))] = fu
     return cache
 
 

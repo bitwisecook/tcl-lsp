@@ -68,8 +68,13 @@ The `#` prefix and the `tcl-lsp:` tag are optional in this form.
 ### Stub syntax
 
 ```
-stub <command-name> {arg1:role arg2 ?optArg:role?} ?flags...?
+stub <command-name> ?<subcommand>? {arg1:role arg2 ?optArg:role?} ?flags...?
 ```
+
+A subcommand word between the command name and the braced argument list
+turns the stub into an ensemble entry — multiple stubs with the same
+command name but different subcommands fold into a single dispatch
+table so `db eval` and `db transaction` can declare different shapes.
 
 Argument roles (after the `:`):
 
@@ -89,44 +94,71 @@ An argument wrapped in `?...?` is optional. An argument literally named
 
 Flags:
 
-| Flag           | Meaning                                          |
-|----------------|--------------------------------------------------|
-| `-barrier`     | Command creates a dynamic analysis barrier       |
-| `-loop`        | Command has a loop body                          |
-| `-pure`        | Command is side-effect-free                      |
-| `-mutator`     | Command mutates state                            |
-| `-unsafe`      | Command is unsafe                                |
-| `-scope_alias` | Command creates a scope alias (like `upvar`)     |
+| Flag           | What it does today                                  |
+|----------------|-----------------------------------------------------|
+| `-barrier`     | Marks the command as crossing an interpreter boundary; downstream passes recognise it via `StubCommandDef.barrier`. |
+| `-loop`        | Records `StubCommandDef.loop`; informational, kept for future code-flow specialisation. |
+| `-pure`        | Recorded on the `StubCommandDef`. *Not yet* fed into purity / constant-folding propagation. |
+| `-mutator`     | Recorded on the `StubCommandDef`. *Not yet* fed into side-effect classification. |
+| `-unsafe`      | Recorded on the `StubCommandDef`. *Not yet* fed into safe-interp checks. |
+| `-scope_alias` | Recorded on the `StubCommandDef`. *Not yet* fed into upvar-style scope tracking. |
 
-### Worked example — sqlite `db eval`
+The flags marked *not yet* fed through are parsed and surfaced on the
+analyser's `AnalysisResult.stub_commands` for inspection, but the
+purity / side-effect / safe-interp passes do not currently change
+behaviour based on them. Argument roles (`body`, `expr`, `var`,
+`var_read`, `pattern`, `channel`, `name`) and arity *do* drive
+analyses today.
 
-`sqlite3 db_eval` (and the instance-command equivalent `db1 eval ...`) takes
-a SQL string followed by an optional callback script that runs for each
-row. Stub it as:
+### Worked example — sqlite `db eval` / `db transaction`
+
+The sqlite3 Tcl extension creates an instance command (`sqlite3 db
+:memory:` → command `db`) whose subcommands include `eval`,
+`transaction`, `function`, `onecolumn`, and so on. Each subcommand has
+its own shape:
+
+```tcl
+db eval $sql ?$rowvar? ?$script?     ;# row callback at the trailing slot
+db transaction ?$type? $script       ;# script always trailing
+db function NAME ?-argcount N? $script
+```
+
+Stub each subcommand separately. The `?rowvar?` optional slot is
+honoured by the resolver — the body's index shifts based on the actual
+call:
 
 ```tcl
 # tcl-lsp: stubs-begin
-# tcl-lsp: stub db1 {subcommand args}
-# tcl-lsp: stub sqlite_eval {sql script:body} -barrier
+# tcl-lsp: stub db eval {sql ?rowvar? script:body} -barrier
+# tcl-lsp: stub db transaction {script:body} -barrier
+# tcl-lsp: stub db function {name script:body} -barrier
 # tcl-lsp: stubs-end
 
-proc handle_row {} { puts "row: $name=$value" }
+package require sqlite3
+sqlite3 db :memory:
+
+proc handle_row {} { puts "$name = $value" }
+proc apply_change {} {}
 
 proc dump {} {
-    sqlite_eval "SELECT name, value FROM kv" {handle_row}
+    db eval {SELECT name, value FROM kv} {handle_row}     ;# body at arg 2
+}
+
+proc dump_rowvar {} {
+    db eval {SELECT name FROM kv} row {handle_row}        ;# body at arg 3
+}
+
+proc run_in_tx {} {
+    db transaction {apply_change}                          ;# body at arg 1
 }
 ```
 
-With the stub in place, `tcl callgraph` shows the edge `::dump →
-::handle_row`, and the unused-proc analyser does not flag `handle_row` as
-dead code.
+With these stubs in place, `tcl callgraph` reports `::dump →
+::handle_row`, `::dump_rowvar → ::handle_row`, and `::run_in_tx →
+::apply_change`. The unused-proc analyser leaves the callbacks alone.
 
-For commands that read or write variables in the caller's frame, mark the
-argument with `var` or `var_read`:
-
-```tcl
-# tcl-lsp: stub sqlite_eval {sql script:body rowvar:var} -barrier
-```
+This stub block has been exercised against `libsqlite3-tcl` 3.45.1 — the
+exact source runs in `tclsh` and our analyser sees every callback.
 
 ### Expression-function and operator stubs
 
