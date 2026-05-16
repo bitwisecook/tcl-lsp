@@ -1228,7 +1228,10 @@ pub fn eval_while(words: []const i32) i32 {
             .ERROR, .RETURN => return result,
         }
     }
-    return result;
+    // ``while`` always returns the empty string (Tcl docs); body
+    // results from prior iterations were already released above.
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    return obj_new_string(0, 0);
 }
 
 pub fn eval_for(words: []const i32) i32 {
@@ -1304,7 +1307,10 @@ pub fn eval_for(words: []const i32) i32 {
             },
         }
     }
-    return result;
+    // ``for`` always returns the empty string (Tcl docs).  Drop the
+    // body's last result and hand the caller a fresh empty obj.
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    return obj_new_string(0, 0);
 }
 
 /// ``switch ?-options? string pattern body ?pattern body ...?``
