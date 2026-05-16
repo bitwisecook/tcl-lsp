@@ -83,8 +83,12 @@ fn eval_lappend(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_llength(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_list_length(words[1]));
-    return result_mod.from_globals(0);
+    if (words.len != 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"llength list\"");
+        return result_mod.from_globals(0);
+    }
+    return result_mod.from_globals(rt.tcl_cmd_list_length(words[1]));
 }
 
 fn eval_lindex(words: []const i32) result_mod.InterpResult {
@@ -478,20 +482,41 @@ fn eval_concat(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_join(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
-    if (words.len >= 2) {
-        const sp = alloc(1);
-        const d: [*]u8 = @ptrFromInt(sp);
-        d[0] = ' ';
-        return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 2 or words.len > 3) {
+        stubs.raise("wrong # args: should be \"join list ?joinString?\"");
+        return result_mod.from_globals(0);
     }
-    return result_mod.from_globals(obj_new_string(0, 0));
+    if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
+    const sp = alloc(1);
+    const d: [*]u8 = @ptrFromInt(sp);
+    d[0] = ' ';
+    return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
 }
 
 fn eval_split(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_split(words[1], words[2]));
-    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_split(words[1], obj_new_string(0, 0)));
-    return result_mod.from_globals(obj_new_string(0, 0));
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 2 or words.len > 3) {
+        stubs.raise("wrong # args: should be \"split string ?splitChars?\"");
+        return result_mod.from_globals(0);
+    }
+    if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_split(words[1], words[2]));
+    // Default split chars: the four whitespace bytes ``" \t\n\r"``.
+    // Empty splitChars means a different thing in Tcl (split every
+    // character into its own element); we must NOT route the no-arg
+    // form through the empty-string fast path or split-1.1 / split-1.4
+    // / split-1.7 fail with one-char-per-byte output instead of the
+    // expected whitespace-tokenised list.
+    const default_chars: []const u8 = " \t\n\r";
+    const buf = alloc(@intCast(default_chars.len));
+    if (buf == 0) return result_mod.from_globals(0);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (default_chars, 0..) |c, i| d[i] = c;
+    const sep = rt.obj_new_string_copy(buf, @intCast(default_chars.len));
+    obj_mod.free_sized(buf, @intCast(default_chars.len));
+    const result = rt.tcl_cmd_split(words[1], sep);
+    obj_mod.tcl_obj_release(sep);
+    return result_mod.from_globals(result);
 }
 
 fn eval_lreverse(words: []const i32) result_mod.InterpResult {
