@@ -190,6 +190,49 @@ fn eval_lreplace(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(0);
 }
 
+/// ``ledit varName first last ?element ...?`` — same shape as
+/// ``lreplace`` but mutates the variable in place AND returns the
+/// new value.  Semantically ``set varName [lreplace [set varName]
+/// first last ?element ...?]``.  Introduced in Tcl 9.0.
+fn eval_ledit(words: []const i32) result_mod.InterpResult {
+    if (words.len < 4) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"ledit listVar first last ?element ...?\"");
+        return result_mod.from_globals(0);
+    }
+    const var_arg = words[1];
+    const first_arg = words[2];
+    const last_arg = words[3];
+    const list_arg = frames.var_resolve(var_arg);
+    var result: i32 = 0;
+    if (words.len == 4) {
+        result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
+    } else {
+        const idx_s = obj_ensure_string(first_arg);
+        var forward = false;
+        if (idx_s.len >= 3) {
+            const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
+            if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
+        }
+        if (forward) {
+            result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[4]);
+            var wi: u32 = 5;
+            while (wi < words.len) : (wi += 1) {
+                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
+            }
+        } else {
+            result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[words.len - 1]);
+            var wi: u32 = words.len - 1;
+            while (wi > 4) {
+                wi -= 1;
+                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
+            }
+        }
+    }
+    _ = frames.var_set(var_arg, result);
+    return result_mod.from_globals(result);
+}
+
 fn eval_lsort(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_list_sort(words[words.len - 1]));
     return result_mod.from_globals(obj_new_string(0, 0));
@@ -891,6 +934,7 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "lset", .arity_min = 2, .arity_max = null, .handler = &eval_lset },
     .{ .name = "linsert", .arity_min = 2, .arity_max = null, .handler = &eval_linsert },
     .{ .name = "lreplace", .arity_min = 3, .arity_max = null, .handler = &eval_lreplace },
+    .{ .name = "ledit", .arity_min = 3, .arity_max = null, .handler = &eval_ledit },
     .{ .name = "lsort", .arity_min = 1, .arity_max = null, .handler = &eval_lsort },
     .{ .name = "lsearch", .arity_min = 2, .arity_max = null, .handler = &eval_lsearch },
     .{ .name = "lrange", .arity_min = 3, .arity_max = 3, .handler = &eval_lrange },

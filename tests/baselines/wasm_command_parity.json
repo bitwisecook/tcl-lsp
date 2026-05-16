@@ -104,6 +104,7 @@
     "join": "IMPLEMENTED",
     "lappend": "IMPLEMENTED",
     "lassign": "IMPLEMENTED",
+    "ledit": "IMPLEMENTED",
     "lindex": "IMPLEMENTED",
     "linsert": "IMPLEMENTED",
     "list": "IMPLEMENTED",
