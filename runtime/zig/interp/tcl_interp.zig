@@ -3446,6 +3446,19 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     // bytes to fill.
     if (script_ptr == 0) return;
     const tcl_catch = @import("tcl_catch.zig");
+    // ``error msg info ?code?`` set ``error_info_supplied`` so the
+    // immediate ``error`` callsite frame is suppressed (the user
+    // supplied the desired traceback text via *info*).  Consume
+    // the flag and short-circuit before mutating ``errorInfo`` /
+    // ``last_log_*`` — but still stamp the dedup keys so a later
+    // log call from an outer eval frame uses ``invoked from
+    // within`` rather than the first-frame ``while executing``.
+    if (tcl_catch.state.error_info_supplied != 0) {
+        tcl_catch.state.error_info_supplied = 0;
+        tcl_catch.state.last_log_script = script_ptr;
+        tcl_catch.state.last_log_pos = cmd_start;
+        return;
+    }
     const cur = tcl_catch.state.error_msg;
     if (cur == 0) return;
     if (script_ptr == tcl_catch.state.last_log_script and cmd_start == tcl_catch.state.last_log_pos) return;

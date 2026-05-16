@@ -52,6 +52,19 @@ pub const State = struct {
     /// ``invoked from within`` instead of ``while executing``.
     last_log_script: u32 = 0,
     last_log_pos: u32 = 0,
+    /// Non-zero when ``error msg info ?code?`` supplied an explicit
+    /// ``info`` argument.  Reference Tcl's ``Tcl_ErrorObjCmd`` sets
+    /// ``iPtr->flags |= ERR_LEGACY_COPY`` in that case, which
+    /// ``Tcl_LogCommandInfo`` reads to skip its "first increment"
+    /// (the immediate ``error`` callsite frame the user already
+    /// captured in *info*).  Without the suppression
+    /// ``$::errorInfo`` after ``error msg1 msg2 msg3`` reports the
+    /// auto-traceback ``msg1\n    while executing\n"error ..."``
+    /// instead of the verbatim ``msg2`` reference Tcl expects
+    /// (error-4.1 / -4.2 / -4.5 / -5.1).  Cleared by every
+    /// ``catch_leave`` / ``catch_enter`` and after the first
+    /// ``log_command_info`` skip.
+    error_info_supplied: u32 = 0,
     /// 1 = return pending (absorbed by proc dispatch).
     return_flag: u32 = 0,
     /// TclObj return value paired with ``return_flag``.
@@ -422,6 +435,7 @@ pub export fn catch_leave() i32 {
     state.error_flag = 0;
     state.last_log_script = 0;
     state.last_log_pos = 0;
+    state.error_info_supplied = 0;
     state.return_flag = 0;
     state.break_flag = 0;
     state.continue_flag = 0;
@@ -591,7 +605,17 @@ fn stamp_error_globals(msg: i32, info: i32, code: i32) void {
     // catched-error path many times per test, so this scaled
     // linearly with the suite size.
     const info_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
-    const info_val = if (info != 0) info else msg;
+    // ``error msg {}`` (empty info) reverts to the standard
+    // auto-generated ``msg\n    while executing\n"..."`` form, so
+    // seed ``::errorInfo`` from ``msg`` and let the unwind path
+    // append the per-frame trace.  Reference Tcl's
+    // ``Tcl_ErrorObjCmd`` checks ``Tcl_GetStringFromObj(info,
+    // &length)`` and only uses ``info`` when ``length > 0``.
+    var info_val: i32 = msg;
+    if (info != 0) {
+        const is = obj.obj_ensure_string(info);
+        if (is.len > 0) info_val = info;
+    }
     _ = globals.global_set(info_name, info_val);
     obj.tcl_obj_release(info_name);
 
@@ -688,6 +712,7 @@ fn slice_eq_lit(sp: [*]const u8, slen: u32, lit: []const u8) bool {
 pub export fn tcl_cmd_error(msg: i32) void {
     state.last_log_script = 0;
     state.last_log_pos = 0;
+    state.error_info_supplied = 0;
     stamp_error_globals(msg, 0, detect_error_code(msg));
     if (state.catch_depth > 0) {
         state.error_flag = 1;
@@ -712,6 +737,21 @@ pub export fn tcl_cmd_error(msg: i32) void {
 pub export fn tcl_cmd_error_full(msg: i32, info: i32, code: i32) void {
     state.last_log_script = 0;
     state.last_log_pos = 0;
+    // ``error msg info ?code?`` with a NON-EMPTY *info* arg should
+    // suppress the auto-generated first-frame ``while executing``
+    // append — the user supplied the desired traceback text via
+    // *info*.  Reference Tcl's ``Tcl_ErrorObjCmd`` checks the obj
+    // length:: ``Tcl_GetStringFromObj(info, &len); if (len > 0)
+    // ... ERR_LEGACY_COPY``.  An empty ``{}`` info reverts to the
+    // standard auto-generated traceback (error-4.2/4.3/4.4 want
+    // ``msg1\n    while executing\n"error msg1 {}"``-style text
+    // even when ``info`` is supplied as the empty string).
+    var suppress: u32 = 0;
+    if (info != 0) {
+        const is = obj.obj_ensure_string(info);
+        if (is.len > 0) suppress = 1;
+    }
+    state.error_info_supplied = suppress;
     stamp_error_globals(msg, info, code);
     if (state.catch_depth > 0) {
         state.error_flag = 1;
