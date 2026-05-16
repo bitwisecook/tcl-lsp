@@ -45,10 +45,12 @@ offline-only.
 4. [iRules + data-groups](#4-irules--data-groups)
 5. [APM access policies](#5-apm-access-policies)
 6. [GTM & cross-tier joins](#6-gtm--cross-tier-joins)
-7. [Logs & timeline](#7-logs--timeline)
+7. [Logs & timeline](#7-logs--timeline) (including an ASCII Gantt of monitor up/down)
 8. [Live probes](#8-live-probes)
 9. [Migration & bulk edits](#9-migration--bulk-edits)
-10. [Cheat sheet](#10-cheat-sheet)
+10. [Localhost / self-IP security audits](#10-localhost--self-ip-security-audits)
+11. [Training-question crosswalk](#11-training-question-crosswalk)
+12. [Cheat sheet](#12-cheat-sheet)
 
 Most scenarios came from real questions on DevCentral, the F5
 community forum, and `r/F5Networks` — links to the originals are
@@ -984,7 +986,6 @@ $ f5 query --raw --input-f5log lt=multitier/logs/t1-a.log '
 ```
 
 ```
-# === file:///home/user/tcl-lsp/samples/for_f5_query/multitier/tier1-ltm-ha.conf ===
 Mar 14 06:32:36	BOOT	Boot complete on t1-a.example.test
 Mar 14 07:40:19	CFG-LOAD	Configuration loaded from /config/bigip.conf successfully.
 ```
@@ -992,6 +993,60 @@ Mar 14 07:40:19	CFG-LOAD	Configuration loaded from /config/bigip.conf successful
 Cross-reference with 7.3: if a device went `ACTIVE` *before*
 its config-load completed, that's the kind of race that turns
 into a brief outage during a reboot.
+
+### 7.7 ASCII Gantt timeline of monitor events
+
+**Question.** *["Provide a list of virtuals/pools offline along
+with how long they've been offline"][q71]* — the standard answer
+("export the log and graph it in Splunk") works, but for ad-hoc
+incident-response we can render the timeline straight from
+`f5log_load` to a terminal.
+
+[`sysadmin/monitor_timeline.py`](sysadmin/monitor_timeline.py)
+consumes the `f5 query` output and renders a Gantt-style ASCII
+chart — `#` is "marked down," `v` is the DOWN transition, `^` is
+the UP transition.
+
+```
+$ f5 query --raw '
+    f5log_load("multitier/logs/t1-a.log")[]
+    | select(.module == "01340011" or .module == "01340012")
+    | tsv(.timestamp,
+          (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
+          (if .module == "01340011" then "DOWN" else "UP" end))
+  ' multitier/tier1-ltm-ha.conf | grep -v '^#' \
+  | python3 sysadmin/monitor_timeline.py
+```
+
+```
+members down/up over time (1 char = 5 min)
+                      10          11          12          13          14          15          16          17          18
+                      +----------------------------------------------------------------------------------------------------------
+t2_c01_vip:443        |v#^
+t2_c02_vip:443        |   v######^
+t2_c03_vip:443        |          v#######^
+t2_c04_vip:443        |                  v#########^
+t2_c05_vip:443        |                                     v###^
+t2_c06_vip:443        |                                           v######^
+t2_c07_vip:443        |                                                     v####^
+t2_c08_vip:443        |                                                           v^
+t2_c09_vip:443        |                                                                v###########^
+t2_c10_vip:443        |                                                                               v#^
+t2_c11_vip:443        |                                                                                        v^
+t2_c12_vip:443        |                                                                                               ^
+```
+
+Reading the chart: the t2 fanout pool's members went down in a
+rolling sequence — `t2_c01` first at ~10:11, recovering within
+~9 minutes; `t2_c04` was down for ~46 minutes between 11:45 and
+12:31; `t2_c09` for ~60 minutes between 15:31 and 16:31. None of
+them were down at the same time, which is exactly what you want
+to see — the rollout was sequential rather than a stampede.
+
+The same query against another device's log shows the same pool
+from a different observer; line-up the two timelines and HA
+disagreement (one device says UP, the other says DOWN) shows
+up as missing characters.
 
 ---
 
@@ -1303,7 +1358,168 @@ semantics.
 
 ---
 
-## 10. Cheat sheet
+## 10. Localhost / self-IP security audits
+
+A security check pattern popularised by the open-source
+**BIG-IP Localhost Security Checker** ([bigipck][bigipck-repo]):
+review `net self` allow-services for risk; flag any object,
+pool member, or iRule body that references a loopback /
+wildcard address; build a data-group usage tree.
+
+[bigipck-repo]: https://github.com/example/bigipck
+
+The fixture [`sysadmin/lab_localhost.conf`](sysadmin/lab_localhost.conf)
+carries the typical mix of "safe", "risky", and "default" `net
+self` objects, plus a pool member on `127.0.0.1` and an iRule
+that does `node 127.0.0.1 8080`.
+
+### 10.1 `net self` allow-service audit
+
+**Rule.** F5 best practice (KB **K17333**, "BIG-IP best practice
+for self IP allow services") is `allow-service none` on
+public-facing self-IPs, and only the management services on
+internal self-IPs. `allow-service all` opens the management
+plane on that interface.
+
+```
+$ f5 query --raw '
+    .net.self[]
+    | join(."allow-service", ",") as $svc
+    | tsv(.name, .address, .vlan, $svc,
+          (if $svc == "none" then "OK"
+           elif $svc == "all" then "RISK (open)"
+           elif $svc == "default" then "default (review)"
+           else "custom" end))
+  ' sysadmin/lab_localhost.conf
+```
+
+```
+198.51.100.5	198.51.100.5/24	/Common/external	none	OK
+10.1.0.5	10.1.0.5/24	/Common/internal	all	RISK (open)
+10.2.0.5	10.2.0.5/24	/Common/internal	default	default (review)
+```
+
+`10.1.0.5` opens every management service on an internal VLAN
+— almost certainly a misconfig. `10.2.0.5` uses `default`,
+which is "tcp:domain udp:domain tcp:f5-iquery tcp:snmp tcp:https"
+on most platforms — review whether each of those genuinely
+needs to be reachable here.
+
+### 10.2 Loopback / wildcard pool members
+
+**Rule.** A pool member on `127.0.0.1` typically points at a
+control-plane daemon (`bigd`, `iControl`); a wildcard
+`0.0.0.0` member usually means "this pool isn't load-balancing,
+it's used as a tag on a wildcard VS." Both are legitimate but
+**should** be deliberate.
+
+```
+$ f5 query --raw '
+    .ltm.pool[].members[]
+    | select(is_loopback(.address) or is_unspecified(.address))
+    | tsv(.name, .address, port(.name),
+          (if is_loopback(.address) then "LOOPBACK"
+           else "WILDCARD" end))
+  ' sysadmin/lab_localhost.conf
+```
+
+```
+/Common/loopback_n:8080	127.0.0.1	8080	LOOPBACK
+/Common/anyhost:80	0.0.0.0	80	WILDCARD
+```
+
+### 10.3 iRule bodies that touch a loopback / wildcard address
+
+**Rule.** F5 KB **K05413010** notes that `node 127.0.0.1` /
+`pool { 127.0.0.1 8080 }` etc. require
+`tmm.tcl.rule.node.allow_loopback_addresses=true` on modern
+TMOS — flagging every such iRule lets you decide whether the
+db-key change is intentional.
+
+```
+$ f5 query --raw '
+    .ltm.rule[]
+    | select(match(.body, "127\\.0\\.0\\.|::1|localhost"))
+    | tsv(.name, "uses localhost in body")
+  ' sysadmin/lab_localhost.conf
+```
+
+```
+loopback_node_rule	uses localhost in body
+```
+
+Combine with `referenced_by(.)` to trace each match back to the
+VSes that attach the rule — i.e., the listeners whose traffic
+hits the loopback path.
+
+### 10.4 Data-group usage tree
+
+**Rule.** Before deleting / re-keying a data-group, build the
+full reach: which iRules reference it, which VSes attach those
+iRules. This recipe runs against `ltm.conf`:
+
+```
+$ f5 query --raw '
+    .ltm["data-group"][] as $dg
+    | (.ltm.rule[]
+       | select(any(.refs."data-groups"[] == $dg."full-path"))) as $r
+    | (.ltm.virtual[]
+       | select(any(.rules[] == $r."full-path"))) as $vs
+    | tsv($dg.name, $r.name, $vs.name, $vs.destination)
+  ' ltm.conf
+```
+
+```
+banned_ips	ip_blocklist_rule	api_vs	/Common/10.0.0.20:443
+api_keys	api_auth_rule	api_vs	/Common/10.0.0.20:443
+routing_map	api_router_rule	api_vs	/Common/10.0.0.20:443
+```
+
+Three rows: each of the three data-groups is reachable from one
+iRule, which is attached to one VS (`api_vs`). Pipe through
+`column -t -s$'\t'` for a tree-shaped terminal view.
+
+---
+
+## 11. Training-question crosswalk
+
+The 301A LTM Specialist labs and the F5 Agility 2018
+"Beginning LTM Implementation" labs ask students to answer
+questions about a running BIG-IP. Many of those questions
+become one-liners with `f5 query`. A representative mapping:
+
+| Lab module                                  | Lab question                                                          | Equivalent `f5 query` recipe        |
+|---------------------------------------------|-----------------------------------------------------------------------|-------------------------------------|
+| 301A — Monitors and Status, Lab 1, Q2-Q3 ([link][lab041]) | "What are the node / pool / VS statuses after applying a monitor?" | §7.1, plus live §8.3 portping       |
+| 301A — Load Balancing and Pools ([link][lab071]) | "How many connections has each pool member taken? Is the ratio correct?" | Stats are live-only on the device, but §1.2 + §1.5 give the static "what's configured" view that the question depends on |
+| 301A — Load Balancing and Pools ([link][lab071]) | "Which member isn't taking connections (priority groups)?"          | §1.5 pool JSON shows `priority-group` / `ratio` per member |
+| 301A — Load Balancing and Pools ([link][lab071]) | "Are there any persistence records?"                                | §1.6 persistence rollup             |
+| Agility 2018 — Load Balancing & Monitoring  | "How do I see which monitor each pool member uses?"                  | §1.2 pool/member CSV                |
+| Agility 2018 — Traffic Management           | "Which iRule routes which URI?"                                      | §4.1 + §4.2 iRule edges; §4.4 body-regex audit |
+| 201 TMOS Administration — VS / pool basics ([link][lab201]) | "List every VS along with its pool and destination."         | §1.1                                |
+| LTM 201 study guide ([link][lab201]) | "Identify VSes without a default pool."                          | §3.2                                |
+| F5 community thread ([link][q21])           | "Get VSes associated with a SNAT pool."                              | §2.1 `references_to(SNAT)`          |
+| F5 community thread ([link][q23])           | "Find which F5 has a particular URL across hundreds of boxes."       | §2.3 (with glob)                    |
+| F5 community thread ([link][q71])           | "Gather virtuals/pools offline and how long."                        | §7.1, §7.2, §7.7 timeline           |
+| F5 KB **K3451**                             | "Monitor's down even though the backend is healthy" — 5,120-byte rule | §8.2                                |
+| Kareem CCIE blog ([link][q31])              | "Identify unused objects (orphans)."                                 | §3.1                                |
+| `bigipck` security audit                    | "Find net-self objects whose allow-service isn't `none`."            | §10.1                               |
+| `bigipck` security audit                    | "Find iRule bodies / pool members that touch loopback / wildcard."   | §10.2, §10.3                        |
+| `bigipck` security audit                    | "Build a data-group usage tree (DG → iRule → VS)."                   | §10.4                               |
+
+[lab041]: https://clouddocs.f5.com/training/community/f5cert/html/class8/module04/lab1.html
+[lab071]: https://clouddocs.f5.com/training/community/f5cert/html/class8/module07/lab1.html
+[lab201]: https://f5-201-certification.readthedocs.io/en/latest/class1/module7/lab1.html
+
+The 301A answer keys live in Appendix I of each lab module; for
+the runtime statistics questions (connection counts, current
+persistence records) you still need `tmsh show ltm pool / VS`
+on a live device. `f5 query` is the offline-config / log /
+probe tool — pair it with `tmsh show` for the full picture.
+
+---
+
+## 12. Cheat sheet
 
 ### Common flags
 
