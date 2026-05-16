@@ -301,10 +301,22 @@ def run_query(
         # through and iterate the JSON sources as primary instead of
         # producing an empty result — there's no BIG-IP source for ``.``
         # to fall back to.
+        #
+        # JSON sources bound under an explicit name (via ``names``)
+        # are always skipped from the primary iteration regardless of
+        # ``all_json`` — they're reachable as ``$name`` and must not
+        # double-iterate as ``.``.  Without this guard the
+        # ``f5q.q(expr, prior, [in_memory])`` shape would evaluate
+        # *expr* once against ``[in_memory]`` (correct) and again
+        # against ``$_chain`` (wrong), since both are JSON sources.
+        named_uris = set((names or {}).values())
         all_json = sources and all(_is_json_source(u) for u in sources)
         for uri, source in sources.items():
-            if _is_json_source(uri) and not all_json:
-                continue
+            if _is_json_source(uri):
+                if uri in named_uris:
+                    continue
+                if not all_json:
+                    continue
             named_roots = _build_named_roots(
                 sources={u: (s if u != uri else source) for u, s in sources.items()},
                 names=names,

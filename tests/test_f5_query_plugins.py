@@ -193,17 +193,53 @@ def test_force_reload_retries_previously_broken_files(xdg: Path) -> None:
 
 
 def test_iter_plugin_files_top_level_before_subdirs(xdg: Path) -> None:
+    """Top-level files come first, sub-directory files second.
+
+    The loader sorts by ``(depth, path)`` so a user can predict the
+    order — top-level plugins (the first-class case) always load
+    before their helpers in sub-folders.
+    """
     (xdg / "z-top.py").write_text("")
     (xdg / "sub").mkdir()
     (xdg / "sub" / "a-nested.py").write_text("")
-    files = list(iter_plugin_files(xdg))
-    # rglob returns top-level files at depth 1 and nested files at
-    # depth 2; sorted() orders by path string so top-level
-    # ``z-top.py`` comes after ``sub/a-nested.py``.  The contract is
-    # "reproducible" rather than "top first" — both files are seen.
-    names = [p.name for p in files]
-    assert "z-top.py" in names
-    assert "a-nested.py" in names
+    files = [p.name for p in iter_plugin_files(xdg)]
+    assert files.index("z-top.py") < files.index("a-nested.py")
+
+
+def test_iter_plugin_files_supports_multifile_imports(xdg: Path, tmp_path: Path) -> None:
+    """A plugin can ``import`` a sibling file in the same plugin directory.
+
+    The loader temp-prepends the plugin directory to ``sys.path``
+    for the duration of each plugin's import; the entry is removed
+    afterward so ``sys.path`` stays clean.
+    """
+    # ``_helper.py`` is intentionally skipped by ``iter_plugin_files``
+    # but ``import helper`` from a real plugin still resolves it.
+    (xdg / "helper.py").write_text("MARK = 'imported-from-sibling'\n")
+    (xdg / "main.py").write_text(
+        "import helper\n"
+        "from f5q import renderer\n"
+        f"@renderer('multifile-test', summary={'helper.MARK'.upper()!r}, accepts='any')\n"
+        "def _(values, **opts): return helper.MARK + '\\n'\n"
+    )
+    loaded = f5q.load_user_plugins(force=True)
+    try:
+        # Both files appear in the load result (both are top-level
+        # *.py files, and neither name starts with ``_``).
+        names = {p.name for p in loaded}
+        assert "main.py" in names
+        # The renderer's summary captures the sibling-imported value.
+        spec = next(s for s in f5q.list_renderers() if s.name == "multifile-test")
+        assert (
+            spec.impl(
+                [],
+            )
+            == "imported-from-sibling\n"
+        )
+    finally:
+        _RENDERER_REGISTRY.pop("multifile-test", None)
+    # sys.path stays clean afterward.
+    assert str(xdg) not in __import__("sys").path
 
 
 # ---------------------------------------------------------------------------

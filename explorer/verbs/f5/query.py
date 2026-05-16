@@ -790,7 +790,20 @@ def _run_query(args: argparse.Namespace) -> int:
         spec: _InputSpec,
     ) -> str | None:
         """Read *pth*, register it under *nm* with *spec*; returns
-        an error string or ``None`` on success."""
+        an error string or ``None`` on success.
+
+        Refuses to silently re-bind ``$NAME`` if a prior side-input
+        flag (typed or generic) already claimed it — e.g.
+        ``--input-json routes=a.json --input yaml routes=b.yaml``
+        used to overwrite ``$routes`` with the second source; now
+        the second binding errors and points at the prior one.
+        """
+        if nm in side_resolved_names:
+            prior_uri = side_resolved_names[nm]
+            return (
+                f"{flag} {nm}={pth}: name ${nm} is already bound by a "
+                f"prior --input* flag (to {prior_uri}); pick a different name"
+            )
         try:
             uri, src = read_path(pth, strict=False)
         except (OSError, UnicodeDecodeError) as exc:

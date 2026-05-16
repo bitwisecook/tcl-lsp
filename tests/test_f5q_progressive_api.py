@@ -184,6 +184,26 @@ def test_chain_multiple_priors_combine() -> None:
     assert len(merged.values()) == len(virtuals.values()) + len(pools.values())
 
 
+def test_chain_priors_with_inline_data_do_not_double_iterate() -> None:
+    """When priors are mixed with another JSON-shaped input (an
+    in-memory list/dict, not a file), the synthesised ``$_chain``
+    JSON source must NOT also iterate as primary — the inline data
+    is primary, the priors are side-input only.
+
+    Before the fix, both JSON sources iterated as primary in the
+    runner's all-JSON fallback path, so ``q(expr, prior, [data])``
+    evaluated *expr* twice — once against the inline data (correct)
+    and once against the prior list (wrong).  This regression test
+    pins the named-side-input skip.
+    """
+    prior = f5q.q(".[]", ["a", "b"])  # values: ["a", "b"]
+    # Run an expression that only makes sense against the inline
+    # data: count its elements.  If the chain iterated as primary
+    # too, the result would carry two values (one per source).
+    out = f5q.q(".[] | .x", prior, [{"x": 100}, {"x": 200}])
+    assert out.values() == [100, 200]
+
+
 def test_chain_priors_with_file_bind_as_chain_var() -> None:
     """Priors + file/sources input: priors land under ``$_chain``,
     file acts as primary."""

@@ -830,15 +830,15 @@ progressively, render results through plugins or inline callables,
 and ship reusable extensions via one-line decorators:
 
 ```python
-import f5q
+from f5q import q, load, renderer, builtin, input_format
 
-# One-liner: f5q.q() takes (expression, *inputs).
-for name in f5q.q(".ltm.virtual[] | .name", "bigip.conf"):
+# One-liner: q() takes (expression, *inputs).
+for name in q(".ltm.virtual[] | .name", "bigip.conf"):
     print(name)
 
 # Progressive — chain queries on top of each other (typed wrapper, immutable).
 filtered = (
-    f5q.q(".ltm.virtual[]", "bigip.conf")
+    q(".ltm.virtual[]", "bigip.conf")
     .q('.[] | select(.pool != null)')
     .q('.[] | .name')
 )
@@ -851,8 +851,8 @@ filtered.render(lambda values, **opts: ", ".join(map(str, values)) + "\n")
 data = filtered.out()                            # [{"kind": ..., "fields": {...}}, ...]
 
 # Pre-stage once, query many times. Custom file formats? Pass an inline parser.
-corpus = f5q.load("ltm.conf", "gtm.conf")
-routes = f5q.load("routes.xml", parser=my_xml_parser)
+corpus = load("ltm.conf", "gtm.conf")
+routes = load("routes.xml", parser=my_xml_parser)
 
 # Ship a custom renderer the f5 CLI can dispatch via --render NAME.
 @renderer("md-table", summary="Markdown table of results.", accepts="any")

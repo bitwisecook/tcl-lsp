@@ -62,15 +62,21 @@ def xdg_plugin_dir() -> Path:
 def iter_plugin_files(directory: Path | None = None) -> Iterable[Path]:
     """Yield every ``*.py`` file the loader would import, in load order.
 
-    Top-level files load before sub-directories; otherwise files
-    sort alphabetically so the order is reproducible across runs.
-    Hidden files (``_*.py``) are skipped — they're conventionally
-    helper modules a plugin file imports privately.
+    Sorted by ``(relative depth, full path)`` so **top-level files
+    load before sub-directory files**, with each tier sorted
+    alphabetically.  This makes the order reproducible and matches
+    the way users intuitively read the plugin tree: top-level
+    plugins are first-class, sub-folders are for plugin-internal
+    helpers.  Hidden files (``_*.py``) are skipped — they're
+    conventionally helper modules a plugin file imports privately.
     """
     directory = directory if directory is not None else xdg_plugin_dir()
     if not directory.is_dir():
         return
-    for path in sorted(directory.rglob("*.py")):
+    for path in sorted(
+        directory.rglob("*.py"),
+        key=lambda p: (len(p.relative_to(directory).parts), str(p)),
+    ):
         if path.name.startswith("_"):
             continue
         yield path
@@ -117,8 +123,22 @@ def _import_plugin_file(path: Path) -> bool:
     incarnation in ``sys.modules`` (re-using the same name would
     leave both decorators having seen the registry).  Failures are
     reported on stderr but never raised.
+
+    The plugin's parent directory is **temporarily prepended to
+    ``sys.path``** for the duration of ``exec_module`` so a
+    multi-file plugin can ``import sibling`` or
+    ``from _helper import foo`` the way ordinary Python files in the
+    same directory would.  The entry is removed afterwards so the
+    plugin directory never lingers on ``sys.path`` outside its own
+    import — the loader stays free of cross-contamination if two
+    plugin directories share a helper name.
     """
     name = f"f5q_user_plugin_{path.stem}_{abs(hash(str(path))):x}"
+    plugin_dir = str(path.parent)
+    inserted = False
+    if plugin_dir not in sys.path:
+        sys.path.insert(0, plugin_dir)
+        inserted = True
     try:
         spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:
@@ -132,6 +152,12 @@ def _import_plugin_file(path: Path) -> bool:
     except Exception as exc:  # noqa: BLE001  (any exception is a warn-not-crash event)
         print(f"f5q: warning: failed to load plugin {path}: {exc}", file=sys.stderr)
         return False
+    finally:
+        if inserted:
+            try:
+                sys.path.remove(plugin_dir)
+            except ValueError:
+                pass
 
 
 def _reset_for_tests() -> None:
