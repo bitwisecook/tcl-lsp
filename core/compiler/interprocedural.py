@@ -16,9 +16,14 @@ import logging
 import re
 from dataclasses import dataclass, field
 
-from ..analysis.proc_arg_traits import infer_param_traits
+from ..analysis.proc_arg_traits import (
+    infer_param_traits,
+    infer_param_traits_deep,
+    merge_traits,
+)
 from ..analysis.semantic_model import ProcArgTrait
-from ..commands.registry.signatures import Arity
+from ..commands.registry.runtime import arg_indices_for_role, resolve_arg_role_map
+from ..commands.registry.signatures import ArgRole, Arity
 from ..common.naming import (
     normalise_qualified_name as _normalise_qualified_name,
 )
@@ -31,6 +36,16 @@ from .cfg import CFGFunction, CFGReturn, build_cfg
 from .core_analyses import FunctionAnalysis, LatticeKind, LatticeValue, analyse_function
 from .core_analyses import _expr_has_command as _expr_has_command_sub
 from .eval_helpers import DECIMAL_INT_RE as _DECIMAL_INT_RE
+from .expr_ast import (
+    ExprBinary,
+    ExprCall,
+    ExprCommand,
+    ExprNode,
+    ExprRaw,
+    ExprString,
+    ExprTernary,
+    ExprUnary,
+)
 from .ir import (
     IRAssignConst,
     IRAssignExpr,
@@ -240,6 +255,186 @@ def _apply_effect(facts: _LocalFacts, effect) -> None:
         facts.writes_global = True
 
 
+def _strip_braces(text: str) -> str:
+    stripped = text.strip()
+    if len(stripped) >= 2 and stripped[0] == "{" and stripped[-1] == "}":
+        return stripped[1:-1]
+    return stripped
+
+
+def _scan_script_text(
+    text: str,
+    *,
+    caller_qname: str,
+    known_procs: set[str],
+    facts: _LocalFacts,
+) -> None:
+    """Lex *text* as a Tcl script and record call targets / side effects.
+
+    Builds Tcl words from adjacent token fragments (``foo[bar]baz`` is
+    one word, not three), skips comments, and recurses into both
+    ``ArgRole.BODY`` arguments (catch / eval / if / while / for / …)
+    and ``ArgRole.EXPR`` arguments (the expression itself is re-scanned
+    so command subs inside conditions surface as call edges even when
+    the BODY recursion reached this script through a nested path).
+    """
+    if not text:
+        return
+    lexer = TclLexer(text)
+    # Words accumulate token fragments until a SEP/EOL boundary.
+    current_words: list[_WordFragment] = []
+    word_in_progress: _WordFragment | None = None
+
+    def _flush_word() -> None:
+        nonlocal word_in_progress
+        if word_in_progress is not None:
+            current_words.append(word_in_progress)
+            word_in_progress = None
+
+    while True:
+        tok = lexer.get_token()
+        if tok is None:
+            break
+        if tok.type is TokenType.EOL:
+            _flush_word()
+            if current_words:
+                _process_command_words(
+                    current_words,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
+                current_words = []
+            continue
+        if tok.type is TokenType.SEP:
+            _flush_word()
+            continue
+        if tok.type is TokenType.COMMENT:
+            # Tcl comments are not commands.  The lexer emits these as
+            # standalone tokens between EOLs, never adjacent to a word
+            # fragment, so we simply drop them.
+            continue
+        if tok.type is TokenType.EOF:
+            break
+        if tok.type is TokenType.CMD:
+            # Nested ``[...]`` substitution — scan its contents as a
+            # script for side effects, but the substitution is part of
+            # whatever word it's embedded in (``foo[bar]baz`` is one
+            # word, not three).
+            _scan_script_text(
+                tok.text,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+            if word_in_progress is None:
+                word_in_progress = _WordFragment(text="", is_braced=False, is_static=False)
+            word_in_progress.is_static = False
+            continue
+        if tok.type is TokenType.VAR:
+            # Variable substitution joins the surrounding word but
+            # contributes no statically known text.
+            if word_in_progress is None:
+                word_in_progress = _WordFragment(text="", is_braced=False, is_static=False)
+            word_in_progress.is_static = False
+            continue
+        if tok.type is TokenType.EXPAND:
+            # ``{*}`` argument expansion — we don't model expansion
+            # statically, so just drop the marker.
+            continue
+        # ESC or STR — concrete textual fragment.
+        if word_in_progress is None:
+            word_in_progress = _WordFragment(
+                text=tok.text,
+                is_braced=tok.type is TokenType.STR,
+                is_static=True,
+            )
+        else:
+            word_in_progress.text += tok.text
+            # If a word mixes braced and unbraced fragments, treat the
+            # combined form as unbraced — _strip_braces is only safe on
+            # a pure ``{...}`` literal.
+            if tok.type is not TokenType.STR:
+                word_in_progress.is_braced = False
+    _flush_word()
+    if current_words:
+        _process_command_words(
+            current_words,
+            caller_qname=caller_qname,
+            known_procs=known_procs,
+            facts=facts,
+        )
+
+
+@dataclass(slots=True)
+class _WordFragment:
+    text: str
+    is_braced: bool
+    is_static: bool  # False if any VAR/CMD/EXPAND fragment merged in
+
+
+def _process_command_words(
+    words: list[_WordFragment],
+    *,
+    caller_qname: str,
+    known_procs: set[str],
+    facts: _LocalFacts,
+) -> None:
+    if not words:
+        return
+    head = words[0]
+    if not head.is_static:
+        # Dynamic command word (``$cmd ...``, ``[lookup] ...``) — we
+        # cannot resolve the target statically, so apply a conservative
+        # effect.  The inner CMD substitution has already been scanned
+        # by ``_scan_script_text``.
+        facts.has_unknown_calls = True
+        return
+    cmd_word = _strip_braces(head.text) if head.is_braced else head.text
+    if not cmd_word:
+        return
+    arg_words = [w.text for w in words[1:]]
+    cmd_args = tuple(arg_words)
+    target = resolve_call_target(cmd_word, cmd_args, caller_qname, known_procs)
+    if target is not None:
+        facts.calls.add(target)
+    else:
+        _apply_effect(facts, classify_side_effects(cmd_word, cmd_args))
+
+    role_map = resolve_arg_role_map(cmd_word, list(arg_words))
+    for idx, roles in role_map.items():
+        if not (0 <= idx < len(arg_words)):
+            continue
+        if ArgRole.BODY in roles:
+            frag = words[idx + 1]
+            if not frag.is_static:
+                # ``$var`` / ``[cmd]`` body — the value isn't statically
+                # known, so we cannot recurse into it.
+                continue
+            body_text = _strip_braces(frag.text) if frag.is_braced else frag.text
+            _scan_script_text(
+                body_text,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+        if ArgRole.EXPR in roles:
+            # Expression argument — its command substitutions are
+            # call sites too.  Re-lex with the embedded-command scanner;
+            # full ExprNode AST analysis happens at the IR level for
+            # control-flow primitives.
+            frag = words[idx + 1]
+            if not frag.is_static:
+                continue
+            expr_text = _strip_braces(frag.text) if frag.is_braced else frag.text
+            _scan_embedded_commands(
+                expr_text,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+
+
 def _scan_embedded_commands(
     text: str,
     *,
@@ -254,19 +449,81 @@ def _scan_embedded_commands(
             break
         if tok2.type is not TokenType.CMD:
             continue
-        cmd_text = tok2.text.strip()
-        if not cmd_text:
-            continue
-        parts = cmd_text.split()
-        if not parts:
-            continue
-        cmd_word = parts[0]
-        cmd_args = tuple(parts[1:])
-        target = resolve_call_target(cmd_word, cmd_args, caller_qname, known_procs)
-        if target is not None:
-            facts.calls.add(target)
-        else:
-            _apply_effect(facts, classify_side_effects(cmd_word, cmd_args))
+        _scan_script_text(
+            tok2.text,
+            caller_qname=caller_qname,
+            known_procs=known_procs,
+            facts=facts,
+        )
+
+
+def _scan_expr_for_calls(
+    node: ExprNode,
+    *,
+    caller_qname: str,
+    known_procs: set[str],
+    facts: _LocalFacts,
+) -> None:
+    """Walk *node* and scan every ``[cmd ...]`` substitution as a script."""
+    match node:
+        case ExprCommand(text=text):
+            # text includes surrounding ``[...]``.  Drop the brackets and
+            # scan the inner script for call targets.
+            inner = text.strip()
+            if len(inner) >= 2 and inner[0] == "[" and inner[-1] == "]":
+                inner = inner[1:-1]
+            _scan_script_text(
+                inner,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+        case ExprRaw(text=text):
+            if "[" in text:
+                _scan_embedded_commands(
+                    text,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
+        case ExprString(text=text):
+            # Double-quoted operands undergo command substitution at
+            # expr-evaluation time: ``if {"[q]" ne ""} {...}`` calls
+            # ``q`` even though it appears inside quotes.  Scan for
+            # embedded ``[...]`` substitutions.
+            if "[" in text:
+                _scan_embedded_commands(
+                    text,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
+        case ExprBinary(left=left, right=right):
+            _scan_expr_for_calls(
+                left, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+            _scan_expr_for_calls(
+                right, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+        case ExprUnary(operand=operand):
+            _scan_expr_for_calls(
+                operand, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+        case ExprTernary(condition=cond, true_branch=tb, false_branch=fb):
+            _scan_expr_for_calls(
+                cond, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+            _scan_expr_for_calls(
+                tb, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+            _scan_expr_for_calls(
+                fb, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+            )
+        case ExprCall(args=args):
+            for arg in args:
+                _scan_expr_for_calls(
+                    arg, caller_qname=caller_qname, known_procs=known_procs, facts=facts
+                )
 
 
 def _scan_local_facts(
@@ -280,6 +537,27 @@ def _scan_local_facts(
         if isinstance(stmt, IRBarrier):
             facts.has_barrier = True
             facts.effect_writes |= EffectRegion.UNKNOWN_STATE
+            # An ``IRBarrier`` retains the original ``command`` / ``args``
+            # of the command that crossed the analysis boundary (e.g.
+            # ``eval`` or a user-stubbed wrapper like ``db_eval``).  If
+            # any of those args carry ``ArgRole.BODY``, scan them so
+            # callees inside the script body still register as call-graph
+            # edges.
+            if stmt.command and stmt.args:
+                body_indices = arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.BODY)
+                for idx in body_indices:
+                    if 0 <= idx < len(stmt.args):
+                        raw = stmt.args[idx]
+                        head = raw.lstrip()[:1]
+                        if head in ("$", "["):
+                            continue
+                        body_text = _strip_braces(raw)
+                        _scan_script_text(
+                            body_text,
+                            caller_qname=caller_qname,
+                            known_procs=known_procs,
+                            facts=facts,
+                        )
             continue
 
         # Barrier-relaxed ``uplevel`` / ``eval`` preserve barrier
@@ -308,6 +586,26 @@ def _scan_local_facts(
                 )
             else:
                 facts.calls.add(target)
+            # Recurse into ``ArgRole.BODY`` arguments of the call so
+            # callees inside the script body of commands like ``catch``,
+            # ``eval``, or user-stubbed wrappers (``db_eval $sql $script``)
+            # show up as call-graph edges.  Skip BODY args that are not
+            # literal scripts (``$var``, ``[cmd]``) since their contents
+            # are not statically known.
+            body_indices = arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.BODY)
+            for idx in body_indices:
+                if 0 <= idx < len(stmt.args):
+                    raw = stmt.args[idx]
+                    head = raw.lstrip()[:1]
+                    if head in ("$", "["):
+                        continue
+                    body_text = _strip_braces(raw)
+                    _scan_script_text(
+                        body_text,
+                        caller_qname=caller_qname,
+                        known_procs=known_procs,
+                        facts=facts,
+                    )
             continue
 
         if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):
@@ -343,6 +641,12 @@ def _scan_local_facts(
 
         if isinstance(stmt, IRIf):
             for clause in stmt.clauses:
+                _scan_expr_for_calls(
+                    clause.condition,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
                 _scan_local_facts(
                     clause.body,
                     caller_qname=caller_qname,
@@ -377,11 +681,24 @@ def _scan_local_facts(
                 known_procs=known_procs,
                 facts=facts,
             )
+            _scan_expr_for_calls(
+                stmt.condition,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
             if _expr_has_command_sub(stmt.condition):
                 facts.has_unknown_calls = True
             continue
 
         if isinstance(stmt, IRSwitch):
+            if _contains_command_substitution(stmt.subject):
+                _scan_embedded_commands(
+                    stmt.subject,
+                    caller_qname=caller_qname,
+                    known_procs=known_procs,
+                    facts=facts,
+                )
             for arm in stmt.arms:
                 if arm.body is not None:
                     _scan_local_facts(
@@ -402,6 +719,12 @@ def _scan_local_facts(
         if isinstance(stmt, IRWhile):
             _scan_local_facts(
                 stmt.body,
+                caller_qname=caller_qname,
+                known_procs=known_procs,
+                facts=facts,
+            )
+            _scan_expr_for_calls(
+                stmt.condition,
                 caller_qname=caller_qname,
                 known_procs=known_procs,
                 facts=facts,
@@ -621,13 +944,21 @@ def _cache_key_for_proc(
     source: str,
     qname: str,
     proc: IRProcedure,
+    stub_fingerprint: int = 0,
 ) -> tuple[str, int] | None:
-    """Return cache key for a proc based on its source slice."""
+    """Return cache key for a proc based on its source slice.
+
+    The fingerprint covers the active stub signature overlay because
+    summaries depend on how role-aware command lookups resolve
+    ``ArgRole.BODY`` / ``ArgRole.EXPR`` — adding or changing a stub
+    must invalidate the cached entry even when the proc body text is
+    unchanged.
+    """
     start = proc.range.start.offset
     end = proc.range.end.offset
     if start < 0 or end < start or end > len(source):
         return None
-    return (qname, hash(source[start:end]))
+    return (qname, hash((source[start:end], stub_fingerprint)))
 
 
 def _summarise_proc_local(
@@ -699,6 +1030,8 @@ def analyse_interprocedural_ir(
     source: str | None = None,
     proc_local_cache: dict[tuple[str, int], ProcLocalSummary] | None = None,
     prune_local_cache: bool = True,
+    stub_fingerprint: int = 0,
+    deep_param_traits: bool = False,
 ) -> InterproceduralAnalysis:
     """Build conservative per-procedure summaries from lowered IR.
 
@@ -723,7 +1056,7 @@ def analyse_interprocedural_ir(
     for qname, proc in ir_module.procedures.items():
         cache_key: tuple[str, int] | None = None
         if source is not None and proc_local_cache is not None:
-            cache_key = _cache_key_for_proc(source, qname, proc)
+            cache_key = _cache_key_for_proc(source, qname, proc, stub_fingerprint)
             if cache_key is not None:
                 cached_local = proc_local_cache.get(cache_key)
                 if cached_local is not None and cached_local.params == proc.params:
@@ -810,12 +1143,21 @@ def analyse_interprocedural_ir(
         if can_fold and qname in ir_module.redefined_procedures:
             can_fold = False
 
-        # Infer proc argument traits from body source.
+        # Infer proc argument traits from body source.  LSP-synchronous
+        # callers stay on the shallow pass; offline analytics paths
+        # (``tcl callgraph``, the compiler explorer, the MCP server)
+        # opt into the deep pass to descend into nested script bodies
+        # (e.g. a param that only reaches an ``eval`` from inside a
+        # ``foreach`` body).  Deep results are merged with shallow
+        # rather than replacing them so neither pass loses signal.
         proc = ir_module.procedures[qname]
         traits: dict[str, frozenset[ProcArgTrait]] = {}
         if proc.body_source and local.params:
             try:
                 traits = infer_param_traits(local.params, proc.body_source)
+                if deep_param_traits:
+                    deep = infer_param_traits_deep(local.params, proc.body_source)
+                    traits = merge_traits(traits, deep)
             except Exception:
                 log.debug("trait inference failed for %s", qname, exc_info=True)
 
