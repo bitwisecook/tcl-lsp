@@ -158,8 +158,20 @@ $ f5 query --raw '
 192.168.50.100
 ```
 
-The fixture has no `net self` stanzas, so the third statement is
-empty here — on a real box the self-IPs appear too.
+Which arm produced which row:
+
+- `0.0.0.0` — from the `forwarder_vs` destination (VS arm).
+- `10.0.0.10/.20/.30` and `192.168.50.100` — from VS destinations.
+- `10.0.1.10/.11` (`web1`, `web2`), `10.0.2.20/.21` (`api1`, `api2`),
+  and `192.168.50.10` (`legacy1`) — from the `.ltm.node[]` arm.
+  `legacy1`'s address coincides with the `legacy_pool` member
+  entry, but only one row appears because `sort -u` deduplicated
+  the stream.
+- The third arm (`net self`) produced nothing — `ltm.conf` doesn't
+  carry any `net self` stanzas. On a real box the box's own
+  self-IPs join the list. To see which arm contributed what
+  pre-dedup, drop the `sort -u` and run each `;`-separated
+  statement on its own to attribute each row.
 
 ### 1.4 Public vs. private destinations
 
@@ -282,12 +294,12 @@ $ f5 query --raw -f sysadmin/inventory_csv.f5q ltm.conf
 
 ```
 kind,name,destination,host,port,pool,member,member_addr,member_port,monitor
-ltm virtual,/Common/web_vs,/Common/10.0.0.10:80,10.0.0.10,80,/Common/web_pool,,,,
-ltm virtual,/Common/web_secure_vs,/Common/10.0.0.10:443,10.0.0.10,443,/Common/web_pool,,,,
-ltm virtual,/Common/api_vs,/Common/10.0.0.20:443,10.0.0.20,443,/Common/api_pool,,,,
-ltm virtual,/Common/legacy_vs,/Common/192.168.50.100:80,192.168.50.100,80,/Common/legacy_pool,,,,
-ltm virtual,/Common/forwarder_vs,/Common/0.0.0.0:0,0.0.0.0,0,,,,,
-ltm virtual,/Common/vpn_vs,/Common/10.0.0.30:443,10.0.0.30,443,/Common/api_pool,,,,
+ltm virtual,web_vs,/Common/10.0.0.10:80,10.0.0.10,80,/Common/web_pool,,,,
+ltm virtual,web_secure_vs,/Common/10.0.0.10:443,10.0.0.10,443,/Common/web_pool,,,,
+ltm virtual,api_vs,/Common/10.0.0.20:443,10.0.0.20,443,/Common/api_pool,,,,
+ltm virtual,legacy_vs,/Common/192.168.50.100:80,192.168.50.100,80,/Common/legacy_pool,,,,
+ltm virtual,forwarder_vs,/Common/0.0.0.0:0,0.0.0.0,0,,,,,
+ltm virtual,vpn_vs,/Common/10.0.0.30:443,10.0.0.30,443,/Common/api_pool,,,,
 pool member,web_pool,,,,web_pool,/Common/web1:80,10.0.1.10,80,/Common/http
 pool member,web_pool,,,,web_pool,/Common/web2:80,10.0.1.11,80,/Common/http
 pool member,api_pool,,,,api_pool,/Common/api1:8443,10.0.2.20,8443,/Common/https
@@ -296,8 +308,11 @@ pool member,legacy_pool,,,,legacy_pool,/Common/legacy1:80,192.168.50.10,80,/Comm
 ```
 
 The `kind` column lets a spreadsheet pivot table separate VS
-rows from member rows. Pipe through `column -t -s,` for an
-aligned terminal view.
+rows from member rows. The `name` column carries leaf names
+throughout (matching §1.1 / §1.2) — pool members' `.name`
+already includes the canonical `host:port` so the join keys
+stay readable. Pipe through `column -t -s,` for an aligned
+terminal view.
 
 ---
 
@@ -1172,19 +1187,27 @@ values would distinguish "the port is genuinely closed" from
 "the host is unreachable".)
 
 Standalone form for a CI gate — *fail* the build if any member
-can't be reached:
+can't be reached. `--strict` semantics are jq-style: exit 1 when
+no values were produced, exit 0 otherwise. So a "fail-on-failure"
+CI check flips the predicate to match reachable members and uses
+`--strict` to require at least one — or, more directly, runs the
+"unreachable" predicate and lets *non-empty output* drive the
+exit code via the shell:
 
 ```
-$ f5 query --enable-probes --strict --raw '
+$ unreachable=$(f5 query --enable-probes --raw '
     .ltm.pool[].members[]
     | select(not portping(.address, port(.name)).ok)
     | tsv(.name, .address, port(.name))
-  ' ltm.conf
+  ' ltm.conf)
+$ [ -z "$unreachable" ] || { printf '%s\n' "$unreachable"; exit 1; }
 ```
 
-`--strict` exits 2 on any non-empty result (failed probes) and
-1 on empty (everything reachable). A green CI run is exit 0 —
-i.e., no failed probes.
+`--strict` is the right tool when the query itself should
+return "expected results" — e.g.,
+`.ltm.virtual[] | select(.pool != "")` with `--strict` fails CI
+if **no** VS has a default pool, which would mean the loader
+broke. See the cheat sheet (§12) for the canonical semantics.
 
 ### 8.4 DNS round-trip on every wide-IP
 
@@ -1360,13 +1383,12 @@ semantics.
 
 ## 10. Localhost / self-IP security audits
 
-A security check pattern popularised by the open-source
-**BIG-IP Localhost Security Checker** ([bigipck][bigipck-repo]):
-review `net self` allow-services for risk; flag any object,
-pool member, or iRule body that references a loopback /
-wildcard address; build a data-group usage tree.
-
-[bigipck-repo]: https://github.com/example/bigipck
+A security check pattern popularised by an open-source
+BIG-IP localhost security checker (the kind of tool that
+parses a UCS / SCF and flags configurations operators
+typically miss): review `net self` allow-services for risk;
+flag any object, pool member, or iRule body that references a
+loopback / wildcard address; build a data-group usage tree.
 
 The fixture [`sysadmin/lab_localhost.conf`](sysadmin/lab_localhost.conf)
 carries the typical mix of "safe", "risky", and "default" `net
@@ -1537,7 +1559,7 @@ probe tool — pair it with `tmsh show` for the full picture.
 | `--name V=PATH`            | Bind a positional source to `$V` for cross-source addressing              |
 | `--merge`                  | Treat every positional source as one namespace                           |
 | `-f FILE.f5q`              | Read the query from a file                                               |
-| `--strict`                 | Exit 1 if read-only produced no values / 2 if mutating didn't match      |
+| `--strict`                 | Exit 1 if a read-only query produced no values (jq's `-e`); for mutating queries, raise a hard error when zero references matched (default is silent exit 1) |
 | `--write` / `--in-place`   | For mutating queries: print rewritten SCF / overwrite the file           |
 | `--format tmsh-delta`      | Emit just changed objects as `tmsh create / modify / delete`             |
 | `--transaction`            | Wrap tmsh output in `cli transaction ... submit-transaction`             |
