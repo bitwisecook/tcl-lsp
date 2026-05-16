@@ -54,7 +54,24 @@ fn eval_list(words: []const i32) result_mod.InterpResult {
 
 fn eval_lappend(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
-        var result = frames.var_resolve(words[1]);
+        // Inside a proc frame an unqualified name must resolve LOCALLY
+        // (Tcl semantics: unqualified vars in proc bodies are locals
+        // unless explicitly aliased via ``global`` / ``upvar`` /
+        // ``variable``).  ``frames.var_resolve`` falls back to the
+        // global table when a local miss occurs — that gives
+        // ``proc foo {} { lappend x }`` access to ``::x`` when no
+        // ``global x`` was declared, contradicting reference Tcl and
+        // causing appendComp-4.17/4.18 to inherit ``::x`` from a
+        // prior test in the bundle.  Use ``local_get_silent`` (frame-
+        // only, follows ``global`` / ``upvar`` aliases) in proc
+        // context and only fall back to ``var_resolve`` for
+        // script-level / namespace-context calls.
+        const in_proc = frames.frame_depth > 0;
+        const initial: i32 = if (in_proc)
+            frames.local_get_silent(words[1])
+        else
+            frames.var_resolve(words[1]);
+        var result = initial;
         var wi: u32 = 2;
         while (wi < words.len) : (wi += 1) {
             result = rt.tcl_cmd_lappend(result, words[wi]);
@@ -557,46 +574,94 @@ fn eval_lassign(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lmap(words: []const i32) result_mod.InterpResult {
-    // lmap v1 l1 ?v2 l2 ...? body — same multi-var semantics as foreach,
-    // but accumulates body results into a list instead of discarding them.
-    if (words.len < 4) return result_mod.from_globals(obj_new_string(0, 0));
+    // lmap varList1 list1 ?varList2 list2 ...? body — same multi-var
+    // semantics as ``foreach``, but accumulates body results into a list
+    // instead of discarding them.  ``varListN`` may itself be a list of
+    // variable names, in which case each iteration consumes that many
+    // elements from ``listN`` and binds them in parallel.  Iteration
+    // count = ``max(ceil(len(listN)/len(varListN)))`` across pairs.
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const wrong_args = "wrong # args: should be \"lmap varList list ?varList list ...? command\"";
+    if (words.len < 4) {
+        stubs.raise(wrong_args);
+        return result_mod.from_globals(0);
+    }
     const pair_words = words.len - 2;
-    if (pair_words % 2 != 0) return result_mod.from_globals(obj_new_string(0, 0));
+    if (pair_words % 2 != 0) {
+        stubs.raise(wrong_args);
+        return result_mod.from_globals(0);
+    }
     const n_pairs = pair_words / 2;
-    const MAX_PAIRS = 15;
+    const MAX_PAIRS = 63; // (MAX_WORDS-2)/2, mirrors eval_foreach
     if (n_pairs > MAX_PAIRS) return result_mod.from_globals(obj_new_string(0, 0));
     const body_s = obj_ensure_string(words[words.len - 1]);
+
     var list_lens: [MAX_PAIRS]i64 = [_]i64{0} ** MAX_PAIRS;
+    var steps: [MAX_PAIRS]i64 = [_]i64{1} ** MAX_PAIRS;
     var n: i64 = 0;
     {
         var p: u32 = 0;
         while (p < n_pairs) : (p += 1) {
+            const varlist_obj = words[1 + p * 2];
+            const vls = obj_ensure_string(varlist_obj);
+            if (list_parse.check_list_syntax(vls.ptr, vls.len) != 0)
+                return result_mod.from_globals(0);
+            const count = rt.list_count_elements(vls.ptr, vls.len);
+            if (count == 0) {
+                stubs.raise("lmap varlist is empty");
+                return result_mod.from_globals(0);
+            }
+            steps[p] = count;
+
             const ls = obj_ensure_string(words[2 + p * 2]);
+            if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+                return result_mod.from_globals(0);
             const len = rt.list_count_elements(ls.ptr, ls.len);
             list_lens[p] = len;
-            if (len > n) n = len;
+            const iters: i64 = @divTrunc(len + count - 1, count);
+            if (iters > n) n = iters;
         }
     }
+
     var result: i32 = obj_new_string(0, 0);
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
         var p: u32 = 0;
         while (p < n_pairs) : (p += 1) {
-            const var_name = words[1 + p * 2];
+            const varlist_obj = words[1 + p * 2];
             const list_obj = words[2 + p * 2];
-            const elem_val: i32 = if (idx < list_lens[p]) blk: {
-                const ls = obj_ensure_string(list_obj);
-                const elem = rt.list_element_at(ls.ptr, ls.len, idx);
-                break :blk if (elem.braced)
-                    rt.obj_new_string_copy(ls.ptr + elem.start, elem.len)
+            const vls = obj_ensure_string(varlist_obj);
+            const ls = obj_ensure_string(list_obj);
+            const step = steps[p];
+            var j: i64 = 0;
+            while (j < step) : (j += 1) {
+                const elem_idx = idx * step + j;
+                const var_elem = rt.list_element_at(vls.ptr, vls.len, j);
+                const src_vname = vls.ptr + var_elem.start;
+                const var_name_obj: i32 = if (var_elem.braced or src_vname == 0)
+                    rt.obj_new_string_copy(src_vname, var_elem.len)
                 else inner: {
-                    const buf = alloc(elem.len + 4);
-                    const out_len = rt.copy_unbraced_elem(buf, ls.ptr + elem.start, elem.len);
-                    break :inner obj_new_string(@bitCast(buf), @bitCast(out_len));
+                    const buf = alloc(var_elem.len + 1);
+                    if (buf == 0) break :inner obj_new_string(0, 0);
+                    const out_len = rt.copy_unbraced_elem(buf, src_vname, var_elem.len);
+                    break :inner obj_mod.obj_new_string_take(buf, out_len, var_elem.len + 1);
                 };
-            } else obj_new_string(0, 0);
-            _ = frames.var_set(var_name, elem_val);
-            obj_mod.tcl_obj_release(elem_val);
+                const elem_val: i32 = if (elem_idx < list_lens[p]) blk: {
+                    const elem = rt.list_element_at(ls.ptr, ls.len, elem_idx);
+                    const src_elem = ls.ptr + elem.start;
+                    break :blk if (elem.braced or src_elem == 0)
+                        rt.obj_new_string_copy(src_elem, elem.len)
+                    else inner2: {
+                        const buf = alloc(elem.len + 1);
+                        if (buf == 0) break :inner2 obj_new_string(0, 0);
+                        const out_len = rt.copy_unbraced_elem(buf, src_elem, elem.len);
+                        break :inner2 obj_mod.obj_new_string_take(buf, out_len, elem.len + 1);
+                    };
+                } else obj_new_string(0, 0);
+                _ = frames.var_set(var_name_obj, elem_val);
+                obj_mod.tcl_obj_release(elem_val);
+                obj_mod.tcl_obj_release(var_name_obj);
+            }
         }
         const item = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(item);
@@ -604,10 +669,12 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
             .OK => result = rt.tcl_list(result, item),
             .BREAK => {
                 result_mod.consume(.BREAK);
+                if (item != 0) obj_mod.tcl_obj_release(item);
                 break;
             },
             .CONTINUE => {
                 result_mod.consume(.CONTINUE);
+                if (item != 0) obj_mod.tcl_obj_release(item);
                 continue;
             },
             .ERROR, .RETURN => return result_mod.from_globals(item),
