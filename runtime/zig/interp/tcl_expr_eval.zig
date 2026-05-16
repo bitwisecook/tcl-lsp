@@ -1485,27 +1485,79 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
 }
 
 fn try_user_math_func(name: []const u8, args: []const i32) ?i32 {
-    // Build the qualified command name ``::tcl::mathfunc::NAME`` and
-    // dispatch to a registered proc if one exists.  We pre-check via
-    // ``proc_lookup`` so a miss falls through to the canonical
-    // ``unknown math function "NAME"`` diagnostic instead of leaking
-    // an ``invalid command name`` trap when no user proc is present.
+    // Reference Tcl's expr mathfunc dispatcher resolves NAME by
+    // building ``::tcl::mathfunc::NAME`` and routing through
+    // ``Tcl_GetCommandFromObj``, which itself walks the
+    // namespacePath / commandPathArray relative to the caller's
+    // namespace.  brodnik.test exercises the relative lookup: it
+    // sits inside ``::tcl::test::brodnik`` and defines
+    // ``namespace eval tcl { namespace eval mathfunc { proc log2
+    // ... } }`` — so the proc lands at
+    // ``::tcl::test::brodnik::tcl::mathfunc::log2`` rather than the
+    // global ``::tcl::mathfunc::log2``.  Our resolver tries the
+    // global FQN first (the common case for user-installed
+    // helpers) then the current-namespace relative FQN (for
+    // namespace-scoped helpers like brodnik's) before giving up.
     const procs = @import("tcl_procs.zig");
     if (!procs.proc_buf_nonzero()) return null;
-    const prefix = "::tcl::mathfunc::";
-    const total_len: u32 = @intCast(prefix.len + name.len);
-    const buf_addr: u32 = obj.alloc(total_len);
-    if (buf_addr == 0) return null;
-    const buf: [*]u8 = @ptrFromInt(buf_addr);
-    @memcpy(buf[0..prefix.len], prefix);
-    @memcpy(buf[prefix.len..total_len], name);
-    const cmd_obj = obj.obj_new_string_copy(buf_addr, total_len);
-    obj.free_sized(buf_addr, total_len);
+
+    // First attempt: ``::tcl::mathfunc::NAME`` — the canonical
+    // global mathfunc namespace.
+    if (try_dispatch_mathfunc(name, args, .{ .with_current_ns = false })) |r| return r;
+
+    // Second attempt: ``<current_ns>::tcl::mathfunc::NAME`` when
+    // we're inside a non-root namespace.  Matches reference Tcl's
+    // path-walk semantics for relative mathfunc lookup.
+    if (try_dispatch_mathfunc(name, args, .{ .with_current_ns = true })) |r| return r;
+
+    return null;
+}
+
+const MathFuncLookup = struct {
+    with_current_ns: bool,
+};
+
+fn try_dispatch_mathfunc(name: []const u8, args: []const i32, opts: MathFuncLookup) ?i32 {
+    const procs = @import("tcl_procs.zig");
+    const tcl_ns = @import("tcl_ns.zig");
+
+    // Build the candidate FQN.
+    var prefix_bytes: [256]u8 = undefined;
+    var prefix_len: u32 = 0;
+    if (opts.with_current_ns) {
+        // Only meaningful when we're inside a real, non-root ns.
+        if (tcl_ns.current_ns == 0 or tcl_ns.current_ns == tcl_ns.ns_root()) return null;
+        const cur_ptr = tcl_ns.current_ns_full_ptr();
+        const cur_len = tcl_ns.current_ns_full_len();
+        if (cur_len < 2 or cur_len + 17 + name.len > prefix_bytes.len) return null;
+        const cur_p: [*]const u8 = @ptrFromInt(cur_ptr);
+        // Skip the leading ``::`` on the current-ns full name so we
+        // don't end up with ``::::ns::tcl::mathfunc``.
+        const cur_skip: u32 = if (cur_len >= 2 and cur_p[0] == ':' and cur_p[1] == ':') 2 else 0;
+        // ``::`` + current_ns_tail + ``::tcl::mathfunc::``
+        prefix_bytes[0] = ':';
+        prefix_bytes[1] = ':';
+        prefix_len = 2;
+        var k: u32 = 0;
+        while (k < cur_len - cur_skip) : (k += 1) {
+            prefix_bytes[prefix_len + k] = cur_p[cur_skip + k];
+        }
+        prefix_len += cur_len - cur_skip;
+        const tcl_inner = "::tcl::mathfunc::";
+        for (tcl_inner, 0..) |c, i| prefix_bytes[prefix_len + i] = c;
+        prefix_len += @intCast(tcl_inner.len);
+    } else {
+        const tcl_global = "::tcl::mathfunc::";
+        for (tcl_global, 0..) |c, i| prefix_bytes[i] = c;
+        prefix_len = @intCast(tcl_global.len);
+    }
+
+    if (prefix_len + name.len > prefix_bytes.len) return null;
+    for (name, 0..) |c, i| prefix_bytes[prefix_len + i] = c;
+    const total_len: u32 = prefix_len + @as(u32, @intCast(name.len));
+    const cmd_obj = obj.obj_new_string_copy(@intFromPtr(&prefix_bytes), total_len);
     if (cmd_obj == 0) return null;
 
-    // Probe the proc registry first.  When the FQN isn't registered
-    // we want to surface the canonical math-func diagnostic, not the
-    // "invalid command name" wording ``eval_command`` would emit.
     if (procs.proc_lookup(cmd_obj) == 0) {
         obj.tcl_obj_release(cmd_obj);
         return null;
