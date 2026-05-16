@@ -1070,8 +1070,29 @@ pub fn eval_uplevel(words: []const i32) i32 {
 // -- Control flow --
 
 pub fn eval_if(words: []const i32) i32 {
+    // Tcl ``if`` syntax accepts optional ``then`` / ``else``
+    // keywords and an explicit ``elseif`` chaining keyword.  The
+    // trailing else body may even omit the ``else`` keyword — the
+    // dangling word at the end is treated as the else clause.
+    //
+    // Grammar:
+    //
+    //   if expr1 ?then? body1 \
+    //      ?elseif expr2 ?then? body2 …? \
+    //      ?else? ?bodyN?
+    //
+    // The previous walker mishandled both the ``then`` keyword and
+    // the bare-trailing-body form, which sent if-old-2.x off the
+    // rails by re-parsing keyword words as conditions.
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 2) {
+        stubs.raise("wrong # args: no expression after \"if\" argument");
+        return 0;
+    }
     var i: u32 = 1;
+    var seen_cond_body: bool = false;
     while (i < words.len) {
+        // ``else BODY`` — terminal branch.
         const kw = obj_ensure_string(words[i]);
         const kp: [*]const u8 = @ptrFromInt(kw.ptr);
         if (str_eq(kp, kw.len, "else")) {
@@ -1079,24 +1100,100 @@ pub fn eval_if(words: []const i32) i32 {
                 const bs = obj_ensure_string(words[i + 1]);
                 return eval_script(bs.ptr, bs.len);
             }
+            stubs.raise("wrong # args: no script following \"else\" argument");
             return 0;
         }
+        // Bare-trailing-body form: when the not-taken branch leaves
+        // exactly one word remaining AND we've already processed at
+        // least one condition/body pair, that word is the implicit
+        // else body.  Without the ``seen_cond_body`` gate ``if EXPR``
+        // (just one arg, no body) would silently treat the
+        // condition word as a body and run it as a command.
+        if (seen_cond_body and i + 1 == words.len) {
+            const bs = obj_ensure_string(words[i]);
+            return eval_script(bs.ptr, bs.len);
+        }
+        // Condition word.
         const cond_s = obj_ensure_string(words[i]);
-        if (eval_expr_str(cond_s.ptr, cond_s.len) != 0) {
-            if (i + 1 < words.len) {
-                const bs = obj_ensure_string(words[i + 1]);
-                return eval_script(bs.ptr, bs.len);
+        const cond_true = eval_expr_str(cond_s.ptr, cond_s.len) != 0;
+        // Optional ``then`` keyword between condition and body.
+        // ``if EXPR then`` (then with no body) is a script-following
+        // error; ``if EXPR`` with no body is the same shape under
+        // a different keyword.
+        const cond_word: u32 = i;
+        i += 1;
+        var saw_then: bool = false;
+        if (i < words.len) {
+            const tk = obj_ensure_string(words[i]);
+            const tp: [*]const u8 = @ptrFromInt(tk.ptr);
+            if (str_eq(tp, tk.len, "then")) {
+                saw_then = true;
+                i += 1;
             }
+        }
+        if (i >= words.len) {
+            if (saw_then) {
+                stubs.raise("wrong # args: no script following \"then\" argument");
+                return 0;
+            }
+            const cw = obj_ensure_string(words[cond_word]);
+            raise_no_script_after(cw.ptr, cw.len);
             return 0;
         }
-        i += 2;
+        if (cond_true) {
+            const bs = obj_ensure_string(words[i]);
+            return eval_script(bs.ptr, bs.len);
+        }
+        // Skip the body of the not-taken branch.
+        seen_cond_body = true;
+        i += 1;
+        // Consume an ``elseif`` keyword so the next iteration's
+        // cond probe lands on the actual expression word.  An
+        // ``else`` keyword (or a bare trailing body) is handled at
+        // the loop head.
         if (i < words.len) {
-            const nk = obj_ensure_string(words[i]);
-            const np: [*]const u8 = @ptrFromInt(nk.ptr);
-            if (str_eq(np, nk.len, "elseif")) i += 1;
+            const ek = obj_ensure_string(words[i]);
+            const ep: [*]const u8 = @ptrFromInt(ek.ptr);
+            if (str_eq(ep, ek.len, "elseif")) {
+                i += 1;
+                if (i >= words.len) {
+                    stubs.raise("wrong # args: no expression after \"elseif\" argument");
+                    return 0;
+                }
+            }
         }
     }
     return 0;
+}
+
+fn raise_no_script_after(name_ptr: u32, name_len: u32) void {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const prefix = "wrong # args: no script following \"";
+    const suffix = "\" argument";
+    const total: u32 = @intCast(prefix.len + name_len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        stubs.raise("wrong # args: no script following argument");
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const src: [*]const u8 = @ptrFromInt(name_ptr);
+    var k: u32 = 0;
+    while (k < name_len) : (k += 1) {
+        dst[off + k] = src[k];
+    }
+    off += name_len;
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    stubs.raise(dst[0..total]);
+    obj_mod.free_sized(buf, total);
 }
 
 pub fn eval_while(words: []const i32) i32 {
