@@ -152,33 +152,30 @@ Edits stay in memory — `f5q.q()` never writes to disk.  The CLI's
 `--in-place` is implemented on top of the same API: it just calls
 `Path(uri).write_text(run.edits(uri))`.
 
-### 9. Render with a built-in plugin
+### 7. Render with a registered plugin
 
-The same renderer plugins `f5 q --render NAME` dispatches to are
-reachable from Python:
+`QueryRun.render(name, **opts)` dispatches the values to the named
+renderer plugin (built-in or user-registered):
 
 ```python
-from f5q import Query
+import f5q
 
 # ASCII Gantt of pool-member up/down transitions.
 print(
-    Query("""
+    f5q.q("""
         f5log_load("ltm.log")[]
         | select(.module == "01340011" or .module == "01340012")
         | tsv(.timestamp,
               (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
               (if .module == "01340011" then "DOWN" else "UP" end))
-    """)
-    .run(paths=["bigip.conf"])
-    .render("gantt", **{"unit-minutes": "10"})
+    """, "bigip.conf").render("gantt", **{"unit-minutes": "10"})
 )
 ```
 
 Three renderers ship in-tree: `gantt`, `ascii-blocks`, `mermaid`.
-List them with `from f5q import list_renderers; print(list_renderers())`
-or via `f5 q --help-renderers` on the CLI.
+List them with `f5q.list_renderers()` or `f5 q --help-renderers`.
 
-### 7. Inline callables — the one-off escape hatch
+### 8. Inline callables — the one-off escape hatch
 
 When a custom renderer or input parser is one-shot (a script doesn't
 deserve its own XDG plugin), pass a **function directly** anywhere
@@ -206,7 +203,7 @@ parser is going to be used by more than one script, register it as
 an XDG plugin (next section) so the CLI and other scripts pick it
 up without copy-paste.
 
-### 8. Ship a custom renderer
+### 9. Ship a custom renderer
 
 ```python
 from f5q import renderer
@@ -227,7 +224,7 @@ def _render_md_table(values, **opts):
     return "\n".join(out) + "\n"
 ```
 
-### 10. Ship a custom builtin function
+### 10. Ship a custom builtin function (DSL extension)
 
 The same engine that registers `length`, `select`, `ip`, and the
 other in-tree builtins is exposed as the public `@builtin`
@@ -253,7 +250,7 @@ After the plugin loads, the DSL calls it like any built-in:
 `category="user"` (the default) to group plugin builtins together
 in `--help-builtins`.  The advanced flags
 (`special_form=True`, `with_ctx=True`, `stream_aware=True`) are
-documented in the [renderer contract design
+documented in the [plugin contract design
 doc](../design/f5-query-renderer-contract.md) and modelled by the
 in-tree builtins.
 
@@ -319,6 +316,15 @@ argument) prints a warning to stderr and is skipped — one broken
 plugin can't kill the rest.  Use `f5 q --help-plugins` to see
 which files actually loaded.
 
+**Multi-file plugins** — the loader temporarily prepends each
+plugin's parent directory to `sys.path` for the duration of the
+import, so a top-level plugin can `import helper` to pull in a
+sibling `helper.py` (or `_helper.py` — `_*.py` files are skipped
+by the loader's own scan but stay importable from a plugin).  The
+entry is removed after the plugin loads, so `sys.path` doesn't
+accumulate state.  Top-level plugin files always load **before**
+sub-folder files; within each tier files load alphabetically.
+
 The same loader runs from Python:
 
 ```python
@@ -328,14 +334,24 @@ print(f5q.xdg_plugin_dir())    # diagnostic: where the loader looks
 print(f5q.list_renderers())    # everything available after loading
 ```
 
-`load_user_plugins(force=True)` re-scans (test fixtures use this
-to inject plugins per-test).
+`load_user_plugins(force=True)` re-scans for **new** files — files
+that already imported successfully are skipped silently to keep the
+decorator registries free of duplicate-registration noise.  Files
+that previously failed are retried in case the user just fixed the
+syntax error.  This makes the documented "drop a new plugin file
+and reload" workflow surface only the new file in the return
+value.
 
 ## How to tell it worked
 
-`uv run python -c "from f5q import Query; print(len(Query('.ltm.virtual[]').run(paths=['bigip.conf']).values()))"`
-prints the virtual-server count of the file.  `f5 q --help-renderers`
-lists every renderer your script registered.
+```sh
+uv run python -c "import f5q; print(len(f5q.q('.ltm.virtual[]', 'bigip.conf')))"
+```
+
+…prints the virtual-server count of the file.  `f5 q --help-renderers`
+lists every renderer your script registered; `--help-builtins`,
+`--help-inputs`, and `--help-plugins` cover the other three
+plugin types and the XDG loader's pickup list.
 
 ## Related
 
@@ -343,4 +359,4 @@ lists every renderer your script registered.
 - [KCS: feature — `f5 query` renderers](features/kcs-feature-f5-query-renderers.md)
 - [KCS: how-to — reproduce an HTTP monitor with `f5 query`](kcs-howto-reproduce-http-monitor-with-query.md)
 - [`f5 query` reference manual](../references/f5_query/manual.md)
-- [Design — `f5 query` renderer contract](../design/f5-query-renderer-contract.md)
+- [Design — `f5 query` plugin contract](../design/f5-query-renderer-contract.md)

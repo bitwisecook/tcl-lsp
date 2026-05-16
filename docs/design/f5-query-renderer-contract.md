@@ -129,7 +129,7 @@ The recommended packaging shape is:
 from . import renderers  # side-effect: registers @renderer plugins
 ```
 
-The user then runs `python -c "import my_pkg; import f5_cli; f5_cli.main()"`
+The user then runs `python -c "import my_pkg; from explorer.f5_cli import main; main()"`
 or ships a tiny wrapper script that imports the plugin package
 before calling into the CLI.  Entry-point discovery is deliberately
 out of scope for v1 — see the **Open questions** section.
@@ -145,10 +145,10 @@ build a reference graph.  Two cooperating contextvars surface it:
 | `_ACTIVE_ROOTS` (in `runner.py`) | `run_query` during an in-flight query | `mermaid._recover_source_text` (fallback for renderers invoked mid-evaluation) |
 
 The render-time contextvar is the **primary** path so a script that
-calls `Query(...).run(paths=[...]).render("mermaid")` Just Works
-without threading source text by hand.  The runner-side contextvar
-exists for the rarer case of a renderer invoked from inside a
-builtin, where `run_query` is still on the stack.
+calls `f5q.q(...).render("mermaid")` Just Works without threading
+source text by hand.  The runner-side contextvar exists for the
+rarer case of a renderer invoked from inside a builtin, where
+`run_query` is still on the stack.
 
 When neither contextvar yields a source, the mermaid renderer falls
 back to chain mode rather than raising — same "tolerant of unknown
@@ -156,15 +156,22 @@ shapes" rule as elsewhere in the contract.
 
 ## CLI integration
 
-`explorer/verbs/f5/query.py` adds three pieces:
+`explorer/verbs/f5/query.py` adds:
 
 1. `--render NAME` / `-R NAME` — added to the existing mutually
    exclusive output-format group (alongside `--scf` / `--raw` /
    `--paths-only` / `--json` / `--table` / `--table-lineart`).
 2. `--render-opt KEY=VALUE` — repeatable; parsed into a flat
    `{KEY: VALUE}` dict and forwarded to the renderer as kwargs.
-3. `--help-renderers` — argparse action that imports the built-in
-   renderers and prints the registry.
+3. `--input KIND NAME=PATH` — generic side-input flag that
+   dispatches through the input-format registry.  Covers user
+   plugins and any future built-in formats without needing a
+   dedicated `--input-<kind>` flag.  The typed `--input-json`,
+   `--input-jsonl`, `--input-csv`, `--input-f5log` shorthands stay
+   for back-compat.
+4. `--help-renderers`, `--help-inputs`, `--help-builtins`,
+   `--help-plugins` — argparse actions that import the relevant
+   registry contents and print the catalogue.
 
 The `_run_query` handler sets `args.output_mode = args.render_name`
 when `--render` is passed and forwards `args.render_opts` through
@@ -172,19 +179,69 @@ the standard `_emit_values` path.  `output.render` does the actual
 dispatch — its existing `mode` argument is the single source of
 truth for "which formatter handles this batch".
 
+### Side-input name dedup
+
+`_load_side_input` is the shared helper every `--input-*` flag
+goes through.  It checks the requested `$NAME` against
+`side_resolved_names` before claiming it and errors with a pointer
+to the prior binding if the name is already taken — so
+``--input-json routes=a.json --input yaml routes=b.yaml`` fails
+fast rather than silently rebinding `$routes`.  The check covers
+every typed-vs-typed and typed-vs-generic combination because all
+flags route through the same helper.
+
 ## Python API integration
 
-`QueryRun.render(name, **opts)` (in `core/bigip/query/api.py`):
+`core/bigip/query/api.py` exposes the public surface external
+scripts use:
+
+| Symbol | Role |
+|---|---|
+| `Query` / `Query.run` | Lower-level entry — parsed-and-ready query, run against pre-staged sources.  Forwards to `run_query` and stashes the source map on the returned `QueryRun` so renderers can recover it. |
+| `q(*args, parser=None)` | Polymorphic single-call entry.  First non-file-path string is the expression; everything else is an input (file path / Path / Sources / prior QueryRun / dict / list).  See "Chain semantics" below. |
+| `load(*inputs, parser=None)` | Pre-stage files / in-memory values into a `Sources` object that ``q()`` consumes the same way it consumes a path.  `parser` accepts a registered format name OR an inline callable. |
+| `Sources` | Container of `{uri: text}` + per-uri `InputSpec` + inline parsers.  Composes via `.merged(other)`. |
+| `QueryRun` | Result wrapper: list-like (iter / len / `[i]` / `bool`), plus `.values()` / `.first()` / `.objects()` / `.paths()` / `.rows()`. |
+| `QueryRun.q(expr, *extras)` | Method form of progressive chaining — `run.q(expr)` ≡ `q(expr, run)`. |
+| `QueryRun.render(name_or_callable, **opts)` | Dispatches through the renderer registry on a string name, or calls the function directly on a callable.  Binds source text into `RENDER_SOURCES` for the call. |
+| `QueryRun.out()` | Walks values and coerces `ObjectRef` / `PathRef` / `Stream` to plain JSON-compatible Python.  The explicit boundary between engine-typed handles and serialisable data. |
+| `QueryRun.edits(uri)` | Post-edit source text for *uri*, or `None`.  CLI's `--in-place` is `Path(uri).write_text(run.edits(uri))`. |
 
 ```python
-def render(self, name, **opts):
+def render(self, renderer, **opts):
     from .renderers import bind_render_sources, render as _render
     with bind_render_sources(self._sources):
-        return _render(name, self.values(), **opts)
+        if isinstance(renderer, str):
+            return _render(renderer, self.values(), **opts)
+        return renderer(self.values(), **opts)
 ```
 
-`Query.run` stashes the source map onto the `QueryRun` so the
-context-var binding can re-expose it to the renderer.
+The `isinstance(renderer, str)` branch — rather than `callable()` —
+is deliberate: ty's `call-top-callable` rule rejects narrowing a
+`str | Callable[...]` union by `callable()` because every `str` is
+also a `Top[Callable[...]]` for type-checking purposes.
+
+### Chain semantics
+
+`q()` and `QueryRun.q()` accept one or more prior `QueryRun`
+instances as inputs.  Their flattened values are serialised to JSON
+and synthesised as a single source:
+
+- **Only priors** — the synthesised JSON list becomes the primary
+  input; `.` reads it, `.[]` iterates per prior value.  The runner's
+  all-JSON fallback (in `run_query`) makes this work without a
+  BIG-IP source to act as primary.
+- **Priors mixed with other inputs** — the priors land under the
+  name `$_chain` (one combined list across every prior); files /
+  in-memory data act as primary.  The runner's primary-iteration
+  loop skips URIs that appear in `names` even in all-JSON mode, so
+  the chain source never double-iterates as `.`.
+
+The `$_chain` skip rule is what makes
+`f5q.q(expr, prior, [in_memory_data])` evaluate *expr* exactly
+once against the in-memory data — without it the loop would iterate
+both JSON sources as primary and the user would see duplicated
+output.
 
 ## Builtin contract (`@builtin`)
 
@@ -281,6 +338,17 @@ The loader's invariants:
 - **Hidden files (`_*.py`) are skipped** — convention for helper
   modules a plugin imports privately.  Sub-directories are
   recursively scanned.
+- **Load order is `(depth, full path)`** — top-level plugin files
+  load before sub-folder files; within each tier files load
+  alphabetically.  The order is reproducible across runs and
+  matches the way users read the tree.
+- **Sibling imports work** — `_import_plugin_file` temporarily
+  prepends `path.parent` to `sys.path` for the duration of
+  `exec_module` and removes it in a `finally`.  A plugin can
+  `import helper` to pull in a sibling `helper.py` (or
+  `_helper.py` — the scanner skips them but they stay
+  importable).  `sys.path` doesn't accumulate state between
+  plugin imports.
 - **Module names are uniquified** (`f5q_user_plugin_<stem>_<hash>`)
   so a `force=True` re-scan doesn't collide with the prior
   incarnation in `sys.modules` — required for the test fixture
@@ -290,9 +358,13 @@ The loader's invariants:
   <path>: <exc>` and the file is skipped.  One broken plugin must
   never kill the CLI or a script that doesn't use it.
 - **Idempotent by default** — `load_user_plugins()` returns
-  immediately after the first call.  `force=True` re-scans (used
-  by tests and by the `--help-plugins` diagnostic that wants a
-  fresh import list).
+  immediately after the first call.  `force=True` re-scans **only
+  files the loader hasn't already imported successfully**
+  (tracked in `_LOADED_FILES`).  This keeps force-reload free of
+  duplicate-registration warnings the decorators would otherwise
+  emit, and surfaces only the genuinely new file in the return
+  value.  Files that previously *failed* (broken syntax, missing
+  import) are still retried in case the user just fixed them.
 
 The CLI exposes `f5 q --help-plugins` as a diagnostic action that
 prints the scan directory and the list of loaded files; pair with

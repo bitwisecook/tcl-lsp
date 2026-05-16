@@ -16,52 +16,85 @@ tcl-lsp CLI
 
 ## Question
 
-What do the `f5 query` renderer plugins do, and how do I use them?
+What do the `f5 query` plugins do, and how do I use them?
 
 ## How to use
 
-A renderer is a named output formatter the query engine dispatches to
-after it has evaluated your DSL expression.  Three built-in renderers
-ship in-tree, and any script that imports `f5q` can register more.
+The plugin system extends `f5 query` along three axes:
+
+- **Renderers** turn evaluator output into a formatted string
+  (Mermaid diagram, ASCII Gantt, line-art block tree, custom).
+- **Builtins** add new DSL functions callable from the query
+  language (`my_func(.x, .y)`).
+- **Input formats** parse non-BIG-IP side-inputs (`--input yaml
+  routes=routes.yaml`).
+
+Three built-ins ship in each registry; user plugins extend any of
+them.
 
 ### tcl-lsp CLI
 
-Pick a renderer with `-R / --render NAME`; pass per-renderer options
-with `--render-opt KEY=VALUE` (repeatable).  List the catalogue with
-`--help-renderers`:
-
 ```sh
+# Renderers.
 f5 q --help-renderers
 f5 q --render gantt   '<query>' bigip.conf
 f5 q --render mermaid '<query>' bigip.conf --render-opt direction=TB
+
+# Input formats — generic --input KIND NAME=PATH for user plugins.
+f5 q --help-inputs
+f5 q --input yaml routes=routes.yaml '$routes[].name' bigip.conf
+
+# Builtins — listed with the rest of the DSL builtins.
+f5 q --help-builtins
+f5 q --raw 'my_func(.ltm.virtual[].name)' bigip.conf
+
+# Diagnostic — which XDG plugin files actually loaded.
+f5 q --help-plugins
 ```
 
 ### Python (`f5q`)
 
 ```python
-from f5q import Query
+import f5q
 
-print(
-    Query(".ltm.virtual[]")
-    .run(paths=["bigip.conf"])
-    .render("mermaid", direction="TB")
-)
+# Built-in renderer via QueryRun.render().
+print(f5q.q(".ltm.virtual[]", "bigip.conf").render("mermaid", direction="TB"))
+
+# Inline callable — same shape, no XDG plugin needed.
+print(f5q.q(".ltm.virtual[] | .name", "bigip.conf").render(
+    lambda values, **opts: ", ".join(values) + "\n"
+))
+
+# Plain JSON-friendly Python out of any QueryRun.
+data = f5q.q(".ltm.virtual[]", "bigip.conf").out()
 ```
 
-Custom plugins use the `@renderer` decorator and are picked up by the
-CLI once the registering module is imported:
+Custom plugins use the `@renderer` / `@builtin` / `@input_format`
+decorators and are picked up by the CLI once the registering module
+is imported (drop a file in `$XDG_CONFIG_HOME/f5q/plugins/` and the
+loader picks it up automatically):
 
 ```python
-from f5q import renderer
+from f5q import renderer, builtin, input_format
 
 @renderer("md-table", summary="Markdown table.", accepts="list of dicts")
-def _render(values, **opts):
-    ...
+def _render(values, **opts): ...
+
+@builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
+def _u(s):
+    return str(s).upper()
+
+@input_format("yaml", summary="YAML side-input.")
+def _yaml(source, *, uri, options=()):
+    import yaml
+    return yaml.safe_load(source)
 ```
 
 See
 [KCS: how-to — script against `f5 query` from Python](../kcs-howto-script-against-f5-query-from-python.md)
-for the full plugin walkthrough.
+for the full plugin walkthrough — progressive queries, `f5q.load`
+pre-staging, `f5q.q()` argument disambiguation, inline parser
+callables, multi-file plugin layout, and force-reload semantics.
 
 ## Options
 
@@ -198,5 +231,5 @@ t2_c04_vip:443        |                  v#########^
 
 - [KCS: how-to — script against `f5 query` from Python](../kcs-howto-script-against-f5-query-from-python.md)
 - [KCS: how-to — reproduce an HTTP monitor with `f5 query`](../kcs-howto-reproduce-http-monitor-with-query.md)
-- [Design — `f5 query` renderer contract](../../design/f5-query-renderer-contract.md)
+- [Design — `f5 query` plugin contract](../../design/f5-query-renderer-contract.md)
 - [KCS feature index](README.md)
