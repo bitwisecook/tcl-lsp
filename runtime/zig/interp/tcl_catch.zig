@@ -59,6 +59,32 @@ pub const State = struct {
     /// Extra proc levels for ``return -level N`` propagation —
     /// see :func:`tcl_return_set` for the wire-up.
     return_level: u32 = 0,
+    /// ``return``'s requested ``-level`` argument verbatim (no
+    /// "minus one" transform).  Default ``1`` for plain ``return``;
+    /// ``return -level 0`` sets it to ``0``; ``return -level N``
+    /// sets it to ``N``.  Distinct from :attr:`return_level` (which
+    /// counts *extra* unwind levels) so the TIP 90 options-dict
+    /// ``-level`` slot can report the verbatim user-supplied value
+    /// after :func:`catch_leave` has cleared the extra-level
+    /// counter.  Set by :func:`eval_return`, snapshotted by
+    /// :func:`catch_leave` into :attr:`last_return_level`.
+    pending_return_level: u32 = 1,
+    /// ``return``'s requested ``-code`` argument as a numeric Tcl
+    /// status (0=OK, 1=ERROR, 2=RETURN, 3=BREAK, 4=CONTINUE, N>=5
+    /// custom).  Default ``0`` for plain ``return``.  Set by
+    /// :func:`eval_return`, snapshotted by :func:`catch_leave`
+    /// into :attr:`last_return_code` so the TIP 90 options dict
+    /// reports the user-supplied code rather than the catch's
+    /// effective code.
+    pending_return_code: i64 = 0,
+    /// ``1`` after :func:`eval_return` has populated the
+    /// ``pending_return_*`` slots from a real ``return`` call.
+    /// :func:`catch_leave` reads this to decide whether to
+    /// snapshot the pending values into ``last_return_*`` (the
+    /// user issued ``return …``) or to apply the conventional
+    /// fallback mapping for an error / raw ``break`` / raw
+    /// ``continue`` / clean exit.  Cleared on every catch_leave.
+    pending_return_armed: u32 = 0,
     /// Custom numeric return code.  ``0`` means "use the standard
     /// ``return_flag`` → TCL_RETURN (2)" mapping; any other value
     /// is the user-specified ``return -code N`` numeric form.  Set
@@ -89,6 +115,21 @@ pub const State = struct {
     last_catch_had_error: u32 = 0,
     last_catch_code: i64 = 0,
     last_catch_value: i32 = 0,
+    /// ``return``'s requested ``-code`` argument at the time of the
+    /// most-recently-completed catch (TIP 90 options-dict ``-code``
+    /// field, distinct from :attr:`last_catch_code` which is what
+    /// ``catch`` itself returns).  Default ``0`` (TCL_OK) — set by
+    /// :func:`eval_return` from the user-supplied keyword/numeric
+    /// and snapshotted into :func:`catch_options`'s ``-code`` slot.
+    /// Cleared on every catch_enter so a stale value can't leak
+    /// from a prior catch into a new ``-options`` dict read.
+    last_return_code: i64 = 0,
+    /// ``return``'s requested ``-level`` (default ``1``).  Snapshot
+    /// of :attr:`return_level` + the implicit unwind level so the
+    /// catch-side options dict reads ``-level 1`` for plain
+    /// ``return``, ``-level 0`` for ``return -level 0 …``, and
+    /// ``-level N`` for ``return -level N …``.
+    last_return_level: u32 = 1,
 };
 
 /// The single mutable state slot.  Module-private storage; external
@@ -150,6 +191,17 @@ pub export fn tcl_return_set(value: i32) void {
     // from a previous ``return -code return`` would erroneously
     // propagate this regular return past the immediate proc.
     state.return_level = 0;
+    // Stamp the TIP 90 options-dict slots with the default-return
+    // values so a surrounding ``catch BODY result options`` sees
+    // ``-code 0 -level 1``.  Mirrors :func:`eval_return`'s default
+    // path; without this the codegen-emitted return path would
+    // leave ``pending_return_armed = 0`` and the catch options
+    // would fall through to the conventional ``state.return_flag``
+    // mapping (which historically reported ``-level 0`` for a
+    // RETURN-class unwind).
+    state.pending_return_code = 0;
+    state.pending_return_level = 1;
+    state.pending_return_armed = 1;
     const old = state.return_val;
     if (value != 0) obj.tcl_obj_retain(value);
     state.return_val = value;
@@ -315,6 +367,35 @@ pub export fn catch_leave() i32 {
     };
     state.last_catch_had_error = if (state.error_flag != 0) 1 else 0;
     state.last_catch_code = code;
+    // Snapshot the TIP 90 ``-code`` / ``-level`` slots so
+    // :func:`catch_options` can report them after the per-event
+    // state below is cleared.  When ``eval_return`` armed the
+    // pending slots (the body executed ``return …`` in any form),
+    // the snapshot picks up the user-supplied values verbatim.
+    // For everything else (raw ``break`` / ``continue``, a body
+    // that raised via ``error``, or a clean exit) fall back to the
+    // conventional mapping reference Tcl stamps on the dict.
+    if (state.pending_return_armed != 0) {
+        state.last_return_code = state.pending_return_code;
+        state.last_return_level = state.pending_return_level;
+    } else if (state.error_flag != 0) {
+        state.last_return_code = 1;
+        state.last_return_level = 0;
+    } else if (state.break_flag != 0) {
+        state.last_return_code = 3;
+        state.last_return_level = 1;
+    } else if (state.continue_flag != 0) {
+        state.last_return_code = 4;
+        state.last_return_level = 1;
+    } else {
+        state.last_return_code = 0;
+        state.last_return_level = 0;
+    }
+    // Clear the pending slots so a subsequent ``catch`` body that
+    // doesn't issue a ``return`` doesn't inherit stale values.
+    state.pending_return_code = 0;
+    state.pending_return_level = 1;
+    state.pending_return_armed = 0;
     // Snapshot the body's payload so ``catch_result`` can hand it back
     // to the caller's result-var writeback.  TCL_RETURN carries
     // ``return_val``; TCL_ERROR carries ``error_msg``.  Retain the
@@ -416,26 +497,41 @@ pub export fn catch_result() i32 {
 // key-modifying path (Copilot review).
 pub export fn catch_options() i32 {
     var d: i32 = dict_mod.dict_create();
-    d = dict_set_str_take(d, "-code", obj_new_int(state.last_catch_code));
-    d = dict_set_str_take(d, "-level", obj_new_int(0));
-    const ec_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
-    const ec_val = globals.global_get(ec_name);
-    obj.tcl_obj_release(ec_name);
-    if (ec_val != 0) {
-        d = dict_set_str_keep(d, "-errorcode", ec_val);
-    } else {
-        d = dict_set_str_take(d, "-errorcode", obj_new_string_copy(
-            @intFromPtr("NONE".ptr),
-            4,
-        ));
-    }
-    const ei_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
-    const ei_val = globals.global_get(ei_name);
-    obj.tcl_obj_release(ei_name);
-    if (ei_val != 0) {
-        d = dict_set_str_keep(d, "-errorinfo", ei_val);
-    } else if (state.last_catch_had_error != 0 and state.error_msg != 0) {
-        d = dict_set_str_keep(d, "-errorinfo", state.error_msg);
+    // TIP 90: the ``-code`` / ``-level`` slots report the
+    // user-supplied codes from ``return`` (or the conventional
+    // mapping for raw break/continue/error), NOT the catch's
+    // effective code in ``last_catch_code``.  See the snapshot
+    // logic in :func:`catch_leave`.
+    d = dict_set_str_take(d, "-code", obj_new_int(state.last_return_code));
+    d = dict_set_str_take(d, "-level", obj_new_int(@intCast(state.last_return_level)));
+    // ``-errorcode`` / ``-errorinfo`` only appear on the catch
+    // options dict when the body raised an error (``error msg`` /
+    // ``throw`` / runtime trap absorbed by catch).  Adding them
+    // for a clean ``return`` (cmdMZ-return-2.x) inflates the dict
+    // by two extra keys, breaking exact-match tests that expect
+    // ``-code 0 -level 1`` verbatim.  Match reference Tcl's
+    // ``Tcl_GetReturnOptions`` which only stamps the error
+    // metadata onto the dict when ``iPtr->returnCode == TCL_ERROR``.
+    if (state.last_catch_had_error != 0) {
+        const ec_name = obj_new_string_copy(@intFromPtr("::errorCode".ptr), 11);
+        const ec_val = globals.global_get(ec_name);
+        obj.tcl_obj_release(ec_name);
+        if (ec_val != 0) {
+            d = dict_set_str_keep(d, "-errorcode", ec_val);
+        } else {
+            d = dict_set_str_take(d, "-errorcode", obj_new_string_copy(
+                @intFromPtr("NONE".ptr),
+                4,
+            ));
+        }
+        const ei_name = obj_new_string_copy(@intFromPtr("::errorInfo".ptr), 11);
+        const ei_val = globals.global_get(ei_name);
+        obj.tcl_obj_release(ei_name);
+        if (ei_val != 0) {
+            d = dict_set_str_keep(d, "-errorinfo", ei_val);
+        } else if (state.error_msg != 0) {
+            d = dict_set_str_keep(d, "-errorinfo", state.error_msg);
+        }
     }
     return d;
 }

@@ -151,6 +151,32 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         }
         result_obj = words[wi];
     }
+    // Snapshot the user-supplied ``-code`` / ``-level`` for the
+    // TIP 90 ``catch BODY result options`` dict.  ``-code return``
+    // is a syntactic shorthand for "produce a TCL_RETURN that, after
+    // the immediate caller's absorb, will itself convert into a
+    // TCL_RETURN one level further up" — its observable catch-side
+    // shape is ``-code 0 -level N+1``, NOT ``-code 2 -level N``.
+    // See cmdMZ-return-2.2 / 2.3 for the exact expected mapping.
+    //
+    // Stamping these unconditionally up-front means the early-return
+    // branches below (``-code error``, ``-level 0 -code break``, etc.)
+    // also propagate the right values to the surrounding ``catch``'s
+    // options dict.
+    {
+        const dict_code: i64 = switch (code_kind) {
+            .ok => 0,
+            .err => 1,
+            .ret => 0,
+            .brk => 3,
+            .cont => 4,
+            .custom => custom_code,
+        };
+        const dict_level: u32 = if (code_kind == .ret) level_value + 1 else level_value;
+        catch_mod.state.pending_return_code = dict_code;
+        catch_mod.state.pending_return_level = dict_level;
+        catch_mod.state.pending_return_armed = 1;
+    }
     if (code_kind == .err) {
         // ``return -code error msg`` is a USER-supplied error — it
         // should keep the default ``NONE`` errorCode unless the
