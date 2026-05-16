@@ -97,29 +97,36 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lset(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) {
-        const current = frames.var_resolve(words[1]);
-        const newval = words[words.len - 1];
-        const indices: i32 = if (words.len == 3)
-            obj_new_string(0, 0)
-        else if (words.len == 4)
-            words[2]
-        else blk: {
-            var acc: i32 = rt.tcl_list(words[2], words[3]);
-            var wi: u32 = 4;
-            while (wi + 1 < words.len) : (wi += 1) {
-                acc = rt.tcl_list(acc, words[wi]);
-            }
-            break :blk acc;
-        };
-        const result = rt.tcl_cmd_list_set(current, indices, newval);
-        _ = frames.var_set(words[1], result);
-        return result_mod.from_globals(result);
+    if (words.len < 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lset listVar ?index? ?index ...? value\"");
+        return result_mod.from_globals(0);
     }
-    return result_mod.from_globals(0);
+    const current = frames.var_resolve(words[1]);
+    const newval = words[words.len - 1];
+    const indices: i32 = if (words.len == 3)
+        obj_new_string(0, 0)
+    else if (words.len == 4)
+        words[2]
+    else blk: {
+        var acc: i32 = rt.tcl_list(words[2], words[3]);
+        var wi: u32 = 4;
+        while (wi + 1 < words.len) : (wi += 1) {
+            acc = rt.tcl_list(acc, words[wi]);
+        }
+        break :blk acc;
+    };
+    const result = rt.tcl_cmd_list_set(current, indices, newval);
+    _ = frames.var_set(words[1], result);
+    return result_mod.from_globals(result);
 }
 
 fn eval_linsert(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"linsert list index ?element ...?\"");
+        return result_mod.from_globals(0);
+    }
     if (words.len >= 4) {
         const list_arg = words[1];
         const idx_arg = words[2];
@@ -144,7 +151,9 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
         }
         return result_mod.from_globals(result);
     }
-    return result_mod.from_globals(0);
+    // linsert LIST INDEX with no values is a degenerate no-op
+    // returning LIST.
+    return result_mod.from_globals(words[1]);
 }
 
 fn eval_lreplace(words: []const i32) result_mod.InterpResult {
