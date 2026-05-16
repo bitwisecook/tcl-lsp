@@ -1,0 +1,25 @@
+# Full-VIP inventory as one CSV.
+#
+# One row per VS plus one row per pool member, so the file is a
+# joinable "facts" table for a downstream spreadsheet / CMDB.  The
+# ``kind`` column lets a spreadsheet pivot table separate VS rows
+# from member rows; the ``name`` column carries leaf names
+# throughout for consistency with §1.1 / §1.2 of the doc (pool
+# members' ``.name`` is already canonical ``/Common/host:port``).
+#
+# Run:
+#   f5 query --raw -f sysadmin/inventory_csv.f5q ltm.conf
+#
+# Output columns:
+#   kind,name,destination,host,port,pool,member,member_addr,member_port,monitor
+
+"kind,name,destination,host,port,pool,member,member_addr,member_port,monitor",
+(.ltm.virtual[]
+ | csv("ltm virtual", .name, .destination,
+       host(.destination), port(.destination),
+       .pool, "", "", "", "")),
+(.ltm.pool[] as $p
+ | $p.members[]
+ | csv("pool member", $p.name, "", "", "",
+       $p.name, .name, .address, port(.name),
+       join($p.monitor.monitors, ",")))
