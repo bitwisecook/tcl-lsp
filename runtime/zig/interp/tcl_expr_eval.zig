@@ -1472,7 +1472,53 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (args.len > 2) return raise_too_many_args(name);
         if (args.len < 2) return raise_too_few_args(name);
     }
+    // User-defined math function fallback.  Tcl 9 lets a script
+    // install ``proc ::tcl::mathfunc::NAME {args} {...}`` and use
+    // ``NAME(...)`` in an expression — ``brodnik.test`` does this
+    // to define ``log2`` for its MSB-correctness loop.  Look up the
+    // fully-qualified name in the proc registry; on hit, invoke it
+    // via ``eval_command`` with the existing ``args`` slice prepended
+    // by the command-name obj.  On miss, fall through to the
+    // standard "unknown math function" diagnostic.
+    if (try_user_math_func(name, args)) |result| return result;
     return raise_unknown_func(name);
+}
+
+fn try_user_math_func(name: []const u8, args: []const i32) ?i32 {
+    const procs = @import("tcl_procs.zig");
+    if (!procs.proc_buf_nonzero()) return null;
+    const prefix = "::tcl::mathfunc::";
+    const total_len: u32 = @intCast(prefix.len + name.len);
+    const buf_addr: u32 = obj.alloc(total_len);
+    if (buf_addr == 0) return null;
+    const buf: [*]u8 = @ptrFromInt(buf_addr);
+    @memcpy(buf[0..prefix.len], prefix);
+    @memcpy(buf[prefix.len..total_len], name);
+    const cmd_obj = obj.obj_new_string_copy(buf_addr, total_len);
+    obj.free_sized(buf_addr, total_len);
+    if (cmd_obj == 0) return null;
+    const bucket = procs.proc_lookup(cmd_obj);
+    if (bucket == 0) {
+        obj.tcl_obj_release(cmd_obj);
+        return null;
+    }
+    // Build a words[] slice with the resolved command name at slot 0
+    // and the parsed arg TclObjs at slot 1..n.  Args are still owned
+    // by the caller; ``eval_command`` borrows them for the duration
+    // of the call (and the caller releases them after we return).
+    const parse_mod = @import("../parse/tcl_parse.zig");
+    if (args.len + 1 > parse_mod.MAX_WORDS) {
+        obj.tcl_obj_release(cmd_obj);
+        return null;
+    }
+    var new_words: [parse_mod.MAX_WORDS]i32 = undefined;
+    new_words[0] = cmd_obj;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) new_words[1 + i] = args[i];
+    const interp_mod = @import("tcl_interp.zig");
+    const result = interp_mod.eval_command(new_words[0 .. args.len + 1]);
+    obj.tcl_obj_release(cmd_obj);
+    return result;
 }
 
 fn raise_math_func_error(prefix: []const u8, name: []const u8, fallback: []const u8) i32 {
