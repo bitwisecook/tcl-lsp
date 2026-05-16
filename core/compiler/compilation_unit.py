@@ -96,16 +96,25 @@ def ensure_compilation_unit(
     context: str = "compiler",
     failure_detail: str = "compilation failed; continuing without CompilationUnit",
     known_classes: frozenset[str] = frozenset(),
+    deep_param_traits: bool = False,
 ) -> CompilationUnit | None:
     """Return a usable ``CompilationUnit`` by reusing or compiling.
 
     This is the canonical adapter for pass entry points that accept
     ``source`` and an optional pre-built ``CompilationUnit``.
+
+    Set *deep_param_traits* for offline analytics paths (``tcl
+    callgraph``, the compiler explorer, the MCP server) to opt into
+    the deeper ``infer_param_traits_deep`` pass that descends into
+    nested script bodies.  The LSP synchronous path leaves this off
+    so per-keystroke analysis stays bounded.
     """
     if cu is not None:
         return cu
     try:
-        return compile_source(source, known_classes=known_classes)
+        return compile_source(
+            source, known_classes=known_classes, deep_param_traits=deep_param_traits
+        )
     except Exception:
         if logger is not None:
             logger.debug(
@@ -122,11 +131,40 @@ def _proc_cache_key(
     qname: str,
     start_offset: int,
     end_offset: int,
+    stub_fingerprint: int = 0,
 ) -> tuple[str, int] | None:
-    """Build a procedure cache key from source offsets."""
+    """Build a procedure cache key from source offsets.
+
+    The fingerprint covers the active stub overlay because cached
+    summaries depend on how role-aware lookups resolve ``ArgRole.BODY``
+    / ``ArgRole.EXPR`` for the commands the proc invokes — adding,
+    removing, or changing a stub must invalidate cached summaries
+    even when the proc body text is unchanged.
+    """
     if start_offset < 0 or end_offset < start_offset or end_offset > len(source):
         return None
-    return (qname, hash(source[start_offset:end_offset]))
+    return (qname, hash((source[start_offset:end_offset], stub_fingerprint)))
+
+
+def compute_stub_fingerprint(source: str) -> int:
+    """Return the stub-overlay fingerprint for *source*.
+
+    Exposed so cache builders outside :func:`compile_source` (e.g. the
+    LSP workspace's ``_build_proc_cache``) can produce keys that match
+    those :func:`compile_source` will look up.  Returns ``0`` when the
+    source declares no stubs — the empty-overlay case stays compatible
+    with callers that omit the fingerprint argument.
+    """
+    from core.analysis.stub_comments import scan_source_for_stubs
+    from core.commands.registry.runtime import signatures_from_stubs
+
+    cmd_stubs, _ = scan_source_for_stubs(source)
+    if not cmd_stubs:
+        return 0
+    overlay = signatures_from_stubs(cmd_stubs)
+    return hash(tuple(sorted(overlay.keys()))) ^ hash(
+        tuple(sorted(repr(v) for v in overlay.values()))
+    )
 
 
 def compile_source(
@@ -137,6 +175,7 @@ def compile_source(
     interproc_cache: dict[tuple[str, int], ProcLocalSummary] | None = None,
     prune_interproc_cache: bool = True,
     known_classes: frozenset[str] = frozenset(),
+    deep_param_traits: bool = False,
 ) -> CompilationUnit:
     """Run the full pipeline once and return cached artefacts.
 
@@ -153,6 +192,39 @@ def compile_source(
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
     """
+    from core.analysis.stub_comments import scan_source_for_stubs
+    from core.commands.registry.runtime import stub_signature_scope
+
+    cmd_stubs, _ = scan_source_for_stubs(source)
+    # Fingerprint the stub overlay so cached proc / interproc summaries
+    # are invalidated whenever a stub is added, removed, or changed —
+    # the proc body text alone is not enough because summaries depend
+    # on the role-aware command lookups the overlay drives.
+    stub_fingerprint = compute_stub_fingerprint(source)
+    with stub_signature_scope(cmd_stubs):
+        return _compile_source_inner(
+            source,
+            ir_module=ir_module,
+            proc_cache=proc_cache,
+            interproc_cache=interproc_cache,
+            prune_interproc_cache=prune_interproc_cache,
+            known_classes=known_classes,
+            stub_fingerprint=stub_fingerprint,
+            deep_param_traits=deep_param_traits,
+        )
+
+
+def _compile_source_inner(
+    source: str,
+    *,
+    ir_module: IRModule | None,
+    proc_cache: dict[tuple[str, int], FunctionUnit] | None,
+    interproc_cache: dict[tuple[str, int], ProcLocalSummary] | None,
+    prune_interproc_cache: bool,
+    known_classes: frozenset[str],
+    stub_fingerprint: int = 0,
+    deep_param_traits: bool = False,
+) -> CompilationUnit:
     if ir_module is None:
         ir_module = lower_to_ir(source)
 
@@ -207,6 +279,7 @@ def compile_source(
             qname,
             ir_proc.range.start.offset,
             ir_proc.range.end.offset,
+            stub_fingerprint=stub_fingerprint,
         )
 
         # Try the proc cache before rebuilding CFG + SSA + analysis.
@@ -243,6 +316,8 @@ def compile_source(
         proc_local_cache=interproc_cache,
         prune_local_cache=prune_interproc_cache,
         proc_units={qname: (fu.cfg, fu.ssa, fu.analysis) for qname, fu in proc_units.items()},
+        stub_fingerprint=stub_fingerprint,
+        deep_param_traits=deep_param_traits,
     )
 
     when_procs = {qn: fu for qn, fu in proc_units.items() if qn.startswith("::when::")}

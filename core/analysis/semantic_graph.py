@@ -77,7 +77,9 @@ def build_call_graph(
     from core.analysis import analyse
     from core.compiler.compilation_unit import ensure_compilation_unit
 
-    cu = ensure_compilation_unit(source, cu, context="semantic_graph.call_graph")
+    cu = ensure_compilation_unit(
+        source, cu, context="semantic_graph.call_graph", deep_param_traits=True
+    )
     if cu is None:
         return {"nodes": [], "edges": [], "roots": [], "leaf_procs": []}
 
@@ -271,7 +273,9 @@ def build_symbol_graph(
     from core.analysis import analyse
     from core.compiler.compilation_unit import ensure_compilation_unit
 
-    cu = ensure_compilation_unit(source, cu, context="semantic_graph.symbol_graph")
+    cu = ensure_compilation_unit(
+        source, cu, context="semantic_graph.symbol_graph", deep_param_traits=True
+    )
     analysis = analysis if analysis is not None else analyse(source, cu=cu)
 
     # Walk scope tree
@@ -416,7 +420,9 @@ def build_dataflow_graph(
         find_taint_warnings,
     )
 
-    cu = ensure_compilation_unit(source, cu, context="semantic_graph.dataflow_graph")
+    cu = ensure_compilation_unit(
+        source, cu, context="semantic_graph.dataflow_graph", deep_param_traits=True
+    )
     if cu is None:
         return {
             "taint_warnings": [],
@@ -513,7 +519,7 @@ def build_semantic_graph_bundle(source: str) -> dict[str, Any]:
     from core.analysis import analyse
     from core.compiler.compilation_unit import ensure_compilation_unit
 
-    cu = ensure_compilation_unit(source, context="semantic_graph.bundle")
+    cu = ensure_compilation_unit(source, context="semantic_graph.bundle", deep_param_traits=True)
     if cu is None:
         return {
             "call_graph": {"nodes": [], "edges": [], "roots": [], "leaf_procs": []},
