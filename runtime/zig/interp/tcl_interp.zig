@@ -2030,6 +2030,35 @@ fn eval_proc_call(words: []const i32) i32 {
         if (cmd_s.len > 0 and stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
             return 0;
         }
+        // Before declaring the command unknown, look for a
+        // user-defined ``unknown`` proc that should intercept the
+        // call (Tcl's classic auto-dispatch hook).  Reference Tcl's
+        // ``Tcl_FindCommand`` consults ``::unknown`` when a name
+        // doesn't resolve; we mirror that by checking the proc
+        // registry for a procedure named ``unknown`` and invoking
+        // it with the original word slice prepended by the literal
+        // ``unknown`` command name.
+        //
+        // unknown.test exercises this: it does
+        // ``proc unknown {args} { … set x $args }`` and then calls
+        // ``foobar x y z``; the test expects ``$x`` to be
+        // ``foobar x y z`` (the args ``unknown`` saw).
+        const unknown_name = obj_mod.obj_new_string_copy(
+            @intFromPtr("unknown".ptr),
+            7,
+        );
+        defer obj_mod.tcl_obj_release(unknown_name);
+        const unknown_bucket = procs.proc_lookup(unknown_name);
+        if (unknown_bucket != 0 and words.len + 1 <= parse.MAX_WORDS) {
+            var new_words: [parse.MAX_WORDS]i32 = undefined;
+            new_words[0] = unknown_name;
+            obj_mod.tcl_obj_retain(unknown_name);
+            var k: u32 = 0;
+            while (k < words.len) : (k += 1) new_words[1 + k] = words[k];
+            const result = eval_proc_call_bucket(new_words[0 .. words.len + 1], unknown_bucket);
+            obj_mod.tcl_obj_release(unknown_name);
+            return result;
+        }
         // Unknown command — build a "unknown command: <name>"
         // message so the stderr/error_msg output identifies the
         // missing proc rather than emitting a bare command name.
