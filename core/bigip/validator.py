@@ -323,7 +323,7 @@ def _check_virtual_persistence(
     """BIGIP6010: iRule ``persist`` references profile not on its virtual."""
     diagnostics: list[Diagnostic] = []
     for vs in config.virtual_servers.values():
-        vs_persist_set = set(vs.persist)
+        vs_persist_set = set(vs.persist.paths)
         for rule_ref in vs.rules:
             resolved = config.resolve_rule(rule_ref)
             if resolved is None:

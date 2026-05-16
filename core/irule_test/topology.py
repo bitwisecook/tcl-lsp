@@ -103,14 +103,13 @@ class TopologyFromSCF:
         profiles_tcl = " ".join(profile_types) if profile_types else "TCP HTTP"
         lines.append(f"::orch::configure -profiles {{{profiles_tcl}}}")
 
-        # VIP address/port from destination
-        if vs.destination:
-            dest_part = vs.destination.rsplit("/", 1)[-1]
-            colon = dest_part.rfind(":")
-            if colon >= 0:
-                addr = dest_part[:colon]
-                port = dest_part[colon + 1 :]
-                lines.append(f"::orch::configure -local_addr {addr} -local_port {port}")
+        # VIP address/port from destination — ``vs.destination`` is a
+        # typed :class:`Destination` now, so the address and port are
+        # directly accessible without string splitting.
+        if vs.destination is not None:
+            addr = str(vs.destination.address)
+            port = str(vs.destination.port)
+            lines.append(f"::orch::configure -local_addr {addr} -local_port {port}")
 
         lines.append("")
 
@@ -207,7 +206,7 @@ class TopologyFromSCF:
         vs = config.virtual_servers[vs_key]
         types: list[str] = []
 
-        for pref in vs.profiles:
+        for pref in vs.profiles.paths:
             resolved = config.resolve_profile(pref)
             if resolved and resolved in config.profiles:
                 profile = config.profiles[resolved]

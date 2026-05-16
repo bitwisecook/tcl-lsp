@@ -18,33 +18,61 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "dns zone"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="description", value_type="string", allow_none=True),
             BigipPropertySpec(
                 name="dns-express-allow-notify",
-                value_type="enum",
+                value_type="list",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
             BigipPropertySpec(
-                name="dns-express-enabled", value_type="enum", enum_values=("yes", "no")
+                name="dns-express-enabled",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(
                 name="dns-express-notify-action",
                 value_type="enum",
-                enum_values=("consume", "bypass", "repeat"),
+                enum_values=("bypass", "consume", "repeat"),
             ),
             BigipPropertySpec(
-                name="dns-express-notify-tsig-verify", value_type="enum", enum_values=("yes", "no")
+                name="dns-express-notify-tsig-verify",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="yes",
             ),
-            BigipPropertySpec(name="dns-express-server", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="response-policy", value_type="enum", enum_values=("yes", "no")),
-            BigipPropertySpec(name="server-tsig-key", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="dns-express-server",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+            ),
+            BigipPropertySpec(
+                name="response-policy",
+                value_type="enum",
+                enum_values=("no", "yes"),
+                shape_kind="boolean",
+                default="no",
+            ),
+            BigipPropertySpec(
+                name="server-tsig-key",
+                value_type="reference",
+                allow_none=True,
+                enum_values=("none",),
+            ),
             BigipPropertySpec(
                 name="transfer-clients",
-                value_type="enum",
+                value_type="list",
                 allow_none=True,
-                enum_values=("add", "delete", "none", "replace-all-with"),
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
         ),
     )

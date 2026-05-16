@@ -21,9 +21,9 @@ def register_spec() -> BigipObjectSpec:
             BigipPropertySpec(name="copy-from", value_type="string"),
             BigipPropertySpec(
                 name="vlans",
-                value_type="reference",
-                enum_values=("add", "delete", "modify", "replace-all-with"),
-                references=("net_vlan",),
+                value_type="list",
+                allow_none=True,
+                list_operators=frozenset(("add", "delete", "modify", "replace-all-with")),
             ),
         ),
     )

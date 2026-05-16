@@ -7,6 +7,13 @@ from bisect import bisect_right
 from core.bigip.apl_parser import AplTokenKind, tokenise_apl
 from core.bigip.iapp_extract import find_embedded_iapp_sections
 from core.bigip.irules_refs import extract_irules_object_references
+from core.bigip.parser._helpers import (
+    _extract_blocks,
+    _parse_generic_header,
+    _parse_properties_with_spans,
+)
+from core.bigip.registry import references_via_spec
+from core.bigip.registry.pilot import pilot_property_spec_for
 from core.bigip.rule_extract import find_embedded_rules
 from core.common.document_buffer import DocumentBuffer
 from core.parsing.tokens import SourcePosition, Token, TokenType
@@ -416,6 +423,67 @@ def _collect_irules_object_tokens(
             length=(end.character - start.character + 1),
             type_name="object",
         )
+
+
+def _collect_registry_property_ref_tokens(
+    tokens: list[tuple[int, int, int, int, int]],
+    source: str,
+) -> None:
+    """Emit ``object``-type semantic tokens for every reference the
+    registry's value-spec dispatch surfaces — exact byte spans on
+    each property's value (no per-line regex), including nested
+    references inside keyed-block lists (firewall rule destination
+    address-lists, cert-key-chain cert refs, profile attachments,
+    monitor expression entries, ...).
+
+    Falls through harmlessly for unmigrated properties: the legacy
+    line-based ``_collect_bigip_tokens`` collector still runs and
+    covers them, with the ``seen`` dedup set making sure overlapping
+    coverage doesn't double-emit tokens.
+    """
+    seen: set[tuple[int, int, int, int, int]] = set()
+    buffer = DocumentBuffer.from_source(source)
+    for block in _extract_blocks(source):
+        generic = _parse_generic_header(block.header)
+        if generic is None:
+            continue
+        module, object_type, identifier = generic
+        body_base = block.start_offset + 1
+        prop_map = _parse_properties_with_spans(block.body)
+        for key, prop in prop_map.items():
+            if pilot_property_spec_for(module, object_type, key) is None:
+                continue
+            if prop.value_start is None:
+                continue
+            base = body_base + prop.value_start
+            refs = references_via_spec(
+                module=module,
+                object_type=object_type,
+                property_name=key,
+                value=prop.value,
+                owner_path=identifier,
+                base_offset=base,
+                source_text=source,
+            )
+            for ref in refs or ():
+                if ref.range is None:
+                    continue
+                # ``ref.range`` is half-open ``[start, end)``;
+                # ``range_from_offsets`` is inclusive on the end so
+                # convert at the boundary.  Token length is then the
+                # inclusive-character difference (no extra ``+1``)
+                # because both endpoints are inclusive in ``rng``.
+                rng = buffer.range_from_offsets(ref.range.start, ref.range.end - 1)
+                if rng.start.line != rng.end.line:
+                    continue
+                _append_bigip_token(
+                    tokens,
+                    seen,
+                    line=rng.start.line,
+                    char=rng.start.character,
+                    length=rng.end.character - rng.start.character + 1,
+                    type_name="object",
+                )
 
 
 def _collect_bigip_embedded_irules_object_tokens(

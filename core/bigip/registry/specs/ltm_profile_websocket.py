@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("profile websocket",),
         ),
         header_types=(("ltm", "profile websocket"),),
+        properties=(),
     )

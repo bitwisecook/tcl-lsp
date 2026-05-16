@@ -18,14 +18,29 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "dos dynamic-signatures"),),
         properties=(
-            BigipPropertySpec(name="context-name", value_type="string"),
+            BigipPropertySpec(
+                name="context-name",
+                value_type="reference",
+                usage_flags=frozenset(("read_only",)),
+            ),
             BigipPropertySpec(name="detection-threshold", value_type="integer"),
             BigipPropertySpec(
-                name="enforce", value_type="enum", enum_values=("disabled", "enabled")
+                name="dynamic-vectors",
+                value_type="unknown",
+                usage_flags=frozenset(("read_only",)),
+            ),
+            BigipPropertySpec(
+                name="enforce",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
             BigipPropertySpec(name="mitigation-threshold", value_type="integer"),
             BigipPropertySpec(
-                name="status", value_type="enum", enum_values=("disabled", "enabled")
+                name="status",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
         ),
     )

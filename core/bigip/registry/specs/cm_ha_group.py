@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("ha-group",),
         ),
         header_types=(("cm", "ha-group"),),
+        properties=(),
     )

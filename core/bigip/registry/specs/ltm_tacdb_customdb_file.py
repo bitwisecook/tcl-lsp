@@ -17,5 +17,8 @@ def register_spec() -> BigipObjectSpec:
             object_types=("tacdb customdb-file",),
         ),
         header_types=(("ltm", "tacdb customdb-file"),),
-        properties=(BigipPropertySpec(name="source-path", value_type="string"),),
+        properties=(
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
+            BigipPropertySpec(name="source-path", value_type="string"),
+        ),
     )

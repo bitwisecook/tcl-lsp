@@ -19,18 +19,25 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("auth", "source"),),
         properties=(
             BigipPropertySpec(
+                name="fallback",
+                value_type="enum",
+                enum_values=("false", "true"),
+                shape_kind="boolean",
+                default="false",
+            ),
+            BigipPropertySpec(
                 name="type",
                 value_type="enum",
                 enum_values=(
                     "active-directory",
+                    "apm-auth",
+                    "cert-ldap",
                     "ldap",
                     "local",
                     "radius",
                     "tacacs",
-                    "cert-ldap",
-                    "apm-auth",
                 ),
+                default="local",
             ),
-            BigipPropertySpec(name="fallback", value_type="enum", enum_values=("true", "false")),
         ),
     )

@@ -19,14 +19,26 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "monitor real-server"),),
         properties=(
             BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 references=("ltm_monitor_real_server",),
+                default="real-server",
             ),
             BigipPropertySpec(name="description", value_type="string"),
-            BigipPropertySpec(name="interval", value_type="integer"),
-            BigipPropertySpec(name="metrics", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="time-until-up", value_type="integer"),
-            BigipPropertySpec(name="timeout", value_type="integer"),
+            BigipPropertySpec(name="interval", value_type="integer", default="5 seconds"),
+            BigipPropertySpec(
+                name="metrics",
+                value_type="unknown",
+                allow_none=True,
+                default="ServerBandwidth:1",
+            ),
+            BigipPropertySpec(name="time-until-up", value_type="integer", default="0 (zero)"),
+            BigipPropertySpec(name="timeout", value_type="integer", default="16 seconds"),
         ),
     )

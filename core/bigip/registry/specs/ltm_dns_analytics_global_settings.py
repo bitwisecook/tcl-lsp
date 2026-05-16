@@ -19,10 +19,18 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "dns analytics global-settings"),),
         properties=(
             BigipPropertySpec(
-                name="collect-client-ip", value_type="enum", enum_values=("enabled", "disabled")
+                name="collect-client-ip",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="collect-query-name", value_type="enum", enum_values=("enabled", "disabled")
+                name="collect-query-name",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
         ),
     )

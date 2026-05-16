@@ -145,12 +145,47 @@ ltm virtual /Common/my_vs {
     vs = config.virtual_servers["/Common/my_vs"]
     assert vs.name == "my_vs"
     assert vs.pool == "/Common/web_pool"
-    assert vs.destination == "/Common/10.0.0.1:443"
+    assert str(vs.destination) == "/Common/10.0.0.1:443"
     assert "/Common/my_irule" in vs.rules
     assert "/Common/my_other_irule" in vs.rules
     assert "/Common/http" in vs.profiles
     assert "/Common/clientssl" in vs.profiles
     assert "/Common/cookie" in vs.persist
+
+
+def test_parse_virtual_server_compact_keyed_list_bodies():
+    """Compact one-line keyed-list bodies (``/Common/clientssl
+    { context clientside }``) must survive the compact-stanza
+    inline-key splitter without losing siblings.  The splitter
+    treats ``context`` / ``default`` / etc. as ltm-virtual keys
+    for the genuine compact form (``destination X pool Y``), but
+    those tokens must NOT be promoted to outer properties when
+    they live inside a braced sub-block.  Regression for the
+    review's high-severity finding."""
+    source = """\
+ltm virtual /Common/v_compact {
+    destination /Common/10.0.0.1:443
+    profiles {
+        /Common/clientssl { context clientside }
+        /Common/http { }
+        /Common/serverssl { context serverside }
+    }
+    persist {
+        /Common/cookie { default yes }
+    }
+}
+"""
+    config = parse_bigip_conf(source)
+    vs = config.virtual_servers["/Common/v_compact"]
+    # ``vs.profiles`` / ``vs.persist`` are typed BigipList now;
+    # ``.paths`` is the legacy ``tuple[str, ...]`` back-compat
+    # accessor.
+    assert vs.profiles.paths == (
+        "/Common/clientssl",
+        "/Common/http",
+        "/Common/serverssl",
+    )
+    assert vs.persist.paths == ("/Common/cookie",)
 
 
 def test_parse_virtual_server_source_addr_translation():
@@ -217,7 +252,7 @@ ltm node /Common/web1 {
 """
     config = parse_bigip_conf(source)
     assert "/Common/web1" in config.nodes
-    assert config.nodes["/Common/web1"].address == "10.0.1.10"
+    assert str(config.nodes["/Common/web1"].address) == "10.0.1.10"
 
 
 def test_parse_monitor():
@@ -286,7 +321,11 @@ gtm rule /Common/my_gtm_rule {
 }
 """
     config = parse_bigip_conf(source)
-    assert "/Common/my_gtm_rule" in config.rules
+    # ``gtm rule`` is a separate kind from ``ltm rule`` (the typed
+    # projection routes them to distinct containers so a tenant with
+    # the same path in both modules doesn't collide).
+    assert "/Common/my_gtm_rule" in config.gtm_rules
+    assert "/Common/my_gtm_rule" not in config.rules
 
 
 def test_parse_gtm_pool_tracks_module():

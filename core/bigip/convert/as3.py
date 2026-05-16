@@ -69,7 +69,9 @@ def _convert_pool(cfg: BigipConfig, name: str) -> dict:
     pool = cfg.pools[name]
     members: list[dict] = []
     for member in pool.members:
-        addr = member.address or _split_destination(member.name)[0]
+        # ``member.address`` is typed :class:`Address` | None.
+        addr_text = str(member.address) if member.address is not None else ""
+        addr = addr_text or _split_destination(member.name)[0]
         port = member.port or _split_destination(member.name)[1] or 0
         members.append(
             {
@@ -116,7 +118,8 @@ def _classify_virtual_class(cfg: BigipConfig, vs_name: str) -> str:
 
 def _convert_virtual(cfg: BigipConfig, name: str) -> dict:
     vs = cfg.virtual_servers[name]
-    addr, port = _split_destination(vs.destination)
+    dest_text = str(vs.destination) if vs.destination is not None else ""
+    addr, port = _split_destination(dest_text)
     out: dict[str, object] = {
         "class": _classify_virtual_class(cfg, name),
         "virtualAddresses": [addr] if addr else [],
@@ -130,7 +133,7 @@ def _convert_virtual(cfg: BigipConfig, name: str) -> dict:
         out["iRules"] = [_short_name(cfg.resolve_rule(r) or r) for r in vs.rules]
     if vs.persist:
         out["persistenceMethods"] = [
-            _short_name(cfg.resolve_persistence(p) or p) for p in vs.persist
+            _short_name(cfg.resolve_persistence(p) or p) for p in vs.persist.paths
         ]
     return out
 

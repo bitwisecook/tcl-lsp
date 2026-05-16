@@ -1,10 +1,187 @@
 from __future__ import annotations
 
 from . import (
+    analytics_afm_sweeper_scheduled_report,  # noqa: F401
+    analytics_application_security_anomalies_scheduled_report,  # noqa: F401
+    analytics_application_security_network_scheduled_report,  # noqa: F401
+    analytics_application_security_scheduled_report,  # noqa: F401
+    analytics_asm_bypass_scheduled_report,  # noqa: F401
+    analytics_asm_cpu_scheduled_report,  # noqa: F401
+    analytics_asm_memory_scheduled_report,  # noqa: F401
+    analytics_asm_violation_scheduled_report,  # noqa: F401
+    analytics_cpu_scheduled_report,  # noqa: F401
+    analytics_device_traffic_scheduled_report,  # noqa: F401
+    analytics_disk_info_scheduled_report,  # noqa: F401
+    analytics_dns_protocol_scheduled_report,  # noqa: F401
+    analytics_dns_scheduled_report,  # noqa: F401
+    analytics_dos_l3_scheduled_report,  # noqa: F401
+    analytics_fw_nat_scheduled_report,  # noqa: F401
+    analytics_global_settings,  # noqa: F401
+    analytics_http_scheduled_report,  # noqa: F401
+    analytics_ip_intelligence_scheduled_report,  # noqa: F401
+    analytics_ip_layer_scheduled_report,  # noqa: F401
+    analytics_lsn_pool_scheduled_report,  # noqa: F401
+    analytics_memory_scheduled_report,  # noqa: F401
+    analytics_network_scheduled_report,  # noqa: F401
+    analytics_pem_scheduled_report,  # noqa: F401
+    analytics_pool_traffic_scheduled_report,  # noqa: F401
+    analytics_proc_cpu_scheduled_report,  # noqa: F401
+    analytics_protocol_security_http_scheduled_report,  # noqa: F401
+    analytics_protocol_security_scheduled_report,  # noqa: F401
+    analytics_sip_dos_scheduled_report,  # noqa: F401
+    analytics_sip_scheduled_report,  # noqa: F401
+    analytics_ssl_orchestrator_scheduled_report,  # noqa: F401
+    analytics_ssl_orchestrator_service_virtual_scheduled_report,  # noqa: F401
+    analytics_swg_blocked_scheduled_report,  # noqa: F401
+    analytics_swg_scheduled_report,  # noqa: F401
+    analytics_tcp_analytics_scheduled_report,  # noqa: F401
+    analytics_tcp_scheduled_report,  # noqa: F401
+    analytics_traffic_classification_scheduled_report,  # noqa: F401
+    analytics_udp_scheduled_report,  # noqa: F401
+    analytics_uri_type,  # noqa: F401
+    analytics_vcmp_scheduled_report,  # noqa: F401
+    analytics_virtual_scheduled_report,  # noqa: F401
+    api_protection_profile_apiprotection,  # noqa: F401
+    api_protection_response,  # noqa: F401
+    api_protection_server,  # noqa: F401
+    apm_aaa_active_directory,  # noqa: F401
+    apm_aaa_active_directory_trusted_domains,  # noqa: F401
+    apm_aaa_crldp,  # noqa: F401
+    apm_aaa_endpoint_management_system,  # noqa: F401
+    apm_aaa_f5_mfa_configuration,  # noqa: F401
+    apm_aaa_f5_service_connector,  # noqa: F401
+    apm_aaa_http,  # noqa: F401
+    apm_aaa_http_connector_request,  # noqa: F401
+    apm_aaa_kerberos,  # noqa: F401
+    apm_aaa_kerberos_keytab_file,  # noqa: F401
+    apm_aaa_ldap,  # noqa: F401
+    apm_aaa_oam,  # noqa: F401
+    apm_aaa_oauth_provider,  # noqa: F401
+    apm_aaa_oauth_request,  # noqa: F401
+    apm_aaa_oauth_server,  # noqa: F401
+    apm_aaa_ocsp,  # noqa: F401
+    apm_aaa_okta_connector,  # noqa: F401
+    apm_aaa_radius,  # noqa: F401
+    apm_aaa_saml,  # noqa: F401
+    apm_aaa_saml_idp_automation,  # noqa: F401
+    apm_aaa_saml_idp_connector,  # noqa: F401
+    apm_aaa_securid,  # noqa: F401
+    apm_aaa_tacacsplus,  # noqa: F401
+    apm_acl,  # noqa: F401
+    apm_apm_avr_config,  # noqa: F401
+    apm_client_image,  # noqa: F401
+    apm_configuration_captcha,  # noqa: F401
+    apm_epsec_epsec_package,  # noqa: F401
+    apm_log_setting,  # noqa: F401
+    apm_ntlm_machine_account,  # noqa: F401
+    apm_ntlm_ntlm_auth,  # noqa: F401
+    apm_oauth_db_instance,  # noqa: F401
+    apm_oauth_jwk_config,  # noqa: F401
+    apm_oauth_jwt_config,  # noqa: F401
+    apm_oauth_jwt_provider_list,  # noqa: F401
+    apm_oauth_oauth_claim,  # noqa: F401
+    apm_oauth_oauth_client_app,  # noqa: F401
+    apm_oauth_oauth_resource_server,  # noqa: F401
+    apm_oauth_oauth_scope,  # noqa: F401
+    apm_policy_agent_aaa_active_directory,  # noqa: F401
+    apm_policy_agent_aaa_client_cert,  # noqa: F401
+    apm_policy_agent_aaa_crldp,  # noqa: F401
+    apm_policy_agent_aaa_http,  # noqa: F401
+    apm_policy_agent_aaa_ldap,  # noqa: F401
+    apm_policy_agent_aaa_oauth,  # noqa: F401
+    apm_policy_agent_aaa_radius,  # noqa: F401
+    apm_policy_agent_aaa_saml,  # noqa: F401
+    apm_policy_agent_aaa_securid,  # noqa: F401
+    apm_policy_agent_acct_radius,  # noqa: F401
+    apm_policy_agent_acct_tacacsplus,  # noqa: F401
+    apm_policy_agent_api_authentication,  # noqa: F401
+    apm_policy_agent_api_server_selection,  # noqa: F401
+    apm_policy_agent_decision_box,  # noqa: F401
+    apm_policy_agent_dynamic_acl,  # noqa: F401
+    apm_policy_agent_ending_allow,  # noqa: F401
+    apm_policy_agent_ending_deny,  # noqa: F401
+    apm_policy_agent_ending_redirect,  # noqa: F401
+    apm_policy_agent_endpoint_check_machine_cert,  # noqa: F401
+    apm_policy_agent_endpoint_check_software,  # noqa: F401
+    apm_policy_agent_endpoint_linux_check_file,  # noqa: F401
+    apm_policy_agent_endpoint_linux_check_process,  # noqa: F401
+    apm_policy_agent_endpoint_mac_check_file,  # noqa: F401
+    apm_policy_agent_endpoint_mac_check_process,  # noqa: F401
+    apm_policy_agent_endpoint_machine_info,  # noqa: F401
+    apm_policy_agent_endpoint_windows_browser_cache_cleaner,  # noqa: F401
+    apm_policy_agent_endpoint_windows_check_file,  # noqa: F401
+    apm_policy_agent_endpoint_windows_check_process,  # noqa: F401
+    apm_policy_agent_endpoint_windows_check_registry,  # noqa: F401
+    apm_policy_agent_endpoint_windows_group_policy,  # noqa: F401
+    apm_policy_agent_endpoint_windows_info_os,  # noqa: F401
+    apm_policy_agent_endpoint_windows_protected_workspace,  # noqa: F401
+    apm_policy_agent_external_logon_page,  # noqa: F401
+    apm_policy_agent_http_header_modify,  # noqa: F401
+    apm_policy_agent_ip_geolocation_lookup,  # noqa: F401
+    apm_policy_agent_ip_reputation_lookup,  # noqa: F401
+    apm_policy_agent_irule_event,  # noqa: F401
+    apm_policy_agent_kerberos,  # noqa: F401
+    apm_policy_agent_l7_protocol_lookup,  # noqa: F401
+    apm_policy_agent_logging,  # noqa: F401
+    apm_policy_agent_logon_page,  # noqa: F401
+    apm_policy_agent_message_box,  # noqa: F401
+    apm_policy_agent_oam,  # noqa: F401
+    apm_policy_agent_oauth_authz,  # noqa: F401
+    apm_policy_agent_request_classification,  # noqa: F401
+    apm_policy_agent_resource_assign,  # noqa: F401
+    apm_policy_agent_response_selection,  # noqa: F401
+    apm_policy_agent_route_domain_selection,  # noqa: F401
+    apm_policy_agent_server_cert_response_control,  # noqa: F401
+    apm_policy_agent_server_cert_status,  # noqa: F401
+    apm_policy_agent_session_check,  # noqa: F401
+    apm_policy_agent_ssl_check,  # noqa: F401
+    apm_policy_agent_tacacsplus,  # noqa: F401
+    apm_policy_agent_variable_assign,  # noqa: F401
+    apm_profile_access,  # noqa: F401
+    apm_profile_connectivity,  # noqa: F401
+    apm_profile_exchange,  # noqa: F401
+    apm_profile_oauth,  # noqa: F401
+    apm_profile_vdi,  # noqa: F401
+    apm_report_custom_report_field,  # noqa: F401
+    apm_resource_address_space,  # noqa: F401
+    apm_resource_app_tunnel,  # noqa: F401
+    apm_resource_client_rate_class,  # noqa: F401
+    apm_resource_client_traffic_classifier,  # noqa: F401
+    apm_resource_ipv6_leasepool,  # noqa: F401
+    apm_resource_leasepool,  # noqa: F401
+    apm_resource_network_access,  # noqa: F401
+    apm_resource_portal_access,  # noqa: F401
+    apm_resource_remote_desktop_citrix,  # noqa: F401
+    apm_resource_remote_desktop_citrix_client_bundle,  # noqa: F401
+    apm_resource_remote_desktop_citrix_client_package_file,  # noqa: F401
+    apm_resource_remote_desktop_quest,  # noqa: F401
+    apm_resource_remote_desktop_rdp,  # noqa: F401
+    apm_resource_remote_desktop_vmware_view,  # noqa: F401
+    apm_resource_sandbox,  # noqa: F401
+    apm_resource_webtop,  # noqa: F401
+    apm_resource_webtop_link,  # noqa: F401
+    apm_saml_artifact_resolution_service,  # noqa: F401
+    apm_saml_attribute_consuming_service,  # noqa: F401
+    apm_saml_auth_context_class_list,  # noqa: F401
+    apm_session,  # noqa: F401
+    apm_sso_basic,  # noqa: F401
+    apm_sso_form_based,  # noqa: F401
+    apm_sso_form_basedv2,  # noqa: F401
+    apm_sso_kerberos,  # noqa: F401
+    apm_sso_ntlmv1,  # noqa: F401
+    apm_sso_ntlmv2,  # noqa: F401
+    apm_sso_oauth_bearer,  # noqa: F401
+    apm_sso_saml,  # noqa: F401
+    apm_sso_saml_resource,  # noqa: F401
+    apm_sso_saml_sp_automation,  # noqa: F401
+    apm_sso_saml_sp_connector,  # noqa: F401
+    apm_swg_scheme,  # noqa: F401
+    apm_url_filter,  # noqa: F401
+    asm_httpclass_asm,  # noqa: F401
+    asm_policy,  # noqa: F401
     auth_apm_auth,  # noqa: F401
     auth_cert_ldap,  # noqa: F401
     auth_ldap,  # noqa: F401
-    auth_login_failures,  # noqa: F401
     auth_partition,  # noqa: F401
     auth_password,  # noqa: F401
     auth_password_policy,  # noqa: F401
@@ -15,32 +192,26 @@ from . import (
     auth_source,  # noqa: F401
     auth_tacacs,  # noqa: F401
     auth_user,  # noqa: F401
-    cm_add_to_trust,  # noqa: F401
-    cm_cert,  # noqa: F401
-    cm_config_sync,  # noqa: F401
+    cli_admin_partitions,  # noqa: F401
+    cli_alias_private,  # noqa: F401
+    cli_alias_shared,  # noqa: F401
+    cli_global_settings,  # noqa: F401
+    cli_preference,  # noqa: F401
+    cli_script,  # noqa: F401
+    cli_transaction,  # noqa: F401
+    cli_version,  # noqa: F401
     cm_device,  # noqa: F401
     cm_device_group,  # noqa: F401
-    cm_failover_status,  # noqa: F401
     cm_ha_group,  # noqa: F401
     cm_key,  # noqa: F401
-    cm_remove_from_trust,  # noqa: F401
-    cm_sha1_fingerprint,  # noqa: F401
-    cm_sniff_updates,  # noqa: F401
-    cm_sync_status,  # noqa: F401
     cm_traffic_group,  # noqa: F401
     cm_trust_domain,  # noqa: F401
-    cm_watch_devicegroup_device,  # noqa: F401
-    cm_watch_sys_device,  # noqa: F401
-    cm_watch_trafficgroup_device,  # noqa: F401
-    gtm_add,  # noqa: F401
     gtm_datacenter,  # noqa: F401
     gtm_distributed_app,  # noqa: F401
     gtm_global_settings_general,  # noqa: F401
     gtm_global_settings_load_balancing,  # noqa: F401
     gtm_global_settings_metrics,  # noqa: F401
     gtm_global_settings_metrics_exclusions,  # noqa: F401
-    gtm_iquery,  # noqa: F401
-    gtm_ldns,  # noqa: F401
     gtm_link,  # noqa: F401
     gtm_listener,  # noqa: F401
     gtm_listener_doh_proxy,  # noqa: F401
@@ -59,7 +230,6 @@ from . import (
     gtm_monitor_mssql,  # noqa: F401
     gtm_monitor_mysql,  # noqa: F401
     gtm_monitor_nntp,  # noqa: F401
-    gtm_monitor_none,  # noqa: F401
     gtm_monitor_oracle,  # noqa: F401
     gtm_monitor_pop3,  # noqa: F401
     gtm_monitor_postgresql,  # noqa: F401
@@ -77,8 +247,6 @@ from . import (
     gtm_monitor_udp,  # noqa: F401
     gtm_monitor_wap,  # noqa: F401
     gtm_monitor_wmi,  # noqa: F401
-    gtm_path,  # noqa: F401
-    gtm_persist,  # noqa: F401
     gtm_pool_a,  # noqa: F401
     gtm_pool_aaaa,  # noqa: F401
     gtm_pool_cname,  # noqa: F401
@@ -92,7 +260,6 @@ from . import (
     gtm_rule,  # noqa: F401
     gtm_server,  # noqa: F401
     gtm_topology,  # noqa: F401
-    gtm_traffic,  # noqa: F401
     gtm_wideip_a,  # noqa: F401
     gtm_wideip_aaaa,  # noqa: F401
     gtm_wideip_cname,  # noqa: F401
@@ -101,6 +268,9 @@ from . import (
     gtm_wideip_naptr,  # noqa: F401
     gtm_wideip_srv,  # noqa: F401
     gtm_wideip_svcb,  # noqa: F401
+    ilx_global_settings,  # noqa: F401
+    ilx_plugin,  # noqa: F401
+    ilx_workspace,  # noqa: F401
     ltm_alg_log_profile,  # noqa: F401
     ltm_auth_crldp_server,  # noqa: F401
     ltm_auth_kerberos_delegation,  # noqa: F401
@@ -117,18 +287,9 @@ from . import (
     ltm_cipher_rule,  # noqa: F401
     ltm_classification_application,  # noqa: F401
     ltm_classification_auto_update_settings,  # noqa: F401
-    ltm_classification_auto_update_status,  # noqa: F401
     ltm_classification_category,  # noqa: F401
     ltm_classification_ce,  # noqa: F401
-    ltm_classification_signature_definition,  # noqa: F401
     ltm_classification_signature_update_schedule,  # noqa: F401
-    ltm_classification_signature_version,  # noqa: F401
-    ltm_classification_signatures,  # noqa: F401
-    ltm_classification_stats_application,  # noqa: F401
-    ltm_classification_stats_url_category,  # noqa: F401
-    ltm_classification_stats_urlcat_cloud,  # noqa: F401
-    ltm_classification_update_signatures,  # noqa: F401
-    ltm_classification_updates,  # noqa: F401
     ltm_classification_url_cat_policy,  # noqa: F401
     ltm_classification_url_category,  # noqa: F401
     ltm_classification_urldb_feed_list,  # noqa: F401
@@ -148,7 +309,6 @@ from . import (
     ltm_dns_cache_resolver,  # noqa: F401
     ltm_dns_cache_transparent,  # noqa: F401
     ltm_dns_cache_validating_resolver,  # noqa: F401
-    ltm_dns_dns_express_db,  # noqa: F401
     ltm_dns_dnssec_key,  # noqa: F401
     ltm_dns_dnssec_zone,  # noqa: F401
     ltm_dns_hpke_key,  # noqa: F401
@@ -202,7 +362,6 @@ from . import (
     ltm_monitor_mssql,  # noqa: F401
     ltm_monitor_mysql,  # noqa: F401
     ltm_monitor_nntp,  # noqa: F401
-    ltm_monitor_none,  # noqa: F401
     ltm_monitor_oracle,  # noqa: F401
     ltm_monitor_pop3,  # noqa: F401
     ltm_monitor_postgresql,  # noqa: F401
@@ -226,7 +385,6 @@ from . import (
     ltm_monitor_wap,  # noqa: F401
     ltm_monitor_wmi,  # noqa: F401
     ltm_nat,  # noqa: F401
-    ltm_nat_stats,  # noqa: F401
     ltm_node,  # noqa: F401
     ltm_persistence_cookie,  # noqa: F401
     ltm_persistence_dest_addr,  # noqa: F401
@@ -240,7 +398,6 @@ from . import (
     ltm_persistence_ssl,  # noqa: F401
     ltm_persistence_universal,  # noqa: F401
     ltm_policy,  # noqa: F401
-    ltm_policy_strategy,  # noqa: F401
     ltm_pool,  # noqa: F401
     ltm_profile_analytics,  # noqa: F401
     ltm_profile_certificate_authority,  # noqa: F401
@@ -283,7 +440,6 @@ from . import (
     ltm_profile_netflow,  # noqa: F401
     ltm_profile_ntlm,  # noqa: F401
     ltm_profile_ocsp,  # noqa: F401
-    ltm_profile_ocsp_stapling_params,  # noqa: F401
     ltm_profile_one_connect,  # noqa: F401
     ltm_profile_pcp,  # noqa: F401
     ltm_profile_pop3,  # noqa: F401
@@ -328,19 +484,19 @@ from . import (
     ltm_tacdb_customdb,  # noqa: F401
     ltm_tacdb_customdb_file,  # noqa: F401
     ltm_tacdb_licenseddb,  # noqa: F401
-    ltm_tacdb_query,  # noqa: F401
     ltm_traffic_class,  # noqa: F401
     ltm_traffic_matching_criteria,  # noqa: F401
     ltm_urlcat_cloud_cache,  # noqa: F401
-    ltm_urlcat_query,  # noqa: F401
     ltm_virtual,  # noqa: F401
     ltm_virtual_address,  # noqa: F401
+    mgmt_shared_settings_api_status_availability,  # noqa: F401
+    mgmt_shared_settings_api_status_log_resource,  # noqa: F401
+    mgmt_shared_settings_api_status_log_resource_property,  # noqa: F401
     net_address_list,  # noqa: F401
     net_arp,  # noqa: F401
     net_bwc_policy,  # noqa: F401
     net_bwc_priority_group,  # noqa: F401
     net_bwc_traffic_group,  # noqa: F401
-    net_clone_stats,  # noqa: F401
     net_cmetrics,  # noqa: F401
     net_cos_global_settings,  # noqa: F401
     net_cos_map_8021p,  # noqa: F401
@@ -348,32 +504,21 @@ from . import (
     net_cos_traffic_priority,  # noqa: F401
     net_dag_globals,  # noqa: F401
     net_dns_resolver,  # noqa: F401
-    net_f5optics,  # noqa: F401
     net_fdb_tunnel,  # noqa: F401
     net_fdb_vlan,  # noqa: F401
-    net_ike_evt_stat,  # noqa: F401
-    net_ike_msg_stat,  # noqa: F401
     net_interface,  # noqa: F401
-    net_interface_cos,  # noqa: F401
-    net_interface_ddm,  # noqa: F401
     net_ipsec_ike_daemon,  # noqa: F401
     net_ipsec_ike_peer,  # noqa: F401
-    net_ipsec_ike_sa,  # noqa: F401
     net_ipsec_ipsec_policy,  # noqa: F401
-    net_ipsec_ipsec_sa,  # noqa: F401
     net_ipsec_manual_security_association,  # noqa: F401
-    net_ipsec_stat,  # noqa: F401
     net_ipsec_traffic_selector,  # noqa: F401
     net_ipv6_subscriber_prefix_length,  # noqa: F401
     net_lacp_globals,  # noqa: F401
     net_lldp_globals,  # noqa: F401
-    net_lldp_neighbors,  # noqa: F401
-    net_mroute,  # noqa: F401
     net_multicast_globals,  # noqa: F401
     net_ndp,  # noqa: F401
     net_packet_filter,  # noqa: F401
     net_packet_filter_trusted,  # noqa: F401
-    net_packet_tester_security,  # noqa: F401
     net_port_list,  # noqa: F401
     net_port_mirror,  # noqa: F401
     net_rate_shaping_class,  # noqa: F401
@@ -393,22 +538,17 @@ from . import (
     net_routing_prefix_list,  # noqa: F401
     net_routing_profile_bgp,  # noqa: F401
     net_routing_route_map,  # noqa: F401
-    net_rst_cause,  # noqa: F401
     net_self,  # noqa: F401
     net_self_allow,  # noqa: F401
     net_service_policy,  # noqa: F401
     net_sfc_chain,  # noqa: F401
-    net_sfc_hop,  # noqa: F401
     net_sfc_sf,  # noqa: F401
-    net_sfc_stats,  # noqa: F401
     net_stp,  # noqa: F401
     net_stp_globals,  # noqa: F401
     net_timer_policy,  # noqa: F401
     net_trunk,  # noqa: F401
-    net_tunnels_endpoint,  # noqa: F401
     net_tunnels_etherip,  # noqa: F401
     net_tunnels_fec,  # noqa: F401
-    net_tunnels_fec_stat,  # noqa: F401
     net_tunnels_geneve,  # noqa: F401
     net_tunnels_gre,  # noqa: F401
     net_tunnels_ipip,  # noqa: F401
@@ -422,156 +562,115 @@ from . import (
     net_tunnels_vxlan,  # noqa: F401
     net_tunnels_wccp,  # noqa: F401
     net_vlan,  # noqa: F401
-    net_vlan_allowed,  # noqa: F401
     net_vlan_group,  # noqa: F401
     net_wccp,  # noqa: F401
+    pem_forwarding_endpoint,  # noqa: F401
+    pem_global_settings_analytics,  # noqa: F401
+    pem_global_settings_gx,  # noqa: F401
+    pem_global_settings_hsl_flow,  # noqa: F401
+    pem_global_settings_hsl_report,  # noqa: F401
+    pem_global_settings_insert_content,  # noqa: F401
+    pem_global_settings_policy,  # noqa: F401
+    pem_global_settings_quota_mgmt,  # noqa: F401
+    pem_global_settings_session_mgmt_attributes,  # noqa: F401
+    pem_global_settings_subscriber_activity_log,  # noqa: F401
+    pem_interception_endpoint,  # noqa: F401
+    pem_irule,  # noqa: F401
+    pem_listener,  # noqa: F401
+    pem_policy,  # noqa: F401
+    pem_profile_diameter_endpoint,  # noqa: F401
+    pem_profile_radius_aaa,  # noqa: F401
+    pem_profile_spm,  # noqa: F401
+    pem_profile_subscriber_mgmt,  # noqa: F401
+    pem_protocol_diameter_avp,  # noqa: F401
+    pem_protocol_profile_gx,  # noqa: F401
+    pem_protocol_profile_radius,  # noqa: F401
+    pem_protocol_radius_avp,  # noqa: F401
+    pem_quota_mgmt_rating_group,  # noqa: F401
+    pem_reporting_format_script,  # noqa: F401
+    pem_service_chain_endpoint,  # noqa: F401
+    pem_subscriber,  # noqa: F401
+    pem_subscriber_attribute,  # noqa: F401
+    saas_ap_ai_profile,  # noqa: F401
+    saas_ati_profile,  # noqa: F401
+    saas_bd_profile,  # noqa: F401
+    saas_csd_profile,  # noqa: F401
     security_analytics_settings,  # noqa: F401
-    security_anti_fraud_engine_update,  # noqa: F401
     security_anti_fraud_profile,  # noqa: F401
     security_anti_fraud_signatures_update,  # noqa: F401
-    security_blacklist_publisher_all_blacklist_publisher,  # noqa: F401
-    security_blacklist_publisher_blacklist_publisher_stats,  # noqa: F401
-    security_blacklist_publisher_by_addr,  # noqa: F401
-    security_blacklist_publisher_by_category,  # noqa: F401
     security_blacklist_publisher_category,  # noqa: F401
     security_blacklist_publisher_profile,  # noqa: F401
-    security_bot_defense_anomaly,  # noqa: F401
-    security_bot_defense_anomaly_category,  # noqa: F401
-    security_bot_defense_class,  # noqa: F401
-    security_bot_defense_micro_service,  # noqa: F401
     security_bot_defense_profile,  # noqa: F401
     security_bot_defense_signature,  # noqa: F401
     security_bot_defense_signature_category,  # noqa: F401
-    security_bot_defense_template,  # noqa: F401
-    security_cloud_services_cmd,  # noqa: F401
     security_cloud_services_connector,  # noqa: F401
     security_datasync_background_tasks,  # noqa: F401
-    security_datasync_device_stats,  # noqa: F401
     security_datasync_global_profile,  # noqa: F401
     security_datasync_local_profile,  # noqa: F401
-    security_debug_drop_redirect_stats,  # noqa: F401
     security_debug_matcher,  # noqa: F401
     security_debug_register,  # noqa: F401
     security_device_device_context,  # noqa: F401
     security_device_id_attribute,  # noqa: F401
-    security_dos_auto_thresholds_heavy_urls,  # noqa: F401
-    security_dos_auto_thresholds_stress_based,  # noqa: F401
-    security_dos_auto_thresholds_top_device_ids,  # noqa: F401
-    security_dos_auto_thresholds_top_geolocations,  # noqa: F401
-    security_dos_auto_thresholds_top_source_ips,  # noqa: F401
-    security_dos_auto_thresholds_top_urls,  # noqa: F401
-    security_dos_auto_thresholds_tps_based,  # noqa: F401
     security_dos_autodos_file_object,  # noqa: F401
     security_dos_behavioral_signature,  # noqa: F401
     security_dos_bot_signature,  # noqa: F401
     security_dos_bot_signature_category,  # noqa: F401
     security_dos_device_config,  # noqa: F401
-    security_dos_dns_nxdomain_stat,  # noqa: F401
     security_dos_dos_signature,  # noqa: F401
     security_dos_dynamic_signatures,  # noqa: F401
     security_dos_ip_uncommon_protolist,  # noqa: F401
     security_dos_l4bdos_file_object,  # noqa: F401
     security_dos_network_whitelist,  # noqa: F401
     security_dos_profile,  # noqa: F401
-    security_dos_spva_stats,  # noqa: F401
-    security_dos_stress_stats,  # noqa: F401
     security_dos_udp_portlist,  # noqa: F401
-    security_dos_virtual,  # noqa: F401
     security_firewall_address_list,  # noqa: F401
     security_firewall_config_change_log,  # noqa: F401
-    security_firewall_container_stat,  # noqa: F401
-    security_firewall_context_stat,  # noqa: F401
-    security_firewall_current_state,  # noqa: F401
-    security_firewall_fqdn_entity,  # noqa: F401
-    security_firewall_fqdn_info,  # noqa: F401
     security_firewall_global_fqdn_policy,  # noqa: F401
     security_firewall_global_rules,  # noqa: F401
-    security_firewall_ipi_category_info,  # noqa: F401
     security_firewall_management_ip_rules,  # noqa: F401
-    security_firewall_matching_rule,  # noqa: F401
     security_firewall_on_demand_compilation,  # noqa: F401
     security_firewall_on_demand_rule_deploy,  # noqa: F401
     security_firewall_policy,  # noqa: F401
     security_firewall_port_list,  # noqa: F401
     security_firewall_port_misuse_policy,  # noqa: F401
     security_firewall_rule_list,  # noqa: F401
-    security_firewall_rule_stat,  # noqa: F401
     security_firewall_schedule,  # noqa: F401
     security_firewall_user_domain,  # noqa: F401
     security_firewall_user_list,  # noqa: F401
     security_firewall_uuid_default_autogenerate,  # noqa: F401
-    security_flowspec_route_injector_flowspec_advertised_route_info,  # noqa: F401
     security_flowspec_route_injector_profile,  # noqa: F401
-    security_http_file_type,  # noqa: F401
-    security_http_mandatory_header,  # noqa: F401
     security_http_profile,  # noqa: F401
     security_ip_intelligence_blacklist_category,  # noqa: F401
     security_ip_intelligence_feed_list,  # noqa: F401
     security_ip_intelligence_global_policy,  # noqa: F401
-    security_ip_intelligence_info,  # noqa: F401
     security_ip_intelligence_policy,  # noqa: F401
-    security_log_antifraud_storage_field,  # noqa: F401
-    security_log_network_storage_field,  # noqa: F401
     security_log_profile,  # noqa: F401
-    security_log_protocol_dns_storage_field,  # noqa: F401
-    security_log_protocol_sip_storage_field,  # noqa: F401
-    security_log_remote_format,  # noqa: F401
-    security_log_storage_field,  # noqa: F401
-    security_malicious_sources_device_ids,  # noqa: F401
-    security_malicious_sources_ip_addresses,  # noqa: F401
     security_nat_destination_translation,  # noqa: F401
     security_nat_policy,  # noqa: F401
     security_nat_source_translation,  # noqa: F401
     security_packet_filter_default_rules,  # noqa: F401
     security_packet_filter_policy,  # noqa: F401
-    security_packet_filter_rule_stat,  # noqa: F401
-    security_presentation_tmui_netflow_details,  # noqa: F401
-    security_presentation_tmui_netflow_list,  # noqa: F401
-    security_presentation_tmui_signature_details,  # noqa: F401
-    security_presentation_tmui_signature_list,  # noqa: F401
-    security_protected_servers_netflow_tmc_stat,  # noqa: F401
     security_protected_zone,  # noqa: F401
-    security_protocol_inspection_auto_update_settings,  # noqa: F401
-    security_protocol_inspection_auto_update_status,  # noqa: F401
     security_protocol_inspection_common_config,  # noqa: F401
-    security_protocol_inspection_compliance,  # noqa: F401
-    security_protocol_inspection_compliance_enums,  # noqa: F401
     security_protocol_inspection_learning_stats,  # noqa: F401
-    security_protocol_inspection_learning_suggestions,  # noqa: F401
     security_protocol_inspection_profile,  # noqa: F401
-    security_protocol_inspection_profile_status,  # noqa: F401
-    security_protocol_inspection_service,  # noqa: F401
     security_protocol_inspection_signature,  # noqa: F401
-    security_protocol_inspection_staging,  # noqa: F401
-    security_protocol_inspection_system,  # noqa: F401
-    security_protocol_inspection_updates,  # noqa: F401
-    security_protocol_inspection_virtual_servers,  # noqa: F401
-    security_scrubber_dwbl_scrubber_category_stats,  # noqa: F401
-    security_scrubber_dwbl_scrubber_stat,  # noqa: F401
     security_scrubber_profile,  # noqa: F401
-    security_scrubber_unredirect,  # noqa: F401
     security_ssh_ciphers,  # noqa: F401
     security_ssh_profile,  # noqa: F401
     security_zone,  # noqa: F401
-    sys_air_filter_reset,  # noqa: F401
-    sys_alert_lcd,  # noqa: F401
-    sys_aom,  # noqa: F401
     sys_appiq_config,  # noqa: F401
     sys_application_apl_script,  # noqa: F401
     sys_application_custom_stat,  # noqa: F401
     sys_application_service,  # noqa: F401
     sys_application_template,  # noqa: F401
     sys_autoscale_group,  # noqa: F401
-    sys_availability,  # noqa: F401
     sys_clock,  # noqa: F401
     sys_cluster,  # noqa: F401
     sys_config,  # noqa: F401
-    sys_config_diff,  # noqa: F401
     sys_connection,  # noqa: F401
     sys_console,  # noqa: F401
     sys_core,  # noqa: F401
-    sys_cpu,  # noqa: F401
-    sys_crypto_acceleration_strategy,  # noqa: F401
     sys_crypto_allow_key_export,  # noqa: F401
     sys_crypto_ca_bundle_manager,  # noqa: F401
     sys_crypto_cert,  # noqa: F401
@@ -579,17 +678,12 @@ from . import (
     sys_crypto_cert_validation_response_ocsp,  # noqa: F401
     sys_crypto_cert_validator_crl,  # noqa: F401
     sys_crypto_cert_validator_ocsp,  # noqa: F401
-    sys_crypto_check_cert,  # noqa: F401
     sys_crypto_client,  # noqa: F401
-    sys_crypto_crl,  # noqa: F401
     sys_crypto_csr,  # noqa: F401
-    sys_crypto_encrypted_attributes,  # noqa: F401
-    sys_crypto_fips_by_handle,  # noqa: F401
     sys_crypto_fips_external_hsm,  # noqa: F401
     sys_crypto_fips_key,  # noqa: F401
     sys_crypto_key,  # noqa: F401
     sys_crypto_master_key,  # noqa: F401
-    sys_crypto_pkcs12,  # noqa: F401
     sys_crypto_server,  # noqa: F401
     sys_daemon_ha,  # noqa: F401
     sys_daemon_log_settings_clusterd,  # noqa: F401
@@ -601,10 +695,7 @@ from . import (
     sys_daemon_log_settings_tmm,  # noqa: F401
     sys_datastor,  # noqa: F401
     sys_db,  # noqa: F401
-    sys_default_config,  # noqa: F401
     sys_diags_ihealth,  # noqa: F401
-    sys_diags_ihealth_request,  # noqa: F401
-    sys_diags_ihealth_result,  # noqa: F401
     sys_disk_application_volume,  # noqa: F401
     sys_disk_directory,  # noqa: F401
     sys_disk_logical_disk,  # noqa: F401
@@ -613,10 +704,7 @@ from . import (
     sys_dynad_key,  # noqa: F401
     sys_dynad_rpm,  # noqa: F401
     sys_dynad_settings,  # noqa: F401
-    sys_dynad_status,  # noqa: F401
     sys_ecm_config,  # noqa: F401
-    sys_ecm_register,  # noqa: F401
-    sys_failover,  # noqa: F401
     sys_feature_module,  # noqa: F401
     sys_file_apache_ssl_cert,  # noqa: F401
     sys_file_browser_capabilities_db,  # noqa: F401
@@ -629,40 +717,21 @@ from . import (
     sys_file_ssl_cert,  # noqa: F401
     sys_file_ssl_crl,  # noqa: F401
     sys_file_ssl_key,  # noqa: F401
-    sys_fix_connection,  # noqa: F401
     sys_folder,  # noqa: F401
     sys_fpga_firmware_config,  # noqa: F401
-    sys_fpga_info,  # noqa: F401
-    sys_fpga_turboflex_profile,  # noqa: F401
-    sys_geoip,  # noqa: F401
     sys_global_settings,  # noqa: F401
     sys_ha_group,  # noqa: F401
-    sys_ha_status,  # noqa: F401
-    sys_hardware,  # noqa: F401
-    sys_host_info,  # noqa: F401
     sys_httpd,  # noqa: F401
-    sys_hypervisor_info,  # noqa: F401
     sys_iapp_restricted_key,  # noqa: F401
     sys_iapprestricted_key,  # noqa: F401
-    sys_icall_event,  # noqa: F401
     sys_icall_handler_periodic,  # noqa: F401
     sys_icall_handler_perpetual,  # noqa: F401
     sys_icall_handler_triggered,  # noqa: F401
     sys_icall_istats_trigger,  # noqa: F401
-    sys_icall_publisher,  # noqa: F401
     sys_icall_script,  # noqa: F401
-    sys_icmp_stat,  # noqa: F401
     sys_icontrol_soap,  # noqa: F401
-    sys_integrity_status_check,  # noqa: F401
     sys_internal_proxy,  # noqa: F401
-    sys_ip_address,  # noqa: F401
-    sys_ip_stat,  # noqa: F401
-    sys_ipfix_destination,  # noqa: F401
     sys_ipfix_element,  # noqa: F401
-    sys_ipfix_irules,  # noqa: F401
-    sys_iprep_status,  # noqa: F401
-    sys_license,  # noqa: F401
-    sys_log,  # noqa: F401
     sys_log_config_destination_alertd,  # noqa: F401
     sys_log_config_destination_arcsight,  # noqa: F401
     sys_log_config_destination_ipfix,  # noqa: F401
@@ -675,42 +744,20 @@ from . import (
     sys_log_config_filter,  # noqa: F401
     sys_log_config_publisher,  # noqa: F401
     sys_log_rotate,  # noqa: F401
-    sys_mac_address,  # noqa: F401
     sys_management_dhcp,  # noqa: F401
     sys_management_ip,  # noqa: F401
     sys_management_ovsdb,  # noqa: F401
     sys_management_proxy_config,  # noqa: F401
     sys_management_route,  # noqa: F401
-    sys_mcp_state,  # noqa: F401
-    sys_memory,  # noqa: F401
-    sys_nethsm_async_queue_stat,  # noqa: F401
-    sys_nethsm_pkcs11d_stat,  # noqa: F401
-    sys_nethsm_sync_queue_stat,  # noqa: F401
     sys_ntp,  # noqa: F401
     sys_outbound_smtp,  # noqa: F401
-    sys_performance_all_stats,  # noqa: F401
-    sys_performance_connections,  # noqa: F401
-    sys_performance_dnsexpress,  # noqa: F401
-    sys_performance_dnssec,  # noqa: F401
-    sys_performance_gtm,  # noqa: F401
-    sys_performance_ramcache,  # noqa: F401
-    sys_performance_system,  # noqa: F401
-    sys_performance_throughput,  # noqa: F401
     sys_pfman_consumer,  # noqa: F401
     sys_pfman_device,  # noqa: F401
-    sys_proc_info,  # noqa: F401
     sys_provision,  # noqa: F401
-    sys_pva_traffic,  # noqa: F401
     sys_raid_array,  # noqa: F401
     sys_raid_bay,  # noqa: F401
-    sys_raid_disk,  # noqa: F401
-    sys_ready,  # noqa: F401
     sys_scriptd,  # noqa: F401
     sys_service,  # noqa: F401
-    sys_sflow_data_source_http,  # noqa: F401
-    sys_sflow_data_source_interface,  # noqa: F401
-    sys_sflow_data_source_system,  # noqa: F401
-    sys_sflow_data_source_vlan,  # noqa: F401
     sys_sflow_global_settings_http,  # noqa: F401
     sys_sflow_global_settings_interface,  # noqa: F401
     sys_sflow_global_settings_system,  # noqa: F401
@@ -718,39 +765,52 @@ from . import (
     sys_sflow_receiver,  # noqa: F401
     sys_smtp_server,  # noqa: F401
     sys_snmp,  # noqa: F401
-    sys_software_block_device_hotfix,  # noqa: F401
-    sys_software_block_device_image,  # noqa: F401
     sys_software_hotfix,  # noqa: F401
     sys_software_image,  # noqa: F401
     sys_software_signature,  # noqa: F401
-    sys_software_status,  # noqa: F401
     sys_software_update,  # noqa: F401
-    sys_software_update_status,  # noqa: F401
     sys_software_volume,  # noqa: F401
     sys_sshd,  # noqa: F401
     sys_state_mirroring,  # noqa: F401
-    sys_sync_sys_files,  # noqa: F401
     sys_syslog,  # noqa: F401
-    sys_tmm_info,  # noqa: F401
-    sys_tmm_traffic,  # noqa: F401
-    sys_traffic,  # noqa: F401
-    sys_turboflex_features,  # noqa: F401
-    sys_turboflex_profile_all,  # noqa: F401
     sys_turboflex_profile_config,  # noqa: F401
-    sys_turboflex_profile_feature,  # noqa: F401
-    sys_turboflex_warning,  # noqa: F401
     sys_ucs,  # noqa: F401
-    sys_url_db_download_result,  # noqa: F401
     sys_url_db_download_schedule,  # noqa: F401
     sys_url_db_url_category,  # noqa: F401
-    sys_version,  # noqa: F401
+    util_ipsecalgdb,  # noqa: F401
+    vcmp_guest,  # noqa: F401
+    vcmp_traffic_profile,  # noqa: F401
+    vcmp_virtual_disk,  # noqa: F401
+    vcmp_virtual_disk_template,  # noqa: F401
+    wam_ad_policy,  # noqa: F401
+    wam_application,  # noqa: F401
+    wam_domain_list,  # noqa: F401
+    wam_object_type,  # noqa: F401
+    wam_policy,  # noqa: F401
+    wam_resource_concat_set,  # noqa: F401
+    wam_resource_domain_list,  # noqa: F401
+    wam_resource_url,  # noqa: F401
+    wom_advertised_route,  # noqa: F401
+    wom_deduplication,  # noqa: F401
+    wom_endpoint_discovery,  # noqa: F401
+    wom_local_endpoint,  # noqa: F401
+    wom_profile_cifs,  # noqa: F401
+    wom_profile_isession,  # noqa: F401
+    wom_profile_mapi,  # noqa: F401
+    wom_remote_endpoint,  # noqa: F401
+    wom_server_discovery,  # noqa: F401
 )
-from ._base import _REGISTRY
+from ._base import _REGISTRY, normalise_registry
 
 
 def bigip_object_specs() -> tuple:
     return tuple(_REGISTRY)
 
+
+# Apply curated post-processing overrides — the ``_base``
+# module hosts a small allowlist of list_operators / value_type
+# corrections that survive a spec regeneration.
+normalise_registry()
 
 OBJECT_SPECS = bigip_object_specs()
 

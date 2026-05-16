@@ -18,11 +18,13 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("security", "ip-intelligence blacklist-category"),),
         properties=(
-            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="app-service", value_type="reference", default="none"),
             BigipPropertySpec(
                 name="bl-match-direction",
                 value_type="enum",
                 enum_values=("destination", "source", "source-and-destination"),
             ),
+            BigipPropertySpec(name="description", value_type="string"),
+            BigipPropertySpec(name="recursive", value_type="unknown"),
         ),
     )

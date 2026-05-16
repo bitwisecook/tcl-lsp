@@ -1378,7 +1378,8 @@ def _match_virtual(cfg: BigipConfig, dst_ip: str, dst_port: int) -> str | None:
     except ValueError:
         flow_ip = dst_ip
     for path, vs in cfg.virtual_servers.items():
-        parsed = _parse_destination(vs.destination)
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        parsed = _parse_destination(dest_text)
         if parsed is None:
             continue
         vs_addr, vs_port = parsed
@@ -1700,7 +1701,7 @@ def _gtm_wide_ips_in_config(cfg: BigipConfig) -> list[str]:
 
 
 def _apm_profile_for(cfg: BigipConfig, vs: BigipVirtualServer) -> str:
-    for pref in vs.profiles:
+    for pref in vs.profiles.paths:
         resolved = cfg.resolve_profile(pref) or pref
         if "/access" in resolved or resolved.endswith("access"):
             return resolved
@@ -1994,7 +1995,7 @@ def compute_explain_flow(
         partition = vs_path.split("/")[1] if vs_path.startswith("/") else ""
 
         profile_chain: list[str] = []
-        for pref in vs.profiles:
+        for pref in vs.profiles.paths:
             resolved = cfg_hit.resolve_profile(pref) or pref
             prof = cfg_hit.profiles.get(resolved)
             if prof is not None:

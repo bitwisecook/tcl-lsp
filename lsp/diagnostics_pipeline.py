@@ -14,7 +14,12 @@ from lsprotocol import types
 
 import lsp.state as _state
 
-from .features.diagnostics import get_basic_diagnostics, get_deep_diagnostics, get_diagnostics
+from .features.diagnostics import (
+    _to_lsp_diagnostic,
+    get_basic_diagnostics,
+    get_deep_diagnostics,
+    get_diagnostics,
+)
 from .workspace.scanner import path_to_uri, uri_to_path
 from .workspace.workspace_index import EntrySource
 
@@ -668,7 +673,10 @@ def _publish_bigip_diagnostics(
     source: str,
     version: int | None = None,
 ) -> None:
-    from core.bigip.diagnostics import get_bigip_diagnostics
+    from core.bigip.diagnostics import (
+        get_bigip_diagnostics,
+        get_bigip_lint_diagnostics,
+    )
     from core.bigip.parser import parse_bigip_conf
 
     try:
@@ -683,7 +691,50 @@ def _publish_bigip_diagnostics(
 
     cfg = _state.config_for_uri(uri)
     if cfg.diagnostics_enabled:
-        diagnostics = get_bigip_diagnostics(config, disabled_codes=cfg.disabled_diagnostics)
+        # Stanza-shape / value-format diagnostics (BIGIP6xxx codes,
+        # always anchored on parser ranges).
+        diagnostics = [
+            _to_lsp_diagnostic(d)
+            for d in get_bigip_diagnostics(config, disabled_codes=cfg.disabled_diagnostics)
+        ]
+        # Cross-file lint diagnostics (orphaned monitors, missing
+        # iRule references, partition mismatches, deprecated commands,
+        # …).  Driven by the same lint rule registry the ``f5 lint``
+        # CLI uses, so adding a rule lights up the editor.  Only
+        # findings whose target lives in *this* file get a range; the
+        # rest surface when their owning file is opened.
+        scanner_configs = (
+            _state.background_scanner.bigip_configs
+            if hasattr(_state, "background_scanner") and _state.background_scanner
+            else None
+        )
+        # ``_get_doc_source`` looks each URI up via the LSP workspace
+        # if open, falling back to file I/O otherwise.  Skip URIs where
+        # the lookup returns empty (file gone, race with delete) so we
+        # don't feed empty strings to the lint walker.
+        scanner_sources: dict[str, str] | None = None
+        if scanner_configs:
+            scanner_sources = {}
+            for u in scanner_configs:
+                doc_source = _state._get_doc_source(u)
+                if doc_source:
+                    scanner_sources[u] = doc_source
+        try:
+            diagnostics = list(diagnostics) + [
+                _to_lsp_diagnostic(d)
+                for d in get_bigip_lint_diagnostics(
+                    uri=uri,
+                    source=source,
+                    config=config,
+                    workspace_sources=scanner_sources,
+                    workspace_configs=scanner_configs,
+                    disabled_codes=cfg.disabled_diagnostics,
+                )
+            ]
+        except Exception:  # noqa: BLE001
+            # Lint pipeline is best-effort — never let a buggy rule
+            # take down the per-keystroke diagnostics path.
+            log.debug("bigip lint: failed for %s", uri, exc_info=True)
     else:
         diagnostics = []
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..models import (
     BigipObjectKindSpec,
     BigipObjectSpec,
-    BigipPropertySpec,
 )
 from ._base import register
 
@@ -17,8 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("clientssl-proxy cached-certs",),
         ),
         header_types=(("ltm", "clientssl-proxy cached-certs"),),
-        properties=(
-            BigipPropertySpec(name="virtual", value_type="string"),
-            BigipPropertySpec(name="clientssl-profile", value_type="string"),
-        ),
+        properties=(),
     )

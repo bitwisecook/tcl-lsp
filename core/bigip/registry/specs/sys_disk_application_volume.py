@@ -16,4 +16,5 @@ def register_spec() -> BigipObjectSpec:
             object_types=("disk application-volume",),
         ),
         header_types=(("sys", "disk application-volume"),),
+        properties=(),
     )

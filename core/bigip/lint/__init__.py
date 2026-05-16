@@ -450,6 +450,22 @@ class _IruleMissingObject:
                 kind = _classify_reference_kind(ref.kinds)
                 if kind is None:
                     continue
+                # ``persist <kind> {insert|lookup} <path>`` emits a
+                # heuristic candidate ref at argument_index 2 — F5
+                # treats the value as a session-key string, not a
+                # profile reference.  Some configs use a TMSH path
+                # there as a self-imposed convention, so the resolver
+                # surfaces it for query / cross-config audits, but
+                # the lint must not warn when the value happens not
+                # to name a real persistence profile (most session
+                # keys won't).  The canonical reference form
+                # ``persist <profile>`` lives at argument_index 0.
+                if (
+                    kind == "persistence"
+                    and ref.command.lower() == "persist"
+                    and ref.argument_index >= 2
+                ):
+                    continue
                 resolved = _resolve_reference(cfg, kind, ref.name)
                 if resolved is not None:
                     continue

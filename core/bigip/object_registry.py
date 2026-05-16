@@ -15,6 +15,18 @@ from .registry.data import (
 from .registry.models import BigipObjectKindSpec, BigipPropertySpec
 
 
+def _synthetic_kind_slug(module: str, object_type: str) -> str:
+    """Slugify ``(module, object_type)`` for a synthetic kind name."""
+    combined = f"{module} {object_type}".strip()
+    parts: list[str] = []
+    for ch in combined:
+        if ch.isalnum():
+            parts.append(ch)
+        else:
+            parts.append("_")
+    return "".join(parts)
+
+
 @dataclass(slots=True)
 class BigipObjectRegistry:
     """Lookup facade over BIG-IP object and reference metadata."""
@@ -37,6 +49,32 @@ class BigipObjectRegistry:
             return ()
         by_name = self.property_reference_specs.get((container_module, container_object_type), {})
         return by_name.get(property_name, ())
+
+    def property_spec_for(
+        self,
+        property_name: str,
+        *,
+        container_module: str | None,
+        container_object_type: str | None,
+    ) -> BigipPropertySpec:
+        """Return the registered :class:`BigipPropertySpec` for
+        *property_name* on the given container, or a synthetic
+        string-typed spec when the registry does not model it.
+
+        Consumers that need to surface every property — generated,
+        runtime, or read-only metadata included — call this rather
+        than indexing into ``property_reference_specs`` directly.  The
+        synthetic spec has ``value_type='string'`` and an empty
+        references tuple, so it never produces graph edges.
+        """
+        specs = self._property_specs_for_context(
+            property_name,
+            container_module=container_module,
+            container_object_type=container_object_type,
+        )
+        if specs:
+            return specs[0]
+        return BigipPropertySpec(name=property_name, value_type="string")
 
     @staticmethod
     def _kinds_from_properties(
@@ -91,6 +129,32 @@ class BigipObjectRegistry:
             if spec.module == module and object_type in spec.object_types:
                 return spec.kind
         return None
+
+    def kind_spec_for_header(
+        self,
+        module: str,
+        object_type: str,
+    ) -> BigipObjectKindSpec:
+        """Return the :class:`BigipObjectKindSpec` for the given header,
+        or a synthetic opaque one when the registry has no entry.
+
+        The synthetic kind's name follows the same slug convention as
+        the generator (``"{module}_{object_type_slug}"``).  Consumers
+        that need to render or link an unknown stanza header — hover,
+        breadcrumb, semantic-token classification — call this rather
+        than handling ``None`` themselves.
+        """
+        kind = self.kind_for_header(module, object_type)
+        if kind is not None:
+            spec = self.object_kind_specs.get(kind)
+            if spec is not None:
+                return spec
+        slug = _synthetic_kind_slug(module, object_type)
+        return BigipObjectKindSpec(
+            kind=slug,
+            module=module,
+            object_types=(object_type,),
+        )
 
     def resolve_kind_in_configs(
         self,
@@ -201,6 +265,29 @@ def candidate_kinds_for_section_item(
 
 def kind_for_header(module: str, object_type: str) -> str | None:
     return get_default_bigip_object_registry().kind_for_header(module, object_type)
+
+
+def kind_spec_for_header(module: str, object_type: str) -> BigipObjectKindSpec:
+    """Module-level convenience: see
+    :meth:`BigipObjectRegistry.kind_spec_for_header`.
+    """
+    return get_default_bigip_object_registry().kind_spec_for_header(module, object_type)
+
+
+def property_spec_for(
+    property_name: str,
+    *,
+    container_module: str | None,
+    container_object_type: str | None,
+) -> BigipPropertySpec:
+    """Module-level convenience: see
+    :meth:`BigipObjectRegistry.property_spec_for`.
+    """
+    return get_default_bigip_object_registry().property_spec_for(
+        property_name,
+        container_module=container_module,
+        container_object_type=container_object_type,
+    )
 
 
 def resolve_kind_in_configs(

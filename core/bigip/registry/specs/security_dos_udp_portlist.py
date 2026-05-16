@@ -20,12 +20,28 @@ def register_spec() -> BigipObjectSpec:
         properties=(
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="list-type",
-                value_type="enum",
-                enum_values=("exclude-listed-ports", "include-listed-ports"),
-            ),
-            BigipPropertySpec(
-                name="entries", value_type="enum", enum_values=("modify", "replace-all-with")
+                name="entries",
+                value_type="list",
+                list_operators=frozenset(("modify", "replace-all-with")),
+                block=(
+                    BigipPropertySpec(
+                        name="description",
+                        value_type="string",
+                        in_sections=("entries",),
+                    ),
+                    BigipPropertySpec(
+                        name="match-direction",
+                        value_type="enum",
+                        in_sections=("entries",),
+                        allow_none=True,
+                        enum_values=("both", "dst", "none", "src"),
+                    ),
+                    BigipPropertySpec(
+                        name="port-number",
+                        value_type="unknown",
+                        in_sections=("entries",),
+                    ),
+                ),
             ),
             BigipPropertySpec(name="description", value_type="string", in_sections=("entries",)),
             BigipPropertySpec(
@@ -35,20 +51,7 @@ def register_spec() -> BigipObjectSpec:
                 allow_none=True,
                 enum_values=("both", "dst", "none", "src"),
             ),
-            BigipPropertySpec(name="port-number", value_type="string", in_sections=("entries",)),
-            BigipPropertySpec(name="security", value_type="string"),
-            BigipPropertySpec(name="entries", value_type="string", in_sections=("security",)),
-            BigipPropertySpec(name="entry1", value_type="string", in_sections=("entries",)),
-            BigipPropertySpec(name="match-direction", value_type="string", in_sections=("entry1",)),
-            BigipPropertySpec(name="port-number", value_type="string", in_sections=("entry1",)),
-            BigipPropertySpec(
-                name="entry2", value_type="list", in_sections=("entries",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="entry3", value_type="list", in_sections=("entries",), repeated=True
-            ),
-            BigipPropertySpec(
-                name="entry4", value_type="list", in_sections=("entries",), repeated=True
-            ),
+            BigipPropertySpec(name="port-number", value_type="unknown", in_sections=("entries",)),
+            BigipPropertySpec(name="list-type", value_type="unknown"),
         ),
     )

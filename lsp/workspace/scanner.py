@@ -46,6 +46,8 @@ TCL_EXTENSIONS = frozenset(
 _IRULES_EXTENSIONS = frozenset({".irul", ".irule"})
 
 # BIG-IP configuration file names (matched by basename, not extension).
+# Canonical-name path — these always parse as BIG-IP no matter the
+# directory or surrounding files.
 _BIGIP_CONF_NAMES = frozenset(
     {
         "bigip.conf",
@@ -55,6 +57,20 @@ _BIGIP_CONF_NAMES = frozenset(
         "bigip_user.conf",
     }
 )
+
+# BIG-IP file extensions for discovery beyond the canonical basenames.
+# ``.scf`` is the F5 single-config-file export format (always BIG-IP);
+# ``.conf`` files are tried opportunistically — the parser is tolerant
+# of non-BIG-IP content (returns an empty :class:`BigipConfig` when
+# nothing recognisable is present), so the worst case is a wasted
+# parse rather than a false-positive entry in the inventory.
+_BIGIP_FILE_EXTENSIONS = frozenset({".scf", ".conf"})
+
+# Skip files larger than this when discovering arbitrary ``.conf`` /
+# ``.scf`` paths.  Real BIG-IP exports cap out at the low single-digit
+# MB range; anything bigger is more likely to be a log, dump, or
+# unrelated artefact than a config the LSP needs to index.
+_BIGIP_MAX_FILE_BYTES = 32 * 1024 * 1024
 
 # APL presentation file names (matched by basename, no extension).
 _APL_NAMES = frozenset({"presentation"})
@@ -75,6 +91,7 @@ class BackgroundScanner:
     """Scans directories for Tcl files and caches lightweight analysis results."""
 
     def __init__(self) -> None:
+        self._lock = threading.RLock()
         self._cached: dict[str, ScanResult] = {}  # uri -> ScanResult
         self._library_paths: list[str] = []
         self._workspace_roots: list[str] = []
@@ -87,17 +104,19 @@ class BackgroundScanner:
         workspace_roots: list[str] | None = None,
         library_paths: list[str] | None = None,
     ) -> None:
-        if workspace_roots is not None:
-            self._workspace_roots = list(workspace_roots)
-            # New roots → invalidate all cached results.
-            self._cached.clear()
-        if library_paths is not None:
-            self._library_paths = list(library_paths)
+        with self._lock:
+            if workspace_roots is not None:
+                self._workspace_roots = list(workspace_roots)
+                # New roots → invalidate all cached results.
+                self._cached.clear()
+            if library_paths is not None:
+                self._library_paths = list(library_paths)
 
     @property
     def workspace_roots(self) -> list[str]:
         """Return a snapshot of the currently configured workspace roots."""
-        return list(self._workspace_roots)
+        with self._lock:
+            return list(self._workspace_roots)
 
     def collect_files(self) -> list[tuple[str, str]]:
         """Discover all Tcl and BIG-IP config files without analysing them.
@@ -106,9 +125,10 @@ class BackgroundScanner:
         BIG-IP config files are parsed eagerly (they're lightweight).
         tclIndex files are parsed to discover additional source files.
         """
-        self._bigip_configs.clear()
-        self._auto_index_entries.clear()
-        all_dirs = self._workspace_roots + self._library_paths
+        with self._lock:
+            all_dirs = self._workspace_roots + self._library_paths
+        bigip_configs: dict[str, BigipConfig] = {}
+        auto_index_entries: dict[str, str] = {}
         result: list[tuple[str, str]] = []
         seen_paths: set[str] = set()
 
@@ -122,17 +142,37 @@ class BackgroundScanner:
                 files_lower = {f.lower(): f for f in files}
                 if "tclindex" in files_lower:
                     tcl_index_path = os.path.join(root, files_lower["tclindex"])
-                    self._parse_auto_index(tcl_index_path, result, seen_paths)
+                    self._parse_auto_index(
+                        tcl_index_path,
+                        result,
+                        seen_paths,
+                        auto_index_entries,
+                    )
 
                 for fname in files:
                     fname_lower = fname.lower()
                     # Skip tclIndex itself — it is metadata, not Tcl code.
                     if fname_lower == "tclindex":
                         continue
-                    # Check for BIG-IP configuration files
+                    # BIG-IP config discovery — canonical basenames
+                    # always; ``.scf`` always; ``.conf`` opportunistic
+                    # (parser is tolerant of non-BIG-IP content, so a
+                    # wasted parse is the worst case).  Size-capped so
+                    # we don't slurp dump files / logs that happen to
+                    # share an extension.
                     if fname_lower in _BIGIP_CONF_NAMES:
                         full_path = os.path.join(root, fname)
-                        self._parse_bigip_file(full_path)
+                        self._parse_bigip_file(full_path, bigip_configs)
+                        continue
+                    ext = os.path.splitext(fname_lower)[1]
+                    if ext in _BIGIP_FILE_EXTENSIONS:
+                        full_path = os.path.join(root, fname)
+                        try:
+                            if os.path.getsize(full_path) > _BIGIP_MAX_FILE_BYTES:
+                                continue
+                        except OSError:
+                            continue
+                        self._parse_bigip_file(full_path, bigip_configs)
                         continue
                     # APL presentation files (extensionless)
                     if fname_lower in _APL_NAMES:
@@ -148,6 +188,9 @@ class BackgroundScanner:
                     if full_path not in seen_paths:
                         seen_paths.add(full_path)
                         result.append((full_path, ext))
+        with self._lock:
+            self._bigip_configs = bigip_configs
+            self._auto_index_entries = auto_index_entries
         return result
 
     def _parse_auto_index(
@@ -155,13 +198,14 @@ class BackgroundScanner:
         tcl_index_path: str,
         result: list[tuple[str, str]],
         seen_paths: set[str],
+        auto_index_entries: dict[str, str],
     ) -> None:
         """Parse a tclIndex file and register its proc->file mappings."""
         from core.packages.auto_index import parse_tcl_index
 
         entries = parse_tcl_index(tcl_index_path)
         for entry in entries:
-            self._auto_index_entries[entry.proc_name] = entry.source_file
+            auto_index_entries[entry.proc_name] = entry.source_file
             # Ensure referenced files are included in the scan list.
             if entry.source_file not in seen_paths:
                 seen_paths.add(entry.source_file)
@@ -214,7 +258,7 @@ class BackgroundScanner:
             discovered_uris.add(uri)
             if skip_uris and uri in skip_uris:
                 skipped_open += 1
-            elif uri in self._cached:
+            elif self.has_cached(uri):
                 skipped_cached += 1
             else:
                 self._analyse_file_with_timeout(full_path, ext)
@@ -237,18 +281,22 @@ class BackgroundScanner:
             )
 
         # Prune stale entries for files that no longer exist.
-        stale = set(self._cached) - discovered_uris
-        for uri in stale:
-            del self._cached[uri]
+        with self._lock:
+            stale = set(self._cached) - discovered_uris
+            for uri in stale:
+                del self._cached[uri]
+            cached_count = len(self._cached)
+            bigip_count = len(self._bigip_configs)
+            results = dict(self._cached)
 
         elapsed_ms = (time.perf_counter() - t_start) * 1000
         log.info(
             "[timing] scan_all %.0fms total (%d files, %d bigip configs)",
             elapsed_ms,
-            len(self._cached),
-            len(self._bigip_configs),
+            cached_count,
+            bigip_count,
         )
-        return dict(self._cached)
+        return results
 
     def _analyse_file_with_timeout(
         self,
@@ -284,7 +332,8 @@ class BackgroundScanner:
         # Only cache after a successful, timely completion.
         result = result_box[0]
         if result is not None:
-            self._cached[result.uri] = result
+            with self._lock:
+                self._cached[result.uri] = result
         return result
 
     def rescan_file(self, file_path: str) -> ScanResult | None:
@@ -295,23 +344,29 @@ class BackgroundScanner:
     @property
     def auto_index_entries(self) -> dict[str, str]:
         """Return proc_name -> source_file mappings from tclIndex files."""
-        return dict(self._auto_index_entries)
+        with self._lock:
+            return dict(self._auto_index_entries)
 
     def has_cached(self, uri: str) -> bool:
-        return uri in self._cached
+        with self._lock:
+            return uri in self._cached
 
     def get_cached(self, uri: str) -> AnalysisResult | None:
-        sr = self._cached.get(uri)
+        with self._lock:
+            sr = self._cached.get(uri)
         return sr.analysis if sr else None
 
     def remove_file(self, uri: str) -> None:
-        self._cached.pop(uri, None)
+        with self._lock:
+            self._cached.pop(uri, None)
 
     @property
     def irules_procs(self) -> dict[str, dict[str, ProcDef]]:
         """Return uri -> {qname: ProcDef} for all cached iRules files."""
         result: dict[str, dict[str, ProcDef]] = {}
-        for uri, sr in self._cached.items():
+        with self._lock:
+            cached = list(self._cached.items())
+        for uri, sr in cached:
             if sr.dialect_hint == "f5-irules" and sr.analysis.all_procs:
                 result[uri] = dict(sr.analysis.all_procs)
         return result
@@ -320,7 +375,9 @@ class BackgroundScanner:
     def irules_rule_init_vars(self) -> dict[str, list[RuleInitExport]]:
         """Return uri -> [RuleInitExport] for all cached iRules files."""
         result: dict[str, list[RuleInitExport]] = {}
-        for uri, sr in self._cached.items():
+        with self._lock:
+            cached = list(self._cached.items())
+        for uri, sr in cached:
             if sr.rule_init_exports:
                 result[uri] = list(sr.rule_init_exports)
         return result
@@ -328,46 +385,49 @@ class BackgroundScanner:
     @property
     def bigip_configs(self) -> dict[str, BigipConfig]:
         """Return uri -> BigipConfig for all cached BIG-IP configuration files."""
-        return dict(self._bigip_configs)
+        with self._lock:
+            return dict(self._bigip_configs)
 
     @property
     def merged_bigip_config(self) -> BigipConfig | None:
-        """Return a merged BigipConfig from all scanned conf files, or None."""
-        if not self._bigip_configs:
+        """Return a merged BigipConfig from all scanned conf files, or None.
+
+        Uses :meth:`BigipConfig.merge` so every dict-valued kind on the
+        dataclass — not just the v1 ten — flows into the merged view.
+        Adding a new kind to ``BigipConfig`` no longer requires also
+        editing this scanner; it just shows up.
+        """
+        with self._lock:
+            configs = list(self._bigip_configs.values())
+        if not configs:
             return None
         merged = BigipConfig()
-        for cfg in self._bigip_configs.values():
-            merged.data_groups.update(cfg.data_groups)
-            merged.pools.update(cfg.pools)
-            merged.virtual_servers.update(cfg.virtual_servers)
-            merged.nodes.update(cfg.nodes)
-            merged.profiles.update(cfg.profiles)
-            merged.monitors.update(cfg.monitors)
-            merged.snat_pools.update(cfg.snat_pools)
-            merged.persistence.update(cfg.persistence)
-            merged.rules.update(cfg.rules)
-            merged.generic_objects.update(cfg.generic_objects)
+        for cfg in configs:
+            merged.merge(cfg)
         return merged
 
     def parse_bigip_source(self, uri: str, source: str) -> BigipConfig | None:
         """Parse a BIG-IP config from source text and cache the result."""
         try:
             config = parse_bigip_conf(source)
-            self._bigip_configs[uri] = config
+            with self._lock:
+                self._bigip_configs[uri] = config
             return config
         except Exception:
             log.debug("Scanner: failed to parse bigip config %s", uri, exc_info=True)
             return None
 
     def remove_bigip_config(self, uri: str) -> None:
-        self._bigip_configs.pop(uri, None)
+        with self._lock:
+            self._bigip_configs.pop(uri, None)
 
     # APL model caching
 
     @property
     def apl_models(self) -> dict[str, AplModel]:
         """Return uri -> AplModel for all cached APL presentation files."""
-        return dict(self._apl_models)
+        with self._lock:
+            return dict(self._apl_models)
 
     def parse_apl_source(
         self, uri: str, source: str, base_dir: str | None = None
@@ -375,14 +435,16 @@ class BackgroundScanner:
         """Parse an APL presentation source and cache the result."""
         try:
             model = resolve_apl_includes(source, base_dir)
-            self._apl_models[uri] = model
+            with self._lock:
+                self._apl_models[uri] = model
             return model
         except Exception:
             log.debug("Scanner: failed to parse APL %s", uri, exc_info=True)
             return None
 
     def remove_apl_model(self, uri: str) -> None:
-        self._apl_models.pop(uri, None)
+        with self._lock:
+            self._apl_models.pop(uri, None)
 
     def find_sibling_apl(self, uri: str) -> AplModel | None:
         """Find a cached APL model from the same directory as *uri*."""
@@ -391,7 +453,9 @@ class BackgroundScanner:
             dir_part = uri.rsplit("/", 1)[0]
         else:
             return None
-        for apl_uri, model in self._apl_models.items():
+        with self._lock:
+            apl_models = list(self._apl_models.items())
+        for apl_uri, model in apl_models:
             if "/" in apl_uri and apl_uri.rsplit("/", 1)[0] == dir_part:
                 return model
         return None
@@ -405,7 +469,9 @@ class BackgroundScanner:
             dir_part = uri.rsplit("/", 1)[0]
         else:
             return None
-        for cached_uri, sr in self._cached.items():
+        with self._lock:
+            cached = list(self._cached.items())
+        for cached_uri, sr in cached:
             if "/" not in cached_uri:
                 continue
             if cached_uri.rsplit("/", 1)[0] != dir_part:
@@ -414,13 +480,21 @@ class BackgroundScanner:
                 return cached_uri
         return None
 
-    def _parse_bigip_file(self, full_path: str) -> BigipConfig | None:
+    def _parse_bigip_file(
+        self,
+        full_path: str,
+        bigip_configs: dict[str, BigipConfig] | None = None,
+    ) -> BigipConfig | None:
         """Parse a BIG-IP configuration file and cache the result."""
         uri = path_to_uri(full_path)
         try:
             source = Path(full_path).read_text(encoding="utf-8", errors="replace")
             config = parse_bigip_conf(source)
-            self._bigip_configs[uri] = config
+            if bigip_configs is None:
+                with self._lock:
+                    self._bigip_configs[uri] = config
+            else:
+                bigip_configs[uri] = config
             log.debug("Scanner: parsed bigip config %s", full_path)
             return config
         except Exception:
@@ -460,7 +534,8 @@ class BackgroundScanner:
         """Analyse a single file and cache the result."""
         scan_result = self._run_analysis(full_path, ext)
         if scan_result is not None:
-            self._cached[scan_result.uri] = scan_result
+            with self._lock:
+                self._cached[scan_result.uri] = scan_result
         return scan_result
 
 

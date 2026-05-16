@@ -18,29 +18,51 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("ltm", "dns dnssec zone"),),
         properties=(
+            BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="ds-algorithm", value_type="enum", enum_values=("sha1", "sha256", "sha384")
+                name="ds-algorithm",
+                value_type="enum",
+                enum_values=("sha1", "sha256", "sha384"),
+                default="sha1",
+                usage_flags=frozenset(("deprecated",)),
             ),
             BigipPropertySpec(
                 name="ds-algorithms",
-                value_type="enum",
-                enum_values=("add", "delete", "replace-all-with"),
+                value_type="list",
+                list_operators=frozenset(("add", "delete", "replace-all-with")),
+                default="sha1",
             ),
-            BigipPropertySpec(
-                name="secure", value_type="enum", enum_values=("enabled", "disabled")
-            ),
+            BigipPropertySpec(name="ds-records", value_type="unknown"),
+            BigipPropertySpec(name="external-delegations", value_type="unknown"),
             BigipPropertySpec(
                 name="indicate-authenticated",
                 value_type="enum",
-                enum_values=("enabled", "disabled"),
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="keys", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="nsec3-algorithm", value_type="string"),
-            BigipPropertySpec(name="nsec3-iterations", value_type="integer"),
+            BigipPropertySpec(name="keys", value_type="unknown", allow_none=True),
+            BigipPropertySpec(name="nsec3-algorithm", value_type="unknown", default="SHA1"),
+            BigipPropertySpec(name="nsec3-iterations", value_type="integer", default="1"),
             BigipPropertySpec(
-                name="publish-cds-cdnskey", value_type="enum", enum_values=("enabled", "disabled")
+                name="publish-cds-cdnskey",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(
+                name="secure",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
         ),
     )

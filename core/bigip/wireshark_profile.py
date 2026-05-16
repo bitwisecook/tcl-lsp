@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .model import BigipConfig, ProfileType
-from .parser import _extract_blocks
+from .parser._helpers import _extract_blocks, _parse_properties
 from .pcap_enrich import (
     NameIndex,
     _extract_self_ips,
@@ -282,9 +282,13 @@ def _format_readme(profile_name: str, files: list[str]) -> str:
 # Source-text extractors
 
 
-_VLAN_TAG_LINE = re.compile(r"^\s*tag\s+(\d+)\s*$", re.MULTILINE)
-_ARP_IP_LINE = re.compile(r"^\s*ip-address\s+(\S+)\s*$", re.MULTILINE)
-_ARP_MAC_LINE = re.compile(r"^\s*mac-address\s+(\S+)\s*$", re.MULTILINE)
+# Note: extracting ``tag`` / ``ip-address`` / ``mac-address`` from
+# ARP / VLAN bodies used to live here as line-anchored regexes
+# (``_VLAN_TAG_LINE`` / ``_ARP_IP_LINE`` / ``_ARP_MAC_LINE``).  Per
+# the project's parse-not-regex preference, these now route through
+# ``_parse_properties`` (the same TMSH property parser ``f5 query``
+# / ``f5 grep`` use), so any subtle whitespace or quoting variant
+# the parser already handles works automatically.
 
 
 def _extract_arp_entries(source: str) -> list[tuple[str, str, str]]:
@@ -300,12 +304,15 @@ def _extract_arp_entries(source: str) -> list[tuple[str, str, str]]:
         if len(parts) < 3 or parts[0] != "net" or parts[1] != "arp":
             continue
         full_path = parts[2]
-        ip_match = _ARP_IP_LINE.search(block.body)
-        mac_match = _ARP_MAC_LINE.search(block.body)
-        if ip_match is None or mac_match is None:
+        props = _parse_properties(block.body)
+        ip_value = props.get("ip-address")
+        mac_value = props.get("mac-address")
+        if not ip_value or not mac_value:
             continue
-        ip_str = ip_match.group(1).split("%", 1)[0]
-        mac_str = mac_match.group(1).lower()
+        # ``ip-address 10.0.0.1%5`` — strip the route-domain suffix
+        # (Wireshark's ``ethers`` file doesn't take RDs).
+        ip_str = ip_value.split("%", 1)[0]
+        mac_str = mac_value.lower()
         entries.append((mac_str, ip_str, full_path))
     return entries
 
@@ -318,11 +325,11 @@ def _extract_vlans(source: str) -> list[tuple[str, int]]:
         if len(parts) < 3 or parts[0] != "net" or parts[1] != "vlan":
             continue
         full_path = parts[2]
-        m = _VLAN_TAG_LINE.search(block.body)
-        if m is None:
+        tag_value = _parse_properties(block.body).get("tag")
+        if not tag_value:
             continue
         try:
-            tag = int(m.group(1))
+            tag = int(tag_value)
         except ValueError:
             continue
         out.append((full_path, tag))
@@ -384,7 +391,9 @@ def _dfilters_for_virtual_servers(config: BigipConfig) -> list[tuple[str, str]]:
     """One display-filter button per virtual server (``ip.addr == <dest>``)."""
     out: list[tuple[str, str]] = []
     for full_path, vs in config.virtual_servers.items():
-        addr = _split_destination(vs.destination)
+        # ``vs.destination`` is a typed :class:`Destination` | None.
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        addr = _split_destination(dest_text)
         if not addr:
             continue
         try:
@@ -449,7 +458,8 @@ def _virtual_server_protocol(config: BigipConfig, vs_full_path: str) -> str:
 def _services_from_virtuals(config: BigipConfig) -> list[tuple[str, int, str]]:
     out: list[tuple[str, int, str]] = []
     for full_path, vs in config.virtual_servers.items():
-        port_proto = _vs_port_proto(vs.destination)
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        port_proto = _vs_port_proto(dest_text)
         if port_proto is None:
             continue
         port, default_proto = port_proto
@@ -535,7 +545,6 @@ def _services_from_gtm_servers(source: str) -> list[tuple[str, int, str]]:
         vs_block_match = re.search(r"virtual-servers\s*\{(.*)\}\s*$", block.body, re.DOTALL)
         if vs_block_match is None:
             continue
-        from .parser import _parse_properties
         from .pcap_enrich import _parse_named_subblocks
 
         for vs_name, body in _parse_named_subblocks("{" + vs_block_match.group(1) + "}"):

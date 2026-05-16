@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import ipaddress
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -50,7 +49,7 @@ from typing import BinaryIO, cast
 
 from . import pcapng as _pcapng
 from .model import BigipConfig
-from .parser import _extract_blocks, _parse_list_block, _parse_properties
+from .parser._helpers import _extract_blocks, _parse_list_block, _parse_properties
 from .pcap_remap import _find_ip_offset
 from .port_names import resolve_port
 
@@ -251,20 +250,21 @@ def _resolve_pool_member_address(member_name: str, config: BigipConfig) -> str:
         resolved = config.resolve_name(candidate, config.nodes)
         if resolved:
             node = config.nodes[resolved]
-            if node.address:
-                return node.address
+            if node.address is not None:
+                return str(node.address)
     return ""
 
 
 # net self extraction
 #
-# `net self` blocks aren't modelled in BigipConfig, but they carry the
-# only addresses that let us answer "what subnet is this packet on?" —
-# i.e. the BIG-IP's own VLAN-attached IPs.  We do a small text-level
-# pass to extract them.  Route-domain suffixes (``%N``) are stripped
-# before parsing the address.
-
-_ADDR_LINE = re.compile(r"^\s*address\s+(\S+)\s*$", re.MULTILINE)
+# `net self` blocks aren't modelled in BigipConfig at the v1 level
+# (they live in ``BigipConfig.net_selves``), but pcap enrichment
+# needs only the address.  The previous regex-based extraction
+# (``^\s*address\s+(\S+)\s*$``) is now replaced by
+# ``_parse_properties`` — the same TMSH property parser the rest
+# of the codebase uses — for consistency with the parse-not-regex
+# preference.  Route-domain suffixes (``%N``) are stripped before
+# parsing the address.
 
 
 @dataclass(frozen=True, slots=True)
@@ -327,10 +327,9 @@ def _extract_self_ips(source: str) -> list[_SelfIp]:
         if len(parts) < 3 or parts[0] != "net" or parts[1] != "self":
             continue
         full_path = parts[2]
-        m = _ADDR_LINE.search(block.body)
-        if m is None:
+        raw = _parse_properties(block.body).get("address", "").strip()
+        if not raw:
             continue
-        raw = m.group(1).strip()
         if "/" in raw:
             addr_part, _, cidr = raw.partition("/")
         else:
@@ -537,7 +536,10 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
     index = NameIndex()
 
     for full_path, vs in config.virtual_servers.items():
-        addr = _split_destination(vs.destination)
+        # ``vs.destination`` is now a typed :class:`Destination` or ``None``;
+        # ``_split_destination`` takes the canonical text form.
+        dest_text = str(vs.destination) if vs.destination is not None else ""
+        addr = _split_destination(dest_text)
         if not addr:
             continue
         index.add(addr, _label("vs", full_path))
@@ -547,7 +549,9 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
 
     for pool in config.pools.values():
         for member in pool.members:
-            addr = member.address or _resolve_pool_member_address(member.name, config)
+            # ``member.address`` is typed :class:`Address` | None.
+            member_addr_text = str(member.address) if member.address is not None else ""
+            addr = member_addr_text or _resolve_pool_member_address(member.name, config)
             if not addr:
                 continue
             index.add(addr, _label("pool", member.name or addr))
@@ -560,8 +564,9 @@ def build_name_index(config: BigipConfig, source: str | None = None) -> NameInde
             index.add(addr, _label("snat", full_path))
 
     for full_path, node in config.nodes.items():
-        if node.address:
-            index.add(node.address, _label("node", full_path))
+        # ``node.address`` is typed :class:`Address` | None.
+        if node.address is not None:
+            index.add(str(node.address), _label("node", full_path))
 
     if source is not None:
         for self_ip in _extract_self_ips(source):

@@ -1,12 +1,22 @@
-"""``f5 rename`` — rename an object and update every reference."""
+"""``f5 rename`` — rename an object and update every reference.
+
+The implementation is a thin shell over the ``f5 query`` engine: the
+verb constructs a ``rename(OLD, NEW)`` expression and runs it through
+:func:`core.bigip.query.run_query`.  Routing both verbs through the
+same engine keeps the rename logic in one place — improvements to
+``rename_object``, the iRule body walk, and the diff renderer are
+inherited automatically.
+"""
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import sys
 from pathlib import Path
 
-from core.bigip.rewrite import rename_object
+from core.bigip.query import run_query
+from core.bigip.query.errors import QueryError
 
 from ._emit import add_format_arg, render_config
 from ._paths import read_path
@@ -26,7 +36,12 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         "values, iRule bodies (`pool foo`, `class match ... <data-group>`),\n"
         "and pool member addresses.  Token-bounded so substring\n"
         "collisions don't fire.  Dry-run by default (emits a unified\n"
-        "diff); pass --write or --in-place to persist."
+        "diff); pass --write or --in-place to persist.\n"
+        "\n"
+        "This verb is a shortcut for ``f5 query 'rename(OLD, NEW)' PATH``\n"
+        "— the same rename engine backs both.  Reach for ``f5 query`` when\n"
+        "you want to combine the rename with a filter or a property edit,\n"
+        "or for the partition-cascade ``rename_partition()`` builtin."
     )
     p.epilog = (
         "Examples:\n"
@@ -59,32 +74,74 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
     p.set_defaults(handler=_run_rename)
 
 
+def _dsl_string(value: str) -> str:
+    """Wrap *value* as a DSL string literal, escaping ``\\`` and ``"``."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def _run_rename(args: argparse.Namespace) -> int:
     if args.path == "-" and args.in_place:
         print("error: --in-place requires a path argument, not stdin", file=sys.stderr)
         return 2
+    # ``--in-place`` must preserve the SCF source format; ``--format
+    # tmsh`` produces a ``tmsh modify`` script (useful for ``--write``
+    # or piping to a remote device) and would otherwise silently
+    # overwrite ``bigip.conf`` with a different file format.
+    if args.in_place and args.output_format == "tmsh":
+        print(
+            "error: --in-place is incompatible with --format tmsh "
+            "(in-place writes must preserve the SCF source format; "
+            "use --write, --output, or redirect for tmsh script output)",
+            file=sys.stderr,
+        )
+        return 2
+    if not args.old:
+        print("error: old name is empty", file=sys.stderr)
+        return 2
+    if not args.new:
+        print("error: new name is empty", file=sys.stderr)
+        return 2
+    if args.in_place and args.path != "-" and Path(args.path).suffix.lower() == ".ucs":
+        print(
+            f"error: --in-place not supported for UCS archives ({args.path}); "
+            "extract first with `f5 extract` or use --write",
+            file=sys.stderr,
+        )
+        return 2
     try:
-        _, source = read_path(args.path)
-    except OSError as exc:
+        # Strict UTF-8 for in-place writes — see ``f5 query``: silent
+        # U+FFFD replacement followed by an in-place rewrite would
+        # permanently overwrite the unreadable bytes.
+        uri, source = read_path(args.path, strict=args.in_place)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    query = f"rename({_dsl_string(args.old)}, {_dsl_string(args.new)})"
     try:
-        report = rename_object(source, args.old, args.new)
-    except ValueError as exc:
+        result = run_query(query, {uri: source})
+    except QueryError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    if report.occurrences == 0:
+    applied = result.edits_per_file.get(uri)
+    if applied is None or applied.new_source == applied.original:
         print(f"warning: no occurrences of {args.old!r} found", file=sys.stderr)
         return 1
 
-    print(
-        f"renamed {args.old!r} -> {args.new!r} ({report.occurrences} occurrence(s))",
-        file=sys.stderr,
-    )
+    for report in applied.rename_reports:
+        print(
+            f"renamed {report.old!r} -> {report.new!r} ({report.occurrences} occurrence(s))",
+            file=sys.stderr,
+        )
 
-    rewritten = render_config(report.new_source, fmt=args.output_format, tmsh_verb="modify")
+    rewritten = render_config(
+        applied.new_source,
+        fmt=args.output_format,
+        tmsh_verb="modify",
+        transaction=getattr(args, "output_transaction", False),
+    )
 
     if args.in_place:
         Path(args.path).write_text(rewritten, encoding="utf-8")
@@ -96,11 +153,9 @@ def _run_rename(args: argparse.Namespace) -> int:
         # Default: emit a unified diff so the user sees what would change.
         # The diff is always SCF↔SCF (no point diffing against a tmsh form
         # of the same content — the LHS is the source file as-is).
-        import difflib
-
         diff = difflib.unified_diff(
             source.splitlines(keepends=True),
-            report.new_source.splitlines(keepends=True),
+            applied.new_source.splitlines(keepends=True),
             fromfile=args.path,
             tofile=f"{args.path} (renamed)",
         )

@@ -26,6 +26,7 @@ from core.bigip.model import (
     DataGroupType,
     ProfileType,
 )
+from core.bigip.types import BigipList, Destination, ListItem, ProfileAttachment
 from core.irule_test.bridge import EventResult, IruleTestSession, RequestResult, _has_tkinter_tcl
 from core.irule_test.codegen_event_data import _generate as generate_event_data
 from core.irule_test.codegen_mock_stubs import _generate as generate_mock_stubs
@@ -312,17 +313,26 @@ class TestTopologyFromSCF:
         config.virtual_servers["/Common/test_vs"] = BigipVirtualServer(
             name="test_vs",
             full_path="/Common/test_vs",
-            destination="/Common/10.0.0.100:443",
+            destination=Destination.parse("/Common/10.0.0.100:443"),
             pool="/Common/web_pool",
-            rules=("/Common/test_irule",),
-            profiles=("/Common/http", "/Common/clientssl", "/Common/tcp"),
+            rules=BigipList(items=[ListItem(value="/Common/test_irule")]),
+            profiles=BigipList(
+                items=[
+                    ListItem(value=ProfileAttachment(path=p), key=p)
+                    for p in ("/Common/http", "/Common/clientssl", "/Common/tcp")
+                ],
+                syntax="keyed-block",
+            ),
         )
         config.pools["/Common/web_pool"] = BigipPool(
             name="web_pool",
             full_path="/Common/web_pool",
-            members=(
-                BigipPoolMember(name="/Common/10.0.1.1:80"),
-                BigipPoolMember(name="/Common/10.0.1.2:80"),
+            members=BigipList(
+                items=[
+                    ListItem(value=BigipPoolMember(name=name), key=name)
+                    for name in ("/Common/10.0.1.1:80", "/Common/10.0.1.2:80")
+                ],
+                syntax="keyed-block",
             ),
         )
         config.profiles["/Common/http"] = BigipProfile(

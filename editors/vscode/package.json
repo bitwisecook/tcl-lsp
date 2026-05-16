@@ -112,6 +112,9 @@
           "bigip_script.conf",
           "bigip_user.conf"
         ],
+        "extensions": [
+          ".scf"
+        ],
         "configuration": "./language-configuration.json"
       },
       {
@@ -418,6 +421,11 @@
       {
         "command": "tclLsp.bigipCleanup",
         "title": "Generate BIG-IP Cleanup Script",
+        "category": "Tcl"
+      },
+      {
+        "command": "tclLsp.renamePartition",
+        "title": "Rename BIG-IP Partition",
         "category": "Tcl"
       },
       {

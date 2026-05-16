@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from .parser import _Block, _extract_blocks, _parse_generic_header
+from .parser._helpers import _Block, _extract_blocks, _parse_generic_header
 
 
 @dataclass(frozen=True, slots=True)

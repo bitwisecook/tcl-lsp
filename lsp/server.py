@@ -20,6 +20,14 @@ from .features import (
     compute_semantic_tokens_edits,
     semantic_tokens_full,
 )
+from .features._bigip_code_actions import get_bigip_code_actions
+from .features._bigip_links import get_bigip_document_links
+from .features._bigip_refs import (
+    get_bigip_references,
+    get_bigip_rename_edits,
+    prepare_bigip_rename,
+)
+from .features._bigip_symbols import get_bigip_document_symbols
 from .features.call_hierarchy import (
     incoming_calls as get_incoming_calls,
 )
@@ -203,13 +211,13 @@ _FREQUENT_METHODS = frozenset(
 )
 
 
-def _log_request(msg_id, method: str, params):  # type: ignore[override]
+def _log_request(msg_id, method: str, params):
     level = logging.DEBUG if method in _FREQUENT_METHODS else logging.INFO
     log.log(level, "<-- request  %s (id=%s)", method, msg_id)
     return _orig_handle_request(msg_id, method, params)
 
 
-def _log_notification(method: str, params):  # type: ignore[override]
+def _log_notification(method: str, params):
     level = logging.DEBUG if method in _FREQUENT_METHODS else logging.INFO
     log.log(level, "<-- notify   %s", method)
     return _orig_handle_notification(method, params)
@@ -751,6 +759,23 @@ def on_references(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     include_decl = params.context.include_declaration if params.context else True
+    # BIG-IP files: walk every indexed config and emit one Location
+    # per token-bounded occurrence of the path-shaped token at the
+    # cursor.  Tcl files keep their existing var/proc/class path.
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        scanner = getattr(_state, "background_scanner", None)
+        ws_configs = scanner.bigip_configs if scanner else None
+        ws_sources = {u: _get_doc_source(u) for u in (ws_configs or {})} if ws_configs else None
+        return get_bigip_references(
+            source,
+            uri=uri,
+            line=params.position.line,
+            character=params.position.character,
+            workspace_configs=ws_configs,
+            workspace_sources=ws_sources,
+            include_declaration=include_decl,
+        )
     return get_references(
         source,
         uri,
@@ -801,11 +826,18 @@ def on_document_symbol(
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
     chunks = state.chunks if state else None
+    # BIG-IP / SCF files outline the parsed object inventory grouped
+    # module → kind → object.  Conf-wrapped iRule files keep the Tcl
+    # path because the user is editing iRule bodies, not the
+    # surrounding stanza.
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        return get_bigip_document_symbols(source)
     return get_document_symbols(
         source,
         analysis=analysis,
         chunks=chunks,
-        embedded_rules=state.embedded_rules if state and state.conf_wrapped else None,
+        embedded_rules=state.embedded_rules if state and is_cw else None,
     )
 
 
@@ -848,6 +880,20 @@ def on_rename(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        scanner = getattr(_state, "background_scanner", None)
+        ws_configs = scanner.bigip_configs if scanner else None
+        ws_sources = {u: _get_doc_source(u) for u in (ws_configs or {})} if ws_configs else None
+        return get_bigip_rename_edits(
+            source,
+            uri=uri,
+            line=params.position.line,
+            character=params.position.character,
+            new_name=params.new_name,
+            workspace_configs=ws_configs,
+            workspace_sources=ws_sources,
+        )
     return get_rename_edits(
         source,
         uri,
@@ -869,6 +915,25 @@ def on_prepare_rename(
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
     analysis = state.analysis if state else None
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        bigip_range = prepare_bigip_rename(
+            source,
+            line=params.position.line,
+            character=params.position.character,
+        )
+        if bigip_range is None:
+            return None
+        # Extract the placeholder text directly from the source slice
+        # the range covers — that way the rename input pre-fills with
+        # the actual ``/Common/<name>`` the user clicked on.
+        lines = source.split("\n")
+        line_text = lines[bigip_range.start.line] if bigip_range.start.line < len(lines) else ""
+        placeholder = line_text[bigip_range.start.character : bigip_range.end.character]
+        return types.PrepareRenamePlaceholder(
+            range=bigip_range,
+            placeholder=placeholder,
+        )
     return prepare_rename(
         source,
         uri,
@@ -1075,11 +1140,29 @@ def on_document_link(
         return []
     uri = params.text_document.uri
     state = workspace_state.get(uri)
+    source = _get_doc_source(uri)
+    is_cw = state is not None and state.conf_wrapped
+    # BIG-IP / SCF files emit object-reference links from the
+    # parser's iRule scanner (same path ``f5 grep`` uses).  Tcl
+    # files keep their existing ``source`` / ``package require``
+    # link path.  Conf-wrapped iRule files get both: BIG-IP links
+    # for the surrounding stanza references plus Tcl links inside
+    # rule bodies.
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        workspace_configs = (
+            _state.background_scanner.bigip_configs
+            if hasattr(_state, "background_scanner") and _state.background_scanner
+            else None
+        )
+        return get_bigip_document_links(
+            source,
+            uri=uri,
+            workspace_configs=workspace_configs,
+        )
     # Return empty when analysis hasn't completed — get_document_links
     # would call analyse(source) synchronously, blocking the event loop.
     if state is not None and state.analysis is None:
         return []
-    source = _get_doc_source(uri)
     analysis = state.analysis if state else None
     return get_document_links(source, analysis=analysis)
 
@@ -1207,6 +1290,12 @@ def on_code_action(
     uri = params.text_document.uri
     source = _get_doc_source(uri)
     state = workspace_state.get(uri)
+    # BIG-IP files get a separate code-action provider that wraps
+    # the query engine's rename/cascade machinery as quick-fix
+    # entries (no analysis dependency, parses the source directly).
+    is_cw = state is not None and state.conf_wrapped
+    if _dp._is_bigip_conf(uri) and not is_cw:
+        return get_bigip_code_actions(source, uri=uri, range_=params.range) or None
     # Skip code actions when analysis hasn't completed yet — running
     # analyse(source) synchronously here would block the event loop
     # for the entire analysis duration.  Code actions depend on
@@ -1217,7 +1306,8 @@ def on_code_action(
         source,
         params.range,
         params.context,
-        package_names=_state.package_resolver_for_uri(params.text_document.uri).all_package_names(),
+        uri=uri,
+        package_names=_state.package_resolver_for_uri(uri).all_package_names(),
         lines=state.lines if state else None,
     )
     # Fill in the correct document URI for each action's edit

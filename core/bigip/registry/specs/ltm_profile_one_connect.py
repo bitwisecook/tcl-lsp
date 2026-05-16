@@ -19,27 +19,45 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "profile one-connect"),),
         properties=(
             BigipPropertySpec(
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
                 name="defaults-from",
                 value_type="reference",
                 references=("ltm_profile_one_connect",),
+                default="oneconnect",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="idle-timeout-override", value_type="enum", enum_values=("disabled", "enabled")
+                name="idle-timeout-override",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
-            BigipPropertySpec(
-                name="share-pools", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="max-age", value_type="integer"),
-            BigipPropertySpec(name="max-reuse", value_type="integer"),
-            BigipPropertySpec(name="max-size", value_type="integer"),
-            BigipPropertySpec(name="source-mask", value_type="string"),
             BigipPropertySpec(
                 name="limit-type",
                 value_type="enum",
                 allow_none=True,
-                enum_values=("none", "idle", "strict"),
+                enum_values=("idle", "none", "strict"),
             ),
-            BigipPropertySpec(name="reset-stats", value_type="string"),
+            BigipPropertySpec(name="max-age", value_type="integer", default="86400"),
+            BigipPropertySpec(name="max-reuse", value_type="integer", default="1000"),
+            BigipPropertySpec(name="max-size", value_type="integer", default="10000"),
+            BigipPropertySpec(
+                name="share-pools",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+            ),
+            BigipPropertySpec(
+                name="source-mask",
+                value_type="string",
+                shape_kind="ip-address",
+                default="0",
+            ),
         ),
     )

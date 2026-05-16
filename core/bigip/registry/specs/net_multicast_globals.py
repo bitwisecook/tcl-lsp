@@ -18,11 +18,14 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("net", "multicast-globals"),),
         properties=(
-            BigipPropertySpec(name="route-lookup-timeout", value_type="integer"),
-            BigipPropertySpec(name="max-pending-routes", value_type="integer"),
-            BigipPropertySpec(name="max-pending-packets", value_type="integer"),
+            BigipPropertySpec(name="max-pending-packets", value_type="unknown"),
+            BigipPropertySpec(name="max-pending-routes", value_type="unknown"),
             BigipPropertySpec(
-                name="rate-limit", value_type="enum", enum_values=("disabled", "enabled")
+                name="rate-limit",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
             ),
+            BigipPropertySpec(name="route-lookup-timeout", value_type="unknown"),
         ),
     )

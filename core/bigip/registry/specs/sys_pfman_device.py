@@ -18,6 +18,6 @@ def register_spec() -> BigipObjectSpec:
         ),
         header_types=(("sys", "pfman device"),),
         properties=(
-            BigipPropertySpec(name="state", value_type="enum", enum_values=("up", "down", "reset")),
+            BigipPropertySpec(name="state", value_type="enum", enum_values=("down", "reset", "up")),
         ),
     )

@@ -1,0 +1,34 @@
+Mar 14 06:32:36 t1-a.example.test info mcpd[7433]: 01071db9:6: Boot complete on t1-a.example.test
+Mar 14 07:40:19 t1-a.example.test info mcpd[7433]: 01071a08:6: Configuration loaded from /config/bigip.conf successfully.
+Mar 14 08:26:50 t1-a.example.test info mcpd[7433]: 01340038:6: Device t1-a entered Active state for /Common/t1-failover.
+Mar 14 08:54:06 t1-a.example.test info logger[38851]: 01070417:6: AUDIT - jadmin - tmsh - tmsh -c modify ltm virtual /Common/t1_ingress_vs description "managed by netops"
+Mar 14 10:11:09 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c01_vip:443 monitor status down.
+Mar 14 10:20:15 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c01_vip:443 monitor status up.
+Mar 14 10:27:30 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c02_vip:443 monitor status down.
+Mar 14 11:03:35 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c02_vip:443 monitor status up.
+Mar 14 11:04:36 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c03_vip:443 monitor status down.
+Mar 14 11:40:47 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c03_vip:443 monitor status up.
+Mar 14 11:44:52 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c04_vip:443 monitor status down.
+Mar 14 12:31:16 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c04_vip:443 monitor status up.
+Mar 14 13:15:13 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c05_vip:443 monitor status down.
+Mar 14 13:35:16 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c05_vip:443 monitor status up.
+Mar 14 13:46:02 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c06_vip:443 monitor status down.
+Mar 14 14:23:51 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c06_vip:443 monitor status up.
+Mar 14 14:37:33 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c07_vip:443 monitor status down.
+Mar 14 15:04:19 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c07_vip:443 monitor status up.
+Mar 14 15:08:28 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c08_vip:443 monitor status down.
+Mar 14 15:10:56 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c08_vip:443 monitor status up.
+Mar 14 15:31:07 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c09_vip:443 monitor status down.
+Mar 14 16:30:45 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c09_vip:443 monitor status up.
+Mar 14 16:49:11 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c10_vip:443 monitor status down.
+Mar 14 16:59:31 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c10_vip:443 monitor status up.
+Mar 14 17:34:49 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c11_vip:443 monitor status down.
+Mar 14 17:36:26 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c11_vip:443 monitor status up.
+Mar 14 18:06:49 t1-a.example.test warning bigd[4711]: 01340011:4: Pool /Common/t2_fanout_pool member /Common/t2_c12_vip:443 monitor status down.
+Mar 14 18:08:21 t1-a.example.test info bigd[4711]: 01340012:6: Pool /Common/t2_fanout_pool member /Common/t2_c12_vip:443 monitor status up.
+Mar 14 18:18:16 t1-a.example.test notice tmm[16470]: 01230140:5: Connection limit approached on /Common/t1_ingress_vs.
+Mar 14 18:52:33 t1-a.example.test warning tmm[16470]: 01260009:4: SSL handshake failed for client 198.51.100.7 on /Common/t1_ingress_vs.
+Mar 14 19:35:01 t1-a.example.test err tmm[16470]: 01010013:3: monitor /Common/tcp failing for /Common/t2_c01_vip:443 (pool /Common/t2_fanout_pool).
+Mar 14 19:36:10 t1-a.example.test err tmm[16470]: 01010013:3: monitor /Common/tcp failing for /Common/t2_c02_vip:443 (pool /Common/t2_fanout_pool).
+Mar 14 20:09:23 t1-a.example.test info logger[38851]: 01071be3:6: AUDIT - jadmin - tmsh - tmsh -c save sys config
+Mar 14 20:21:15 t1-a.example.test info mcpd[7433]: 01071681:6: Configuration saved to /config/bigip.conf.

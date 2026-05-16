@@ -58,7 +58,12 @@ def _run_merge(args: argparse.Namespace) -> int:
     output = emit_merged(chunks)
     if not output.endswith("\n"):
         output += "\n"
-    output = render_config(output, fmt=args.output_format, tmsh_verb="create")
+    output = render_config(
+        output,
+        fmt=args.output_format,
+        tmsh_verb="create",
+        transaction=getattr(args, "output_transaction", False),
+    )
     if args.output:
         Path(args.output).write_text(output, encoding="utf-8")
     else:

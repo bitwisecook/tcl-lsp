@@ -7,6 +7,7 @@ via :mod:`core.common.codes`.  Each module registers its codes via
 
 # analysis
 import core.analysis  # noqa: F401
+import core.analysis._analyser._utils  # noqa: F401
 import core.analysis.checks._domain  # noqa: F401
 import core.analysis.checks._security  # noqa: F401
 import core.analysis.checks._style  # noqa: F401
@@ -34,6 +35,3 @@ import core.compiler.taint._uri_split  # noqa: F401
 # extensions
 import core.tk.diagnostics  # noqa: F401
 import core.xc.translator  # noqa: F401
-
-# lsp
-import lsp.features.diagnostics  # noqa: F401

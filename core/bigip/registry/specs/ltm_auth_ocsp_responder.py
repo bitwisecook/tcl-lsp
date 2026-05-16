@@ -19,51 +19,147 @@ def register_spec() -> BigipObjectSpec:
         header_types=(("ltm", "auth ocsp-responder"),),
         properties=(
             BigipPropertySpec(
-                name="allow-certs", value_type="enum", enum_values=("disabled", "enabled")
+                name="allow-certs",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="ca-file", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="ca-path", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="cert-id-digest", value_type="enum", enum_values=("md5", "sha1")
+                name="app-service",
+                value_type="string",
+                allow_none=True,
+                default="none",
             ),
-            BigipPropertySpec(name="chain", value_type="enum", enum_values=("disabled", "enabled")),
             BigipPropertySpec(
-                name="check-certs", value_type="enum", enum_values=("disabled", "enabled")
+                name="ca-file",
+                value_type="reference",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="ca-path",
+                value_type="reference",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="cert-id-digest",
+                value_type="enum",
+                enum_values=("md5", "sha1"),
+                default="sha1",
+            ),
+            BigipPropertySpec(
+                name="chain",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
+            ),
+            BigipPropertySpec(
+                name="check-certs",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(name="description", value_type="string"),
             BigipPropertySpec(
-                name="explicit", value_type="enum", enum_values=("disabled", "enabled")
+                name="explicit",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="ignore-aia", value_type="enum", enum_values=("disabled", "enabled")
+                name="ignore-aia",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="disabled",
             ),
             BigipPropertySpec(
-                name="intern", value_type="enum", enum_values=("disabled", "enabled")
-            ),
-            BigipPropertySpec(name="nonce", value_type="enum", enum_values=("disabled", "enabled")),
-            BigipPropertySpec(name="sign-digest", value_type="enum", enum_values=("md5", "sha1")),
-            BigipPropertySpec(name="sign-key", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="sign-key-pass-phrase", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="sign-other", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="signer", value_type="boolean", allow_none=True),
-            BigipPropertySpec(name="status-age", value_type="integer"),
-            BigipPropertySpec(
-                name="trust-other", value_type="enum", enum_values=("disabled", "enabled")
+                name="intern",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="url", value_type="enum", allow_none=True, enum_values=("none", "url")
+                name="nonce",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="va-file", value_type="boolean", allow_none=True),
+            BigipPropertySpec(
+                name="sign-digest",
+                value_type="enum",
+                required=True,
+                enum_values=("md5", "sha1"),
+                default="sha1",
+            ),
+            BigipPropertySpec(
+                name="sign-key",
+                value_type="unknown",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="sign-key-pass-phrase",
+                value_type="unknown",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="sign-other",
+                value_type="unknown",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(name="signer", value_type="unknown", allow_none=True, default="none"),
+            BigipPropertySpec(name="status-age", value_type="integer", default="0 (zero)"),
+            BigipPropertySpec(
+                name="trust-other",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="value disabled",
+            ),
+            BigipPropertySpec(name="url", value_type="unknown", required=True, default="none"),
+            BigipPropertySpec(
+                name="va-file",
+                value_type="reference",
+                allow_none=True,
+                default="none",
+            ),
             BigipPropertySpec(name="validity-period", value_type="integer"),
             BigipPropertySpec(
-                name="verify", value_type="enum", enum_values=("disabled", "enabled")
+                name="verify",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
             BigipPropertySpec(
-                name="verify-cert", value_type="enum", enum_values=("disabled", "enabled")
+                name="verify-cert",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
-            BigipPropertySpec(name="verify-other", value_type="boolean", allow_none=True),
             BigipPropertySpec(
-                name="verify-sig", value_type="enum", enum_values=("disabled", "enabled")
+                name="verify-other",
+                value_type="reference",
+                allow_none=True,
+                default="none",
+            ),
+            BigipPropertySpec(
+                name="verify-sig",
+                value_type="enum",
+                enum_values=("disabled", "enabled"),
+                shape_kind="boolean",
+                default="enabled",
             ),
         ),
     )
