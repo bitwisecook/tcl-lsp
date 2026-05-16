@@ -153,6 +153,30 @@ def compile_source(
     When *interproc_cache* is provided, local interprocedural summaries
     are also reused for unchanged procedures using the same key shape.
     """
+    from core.analysis.stub_comments import scan_source_for_stubs
+    from core.commands.registry.runtime import stub_signature_scope
+
+    cmd_stubs, _ = scan_source_for_stubs(source)
+    with stub_signature_scope(cmd_stubs):
+        return _compile_source_inner(
+            source,
+            ir_module=ir_module,
+            proc_cache=proc_cache,
+            interproc_cache=interproc_cache,
+            prune_interproc_cache=prune_interproc_cache,
+            known_classes=known_classes,
+        )
+
+
+def _compile_source_inner(
+    source: str,
+    *,
+    ir_module: IRModule | None,
+    proc_cache: dict[tuple[str, int], FunctionUnit] | None,
+    interproc_cache: dict[tuple[str, int], ProcLocalSummary] | None,
+    prune_interproc_cache: bool,
+    known_classes: frozenset[str],
+) -> CompilationUnit:
     if ir_module is None:
         ir_module = lower_to_ir(source)
 

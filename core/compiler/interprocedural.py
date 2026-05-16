@@ -434,6 +434,27 @@ def _scan_local_facts(
         if isinstance(stmt, IRBarrier):
             facts.has_barrier = True
             facts.effect_writes |= EffectRegion.UNKNOWN_STATE
+            # An ``IRBarrier`` retains the original ``command`` / ``args``
+            # of the command that crossed the analysis boundary (e.g.
+            # ``eval`` or a user-stubbed wrapper like ``db_eval``).  If
+            # any of those args carry ``ArgRole.BODY``, scan them so
+            # callees inside the script body still register as call-graph
+            # edges.
+            if stmt.command and stmt.args:
+                body_indices = arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.BODY)
+                for idx in body_indices:
+                    if 0 <= idx < len(stmt.args):
+                        raw = stmt.args[idx]
+                        head = raw.lstrip()[:1]
+                        if head in ("$", "["):
+                            continue
+                        body_text = _strip_braces(raw)
+                        _scan_script_text(
+                            body_text,
+                            caller_qname=caller_qname,
+                            known_procs=known_procs,
+                            facts=facts,
+                        )
             continue
 
         # Barrier-relaxed ``uplevel`` / ``eval`` preserve barrier
@@ -462,6 +483,26 @@ def _scan_local_facts(
                 )
             else:
                 facts.calls.add(target)
+            # Recurse into ``ArgRole.BODY`` arguments of the call so
+            # callees inside the script body of commands like ``catch``,
+            # ``eval``, or user-stubbed wrappers (``db_eval $sql $script``)
+            # show up as call-graph edges.  Skip BODY args that are not
+            # literal scripts (``$var``, ``[cmd]``) since their contents
+            # are not statically known.
+            body_indices = arg_indices_for_role(stmt.command, list(stmt.args), ArgRole.BODY)
+            for idx in body_indices:
+                if 0 <= idx < len(stmt.args):
+                    raw = stmt.args[idx]
+                    head = raw.lstrip()[:1]
+                    if head in ("$", "["):
+                        continue
+                    body_text = _strip_braces(raw)
+                    _scan_script_text(
+                        body_text,
+                        caller_qname=caller_qname,
+                        known_procs=known_procs,
+                        facts=facts,
+                    )
             continue
 
         if isinstance(stmt, (IRAssignConst, IRAssignExpr, IRAssignValue, IRIncr)):

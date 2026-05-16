@@ -55,6 +55,8 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   when (and when not) to restart the Tcl Language Server.
 - [kcs-qa-query-vs-grep-vs-rename.md](kcs-qa-query-vs-grep-vs-rename.md) —
   which `f5` verb to pick for filter / find / rename tasks.
+- [kcs-qa-tcl-lsp-annotations.md](kcs-qa-tcl-lsp-annotations.md) — which
+  `# tcl-lsp:` and `# noqa` comments the analyser understands.
 
 ## How-Tos
 
@@ -78,6 +80,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
+  — declare third-party Tcl commands (sqlite `eval`, vendor builtins,
+  factory-created instance commands) so the call graph, arity checker,
+  and trait inferencer understand them.
 - [kcs-howto-readdress-virtuals-with-query.md](kcs-howto-readdress-virtuals-with-query.md)
   — bulk-readdress virtual servers into a new subnet with `f5 query`.
 - [kcs-howto-migrate-partition-with-query.md](kcs-howto-migrate-partition-with-query.md)

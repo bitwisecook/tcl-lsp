@@ -124,6 +124,25 @@ class TestBuildCallGraph:
         assert ("::main", "::cond_w") in edge_pairs
         assert ("::main", "::cond_f") in edge_pairs
 
+    def test_stub_body_arg_picks_up_callbacks(self):
+        # A user-declared stub with a ``body`` arg role should make the
+        # callback inside that arg appear as a call-graph edge.  Mirrors
+        # the sqlite ``db eval ?sql? ?script?`` shape from issue #409.
+        source = textwrap.dedent("""\
+            # tcl-lsp: stubs-begin
+            # tcl-lsp: stub db_eval {sql script:body} -barrier
+            # tcl-lsp: stubs-end
+
+            proc on_row {} {}
+
+            proc main {} {
+                db_eval "SELECT 1" {on_row}
+            }
+        """)
+        data = build_call_graph(source)
+        edge_pairs = {(e["caller"], e["callee"]) for e in data["edges"]}
+        assert ("::main", "::on_row") in edge_pairs
+
 
 # Symbol Graph
 

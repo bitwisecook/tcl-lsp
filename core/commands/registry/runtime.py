@@ -7,10 +7,15 @@ semantics needed by analysis/formatting/compiler passes.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ...analysis.semantic_model import StubCommandDef
 
 from ...compiler.types import TclType
 from ...parsing.tokens import Token
@@ -450,6 +455,16 @@ _extra_commands_var: contextvars.ContextVar[tuple[str, ...]] = contextvars.Conte
     "tcl_lsp_extra_commands", default=()
 )
 
+# Per-analysis overlay for stub command signatures parsed from
+# ``# tcl-lsp: stub`` comments and ``.tcl.stubs`` files.  Stubs declared
+# in the current source are merged on top of the dialect signature table
+# so consumers like ``arg_indices_for_role`` see them as if they were
+# first-class registry entries.  Always a frozen mapping; an empty
+# default means "no stubs in scope".
+_stub_signatures_var: contextvars.ContextVar["dict[str, CommandSig | SubcommandSig]"] = (
+    contextvars.ContextVar("tcl_lsp_stub_signatures", default={})
+)
+
 
 class _SignaturesProxy:
     """Mapping-like view of the signature table for the active dialect.
@@ -465,7 +480,13 @@ class _SignaturesProxy:
     __slots__ = ()
 
     def _current(self) -> dict[str, "CommandSig | SubcommandSig"]:
-        return signatures_for(_dialect_var.get(), _extra_commands_var.get())
+        base = signatures_for(_dialect_var.get(), _extra_commands_var.get())
+        stubs = _stub_signatures_var.get()
+        if not stubs:
+            return base
+        merged: dict[str, "CommandSig | SubcommandSig"] = dict(base)
+        merged.update(stubs)
+        return merged
 
     def __getitem__(self, key: str) -> "CommandSig | SubcommandSig":
         return self._current()[key]
@@ -755,6 +776,88 @@ def configure_signatures(
     # mutation is needed here.
 
     return True
+
+
+_STUB_ROLE_MAP: dict[str, ArgRole] = {
+    "body": ArgRole.BODY,
+    "expr": ArgRole.EXPR,
+    "var": ArgRole.VAR_WRITE,
+    "var_read": ArgRole.VAR_READ,
+    "pattern": ArgRole.PATTERN,
+    "channel": ArgRole.CHANNEL,
+    "name": ArgRole.NAME,
+}
+
+
+def stub_to_command_sig(stub: "StubCommandDef") -> CommandSig:
+    """Build a :class:`CommandSig` from a user-declared stub.
+
+    Argument roles declared on the stub (``body``, ``expr``, ``var``,
+    ``var_read``, ``pattern``, ``channel``, ``name``) are translated to
+    the matching :class:`ArgRole` so consumers like
+    :func:`arg_indices_for_role` and the call-graph scanner see stubbed
+    commands as if they were registry entries.  Arity is inferred from
+    the declared argument count, honouring trailing optional / ``args``
+    forms via :attr:`StubArgDef.optional`.
+    """
+    roles: dict[int, frozenset[ArgRole]] = {}
+    min_required = 0
+    max_args: int | None = 0
+    for idx, arg in enumerate(stub.args):
+        role = _STUB_ROLE_MAP.get(arg.role)
+        if role is not None:
+            roles[idx] = frozenset({role})
+        if arg.optional:
+            if max_args is not None:
+                max_args = max_args + 1
+        else:
+            min_required += 1
+            if max_args is not None:
+                max_args = max_args + 1
+        if arg.name == "args":
+            max_args = None  # variadic tail
+    arity = Arity(min_required, max_args) if max_args is not None else Arity(min_required)
+    return CommandSig(arity=arity, arg_roles=roles)
+
+
+def signatures_from_stubs(
+    stubs: "Iterable[StubCommandDef]",
+) -> dict[str, CommandSig | SubcommandSig]:
+    """Convert a list of :class:`StubCommandDef` to a signature overlay."""
+    overlay: dict[str, CommandSig | SubcommandSig] = {}
+    for stub in stubs:
+        # Strip a leading ``::`` so callers can stub fully-qualified
+        # names; lookups happen via the bare key the parser produces.
+        name = stub.name.lstrip(":")
+        overlay[name] = stub_to_command_sig(stub)
+    return overlay
+
+
+@contextlib.contextmanager
+def stub_signature_scope(
+    stubs: "Iterable[StubCommandDef]",
+):
+    """Context manager that overlays *stubs* on the active signature table.
+
+    All ``SIGNATURES.get(...)`` reads (and therefore
+    :func:`arg_indices_for_role`, :func:`resolve_arg_role_map`,
+    :func:`body_arg_indices`, and friends) see the stubs for the
+    duration of the ``with`` block.  Restores the previous overlay on
+    exit — safe to nest.
+    """
+    overlay = signatures_from_stubs(stubs)
+    if not overlay:
+        # Fast path: nothing to scope.
+        yield
+        return
+    previous = _stub_signatures_var.get()
+    merged = dict(previous) if previous else {}
+    merged.update(overlay)
+    token = _stub_signatures_var.set(merged)
+    try:
+        yield
+    finally:
+        _stub_signatures_var.reset(token)
 
 
 def _oo_definition_body_indices(command: str, args: list[str]) -> set[int]:
