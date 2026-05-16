@@ -1,14 +1,16 @@
-# `f5 query` renderer plugin contract
+# `f5 query` plugin contract — renderers, builtins, input formats, and the loader
 
-The query engine ships with a decorator-registered **renderer
-registry** that turns a list of evaluator output values into a
-displayable string.  Built-in renderers live under
-`core/bigip/query/renderers/`; user-supplied renderers register with
-the same decorator the built-ins use and are dispatched through the
-same code path the CLI uses for `-R / --render NAME`.
+The query engine ships with **three decorator-registered registries**
+— one each for output renderers, DSL builtin functions, and
+side-input parsers — plus a **shared user-plugin loader** that
+auto-imports Python files from `$XDG_CONFIG_HOME/f5q/plugins/` on
+first registry access.  External users can extend any of the three
+surfaces without forking the project; the CLI and the Python API
+both consult the same registries so plugins are visible from both.
 
-This doc fixes the contract: what a renderer must do, what the engine
-guarantees, where the registration lives, and how errors propagate.
+This doc fixes the contracts: what each plugin shape must do, what
+the engine guarantees, where the registrations live, and how errors
+propagate.
 
 ## Registry layout
 
@@ -18,6 +20,10 @@ guarantees, where the registration lives, and how errors propagate.
 | `core/bigip/query/renderers/gantt.py` | `@renderer("gantt")` — ASCII Gantt timeline. |
 | `core/bigip/query/renderers/ascii_blocks.py` | `@renderer("ascii-blocks")` — Unicode line-art tree. |
 | `core/bigip/query/renderers/mermaid.py` | `@renderer("mermaid")` — Mermaid diagram. |
+| `core/bigip/query/inputs.py` | `InputFormatSpec`, `@input_format` decorator, `lookup`, `list_input_formats`. |
+| `core/bigip/query/_builtin_inputs.py` | Registers the four built-in formats (json / jsonl / csv / f5log) by wrapping the parsers in `_inputs.py`. |
+| `core/bigip/query/builtins.py` | Public `@builtin` decorator wrapping the private `_register` used by in-tree builtins. |
+| `core/bigip/query/plugins.py` | `xdg_plugin_dir`, `load_user_plugins`, `iter_plugin_files`. |
 | `core/bigip/query/output.py` | `render(values, *, mode, **opts)` — falls through to the renderer registry on an unknown built-in mode. |
 | `core/bigip/query/api.py` | `QueryRun.render(name, **opts)` — wraps `render` with `bind_render_sources` so renderers can reach the originating source text. |
 
@@ -180,13 +186,126 @@ def render(self, name, **opts):
 `Query.run` stashes the source map onto the `QueryRun` so the
 context-var binding can re-expose it to the renderer.
 
+## Builtin contract (`@builtin`)
+
+```python
+@builtin(
+    name: str,
+    *,
+    summary: str = "",
+    signatures: tuple[str, ...] = (),
+    examples: tuple[str, ...] = (),
+    category: str = "user",
+    min_args: int = 0,
+    max_args: int | None = None,
+    details: str = "",
+    special_form: bool = False,
+    with_ctx: bool = False,
+    stream_aware: bool = False,
+)
+```
+
+`@builtin` is a thin public wrapper over the private
+`_register` decorator the in-tree builtins use.  The default
+`category="user"` keeps plugin builtins out of the curated
+in-tree categories shown at the top of `--help-builtins`; setting
+`category` to one of the in-tree slots (`stream`, `string`,
+`path`, `rename`, `net`, `graph`, `value`) groups the plugin
+alongside the matching in-tree builtins.
+
+The advanced flags map directly onto `BuiltinSpec`:
+
+- `stream_aware=True` — receives the whole stream as one argument
+  (`count`, `sort`, `any`, …).
+- `special_form=True` — receives the unevaluated AST plus an
+  `EvalContext`; the function must drive its own `current`
+  rebinding (`select`, `map`).
+- `with_ctx=True` — receives the `EvalContext` as a keyword
+  argument so the builtin can queue cascading edits or look up the
+  active `Root` (`rename_partition`).
+
+Plugin builtins raise `BuiltinError` for argument-type mistakes;
+the runner re-raises as `error: <msg>` from the CLI just like the
+in-tree builtins.
+
+## Input-format contract (`@input_format`)
+
+```python
+@input_format(name: str, *, summary: str = "", details: str = "")
+def parse(source: str, *, uri: str, options: tuple[tuple[str, Any], ...] = ()) -> Any: ...
+```
+
+- *source* — file contents as text (UTF-8 decoded by the loader;
+  binary formats need pre-decoding).
+- *uri* — the file path / URI, for inclusion in error messages.
+- *options* — `InputSpec.options` verbatim; the parser reads the
+  keys it understands and ignores the rest.  CSV uses
+  ``("headers", (col1, col2, ...))`` as the only built-in option
+  today.
+- Return value — any Python value the DSL can navigate naturally.
+  Lists become iterable streams via the DSL's `$name[]` operator;
+  dicts navigate with `$name.field`.
+
+The runner replaces its previous hard-coded `if spec.kind == "json"
+…` chain with `inputs.lookup(spec.kind)`.  An unknown kind raises
+`QueryError(f"unknown input format {kind!r} (registered: ...)")`
+listing every registered name — much more useful than a bare
+"unknown" error when the user typo'd `--input jzon`.
+
+User parsers raise `QueryError` for caller-visible problems; the
+runner's catch wraps the more permissive `ValueError` /
+`InputError` shapes the in-tree parsers raise so they still
+surface cleanly.
+
+## Plugin loader (XDG auto-discovery)
+
+`core/bigip/query/plugins.py`:
+
+```python
+def xdg_plugin_dir() -> Path:
+    """$XDG_CONFIG_HOME/f5q/plugins/, falling back to ~/.config/f5q/plugins/."""
+
+def load_user_plugins(*, force: bool = False) -> list[Path]:
+    """Auto-import *.py under xdg_plugin_dir().  Idempotent."""
+```
+
+Each registry's `_ensure_loaded` (`builtins._ensure_plugins_loaded`,
+`inputs._ensure_loaded`, `renderers._ensure_builtins_loaded`) calls
+`load_user_plugins()` after the in-tree built-ins finish
+registering.  The first call to any `lookup` / `list_*` helper
+across any registry triggers the scan; subsequent calls are a flag
+check.
+
+The loader's invariants:
+
+- **Hidden files (`_*.py`) are skipped** — convention for helper
+  modules a plugin imports privately.  Sub-directories are
+  recursively scanned.
+- **Module names are uniquified** (`f5q_user_plugin_<stem>_<hash>`)
+  so a `force=True` re-scan doesn't collide with the prior
+  incarnation in `sys.modules` — required for the test fixture
+  pattern.
+- **Warn-not-crash** — every `Exception` raised during import is
+  reported to stderr as `f5q: warning: failed to load plugin
+  <path>: <exc>` and the file is skipped.  One broken plugin must
+  never kill the CLI or a script that doesn't use it.
+- **Idempotent by default** — `load_user_plugins()` returns
+  immediately after the first call.  `force=True` re-scans (used
+  by tests and by the `--help-plugins` diagnostic that wants a
+  fresh import list).
+
+The CLI exposes `f5 q --help-plugins` as a diagnostic action that
+prints the scan directory and the list of loaded files; pair with
+`2>&1` to see warnings inline.
+
 ## Open questions / future work
 
 - **Entry-point discovery.**  We deliberately defer
   `setuptools.entry_points`-based plugin discovery to v2.  When we
-  add it, the natural group name is `f5q.renderers` and the
-  discovery should happen inside `_ensure_builtins_loaded()` so the
-  CLI and the Python API pick up the same plugin set.
+  add it, the natural group names are `f5q.renderers`,
+  `f5q.builtins`, and `f5q.input_formats` and the discovery should
+  happen inside the same `_ensure_loaded` hooks the XDG loader
+  uses so the CLI and the Python API pick up the same plugin set.
 - **APM-policy renderer.**  The `ascii-blocks` renderer is the
   scaffold for the future TMUI-style APM policy view (tracked in a
   separate spec).  When that lands it can re-use `_Box` and
@@ -195,3 +314,9 @@ context-var binding can re-expose it to the renderer.
   ObjectRef-mode emits one diagram per CLI invocation.  Per-file
   dispatch (one `graph` block per source URI, with cross-file edges
   inside a `subgraph`) is the natural follow-on for `--merge` mode.
+- **Custom operators.**  True new infix operators (`a <op> b`) would
+  need lexer + parser + precedence-table changes — an order of
+  magnitude more work than the function-form `op(a, b)` builtins
+  cover today.  Tracked but not planned; the `@builtin` decorator
+  is the recommended extension point for any operator-like
+  function.

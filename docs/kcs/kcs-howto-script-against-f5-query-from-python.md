@@ -131,11 +131,109 @@ def _render_md_table(values, **opts):
     return "\n".join(out) + "\n"
 ```
 
-After importing the module that defines `@renderer`, the CLI picks it
-up automatically: `f5 q --render md-table ...`.  Plugin discovery is
-in-tree only today — a third-party package needs to be imported
-before `f5 q` runs (e.g. via `python -c 'import my_pkg; ...'` or by
-shipping a tiny wrapper script).
+### 6. Ship a custom builtin function
+
+The same engine that registers `length`, `select`, `ip`, and the
+other in-tree builtins is exposed as the public `@builtin`
+decorator:
+
+```python
+from f5q import builtin
+
+@builtin(
+    "uppercase",
+    summary="ASCII upper-case a string.",
+    signatures=("uppercase(s: string) -> string",),
+    examples=(".ltm.virtual[] | uppercase(.name)",),
+    min_args=1,
+    max_args=1,
+)
+def _uppercase(s):
+    return str(s).upper()
+```
+
+After the plugin loads, the DSL calls it like any built-in:
+`f5 q --raw 'uppercase(.ltm.virtual[].name)' bigip.conf`.  Set
+`category="user"` (the default) to group plugin builtins together
+in `--help-builtins`.  The advanced flags
+(`special_form=True`, `with_ctx=True`, `stream_aware=True`) are
+documented in the [renderer contract design
+doc](../design/f5-query-renderer-contract.md) and modelled by the
+in-tree builtins.
+
+### 7. Ship a custom input format
+
+```python
+from f5q import input_format
+
+@input_format(
+    "yaml",
+    summary="YAML side-input (single document or stream).",
+)
+def _parse_yaml(source, *, uri, options=()):
+    import yaml  # third-party — install separately
+    loaded = list(yaml.safe_load_all(source))
+    return loaded[0] if len(loaded) == 1 else loaded
+```
+
+After the plugin loads, the CLI accepts
+`--input yaml routes=routes.yaml` and the Python API accepts
+`input_specs={"routes.yaml": InputSpec(kind="yaml")}`.  `--input`
+is the generic flag the engine routes through any registered
+format — the typed `--input-json` / `--input-jsonl` / `--input-csv`
+/ `--input-f5log` shorthands are kept for compatibility.
+
+### 8. Auto-load plugins from `~/.config/f5q/plugins/`
+
+The engine scans `$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
+`~/.config/f5q/plugins/*.py`) on the first registry access.  Drop a
+file in that directory and it loads transparently the next time
+`f5 q` runs or any script imports a registry helper — no
+`import my_plugin` ceremony, no PYTHONPATH dance:
+
+```sh
+mkdir -p ~/.config/f5q/plugins
+cat > ~/.config/f5q/plugins/my_extensions.py <<'PY'
+from f5q import builtin, renderer, input_format
+
+@builtin("uppercase", summary="upper", min_args=1, max_args=1)
+def _u(s):
+    return str(s).upper()
+
+@renderer("count-only", summary="row count", accepts="any")
+def _c(values, **opts):
+    return f"{len(values)} rows\n"
+
+@input_format("simple-list", summary="newline list")
+def _l(source, *, uri, options=()):
+    return [line for line in source.splitlines() if line.strip()]
+PY
+
+f5 q --help-plugins     # confirm the file was picked up
+f5 q --help-builtins    # 'uppercase' appears under category 'user'
+f5 q --help-renderers   # 'count-only' appears alongside the built-ins
+f5 q --help-inputs      # 'simple-list' appears alongside json/jsonl/csv/f5log
+```
+
+Files starting with `_` are skipped (helper modules a plugin
+imports privately).  Sub-folders are scanned too, so a multi-file
+plugin can structure itself however it likes.  A plugin file that
+fails to import (syntax error, missing dependency, bad decorator
+argument) prints a warning to stderr and is skipped — one broken
+plugin can't kill the rest.  Use `f5 q --help-plugins` to see
+which files actually loaded.
+
+The same loader runs from Python:
+
+```python
+import f5q
+f5q.load_user_plugins()        # idempotent — call once at startup
+print(f5q.xdg_plugin_dir())    # diagnostic: where the loader looks
+print(f5q.list_renderers())    # everything available after loading
+```
+
+`load_user_plugins(force=True)` re-scans (test fixtures use this
+to inject plugins per-test).
 
 ## How to tell it worked
 

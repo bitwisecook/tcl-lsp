@@ -163,6 +163,13 @@ def _build_root(uri: str, source: str, *, default_partition: str | None = None) 
 def _build_structured_root(uri: str, source: str, spec: "InputSpec") -> Root:
     """Parse *source* according to *spec.kind* and bind it as a JSON-root.
 
+    Dispatches through the :mod:`.inputs` plugin registry — every
+    built-in format (json / jsonl / csv / f5log) and every
+    user-registered ``@input_format`` plugin lands in the same
+    lookup table.  Unknown kinds surface as a clear ``QueryError``
+    listing what *is* registered so a typo in
+    ``--input KIND NAME=PATH`` is obvious.
+
     Each side-input format produces a Python value that the DSL can
     navigate the same way it navigates a parsed JSON tree.  JSONL /
     CSV produce a list of dicts; F5 logs produce a list of event
@@ -171,29 +178,21 @@ def _build_structured_root(uri: str, source: str, spec: "InputSpec") -> Root:
     ``.ltm.foo`` paths against them naturally yield nothing.
     """
     from ..model import BigipConfig
-    from ._inputs import InputError, parse_csv, parse_f5log, parse_jsonl
+    from ._inputs import InputError
+    from .inputs import list_input_formats
+    from .inputs import lookup as _lookup_input
 
+    parser_spec = _lookup_input(spec.kind)
+    if parser_spec is None:
+        registered = ", ".join(s.name for s in list_input_formats())
+        raise QueryError(f"{uri}: unknown input format {spec.kind!r} (registered: {registered})")
     try:
-        if spec.kind == "json":
-            import json as _json
-
-            parsed: object = _json.loads(source)
-        elif spec.kind == "jsonl":
-            parsed = parse_jsonl(source, source=uri)
-        elif spec.kind == "csv":
-            headers = spec.get("headers")
-            parsed = parse_csv(
-                source,
-                headers=list(headers) if headers else None,
-                source=uri,
-            )
-        elif spec.kind == "f5log":
-            parsed = parse_f5log(source, source=uri)
-        else:  # pragma: no cover — spec.kind is set by the CLI / runner
-            raise QueryError(f"{uri}: unknown input format {spec.kind!r}")
+        parsed = parser_spec.impl(source, uri=uri, options=spec.options)
     except (ValueError, InputError) as exc:
         # ``json.JSONDecodeError`` is a ``ValueError`` subclass;
         # ``InputError`` covers JSONL / CSV / f5log parse failures.
+        # User-plugin parsers raise QueryError directly and bypass
+        # this wrapper; the runner re-raises them unchanged.
         raise QueryError(f"{uri}: invalid {spec.kind} input ({exc})") from exc
     return Root(
         uri=uri,

@@ -826,10 +826,11 @@ Highlights of the newer verbs:
 
 **Use the query engine from Python** — the same engine is importable
 as `f5q` so external scripts can drive queries, get typed values back,
-and ship custom renderers as plugins via a one-line decorator:
+and ship plugins along three axes (renderers, DSL builtins, input
+formats) via one-line decorators:
 
 ```python
-from f5q import Query, renderer
+from f5q import Query, builtin, renderer, input_format
 
 # Run a query and iterate typed results.
 for name in Query(".ltm.virtual[] | .name").run(paths=["bigip.conf"]):
@@ -839,13 +840,31 @@ for name in Query(".ltm.virtual[] | .name").run(paths=["bigip.conf"]):
 @renderer("md-table", summary="Markdown table of results.", accepts="any")
 def _render(values, **opts):
     return "| name |\n| ---- |\n" + "\n".join(f"| {v} |" for v in values)
+
+# Ship a custom DSL function the query language can call.
+@builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
+def _u(s):
+    return str(s).upper()
+
+# Ship a custom side-input format `--input KIND NAME=PATH` can load.
+@input_format("yaml", summary="YAML side-input.")
+def _parse_yaml(source, *, uri, options=()):
+    import yaml
+    return yaml.safe_load(source)
 ```
+
+**Auto-discovered plugins** — drop any of the above into
+`$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
+`~/.config/f5q/plugins/*.py`) and the engine picks them up on the
+first registry access, no import dance required.  Broken plugins
+warn to stderr and are skipped; `f5 q --help-plugins` shows what
+loaded.
 
 See
 [KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
 for the full API tour, and
-[KCS: feature — `f5 query` renderers](docs/kcs/features/kcs-feature-f5-query-renderers.md)
-for the built-in renderer catalogue.
+[KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
+for the built-in plugin catalogue.
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.

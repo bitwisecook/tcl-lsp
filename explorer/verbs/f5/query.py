@@ -144,6 +144,62 @@ class _HelpManualAction(argparse.Action):
         parser.exit()
 
 
+class _HelpInputFormatsAction(argparse.Action):
+    """Print the catalogue of registered input formats (built-in + plugin).
+
+    Mirrors ``--help-renderers`` for the input-format registry: lists
+    every format the runner will accept after the user-plugin XDG
+    scan has run, so a user can confirm a freshly-dropped
+    ``@input_format`` plugin is actually being picked up.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from core.bigip.query import list_input_formats
+
+        specs = list_input_formats()
+        if not specs:
+            sys.stdout.write("(no input formats registered)\n")
+            parser.exit()
+        sys.stdout.write("Registered input formats:\n\n")
+        for spec in specs:
+            sys.stdout.write(f"  {spec.name}\n")
+            sys.stdout.write(f"    summary: {spec.summary}\n")
+            if spec.details:
+                for line in spec.details.splitlines():
+                    sys.stdout.write(f"    {line}\n")
+            sys.stdout.write("\n")
+        sys.stdout.write("Use --input KIND NAME=PATH to bind a file via any registered format.\n")
+        parser.exit()
+
+
+class _HelpPluginsAction(argparse.Action):
+    """Print the XDG plugin directory and the files the loader picked up.
+
+    Diagnostic output for "is my plugin file being loaded?" — prints
+    the directory path the loader scans, then runs the loader and
+    prints every file that imported successfully.  Plugin import
+    failures are written to stderr by the loader itself, so combining
+    this with ``2>&1`` shows successes + failures together.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from core.bigip.query import load_user_plugins, xdg_plugin_dir
+
+        directory = xdg_plugin_dir()
+        sys.stdout.write(f"Plugin directory: {directory}\n")
+        if not directory.is_dir():
+            sys.stdout.write("  (does not exist — create it to start dropping plugins)\n")
+            parser.exit()
+        loaded = load_user_plugins(force=True)
+        if not loaded:
+            sys.stdout.write("  (no plugin files found)\n")
+        else:
+            sys.stdout.write("Loaded plugin files:\n")
+            for path in loaded:
+                sys.stdout.write(f"  {path}\n")
+        parser.exit()
+
+
 class _HelpRenderersAction(argparse.Action):
     """Print the catalogue of registered renderer plugins.
 
@@ -362,6 +418,22 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     p.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        nargs=2,
+        metavar=("KIND", "NAME=PATH"),
+        help=(
+            "Bind a file via a registered input format (repeatable).  "
+            "KIND is the format name (built-in: ``json``, ``jsonl``, "
+            "``csv``, ``f5log``; user plugins add more via "
+            "``@input_format`` in ``$XDG_CONFIG_HOME/f5q/plugins/``).  "
+            "Equivalent to the typed ``--input-<kind>`` flags but "
+            "extensible — use this for user-defined formats like "
+            "``--input yaml routes=routes.yaml``."
+        ),
+    )
+    p.add_argument(
         "--partition",
         action="append",
         default=[],
@@ -565,8 +637,30 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "(``mermaid``, ``gantt``, ``ascii-blocks`` built-in) and exit."
         ),
     )
+    p.add_argument(
+        "--help-inputs",
+        nargs=0,
+        action=_HelpInputFormatsAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Show the catalogue of registered input formats "
+            "(``json``, ``jsonl``, ``csv``, ``f5log`` built-in, plus "
+            "any ``@input_format`` plugins) and exit."
+        ),
+    )
+    p.add_argument(
+        "--help-plugins",
+        nargs=0,
+        action=_HelpPluginsAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Print the XDG plugin directory and every plugin file the "
+            "loader picked up, then exit.  Diagnostic for 'is my plugin "
+            "actually being loaded?'."
+        ),
+    )
 
-    p.set_defaults(handler=_run_query, output_mode="auto", render_name=None)
+    p.set_defaults(handler=_run_query, output_mode="auto", render_name=None, input=[])
 
 
 def _run_query(args: argparse.Namespace) -> int:
@@ -627,6 +721,11 @@ def _run_query(args: argparse.Namespace) -> int:
     f5log_bindings, f5log_err = _parse_input_bindings(args.input_f5log, flag="--input-f5log")
     if f5log_err is not None:
         print(f"error: {f5log_err}", file=sys.stderr)
+        return 2
+
+    custom_input_bindings, custom_input_err = _parse_custom_input_bindings(args.input)
+    if custom_input_err is not None:
+        print(f"error: {custom_input_err}", file=sys.stderr)
         return 2
 
     sources: dict[str, str] = {}
@@ -726,6 +825,27 @@ def _run_query(args: argparse.Namespace) -> int:
 
     for nm, (f5log_path, _hdr) in f5log_bindings.items():
         err = _load_side_input(nm, f5log_path, "--input-f5log", _InputSpec(kind="f5log"))
+        if err is not None:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+
+    # Generic ``--input KIND NAME=PATH`` form — covers user plugins and
+    # any future built-in formats without needing a dedicated flag.
+    # Format validity is checked against the registered input formats
+    # so a typo in KIND surfaces as a clear error before file IO.
+    from core.bigip.query.inputs import list_input_formats as _list_input_formats
+    from core.bigip.query.inputs import lookup as _lookup_input
+
+    for kind, nm, custom_path in custom_input_bindings:
+        if _lookup_input(kind) is None:
+            registered = ", ".join(s.name for s in _list_input_formats())
+            print(
+                f"error: --input {kind} {nm}={custom_path}: unknown input "
+                f"format {kind!r} (registered: {registered})",
+                file=sys.stderr,
+            )
+            return 2
+        err = _load_side_input(nm, custom_path, f"--input {kind}", _InputSpec(kind=kind))
         if err is not None:
             print(f"error: {err}", file=sys.stderr)
             return 2
@@ -959,6 +1079,51 @@ def _split_csv_path_headers(
     if not path_part:
         return "", None, f"{flag} {entry!r}: PATH side cannot be empty"
     return path_part, split_headers, None
+
+
+def _parse_custom_input_bindings(
+    raw: list[list[str]],
+) -> tuple[list[tuple[str, str, str]], str | None]:
+    """Parse repeated ``--input KIND NAME=PATH`` argument pairs.
+
+    Returns ``(entries, error_or_None)`` where each entry is a tuple
+    ``(kind, name, path)``.  Validates that:
+
+    - ``NAME=PATH`` contains a ``=``;
+    - ``NAME`` is a valid DSL identifier;
+    - ``KIND`` and ``NAME`` are both non-empty;
+    - no two entries bind the same ``NAME``.
+
+    ``KIND`` is not validated against the registry here — the caller
+    does that lookup after parsing so it can produce a friendlier
+    "registered: ..." error listing every format the run knows about.
+    """
+    import re as _re
+
+    name_re = _re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+    entries: list[tuple[str, str, str]] = []
+    seen_names: set[str] = set()
+    for pair in raw:
+        if len(pair) != 2:
+            return [], (f"--input expects two arguments KIND NAME=PATH (got {pair!r})")
+        kind, binding = pair
+        if not kind:
+            return [], f"--input {pair!r}: KIND cannot be empty"
+        if "=" not in binding:
+            return [], f"--input {kind} expects NAME=PATH (got {binding!r})"
+        nm, _, pth = binding.partition("=")
+        if not name_re.match(nm):
+            return [], (
+                f"--input {kind} {binding!r}: {nm!r} is not a valid DSL "
+                "identifier (letters, digits, '_', '-'; cannot start with a digit)"
+            )
+        if not pth:
+            return [], f"--input {kind} {binding!r}: PATH side cannot be empty"
+        if nm in seen_names:
+            return [], f"--input {kind} {nm}: duplicate binding"
+        seen_names.add(nm)
+        entries.append((kind, nm, pth))
+    return entries, None
 
 
 def _parse_json_bindings(raw: list[str]) -> tuple[dict[str, str], str | None]:

@@ -235,6 +235,20 @@ class Query:
         when no sources are supplied.
         """
         source_map = _coerce_sources(sources, paths)
+        # Auto-include any side-input URI the caller referenced via
+        # ``input_specs`` but didn't pre-load via *sources* / *paths*.
+        # The runner expects every URI in ``input_specs`` to also
+        # appear in ``sources`` (that's what the CLI does with
+        # ``read_path`` for each ``--input-<kind>`` binding); reading
+        # them here keeps Python callers from having to do the same
+        # double-bookkeeping by hand.
+        if input_specs:
+            for uri in input_specs:
+                if uri in source_map:
+                    continue
+                p = Path(uri)
+                if p.is_file():
+                    source_map[uri] = p.read_text(encoding="utf-8")
         if not source_map:
             raise ValueError(
                 "Query.run() needs at least one source — pass sources={URI: TEXT} "

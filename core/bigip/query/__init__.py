@@ -31,8 +31,9 @@ Public entry points:
 
 from __future__ import annotations
 
+from ._inputs import InputSpec
 from .api import Query, QueryRow, QueryRun
-from .builtins import format_builtins, list_builtins
+from .builtins import builtin, format_builtins, list_builtins
 from .errors import (
     BuiltinError,
     EditError,
@@ -44,7 +45,9 @@ from .errors import (
 )
 from .examples import format_examples, list_examples
 from .grammar import format_grammar
+from .inputs import input_format, list_input_formats
 from .parser import parse_query
+from .plugins import load_user_plugins, xdg_plugin_dir
 from .renderers import list_renderers, render, renderer
 from .runner import QueryResult, run_query
 from .values import ObjectRef, PathRef, Root, Stream
@@ -53,6 +56,7 @@ __all__ = (
     "BuiltinError",
     "EditError",
     "EvalError",
+    "InputSpec",
     "LexError",
     "ObjectRef",
     "ParseError",
@@ -65,14 +69,19 @@ __all__ = (
     "RendererError",
     "Root",
     "Stream",
+    "builtin",
     "format_builtins",
     "format_examples",
     "format_grammar",
+    "input_format",
     "list_builtins",
     "list_examples",
+    "list_input_formats",
     "list_renderers",
+    "load_user_plugins",
     "parse_query",
     "render",
     "renderer",
     "run_query",
+    "xdg_plugin_dir",
 )

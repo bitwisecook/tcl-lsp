@@ -168,16 +168,24 @@ _BUILTINS_LOADED = False
 
 
 def _ensure_builtins_loaded() -> None:
-    """Import the built-in renderer modules on first use.
+    """Import the built-in renderer modules and any user plugins on first use.
 
-    Keeping the import lazy here means ``import core.bigip.query``
+    Keeping the in-tree imports lazy here means ``import core.bigip.query``
     doesn't drag in the mermaid / gantt / ascii-blocks modules for
     callers that never ask for them, but ``--render gantt`` and
     ``lookup("gantt")`` Just Work without the caller needing to know
     where the renderer lives.
+
+    The same call also triggers
+    :func:`~core.bigip.query.plugins.load_user_plugins` so renderers
+    dropped into ``$XDG_CONFIG_HOME/f5q/plugins/`` are visible to the
+    CLI and the Python API alike.
     """
     global _BUILTINS_LOADED
     if _BUILTINS_LOADED:
         return
     _BUILTINS_LOADED = True
+    from ..plugins import load_user_plugins
     from . import ascii_blocks, gantt, mermaid  # noqa: F401  (registration side-effect)
+
+    load_user_plugins()
