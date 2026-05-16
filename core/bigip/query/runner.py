@@ -289,14 +289,21 @@ def run_query(
         # primary input; variables bind to every loaded source so ``$other``
         # remains reachable from inside each iteration.
         #
-        # External JSON inputs (tagged via ``json_sources``) are
-        # excluded from the primary loop — they're bound to
-        # ``$name`` but never act as the implicit ``.`` for a top-
-        # level statement.  Without this skip a BIG-IP query like
-        # ``.ltm.virtual[]`` would try to evaluate against the JSON
-        # tree and fail.
+        # External JSON inputs (tagged via ``json_sources``) are normally
+        # excluded from the primary loop — they're bound to ``$name`` but
+        # never act as the implicit ``.`` for a top-level statement.
+        # Without this skip a BIG-IP query like ``.ltm.virtual[]`` would
+        # try to evaluate against the JSON tree and fail.
+        #
+        # Exception: when *every* source is a structured side-input (the
+        # progressive ``f5q.q(expr, prev_result)`` shape synthesises a
+        # JSON-only source from the prior query's values), we fall
+        # through and iterate the JSON sources as primary instead of
+        # producing an empty result — there's no BIG-IP source for ``.``
+        # to fall back to.
+        all_json = sources and all(_is_json_source(u) for u in sources)
         for uri, source in sources.items():
-            if _is_json_source(uri):
+            if _is_json_source(uri) and not all_json:
                 continue
             named_roots = _build_named_roots(
                 sources={u: (s if u != uri else source) for u, s in sources.items()},

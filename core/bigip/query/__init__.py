@@ -32,7 +32,7 @@ Public entry points:
 from __future__ import annotations
 
 from ._inputs import InputSpec
-from .api import Query, QueryRow, QueryRun
+from .api import Query, QueryRow, QueryRun, Sources, load, q
 from .builtins import builtin, format_builtins, list_builtins
 from .errors import (
     BuiltinError,
@@ -68,6 +68,7 @@ __all__ = (
     "QueryRun",
     "RendererError",
     "Root",
+    "Sources",
     "Stream",
     "builtin",
     "format_builtins",
@@ -78,8 +79,10 @@ __all__ = (
     "list_examples",
     "list_input_formats",
     "list_renderers",
+    "load",
     "load_user_plugins",
     "parse_query",
+    "q",
     "render",
     "renderer",
     "run_query",

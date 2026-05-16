@@ -825,16 +825,34 @@ Highlights of the newer verbs:
   ```
 
 **Use the query engine from Python** — the same engine is importable
-as `f5q` so external scripts can drive queries, get typed values back,
-and ship plugins along three axes (renderers, DSL builtins, input
-formats) via one-line decorators:
+as `f5q` so external scripts can drive queries, build them up
+progressively, render results through plugins or inline callables,
+and ship reusable extensions via one-line decorators:
 
 ```python
-from f5q import Query, builtin, renderer, input_format
+import f5q
 
-# Run a query and iterate typed results.
-for name in Query(".ltm.virtual[] | .name").run(paths=["bigip.conf"]):
+# One-liner: f5q.q() takes (expression, *inputs).
+for name in f5q.q(".ltm.virtual[] | .name", "bigip.conf"):
     print(name)
+
+# Progressive — chain queries on top of each other (typed wrapper, immutable).
+filtered = (
+    f5q.q(".ltm.virtual[]", "bigip.conf")
+    .q('.[] | select(.pool != null)')
+    .q('.[] | .name')
+)
+
+# Render via a registered plugin OR an inline callable.
+filtered.render("ascii-blocks")
+filtered.render(lambda values, **opts: ", ".join(map(str, values)) + "\n")
+
+# Coerce to plain JSON-friendly Python.
+data = filtered.out()                            # [{"kind": ..., "fields": {...}}, ...]
+
+# Pre-stage once, query many times. Custom file formats? Pass an inline parser.
+corpus = f5q.load("ltm.conf", "gtm.conf")
+routes = f5q.load("routes.xml", parser=my_xml_parser)
 
 # Ship a custom renderer the f5 CLI can dispatch via --render NAME.
 @renderer("md-table", summary="Markdown table of results.", accepts="any")

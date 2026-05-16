@@ -29,30 +29,83 @@ The engine is exposed as the top-level **`f5q`** package.  Everything
 external scripts normally need lives at the top level — no reaching
 into `core.bigip.query` internals.
 
-### 1. Run a query and iterate results
+### 1. The one-liner — `f5q.q()`
+
+`f5q.q()` is the polymorphic single-call entry.  The first string
+that is **not** an existing file path is the expression; everything
+else is an input (file path, `Sources`, a prior result, or in-memory
+data):
 
 ```python
-from f5q import Query
+import f5q
 
-run = Query(".ltm.virtual[] | .name").run(paths=["bigip.conf"])
-
-for name in run:
+# Expression + file.
+for name in f5q.q(".ltm.virtual[] | .name", "bigip.conf"):
     print(name)
 ```
 
-`Query.run` accepts either `paths=[...]` (files read from disk) or
-`sources={uri: text}` (already loaded), or both — when both name the
-same URI the in-memory text wins.
+The return value is a `QueryRun` — it iterates like a list, indexes
+like a list, supports `len()` / `bool()`, and exposes one method per
+"what shape do I want this in" question.
 
-### 2. Get typed values back
+### 2. Pre-staging — `f5q.load()`
 
-The result wraps the underlying `QueryResult` and exposes the shapes
-external scripts normally want:
+When one corpus feeds many queries, load it once:
 
 ```python
-from f5q import Query
+corpus = f5q.load("ltm.conf", "gtm.conf")
+virtuals = f5q.q(".ltm.virtual[]", corpus)
+pools = f5q.q(".ltm.pool[]", corpus)
+```
 
-run = Query(".ltm.virtual[]").run(paths=["bigip.conf"])
+`load()` accepts file paths, `pathlib.Path` objects, other
+`Sources` (merged in), and **in-memory** dicts / lists / tuples
+(wrapped as JSON data the DSL can navigate).
+
+### 3. Progressive queries — chain the result
+
+Every `QueryRun` can be fed back into `f5q.q()`, or queried via the
+method form `run.q(...)`.  The prior values become the new primary
+input — `.` reads the synthesised list, so `.[]` iterates jq-style:
+
+```python
+# Function form.
+virtuals = f5q.q(".ltm.virtual[] | .name", "bigip.conf")
+web_vses = f5q.q('.[] | select(contains(., "web"))', virtuals)
+
+# Method form — identical semantics, reads top-down.
+web_vses = (
+    f5q.q(".ltm.virtual[] | .name", "bigip.conf")
+    .q('.[] | select(contains(., "web"))')
+    .q("count")
+)
+```
+
+Multiple priors combine into one flat list:
+
+```python
+all_names = f5q.q(".[]", virtuals, pools)   # union
+```
+
+Mix a prior with a file and the prior binds as `$_chain` while the
+file acts as primary — useful for "join my prior result against a
+config":
+
+```python
+keep = f5q.q(".ltm.virtual[] | .name", "v1.conf")
+matched = f5q.q(
+    ".ltm.virtual[] | select(contains($_chain, .name))",
+    keep,
+    "v2.conf",
+)
+```
+
+### 4. Get typed values back
+
+`QueryRun` exposes the shapes external scripts normally want:
+
+```python
+run = f5q.q(".ltm.virtual[]", "bigip.conf")
 
 run.values()    # flat list of every value the query produced
 run.first()     # the first value, or None
@@ -65,13 +118,28 @@ run.rows()      # [QueryRow(uri, value), ...] keeping the source URI
 your script can pattern-match on them without importing anything from
 `core.bigip.query`.
 
-### 3. Apply a mutation and read back the rewritten config
+### 5. Get plain JSON-compatible Python — `.out()`
+
+Typed handles (`ObjectRef.full_path`, `.fields`, …) are great for
+graph walks but they don't JSON-serialise.  `.out()` coerces:
 
 ```python
-from f5q import Query
+import json
 
-run = Query('.ltm.virtual[].destination |= ip("192.168.9.0/24", .)').run(
-    paths=["bigip.conf"],
+text = json.dumps(f5q.q(".ltm.virtual[]", "bigip.conf").out())
+# ObjectRef → {"kind": ..., "full-path": ..., "fields": {...}}
+# PathRef → str
+# Stream → list
+```
+
+### 6. Apply a mutation and read back the rewritten config
+
+```python
+import f5q
+
+run = f5q.q(
+    '.ltm.virtual[].destination |= ip("192.168.9.0/24", .)',
+    "bigip.conf",
 )
 
 if run.result.has_mutation:
@@ -80,11 +148,11 @@ if run.result.has_mutation:
         print(rewritten)  # the new file contents
 ```
 
-Edits stay in memory — `Query.run` never writes to disk.  The CLI's
+Edits stay in memory — `f5q.q()` never writes to disk.  The CLI's
 `--in-place` is implemented on top of the same API: it just calls
 `Path(uri).write_text(run.edits(uri))`.
 
-### 4. Render with a built-in plugin
+### 9. Render with a built-in plugin
 
 The same renderer plugins `f5 q --render NAME` dispatches to are
 reachable from Python:
@@ -110,7 +178,35 @@ Three renderers ship in-tree: `gantt`, `ascii-blocks`, `mermaid`.
 List them with `from f5q import list_renderers; print(list_renderers())`
 or via `f5 q --help-renderers` on the CLI.
 
-### 5. Ship a custom renderer
+### 7. Inline callables — the one-off escape hatch
+
+When a custom renderer or input parser is one-shot (a script doesn't
+deserve its own XDG plugin), pass a **function directly** anywhere
+the API accepts a registered name:
+
+```python
+# Inline renderer — a callable matching (values, **opts) -> str.
+text = f5q.q(".ltm.virtual[] | .name", "bigip.conf").render(
+    lambda values, **opts: ", ".join(str(v) for v in values) + "\n"
+)
+
+# Inline input parser — (source, *, uri, options=()) -> Any.
+def parse_xml(source, *, uri, options=()):
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(source)
+    return [e.attrib for e in root]
+
+routes = f5q.load("routes.xml", parser=parse_xml)
+# or in one shot:
+hits = f5q.q(".items[].name", "routes.xml", parser=parse_xml)
+```
+
+Use inline callables for **one-offs**.  When the same renderer or
+parser is going to be used by more than one script, register it as
+an XDG plugin (next section) so the CLI and other scripts pick it
+up without copy-paste.
+
+### 8. Ship a custom renderer
 
 ```python
 from f5q import renderer
@@ -131,7 +227,7 @@ def _render_md_table(values, **opts):
     return "\n".join(out) + "\n"
 ```
 
-### 6. Ship a custom builtin function
+### 10. Ship a custom builtin function
 
 The same engine that registers `length`, `select`, `ip`, and the
 other in-tree builtins is exposed as the public `@builtin`
@@ -161,7 +257,7 @@ documented in the [renderer contract design
 doc](../design/f5-query-renderer-contract.md) and modelled by the
 in-tree builtins.
 
-### 7. Ship a custom input format
+### 11. Ship a custom input format
 
 ```python
 from f5q import input_format
@@ -183,7 +279,7 @@ is the generic flag the engine routes through any registered
 format — the typed `--input-json` / `--input-jsonl` / `--input-csv`
 / `--input-f5log` shorthands are kept for compatibility.
 
-### 8. Auto-load plugins from `~/.config/f5q/plugins/`
+### 12. Auto-load plugins from `~/.config/f5q/plugins/`
 
 The engine scans `$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
 `~/.config/f5q/plugins/*.py`) on the first registry access.  Drop a
