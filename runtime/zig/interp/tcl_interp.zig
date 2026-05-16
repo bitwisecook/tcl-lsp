@@ -1100,7 +1100,11 @@ pub fn eval_if(words: []const i32) i32 {
 }
 
 pub fn eval_while(words: []const i32) i32 {
-    if (words.len < 3) return 0;
+    if (words.len != 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"while test command\"");
+        return 0;
+    }
     const cond_s = obj_ensure_string(words[1]);
     const body_s = obj_ensure_string(words[2]);
     var result: i32 = 0;
@@ -1131,7 +1135,11 @@ pub fn eval_while(words: []const i32) i32 {
 }
 
 pub fn eval_for(words: []const i32) i32 {
-    if (words.len < 5) return 0;
+    if (words.len != 5) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"for start test next command\"");
+        return 0;
+    }
     const init_s = obj_ensure_string(words[1]);
     const cond_s = obj_ensure_string(words[2]);
     const next_s = obj_ensure_string(words[3]);
