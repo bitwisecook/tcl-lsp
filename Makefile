@@ -315,19 +315,29 @@ typecheck-ts: $(NPM_STAMP) copy-canonical ## Type-check TypeScript extension cod
 	@echo "==> Type-checking TypeScript code with tsc"
 	cd $(EXT_DIR) && $(NPM) run compile
 
-test-ext: compile ensure-vscode-test-deps ## Run VS Code extension integration tests
-	@echo "==> Running VS Code extension tests"
-	@if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+test-ext: ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
+	@# Single-shell recipe so SKIP_TEST_EXT=1 truly bypasses everything
+	@# (compile + xvfb install + test host).  Without ``set -eu`` the
+	@# early ``exit 0`` would only end its own recipe-line shell and
+	@# make would run the next lines anyway.
+	@set -eu; \
+	if [ -n "$${SKIP_TEST_EXT:-}" ]; then \
+		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
+		exit 0; \
+	fi; \
+	"$(MAKE)" compile ensure-vscode-test-deps; \
+	echo "==> Running VS Code extension tests"; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
 		if command -v xvfb-run >/dev/null 2>&1; then \
 			echo "==> No DISPLAY detected; running VS Code tests under xvfb-run"; \
-			cd $(EXT_DIR) && xvfb-run -a $(NPM) test; \
+			cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" test; \
 		else \
-			echo "ERROR: DISPLAY is unset and xvfb-run is not available."; \
-			echo "Install xvfb (provides xvfb-run) or set DISPLAY to run extension tests."; \
+			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; \
+			echo "Install xvfb (provides xvfb-run) or set DISPLAY to run extension tests." >&2; \
 			exit 1; \
 		fi; \
 	else \
-		cd $(EXT_DIR) && $(NPM) test; \
+		cd "$(EXT_DIR)" && "$(NPM)" test; \
 	fi
 
 # Coverage targets (reports go to tmp/coverage/, which is gitignored)
@@ -514,9 +524,12 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 # subsumes check-all by running prep-pr).
 #
 # Covers: prep-pr (format/codegen/lint/typecheck/test-py/test-opt/parity) +
-# Zig & Rust lint/typecheck + VM tcltest + tclpkg + VS Code extension +
-# Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust
-# workspace tests (when present).
+# Zig & Rust lint/typecheck + tclpkg + VS Code extension + Zig WASM
+# runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace
+# tests (when present).  The Python-VM tcltest sweep (``test-vm`` /
+# pyvm) is *not* included by default — it adds multi-minute CPU
+# pressure that makes the surrounding timing-sensitive suites flake;
+# set ``RUN_TEST_VM=1`` to include it.
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
@@ -530,7 +543,19 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
 	@$(MAKE) prep-pr
 	@echo "==> test-slow: running cross-language lint/typecheck + heavy suites in parallel"
-	@$(MAKE) -j $(NPROC) check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust
+	@# pyvm (test-vm) is a multi-minute Python-VM tcltest sweep that's
+	@# slow enough to dominate the parallel batch's wall time.  Skip it by
+	@# default in test-slow; opt in with RUN_TEST_VM=1.  When opting in,
+	@# explicitly unset SKIP_TEST_VM in the sub-make environment so a
+	@# developer with SKIP_TEST_VM=1 exported globally doesn't silently
+	@# get a no-op test-vm under what looks like an explicit opt-in run.
+	@if [ -n "$${RUN_TEST_VM:-}" ]; then \
+		echo "==> test-slow: RUN_TEST_VM set — including pyvm (test-vm) in the batch"; \
+		env -u SKIP_TEST_VM $(MAKE) -j $(NPROC) check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
+	else \
+		echo "==> test-slow: skipping pyvm (test-vm) — set RUN_TEST_VM=1 to include it"; \
+		SKIP_TEST_VM=1 $(MAKE) -j $(NPROC) check-zig check-rust test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
+	fi
 	@mkdir -p $(ROOT)tmp
 	@$(ROOT)scripts/worktree-fingerprint.sh | tee $(ROOT)tmp/check-all.stamp > $(ROOT)tmp/test-slow.stamp
 	@echo "==> test-slow: PASSED — stamped tmp/check-all.stamp + tmp/test-slow.stamp"
@@ -653,7 +678,11 @@ ensure-emacs-deps: ## Install Emacs needed by test-emacs
 	fi
 
 ensure-vscode-test-deps: ## Install xvfb for Linux headless VS Code extension tests
-	@env \
+	@if [ -n "$${SKIP_TEST_EXT:-}" ]; then \
+		echo "==> ensure-vscode-test-deps: SKIP_TEST_EXT set — skipping xvfb install"; \
+		exit 0; \
+	fi; \
+	env \
 		SKIP_TCLSH=1 \
 		SKIP_NODE=1 \
 		SKIP_KOTLINC=1 \
