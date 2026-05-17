@@ -127,6 +127,16 @@ if git -C "$MIRROR_DIR" ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>
     exit 0
 fi
 
+# A previous TCL_LSP_SUBLIME_DRY_RUN=1 invocation may have created the
+# tag locally but skipped the push. The remote check above confirmed the
+# tag is unpublished, so the stale local pointer should be regenerated
+# against the freshly-staged commit rather than blocking the real publish
+# with `git tag: tag '...' already exists`.
+if git -C "$MIRROR_DIR" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+    echo "==> Clearing stale local tag $TAG left over from a previous dry-run"
+    git -C "$MIRROR_DIR" tag -d "$TAG" >/dev/null
+fi
+
 # 5. Replace mirror tree with build/sublime-stage. Preserve .git only.
 echo "==> Refreshing mirror tree from $STAGE_DIR"
 find "$MIRROR_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
