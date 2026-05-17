@@ -1,0 +1,32 @@
+# string.test categorisation (Tcl 9.0.3 source tree).
+# 691 / 705 passing (7 ``good_to_have`` failures, 7 skipped).
+# All Unicode case-fold + glob match + ``binary decode hex`` +
+# bytearray-aware string tests now pass; the residuals are:
+#   - 10.20.1.0 — ``dict create`` does not coalesce duplicate keys
+#     (separate dict.test follow-up).
+#   - 12.23 / 14.21 / 14.22 / 17.9 — operations on a supplementary
+#     codepoint where Tcl 9's UTF-16 internal storage would split
+#     the surrogate pair mid-operation; our UTF-8-only storage
+#     can't replicate that without a wider rewrite.
+#   - 14.26 — ``string replace abcd 0x10000000000000000-0xffff... 2 e``
+#     uses a math-expression index that we don't currently evaluate
+#     inside ``Tcl_GetIntForIndex``.
+#   - 29.4 — ``eval "string cat <260 args>"`` trips an unknown-command
+#     path inside the eval substitution pipeline (separate fix).
+
+good_to_have = [
+  "10.20.1.0",
+  "12.23.0",
+  "14.21.0",
+  "14.22.0",
+  "stringComp-14.26.0",
+  "17.9.0",
+  "29.4.0",
+]
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 7
+just_to_match_ctcl_failing = 0
+skip_failing = 0

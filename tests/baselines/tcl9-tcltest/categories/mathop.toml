@@ -1,18 +1,32 @@
 # mathop.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — ::tcltest::test gets an integer-shaped name due to operator dispatch issue.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle reaches its tcltest summary line now.  Residual must_pass
+# failures are the prefix-form math operators (``::tcl::mathop::*``)
+# that haven't been wired up as runtime commands: ``::tcl::mathop::&``
+# / ``::tcl::mathop::|`` / ``::tcl::mathop::^`` arity / domain checks,
+# and the ``::tcl::mathop::~`` / ``::tcl::mathop::!`` chained-arg
+# semantics.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  # 20.x: ``::tcl::mathop::&`` arity / fold semantics.
+  "20.2", "20.5", "20.6",
+  # 21.x: ``::tcl::mathop::|`` arity / fold.
+  "21.5", "21.6",
+  # 22.x: ``::tcl::mathop::^`` arity / fold.
+  "22.2", "22.4",
+  # 24.x: ``::tcl::mathop::~`` (bitnot) operand / chain.
+  "24.1", "24.3", "24.5", "24.8",
+  # 25.x: ``::tcl::mathop::!`` boolean coercion + chaining.
+  "25.15", "25.16", "25.17", "25.18",
+  "25.26", "25.27", "25.28", "25.29", "25.30", "25.31",
+  "25.32", "25.33", "25.34", "25.35", "25.36", "25.38",
+  "25.41",
+  # 26.x: prefix-form comparison ops.
+  "26.1",
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 29
 just_to_match_ctcl_failing = 0
 skip_failing = 0

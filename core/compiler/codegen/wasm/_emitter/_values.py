@@ -220,6 +220,72 @@ def _split_top_level_commands(text: str) -> list[str]:
     return parts
 
 
+def _outer_brackets_balanced(value: str) -> bool:
+    """Return True if the leading ``[`` matches the trailing ``]``.
+
+    Walks left-to-right tracking ``[`` depth; the outer brackets
+    are balanced when depth never returns to zero before reaching
+    the final character.  Used to distinguish a single command
+    substitution (``[cmd args]``) from concatenated cmd-subs
+    (``[cmd1][cmd2]``) — the latter closes the first ``[`` at the
+    midpoint, so the outer-strip path must NOT fire.
+
+    Braced words inside the bracket (``[set foo {nested]bracket}]``)
+    suppress ``]`` consumption; backslash-escaped brackets
+    (``\\[`` / ``\\]``) don't count either.  Mirrors the parser's
+    ``skip_command_subst`` discipline.
+    """
+    if len(value) < 2 or value[0] != "[" or value[-1] != "]":
+        return False
+    depth = 0
+    i = 0
+    n = len(value)
+    at_word_start = True
+    while i < n:
+        c = value[i]
+        if c == "\\" and i + 1 < n:
+            i += 2
+            continue
+        if c in (" ", "\t", "\n", "\r", ";"):
+            at_word_start = True
+            i += 1
+            continue
+        if at_word_start and c == "{":
+            i += 1
+            bdepth = 1
+            while i < n and bdepth > 0:
+                if value[i] == "\\" and i + 1 < n:
+                    i += 2
+                    continue
+                if value[i] == "{":
+                    bdepth += 1
+                elif value[i] == "}":
+                    bdepth -= 1
+                i += 1
+            at_word_start = False
+            continue
+        if at_word_start and c == '"':
+            i += 1
+            while i < n and value[i] != '"':
+                if value[i] == "\\" and i + 1 < n:
+                    i += 2
+                else:
+                    i += 1
+            if i < n:
+                i += 1
+            at_word_start = False
+            continue
+        at_word_start = False
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+            if depth == 0 and i < n - 1:
+                return False
+        i += 1
+    return depth == 0
+
+
 def _outer_braces_balanced(value: str) -> bool:
     """Return True if the leading ``{`` matches the trailing ``}``.
 
@@ -384,8 +450,13 @@ class _WasmEmitterValuesMixin(_Base):
         if was_braced:
             self._emit_obj_literal(value)
             return Ownership.OWNED
-        # Command substitution: [cmd arg1 arg2 ...]
-        if value.startswith("[") and value.endswith("]"):
+        # Command substitution: [cmd arg1 arg2 ...].  Only treat the
+        # whole word as a single cmd-sub when the leading ``[`` truly
+        # closes at the trailing ``]`` — concatenated subs like
+        # ``[set a 1][set b 2]`` close the first ``[`` mid-word and
+        # must route through the interpolated-value path so each
+        # cmd-sub runs and the results are concatenated.
+        if value.startswith("[") and value.endswith("]") and _outer_brackets_balanced(value):
             self._emit_command_subst_value(value)
             return Ownership.OWNED
         # Interpolated string: contains embedded $var/${var}/[cmd]
@@ -1122,14 +1193,18 @@ class _WasmEmitterValuesMixin(_Base):
                             self._emit_call(list_create_idx)
                         self._emit_call(lr_list_idx)
                     return
-                if cmd_name in ("lsort",) and len(cmd_args) > param_count:
-                    # ``lsort ?-switches? list`` — runtime export is
-                    # the no-switch form; grab the trailing positional
-                    # list rather than treating ``-integer`` as the list
-                    # itself and returning the single-element result.
-                    self._emit_value(cmd_args[-1])
-                    for _ in range(param_count - 1):
-                        self._emit_i32_const(0)
+                if cmd_name in ("lsort", "lsearch") and len(cmd_args) > param_count:
+                    # ``lsort ?-switches? list`` / ``lsearch ?-switches?
+                    # list pattern`` — the runtime export is the no-
+                    # switch form, but the interpreter's ``eval_lsort``
+                    # / ``eval_lsearch`` knows the full option matrix.
+                    # Route variadic-overflow calls through the eval
+                    # fallback (which dispatches via the runtime
+                    # command table) so the options are parsed and
+                    # honoured.  Plain ``[lsort $L]`` keeps the fast
+                    # path because len(cmd_args) == param_count.
+                    self._emit_eval_fallback(cmd_name, tuple(cmd_args))
+                    return
                 elif cmd_name == "apply":
                     # ``apply lambda ?arg ...?`` — the runtime export's
                     # second param is a Tcl *list* of every positional

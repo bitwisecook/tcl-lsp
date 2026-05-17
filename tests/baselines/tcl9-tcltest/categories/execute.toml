@@ -1,0 +1,21 @@
+# Categorisation for execute.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "7.0",    # execute-7.0: ``expr {$x && 1}`` with $x=0x100000000
+            # (4 GiB) should evaluate to 1.  Our interp expr_or
+            # path unboxes via obj_get_int which truncates to the
+            # low 32 bits → 0 → returns 0 instead of 1.
+  "7.28",   # execute-7.28: ``expr {!$x}`` with $x=0x123456871234568
+            # (a 53-bit hex literal) should return 0.  Our parser
+            # rejects it as "non-numeric" instead of treating it as
+            # a wide-int operand.
+  "10.1",   # execute-10.1: ``apply {{} { binary scan ... ; list $x
+            # [scan $s$s %c%c] }} İ`` — exercises INST_CONCAT1
+            # behaviour with the multi-byte Turkish capital İ.
+            # Our string concat collapses the bytes differently.
+]
+
+[baseline]
+good_to_have_failing = 3

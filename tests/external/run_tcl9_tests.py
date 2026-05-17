@@ -121,7 +121,19 @@ set ::argc 0
 set ::tcl_interactive 0
 set ::auto_path {}
 set ::tcl_library ""
-array set ::env {}
+# Seed ::env with the handful of variables tcltest bundles probe at
+# load time.  chanio.test / io.test / fCmd.test all read ``::env(HOME)``
+# inside a ``testConstraint`` body that runs *before* any individual
+# test, so an unset HOME traps the whole bundle.  Pointing HOME at the
+# preopened tmpdir lets the constraint check evaluate cleanly without
+# granting writable-HOME (``[file writable]`` returns 0 on the
+# read-only mount), which is the same answer real tclsh gives in a
+# sandboxed environment.
+array set ::env {
+    HOME "/"
+    PATH ""
+    USER "wasm"
+}
 
 # ``tcl_platform`` — real tclsh exports a dozen-key array that
 # tcltest reads at line 288 / 312 (``$::tcl_platform(platform)``,
@@ -355,6 +367,25 @@ namespace import -force ::tcltest::*
 # even when several tests fail.  Tracked separately from the
 # clock work in tcl_cmd_append.
 proc ::tcltest::Asciify {s} { return $s }
+
+# Pre-seed the host-environment testConstraints to 0 so tests gated
+# on them are skipped rather than running against a half-functional
+# stub.  Without this, basic-46.1 / basic-46.2 / basic-46.3 (and a
+# handful of others) hit the constraint-undefined ``SafeFetch`` path
+# which calls the constraint initializer — for ``stdio`` that's
+# ``open "|[interpreter]" w``.  Our WASM runtime's pipe-form open
+# raises ``i/o error`` which the initializer's ``catch`` swallows,
+# leaving the constraint *empty* rather than 0.  An empty constraint
+# in tcltest 2.5 is treated as truthy by ``RunTest`` so the test
+# body runs and immediately hangs on ``gets $f`` against a non-
+# existent channel.  Explicitly setting the constraint to 0 short-
+# circuits the initializer trace and keeps the gated tests in the
+# Skipped column.
+::tcltest::testConstraint stdio 0
+::tcltest::testConstraint exec 0
+::tcltest::testConstraint socket 0
+::tcltest::testConstraint thread 0
+::tcltest::testConstraint testbytestring 0
 """
 
 
@@ -977,11 +1008,20 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                         src_path = helpers_dir / helper
                         if src_path.exists():
                             shutil.copyfile(src_path, Path(host_tmp) / helper)
+                    # 45s wasmtime epoch watchdog: most healthy
+                    # bundles finish in under 5s, the slowest non-pathological
+                    # one (interp.test) takes ~12s.  A 45s cap surfaces
+                    # genuine hangs (basic.test's pipe-based loop, expr-old's
+                    # bignum overflow probes) as a trap that ``trap_allowed``
+                    # / the buckets gate can categorise, instead of
+                    # leaving the subprocess wrapper to kill the whole
+                    # pytest invocation at its 60s boundary.
                     result = _run_wasm(
                         wasm,
                         capture_stdout=True,
                         capture_stderr=True,
                         preopen_tmpdir=host_tmp,
+                        timeout_s=45,
                     )
                 ran = True
                 stdout = result[1] if len(result) >= 2 else ""

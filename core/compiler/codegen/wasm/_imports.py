@@ -292,6 +292,19 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
         [ValType.I32, ValType.I32],
         [ValType.I32],
     ),
+    # ``tcl_expr_eq_nan_aware(a, b)`` — returns 1 if *a* and *b* are
+    # equal under Tcl 9 ``==`` semantics, 0 otherwise.  Differs from
+    # ``tcl_expr_order_cmp`` by returning 0 when either operand is a
+    # NaN value (IEEE-754: NaN is unordered with respect to
+    # everything, including itself).  Used by the ``==`` / ``!=``
+    # codegen so ``expr {NaN == NaN}`` returns 0 instead of the
+    # bytewise-equal 1.
+    "tcl_expr_eq_nan_aware": (
+        "tcl",
+        "tcl_expr_eq_nan_aware",
+        [ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Canonicalise an obj via the expression parser — single-token
     # ``expr {$var}`` semantics.  Returns the canonical numeric obj
     # when the string parses as a Tcl integer / hex / octal / binary /

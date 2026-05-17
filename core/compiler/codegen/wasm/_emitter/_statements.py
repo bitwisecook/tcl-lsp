@@ -1574,7 +1574,13 @@ class _WasmEmitterStmtMixin(_Base):
                         if "\\" in a:
                             candidate = _tcl_backslash_subst(a)
                             try:
-                                candidate.encode("utf-8")
+                                # ``surrogatepass`` lets lone-surrogate
+                                # literals (``😂`` in Tcl 9
+                                # corpus) round-trip through the data
+                                # segment as 3-byte WTF-8 — the runtime
+                                # reads them back via tcl_bs.zig and
+                                # produces the same codepoints.
+                                candidate.encode("utf-8", errors="surrogatepass")
                             except UnicodeEncodeError:
                                 prepped = None  # signal: use raw path
                             else:

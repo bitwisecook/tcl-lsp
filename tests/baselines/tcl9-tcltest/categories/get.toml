@@ -1,0 +1,20 @@
+# Categorisation for get.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "2.4",    # get-2.4: ``format %g`` of a 300-digit ``0.000…001``
+            # should produce ``0`` (underflow folded) — our %g codec
+            # preserves the small mantissa and emits a tiny non-zero
+            # value.
+  "3.1",    # get-3.1: ``Tcl_GetInt`` should reject double-sign
+            # forms like ``++1``, ``+-1``, ``-+1``, ``--1``.  Our
+            # parser accepts the leading ``+``/``-`` and re-parses
+            # the remainder, so ``--1`` becomes ``1`` and ``-+1``
+            # becomes ``-1``.
+  "3.2",    # get-3.2: same shape but for ``Tcl_GetDouble`` —
+            # ``++1.0`` etc. should fail.  Same root cause as 3.1.
+]
+
+[baseline]
+good_to_have_failing = 3

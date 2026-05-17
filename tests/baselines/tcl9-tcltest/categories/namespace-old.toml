@@ -1,18 +1,37 @@
 # namespace-old.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — namespace-old.test traps in a test-namespace command before summary.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle reaches its tcltest summary line now.  Residual failures
+# cluster around the same namespace gaps the main ``namespace.test``
+# carries: child-interp namespace resolution, ``namespace path``
+# ordering, ``namespace import -force`` edge cases, ``namespace
+# upvar`` aliasing in compiled bodies.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  # 1.x — basic namespace eval / commands / export / import shapes.
+  "1.1", "1.3", "1.6", "1.7", "1.11", "1.15", "1.16",
+  "1.23", "1.24", "1.26",
+  # 2.x — namespace which / namespace origin.
+  "2.1", "2.2", "2.3", "2.4", "2.6", "2.8",
+  # 3.x — variable resolution across nested namespaces.
+  "3.1", "3.2", "3.3",
+  # 4.x — namespace tail.
+  "4.3",
+  # 5.x — namespace eval body scoping.
+  "5.7", "5.9", "5.18", "5.21",
+  # 6.x — namespace import / forget combinations.
+  "6.6", "6.11", "6.12", "6.13", "6.14", "6.15", "6.16", "6.17", "6.19",
+  # 7.x — namespace export filtering and pattern propagation.
+  "7.2", "7.3", "7.4", "7.5", "7.6", "7.9", "7.10", "7.11",
+  # 8.x — namespace delete edge cases.
+  "8.1",
+  # 9.x — namespace ensemble option propagation.
+  "9.2", "9.4", "9.5", "9.12", "9.14", "9.15", "9.17", "9.18", "9.19",
+  # 10.x — namespace upvar through compiled bodies.
+  "10.1", "10.2", "10.3", "10.8",
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 55
 just_to_match_ctcl_failing = 0
 skip_failing = 0

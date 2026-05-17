@@ -1,0 +1,21 @@
+# Categorisation for tailcall.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "12.1",   # tailcall-12.1: [Bug 2649975] — ``tailcall`` should
+            # unwind the current frame and resume in the caller's
+            # frame, observing variables visible at the *caller's*
+            # level.  Our implementation doesn't propagate the
+            # variable-resolution context through the tailcall jump,
+            # so the chained ``puts $v`` calls see an empty scope.
+  "12.2",   # tailcall-12.2: same shape, deeper chain.
+  "13.1",   # tailcall-13.1: ``tailcall tailcall subst ok`` —
+            # recursive tailcall of tailcall itself should resolve
+            # to ``subst ok``.  Our impl resolves only one level
+            # and falls through to the next statement (``subst c``).
+  "13.2",   # tailcall-13.2: same — chained tailcall + apply frame.
+]
+
+[baseline]
+good_to_have_failing = 4

@@ -117,7 +117,12 @@ pub fn consume_bs_escape(
             return .{ .next_si = si, .written = encode_utf8(out, val) };
         },
         'u' => {
-            // ``\uNNNN`` — up to 4 hex digits → UTF-8.
+            // ``\uNNNN`` — up to 4 hex digits → UTF-8.  When the
+            // result is a high surrogate (0xD800-0xDBFF) and the
+            // immediately following bytes form ``\uYYYY`` with YYYY
+            // a low surrogate (0xDC00-0xDFFF), combine the pair into
+            // a single supplementary-plane codepoint (Tcl 9
+            // ``tclParse.c`` ``TclParseBackslash`` behaviour).
             si += 1;
             var cp: u32 = 0;
             var ndig: u32 = 0;
@@ -136,6 +141,33 @@ pub fn consume_bs_escape(
                     si += 1;
                     ndig += 1;
                 } else break;
+            }
+            if (cp >= 0xD800 and cp <= 0xDBFF and si + 1 < len and
+                src[si] == '\\' and src[si + 1] == 'u')
+            {
+                var probe = si + 2;
+                var low: u32 = 0;
+                var ndig2: u32 = 0;
+                while (ndig2 < 4 and probe < len) {
+                    const c = src[probe];
+                    if (c >= '0' and c <= '9') {
+                        low = low * 16 + @as(u32, c - '0');
+                        probe += 1;
+                        ndig2 += 1;
+                    } else if (c >= 'a' and c <= 'f') {
+                        low = low * 16 + @as(u32, c - 'a' + 10);
+                        probe += 1;
+                        ndig2 += 1;
+                    } else if (c >= 'A' and c <= 'F') {
+                        low = low * 16 + @as(u32, c - 'A' + 10);
+                        probe += 1;
+                        ndig2 += 1;
+                    } else break;
+                }
+                if (ndig2 == 4 and low >= 0xDC00 and low <= 0xDFFF) {
+                    cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+                    si = probe;
+                }
             }
             return .{ .next_si = si, .written = encode_utf8(out, cp) };
         },

@@ -1,18 +1,24 @@
 # parse.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — Bundle traps inside ParseCommand at WASM-host boundary.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle reaches its tcltest summary line now.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  "8.12",   # parse-8.12: ``Tcl_EvalObjv`` w/ TCL_EVAL_INVOKE shape
+            # — ``auto_index`` namespace-resolved alias dispatch
+            # through a child interp alias.  Needs the full
+            # auto_index + ``namespace eval`` + child-interp alias
+            # interaction to round-trip; our scaffold's auto_loader
+            # is a no-op so the auto_index entry is never picked up.
+  "18.11",  # parse-18.11: ``subst foo\$array(\$\{foo)`` — the
+            # ``\$\{`` should be reported as ``missing close-brace
+            # for variable name`` by the subst parser.  Our subst
+            # tokeniser handles ``${foo}`` and ``$arr(k)`` but the
+            # combined ``$arr(${...`` form trips a different
+            # diagnostic.
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 2
 just_to_match_ctcl_failing = 0
 skip_failing = 0

@@ -1,18 +1,34 @@
 # cmdAH.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — cmdAH.test traps inside valt operand handling before summary.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle reaches its tcltest summary line now (3885 / 4053 passing).
+# Residual must_pass failures span:
+#   - 1.x: ``case`` command argument shapes (legacy Tcl 6 alias for
+#     switch — partially supported)
+#   - 5.x / 8.x / 19.x / 20.x: ``file`` subcommand edge cases
+#     (attribute reads, link target resolution, stat fields)
+#   - 23.x / 24.x: ``encoding system`` / ``encoding convertto`` /
+#     ``encoding convertfrom`` round-trip checks
+#   - 27.x / 28.x / 29.x: ``foreach`` body source-line probes
+#   - 31.x: clock corner cases (timezone aliases, ms / us precision)
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  "1.4", "1.5",        # case command — legacy alias arg shapes.
+  "5.4",                # file attribute read.
+  "8.46",               # file stat field.
+  "19.2", "19.3",       # file link / link target resolution.
+  "20.3", "20.5",       # file attribute write.
+  "23.11",              # encoding system enumeration.
+  "24.4", "24.8",       # encoding convertfrom / convertto round-trip.
+  "27.3",               # foreach body source-line probe.
+  "28.6",               # foreach body multi-list-arg.
+  "29.5",               # foreach body break-in-nested-list.
+  "31.5", "31.6",       # clock format with timezone alias.
+  "31.8", "31.9",       # clock scan with ambiguous timezone.
+  "31.11", "31.12", "31.13",  # clock millisecond / microsecond precision.
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 21
 just_to_match_ctcl_failing = 0
 skip_failing = 0

@@ -1,0 +1,25 @@
+# Categorisation for safe.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "6.1",    # safe-6.1: ``SafeEval {info globals}`` should expose
+            # ``tcl_interactive tcl_patchLevel tcl_platform
+            # tcl_version`` inside the safe child interp.  Our
+            # safe-interp scaffold doesn't pre-seed these globals
+            # into the child's frame, so the lsort is empty.
+  "6.3",    # safe-6.3: ``SafeEval {array names tcl_platform}`` —
+            # same root cause as 6.1; the child interp's
+            # tcl_platform array isn't populated.
+  "7.3",    # safe-7.3: ``safe::interpCreate`` not bound — the
+            # ``safe`` package's Tcl-side bootstrap requires
+            # ``info nameofexecutable``, ``auto_path``, and the
+            # ``safe::Setup`` proc to run before
+            # ``::safe::interpCreate`` becomes available.
+  "9.4",    # safe-9.4: same root cause — ``safe::interpCreate``
+            # not bound (dual ``-stat false -nostat`` option
+            # handling never runs).
+]
+
+[baseline]
+good_to_have_failing = 4

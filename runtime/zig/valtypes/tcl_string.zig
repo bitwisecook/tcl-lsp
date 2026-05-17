@@ -110,34 +110,42 @@ pub export fn string_compare(a: i32, b: i32) i32 {
 }
 
 /// ``string compare ?-nocase? ?-length N? a b`` — full-arity helper.
-/// ``nocase != 0`` switches to case-insensitive ASCII comparison;
-/// ``len_limit < 0`` means no length cap, ``len_limit >= 0`` clamps
-/// the comparison to the first ``len_limit`` bytes.  Returns a
-/// TclObj wrapping ``-1`` / ``0`` / ``1``.
+/// ``nocase != 0`` switches to case-insensitive (Unicode-aware)
+/// comparison; ``len_limit < 0`` means no length cap, ``len_limit
+/// >= 0`` caps the comparison to the first ``len_limit`` codepoints
+/// (chars, not bytes — per Tcl 9 ``string compare -length`` docs).
+/// Returns a TclObj wrapping ``-1`` / ``0`` / ``1``.
 pub export fn string_compare_full(a: i32, b: i32, nocase: i32, len_limit: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
-    var ea: u32 = sa.len;
-    var eb: u32 = sb.len;
-    if (len_limit >= 0) {
-        const lim: u32 = @intCast(len_limit);
-        if (lim < ea) ea = lim;
-        if (lim < eb) eb = lim;
-    }
-    if (ea == 0 and eb == 0) return obj_new_int(0);
-    if (ea == 0) return obj_new_int(-1);
-    if (eb == 0) return obj_new_int(1);
-    const min_len = if (ea < eb) ea else eb;
+    // Short-circuit the empty cases so we don't have to coerce a
+    // null ptr into a many-item ``[*]const u8`` (Zig's non-allowzero
+    // many-item pointer panics on a null cast even when never
+    // dereferenced).
+    if (sa.len == 0 and sb.len == 0) return obj_new_int(0);
+    if (sa.len == 0) return obj_new_int(-1);
+    if (sb.len == 0) return obj_new_int(1);
+    if (len_limit == 0) return obj_new_int(0);
     const pa: [*]const u8 = @ptrFromInt(sa.ptr);
     const pb: [*]const u8 = @ptrFromInt(sb.ptr);
-    for (0..min_len) |i| {
-        const ca: u8 = if (nocase != 0) ascii_lower(pa[i]) else pa[i];
-        const cb: u8 = if (nocase != 0) ascii_lower(pb[i]) else pb[i];
+    var ia: u32 = 0;
+    var ib: u32 = 0;
+    var seen: i64 = 0;
+    while (ia < sa.len and ib < sb.len) {
+        if (len_limit >= 0 and seen >= len_limit) return obj_new_int(0);
+        const da = decode_utf8_at(pa, sa.len, ia);
+        const db = decode_utf8_at(pb, sb.len, ib);
+        const ca: u32 = if (nocase != 0) codepoint_lower(da.cp) else da.cp;
+        const cb: u32 = if (nocase != 0) codepoint_lower(db.cp) else db.cp;
         if (ca < cb) return obj_new_int(-1);
         if (ca > cb) return obj_new_int(1);
+        ia += da.len;
+        ib += db.len;
+        seen += 1;
     }
-    if (ea < eb) return obj_new_int(-1);
-    if (ea > eb) return obj_new_int(1);
+    if (len_limit >= 0 and seen >= len_limit) return obj_new_int(0);
+    if (ia < sa.len) return obj_new_int(1);
+    if (ib < sb.len) return obj_new_int(-1);
     return obj_new_int(0);
 }
 
@@ -295,41 +303,104 @@ pub export fn tcl_expr_unordered(a: i32, b: i32) i32 {
     return obj_new_int(if (obj_is_nan(a) or obj_is_nan(b)) 1 else 0);
 }
 
+/// IEEE-754-aware equality compare for ``expr {a == b}``.  Returns
+/// 1 when *a* and *b* are equal under Tcl 9 semantics (numeric when
+/// both parse as numbers, bytewise string compare otherwise) and 0
+/// when they're unequal — including the IEEE-754 NaN rule that a
+/// NaN operand is unordered with respect to everything (even itself).
+/// Used by the comparison codegen so ``expr {NaN == NaN}`` returns
+/// 0 rather than the bytewise-equal 1 that the legacy
+/// ``tcl_expr_order_cmp`` returns.
+pub export fn tcl_expr_eq_nan_aware(a: i32, b: i32) i32 {
+    if (obj_is_nan(a) or obj_is_nan(b)) return obj_new_int(0);
+    const cmp_obj = tcl_expr_order_cmp(a, b);
+    const cmp = obj.obj_get_int(cmp_obj);
+    return obj_new_int(if (cmp == 0) 1 else 0);
+}
+
 // Exported: string length — byte length of the string representation.
+/// Count UTF-8 codepoints in [*ptr*..*ptr*+*len*).  Treats each lead
+/// byte as one codepoint, skipping continuation bytes.
+fn count_codepoints(ptr: u32, len: u32) u32 {
+    if (len == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < len) {
+        const cl = utf8_lead_len(p[i]);
+        const actual = if (i + cl > len) len - i else cl;
+        count += 1;
+        i += actual;
+    }
+    return count;
+}
+
+/// Byte offset of the *idx*-th codepoint (0-based) in [*ptr*..*ptr*+*len*).
+/// Returns ``len`` when *idx* is past the end (caller can detect via
+/// the equality).  Negative indices are treated as out-of-range
+/// (caller resolves ``end`` etc. before calling).
+fn byte_offset_for_codepoint(ptr: u32, len: u32, idx: u32) u32 {
+    if (len == 0 or idx == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var cp: u32 = 0;
+    while (i < len and cp < idx) {
+        const cl = utf8_lead_len(p[i]);
+        const actual = if (i + cl > len) len - i else cl;
+        i += actual;
+        cp += 1;
+    }
+    return i;
+}
+
 pub export fn string_length(value: i32) i32 {
     const s = obj_ensure_string(value);
-    return obj_new_int(@intCast(s.len));
+    return obj_new_int(@intCast(count_codepoints(s.ptr, s.len)));
 }
 
-// Exported: string index — extract the character at a byte index.
+/// Codepoint count of *value*'s string rendering.  Used by callers
+/// that need to clamp/translate user-supplied indices in codepoint
+/// coordinates (``string first/last`` startIndex parsing).
+pub export fn string_codepoint_count(value: i32) i32 {
+    const s = obj_ensure_string(value);
+    return @intCast(count_codepoints(s.ptr, s.len));
+}
+
+// Exported: string index — extract the *idx*-th codepoint (0-based).
+// ``end`` / ``end-N`` / ``end+N`` resolve against the codepoint
+// count, not the byte length.
 pub export fn string_index(value: i32, idx: i32) i32 {
     const s = obj_ensure_string(value);
-    // Accept ``end`` / ``end-N`` / ``end+N`` as well as plain integers —
-    // the same arithmetic list indexing uses.  Previously only plain
-    // integers parsed, so ``string index foo end`` resolved to 0.
-    const slen_i64: i64 = @intCast(s.len);
-    const i_val = list_mod.resolve_list_index(idx, slen_i64);
-    if (i_val < 0 or i_val >= slen_i64) return obj_new_string(0, 0);
-    const pos: u32 = @intCast(i_val);
-    const src: [*]const u8 = @ptrFromInt(s.ptr);
-    const buf = alloc(1);
+    const cp_count: u32 = count_codepoints(s.ptr, s.len);
+    const cp_count_i64: i64 = @intCast(cp_count);
+    const i_val = list_mod.resolve_list_index(idx, cp_count_i64);
+    if (i_val < 0 or i_val >= cp_count_i64) return obj_new_string(0, 0);
+    const start = byte_offset_for_codepoint(s.ptr, s.len, @intCast(i_val));
+    // Determine the byte length of this codepoint to slice the
+    // single-character return value.
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    const cl = utf8_lead_len(sp[start]);
+    const actual = if (start + cl > s.len) s.len - start else cl;
+    const buf = alloc(actual);
     const dst: [*]u8 = @ptrFromInt(buf);
-    dst[0] = src[pos];
-    return obj_new_string(@bitCast(buf), 1);
+    var k: u32 = 0;
+    while (k < actual) : (k += 1) dst[k] = sp[start + k];
+    return obj_new_string(@bitCast(buf), @bitCast(actual));
 }
 
-// Exported: string range — extract a substring [first..last] (inclusive).
+// Exported: string range — extract codepoints [first..last] inclusive.
 pub export fn string_range(value: i32, first: i32, last: i32) i32 {
     const s = obj_ensure_string(value);
-    const slen: i64 = @intCast(s.len);
-    var f = list_mod.resolve_list_index(first, slen);
-    var l = list_mod.resolve_list_index(last, slen);
+    const cp_count: u32 = count_codepoints(s.ptr, s.len);
+    const cp_count_i64: i64 = @intCast(cp_count);
+    var f = list_mod.resolve_list_index(first, cp_count_i64);
+    var l = list_mod.resolve_list_index(last, cp_count_i64);
     if (f < 0) f = 0;
-    if (l >= slen) l = slen - 1;
-    if (f > l or f >= slen) return obj_new_string(0, 0);
-    const start: u32 = @intCast(f);
-    const count: u32 = @intCast(l - f + 1);
-    return obj_new_string_copy(s.ptr + start, count);
+    if (l >= cp_count_i64) l = cp_count_i64 - 1;
+    if (f > l or f >= cp_count_i64) return obj_new_string(0, 0);
+    const start_byte = byte_offset_for_codepoint(s.ptr, s.len, @intCast(f));
+    const end_byte = byte_offset_for_codepoint(s.ptr, s.len, @as(u32, @intCast(l)) + 1);
+    return obj_new_string_copy(s.ptr + start_byte, end_byte - start_byte);
 }
 
 // Exported: string map — apply a mapping list {from to from to ...} to a string.
@@ -365,10 +436,12 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
         var pair: u32 = 0;
         while (pair < n_pairs) : (pair += 1) {
             const from = list_element_at(sm.ptr, sm.len, @as(i64, pair) * 2);
-            if (from.len == 0) {
-                pair += 1;
-                continue;
-            }
+            // Empty FROM key — Tcl 9 skips silently (per
+            // ``tclCmdMZ.c`` ``StringMapCmd``).  The loop step
+            // advances ``pair``; manually bumping it here would
+            // skip TWO entries and miss intermediate non-empty
+            // mappings (string-10.19.0).
+            if (from.len == 0) continue;
             if (pos + from.len <= sv.len) {
                 const fp: [*]const u8 = @ptrFromInt(sm.ptr + from.start);
                 var match = true;
@@ -408,19 +481,92 @@ pub export fn string_match(pattern: i32, value: i32) i32 {
     return obj_new_int(if (matched) @as(i64, 1) else @as(i64, 0));
 }
 
+/// Check whether *c* matches the ``[…]`` character class starting at
+/// *pat*[start].  Returns ``(matches, end)`` where *end* is the
+/// position just past the closing ``]``.  ``end == plen`` signals a
+/// malformed (unclosed) class — caller treats the original ``[`` as
+/// a literal in that case.
+fn glob_match_class(pat: [*]const u8, plen: u32, start: u32, c: u8, nocase: bool) struct { matched: bool, end: u32, ok: bool } {
+    // *start* points at the opening ``[``.
+    var i: u32 = start + 1;
+    if (i >= plen) return .{ .matched = false, .end = start, .ok = false };
+    var negate = false;
+    if (pat[i] == '!' or pat[i] == '^') {
+        negate = true;
+        i += 1;
+    }
+    var matched = false;
+    while (i < plen and pat[i] != ']') {
+        var ch = pat[i];
+        if (ch == '\\' and i + 1 < plen) {
+            ch = pat[i + 1];
+            i += 2;
+        } else {
+            i += 1;
+        }
+        // Range: ``a-z`` — but only if the ``-`` isn't immediately
+        // followed by the closing ``]`` (then ``-`` is literal).
+        if (i + 1 < plen and pat[i] == '-' and pat[i + 1] != ']') {
+            var hi = pat[i + 1];
+            if (hi == '\\' and i + 2 < plen) {
+                hi = pat[i + 2];
+                i += 3;
+            } else {
+                i += 2;
+            }
+            // Range normalisation: Tcl reorders inverted ranges, so
+            // ``[A-fh-Z]`` is the same as ``[A-f] ∪ [Z-h]`` (which
+            // covers ``g``).  Test the lower-half and upper-half
+            // independently.
+            const lo = if (ch < hi) ch else hi;
+            const upper = if (ch < hi) hi else ch;
+            var test_c = c;
+            var lo_c = lo;
+            var hi_c = upper;
+            if (nocase) {
+                test_c = ascii_lower(test_c);
+                lo_c = ascii_lower(lo_c);
+                hi_c = ascii_lower(hi_c);
+            }
+            if (test_c >= lo_c and test_c <= hi_c) matched = true;
+        } else {
+            var test_c = c;
+            var ch_c = ch;
+            if (nocase) {
+                test_c = ascii_lower(test_c);
+                ch_c = ascii_lower(ch_c);
+            }
+            if (test_c == ch_c) matched = true;
+        }
+    }
+    if (i >= plen) {
+        // Unclosed character class — Tcl 9 treats this as an
+        // implicit close at end-of-pattern (string-11.29.0:
+        // ``string match \[a a`` returns 1 because ``[a`` is read
+        // as the class ``[a]``).  The collected ``matched`` flag
+        // already reflects the comparison against *c*; report
+        // ``end = plen`` so the outer matcher consumes the rest of
+        // the pattern.
+        return .{ .matched = if (negate) !matched else matched, .end = plen, .ok = true };
+    }
+    return .{ .matched = if (negate) !matched else matched, .end = i + 1, .ok = true };
+}
+
 pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
-    // Guard against null/zero pointers produced by obj_ensure_string(0).
+    return glob_match_impl(pp, plen, vp, vlen, false);
+}
+
+pub fn glob_match_nocase_impl(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+    return glob_match_impl(pp, plen, vp, vlen, true);
+}
+
+fn glob_match_impl(pp: u32, plen: u32, vp: u32, vlen: u32, nocase: bool) bool {
     if (plen == 0) return vlen == 0;
     const pat: [*]const u8 = @ptrFromInt(pp);
-    // vp may be 0 when vlen == 0; defer the cast until we know vlen > 0.
-    var pi: u32 = 0;
-    var vi: u32 = 0;
-    var star_pi: u32 = plen;
-    var star_vi: u32 = 0;
     if (vlen == 0) {
         // Non-empty pattern vs empty value — only matches if every
-        // remaining pattern char is ``*`` (skipping over any
-        // backslash escapes that don't reduce to ``*``).
+        // remaining pattern char is ``*``.
+        var pi: u32 = 0;
         while (pi < plen) {
             if (pat[pi] != '*') return false;
             pi += 1;
@@ -428,45 +574,96 @@ pub fn glob_match(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
         return true;
     }
     const val: [*]const u8 = @ptrFromInt(vp);
-    while (vi < vlen or pi < plen) {
-        if (pi < plen and pat[pi] == '*') {
-            star_pi = pi;
-            star_vi = vi;
-            pi += 1;
-        } else if (pi < plen and pat[pi] == '\\' and pi + 1 < plen) {
-            // Backslash escape: ``\?`` ``\*`` ``\[`` ``\\`` etc. all
-            // turn into the LITERAL char that follows.  Without this,
-            // ``string match {\?*} cmd`` parses ``\`` as a literal
-            // and tries to match ``c`` against ``\``, returning 0
-            // for the empty case but 1 for any value starting with
-            // a ``?`` (because ``?`` then matches anything as a
-            // wildcard) — root cause of opt-10.x silently passing
-            // ``cmd`` as if it were optional.
-            if (vi < vlen and pat[pi + 1] == val[vi]) {
-                pi += 2;
-                vi += 1;
-            } else if (star_pi < plen) {
-                pi = star_pi + 1;
-                if (star_vi >= vlen) return false;
-                star_vi += 1;
-                vi = star_vi;
-            } else {
-                return false;
+    return glob_match_rec(pat, plen, val, vlen, 0, 0, nocase);
+}
+
+fn glob_match_rec(pat: [*]const u8, plen: u32, val: [*]const u8, vlen: u32, pi_in: u32, vi_in: u32, nocase: bool) bool {
+    var pi = pi_in;
+    var vi = vi_in;
+    while (pi < plen) {
+        const pc = pat[pi];
+        if (pc == '*') {
+            // Skip consecutive ``*``s.
+            while (pi < plen and pat[pi] == '*') pi += 1;
+            if (pi >= plen) return true; // trailing ``*`` matches any tail
+            // Try each suffix position.
+            var k: u32 = vi;
+            while (k <= vlen) : (k += 1) {
+                if (glob_match_rec(pat, plen, val, vlen, pi, k, nocase)) return true;
             }
-        } else if (pi < plen and vi < vlen and (pat[pi] == '?' or pat[pi] == val[vi])) {
-            pi += 1;
-            vi += 1;
-        } else if (star_pi < plen) {
-            pi = star_pi + 1;
-            // No more value positions to try — value exhausted, no match.
-            if (star_vi >= vlen) return false;
-            star_vi += 1;
-            vi = star_vi;
-        } else {
             return false;
         }
+        if (pc == '?') {
+            if (vi >= vlen) return false;
+            pi += 1;
+            // Advance by one full codepoint in the value.
+            const dv = decode_utf8_at(val, vlen, vi);
+            vi += dv.len;
+            continue;
+        }
+        if (pc == '[') {
+            if (vi >= vlen) return false;
+            const r = glob_match_class(pat, plen, pi, val[vi], nocase);
+            if (!r.ok) {
+                // Unclosed ``[`` — treat as literal.
+                if (vi >= vlen) return false;
+                var pc_lit: u8 = pc;
+                var vc: u8 = val[vi];
+                if (nocase) {
+                    pc_lit = ascii_lower(pc_lit);
+                    vc = ascii_lower(vc);
+                }
+                if (pc_lit != vc) return false;
+                pi += 1;
+                vi += 1;
+                continue;
+            }
+            if (!r.matched) return false;
+            pi = r.end;
+            vi += 1;
+            continue;
+        }
+        if (pc == '\\' and pi + 1 < plen) {
+            if (vi >= vlen) return false;
+            // Backslash escape — the next pattern byte matches a
+            // literal value byte (compare codepoint-by-codepoint
+            // so Unicode escapes round-trip).
+            const dp = decode_utf8_at(pat, plen, pi + 1);
+            const dv = decode_utf8_at(val, vlen, vi);
+            var ec: u32 = dp.cp;
+            var vc: u32 = dv.cp;
+            if (nocase) {
+                ec = codepoint_lower(ec);
+                vc = codepoint_lower(vc);
+            }
+            if (ec != vc) return false;
+            pi += 1 + dp.len;
+            vi += dv.len;
+            continue;
+        }
+        if (pc == '\\') {
+            // Trailing single backslash — no character to escape.
+            // Tcl 9 treats this as a non-match (the pattern is
+            // malformed; matches nothing).
+            return false;
+        }
+        if (vi >= vlen) return false;
+        // Decode one codepoint from each side and compare with
+        // optional case fold.  ASCII / single-byte chars yield a
+        // 1-byte codepoint each, preserving the old fast path.
+        const dp = decode_utf8_at(pat, plen, pi);
+        const dv = decode_utf8_at(val, vlen, vi);
+        var pc_c: u32 = dp.cp;
+        var vc: u32 = dv.cp;
+        if (nocase) {
+            pc_c = codepoint_lower(pc_c);
+            vc = codepoint_lower(vc);
+        }
+        if (pc_c != vc) return false;
+        pi += dp.len;
+        vi += dv.len;
     }
-    return true;
+    return vi == vlen;
 }
 
 /// Return true if *c* is in *chars* (a u8 slice).
@@ -486,9 +683,212 @@ inline fn is_trim_char(c: u8, chars_ptr: u32, chars_len: u32) bool {
     return in_chars(c, p, chars_len);
 }
 
+/// UTF-8 codepoint byte-length from a lead byte.  Returns 1 for
+/// ASCII / continuation / invalid bytes so the caller's index walk
+/// advances at least one position.
+fn utf8_lead_len(b: u8) u32 {
+    if (b < 0x80) return 1;
+    if (b < 0xC0) return 1; // continuation — malformed at lead pos
+    if (b < 0xE0) return 2;
+    if (b < 0xF0) return 3;
+    return 4;
+}
+
+/// Decode one UTF-8 codepoint at *p*[pos..max].  Returns the
+/// codepoint value and the number of bytes consumed.  Malformed
+/// sequences (invalid lead, missing continuation, truncated) are
+/// surfaced as ``(byte, 1)`` so the walk advances and bit-for-bit
+/// comparison falls back to bytewise.
+fn decode_utf8_at(p: [*]const u8, max: u32, pos: u32) struct { cp: u32, len: u32 } {
+    if (pos >= max) return .{ .cp = 0, .len = 1 };
+    const b0 = p[pos];
+    if (b0 < 0x80) return .{ .cp = b0, .len = 1 };
+    const cl = utf8_lead_len(b0);
+    if (cl == 1 or pos + cl > max) return .{ .cp = b0, .len = 1 };
+    if (cl == 2) {
+        const b1 = p[pos + 1];
+        if ((b1 & 0xC0) != 0x80) return .{ .cp = b0, .len = 1 };
+        return .{ .cp = (@as(u32, b0 & 0x1F) << 6) | @as(u32, b1 & 0x3F), .len = 2 };
+    }
+    if (cl == 3) {
+        const b1 = p[pos + 1];
+        const b2 = p[pos + 2];
+        if ((b1 & 0xC0) != 0x80 or (b2 & 0xC0) != 0x80) return .{ .cp = b0, .len = 1 };
+        return .{
+            .cp = (@as(u32, b0 & 0x0F) << 12) | (@as(u32, b1 & 0x3F) << 6) | @as(u32, b2 & 0x3F),
+            .len = 3,
+        };
+    }
+    // cl == 4
+    const b1 = p[pos + 1];
+    const b2 = p[pos + 2];
+    const b3 = p[pos + 3];
+    if ((b1 & 0xC0) != 0x80 or (b2 & 0xC0) != 0x80 or (b3 & 0xC0) != 0x80)
+        return .{ .cp = b0, .len = 1 };
+    return .{
+        .cp = (@as(u32, b0 & 0x07) << 18) | (@as(u32, b1 & 0x3F) << 12) |
+            (@as(u32, b2 & 0x3F) << 6) | @as(u32, b3 & 0x3F),
+        .len = 4,
+    };
+}
+
+/// Encode *cp* as UTF-8 into *dst*.  Returns the number of bytes
+/// written (1-4).  Caller must ensure *dst* has at least 4 bytes
+/// of headroom.
+fn encode_utf8(cp: u32, dst: [*]u8) u32 {
+    if (cp < 0x80) {
+        dst[0] = @intCast(cp);
+        return 1;
+    }
+    if (cp < 0x800) {
+        dst[0] = @intCast(0xC0 | (cp >> 6));
+        dst[1] = @intCast(0x80 | (cp & 0x3F));
+        return 2;
+    }
+    if (cp < 0x10000) {
+        dst[0] = @intCast(0xE0 | (cp >> 12));
+        dst[1] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+        dst[2] = @intCast(0x80 | (cp & 0x3F));
+        return 3;
+    }
+    dst[0] = @intCast(0xF0 | (cp >> 18));
+    dst[1] = @intCast(0x80 | ((cp >> 12) & 0x3F));
+    dst[2] = @intCast(0x80 | ((cp >> 6) & 0x3F));
+    dst[3] = @intCast(0x80 | (cp & 0x3F));
+    return 4;
+}
+
+/// Lowercase a codepoint.  Covers ASCII, Latin-1, Latin Extended-A,
+/// the Dz/dz titlecase trio in Latin Extended-B, and the Greek /
+/// Cyrillic block ranges that show up in the tcltest 9 corpus.
+/// Unknown codepoints pass through unchanged.
+fn codepoint_lower(cp: u32) u32 {
+    // ASCII: A-Z → a-z
+    if (cp >= 'A' and cp <= 'Z') return cp + 32;
+    // Latin-1: À-Ö → à-ö ; Ø-Þ → ø-þ ; (× and ÿ excluded)
+    if (cp >= 0xC0 and cp <= 0xD6) return cp + 32;
+    if (cp >= 0xD8 and cp <= 0xDE) return cp + 32;
+    // Latin Extended-A pairs:
+    //   100-137: even = upper, odd = lower (Ā/ā ...)
+    if (cp >= 0x100 and cp <= 0x137 and (cp & 1) == 0) return cp + 1;
+    //   139-148: odd = upper, even = lower (Ĺ/ĺ ...)
+    if (cp >= 0x139 and cp <= 0x148 and (cp & 1) == 1) return cp + 1;
+    //   14A-177: even = upper, odd = lower
+    if (cp >= 0x14A and cp <= 0x177 and (cp & 1) == 0) return cp + 1;
+    //   178: Ÿ → ÿ
+    if (cp == 0x178) return 0xFF;
+    //   179-17E: odd = upper, even = lower
+    if (cp >= 0x179 and cp <= 0x17E and (cp & 1) == 1) return cp + 1;
+    // Latin Extended-B: DZ/Dz/dz cluster
+    if (cp == 0x1F1 or cp == 0x1F2) return 0x1F3;
+    if (cp == 0x1F4) return 0x1F5;
+    // Latin Extended-B: pairs 0x180-0x24F (broad sweep — covers
+    // common upper/lower neighbours; non-paired codepoints in this
+    // range are returned untouched by the fallback below).
+    if (cp >= 0x1CD and cp <= 0x1DC and (cp & 1) == 1) return cp + 1;
+    if (cp >= 0x1DE and cp <= 0x1EF and (cp & 1) == 0) return cp + 1;
+    // Greek: Α-Ρ (0x391-0x3A1) → α-ρ (0x3B1-0x3C1)
+    if (cp >= 0x391 and cp <= 0x3A1) return cp + 32;
+    if (cp >= 0x3A3 and cp <= 0x3AB) return cp + 32;
+    // Cyrillic: А-Я (0x410-0x42F) → а-я (0x430-0x44F)
+    if (cp >= 0x410 and cp <= 0x42F) return cp + 32;
+    if (cp >= 0x400 and cp <= 0x40F) return cp + 80;
+    return cp;
+}
+
+/// Uppercase a codepoint — symmetric inverse of :fn:`codepoint_lower`.
+fn codepoint_upper(cp: u32) u32 {
+    if (cp >= 'a' and cp <= 'z') return cp - 32;
+    if (cp >= 0xE0 and cp <= 0xF6) return cp - 32;
+    if (cp >= 0xF8 and cp <= 0xFE) return cp - 32;
+    if (cp == 0xFF) return 0x178;
+    if (cp >= 0x101 and cp <= 0x137 and (cp & 1) == 1) return cp - 1;
+    if (cp >= 0x13A and cp <= 0x148 and (cp & 1) == 0) return cp - 1;
+    if (cp >= 0x14B and cp <= 0x177 and (cp & 1) == 1) return cp - 1;
+    if (cp >= 0x17A and cp <= 0x17E and (cp & 1) == 0) return cp - 1;
+    if (cp == 0x1F2 or cp == 0x1F3) return 0x1F1;
+    if (cp == 0x1F5) return 0x1F4;
+    if (cp >= 0x1CE and cp <= 0x1DC and (cp & 1) == 0) return cp - 1;
+    if (cp >= 0x1DF and cp <= 0x1EF and (cp & 1) == 1) return cp - 1;
+    if (cp >= 0x3B1 and cp <= 0x3C1) return cp - 32;
+    if (cp >= 0x3C3 and cp <= 0x3CB) return cp - 32;
+    if (cp >= 0x430 and cp <= 0x44F) return cp - 32;
+    if (cp >= 0x450 and cp <= 0x45F) return cp - 80;
+    return cp;
+}
+
+/// Titlecase a codepoint.  Same as uppercase for most characters
+/// but routes the Dz/dz cluster (and one or two siblings) through
+/// the titlecase form rather than the all-uppercase form.
+fn codepoint_title(cp: u32) u32 {
+    if (cp == 0x1F1 or cp == 0x1F3) return 0x1F2;
+    if (cp == 0x1C4 or cp == 0x1C6) return 0x1C5;
+    if (cp == 0x1C7 or cp == 0x1C9) return 0x1C8;
+    if (cp == 0x1CA or cp == 0x1CC) return 0x1CB;
+    return codepoint_upper(cp);
+}
+
+/// Tcl 9's default trim set covers every codepoint in the Unicode
+/// "White_Space" / control-as-whitespace family — ASCII whitespace,
+/// NEL, NBSP, the Unicode space-separator block (U+2000-U+200A), the
+/// zero-width and line/paragraph separators, the BOM, and the
+/// ideographic space.  Matches the table at
+/// ``generic/regc_locale.c:cclass_isspace`` in upstream Tcl.
+fn is_unicode_whitespace(cp: u32) bool {
+    if (cp == 0x09 or cp == 0x0A or cp == 0x0B or cp == 0x0C or cp == 0x0D) return true;
+    if (cp == 0x20) return true;
+    if (cp == 0x00) return true; // NUL — trimmed by upstream's default set.
+    if (cp == 0x85 or cp == 0xA0) return true;
+    if (cp == 0x1680 or cp == 0x180E) return true;
+    if (cp >= 0x2000 and cp <= 0x200B) return true;
+    if (cp == 0x2028 or cp == 0x2029) return true;
+    if (cp == 0x202F or cp == 0x205F) return true;
+    if (cp == 0x3000 or cp == 0xFEFF) return true;
+    return false;
+}
+
+/// Does the codepoint at *src*[pos..pos+len] appear in the *chars*
+/// set?  *chars* is treated as a sequence of UTF-8 codepoints; the
+/// codepoint at *pos* matches when its byte run is bit-identical to
+/// any codepoint in *chars*.  Empty *chars* falls back to the
+/// Unicode whitespace check above.
+fn codepoint_in_chars(src: [*]const u8, pos: u32, code_len: u32, chars_ptr: u32, chars_len: u32) bool {
+    if (chars_len == 0) {
+        const d = decode_utf8_at(src, pos + code_len, pos);
+        return is_unicode_whitespace(d.cp);
+    }
+    const cp: [*]const u8 = @ptrFromInt(chars_ptr);
+    var i: u32 = 0;
+    while (i < chars_len) {
+        const cl = utf8_lead_len(cp[i]);
+        const actual = if (i + cl > chars_len) chars_len - i else cl;
+        if (actual == code_len) {
+            var k: u32 = 0;
+            while (k < code_len and src[pos + k] == cp[i + k]) : (k += 1) {}
+            if (k == code_len) return true;
+        }
+        i += actual;
+    }
+    return false;
+}
+
+/// Find the start of the codepoint that ENDS at byte *end* (i.e.
+/// scan back to the most recent UTF-8 lead byte).  Used by the
+/// trim helpers to step backwards through the input by codepoint.
+fn utf8_codepoint_start(src: [*]const u8, end: u32) u32 {
+    var i: u32 = end;
+    while (i > 0) {
+        i -= 1;
+        const b = src[i];
+        if (b < 0x80) return i;
+        if (b >= 0xC0) return i;
+    }
+    return 0;
+}
+
 // Exported: string trim — strip leading/trailing *chars* (default whitespace).
-// ``chars`` is a TclObj whose string value enumerates the bytes to trim;
-// pass 0 to use the default whitespace set.
+// ``chars`` is a TclObj whose string value enumerates the codepoints
+// to trim; pass 0 to use the default whitespace set.
 pub export fn string_trim(value: i32, chars: i32) i32 {
     const s = obj_ensure_string(value);
     if (s.len == 0) return value;
@@ -501,9 +901,18 @@ pub export fn string_trim(value: i32, chars: i32) i32 {
     }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
+    while (start < s.len) {
+        const code_len = utf8_lead_len(src[start]);
+        const actual = if (start + code_len > s.len) s.len - start else code_len;
+        if (!codepoint_in_chars(src, start, actual, cp, cl)) break;
+        start += actual;
+    }
     var end: u32 = s.len;
-    while (end > start and is_trim_char(src[end - 1], cp, cl)) end -= 1;
+    while (end > start) {
+        const cs2 = utf8_codepoint_start(src, end);
+        if (!codepoint_in_chars(src, cs2, end - cs2, cp, cl)) break;
+        end = cs2;
+    }
     if (start == 0 and end == s.len) return value;
     return obj_new_string_copy(s.ptr + start, end - start);
 }
@@ -521,7 +930,12 @@ pub export fn string_trimleft(value: i32, chars: i32) i32 {
     }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var start: u32 = 0;
-    while (start < s.len and is_trim_char(src[start], cp, cl)) start += 1;
+    while (start < s.len) {
+        const code_len = utf8_lead_len(src[start]);
+        const actual = if (start + code_len > s.len) s.len - start else code_len;
+        if (!codepoint_in_chars(src, start, actual, cp, cl)) break;
+        start += actual;
+    }
     if (start == 0) return value;
     return obj_new_string_copy(s.ptr + start, s.len - start);
 }
@@ -539,7 +953,11 @@ pub export fn string_trimright(value: i32, chars: i32) i32 {
     }
     const src: [*]const u8 = @ptrFromInt(s.ptr);
     var end: u32 = s.len;
-    while (end > 0 and is_trim_char(src[end - 1], cp, cl)) end -= 1;
+    while (end > 0) {
+        const cs2 = utf8_codepoint_start(src, end);
+        if (!codepoint_in_chars(src, cs2, end - cs2, cp, cl)) break;
+        end = cs2;
+    }
     if (end == s.len) return value;
     return obj_new_string_copy(s.ptr, end);
 }
@@ -572,7 +990,28 @@ pub export fn string_equal_full(a: i32, b: i32, nocase: i32, len_limit: i32) i32
     return obj_new_int(if (v == 0) @as(i64, 1) else @as(i64, 0));
 }
 
+/// Convert a byte offset into the codepoint index that would land
+/// at that offset.  Used by ``string first`` / ``string last`` to
+/// report the result in codepoint coordinates rather than bytes.
+fn codepoint_index_for_byte(ptr: u32, len: u32, byte_off: u32) u32 {
+    if (byte_off == 0 or len == 0) return 0;
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    var cp: u32 = 0;
+    while (i < len and i < byte_off) {
+        const cl = utf8_lead_len(p[i]);
+        const actual = if (i + cl > len) len - i else cl;
+        i += actual;
+        cp += 1;
+    }
+    return cp;
+}
+
 // Exported: string first — find first occurrence of needle in haystack.
+// Returns the codepoint index (0-based), -1 if not found.  The
+// match is bytewise (no Unicode normalisation) but the returned
+// index is in codepoint coordinates so callers can pair it with
+// ``string range`` / ``string index`` without translating.
 pub export fn string_first(needle: i32, haystack: i32) i32 {
     const sn = obj_ensure_string(needle);
     const sh = obj_ensure_string(haystack);
@@ -589,21 +1028,48 @@ pub export fn string_first(needle: i32, haystack: i32) i32 {
                 break;
             }
         }
-        if (match) return obj_new_int(@intCast(i));
+        if (match) {
+            return obj_new_int(@intCast(codepoint_index_for_byte(sh.ptr, sh.len, i)));
+        }
     }
     return obj_new_int(-1);
 }
 
 // Exported: string last — find last occurrence of needle in haystack.
 pub export fn string_last(needle: i32, haystack: i32) i32 {
+    const sh = obj_ensure_string(haystack);
+    const cp_count: i64 = @intCast(count_codepoints(sh.ptr, sh.len));
+    return string_last_indexed(needle, haystack, cp_count - 1);
+}
+
+/// ``string last needle haystack ?lastIndex?`` with an explicit
+/// *last_cp_index* (codepoint coordinates).  Per Tcl 9 docs: only
+/// the substring of *haystack* ending at or before *last_cp_index*
+/// is considered, so the needle's last codepoint must land at or
+/// before that index.  Negative values produce no match.
+pub export fn string_last_indexed(needle: i32, haystack: i32, last_cp_index: i64) i32 {
     const sn = obj_ensure_string(needle);
     const sh = obj_ensure_string(haystack);
     if (sn.len == 0 or sn.len > sh.len) return obj_new_int(-1);
+    if (last_cp_index < 0) return obj_new_int(-1);
+    const cp_count: i64 = @intCast(count_codepoints(sh.ptr, sh.len));
+    var li = last_cp_index;
+    if (li >= cp_count) li = cp_count - 1;
+    // ``end_byte_exclusive`` is the byte offset of the first byte
+    // past codepoint *li* — i.e. matches must fit entirely in
+    // ``haystack[0..end_byte_exclusive]``.
+    const end_byte_exclusive: u32 = blk: {
+        const next: u32 = @intCast(li + 1);
+        if (next >= cp_count) break :blk sh.len;
+        break :blk byte_offset_for_codepoint(sh.ptr, sh.len, next);
+    };
+    if (end_byte_exclusive < sn.len) return obj_new_int(-1);
+    const max_start: u32 = end_byte_exclusive - sn.len;
     const np: [*]const u8 = @ptrFromInt(sn.ptr);
     const hp: [*]const u8 = @ptrFromInt(sh.ptr);
-    var i: i32 = @as(i32, @intCast(sh.len - sn.len));
-    while (i >= 0) : (i -= 1) {
-        const ui: u32 = @intCast(i);
+    var start: i32 = @as(i32, @intCast(max_start));
+    while (start >= 0) : (start -= 1) {
+        const ui: u32 = @intCast(start);
         var match = true;
         for (0..sn.len) |k| {
             if (hp[ui + k] != np[k]) {
@@ -611,7 +1077,41 @@ pub export fn string_last(needle: i32, haystack: i32) i32 {
                 break;
             }
         }
-        if (match) return obj_new_int(@intCast(ui));
+        if (match) {
+            return obj_new_int(@intCast(codepoint_index_for_byte(sh.ptr, sh.len, ui)));
+        }
+    }
+    return obj_new_int(-1);
+}
+
+/// ``string first needle haystack ?startIndex?`` with an explicit
+/// *start_cp_index* (codepoint coordinates).  Negative values clamp
+/// to zero (Tcl 9 semantics — see ``tclCmdMZ.c`` ``StringFirstCmd``).
+pub export fn string_first_indexed(needle: i32, haystack: i32, start_cp_index: i64) i32 {
+    const sn = obj_ensure_string(needle);
+    const sh = obj_ensure_string(haystack);
+    if (sn.len == 0 or sn.len > sh.len) return obj_new_int(-1);
+    var sc = start_cp_index;
+    if (sc < 0) sc = 0;
+    const cp_count: i64 = @intCast(count_codepoints(sh.ptr, sh.len));
+    if (sc >= cp_count) return obj_new_int(-1);
+    const start_byte: u32 = byte_offset_for_codepoint(sh.ptr, sh.len, @intCast(sc));
+    const np: [*]const u8 = @ptrFromInt(sn.ptr);
+    const hp: [*]const u8 = @ptrFromInt(sh.ptr);
+    if (sh.len < sn.len) return obj_new_int(-1);
+    var i: u32 = start_byte;
+    const limit: u32 = sh.len - sn.len + 1;
+    while (i < limit) : (i += 1) {
+        var match = true;
+        for (0..sn.len) |k| {
+            if (hp[i + k] != np[k]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return obj_new_int(@intCast(codepoint_index_for_byte(sh.ptr, sh.len, i)));
+        }
     }
     return obj_new_int(-1);
 }
@@ -637,66 +1137,197 @@ pub export fn string_repeat(value: i32, count: i32) i32 {
 pub export fn string_reverse(value: i32) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len <= 1) return value;
-    const buf = alloc(sv.len);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    // Tcl 9's ``string reverse`` operates on UTF-16 code units, not
+    // codepoints — a supplementary plane character stored as a 4-byte
+    // UTF-8 sequence is split into its surrogate pair and reversed
+    // (string-24.16.0: ``фbulb😂`` →
+    // ``\uDE02\uD83Dblubф``).  Reserve worst-case 6 bytes per
+    // input codepoint (BMP = 3 bytes UTF-8; supplementary = 4 input →
+    // 2 × 3 output bytes for surrogates).
+    const buf = alloc(sv.len * 2 + 4);
     const dst: [*]u8 = @ptrFromInt(buf);
-    var i: u32 = 0;
-    while (i < sv.len) : (i += 1) {
-        dst[i] = src[sv.len - 1 - i];
+    var src_i: u32 = 0;
+    // First pass: walk forward and accumulate the reversed output by
+    // prepending each unit.  ``write_head`` moves backwards as we go.
+    var out_len: u32 = 0;
+    // Use a two-pass strategy — gather byte runs into ``buf`` from
+    // the *end* so each new unit takes the lowest-index slot.
+    var write_head: u32 = sv.len * 2 + 4;
+    while (src_i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, src_i);
+        if (d.cp >= 0x10000 and d.cp <= 0x10FFFF) {
+            // Split supplementary into a surrogate pair.  The buffer
+            // fills top-down, so the unit written *first* ends up at
+            // the higher output index; for ``string reverse`` we
+            // want the LOW surrogate to come out first in the
+            // reversed string, so write HIGH first (it lands at the
+            // higher address) then LOW (at the lower address).
+            const adj: u32 = d.cp - 0x10000;
+            const high: u32 = 0xD800 + (adj >> 10);
+            const low: u32 = 0xDC00 + (adj & 0x3FF);
+            write_head -= 3;
+            _ = encode_utf8(high, dst + write_head);
+            write_head -= 3;
+            _ = encode_utf8(low, dst + write_head);
+            out_len += 6;
+        } else {
+            write_head -= d.len;
+            var k: u32 = 0;
+            while (k < d.len) : (k += 1) {
+                dst[write_head + k] = src[src_i + k];
+            }
+            out_len += d.len;
+        }
+        src_i += d.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+    // Slide the reversed content to the front of *buf* so the obj
+    // string ptr points at byte 0 (the runtime expects buffers to
+    // start at the allocation base).
+    if (write_head > 0) {
+        var i: u32 = 0;
+        while (i < out_len) : (i += 1) {
+            dst[i] = dst[write_head + i];
+        }
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(out_len));
 }
 
 // Exported: string toupper — convert to uppercase.
 pub export fn string_toupper(value: i32) i32 {
-    const sv = obj_ensure_string(value);
-    if (sv.len == 0) return value;
-    const buf = alloc(sv.len);
-    const src: [*]const u8 = @ptrFromInt(sv.ptr);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    for (0..sv.len) |i| {
-        dst[i] = if (src[i] >= 'a' and src[i] <= 'z') src[i] - 32 else src[i];
-    }
-    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+    return case_fold_whole(value, .Upper);
 }
 
 // Exported: string tolower — convert to lowercase.
 pub export fn string_tolower(value: i32) i32 {
-    const sv = obj_ensure_string(value);
-    if (sv.len == 0) return value;
-    const buf = alloc(sv.len);
-    const src: [*]const u8 = @ptrFromInt(sv.ptr);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    for (0..sv.len) |i| {
-        dst[i] = if (src[i] >= 'A' and src[i] <= 'Z') src[i] + 32 else src[i];
-    }
-    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+    return case_fold_whole(value, .Lower);
 }
 
-// Exported: string totitle — uppercase the first alphabetic byte and
-// lowercase every other byte.  Tcl's reference totitle walks the
-// whole string by Unicode codepoint; this ASCII-only approximation
-// covers the tcltest / tcllib patterns we see in the 9.0 corpus and
-// keeps parity with ``string toupper`` / ``string tolower`` above.
+const FoldKind = enum { Lower, Upper, Title };
+
+fn fold_codepoint(cp: u32, kind: FoldKind) u32 {
+    return switch (kind) {
+        .Lower => codepoint_lower(cp),
+        .Upper => codepoint_upper(cp),
+        .Title => codepoint_title(cp),
+    };
+}
+
+/// Walk the input codepoint by codepoint, folding each with *kind*
+/// and re-encoding to UTF-8.  Output buffer is sized for the worst
+/// case (every codepoint expanding from 1 to 4 bytes).
+fn case_fold_whole(value: i32, kind: FoldKind) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const buf = alloc(sv.len * 4 + 4);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var src_i: u32 = 0;
+    var out_i: u32 = 0;
+    while (src_i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, src_i);
+        const folded = fold_codepoint(d.cp, kind);
+        out_i += encode_utf8(folded, dst + out_i);
+        src_i += d.len;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+}
+
+/// Range-bounded variants for ``string tolower/toupper STRING
+/// ?first? ?last?``.  Codepoints in ``[first..last]`` (resolved
+/// via ``resolve_list_index`` against the codepoint count) are
+/// folded; everything else is copied through unchanged.
+pub export fn string_toupper_range(value: i32, first: i32, last: i32) i32 {
+    return case_fold_range(value, first, last, .Upper);
+}
+
+pub export fn string_tolower_range(value: i32, first: i32, last: i32) i32 {
+    return case_fold_range(value, first, last, .Lower);
+}
+
+fn case_fold_range(value: i32, first: i32, last: i32, kind: FoldKind) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const cp_count: i64 = @intCast(count_codepoints(sv.ptr, sv.len));
+    var f: i64 = list_mod.resolve_list_index(first, cp_count);
+    var l: i64 = list_mod.resolve_list_index(last, cp_count);
+    if (f < 0) f = 0;
+    if (l >= cp_count) l = cp_count - 1;
+    if (f > l) return value;
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const buf = alloc(sv.len * 4 + 4);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var src_i: u32 = 0;
+    var out_i: u32 = 0;
+    var cp_idx: i64 = 0;
+    while (src_i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, src_i);
+        const codepoint: u32 = if (cp_idx >= f and cp_idx <= l)
+            fold_codepoint(d.cp, kind)
+        else
+            d.cp;
+        out_i += encode_utf8(codepoint, dst + out_i);
+        src_i += d.len;
+        cp_idx += 1;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+}
+
+// Exported: string totitle — title-case the first codepoint and
+// lowercase the rest.  Walks by Unicode codepoint so input like
+// ``ǳBCabc\xC7\xE7`` round-trips to ``ǲbcabc\xE7\xE7``
+// (test string-17.7).
 pub export fn string_totitle(value: i32) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len == 0) return value;
-    const buf = alloc(sv.len);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const buf = alloc(sv.len * 4 + 4);
     const dst: [*]u8 = @ptrFromInt(buf);
-    var first_alpha_seen = false;
-    for (0..sv.len) |i| {
-        const c = src[i];
-        if (!first_alpha_seen and ((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z'))) {
-            dst[i] = if (c >= 'a' and c <= 'z') c - 32 else c;
-            first_alpha_seen = true;
-        } else if (c >= 'A' and c <= 'Z') {
-            dst[i] = c + 32;
-        } else {
-            dst[i] = c;
-        }
+    var src_i: u32 = 0;
+    var out_i: u32 = 0;
+    var first = true;
+    while (src_i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, src_i);
+        const folded: u32 = if (first) codepoint_title(d.cp) else codepoint_lower(d.cp);
+        out_i += encode_utf8(folded, dst + out_i);
+        src_i += d.len;
+        first = false;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+    return obj_new_string(@bitCast(buf), @bitCast(out_i));
+}
+
+/// ``string totitle STRING ?first? ?last?`` — title-case the
+/// codepoint at *first* and lowercase the rest of the range
+/// ``[first..last]``.  Codepoints outside the range are left
+/// unchanged (so e.g. ``string totitle a\U118c0c 2 2`` only
+/// touches index 2 — test string-17.9).
+pub export fn string_totitle_range(value: i32, first: i32, last: i32) i32 {
+    const sv = obj_ensure_string(value);
+    if (sv.len == 0) return value;
+    const cp_count: i64 = @intCast(count_codepoints(sv.ptr, sv.len));
+    var f: i64 = list_mod.resolve_list_index(first, cp_count);
+    var l: i64 = list_mod.resolve_list_index(last, cp_count);
+    if (f < 0) f = 0;
+    if (l >= cp_count) l = cp_count - 1;
+    if (f > l) return value;
+    const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    const buf = alloc(sv.len * 4 + 4);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var src_i: u32 = 0;
+    var out_i: u32 = 0;
+    var cp_idx: i64 = 0;
+    while (src_i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, src_i);
+        const codepoint: u32 = blk: {
+            if (cp_idx == f) break :blk codepoint_title(d.cp);
+            if (cp_idx > f and cp_idx <= l) break :blk codepoint_lower(d.cp);
+            break :blk d.cp;
+        };
+        out_i += encode_utf8(codepoint, dst + out_i);
+        src_i += d.len;
+        cp_idx += 1;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(out_i));
 }
 
 // Exported: string insert — insert ``ins`` into ``value`` at byte
@@ -745,22 +1376,42 @@ pub export fn string_insert(value: i32, index: i32, ins: i32) i32 {
 // Exported: string replace — replace characters in range [first..last] with new string.
 pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i32 {
     const sv = obj_ensure_string(value);
-    var f = obj_get_int(first);
-    var l = obj_get_int(last);
-    const slen: i64 = @intCast(sv.len);
+    const cp_count: i64 = @intCast(count_codepoints(sv.ptr, sv.len));
+    const end_cp: i64 = cp_count - 1;
+    // ``end`` / ``end±N`` / plain integer — must use the index
+    // resolver so ``string replace ... -100 end`` clamps to the
+    // whole-string range instead of treating ``end`` as 0.  The
+    // indices are codepoint indices (Tcl 9 ``StringRplcCmd``).
+    const f_raw = list_mod.resolve_list_index(first, cp_count);
+    const l_raw = list_mod.resolve_list_index(last, cp_count);
+    // Tcl 9 special case: an empty input + first <= 0 + last >= -1
+    // is treated as an insert-at-0 request rather than a no-op
+    // (string-14.19).  Otherwise the standard "range outside / empty
+    // / inverted" tests return the original value.
+    const empty_insert = (cp_count == 0 and f_raw <= 0 and l_raw >= -1);
+    if (!empty_insert and (l_raw < 0 or f_raw > end_cp or l_raw < f_raw)) {
+        return value;
+    }
+    var f = f_raw;
+    var l = l_raw;
     if (f < 0) f = 0;
-    if (l >= slen) l = slen - 1;
-    if (f > l or f >= slen) return value;
+    if (l >= cp_count) l = cp_count - 1;
     const sn = obj_ensure_string(new_str);
-    const fst: u32 = @intCast(f);
-    const lst: u32 = @intCast(l);
-    const tail_start = lst + 1;
-    const tail_len = sv.len - tail_start;
-    const total = fst + sn.len + tail_len;
-    const buf = alloc(total);
-    if (fst > 0) memcpy(buf, sv.ptr, fst);
-    if (sn.len > 0) memcpy(buf + fst, sn.ptr, sn.len);
-    if (tail_len > 0) memcpy(buf + fst + sn.len, sv.ptr + tail_start, tail_len);
+    // Translate codepoint indices to byte offsets in the source.
+    const fst_byte: u32 = if (f > 0)
+        byte_offset_for_codepoint(sv.ptr, sv.len, @intCast(f))
+    else
+        0;
+    const tail_start_byte: u32 = if (l < end_cp)
+        byte_offset_for_codepoint(sv.ptr, sv.len, @as(u32, @intCast(l)) + 1)
+    else
+        sv.len;
+    const tail_len = sv.len - tail_start_byte;
+    const total = fst_byte + sn.len + tail_len;
+    const buf = alloc(total + 1);
+    if (fst_byte > 0) memcpy(buf, sv.ptr, fst_byte);
+    if (sn.len > 0) memcpy(buf + fst_byte, sn.ptr, sn.len);
+    if (tail_len > 0) memcpy(buf + fst_byte + sn.len, sv.ptr + tail_start_byte, tail_len);
     return obj_new_string(@bitCast(buf), @bitCast(total));
 }
 
@@ -909,35 +1560,50 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
         return obj_new_string(@bitCast(buf), @bitCast(out));
     }
 
-    // Multi-char separator: split on any char in splitChars
+    // Multi-char separator: split on any codepoint in splitChars.
+    // Both *src* and *sep* are walked codepoint by codepoint so a
+    // multi-byte separator like ``乎`` doesn't mis-split on its
+    // continuation bytes (cmdMZ-4.13).
     const buf = alloc(sv.len * 3 + 4);
     var out: u32 = 0;
     var start: u32 = 0;
     var i: u32 = 0;
     var first = true;
-    while (i <= sv.len) : (i += 1) {
-        var is_sep = (i == sv.len);
-        if (!is_sep) {
-            for (0..sd.len) |k| {
-                if (src[i] == sep[k]) {
-                    is_sep = true;
-                    break;
-                }
-            }
-        }
+    while (i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, i);
+        const is_sep = codepoint_in_set(d.cp, sep, sd.len);
         if (is_sep) {
             if (!first) {
-                const d: [*]u8 = @ptrFromInt(buf + out);
-                d[0] = ' ';
+                const dd: [*]u8 = @ptrFromInt(buf + out);
+                dd[0] = ' ';
                 out += 1;
             }
             first = false;
             out = list_quote_elem(buf, out, sv.ptr + start, i - start);
-            start = i + 1;
-            continue;
+            start = i + d.len;
         }
+        i += d.len;
     }
+    // Trailing element.
+    if (!first) {
+        const dd: [*]u8 = @ptrFromInt(buf + out);
+        dd[0] = ' ';
+        out += 1;
+    }
+    out = list_quote_elem(buf, out, sv.ptr + start, sv.len - start);
     return obj_new_string(@bitCast(buf), @bitCast(out));
+}
+
+/// Does *cp* appear in the codepoint set described by *set_ptr*
+/// (UTF-8 encoded, *set_len* bytes)?
+fn codepoint_in_set(cp: u32, set_ptr: [*]const u8, set_len: u32) bool {
+    var i: u32 = 0;
+    while (i < set_len) {
+        const d = decode_utf8_at(set_ptr, set_len, i);
+        if (d.cp == cp) return true;
+        i += d.len;
+    }
+    return false;
 }
 
 // Exported: join — join a Tcl list with a separator string.

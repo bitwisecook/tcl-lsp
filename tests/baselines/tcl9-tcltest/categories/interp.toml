@@ -1,0 +1,65 @@
+# interp.test categorisation (Tcl 9.0.3 source tree).
+# 218 / 354 passing.  The 128 failures cluster around:
+#   - 10.x / 11.x / 12.x: interp aliases - target dispatch + chain.
+#   - 13.x / 14.x / 15.x / 16.x: interp eval - frame propagation.
+#   - 17.x / 18.x: interp share / transfer of channels.
+#   - 19.x / 20.x: interp slaves / hidden / expose - the
+#     interp hide / expose registry isn't fully threaded through
+#     command lookup in child interps.
+#   - 22.x: interp aliases on aliases (chained alias targets).
+#   - 26.x: interp recursion limit handling.
+#   - 29.x: large parametric matrix around safe-interp -- this
+#     is the bulk (84 entries), and matches the same gaps
+#     safe.test exercises.
+
+good_to_have = [
+  # 10.x - 12.x: interp aliases.
+  "10.5",
+  "11.2", "11.3", "11.4", "11.5", "11.6", "11.7",
+  "12.4",
+  # 13.x - 15.x: interp eval frame propagation.
+  "13.3", "13.4",
+  "14.4",
+  "15.1", "15.3",
+  # 16.x: interp invokehidden.
+  "16.5",
+  # 17.x: interp share / transfer.
+  "17.1", "17.2", "17.3", "17.4", "17.5", "17.6",
+  # 18.x: interp share / transfer error paths.
+  "18.7", "18.8", "18.9", "18.10",
+  # 19.x: interp slaves / hidden / expose registry.
+  "19.2", "19.6", "19.7", "19.8", "19.9",
+  # 20.x: interp hidden / expose / target dispatch (44 entries).
+  "20.2", "20.3", "20.4", "20.5", "20.6", "20.7", "20.8", "20.9",
+  "20.11", "20.12", "20.13", "20.14", "20.15", "20.16", "20.17",
+  "20.18", "20.19", "20.20", "20.21", "20.22", "20.23", "20.24",
+  "20.25", "20.26", "20.27", "20.28", "20.29", "20.30", "20.31",
+  "20.32", "20.33", "20.34", "20.35", "20.36", "20.37", "20.39",
+  "20.40", "20.41", "20.42", "20.44", "20.45", "20.46", "20.47",
+  "20.48",
+  # 22.x: aliases on aliases.
+  "22.1", "22.2", "22.3", "22.4", "22.5", "22.6", "22.7", "22.8",
+  "22.9",
+  # 26.x: recursion limit edge cases.
+  "26.1", "26.2", "26.3",
+  # 29.x: large safe-interp matrix (42 entries).
+  "29.1.1", "29.1.2", "29.1.3", "29.1.4",
+  "29.1.7", "29.1.8", "29.1.9", "29.1.12",
+  "29.2.1", "29.2.2", "29.2.3", "29.2.4", "29.2.5", "29.2.6",
+  "29.2.7", "29.2.8",
+  "29.3.1", "29.3.2", "29.3.3", "29.3.4", "29.3.5", "29.3.6",
+  "29.3.7c", "29.3.8b", "29.3.10b", "29.3.11b",
+  "29.4.1", "29.4.2",
+  "29.5.1", "29.5.2", "29.5.3", "29.5.4",
+  "29.6.1", "29.6.2", "29.6.3", "29.6.4", "29.6.5", "29.6.6",
+  "29.6.7", "29.6.8", "29.6.9", "29.6.10",
+  # 34.x: time-limit propagation.
+  "34.9",
+]
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 128
+just_to_match_ctcl_failing = 0
+skip_failing = 0
