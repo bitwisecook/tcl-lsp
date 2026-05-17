@@ -153,24 +153,24 @@ class RuntimeHandle:
 
 def test_info_commands_lists_registered_procs(runtime: RuntimeHandle):
     """``info commands`` with no pattern returns every live command
-    reachable from the current ns."""
+    reachable from the current ns as simple names (info-4.3)."""
     runtime.register_proc("::foo")
     runtime.register_proc("::bar")
 
     names = set(runtime.info_commands())
-    assert "::foo" in names
-    assert "::bar" in names
+    assert "foo" in names
+    assert "bar" in names
 
 
 def test_info_commands_pattern_against_simple_name(runtime: RuntimeHandle):
-    """Unqualified patterns glob-match against the simple name,
-    but the returned entries are still FQNs."""
+    """Unqualified patterns glob-match against the simple name and
+    return simple names (info-4.3 / 4.4)."""
     runtime.register_proc("::helper_one")
     runtime.register_proc("::helper_two")
     runtime.register_proc("::unrelated")
 
     names = set(runtime.info_commands("helper_*"))
-    assert names == {"::helper_one", "::helper_two"}
+    assert names == {"helper_one", "helper_two"}
 
 
 def test_info_commands_qualified_pattern(runtime: RuntimeHandle):
@@ -191,39 +191,43 @@ def test_info_commands_excludes_hidden(runtime: RuntimeHandle):
 
     # Sanity: both show up.
     names = set(runtime.info_commands())
-    assert "::showing" in names
-    assert "::about_to_hide" in names
+    assert "showing" in names
+    assert "about_to_hide" in names
 
     assert runtime.hide(root, "about_to_hide", "about_to_hide") == 0
 
     names = set(runtime.info_commands())
-    assert "::showing" in names
-    assert "::about_to_hide" not in names
+    assert "showing" in names
+    assert "about_to_hide" not in names
 
 
-def test_info_procs_excludes_compiled(runtime: RuntimeHandle):
-    """``info procs`` filters out compiled procs (``func_idx !=
-    0``) — it should only return interpreted bodies."""
+def test_info_procs_includes_compiled(runtime: RuntimeHandle):
+    """``info procs`` reports every user-defined proc — both
+    interpreted (``body_obj != 0``) and compiled (``func_idx !=
+    0``).  Only aliases and import redirects are excluded.
+    Unqualified walk emits simple names (info-4.3)."""
     runtime.register_proc("::interp_proc")
     runtime.register_compiled("::compiled_proc", func_idx=5)
 
     commands = set(runtime.info_commands())
-    assert "::interp_proc" in commands
-    assert "::compiled_proc" in commands
+    assert "interp_proc" in commands
+    assert "compiled_proc" in commands
 
     procs = set(runtime.info_procs())
-    assert "::interp_proc" in procs
-    assert "::compiled_proc" not in procs
+    assert "interp_proc" in procs
+    assert "compiled_proc" in procs
 
 
 def test_info_procs_pattern(runtime: RuntimeHandle):
-    """Patterns apply to ``info procs`` the same way."""
+    """Patterns apply to ``info procs`` the same way — unqualified
+    pattern returns simple names and matches both interpreted and
+    compiled procs."""
     runtime.register_proc("::alpha")
     runtime.register_proc("::beta")
     runtime.register_compiled("::also_compiled")
 
     procs = set(runtime.info_procs("a*"))
-    assert procs == {"::alpha"}
+    assert procs == {"alpha", "also_compiled"}
 
 
 def test_namespace_which_unqualified_resolves_to_fqn(runtime: RuntimeHandle):

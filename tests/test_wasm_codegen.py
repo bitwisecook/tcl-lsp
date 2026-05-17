@@ -268,10 +268,16 @@ def test_arithmetic_expr():
 
 
 def test_comparison_expr():
-    """Comparison expressions should produce correct WASM ops."""
+    """Comparison expressions should produce correct WASM ops.
+
+    ``==`` / ``!=`` route through the ``tcl_expr_eq_nan_aware``
+    runtime helper so IEEE-754 NaN unordered semantics are honoured;
+    the older inline ``i64.eq`` path is still emitted for some fast
+    paths so accept either.
+    """
     module = _compile("set x [expr {$a == $b}]\n")
     wat = module.to_wat()
-    assert "i64.eq" in wat
+    assert "i64.eq" in wat or "tcl_expr_eq_nan_aware" in wat
 
 
 def test_logical_and():

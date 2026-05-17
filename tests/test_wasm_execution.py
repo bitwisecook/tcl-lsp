@@ -3654,9 +3654,11 @@ set ::result [info commands]
 """,
             "::result",
         )
+        # Unqualified ``info commands`` returns simple names per
+        # Tcl 9 info-4.3.
         names = set(result.decode("utf-8").split())
-        assert "::alpha" in names
-        assert "::beta" in names
+        assert "alpha" in names
+        assert "beta" in names
 
     def test_info_commands_pattern(self):
         result = self._run_and_read_global(
@@ -3671,12 +3673,11 @@ set ::result [info commands a*]
         # user procs AND builtins — whose name matches the glob.  Our
         # runtime walks the builtin ``cmd_table`` after the namespace
         # tree, so callers see ``array``, ``append``, ``auto_reset``,
-        # … alongside ``::alpha``.  The user-proc presence is the
-        # property under test; the builtin tail confirms the walker
-        # didn't accidentally exclude one of the two contributors.
+        # … alongside ``alpha``.  Unqualified patterns return simple
+        # names (info-4.3 / 4.4).
         names = result.decode("utf-8").split()
-        assert "::alpha" in names
-        assert "::beta" not in names
+        assert "alpha" in names
+        assert "beta" not in names
         for name in names:
             stripped = name.removeprefix("::")
             assert stripped.startswith("a"), f"{name!r} does not match glob 'a*'"

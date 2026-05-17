@@ -284,8 +284,10 @@ puts [::partial::min 5 2 7]
 puts [::partial::max 5 2 7]
 """
     )
-    # ``info commands`` returns simple names from the queried ns.
-    assert out == "max min\n2\n7"
+    # Qualified pattern ``::partial::*`` returns FQ names from the
+    # queried ns (info-4.x — qualified patterns preserve their
+    # qualifiers in the output).
+    assert out == "::partial::max ::partial::min\n2\n7"
 
 
 def test_namespace_path_through_eval_materialises_mathop() -> None:
