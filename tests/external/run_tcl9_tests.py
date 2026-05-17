@@ -989,11 +989,20 @@ def _make_test_class(test_name: str, *, subsystem: str, deferred: bool = False):
                         src_path = helpers_dir / helper
                         if src_path.exists():
                             shutil.copyfile(src_path, Path(host_tmp) / helper)
+                    # 45s wasmtime epoch watchdog: most healthy
+                    # bundles finish in under 5s, the slowest non-pathological
+                    # one (interp.test) takes ~12s.  A 45s cap surfaces
+                    # genuine hangs (basic.test's pipe-based loop, expr-old's
+                    # bignum overflow probes) as a trap that ``trap_allowed``
+                    # / the buckets gate can categorise, instead of
+                    # leaving the subprocess wrapper to kill the whole
+                    # pytest invocation at its 60s boundary.
                     result = _run_wasm(
                         wasm,
                         capture_stdout=True,
                         capture_stderr=True,
                         preopen_tmpdir=host_tmp,
+                        timeout_s=45,
                     )
                 ran = True
                 stdout = result[1] if len(result) >= 2 else ""

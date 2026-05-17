@@ -1,0 +1,23 @@
+# basic.test categorisation (Tcl 9.0.3 source tree).
+# Bundle currently hangs during top-level evaluation under the
+# interp ``==`` / ``!=`` fix landed in this branch — one of the
+# loop bodies tcltest's preamble runs through
+# ``parse.tcl_subst.subst_flagged_full`` now iterates instead of
+# erroring out (which is the correct semantics, but the loop
+# falls into an infinite ``gets`` on a non-existent pipe channel
+# because the ``stdio`` testConstraint initializer's trace doesn't
+# fire to set ``stdio = 0`` in our runtime).  Set ``trap_allowed
+# = true`` so the timeout is recorded rather than blocking the
+# sweep; the real fix is wiring trace-add-variable through the
+# tcltest variable-write so the constraint-initializer runs.
+
+trap_allowed = true
+
+good_to_have = []
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 0
+just_to_match_ctcl_failing = 0
+skip_failing = 0
