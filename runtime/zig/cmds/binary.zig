@@ -27,6 +27,7 @@
 // specifies how many values to consume (format) or bytes to process
 // (scan).  ``*`` means "all remaining".
 
+const std = @import("std");
 const rt = @import("../tcl_runtime.zig");
 const result_mod = @import("../interp/tcl_result.zig");
 const frames = @import("../interp/tcl_frames.zig");
@@ -165,14 +166,21 @@ fn format_size(fmt: [*]const u8, fmt_len: u32, words: []const i32, words_offset:
 
         switch (spec) {
             'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
+                // Numeric specs consume ONE list-shaped argument and
+                // emit ``cnt`` field copies (per Tcl 9 docs).  ``*``
+                // means "all elements of the list"; a numeric count
+                // takes that many elements and pads / truncates.
                 const nbytes = spec_byte_width(spec);
-                const cnt: u32 = count_or_null orelse blk: {
-                    if (wi >= words.len) break :blk 0;
-                    // ``*`` for numeric = remaining words
-                    break :blk @intCast(words.len - wi);
-                };
+                if (wi >= words.len) {
+                    // No argument — nothing more to emit; skip.
+                    break;
+                }
+                const obj_mod_x = @import("../valtypes/tcl_obj.zig");
+                const arg_s = obj_mod_x.obj_ensure_string(words[wi]);
+                const elem_count: u32 = @intCast(obj_mod_x.list_count_elements(arg_s.ptr, arg_s.len));
+                const cnt: u32 = count_or_null orelse elem_count;
                 total += nbytes * cnt;
-                wi += cnt;
+                wi += 1;
             },
             'a', 'A' => {
                 const str_len: u32 = if (wi < words.len) obj_ensure_string(words[wi]).len else 0;
@@ -229,18 +237,31 @@ fn format_fill(buf: u32, buf_len: u32, fmt: [*]const u8, fmt_len: u32, words: []
         switch (spec) {
             'c', 'C', 's', 'S', 't', 'T', 'i', 'I', 'n', 'N', 'w', 'W', 'm', 'M', 'f', 'r', 'R', 'd', 'q', 'Q' => {
                 const nbytes = spec_byte_width(spec);
-                const cnt: u32 = count_or_null orelse blk: {
-                    if (wi >= words.len) break :blk 0;
-                    break :blk @intCast(words.len - wi);
-                };
+                if (wi >= words.len) break;
+                const obj_mod_x = @import("../valtypes/tcl_obj.zig");
+                const arg_s = obj_mod_x.obj_ensure_string(words[wi]);
+                const elem_count: u32 = @intCast(obj_mod_x.list_count_elements(arg_s.ptr, arg_s.len));
+                const cnt: u32 = count_or_null orelse elem_count;
                 const big_end = is_be(spec);
-                for (0..cnt) |_| {
-                    if (wi >= words.len or off + nbytes > buf_len) break;
-                    const v: i64 = obj_get_int(words[wi]);
-                    if (big_end) write_be(buf, off, v, nbytes) else write_le(buf, off, v, nbytes);
+                var k: u32 = 0;
+                while (k < cnt and off + nbytes <= buf_len) : (k += 1) {
+                    const elem_v: i64 = if (k < elem_count) blk: {
+                        const elem = obj_mod_x.list_element_at(arg_s.ptr, arg_s.len, @as(i64, k));
+                        if (elem.len == 0) break :blk 0;
+                        // Parse the list element as an integer literal.
+                        const bn = @import("../valtypes/tcl_bignum.zig");
+                        const parsed = bn.parse_i128(arg_s.ptr + elem.start, elem.len);
+                        if (parsed) |p| {
+                            if (p > @as(i128, std.math.maxInt(i64))) break :blk @as(i64, std.math.maxInt(i64));
+                            if (p < @as(i128, std.math.minInt(i64))) break :blk @as(i64, std.math.minInt(i64));
+                            break :blk @as(i64, @intCast(p));
+                        }
+                        break :blk 0;
+                    } else 0;
+                    if (big_end) write_be(buf, off, elem_v, nbytes) else write_le(buf, off, elem_v, nbytes);
                     off += nbytes;
-                    wi += 1;
                 }
+                wi += 1;
             },
             'a', 'A' => {
                 if (wi >= words.len) continue;
