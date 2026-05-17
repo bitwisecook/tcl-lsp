@@ -1,0 +1,44 @@
+name: OpenSSF Scorecard
+
+# Weekly OpenSSF Scorecard scan.  Produces SARIF findings against
+# supply-chain best practices (token permissions, pinned actions,
+# branch protection, signed releases, dependency-update tools, etc.) and
+# uploads them to the Security tab.  This is monitoring, not gating —
+# we'll see score drift over time but it doesn't block PRs.
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: "23 4 * * 2"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write    # upload SARIF to the Security tab
+      id-token: write           # publish-results: OIDC for transparency log
+      contents: read
+      actions: read             # scorecard inspects workflows
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@99c09fe975337306107572b4fdf4db224cf8e2f2 # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publish to the public Scorecard dashboard so the score is
+          # visible to downstreams without them having to re-run the
+          # scan themselves.
+          publish_results: true
+
+      - name: Upload SARIF to code-scanning
+        uses: github/codeql-action/upload-sarif@f25eda876ebb741d872b63b9f2c6dfdd77f14b83 # v4.35.5
+        with:
+          sarif_file: results.sarif
