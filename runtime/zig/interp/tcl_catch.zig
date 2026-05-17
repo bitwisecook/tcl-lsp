@@ -187,6 +187,14 @@ pub export fn flow_check_signal_loop() i32 {
     return 0;
 }
 
+/// Lightweight accessor: callers that want to know whether they're
+/// running under a Tcl-level catch use this to decide whether to
+/// raise a Tcl error (caught) or stay silent (top-level — raising
+/// would trap the whole bundle).
+pub fn catch_depth_get() u32 {
+    return state.catch_depth;
+}
+
 // Exported: enter a catch scope.
 pub export fn catch_enter() void {
     state.catch_depth += 1;

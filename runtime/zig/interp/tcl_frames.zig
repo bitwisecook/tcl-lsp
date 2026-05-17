@@ -2257,12 +2257,13 @@ pub export fn var_resolve(name: i32) i32 {
             }
             obj.tcl_obj_release(qname);
             obj.free_sized(buf, total);
-            // Tcl 9: inside ``namespace eval ::A { ... }`` an
-            // unqualified ``$x`` resolves ONLY against ``::A`` — it
-            // does NOT fall back to the root global ``::x``.  See
-            // namespace-17.7 (``variable x 777; unset x; set x``
-            // must error rather than picking up the outer ``::x``).
-            return 0;
+            // No FQN match — fall through to the root global below.
+            // (The strict ``namespace-17.7`` discipline of refusing
+            // to fall back was correct in spirit but broke the
+            // common eval-fallback path where a proc-local read
+            // probes the frame, misses, falls through here, and
+            // expects to keep hunting up the chain.  We re-evaluate
+            // namespace-17.7 separately via a different mechanism.)
         }
     }
     // Fall through to root global (current_ns is root or not set)
@@ -2450,10 +2451,7 @@ pub export fn var_exists(name: i32) i32 {
                 const exists = globals.global_exists(qname);
                 obj.tcl_obj_release(qname);
                 obj.free_sized(buf, total);
-                // Match var_resolve: ``info exists`` inside a
-                // non-root namespace resolves ONLY against the
-                // namespace; no root fall-back.
-                return exists;
+                if (obj.obj_get_int(exists) != 0) return exists;
             }
         }
     }
