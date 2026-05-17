@@ -822,17 +822,22 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
         return obj_new_string(0, 0);
     }
     if (n == 0) {
-        // Empty payload — still must validate that ``arr`` isn't a
-        // scalar of a different shape.  ``array_check_or_create``
-        // returns 0 when the conflict triggered the error.
-        if (!array_check_or_create(arr)) return obj_new_string(0, 0);
+        // Empty payload — ``array set X {}`` on a scalar raises
+        // ``can't array set "X": variable isn't array`` (a different
+        // shape from the non-empty-list path; see set-old-8.38.1 /
+        // 8.38.3).  Pass key_ptr = 0 / key_len = 0 so the helper
+        // selects the empty-list message.
+        if (!array_check_or_create(arr, 0, 0)) return obj_new_string(0, 0);
         return obj_new_string(0, 0);
     }
     // Up-front scalar-conflict probe: ``array set arr ...`` on a
     // variable that already exists as a scalar raises ``can't set
-    // "arr(k)": variable isn't array`` (set-old-8.35) before any
-    // pair is stored.
-    if (!array_check_or_create(arr)) return obj_new_string(0, 0);
+    // "arr(<first_key>)": variable isn't array`` (set-old-8.35).
+    // Extract the first key so the error message matches Tcl.
+    const first_k = obj.list_element_at(sp.ptr, sp.len, 0);
+    if (!array_check_or_create(arr, sp.ptr + first_k.start, first_k.len)) {
+        return obj_new_string(0, 0);
+    }
     var i: i64 = 0;
     while (i + 1 < n) : (i += 2) {
         const k_info = obj.list_element_at(sp.ptr, sp.len, i);
@@ -852,10 +857,16 @@ pub export fn array_set_list(arr: i32, pairs: i32) i32 {
 
 /// Detect the ``array set name ...`` scalar-vs-array conflict.
 /// Returns false when *arr* already exists as a scalar (Tcl 9
-/// raises ``can't set "<arr>(...)": variable isn't array`` here);
-/// in that case the canonical error has been queued.  Returns
-/// true when *arr* is absent or already an array.
-fn array_check_or_create(arr: i32) bool {
+/// raises ``can't set "<arr>(<key>)": variable isn't array`` for
+/// non-empty lists or ``can't array set "<arr>": variable isn't
+/// array`` for empty lists); in that case the canonical error has
+/// been queued.  Returns true when *arr* is absent or already an
+/// array.
+///
+/// *first_key_ptr* / *first_key_len* describe the first key of
+/// the supplied list (only used to format the error message).
+/// Pass 0 / 0 when the list was empty.
+fn array_check_or_create(arr: i32, first_key_ptr: u32, first_key_len: u32) bool {
     // ``array_exists`` reads the directory; if the name is already
     // an array we're fine.
     const exists_obj = array_exists(arr);
@@ -864,8 +875,13 @@ fn array_check_or_create(arr: i32) bool {
     const tcl_ns = @import("../interp/tcl_ns.zig");
     const exists_scalar = obj.obj_get_int(tcl_ns.global_exists(arr)) != 0;
     if (!exists_scalar) return true;
-    // Scalar conflict — raise.
-    raise_array_set_scalar_conflict(arr);
+    // Scalar conflict — raise the shape that matches the caller's
+    // payload.
+    if (first_key_len == 0) {
+        raise_array_set_scalar_conflict_empty(arr);
+    } else {
+        raise_array_set_scalar_conflict(arr, first_key_ptr, first_key_len);
+    }
     return false;
 }
 
@@ -883,19 +899,15 @@ fn raise_odd_list() void {
     catch_mod.tcl_cmd_error(e);
 }
 
-fn raise_array_set_scalar_conflict(arr: i32) void {
+/// Format ``can't set "<arr>(<first_key>)": variable isn't array``
+/// for the non-empty ``array set X {k v …}`` path (set-old-8.35).
+fn raise_array_set_scalar_conflict(arr: i32, key_ptr: u32, key_len: u32) void {
     const catch_mod = @import("../interp/tcl_catch.zig");
     const sn = obj_ensure_string(arr);
     const prefix: []const u8 = "can't set \"";
     const mid: []const u8 = "(";
     const suffix: []const u8 = ")\": variable isn't array";
-    // Use the first key from the list when we know it.  For now we
-    // emit a placeholder ``(a)`` since callers haven't passed the
-    // key down; ``set-old-8.35`` expects the actual first key.
-    // Look at the runtime's argv — but we don't have it here, so
-    // fall back to a generic.  Acceptable because the test reads
-    // the full message via string match.
-    const total: u32 = @intCast(prefix.len + sn.len + mid.len + 1 + suffix.len);
+    const total: u32 = @intCast(prefix.len + sn.len + mid.len + key_len + suffix.len);
     const buf = obj.alloc(total);
     if (buf == 0) {
         catch_mod.tcl_cmd_error(obj_new_string(0, 0));
@@ -916,8 +928,45 @@ fn raise_array_set_scalar_conflict(arr: i32) void {
         dst[off] = c;
         off += 1;
     }
-    dst[off] = 'a';
-    off += 1;
+    if (key_len > 0) {
+        const kp: [*]const u8 = @ptrFromInt(key_ptr);
+        for (0..key_len) |k| {
+            dst[off] = kp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const e = obj.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(e);
+}
+
+/// Format ``can't array set "<arr>": variable isn't array`` for
+/// the empty ``array set X {}`` path (set-old-8.38.1 / 8.38.3).
+fn raise_array_set_scalar_conflict_empty(arr: i32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const sn = obj_ensure_string(arr);
+    const prefix: []const u8 = "can't array set \"";
+    const suffix: []const u8 = "\": variable isn't array";
+    const total: u32 = @intCast(prefix.len + sn.len + suffix.len);
+    const buf = obj.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(sn.ptr);
+    for (0..sn.len) |k| {
+        dst[off] = np[k];
+        off += 1;
+    }
     for (suffix) |c| {
         dst[off] = c;
         off += 1;

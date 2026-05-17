@@ -163,12 +163,15 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     }
     if (str_eq(sp, sub_len, "exists")) return result_mod.from_globals(array_mod.array_exists(resolved_name));
     if (str_eq(sp, sub_len, "names")) {
-        // ``array names arr ?mode? ?pattern?`` — mode is one of
-        // ``-exact`` / ``-glob`` / ``-regexp``.  Without mode the
-        // default is glob; the rule's ``max_words`` allows 5 (mode +
-        // pattern).  Our underlying ``array_names`` only supports
-        // glob filtering today; route mode through here so we can
-        // validate at least the option keyword.
+        // ``array names arr ?mode? ?pattern?`` — C Tcl's
+        // ``Tcl_ArrayObjCmd`` shape: with 4 words (``array names
+        // arr X``) X is always the pattern (mode defaults to
+        // glob), even when X happens to spell a mode keyword like
+        // ``-regexp``.  Only the 5-word form (``array names arr
+        // -mode pattern``) parses ``-mode`` as a mode keyword.
+        // set-old-8.53/8.54/8.55 nail this down: arrays with
+        // ``-regexp``/``-exact``/``-glob`` keys returning
+        // themselves when ``array names a -regexp`` etc. is run.
         if (words.len == 4) {
             return result_mod.from_globals(array_mod.array_names(resolved_name, words[3]));
         }
