@@ -198,7 +198,13 @@ fn do_lreplace(list_arg: i32, first_arg: i32, last_arg: i32, words: []const i32,
         var pos: i64 = f + 1; // absolute index for the next insert
         while (wi < words.len) : (wi += 1) {
             const idx_obj = make_index_obj(pos);
-            result = rt.tcl_cmd_list_insert(result, idx_obj, words[wi]);
+            // ``tcl_cmd_list_insert`` returns a fresh TclObj — release
+            // the previous intermediate ``result`` before overwriting
+            // (PR #413 review: chained inserts otherwise leak one
+            // header per extra value).
+            const new_result = rt.tcl_cmd_list_insert(result, idx_obj, words[wi]);
+            obj_mod.tcl_obj_release(result);
+            result = new_result;
             obj_mod.tcl_obj_release(idx_obj);
             pos += 1;
         }

@@ -200,6 +200,23 @@ pub export fn catch_enter() void {
         state.last_catch_value = 0;
         obj.tcl_obj_release(old);
     }
+    // Reset pending ``return -code/-level/-errorinfo/-OPT`` metadata
+    // before the new body runs.  ``eval_return`` arms these slots on
+    // every ``return``, but proc-dispatch usually absorbs that
+    // ``return`` without ever reaching ``catch_leave`` to clear them.
+    // A subsequent unrelated ``catch BODY result options`` then
+    // reports the prior proc's ``-code`` / ``-level`` (and dict-
+    // extra options) — Codex review on PR #413.  Clearing on entry
+    // means the next catch starts from a clean slate; if THIS body
+    // executes a fresh ``return`` the values are stamped here again.
+    state.pending_return_code = 0;
+    state.pending_return_level = 1;
+    state.pending_return_armed = 0;
+    if (state.pending_return_extras != 0) {
+        const old_extras = state.pending_return_extras;
+        state.pending_return_extras = 0;
+        obj.tcl_obj_release(old_extras);
+    }
 }
 
 // Exported: signal a TCL_RETURN unwind from the compiled catch body.

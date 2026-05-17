@@ -776,6 +776,7 @@ fn resolve_via_path(cmd_s: anytype, words: []const i32) ?i32 {
         const join_len: u32 = if (full.len == 2) 0 else 2;
         const total: u32 = full.len + join_len + cmd_s.len;
         const buf = obj_mod.alloc(total);
+        if (buf == 0) return null; // OOM — surface as unresolved.
         const dst: [*]u8 = @ptrFromInt(buf);
         const src: [*]const u8 = @ptrFromInt(full.ptr);
         var fi: u32 = 0;
@@ -798,25 +799,37 @@ fn resolve_via_path(cmd_s: anytype, words: []const i32) ?i32 {
             lookup_ptr += 2;
             lookup_len -= 2;
         }
+        // Build the FQ command-name TclObj with ``_take`` so the
+        // resulting obj owns ``buf`` and a later ``tcl_obj_release``
+        // frees it via ``free_sized`` (PR #413 review — the prior
+        // ``obj_new_string`` form leaked the buf once per probe).
+        const fq_obj = obj_mod.obj_new_string_take(buf, total, total);
+        if (fq_obj == 0) {
+            obj_mod.free_sized(buf, total);
+            return null;
+        }
         if (cmd_table.lookup(lookup_ptr, lookup_len)) |handler| {
             // Rewrite words[0] so error messages / the handler's
             // view of the command name match what was dispatched.
             var new_words: [parse.MAX_WORDS]i32 = undefined;
-            new_words[0] = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
+            new_words[0] = fq_obj;
             var w: u32 = 1;
             while (w < words.len) : (w += 1) new_words[w] = words[w];
-            return handler(new_words[0..words.len]).value;
+            const result = handler(new_words[0..words.len]).value;
+            obj_mod.tcl_obj_release(fq_obj);
+            return result;
         }
         // Also try the proc registry — ``namespace path`` resolves
         // user procs too, not just builtins.
-        const fq_obj = obj_mod.obj_new_string(@bitCast(buf), @bitCast(total));
         const bucket = procs.proc_lookup(fq_obj);
         if (bucket != 0) {
             var new_words: [parse.MAX_WORDS]i32 = undefined;
             new_words[0] = fq_obj;
             var w: u32 = 1;
             while (w < words.len) : (w += 1) new_words[w] = words[w];
-            return eval_proc_call_bucket(new_words[0..words.len], bucket);
+            const result = eval_proc_call_bucket(new_words[0..words.len], bucket);
+            obj_mod.tcl_obj_release(fq_obj);
+            return result;
         }
         obj_mod.tcl_obj_release(fq_obj);
     }

@@ -281,6 +281,15 @@ fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_fir
     // scratch buffer, then re-quote the decoded value canonically.
     // Worst-case decoded length is the raw length.
     const scratch = alloc(elem.len);
+    if (scratch == 0) {
+        // OOM — skip the decode step and round-trip the raw bytes
+        // through the canonical quoter directly.  Backslash escapes
+        // won't be unfolded here, but a degraded round-trip is
+        // strictly better than dereferencing a null pointer
+        // (PR #413 review).
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (is_first) &list_elem_quote else &list_elem_quote_nth;
+        return quoter(buf, off, sd_ptr + elem.start, elem.len);
+    }
     const dec_len = copy_unbraced_elem(scratch, sd_ptr + elem.start, elem.len);
     const quoter: *const fn (u32, u32, u32, u32) u32 = if (is_first) &list_elem_quote else &list_elem_quote_nth;
     off = quoter(buf, off, scratch, dec_len);
@@ -811,7 +820,13 @@ pub export fn tcl_cmd_lreplace_list(list_arg: i32, first_arg: i32, last_arg: i32
         const v = tcl_cmd_list_index(values_list, idx_v);
         obj.tcl_obj_release(idx_v);
         const idx_obj = make_int_obj(pos);
-        result = tcl_cmd_list_insert(result, idx_obj, v);
+        // Release the prior intermediate ``result`` before
+        // overwriting — ``tcl_cmd_list_insert`` returns a fresh
+        // TclObj and otherwise the obj header (and its parsed-form
+        // sidecar) leak once per extra value (PR #413 review).
+        const new_result = tcl_cmd_list_insert(result, idx_obj, v);
+        obj.tcl_obj_release(result);
+        result = new_result;
         obj.tcl_obj_release(idx_obj);
         obj.tcl_obj_release(v);
         pos += 1;
