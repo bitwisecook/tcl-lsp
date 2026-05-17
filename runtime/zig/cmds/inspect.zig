@@ -17,6 +17,21 @@ const reg = @import("../dispatch/tcl_cmd_registry.zig");
 ///   * the name has no ``(`` array-element notation (array-element
 ///     traces flow through the array directory unchanged).
 /// Returns true when the per-frame chain owns the trace.
+/// Tcl 9 ``trace add`` accepts abbreviated keywords (``var`` for
+/// ``variable``, ``cmd`` for ``command``, ``exec`` for ``execution``).
+/// Match any prefix of ``"variable"`` that's at least 3 chars long so
+/// the trace-tracker hooks fire regardless of spelling.  set-old-9.10
+/// uses ``trace add var ...``.
+fn is_variable_keyword(p: [*]const u8, len: u32) bool {
+    if (len < 3 or len > 8) return false;
+    const lit = "variable";
+    var k: u32 = 0;
+    while (k < len) : (k += 1) {
+        if (p[k] != lit[k]) return false;
+    }
+    return true;
+}
+
 fn is_local_trace_target(name: i32) bool {
     if (frames.frame_depth == 0) return false;
     const sn = rt.obj_ensure_string(name);
@@ -67,7 +82,7 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (str_eq(sub_p, sub_s.len, "add") and words.len >= 6) {
         const kind_s = obj_ensure_string(words[2]);
         const kind_p: [*]const u8 = @ptrFromInt(kind_s.ptr);
-        if (str_eq(kind_p, kind_s.len, "variable")) {
+        if (is_variable_keyword(kind_p, kind_s.len)) {
             const name = words[3];
             const ops = parse_ops(words[4]);
             install_var_trace(name, ops, words[5]);
@@ -80,7 +95,7 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (str_eq(sub_p, sub_s.len, "remove") and words.len >= 6) {
         const kind_s = obj_ensure_string(words[2]);
         const kind_p: [*]const u8 = @ptrFromInt(kind_s.ptr);
-        if (str_eq(kind_p, kind_s.len, "variable")) {
+        if (is_variable_keyword(kind_p, kind_s.len)) {
             const name = words[3];
             const ops = parse_ops(words[4]);
             _ = uninstall_var_trace(name, ops, words[5]);
@@ -92,7 +107,7 @@ fn eval_trace(words: []const i32) result_mod.InterpResult {
     if (str_eq(sub_p, sub_s.len, "info") and words.len >= 4) {
         const kind_s = obj_ensure_string(words[2]);
         const kind_p: [*]const u8 = @ptrFromInt(kind_s.ptr);
-        if (str_eq(kind_p, kind_s.len, "variable")) {
+        if (is_variable_keyword(kind_p, kind_s.len)) {
             return result_mod.from_globals(query_var_trace(words[3]));
         }
         return result_mod.from_globals(obj_new_string(0, 0));
@@ -203,6 +218,14 @@ fn canonical_var_name(name: i32) i32 {
 /// ``remove`` / ``info`` only read the bytes through the handle
 /// and don't retain it (Copilot review on PR #343).
 fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
+    // Phase E (set-old-9.10): when ``trace add variable arr(key)``
+    // names an element that doesn't yet exist, reference Tcl creates
+    // the element as part of registering the trace — and that
+    // creation invalidates active ``array startsearch`` cursors on
+    // ``arr``.  Existing-element traces (9.11) make no shape change
+    // and must NOT invalidate.  Probe before the trace installation
+    // so we read the pre-install element state.
+    maybe_invalidate_searches_on_trace_install(name);
     if (is_local_trace_target(name)) {
         var_trace.add_to_list(&frames.frame_trace_heads[frames.frame_depth - 1], name, ops, cmd_prefix);
         return;
@@ -210,6 +233,38 @@ fn install_var_trace(name: i32, ops: u32, cmd_prefix: i32) void {
     const canon = canonical_var_name(name);
     var_trace.add(canon, ops, cmd_prefix);
     if (canon != name and canon != 0) tcl_obj_release(canon);
+}
+
+/// When ``name`` parses as ``arr(key)`` and ``arr`` has *no* element
+/// at ``key`` yet, invalidate every active search on ``arr`` —
+/// installing a trace on a fresh element grows the array, which Tcl
+/// treats as a search-affecting mutation.  No-op otherwise.
+fn maybe_invalidate_searches_on_trace_install(name: i32) void {
+    const sn = obj_ensure_string(name);
+    if (sn.ptr == 0 or sn.len < 3) return;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    if (sp[sn.len - 1] != ')') return;
+    var paren: i32 = -1;
+    var i: u32 = 0;
+    while (i < sn.len) : (i += 1) {
+        if (sp[i] == '(') {
+            paren = @intCast(i);
+            break;
+        }
+    }
+    if (paren <= 0) return;
+    const paren_at: u32 = @intCast(paren);
+    const arr_name = obj_new_string(@bitCast(sn.ptr), @bitCast(paren_at));
+    const key_off: u32 = paren_at + 1;
+    const key_len: u32 = sn.len - paren_at - 2;
+    const key_obj = obj_new_string(@bitCast(sn.ptr + key_off), @bitCast(key_len));
+    defer tcl_obj_release(arr_name);
+    defer tcl_obj_release(key_obj);
+    const tcl_array_mod = @import("../valtypes/tcl_array.zig");
+    const obj_helpers = @import("../valtypes/tcl_obj.zig");
+    if (obj_helpers.obj_get_int(tcl_array_mod.array_element_exists(arr_name, key_obj)) == 0) {
+        tcl_array_mod.array_invalidate_searches_for_obj(arr_name);
+    }
 }
 
 /// Mirror of :func:`install_var_trace` for the remove path.

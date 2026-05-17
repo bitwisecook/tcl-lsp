@@ -1326,6 +1326,10 @@ fn drop_searches_for(name_ptr: u32, name_len: u32) void {
 /// array_unset, traces add).  ``arr`` is the user-visible name —
 /// we normalise it here so the search lookup keys match the form
 /// stored on the record.
+pub fn array_invalidate_searches_for_obj(arr: i32) void {
+    array_invalidate_searches_for(arr);
+}
+
 fn array_invalidate_searches_for(arr: i32) void {
     if (searches_head == 0) return;
     const n = normalize_ns_name(arr);
