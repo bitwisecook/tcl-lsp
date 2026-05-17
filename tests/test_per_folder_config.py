@@ -334,7 +334,7 @@ class TestPerFolderDialect:
         [
             pytest.param(
                 "dialect-flips-to-irules",
-                "if { [active_members http_pool] >= 2 } {\n    puts \"ok\"\n}\n",
+                'if { [active_members http_pool] >= 2 } {\n    puts "ok"\n}\n',
                 {"dialect": "f5-irules"},
                 "W002",
                 id="dialect-W002-active_members",
@@ -385,14 +385,10 @@ class TestPerFolderDialect:
             captured[uri] = list(diags)
 
         _dp._publish_diags_to_client = _capture
-        _dp.configure(
-            type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})()
-        )
+        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
-            initial = [
-                d for d in captured.get(file_uri, []) if d.code == diagnostic_code
-            ]
+            initial = [d for d in captured.get(file_uri, []) if d.code == diagnostic_code]
             assert initial, (
                 f"{scenario} precondition: expected {diagnostic_code} under "
                 "the workspace-fallback settings (precondition for repro)"
@@ -402,13 +398,10 @@ class TestPerFolderDialect:
             _lsp_state.editor_config_settings_per_folder[folder] = late_settings
             _lsp_settings._apply_merged_settings_now()
 
-            after = [
-                d for d in captured.get(file_uri, []) if d.code == diagnostic_code
-            ]
+            after = [d for d in captured.get(file_uri, []) if d.code == diagnostic_code]
             assert after == [], (
                 f"{scenario}: {diagnostic_code} must clear after the per-folder "
-                f"setting {late_settings!r} applies; got: "
-                + ", ".join(d.message for d in after)
+                f"setting {late_settings!r} applies; got: " + ", ".join(d.message for d in after)
             )
         finally:
             _dp._publish_diags_to_client = orig_publish
@@ -443,15 +436,12 @@ class TestAnalyserOptInDiagnostics:
         captured: dict[str, list] = {}
         orig = _dp._publish_diags_to_client
         _dp._publish_diags_to_client = lambda u, d, v=None: captured.update({u: list(d)})
-        _dp.configure(
-            type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})()
-        )
+        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             w123 = [d for d in captured.get(file_uri, []) if d.code == "W123"]
-            assert w123 == [], (
-                "W123 must stay off by default; got: "
-                + ", ".join(d.message for d in w123)
+            assert w123 == [], "W123 must stay off by default; got: " + ", ".join(
+                d.message for d in w123
             )
         finally:
             _dp._publish_diags_to_client = orig
@@ -462,9 +452,7 @@ class TestAnalyserOptInDiagnostics:
 
         folder = "file:///workspaces/proj"
         _lsp_state.get_or_init_folder_feature_config(folder)
-        _lsp_state.editor_config_settings_per_folder[folder] = {
-            "diagnostics": {"W123": True}
-        }
+        _lsp_state.editor_config_settings_per_folder[folder] = {"diagnostics": {"W123": True}}
         _lsp_settings._apply_merged_settings_now()
 
         file_uri = f"{folder}/file.tcl"
@@ -474,9 +462,7 @@ class TestAnalyserOptInDiagnostics:
         captured: dict[str, list] = {}
         orig = _dp._publish_diags_to_client
         _dp._publish_diags_to_client = lambda u, d, v=None: captured.update({u: list(d)})
-        _dp.configure(
-            type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})()
-        )
+        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             w123 = [d for d in captured.get(file_uri, []) if d.code == "W123"]
@@ -511,18 +497,14 @@ class TestAnalyserOptInDiagnostics:
         captured: dict[str, list] = {}
         orig = _dp._publish_diags_to_client
         _dp._publish_diags_to_client = lambda u, d, v=None: captured.update({u: list(d)})
-        _dp.configure(
-            type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})()
-        )
+        _dp.configure(type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})())
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
             initial = [d for d in captured.get(file_uri, []) if d.code == "W123"]
             assert initial == [], "precondition: W123 off by default"
 
             # User opts in to W123 via folder settings.
-            _lsp_state.editor_config_settings_per_folder[folder] = {
-                "diagnostics": {"W123": True}
-            }
+            _lsp_state.editor_config_settings_per_folder[folder] = {"diagnostics": {"W123": True}}
             _lsp_settings._apply_merged_settings_now()
 
             after = [d for d in captured.get(file_uri, []) if d.code == "W123"]
@@ -533,14 +515,11 @@ class TestAnalyserOptInDiagnostics:
             )
 
             # Toggling back off must clear W123 again.
-            _lsp_state.editor_config_settings_per_folder[folder] = {
-                "diagnostics": {"W123": False}
-            }
+            _lsp_state.editor_config_settings_per_folder[folder] = {"diagnostics": {"W123": False}}
             _lsp_settings._apply_merged_settings_now()
             cleared = [d for d in captured.get(file_uri, []) if d.code == "W123"]
-            assert cleared == [], (
-                f"W123 must clear after the user opts back out; got: "
-                + ", ".join(d.message for d in cleared)
+            assert cleared == [], "W123 must clear after the user opts back out; got: " + ", ".join(
+                d.message for d in cleared
             )
         finally:
             _dp._publish_diags_to_client = orig
