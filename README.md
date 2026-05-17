@@ -803,6 +803,94 @@ Highlights of the newer verbs:
 - **`f5 tmsh`** — emit `tmsh create` (or `--modify`) commands for every
   object in a config, in dependency order so the script can be pasted
   into a BIG-IP shell unchanged.
+- **`f5 query` (alias `f5 q`)** — small jq-flavoured DSL for inspecting
+  and rewriting BIG-IP configs.  Built-in **renderer plugins** turn
+  query output into a Mermaid diagram, an ASCII Gantt timeline of
+  monitor up/down transitions, or a Unicode line-art block diagram —
+  no sidecar Python scripts required.  Run
+  `f5 q --help-renderers` for the catalogue:
+
+  ```sh
+  # ASCII Gantt of pool-member up/down events from a BIG-IP log
+  f5 q --render gantt '
+      f5log_load("ltm.log")[]
+      | select(.module == "01340011" or .module == "01340012")
+      | tsv(.timestamp,
+            (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
+            (if .module == "01340011" then "DOWN" else "UP" end))
+  ' bigip.conf
+
+  # Mermaid diagram of every web virtual server and its references
+  f5 q --render mermaid '.ltm.virtual["~/web_"]' bigip.conf
+  ```
+
+**Use the query engine from Python** — the same engine is importable
+as `f5q` so external scripts can drive queries, build them up
+progressively, render results through plugins or inline callables,
+and ship reusable extensions via one-line decorators:
+
+```python
+from f5q import q, load, renderer, builtin, input_format
+
+# One-liner: q() takes (expression, *inputs).
+for name in q(".ltm.virtual[] | .name", "bigip.conf"):
+    print(name)
+
+# Progressive — chain queries on top of each other (typed wrapper, immutable).
+filtered = (
+    q(".ltm.virtual[]", "bigip.conf")
+    .q('.[] | select(.pool != null)')
+    .q('.[] | .name')
+)
+
+# Render via a registered plugin OR an inline callable.
+filtered.render("ascii-blocks")
+filtered.render(lambda values, **opts: ", ".join(map(str, values)) + "\n")
+
+# Coerce to plain JSON-friendly Python.
+data = filtered.out()                            # [{"kind": ..., "fields": {...}}, ...]
+
+# Pre-stage once, query many times. Custom file formats? Pass an inline parser.
+corpus = load("ltm.conf", "gtm.conf")
+routes = load("routes.xml", parser=my_xml_parser)
+
+# Ship a custom renderer the f5 CLI can dispatch via --render NAME.
+@renderer("md-table", summary="Markdown table of results.", accepts="any")
+def _render(values, **opts):
+    return "| name |\n| ---- |\n" + "\n".join(f"| {v} |" for v in values)
+
+# Ship a custom DSL function the query language can call.
+@builtin("uppercase", summary="ASCII uppercase.", min_args=1, max_args=1)
+def _u(s):
+    return str(s).upper()
+
+# Ship a custom side-input format `--input KIND NAME=PATH` can load.
+@input_format("yaml", summary="YAML side-input.")
+def _parse_yaml(source, *, uri, options=()):
+    import yaml
+    return yaml.safe_load(source)
+```
+
+**Auto-discovered plugins** — drop any of the above into
+`$XDG_CONFIG_HOME/f5q/plugins/*.py` (default
+`~/.config/f5q/plugins/*.py`) and the engine picks them up on the
+first registry access, no import dance required.  Broken plugins
+warn to stderr and are skipped; `f5 q --help-plugins` shows what
+loaded.
+
+**Documentation**:
+
+- **Python API reference** — autodoc-generated, every public
+  symbol with full signature, docstring, and `[source]` links.
+  Build locally with `make docs-html` (output at
+  `docs/sphinx/_build/html/index.html`); the same Sphinx tree
+  builds on Read the Docs via [`.readthedocs.yaml`](.readthedocs.yaml).
+- [KCS: how-to — script against `f5 query` from Python](docs/kcs/kcs-howto-script-against-f5-query-from-python.md)
+  — task-oriented walkthrough.
+- [KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
+  — built-in plugin catalogue and CLI flag reference.
+- [Design — `f5 query` plugin contract](docs/design/f5-query-renderer-contract.md)
+  — formal contracts, registration lifecycle, error mapping.
 
 **Install the `f5` CLI** — the released artefact is a single-file
 zipapp (`f5-<version>.pyz`) that needs only Python 3.10+ on the host.

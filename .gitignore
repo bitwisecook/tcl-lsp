@@ -17,6 +17,12 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+
+# Sphinx HTML output for the f5q Python API reference
+# (built by ``make docs``; Read the Docs builds from source).
+docs/sphinx/_build/
+docs/sphinx/_autosummary/
+
 .venv/
 venv/
 env/

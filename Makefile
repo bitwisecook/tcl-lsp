@@ -1340,3 +1340,21 @@ leakcheck-diff: ## Diff the latest leak sweep against tests/baselines/wasm_leak_
 
 snapshot-leak-baseline: ## Promote tmp/perf-output/leak_sweep_results.json to the committed baseline
 	cp tmp/perf-output/leak_sweep_results.json tests/baselines/wasm_leak_baseline.json
+
+# ---------------------------------------------------------------------------
+# Sphinx — f5q Python API reference
+# ---------------------------------------------------------------------------
+
+.PHONY: docs docs-html docs-clean docs-linkcheck
+
+docs: docs-html  ## Build the f5q Sphinx HTML docs (alias for docs-html)
+
+docs-html: $(UV_STAMP)  ## Build the f5q Sphinx API reference (docs/sphinx/_build/html)
+	uv run --extra docs sphinx-build -b html docs/sphinx docs/sphinx/_build/html
+	@echo "==> docs built → docs/sphinx/_build/html/index.html"
+
+docs-linkcheck: $(UV_STAMP)  ## Check every external link in the f5q docs
+	uv run --extra docs sphinx-build -b linkcheck docs/sphinx docs/sphinx/_build/linkcheck
+
+docs-clean:  ## Remove generated Sphinx output
+	rm -rf docs/sphinx/_build

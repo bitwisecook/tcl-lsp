@@ -144,6 +144,96 @@ class _HelpManualAction(argparse.Action):
         parser.exit()
 
 
+class _HelpInputFormatsAction(argparse.Action):
+    """Print the catalogue of registered input formats (built-in + plugin).
+
+    Mirrors ``--help-renderers`` for the input-format registry: lists
+    every format the runner will accept after the user-plugin XDG
+    scan has run, so a user can confirm a freshly-dropped
+    ``@input_format`` plugin is actually being picked up.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from core.bigip.query import list_input_formats
+
+        specs = list_input_formats()
+        if not specs:
+            sys.stdout.write("(no input formats registered)\n")
+            parser.exit()
+        sys.stdout.write("Registered input formats:\n\n")
+        for spec in specs:
+            sys.stdout.write(f"  {spec.name}\n")
+            sys.stdout.write(f"    summary: {spec.summary}\n")
+            if spec.details:
+                for line in spec.details.splitlines():
+                    sys.stdout.write(f"    {line}\n")
+            sys.stdout.write("\n")
+        sys.stdout.write("Use --input KIND NAME=PATH to bind a file via any registered format.\n")
+        parser.exit()
+
+
+class _HelpPluginsAction(argparse.Action):
+    """Print the XDG plugin directory and the files the loader picked up.
+
+    Diagnostic output for "is my plugin file being loaded?" — prints
+    the directory path the loader scans, then runs the loader and
+    prints every file that imported successfully.  Plugin import
+    failures are written to stderr by the loader itself, so combining
+    this with ``2>&1`` shows successes + failures together.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from core.bigip.query import load_user_plugins, xdg_plugin_dir
+
+        directory = xdg_plugin_dir()
+        sys.stdout.write(f"Plugin directory: {directory}\n")
+        if not directory.is_dir():
+            sys.stdout.write("  (does not exist — create it to start dropping plugins)\n")
+            parser.exit()
+        loaded = load_user_plugins(force=True)
+        if not loaded:
+            sys.stdout.write("  (no plugin files found)\n")
+        else:
+            sys.stdout.write("Loaded plugin files:\n")
+            for path in loaded:
+                sys.stdout.write(f"  {path}\n")
+        parser.exit()
+
+
+class _HelpRenderersAction(argparse.Action):
+    """Print the catalogue of registered renderer plugins.
+
+    Mirrors ``--help-builtins`` for the renderer registry: imports
+    every built-in renderer (mermaid / gantt / ascii-blocks) so they
+    self-register, then prints each spec's name, summary, and
+    accepted input shape so a user can pick the right ``--render
+    NAME`` from one terminal command.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):  # noqa: ARG002
+        from core.bigip.query import list_renderers
+
+        specs = list_renderers()
+        if not specs:
+            sys.stdout.write("(no renderers registered)\n")
+            parser.exit()
+        sys.stdout.write("Registered renderers:\n\n")
+        for spec in specs:
+            sys.stdout.write(f"  {spec.name}\n")
+            sys.stdout.write(f"    summary: {spec.summary}\n")
+            sys.stdout.write(f"    accepts: {spec.accepts}\n")
+            if spec.details:
+                # Indent details under the spec; soft-wrap is the
+                # renderer author's responsibility.
+                for line in spec.details.splitlines():
+                    sys.stdout.write(f"    {line}\n")
+            sys.stdout.write("\n")
+        sys.stdout.write(
+            "Use --render NAME to dispatch, --render-opt KEY=VALUE for per-renderer options.\n"
+        )
+        parser.exit()
+
+
 class _HelpReferencesAction(argparse.Action):
     """Print the comprehensive `f5 query` reference manual.
 
@@ -328,6 +418,22 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
         ),
     )
     p.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        nargs=2,
+        metavar=("KIND", "NAME=PATH"),
+        help=(
+            "Bind a file via a registered input format (repeatable).  "
+            "KIND is the format name (built-in: ``json``, ``jsonl``, "
+            "``csv``, ``f5log``; user plugins add more via "
+            "``@input_format`` in ``$XDG_CONFIG_HOME/f5q/plugins/``).  "
+            "Equivalent to the typed ``--input-<kind>`` flags but "
+            "extensible — use this for user-defined formats like "
+            "``--input yaml routes=routes.yaml``."
+        ),
+    )
+    p.add_argument(
         "--partition",
         action="append",
         default=[],
@@ -415,6 +521,32 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "terminals."
         ),
     )
+    out_group.add_argument(
+        "-R",
+        "--render",
+        dest="render_name",
+        metavar="NAME",
+        default=None,
+        help=(
+            "Dispatch the result to the named renderer plugin "
+            "(``mermaid`` / ``gantt`` / ``ascii-blocks`` built-in, "
+            "plus any user-registered renderers).  See "
+            "``--help-renderers`` for the catalogue and "
+            "``--render-opt KEY=VALUE`` for per-renderer options."
+        ),
+    )
+    p.add_argument(
+        "--render-opt",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Pass an option to ``--render NAME`` (repeatable).  Keys "
+            "and values are renderer-specific — e.g. ``--render gantt "
+            "--render-opt unit-minutes=10`` or ``--render mermaid "
+            "--render-opt direction=TB``."
+        ),
+    )
 
     write_group = p.add_mutually_exclusive_group()
     write_group.add_argument(
@@ -495,8 +627,40 @@ def _configure(p: argparse.ArgumentParser, *, prog_name: str, default_dialect: s
             "figuring out which probe builtin matches a device behaviour."
         ),
     )
+    p.add_argument(
+        "--help-renderers",
+        nargs=0,
+        action=_HelpRenderersAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Show the catalogue of registered renderer plugins "
+            "(``mermaid``, ``gantt``, ``ascii-blocks`` built-in) and exit."
+        ),
+    )
+    p.add_argument(
+        "--help-inputs",
+        nargs=0,
+        action=_HelpInputFormatsAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Show the catalogue of registered input formats "
+            "(``json``, ``jsonl``, ``csv``, ``f5log`` built-in, plus "
+            "any ``@input_format`` plugins) and exit."
+        ),
+    )
+    p.add_argument(
+        "--help-plugins",
+        nargs=0,
+        action=_HelpPluginsAction,
+        default=argparse.SUPPRESS,
+        help=(
+            "Print the XDG plugin directory and every plugin file the "
+            "loader picked up, then exit.  Diagnostic for 'is my plugin "
+            "actually being loaded?'."
+        ),
+    )
 
-    p.set_defaults(handler=_run_query, output_mode="auto")
+    p.set_defaults(handler=_run_query, output_mode="auto", render_name=None, input=[])
 
 
 def _run_query(args: argparse.Namespace) -> int:
@@ -557,6 +721,11 @@ def _run_query(args: argparse.Namespace) -> int:
     f5log_bindings, f5log_err = _parse_input_bindings(args.input_f5log, flag="--input-f5log")
     if f5log_err is not None:
         print(f"error: {f5log_err}", file=sys.stderr)
+        return 2
+
+    custom_input_bindings, custom_input_err = _parse_custom_input_bindings(args.input)
+    if custom_input_err is not None:
+        print(f"error: {custom_input_err}", file=sys.stderr)
         return 2
 
     sources: dict[str, str] = {}
@@ -621,7 +790,20 @@ def _run_query(args: argparse.Namespace) -> int:
         spec: _InputSpec,
     ) -> str | None:
         """Read *pth*, register it under *nm* with *spec*; returns
-        an error string or ``None`` on success."""
+        an error string or ``None`` on success.
+
+        Refuses to silently re-bind ``$NAME`` if a prior side-input
+        flag (typed or generic) already claimed it — e.g.
+        ``--input-json routes=a.json --input yaml routes=b.yaml``
+        used to overwrite ``$routes`` with the second source; now
+        the second binding errors and points at the prior one.
+        """
+        if nm in side_resolved_names:
+            prior_uri = side_resolved_names[nm]
+            return (
+                f"{flag} {nm}={pth}: name ${nm} is already bound by a "
+                f"prior --input* flag (to {prior_uri}); pick a different name"
+            )
         try:
             uri, src = read_path(pth, strict=False)
         except (OSError, UnicodeDecodeError) as exc:
@@ -656,6 +838,27 @@ def _run_query(args: argparse.Namespace) -> int:
 
     for nm, (f5log_path, _hdr) in f5log_bindings.items():
         err = _load_side_input(nm, f5log_path, "--input-f5log", _InputSpec(kind="f5log"))
+        if err is not None:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+
+    # Generic ``--input KIND NAME=PATH`` form — covers user plugins and
+    # any future built-in formats without needing a dedicated flag.
+    # Format validity is checked against the registered input formats
+    # so a typo in KIND surfaces as a clear error before file IO.
+    from core.bigip.query.inputs import list_input_formats as _list_input_formats
+    from core.bigip.query.inputs import lookup as _lookup_input
+
+    for kind, nm, custom_path in custom_input_bindings:
+        if _lookup_input(kind) is None:
+            registered = ", ".join(s.name for s in _list_input_formats())
+            print(
+                f"error: --input {kind} {nm}={custom_path}: unknown input "
+                f"format {kind!r} (registered: {registered})",
+                file=sys.stderr,
+            )
+            return 2
+        err = _load_side_input(nm, custom_path, f"--input {kind}", _InputSpec(kind=kind))
         if err is not None:
             print(f"error: {err}", file=sys.stderr)
             return 2
@@ -735,9 +938,42 @@ def _run_query(args: argparse.Namespace) -> int:
         PROBES_ENABLED.reset(_probe_token)
         TLS_CA_BUNDLE.reset(_ca_bundle_token)
 
+    # ``--render NAME`` re-uses the same output dispatch path as the
+    # built-in modes: ``output.render`` falls through to the renderer
+    # registry on an unknown mode, so we just swap ``args.output_mode``
+    # for the requested name and let ``_emit_values`` drive the rest.
+    if args.render_name is not None:
+        args.output_mode = args.render_name
+        render_opts, render_err = _parse_render_opts(args.render_opt)
+        if render_err is not None:
+            print(f"error: {render_err}", file=sys.stderr)
+            return 2
+        args.render_opts = render_opts
+    else:
+        args.render_opts = {}
+
     if result.has_mutation:
         return _emit_mutation(args, sources, result, path_for_uri)
     return _emit_values(args, result, sources)
+
+
+def _parse_render_opts(raw: list[str]) -> tuple[dict[str, str], str | None]:
+    """Parse repeated ``--render-opt KEY=VALUE`` into a flat dict.
+
+    Duplicate keys take the last value (matches argparse's natural
+    last-wins semantics on repeated flags).  Returns an error string
+    when any entry is malformed; the runner prints it with the
+    standard ``error:`` prefix.
+    """
+    opts: dict[str, str] = {}
+    for entry in raw:
+        if "=" not in entry:
+            return {}, f"--render-opt expects KEY=VALUE (got {entry!r})"
+        k, _, v = entry.partition("=")
+        if not k:
+            return {}, f"--render-opt {entry!r}: KEY side cannot be empty"
+        opts[k] = v
+    return opts, None
 
 
 def _parse_name_bindings(raw: list[str], paths: list[str]) -> tuple[dict[str, str], str | None]:
@@ -856,6 +1092,51 @@ def _split_csv_path_headers(
     if not path_part:
         return "", None, f"{flag} {entry!r}: PATH side cannot be empty"
     return path_part, split_headers, None
+
+
+def _parse_custom_input_bindings(
+    raw: list[list[str]],
+) -> tuple[list[tuple[str, str, str]], str | None]:
+    """Parse repeated ``--input KIND NAME=PATH`` argument pairs.
+
+    Returns ``(entries, error_or_None)`` where each entry is a tuple
+    ``(kind, name, path)``.  Validates that:
+
+    - ``NAME=PATH`` contains a ``=``;
+    - ``NAME`` is a valid DSL identifier;
+    - ``KIND`` and ``NAME`` are both non-empty;
+    - no two entries bind the same ``NAME``.
+
+    ``KIND`` is not validated against the registry here — the caller
+    does that lookup after parsing so it can produce a friendlier
+    "registered: ..." error listing every format the run knows about.
+    """
+    import re as _re
+
+    name_re = _re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+    entries: list[tuple[str, str, str]] = []
+    seen_names: set[str] = set()
+    for pair in raw:
+        if len(pair) != 2:
+            return [], (f"--input expects two arguments KIND NAME=PATH (got {pair!r})")
+        kind, binding = pair
+        if not kind:
+            return [], f"--input {pair!r}: KIND cannot be empty"
+        if "=" not in binding:
+            return [], f"--input {kind} expects NAME=PATH (got {binding!r})"
+        nm, _, pth = binding.partition("=")
+        if not name_re.match(nm):
+            return [], (
+                f"--input {kind} {binding!r}: {nm!r} is not a valid DSL "
+                "identifier (letters, digits, '_', '-'; cannot start with a digit)"
+            )
+        if not pth:
+            return [], f"--input {kind} {binding!r}: PATH side cannot be empty"
+        if nm in seen_names:
+            return [], f"--input {kind} {nm}: duplicate binding"
+        seen_names.add(nm)
+        entries.append((kind, nm, pth))
+    return entries, None
 
 
 def _parse_json_bindings(raw: list[str]) -> tuple[dict[str, str], str | None]:
@@ -1023,6 +1304,7 @@ def _emit_values(
         sys.stdout.write(json.dumps(envelope, indent=2) + "\n")
         return _empty_match_exit_code(args, any_matched)
 
+    render_opts = getattr(args, "render_opts", {}) or {}
     for uri, values in result.values_per_file.items():
         # "Matched" means the evaluator produced at least one value
         # for this source — empty strings, ``null``, ``false``, and
@@ -1034,7 +1316,18 @@ def _emit_values(
             any_matched = True
         if use_banner:
             sys.stdout.write(f"# === {uri} ===\n")
-        sys.stdout.write(render(values, mode=args.output_mode))
+        try:
+            sys.stdout.write(render(values, mode=args.output_mode, **render_opts))
+        except QueryError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except ValueError as exc:
+            # Surface unknown-mode errors as ``error:`` rather than a
+            # traceback — ``output.render`` raises ValueError for an
+            # unregistered renderer name, matching the historical
+            # contract for the built-in modes.
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     return _empty_match_exit_code(args, any_matched)
 
 

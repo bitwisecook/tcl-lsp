@@ -52,6 +52,11 @@ rules for the KCS/documentation split live in
   by emission style (real list / sub-block / uncertain), backing
   the curated override layer in
   ``core/bigip/registry/specs/_base.py``.
+- [f5-query-renderer-contract.md](f5-query-renderer-contract.md) —
+  decorator-based renderer plugin registry that powers
+  ``f5 q --render NAME``: ``RendererSpec`` shape, source-text
+  recovery via ``RENDER_SOURCES`` contextvar, error-mapping rules,
+  and CLI / Python API wiring.
 
 ## tclpkg package manager
 
