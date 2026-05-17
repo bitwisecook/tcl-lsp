@@ -1,6 +1,6 @@
 # cmdMZ.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '43 of 97 failed'
+# reason = '22 of 97 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 97
-observed_passed = 54
-observed_failed = 43
+observed_passed = 75
+observed_failed = 22
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["cmdMZ-return-2.0", "cmdMZ-return-2.1", "cmdMZ-return-2.2", "cmdMZ-return-2.3", "cmdMZ-return-2.11", "cmdMZ-return-2.15", "cmdMZ-return-2.16", "cmdMZ-return-2.17", "cmdMZ-return-2.18", "cmdMZ-return-2.20", "cmdMZ-return-2.21", "cmdMZ-return-3.0", "cmdMZ-return-3.1", "cmdMZ-return-3.2", "cmdMZ-return-3.3", "cmdMZ-return-3.4", "cmdMZ-return-3.5", "cmdMZ-return-3.6", "cmdMZ-return-3.7", "cmdMZ-return-3.8", "cmdMZ-return-3.9", "cmdMZ-return-3.10", "cmdMZ-return-3.11", "cmdMZ-return-3.12", "cmdMZ-return-3.12.1", "cmdMZ-4.3", "cmdMZ-4.6", "cmdMZ-4.9", "cmdMZ-4.13", "cmdMZ-6.1", "cmdMZ-6.2.1", "cmdMZ-6.2.2", "cmdMZ-6.2.3", "cmdMZ-6.3", "cmdMZ-6.4", "cmdMZ-6.5a", "cmdMZ-6.5b", "cmdMZ-6.7", "cmdMZ-6.7.1", "cmdMZ-6.9", "cmdMZ-6.11", "cmdMZ-6.12", "cmdMZ-6.13"]
+ids = ["cmdMZ-return-2.18", "cmdMZ-return-2.21", "cmdMZ-return-3.9", "cmdMZ-return-3.10", "cmdMZ-return-3.11", "cmdMZ-return-3.12", "cmdMZ-return-3.12.1", "cmdMZ-4.13", "cmdMZ-6.1", "cmdMZ-6.2.1", "cmdMZ-6.2.2", "cmdMZ-6.2.3", "cmdMZ-6.3", "cmdMZ-6.4", "cmdMZ-6.5a", "cmdMZ-6.5b", "cmdMZ-6.7", "cmdMZ-6.7.1", "cmdMZ-6.9", "cmdMZ-6.11", "cmdMZ-6.12", "cmdMZ-6.13"]

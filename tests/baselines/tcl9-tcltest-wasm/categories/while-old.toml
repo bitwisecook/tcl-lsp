@@ -1,6 +1,6 @@
 # while-old.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '8 of 15 failed'
+# reason = '4 of 15 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 15
-observed_passed = 7
-observed_failed = 8
+observed_passed = 11
+observed_failed = 4
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["while-old-1.4", "while-old-4.1", "while-old-4.2", "while-old-4.3", "while-old-4.4", "while-old-4.5", "while-old-4.6", "while-old-5.2"]
+ids = ["while-old-1.4", "while-old-4.4", "while-old-4.5", "while-old-4.6"]

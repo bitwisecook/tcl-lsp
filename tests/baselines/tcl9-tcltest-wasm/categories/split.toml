@@ -1,6 +1,6 @@
 # split.test — auto-generated WASM baseline.
-# bucket = 'W-mixed-fail'
-# reason = '5 of 18 failed'
+# bucket = 'clean'
+# reason = 'all tests pass or skip'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,6 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 18
-observed_passed = 13
-observed_failed = 5
+observed_passed = 18
+observed_failed = 0
 observed_skipped = 0
-
-[failing]
-# Test IDs failing today — kept here for visibility, not gating.
-ids = ["split-1.1", "split-1.4", "split-1.7", "split-2.1", "split-2.2"]
