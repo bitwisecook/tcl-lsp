@@ -603,6 +603,7 @@ fn eval_binary(words: []const i32) result_mod.InterpResult {
 /// handling, which we don't currently implement separately — the
 /// strict + non-strict behaviour agree on the test corpus).
 fn eval_binary_decode(words: []const i32) i32 {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
     // words = ["decode", FMT, ?-strict?, data]
     if (words.len < 3) {
         raise_simple("wrong # args: should be \"binary decode format ?options ...? data\"");
@@ -629,7 +630,12 @@ fn eval_binary_decode(words: []const i32) i32 {
     const data = obj_ensure_string(words[data_idx]);
     if (data.len == 0) return obj_new_string(0, 0);
     const sp: [*]const u8 = @ptrFromInt(data.ptr);
-    const buf = alloc(data.len / 2 + 1);
+    const cap: u32 = data.len / 2 + 1;
+    const buf = alloc(cap);
+    if (buf == 0) {
+        raise_simple("out of memory");
+        return 0;
+    }
     const dst: [*]u8 = @ptrFromInt(buf);
     var out: u32 = 0;
     var i: u32 = 0;
@@ -639,6 +645,7 @@ fn eval_binary_decode(words: []const i32) i32 {
         const c = sp[i];
         if (c == ' ' or c == '\t' or c == '\n' or c == '\r') continue;
         const nibble: u8 = if (c >= '0' and c <= '9') c - '0' else if (c >= 'a' and c <= 'f') c - 'a' + 10 else if (c >= 'A' and c <= 'F') c - 'A' + 10 else {
+            obj_mod.free_sized(buf, cap);
             raise_simple("invalid hexadecimal digit");
             return 0;
         };
@@ -652,15 +659,21 @@ fn eval_binary_decode(words: []const i32) i32 {
         }
     }
     if (have_high) {
+        obj_mod.free_sized(buf, cap);
         raise_simple("invalid hexadecimal digit \"\" at position");
         return 0;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(out));
+    // ``obj_new_string`` borrows the buffer pointer (cap=0), which
+    // means the bytes leak when the TclObj is released.  Take
+    // ownership via ``obj_new_string_take`` so the slab returns to
+    // the free-list at end-of-life.
+    return obj_mod.obj_new_string_take(buf, out, cap);
 }
 
 /// ``binary encode hex`` — render each byte as two lowercase hex
 /// digits.  Symmetric counterpart of :fn:`eval_binary_decode`.
 fn eval_binary_encode(words: []const i32) i32 {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
     if (words.len < 3) {
         raise_simple("wrong # args: should be \"binary encode format ?options ...? data\"");
         return 0;
@@ -670,7 +683,13 @@ fn eval_binary_encode(words: []const i32) i32 {
     const data = obj_ensure_string(words[2]);
     if (data.len == 0) return obj_new_string(0, 0);
     const sp: [*]const u8 = @ptrFromInt(data.ptr);
-    const buf = alloc(data.len * 2 + 1);
+    const out_len: u32 = data.len * 2;
+    const cap: u32 = out_len + 1;
+    const buf = alloc(cap);
+    if (buf == 0) {
+        raise_simple("out of memory");
+        return 0;
+    }
     const dst: [*]u8 = @ptrFromInt(buf);
     var i: u32 = 0;
     const HEX = "0123456789abcdef";
@@ -678,7 +697,8 @@ fn eval_binary_encode(words: []const i32) i32 {
         dst[i * 2] = HEX[sp[i] >> 4];
         dst[i * 2 + 1] = HEX[sp[i] & 0x0F];
     }
-    return obj_new_string(@bitCast(buf), @bitCast(data.len * 2));
+    // Owning TclObj — see the matching note in ``eval_binary_decode``.
+    return obj_mod.obj_new_string_take(buf, out_len, cap);
 }
 
 fn slice_eq3(p: u32, comptime want: []const u8) bool {
@@ -691,6 +711,10 @@ fn raise_simple(msg: []const u8) void {
     const obj_mod = @import("../valtypes/tcl_obj.zig");
     const catch_mod = @import("../interp/tcl_catch.zig");
     const buf = obj_mod.alloc(@intCast(msg.len));
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_new_string(0, 0));
+        return;
+    }
     const dst: [*]u8 = @ptrFromInt(buf);
     for (msg, 0..) |c, i| dst[i] = c;
     const o = obj_mod.obj_new_string_take(buf, @intCast(msg.len), @intCast(msg.len));
