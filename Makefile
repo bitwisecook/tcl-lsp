@@ -132,7 +132,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -145,8 +145,11 @@ install: package-vsix ## Build and install the .vsix into VS Code
 
 publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Verifying VS Code Marketplace credentials"
-	@if ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
-		echo "    No valid PAT found for publisher '$(VSCE_PUBLISHER)'."; \
+	@if [ -n "$$VSCE_PAT" ]; then \
+		echo "    Using VSCE_PAT from environment (non-interactive)."; \
+	elif ! $(VSCE) verify-pat $(VSCE_PUBLISHER) 2>/dev/null; then \
+		echo "    No valid cached PAT for publisher '$(VSCE_PUBLISHER)' and"; \
+		echo "    VSCE_PAT is not set."; \
 		echo "    Launching interactive login (create a PAT at https://dev.azure.com if needed)..."; \
 		$(VSCE) login $(VSCE_PUBLISHER); \
 	fi
@@ -1157,6 +1160,7 @@ publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplac
 	@if [ -z "$$JETBRAINS_TOKEN" ]; then \
 		echo "error: JETBRAINS_TOKEN environment variable is not set"; \
 		echo "       Create a token at https://plugins.jetbrains.com/author/me/tokens"; \
+		echo "       Plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support"; \
 		exit 1; \
 	fi
 	@echo "==> Publishing JetBrains plugin to Marketplace"
@@ -1169,7 +1173,7 @@ ST_PACKAGE  := $(BUILD_DIR)/tcl-lsp-sublime-$(VERSION).sublime-package
 
 sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
 
-$(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
+$(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	@echo "==> Building Sublime Text package"
 	@rm -rf $(BUILD_DIR)/sublime-stage
 	@mkdir -p $(BUILD_DIR)/sublime-stage
@@ -1177,21 +1181,9 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	find $(BUILD_DIR)/sublime-stage -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage -name '.DS_Store' -delete 2>/dev/null || true
 	rm -f $(BUILD_DIR)/sublime-stage/README.md
-	@echo "==> Bundling raw server source files"
+	@echo "==> Bundling LSP server as a single zipapp"
 	@mkdir -p $(BUILD_DIR)/sublime-stage/server
-	cp -r $(ROOT)lsp $(BUILD_DIR)/sublime-stage/server/lsp
-	cp -r $(ROOT)core $(BUILD_DIR)/sublime-stage/server/core
-	cp -r $(ROOT)explorer $(BUILD_DIR)/sublime-stage/server/explorer
-	rm -rf $(BUILD_DIR)/sublime-stage/server/explorer/static
-	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '*.pyc' -delete 2>/dev/null || true
-	$(UV) pip install --target $(BUILD_DIR)/sublime-stage/server --quiet \
-		"pygls>=2.0" "lsprotocol>=2024.0.0"
-	find $(BUILD_DIR)/sublime-stage/server -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '*.so' -delete 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '*.pyd' -delete 2>/dev/null || true
-	cp $(ROOT)scripts/zipapp_lsp_main.py $(BUILD_DIR)/sublime-stage/server/__main__.py
+	cp $(ZIPAPP_LSP) $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
 	@echo "==> Packaging .sublime-package"
 	cd $(BUILD_DIR)/sublime-stage && zip -r $(ST_PACKAGE) . -x '__pycache__/*'
@@ -1201,10 +1193,8 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: sublime ## Publish Sublime Text package (via GitHub Release)
-	@echo "==> Sublime Text package built: $(ST_PACKAGE)"
-	@echo "    Package Control picks up new versions from GitHub Releases automatically."
-	@echo "    Ensure the GitHub Release for this tag includes the .sublime-package artifact."
+publish-sublime: sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
+	@bash $(ROOT)scripts/publish_sublime.sh
 
 # Zed extension
 
@@ -1248,10 +1238,8 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
 
-publish-zed: zed ## Publish Zed extension (via GitHub Release)
-	@echo "==> Zed extension built: $(ZED_ARCHIVE)"
-	@echo "    Zed extensions are published via https://github.com/zed-industries/extensions"
-	@echo "    Ensure the GitHub Release for this tag includes the .zip artifact."
+publish-zed: zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
+	@bash $(ROOT)scripts/publish_zed.sh
 
 # Release
 
@@ -1284,6 +1272,9 @@ release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)
 
 publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+
+publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
+	@bash $(ROOT)scripts/publish_verify.sh
 
 # KCS help database
 

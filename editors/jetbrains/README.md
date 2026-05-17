@@ -43,6 +43,14 @@ All features from the tcl-lsp server are supported:
 
 ## Installation
 
+### From the JetBrains Marketplace (recommended)
+
+Install via **Settings → Plugins → Marketplace → search "Tcl Language
+Support"**, or via the plugin page:
+<https://plugins.jetbrains.com/plugin/31801-tcl-language-support>.
+
+After install, restart the IDE.
+
 ### From Release
 
 1. Download `tcl-lsp-jetbrains-VERSION.zip` from the [GitHub Releases](https://github.com/bitwisecook/tcl-lsp/releases)

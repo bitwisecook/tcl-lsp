@@ -18,7 +18,7 @@ import sublime_plugin  # type: ignore[import-not-found]
 PACKAGE_NAME = "Tcl"
 SETTINGS_KEY = "LSP-Tcl.sublime-settings"
 SERVER_DIR = "server"
-SERVER_ENTRY = "__main__.py"
+SERVER_ENTRY = "tcl-lsp-server.pyz"
 
 # Dialects the server supports, keyed for the quick-panel.
 DIALECTS = [

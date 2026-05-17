@@ -180,7 +180,21 @@ job. If the smoke-test succeeds, integrity is intact.
 
 ### 7. Editor publishing
 
-Ask the user which editors to publish to using `AskUserQuestion`:
+Before asking which editors to publish, run a readiness check so any
+missing token or unclaimed namespace surfaces *before* the user picks
+targets:
+
+```bash
+make publish-verify
+```
+
+`publish-verify` prints one of `[ok] / [warn] / [fail]` per editor; it
+exits non-zero only on `[fail]` (tool missing or remote unreachable).
+`[warn]` lines (e.g. `JETBRAINS_TOKEN not set`) are recoverable — note
+them back to the user and let them decide whether to set the token now
+or skip that target.
+
+Then ask which editors to publish to using `AskUserQuestion`:
 
 > Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed)
 > Default: None
@@ -192,10 +206,42 @@ Based on the response:
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:
-- `make publish-vsix` — VS Code Marketplace (requires valid PAT)
-- `make publish-jetbrains` — JetBrains Marketplace (requires `JETBRAINS_TOKEN` env var)
-- `make publish-sublime` — Sublime Text (built; distributed via GitHub Release)
-- `make publish-zed` — Zed (built; distributed via GitHub Release)
+- `make publish-vsix` — VS Code Marketplace. Runs `vsce publish`. Requires
+  a valid PAT for `bitwisecook` (interactive login otherwise).
+- `make publish-jetbrains` — JetBrains Marketplace. Runs
+  `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. The
+  first-ever publish must be done interactively via the JetBrains web
+  UI; `publishPlugin` only updates an already-listed plugin.
+- `make publish-sublime` — Sublime Text / Package Control. Pushes the
+  built `build/sublime-stage/` tree (the same contents that go into the
+  `.sublime-package`) to the dedicated mirror repo
+  `bitwisecook/tcl-lsp-sublime-text` at the current tag. Package Control
+  scrapes the mirror's tags and serves the package source archive
+  directly — no marketplace API call, no per-release channel PR. The
+  mirror exists because Package Control needs the package contents at
+  the root of a git tag, which our monorepo can't satisfy directly.
+  One-time setup: the empty mirror repo must exist on GitHub
+  (`gh repo create bitwisecook/tcl-lsp-sublime-text --public ...`).
+  Override the mirror destination with `TCL_LSP_SUBLIME_MIRROR_REPO`
+  and `TCL_LSP_SUBLIME_MIRROR_DIR`; set `TCL_LSP_SUBLIME_DRY_RUN=1` to
+  stage the commit + tag locally without pushing.
+- `make publish-zed` — Zed extensions registry. Prepares a local
+  checkout of `zed-industries/extensions` with the tcl submodule advanced
+  to the new tag and the version bumped in `extensions.toml`, then
+  **stops** and prints the suggested commit / push / `gh pr create`
+  commands. The script never pushes to a fork or opens a PR — the user
+  reviews the diff first and raises the PR themselves.
+
+Neovim (`nvim-lspconfig`) and Helix integration are one-time upstream
+PRs that the user raises by hand; there is no per-release publish step
+or `make publish-*` target for them.
+
+The make targets in this repository **only push to repositories owned
+by the maintainer** (the canonical repo, the
+`tcl-lsp-sublime-text` mirror). They never push to or open PRs against
+external repositories — any external-repo PR (JetBrains first-time
+upload, Package Control channel submission, Zed extensions registry,
+nvim-lspconfig, Helix) is raised by the user.
 
 ### 8. Summary
 

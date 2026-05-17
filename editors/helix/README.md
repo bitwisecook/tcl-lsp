@@ -15,7 +15,14 @@ The `.pyz` zipapp bundles all Python dependencies internally — no
 See the [Installation Guide](../../INSTALL-editors.md#python) for
 full details on Python setup across platforms.
 
-## Configuration
+## Upstream integration (after merge)
+
+Once tcl-lsp is added to
+[`helix-editor/helix`](https://github.com/helix-editor/helix)'s default
+`languages.toml`, Helix users only need the `tcl-lsp-server.pyz` zipapp
+on their PATH — no per-user `languages.toml` edit is required.
+
+## Configuration (until upstream merges)
 
 ```toml
 [language-server.tcl-lsp]
