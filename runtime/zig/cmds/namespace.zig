@@ -75,6 +75,7 @@ const ns_arity_table: []const NamespaceArity = &.{
     .{ .sub = "children", .min_args = 0, .max_args = 2, .message = "wrong # args: should be \"namespace children ?name? ?pattern?\"" },
     .{ .sub = "code", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace code arg\"" },
     .{ .sub = "current", .min_args = 0, .max_args = 0, .message = "wrong # args: should be \"namespace current\"" },
+    .{ .sub = "ensemble", .min_args = 1, .max_args = null, .message = "wrong # args: should be \"namespace ensemble subcommand ?arg ...?\"" },
     .{ .sub = "eval", .min_args = 2, .max_args = null, .message = "wrong # args: should be \"namespace eval name arg ?arg...?\"" },
     .{ .sub = "exists", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace exists name\"" },
     .{ .sub = "inscope", .min_args = 2, .max_args = null, .message = "wrong # args: should be \"namespace inscope name arg ?arg...?\"" },
@@ -423,6 +424,9 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "current")) {
             const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
             return result_mod.from_globals(obj_new_string(@bitCast(nf.ptr), @bitCast(nf.len)));
+        }
+        if (str_eq(@ptrFromInt(sub.ptr), sub.len, "ensemble")) {
+            return result_mod.from_globals(eval_ns_ensemble(words));
         }
         if (sub.len == 4 and sub.ptr != 0) {
             const sp4: [*]const u8 = @ptrFromInt(sub.ptr);
@@ -873,6 +877,12 @@ fn ns_delete_strict(name_ptr: u32, name_len: u32) bool {
 
 fn do_ns_delete(h: u32) void {
     const ns: *const tcl_ns.Namespace = @ptrFromInt(h);
+    // Tcl 9 ``TclTeardownNamespace`` cascades the delete to every
+    // command in the namespace's cmd_table, invalidating each
+    // import redirect that pointed at the live command.  After
+    // delete, ``info commands`` queries downstream stop returning
+    // the orphaned imports (namespace-8.4).
+    invalidate_ns_command_imports(h);
     const parent = ns.parent;
     if (parent == 0) return; // can't delete root
     const parent_ns: *tcl_ns.Namespace = @ptrFromInt(parent);
@@ -888,6 +898,62 @@ fn do_ns_delete(h: u32) void {
         }
     }
 }
+
+/// Walk *ns*'s ``cmd_table`` and zero the ``real_cmd`` slot of every
+/// import redirect that points at one of these commands.  ``info
+/// commands`` filters such "dead" redirects via ``entry_matches``,
+/// matching Tcl 9 ``Tcl_DeleteNamespace`` semantics.
+fn invalidate_ns_command_imports(ns_addr: u32) void {
+    if (ns_addr == 0) return;
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return;
+    const c = tcl_procs_constants;
+    const bucket_size: u32 = 16;
+    // Live linear-memory bound — any cmd handle past this points
+    // into unmapped territory and the read_i32 would trap.
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        // Only walk *occupied* buckets — a zero name_ptr indicates an
+        // empty slot, and reading the handle there can produce
+        // arbitrary noise the way some hash-table implementations
+        // pack their headers (set-old-8.x regression on bare cmd
+        // table walks).
+        const name_ptr: u32 = @bitCast(obj_mod.read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const cmd: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (cmd == 0) continue;
+        // Builtin forwards / aliases / freshly-stamped command
+        // entries can have a handle outside the heap range; guard
+        // every dereference.
+        if (@as(u64, cmd) + c.OFF_IMPORT_REF_HEAD + 4 > mem_bytes) continue;
+        // Walk the linked list of redirects at OFF_IMPORT_REF_HEAD.
+        var ref_head: u32 = @bitCast(obj_mod.read_i32(cmd + c.OFF_IMPORT_REF_HEAD));
+        var hops: u32 = 0;
+        while (ref_head != 0 and hops < 4096) : (hops += 1) {
+            if (@as(u64, ref_head) + 8 > mem_bytes) break;
+            const redirect_cmd: u32 = @bitCast(obj_mod.read_i32(ref_head));
+            const next_ref: u32 = @bitCast(obj_mod.read_i32(ref_head + 4));
+            if (redirect_cmd != 0 and @as(u64, redirect_cmd) + c.OFF_PARAMS_OBJ + 4 <= mem_bytes) {
+                const desc: u32 = @bitCast(obj_mod.read_i32(redirect_cmd + c.OFF_PARAMS_OBJ));
+                if (desc != 0 and @as(u64, desc) + 4 <= mem_bytes) {
+                    obj_mod.write_i32(desc, 0);
+                }
+            }
+            ref_head = next_ref;
+        }
+        obj_mod.write_i32(cmd + c.OFF_IMPORT_REF_HEAD, 0);
+    }
+}
+
+const tcl_procs_constants = struct {
+    pub const OFF_FLAGS: u32 = 8;
+    pub const OFF_PARAMS_OBJ: u32 = 12;
+    pub const OFF_IMPORT_REF_HEAD: u32 = 32;
+    pub const CMD_IMPORTED: u32 = 0x02;
+};
 
 /// Return true when *pat*'s namespace prefix (everything before the
 /// final ``::`` separator) resolves to a real namespace.  When the
@@ -949,6 +1015,133 @@ fn raise_unknown_ns_in_pattern(pat_ptr: u32, pat_len: u32, context: []const u8) 
     }
     const e = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(e);
+}
+
+/// Handle ``namespace ensemble`` subcommands.  The arity check at
+/// the front gate already validated ``words.len >= 3``; here we
+/// dispatch on the second sub-keyword.  Ensemble dispatch / live-
+/// command shape is still stubbed — we surface the canonical
+/// errors and ``configure`` introspection only.
+fn eval_ns_ensemble(words: []const i32) i32 {
+    const sub2 = obj_ensure_string(words[2]);
+    if (sub2.len == 0) {
+        raise_bad_ensemble_subcmd(0, 0);
+        return 0;
+    }
+    const sp2: [*]const u8 = @ptrFromInt(sub2.ptr);
+    if (slice_eq_ns(sub2.ptr, sub2.len, "create")) {
+        return eval_ns_ensemble_create(words);
+    }
+    if (slice_eq_ns(sub2.ptr, sub2.len, "exists")) {
+        // Stub: we don't track ensembles, so always 0.
+        return obj_new_int(0);
+    }
+    if (slice_eq_ns(sub2.ptr, sub2.len, "configure")) {
+        // Stub: report empty default options.  Matches the option
+        // names Tcl 9 ships even though we don't actually use them.
+        return obj_new_string_copy_str("-map {} -namespace ::%s -parameters {} -prefixes 1 -subcommands {} -unknown {}");
+    }
+    _ = sp2;
+    raise_bad_ensemble_subcmd(sub2.ptr, sub2.len);
+    return 0;
+}
+
+fn eval_ns_ensemble_create(words: []const i32) i32 {
+    // ``namespace ensemble create ?-OPT VAL?...`` — we just validate
+    // the option shape to surface namespace-44.3 / 44.4 / 44.6 and
+    // return an empty result.  Real dispatch isn't wired up.
+    if (((words.len - 3) & 1) != 0) {
+        // A bare ``namespace ensemble create gorp`` (one trailing
+        // word) is wrong-args in Tcl 9 because options are
+        // ``-key value`` pairs; an odd remainder means the user
+        // gave a stray word like ``gorp`` (namespace-44.6).
+        raise_ns_error("wrong # args: should be \"namespace ensemble create ?option value ...?\"");
+        return 0;
+    }
+    var i: u32 = 3;
+    while (i + 1 < words.len) : (i += 2) {
+        const key = obj_ensure_string(words[i]);
+        const val = obj_ensure_string(words[i + 1]);
+        if (key.len == 0 or @as([*]const u8, @ptrFromInt(key.ptr))[0] != '-') {
+            raise_ns_error("missing value to go with key");
+            return 0;
+        }
+        // ``-map`` value must be a list of {key impl key impl ...}
+        // with non-empty implementations (44.4).
+        if (slice_eq_ns(key.ptr, key.len, "-map")) {
+            if (val.len == 0) continue;
+            const obj_h = @import("../valtypes/tcl_obj.zig");
+            const n = obj_h.list_count_elements(val.ptr, val.len);
+            if (@rem(n, 2) != 0) {
+                raise_ns_error("missing value to go with key");
+                return 0;
+            }
+            var k: i64 = 1;
+            while (k < n) : (k += 2) {
+                const impl = obj_h.list_element_at(val.ptr, val.len, k);
+                if (impl.len == 0) {
+                    raise_ns_error("ensemble subcommand implementations must be non-empty lists");
+                    return 0;
+                }
+            }
+        }
+    }
+    if (i < words.len) {
+        // Trailing single token (e.g. ``-map`` with no value at the
+        // end) — Tcl 9 says "missing value to go with key".
+        raise_ns_error("missing value to go with key");
+        return 0;
+    }
+    return obj_new_string(0, 0);
+}
+
+fn raise_bad_ensemble_subcmd(sub_ptr: u32, sub_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = "bad subcommand \"";
+    const suffix: []const u8 = "\": must be configure, create, or exists";
+    const total: u32 = @intCast(prefix.len + sub_len + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (sub_len > 0) {
+        const sp: [*]const u8 = @ptrFromInt(sub_ptr);
+        for (0..sub_len) |k| {
+            dst[off] = sp[k];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const e = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(e);
+}
+
+fn obj_new_string_copy_str(s: []const u8) i32 {
+    // ``%s`` placeholder: drop it (we don't carry a real ns at
+    // present).  This produces the literal Tcl 9 default
+    // configure dict minus the live namespace name.
+    var trimmed: [128]u8 = undefined;
+    var off: u32 = 0;
+    var i: u32 = 0;
+    while (i < s.len and off < trimmed.len) : (i += 1) {
+        if (i + 1 < s.len and s[i] == '%' and s[i + 1] == 's') {
+            i += 1;
+            continue;
+        }
+        trimmed[off] = s[i];
+        off += 1;
+    }
+    return obj_mod.obj_new_string_copy(@bitCast(@intFromPtr(&trimmed)), off);
 }
 
 /// Raise the canonical ``import pattern "PAT" tries to import from
