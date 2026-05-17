@@ -58,8 +58,9 @@ When you want to project a field across a *stream* (not a list), pipe through th
 $ f5 query --raw '.ltm.virtual[].pool | basename(.)' bigip.conf
 
 # Distinct partitions in use across all VSes — wrap the per-item
-# projection in a list literal, then aggregate:
-$ f5 query '[.ltm.virtual[].name | partition(.)] | unique | sort' bigip.conf
+# projection in a list literal, then aggregate.  ``unique`` already
+# returns sorted output (jq parity), so no trailing ``| sort`` needed:
+$ f5 query '[.ltm.virtual[].name | partition(.)] | unique' bigip.conf
 ```
 
 ### `any` / `all` — collapse a list or stream to a boolean
@@ -83,14 +84,19 @@ The first form pipes the stream of addresses through `in_cidr` per item (yieldin
 
 ### `sort` + `unique` — aggregate a list
 
-`sort` returns a sorted list; `unique` deduplicates preserving first-seen order.  They expect a single list/stream value as input — so wrap stream-producing path expressions with a list literal first.
+`sort` returns a sorted list.  `unique` returns the **sorted** unique values (jq parity) — so reach for `unique` directly when you want a deduplicated, ordered result; piping `| sort` after is redundant.  Both expect a single list/stream value as input, so wrap stream-producing path expressions with a list literal first.
+
+For finding the **opposite** — items that appear more than once — use `dupes`, which returns the repeated values sorted.  For "first-seen-order" deduplication, group with `unique_by(.)` over a key that captures input position.
 
 ```
 # Every distinct default pool, sorted
-$ f5 query '[.ltm.virtual[].pool] | unique | sort' bigip.conf
+$ f5 query '[.ltm.virtual[].pool] | unique' bigip.conf
 
 # Count distinct partitions in use across all VSes
 $ f5 query '[.ltm.virtual[].name | partition(.)] | unique | count' bigip.conf
+
+# Pools attached to more than one VS — the inverse of unique
+$ f5 query '[.ltm.virtual[].pool] | dupes' bigip.conf
 ```
 
 ### `first` / `last` / `count` — pick or measure

@@ -690,7 +690,8 @@ Common patterns:
   yields a stream of booleans suitable for ``any`` / ``all``.
 - **Compose with sort + unique on a stream**: wrap with a list
   literal first so subsequent stages see one list:
-  ``[.ltm.virtual[].name | partition(.)] | unique | sort``.
+  ``[.ltm.virtual[].name | partition(.)] | unique`` (``unique``
+  already returns sorted output, jq parity).
 
 Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
 
@@ -698,7 +699,7 @@ Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
 
 ```
 .rules | map(basename(.))
-[.ltm.virtual[].name | partition(.)] | unique | sort
+[.ltm.virtual[].name | partition(.)] | unique
 any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))
 ```
 
@@ -1062,7 +1063,7 @@ Related: ``unique``, ``first``, ``last``.
 
 ```
 [.ltm.virtual[].name] | sort
-[.ltm.virtual[].pool] | unique | sort    # sorted distinct pools
+[.ltm.virtual[].destination | host] | sort | reverse  # descending hosts
 ```
 
 ### `sort_by`
@@ -3880,8 +3881,9 @@ with ``/`` (a relative reference, or a bare name) returns the
 empty string.
 
 Useful for group-by aggregates: ``[.ltm.virtual[].name |
-partition(.)] | unique | sort`` enumerates every partition
-that owns at least one virtual server.
+partition(.)] | unique`` enumerates every partition that owns
+at least one virtual server (``unique`` returns sorted output
+— no need to chain ``| sort``).
 
 Related: ``basename`` (the inverse — last segment),
 ``with_partition`` (replace the partition), ``rename_partition``
@@ -6605,7 +6607,7 @@ Related: ``path``, ``type``, ``refs``.
 
 ```
 kind(.ltm.virtual.web_vs)                  # -> 'ltm virtual'
-[.ltm.virtual[] | refs(.)[]] | unique | sort
+[.ltm.virtual[] | refs(.)[]] | unique     # sorted by ``unique`` itself
 ```
 
 ### `leaf_paths`

@@ -335,8 +335,10 @@ $ f5 query '[.ltm.virtual[]] | count' ltm.conf
 ## L12. Distinct pools attached to a VS, sorted
 
 ```
-$ f5 query '[.ltm.virtual[].pool | select(. != "")] | unique | sort' ltm.conf
+$ f5 query '[.ltm.virtual[].pool | select(. != "")] | unique' ltm.conf
 ```
+
+`unique` already returns sorted output (jq parity), so the trailing `| sort` is no longer needed.
 
 ```
 /Common/api_pool

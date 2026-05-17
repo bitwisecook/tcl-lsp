@@ -832,8 +832,9 @@ def _builtin_port(value: Any) -> int | None:
     empty string.
 
     Useful for group-by aggregates: ``[.ltm.virtual[].name |
-    partition(.)] | unique | sort`` enumerates every partition
-    that owns at least one virtual server.
+    partition(.)] | unique`` enumerates every partition that owns
+    at least one virtual server (``unique`` returns sorted output
+    — no need to chain ``| sort``).
 
     Related: ``basename`` (the inverse — last segment),
     ``with_partition`` (replace the partition), ``rename_partition``
@@ -3710,7 +3711,7 @@ _MISSING: Any = object()
     """,
     examples=(
         "[.ltm.virtual[].name] | sort",
-        "[.ltm.virtual[].pool] | unique | sort    # sorted distinct pools",
+        "[.ltm.virtual[].destination | host] | sort | reverse  # descending hosts",
     ),
     category="stream",
     min_args=1,
@@ -3918,13 +3919,14 @@ def _builtin_select(*_args):  # pragma: no cover - dispatched specially
       yields a stream of booleans suitable for ``any`` / ``all``.
     - **Compose with sort + unique on a stream**: wrap with a list
       literal first so subsequent stages see one list:
-      ``[.ltm.virtual[].name | partition(.)] | unique | sort``.
+      ``[.ltm.virtual[].name | partition(.)] | unique`` (``unique``
+      already returns sorted output, jq parity).
 
     Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
     """,
     examples=(
         ".rules | map(basename(.))",
-        "[.ltm.virtual[].name | partition(.)] | unique | sort",
+        "[.ltm.virtual[].name | partition(.)] | unique",
         'any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))',
     ),
     category="stream",
@@ -3961,7 +3963,7 @@ def _builtin_map(*_args):  # pragma: no cover - dispatched specially
     """,
     examples=(
         "kind(.ltm.virtual.web_vs)                  # -> 'ltm virtual'",
-        "[.ltm.virtual[] | refs(.)[]] | unique | sort",
+        "[.ltm.virtual[] | refs(.)[]] | unique     # sorted by ``unique`` itself",
     ),
     category="value",
     min_args=1,

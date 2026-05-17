@@ -139,11 +139,18 @@ _EXAMPLES: tuple[Example, ...] = (
     ),
     Example(
         title="Count VSes grouped by partition",
-        query="[.ltm.virtual[].name | partition(.)] | sort",
+        query=(
+            '[.ltm.virtual[]] | group_by(partition(."full-path")) '
+            '| map({partition: (.[0]."full-path" | partition(.)), count: length})'
+        ),
         comment=(
-            "List literal `[...]` collects the stream of partition "
-            "names; `sort` then operates on the list.  `--raw` emits "
-            "one value per line, easy to pipe through `uniq -c`."
+            '`group_by(partition(."full-path"))` partitions the stream of '
+            "VSes by their partition string; `map` then projects each group "
+            "to `{partition, count}` using `length` to count and "
+            '`.[0]."full-path" | partition(.)` to recover the partition '
+            "label.  For the flat-list variant, "
+            '``[.ltm.virtual[]."full-path" | partition(.)] | unique`` '
+            "yields the distinct partition names sorted."
         ),
     ),
     Example(
