@@ -10,7 +10,7 @@ server; the standalone editors (Neovim/Emacs/Helix) point at
 |--------|----------|---------|
 | [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension`, or VS Code Marketplace |
 | [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | same `.vsix` | Open VSX Registry, or sideload the `.vsix` |
-| [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Copy into `Installed Packages/` |
+| [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Package Control: install **Tcl-LSP**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<v>.pyz` | Lua config |
 | [Emacs](#emacs) | `tcl-lsp-server-<v>.pyz` | eglot / lsp-mode |
@@ -62,8 +62,15 @@ Sideloading the `.vsix` works in all of them as a fallback.
 
 ## Sublime Text
 
-Drop the package — **filename must be `Tcl.sublime-package`** — into
-your Installed Packages directory:
+Install via **Package Control** (Command Palette → **Package Control:
+Install Package** → search **Tcl-LSP**), or sideload manually. The
+Package Control entry pulls from a dedicated mirror repo, so tagged
+releases of `bitwisecook/tcl-lsp` appear within ~1 hour of the
+maintainer running `make publish-sublime`.
+
+For the manual sideload path, drop the package —
+**filename must be `Tcl.sublime-package`** — into your Installed
+Packages directory:
 
 ```sh
 # macOS:   ~/Library/Application Support/Sublime Text/Installed Packages/

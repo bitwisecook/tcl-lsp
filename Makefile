@@ -1191,7 +1191,7 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: sublime ## Publish Sublime Text package (verify Package Control will pick it up)
+publish-sublime: sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
 	@bash $(ROOT)scripts/publish_sublime.sh
 
 # Zed extension
