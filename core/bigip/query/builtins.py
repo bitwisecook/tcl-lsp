@@ -29,7 +29,6 @@ import html as _html
 import ipaddress
 import math
 import re
-import shlex as _shlex
 import time as _time
 import urllib.parse as _urlparse
 from collections.abc import Iterable
@@ -7518,10 +7517,12 @@ def _builtin_recurse(*_args):  # pragma: no cover - dispatched specially
     summary="Iterate *update* against the current value until *cond* becomes true.",
     signatures=("until(cond, update) -> any",),
     details="""
-    **Special form.**  Matches jq's ``until``: starting from the
-    current value, repeatedly applies *update* (with ``.`` re-bound
-    to the running value) and tests *cond* against the result.
-    Returns the first value for which *cond* is truthy.
+    **Special form.**  Matches jq's ``until``: tests *cond* against
+    the current value first, and if it is already truthy returns
+    that value unchanged.  Otherwise applies *update* (with ``.``
+    re-bound to the running value), re-checks *cond*, and repeats —
+    so the result is the first value (current input or any
+    transformed iteration) for which *cond* is truthy.
 
     Capped at 100,000 iterations to prevent runaway loops — pipelines
     that legitimately need more should restructure.
@@ -7548,18 +7549,19 @@ def _builtin_until(*_args):  # pragma: no cover - dispatched specially
     details="""
     **Special form.**  Matches jq's ``repeat`` modulo a safety cap.
     Emits an infinite-by-design stream of successive applications of
-    *body* to the current value.  jq pairs this with ``limit(n; ...)``
-    to bound the result; this DSL also enforces an absolute cap of
-    100,000 emissions so a forgetful pipeline can't wedge the
-    evaluator.
+    *body* to the current value.  jq pairs this with its generator-
+    form ``limit(n; gen)`` to bound the result; this DSL's ``limit``
+    is the **value form** (``stream | limit(n)``), so collect the
+    repeat output first.  An absolute cap of 100,000 emissions
+    prevents a forgetful pipeline wedging the evaluator.
 
-    Common pattern: ``[limit(5, repeat(. + 1))]`` (using jq-style
-    semantics) — though in this DSL ``[range(5)] | map(. + 1)`` is
-    usually shorter.
+    Common pattern: ``1 | [repeat(. + 1)] | limit(5)`` — though
+    ``[range(1, 6)]`` is usually shorter when the body is just
+    ``. + 1``.
 
-    Related: ``until``, ``recurse``, ``range``.
+    Related: ``until``, ``recurse``, ``range``, ``limit``.
     """,
-    examples=("1 | [limit(repeat(. + 1), 5)]            # capped to 5",),
+    examples=("1 | [repeat(. + 1)] | limit(5)        # -> [2, 3, 4, 5, 6]",),
     category="value",
     min_args=1,
     max_args=1,
@@ -7973,15 +7975,17 @@ def _builtin_html(value: Any) -> str:
     ),
     details="""
     Matches jq's ``@sh``: returns a representation safe to interpolate
-    into a POSIX shell command.  Strings become single-quoted with
-    embedded ``'`` escaped; lists become space-separated quoted
-    fields.
+    into a POSIX shell command.  **Every** value is wrapped in single
+    quotes (with embedded ``'`` escaped as ``'\\''``) — jq parity, and
+    cheaper to reason about than Python's ``shlex.quote`` which leaves
+    "obviously safe" tokens unquoted.  Lists become space-separated
+    single-quoted fields.
 
     Related: ``uri``, ``base64``, ``join``.
     """,
     examples=(
         'sh("hello world")                       # -> "\'hello world\'"',
-        'sh(["a", "b c"])                          # -> "\'a\' \'b c\'"',
+        'sh(["a", "b c"])                       # -> "\'a\' \'b c\'"',
     ),
     category="string",
     min_args=1,
@@ -7991,8 +7995,20 @@ def _builtin_html(value: Any) -> str:
 def _builtin_sh(value: Any) -> str:
     if isinstance(value, (list, tuple, Stream)):
         items = value.items if isinstance(value, Stream) else value
-        return " ".join(_shlex.quote(_as_str(item, name="sh", arg=1)) for item in items)
-    return _shlex.quote(_as_str(value, name="sh", arg=1))
+        return " ".join(_sh_quote(_as_str(item, name="sh", arg=1)) for item in items)
+    return _sh_quote(_as_str(value, name="sh", arg=1))
+
+
+def _sh_quote(text: str) -> str:
+    """Force-quote *text* with single quotes — jq ``@sh`` parity.
+
+    Unlike :func:`shlex.quote`, which leaves alphanumeric-only tokens
+    unquoted, jq always wraps the value in single quotes.  Embedded
+    single quotes are emitted as ``'\\''`` so the closing-quote /
+    backslash-quote / reopening-quote sequence is unambiguous to a
+    POSIX shell.
+    """
+    return "'" + text.replace("'", "'\\''") + "'"
 
 
 # ---------------------------------------------------------------------------

@@ -1818,9 +1818,11 @@ POSIX-shell-quote a string or list of strings — jq's ``@sh``.
 **Details**
 
 Matches jq's ``@sh``: returns a representation safe to interpolate
-into a POSIX shell command.  Strings become single-quoted with
-embedded ``'`` escaped; lists become space-separated quoted
-fields.
+into a POSIX shell command.  **Every** value is wrapped in single
+quotes (with embedded ``'`` escaped as ``'\''``) — jq parity, and
+cheaper to reason about than Python's ``shlex.quote`` which leaves
+"obviously safe" tokens unquoted.  Lists become space-separated
+single-quoted fields.
 
 Related: ``uri``, ``base64``, ``join``.
 
@@ -1828,7 +1830,7 @@ Related: ``uri``, ``base64``, ``join``.
 
 ```
 sh("hello world")                       # -> "'hello world'"
-sh(["a", "b c"])                          # -> "'a' 'b c'"
+sh(["a", "b c"])                       # -> "'a' 'b c'"
 ```
 
 ### `split`
@@ -6833,21 +6835,22 @@ Emit ``f(.), f(f(.)), …`` capped at 100,000 iterations.
 
 **Special form.**  Matches jq's ``repeat`` modulo a safety cap.
 Emits an infinite-by-design stream of successive applications of
-*body* to the current value.  jq pairs this with ``limit(n; ...)``
-to bound the result; this DSL also enforces an absolute cap of
-100,000 emissions so a forgetful pipeline can't wedge the
-evaluator.
+*body* to the current value.  jq pairs this with its generator-
+form ``limit(n; gen)`` to bound the result; this DSL's ``limit``
+is the **value form** (``stream | limit(n)``), so collect the
+repeat output first.  An absolute cap of 100,000 emissions
+prevents a forgetful pipeline wedging the evaluator.
 
-Common pattern: ``[limit(5, repeat(. + 1))]`` (using jq-style
-semantics) — though in this DSL ``[range(5)] | map(. + 1)`` is
-usually shorter.
+Common pattern: ``1 | [repeat(. + 1)] | limit(5)`` — though
+``[range(1, 6)]`` is usually shorter when the body is just
+``. + 1``.
 
-Related: ``until``, ``recurse``, ``range``.
+Related: ``until``, ``recurse``, ``range``, ``limit``.
 
 **Examples**
 
 ```
-1 | [limit(repeat(. + 1), 5)]            # capped to 5
+1 | [repeat(. + 1)] | limit(5)        # -> [2, 3, 4, 5, 6]
 ```
 
 ### `setpath`
@@ -7018,10 +7021,12 @@ Iterate *update* against the current value until *cond* becomes true.
 
 **Details**
 
-**Special form.**  Matches jq's ``until``: starting from the
-current value, repeatedly applies *update* (with ``.`` re-bound
-to the running value) and tests *cond* against the result.
-Returns the first value for which *cond* is truthy.
+**Special form.**  Matches jq's ``until``: tests *cond* against
+the current value first, and if it is already truthy returns
+that value unchanged.  Otherwise applies *update* (with ``.``
+re-bound to the running value), re-checks *cond*, and repeats —
+so the result is the first value (current input or any
+transformed iteration) for which *cond* is truthy.
 
 Capped at 100,000 iterations to prevent runaway loops — pipelines
 that legitimately need more should restructure.

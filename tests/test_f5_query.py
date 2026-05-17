@@ -1378,7 +1378,13 @@ def test_html_and_sh_quote():
         "&lt;a&gt;&amp;b&lt;/a&gt;"
     ]
     assert run_query('sh("hello world")', {"m": ""}).values_per_file["m"] == ["'hello world'"]
-    assert run_query('sh(["a", "b c"])', {"m": ""}).values_per_file["m"] == ["a 'b c'"]
+    # jq @sh parity: every list element is single-quoted, even
+    # "obviously safe" tokens — distinct from ``shlex.quote`` which
+    # leaves alphanumerics bare.
+    assert run_query('sh(["a", "b c"])', {"m": ""}).values_per_file["m"] == ["'a' 'b c'"]
+    # Embedded single quotes are escaped with the classic ``'\\''``
+    # close-escape-reopen dance.
+    assert run_query('sh("a\'b")', {"m": ""}).values_per_file["m"] == ["'a'\\''b'"]
 
 
 # ---------------------------------------------------------------------------
@@ -1511,10 +1517,15 @@ def test_bessel_approximations_match_known_values():
 # ---------------------------------------------------------------------------
 
 
-def test_now_returns_a_float_epoch():
+def test_now_returns_a_float_epoch(monkeypatch):
+    # Pin the underlying time source so the suite doesn't depend on
+    # the host clock being accurate (hermetic VMs, time mocks, etc.).
+    import core.bigip.query.builtins as _bq
+
+    monkeypatch.setattr(_bq._time, "time", lambda: 1_700_000_000.5)
     [out] = run_query("now", {"m": ""}).values_per_file["m"]
     assert isinstance(out, float)
-    assert out > 1_700_000_000.0  # any time after 2023
+    assert out == 1_700_000_000.5
 
 
 def test_todate_and_fromdate_round_trip():
@@ -1566,11 +1577,57 @@ def test_map_values_keeps_shape():
     assert out == [10, 20, 30]
 
 
+def test_map_values_on_array_extends_with_every_result():
+    """Regression for copilot review on PR #418.
+
+    The array branch of ``map_values`` used to collapse a stream-valued
+    body result to its first element, dropping later values.  Match the
+    ``map`` semantics: every flattened output is appended.  Wrap the
+    body in extra parens so the comma is the stream-concat operator,
+    not a function-argument separator.
+    """
+    [out] = run_query("[1, 2, 3] | map_values((., . * 10))", {"m": ""}).values_per_file["m"]
+    # Each item produces a 2-element stream (the original + 10x), so the
+    # array should contain 6 elements after flattening.
+    assert out == [1, 10, 2, 20, 3, 30]
+
+
+def test_debug_emits_valid_json_to_stderr(capsys):
+    """``debug`` writes a parseable JSON array, not a Python repr.
+
+    Regression for copilot review on PR #418.
+    """
+    import json as _json
+
+    [out] = run_query('{a: 1, b: "hi"} | debug', {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "b": "hi"}
+    captured = capsys.readouterr()
+    # The captured line is valid JSON of the form ``["DEBUG:", value]``.
+    decoded = _json.loads(captured.err.strip())
+    assert decoded == ["DEBUG:", {"a": 1, "b": "hi"}]
+
+
 def test_pick_keeps_only_listed_paths():
     [out] = run_query("{a: 1, b: 2, c: 3} | pick(.a, .c)", {"m": ""}).values_per_file["m"]
     assert out == {"a": 1, "c": 3}
     [out] = run_query("{a: {b: 1, c: 2}, d: 3} | pick(.a.b, .d)", {"m": ""}).values_per_file["m"]
     assert out == {"a": {"b": 1}, "d": 3}
+
+
+def test_pick_skips_missing_paths_and_preserves_explicit_null():
+    """``pick`` ignores paths that aren't present, but keeps explicit nulls.
+
+    Regression for copilot review on PR #418 — previously ``pick`` used
+    ``_value_at_path`` which collapsed "missing" and "present but null"
+    to the same ``None``, so absent slots were silently materialised as
+    ``null`` in the output.
+    """
+    # Missing path: dropped.
+    [out] = run_query("{a: 1} | pick(.a, .missing)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1}
+    # Explicit null: preserved.
+    [out] = run_query("{a: null, b: 2} | pick(.a, .b)", {"m": ""}).values_per_file["m"]
+    assert out == {"a": None, "b": 2}
 
 
 def test_recurse_down_emits_all_reachable():

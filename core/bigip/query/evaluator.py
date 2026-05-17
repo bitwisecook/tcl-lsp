@@ -1002,18 +1002,15 @@ def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
         if isinstance(current, dict):
             return _map_values_dict(current, body, ctx)
         if isinstance(current, (list, tuple, Stream)):
+            # For arrays, ``map_values`` is documented as equivalent
+            # to ``map(body)``: extend with every flattened result
+            # (``_flatten`` drops the ``select`` sentinel) rather than
+            # collapsing streams to their first element.
             items = current.items if isinstance(current, Stream) else list(current)
             out: list[Any] = []
             for item in items:
                 value = _eval(body, item, ctx)
-                if isinstance(value, _Drop):
-                    continue
-                if isinstance(value, Stream):
-                    if not value.items:
-                        continue
-                    out.append(value.items[0])
-                else:
-                    out.append(value)
+                out.extend(_flatten(value))
             return out
         raise EvalError(
             f"map_values: input must be an object or array, got {type(current).__name__}"
@@ -1037,23 +1034,24 @@ def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
             mx_item = max(items, key=_sort_key)
         return [mn_item, mx_item] if node.name == "min_max" else [mx_item, mn_item]
     if node.name == "debug":
+        import json as _json
         import sys as _sys
 
+        jsonable_current = _builtins._to_jsonable(current)
         if node.args:
             label_value = _eval(node.args[0], current, ctx)
             if isinstance(label_value, Stream):
                 label = label_value.items[0] if label_value.items else ""
             else:
                 label = label_value
-            print(
-                f'["DEBUG:", {label!r}, {_builtins._to_jsonable(current)!r}]',
-                file=_sys.stderr,
-            )
+            payload = ["DEBUG:", _builtins._to_jsonable(label), jsonable_current]
         else:
-            print(
-                f'["DEBUG:", {_builtins._to_jsonable(current)!r}]',
-                file=_sys.stderr,
-            )
+            payload = ["DEBUG:", jsonable_current]
+        try:
+            line = _json.dumps(payload, separators=(",", ":"))
+        except TypeError:
+            line = repr(payload)
+        print(line, file=_sys.stderr)
         return current
     if node.name == "stderr":
         import json as _json
@@ -1211,9 +1209,52 @@ def _eval_pick(node: Call, current: Any, ctx: EvalContext) -> Any:
 
     out: Any = None
     for p in paths:
-        value_at = _builtins._value_at_path(current, p)
+        # ``_value_at_path`` returns ``None`` for both "missing path"
+        # and "present but null".  ``pick`` (and jq) only want to keep
+        # paths that actually exist, so probe with a sentinel first
+        # and skip missing slots — explicit ``null`` values still flow
+        # through.
+        exists, value_at = _probe_path(current, p)
+        if not exists:
+            continue
         out = _builtins._set_at_path(out, p, value_at)
     return out
+
+
+def _probe_path(value: Any, path: list[Any]) -> tuple[bool, Any]:
+    """Walk *value* following *path*; return ``(present, value_at_path)``.
+
+    Distinct from :func:`_builtins._value_at_path` in that a missing
+    key / out-of-range index returns ``(False, None)`` rather than
+    silently coalescing to ``None``.  Explicit ``null`` slots return
+    ``(True, None)``.
+    """
+    cur = value
+    for key in path:
+        if cur is None:
+            return False, None
+        if isinstance(cur, ObjectRef):
+            if not isinstance(key, str):
+                return False, None
+            fields = cur.fields
+            if key not in fields:
+                return False, None
+            cur = resolve_lazy_field(cur, key, fields[key])
+        elif isinstance(cur, dict):
+            if key not in cur:
+                return False, None
+            cur = cur[key]
+        elif isinstance(cur, (list, tuple)):
+            if not isinstance(key, int) or not (-len(cur) <= key < len(cur)):
+                return False, None
+            cur = cur[key]
+        elif isinstance(cur, Stream):
+            if not isinstance(key, int) or not (-len(cur.items) <= key < len(cur.items)):
+                return False, None
+            cur = cur.items[key]
+        else:
+            return False, None
+    return True, cur
 
 
 def _collect_path_projections(node: Any, current: Any, ctx: EvalContext) -> list[list[Any]]:
