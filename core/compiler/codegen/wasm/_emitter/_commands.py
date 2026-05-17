@@ -26,6 +26,24 @@ from .._ir import (
 )
 
 
+# Commands whose runtime import is a fixed-arity helper (one-list-in,
+# one-list-out shape) but whose surface accepts trailing option /
+# index / value arguments.  When the call has more args than the
+# helper's signature, the generic ``_emit_runtime_call`` would
+# silently drop the extras and call the helper with only the leading
+# args — producing the wrong answer.  This allowlist routes overflow
+# calls through ``_emit_eval_fallback`` so the runtime dispatcher
+# (``eval_lsort`` / ``eval_lsearch``) sees every argument and parses
+# the options correctly.  Add a command here when its runtime helper
+# signature can't represent the multi-arg surface.
+_VARIADIC_OVERFLOW_TO_EVAL = frozenset({
+    "lsort",
+    "::lsort",
+    "lsearch",
+    "::lsearch",
+})
+
+
 class _WasmEmitterCmdMixin(_Base):
     if TYPE_CHECKING:
         # From _WasmEmitterValuesMixin
@@ -176,6 +194,21 @@ class _WasmEmitterCmdMixin(_Base):
             # list (see ``cmds/apply_.py`` for the rationale).
             self._emit_value(args[0] if args else "", was_braced=_was_braced(0))
             self._emit_args_list(tuple(args[1:]))
+        elif len(args) > param_count and command in _VARIADIC_OVERFLOW_TO_EVAL:
+            # Variadic call with more args than the fixed runtime
+            # signature accepts — route through the eval fallback so
+            # the runtime dispatcher sees every argument.  The list
+            # of commands in :data:`_VARIADIC_OVERFLOW_TO_EVAL` is
+            # the explicit allowlist: only commands whose
+            # multi-arg form needs interpreter dispatch (lsort with
+            # options, lsearch with options) get this treatment.
+            # Plain commands like ``lindex`` keep the runtime-import
+            # fast path because their multi-arg surface is handled
+            # by the helper itself.
+            self._emit_eval_fallback(command, args)
+            if context is EmitContext.STATEMENT:
+                self._emit(WasmOp.DROP)
+            return
         else:
             for i in range(min(param_count, len(args))):
                 self._emit_value(args[i], was_braced=_was_braced(i))

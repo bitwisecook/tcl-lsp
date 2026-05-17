@@ -1122,14 +1122,18 @@ class _WasmEmitterValuesMixin(_Base):
                             self._emit_call(list_create_idx)
                         self._emit_call(lr_list_idx)
                     return
-                if cmd_name in ("lsort",) and len(cmd_args) > param_count:
-                    # ``lsort ?-switches? list`` — runtime export is
-                    # the no-switch form; grab the trailing positional
-                    # list rather than treating ``-integer`` as the list
-                    # itself and returning the single-element result.
-                    self._emit_value(cmd_args[-1])
-                    for _ in range(param_count - 1):
-                        self._emit_i32_const(0)
+                if cmd_name in ("lsort", "lsearch") and len(cmd_args) > param_count:
+                    # ``lsort ?-switches? list`` / ``lsearch ?-switches?
+                    # list pattern`` — the runtime export is the no-
+                    # switch form, but the interpreter's ``eval_lsort``
+                    # / ``eval_lsearch`` knows the full option matrix.
+                    # Route variadic-overflow calls through the eval
+                    # fallback (which dispatches via the runtime
+                    # command table) so the options are parsed and
+                    # honoured.  Plain ``[lsort $L]`` keeps the fast
+                    # path because len(cmd_args) == param_count.
+                    self._emit_eval_fallback(cmd_name, tuple(cmd_args))
+                    return
                 elif cmd_name == "apply":
                     # ``apply lambda ?arg ...?`` — the runtime export's
                     # second param is a Tcl *list* of every positional

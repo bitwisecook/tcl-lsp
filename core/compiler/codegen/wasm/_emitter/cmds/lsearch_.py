@@ -1,14 +1,17 @@
 """WASM emit hook for ``lsearch`` — list search with optional switches.
 
-``lsearch ?options? list pattern`` — the Zig ``tcl_cmd_list_search`` export is
-the no-option form (list, pattern).  When options are present, fall through to
-the full ``eval_lsearch`` dispatch handler via ``eval_fallback`` so that
-``-exact``, ``-all``, ``-stride``, ``-nocase``, etc. are handled correctly.
+``lsearch ?options? list pattern`` — the Zig ``tcl_cmd_list_search``
+export is the no-option form (list, pattern).  When options are
+present, fall through to the full ``eval_lsearch`` dispatch handler
+via ``tcl_eval`` so that ``-exact``, ``-all``, ``-stride``,
+``-nocase``, ``-index PATH``, ``-subindices``, etc. are handled
+correctly.
 """
 
 from __future__ import annotations
 
 from ......commands.registry import REGISTRY, EmitContext
+from .lsort_ import _smart_quote_arg
 
 
 def _looks_like_option(arg: str) -> bool:
@@ -23,11 +26,18 @@ def _looks_like_option(arg: str) -> bool:
 def _emit_lsearch(
     emitter, args: tuple[str, ...], defs: tuple[str, ...], context: EmitContext
 ) -> bool:
-    # If any leading args look like options, fall back to the full Zig
-    # eval_lsearch which handles all option combinations correctly.
     has_options = len(args) > 2 or (len(args) >= 1 and _looks_like_option(args[0]))
     if has_options:
-        emitter._emit_eval_fallback("lsearch", args)
+        # Build an eval script with proper single-brace quoting so
+        # ``_emit_eval_fallback``'s default list-quote path doesn't
+        # double-wrap literal list args into ``{{a b c}}``.  Mirrors
+        # the lsort hook's strategy.
+        script = "lsearch " + " ".join(_smart_quote_arg(a) for a in args)
+        emitter._emit_eval_fallback("lsearch", args, script_override=script)
+        if context is EmitContext.STATEMENT:
+            from .._ir import WasmOp
+
+            emitter._emit(WasmOp.DROP)
         return True
 
     prep = emitter._runtime_prep("lsearch", args)
@@ -35,7 +45,6 @@ def _emit_lsearch(
         return False
     func_idx, rimp = prep
 
-    # No options: args = (list, pattern) — pass directly.
     param_count = len(rimp.params)
     for i in range(min(param_count, len(args))):
         emitter._emit_value(args[i])
