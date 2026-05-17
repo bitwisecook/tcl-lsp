@@ -20,7 +20,7 @@ good_to_have = [
   # 15.x parametric matrix — errorInfo / errorStack shapes through
   # eval / apply / proc / namespace eval chains.  Listed verbatim
   # so a regression in any cell is surfaced.
-  "15.10.0.0.0",
+  "15.8.0.0.0", "15.9.0.0.0", "15.10.0.0.0",
   "15.8.0.0.2", "15.9.0.0.2", "15.10.0.0.2",
   "15.8.0.2.0", "15.9.0.2.0", "15.10.0.2.0",
   "15.8.0.2.2", "15.9.0.2.2", "15.10.0.2.2",
@@ -77,6 +77,6 @@ just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 171
+good_to_have_failing = 173
 just_to_match_ctcl_failing = 0
 skip_failing = 0
