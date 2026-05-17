@@ -1,0 +1,58 @@
+# Categorisation for cmdIL.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+# cmdIL.test exercises ``lsort`` and ``lsearch`` semantics.  The bulk
+# of failing tests are option-combination edge cases (``-stride``,
+# ``-index``, ``-nocase`` interactions, ``-real``/``-integer`` mixed
+# with ``-dictionary``, ``-subindices``, ``-bisect``) that our list
+# primitives haven't grown yet, plus a cluster of ASCII vs. Unicode
+# ordering questions where the test pins C tcl's exact lsort
+# tie-breaking rules.  Each ID is grouped by the option it exercises
+# so a follow-up sweep can knock them out by feature.
+good_to_have = [
+  "1.7",    # lsort -decreasing: tie-breaking when prefixes match.
+  "1.8",    # lsort -decreasing -dictionary tie-breaking.
+  "1.9",    # lsort -dictionary numeric-segment compare.
+  "1.13",   # lsort -index end -integer interaction.
+  "1.14",   # lsort -index end (end-relative index).
+  "1.15",   # lsort -index with negative offset.
+  "1.22",   # lsort -nocase + -dictionary.
+  "1.23",   # lsort -nocase ordering tie-breaks.
+  "1.26",   # lsort -unique + -nocase.
+  "1.27",   # lsort -unique + -dictionary.
+  "1.28",   # lsort -real handling of mixed int/float.
+  "1.30",   # lsort -command with closure.
+  "1.31",   # lsort -command return-code propagation.
+  "1.36",   # lsort -bisect (TIP 632).
+  "3.6",    # lsearch -exact + -nocase.
+  "3.8",    # lsearch -glob + -inline.
+  "3.11",   # lsearch -all + -inline + -not.
+  "3.14",   # lsearch -inline returning empty when no match.
+  "3.19",   # lsearch -bisect.
+  "4.1",    # lsearch -index option.
+  "4.2",    # lsearch -index with sublist.
+  "4.4",    # lsearch -index end.
+  "4.6",    # lsearch -index empty.
+  "4.7",    # lsearch -index error handling.
+  "4.8",    # lsearch -index with list.
+  "4.17",   # lsearch -subindices.
+  "4.20",   # lsearch -subindices + -all.
+  "4.26",   # lsearch -sorted -increasing.
+  "4.27",   # lsearch -sorted -decreasing.
+  "4.28",   # lsearch -sorted -bisect.
+  "4.29",   # lsearch -sorted -inline.
+  "4.30",   # lsearch -sorted -nocase.
+  "4.31",   # lsearch -sorted -dictionary.
+  "4.32",   # lsearch -sorted -real.
+  "4.33",   # lsearch -sorted -integer.
+  "4.35",   # lsearch -sorted edge case.
+  "4.36",   # lsearch -sorted with sublist.
+  "5.1",    # lsort -stride option.
+  "5.2",    # lsort -stride with -index.
+  "5.3",    # lsort -stride with -index list.
+  "5.4",    # lsort -stride with sublist + index list (TIP 351 family).
+]
+
+[baseline]
+good_to_have_failing = 41

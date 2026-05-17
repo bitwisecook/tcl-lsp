@@ -1,9 +1,9 @@
 {
   "total": 101,
   "by_outcome": {
-    "pass": 56,
+    "pass": 71,
     "timeout": 4,
-    "fail": 40,
+    "fail": 25,
     "unknown": 1
   },
   "passing": [
@@ -25,29 +25,43 @@
     "eval",
     "for-old",
     "foreach",
+    "format",
+    "get",
     "if",
     "if-old",
     "incr",
     "incr-old",
     "indexObj",
     "ioCmd",
+    "join",
+    "lindex",
+    "linsert",
     "list",
+    "listObj",
     "listRep",
     "llength",
+    "lmap",
     "lpop",
     "lrepeat",
     "lreplace",
     "lset",
+    "lsetComp",
+    "misc",
     "namespace",
     "nre",
     "ooProp",
+    "ooUtil",
     "parseExpr",
+    "parseOld",
     "proc",
     "proc-old",
     "range",
     "regexp",
+    "regexpComp",
+    "rename",
     "resolver",
     "result",
+    "safe",
     "safe-stock",
     "safe-stock86",
     "set",
@@ -57,6 +71,7 @@
     "stack",
     "stringObj",
     "subst",
+    "tailcall",
     "unknown",
     "upvar",
     "var",
@@ -74,36 +89,21 @@
     "execute",
     "expr",
     "for",
-    "format",
-    "get",
     "info",
     "interp",
-    "join",
-    "lindex",
-    "linsert",
-    "listObj",
-    "lmap",
     "lrange",
     "lsearch",
     "lseq",
-    "lsetComp",
     "mathop",
-    "misc",
     "namespace-old",
     "oo",
     "ooNext2",
-    "ooUtil",
     "opt",
     "parse",
-    "parseOld",
     "reg",
-    "regexpComp",
-    "rename",
-    "safe",
     "scan",
     "string",
     "switch",
-    "tailcall",
     "uplevel"
   ],
   "trapping": [],
@@ -127,7 +127,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 12.542
+      "duration_s": 12.53
     },
     {
       "name": "cmdIL",
@@ -137,7 +137,7 @@
       "summary": "Total\t168\tPassed\t125\tSkipped\t2\tFailed\t41",
       "trap": "",
       "first_failing": "==== cmdIL-5.4 FAILED",
-      "duration_s": 2.579
+      "duration_s": 2.356
     },
     {
       "name": "cmdMZ",
@@ -147,7 +147,7 @@
       "summary": "Total\t97\tPassed\t75\tSkipped\t0\tFailed\t22",
       "trap": "",
       "first_failing": "==== cmdMZ-6.12 FAILED",
-      "duration_s": 2.386
+      "duration_s": 2.458
     },
     {
       "name": "compile",
@@ -157,7 +157,7 @@
       "summary": "Total\t171\tPassed\t145\tSkipped\t15\tFailed\t11",
       "trap": "",
       "first_failing": "==== compile-21.2 FAILED",
-      "duration_s": 2.678
+      "duration_s": 2.478
     },
     {
       "name": "dict",
@@ -167,7 +167,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.049
+      "duration_s": 2.951
     },
     {
       "name": "error",
@@ -177,7 +177,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.578
+      "duration_s": 2.707
     },
     {
       "name": "execute",
@@ -187,7 +187,7 @@
       "summary": "Total\t157\tPassed\t77\tSkipped\t77\tFailed\t3",
       "trap": "",
       "first_failing": "==== execute-7.28 FAILED",
-      "duration_s": 2.263
+      "duration_s": 2.312
     },
     {
       "name": "expr",
@@ -197,7 +197,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 6.279
+      "duration_s": 5.952
     },
     {
       "name": "for",
@@ -207,27 +207,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.332
-    },
-    {
-      "name": "format",
-      "classname": "format",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t269\tPassed\t238\tSkipped\t19\tFailed\t12",
-      "trap": "",
-      "first_failing": "==== format-11.14 FAILED",
-      "duration_s": 2.491
-    },
-    {
-      "name": "get",
-      "classname": "get",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t23\tPassed\t3\tSkipped\t17\tFailed\t3",
-      "trap": "",
-      "first_failing": "==== get-3.2 FAILED",
-      "duration_s": 2.282
+      "duration_s": 2.299
     },
     {
       "name": "info",
@@ -237,7 +217,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.821
+      "duration_s": 2.859
     },
     {
       "name": "interp",
@@ -247,57 +227,7 @@
       "summary": "Total\t354\tPassed\t218\tSkipped\t8\tFailed\t128",
       "trap": "",
       "first_failing": "==== interp-29.6.10 FAILED",
-      "duration_s": 3.283
-    },
-    {
-      "name": "join",
-      "classname": "join",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t10\tPassed\t9\tSkipped\t0\tFailed\t1",
-      "trap": "",
-      "first_failing": "==== join-2.3 FAILED",
-      "duration_s": 2.155
-    },
-    {
-      "name": "lindex",
-      "classname": "lindex",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t84\tPassed\t51\tSkipped\t22\tFailed\t11",
-      "trap": "",
-      "first_failing": "==== lindex-13.3 FAILED",
-      "duration_s": 2.362
-    },
-    {
-      "name": "linsert",
-      "classname": "linsert",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t28\tPassed\t23\tSkipped\t0\tFailed\t5",
-      "trap": "",
-      "first_failing": "==== linsert-2.3 FAILED",
-      "duration_s": 2.244
-    },
-    {
-      "name": "listObj",
-      "classname": "listObj",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t59\tPassed\t47\tSkipped\t7\tFailed\t5",
-      "trap": "",
-      "first_failing": "==== listobj-7.2 FAILED",
-      "duration_s": 2.305
-    },
-    {
-      "name": "lmap",
-      "classname": "lmap",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t66\tPassed\t63\tSkipped\t0\tFailed\t3",
-      "trap": "",
-      "first_failing": "==== lmap-4.15 FAILED",
-      "duration_s": 2.38
+      "duration_s": 3.248
     },
     {
       "name": "lrange",
@@ -307,7 +237,7 @@
       "summary": "Total\t1766\tPassed\t1755\tSkipped\t0\tFailed\t11",
       "trap": "",
       "first_failing": "==== lrange-3.5 FAILED",
-      "duration_s": 3.708
+      "duration_s": 3.787
     },
     {
       "name": "lsearch",
@@ -317,7 +247,7 @@
       "summary": "Total\t165\tPassed\t114\tSkipped\t0\tFailed\t51",
       "trap": "",
       "first_failing": "==== lsearch-27.7 FAILED",
-      "duration_s": 2.431
+      "duration_s": 2.567
     },
     {
       "name": "lseq",
@@ -327,17 +257,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.374
-    },
-    {
-      "name": "lsetComp",
-      "classname": "lsetComp",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t19\tPassed\t15\tSkipped\t0\tFailed\t4",
-      "trap": "",
-      "first_failing": "==== lsetComp-3.8 FAILED",
-      "duration_s": 2.224
+      "duration_s": 2.316
     },
     {
       "name": "mathop",
@@ -347,17 +267,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.06
-    },
-    {
-      "name": "misc",
-      "classname": "misc",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t301\tPassed\t0\tSkipped\t299\tFailed\t2",
-      "trap": "",
-      "first_failing": "==== misc-1.2 FAILED",
-      "duration_s": 2.536
+      "duration_s": 2.776
     },
     {
       "name": "namespace-old",
@@ -367,7 +277,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.536
+      "duration_s": 2.341
     },
     {
       "name": "oo",
@@ -377,7 +287,7 @@
       "summary": "Total\t388\tPassed\t347\tSkipped\t2\tFailed\t39",
       "trap": "",
       "first_failing": "==== oo-42.6 FAILED",
-      "duration_s": 2.843
+      "duration_s": 2.723
     },
     {
       "name": "ooNext2",
@@ -387,17 +297,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.422
-    },
-    {
-      "name": "ooUtil",
-      "classname": "ooUtil",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t33\tPassed\t32\tSkipped\t0\tFailed\t1",
-      "trap": "",
-      "first_failing": "==== ooUtil-1.7 FAILED",
-      "duration_s": 2.335
+      "duration_s": 2.283
     },
     {
       "name": "opt",
@@ -407,7 +307,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.599
+      "duration_s": 2.405
     },
     {
       "name": "parse",
@@ -417,17 +317,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.433
-    },
-    {
-      "name": "parseOld",
-      "classname": "parseOld",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t158\tPassed\t149\tSkipped\t0\tFailed\t9",
-      "trap": "",
-      "first_failing": "==== parseOld-10.14 FAILED",
-      "duration_s": 2.489
+      "duration_s": 2.362
     },
     {
       "name": "reg",
@@ -437,37 +327,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 9.218
-    },
-    {
-      "name": "regexpComp",
-      "classname": "regexpComp",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t179\tPassed\t166\tSkipped\t0\tFailed\t13",
-      "trap": "",
-      "first_failing": "==== regexpComp-24.6 FAILED",
-      "duration_s": 2.509
-    },
-    {
-      "name": "rename",
-      "classname": "rename",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t19\tPassed\t10\tSkipped\t8\tFailed\t1",
-      "trap": "",
-      "first_failing": "==== rename-5.1 FAILED",
-      "duration_s": 2.332
-    },
-    {
-      "name": "safe",
-      "classname": "safe",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t155\tPassed\t149\tSkipped\t2\tFailed\t4",
-      "trap": "",
-      "first_failing": "==== safe-7.3 FAILED",
-      "duration_s": 2.638
+      "duration_s": 9.207
     },
     {
       "name": "scan",
@@ -477,7 +337,7 @@
       "summary": "Total\t185\tPassed\t131\tSkipped\t0\tFailed\t54",
       "trap": "",
       "first_failing": "==== scan-15.1 FAILED",
-      "duration_s": 2.568
+      "duration_s": 2.67
     },
     {
       "name": "string",
@@ -487,7 +347,7 @@
       "summary": "Total\t705\tPassed\t540\tSkipped\t7\tFailed\t158",
       "trap": "",
       "first_failing": "==== string-29.4.0 FAILED",
-      "duration_s": 3.053
+      "duration_s": 2.933
     },
     {
       "name": "switch",
@@ -497,17 +357,7 @@
       "summary": "Total\t113\tPassed\t84\tSkipped\t0\tFailed\t29",
       "trap": "",
       "first_failing": "==== switch-13.6 FAILED",
-      "duration_s": 2.366
-    },
-    {
-      "name": "tailcall",
-      "classname": "tailcall",
-      "outcome": "fail",
-      "rc": 1,
-      "summary": "Total\t37\tPassed\t33\tSkipped\t0\tFailed\t4",
-      "trap": "",
-      "first_failing": "==== tailcall-13.1 FAILED",
-      "duration_s": 2.208
+      "duration_s": 2.329
     },
     {
       "name": "uplevel",
@@ -517,7 +367,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.219
+      "duration_s": 2.247
     },
     {
       "name": "aaa_exit",
@@ -527,7 +377,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.222
+      "duration_s": 2.211
     },
     {
       "name": "abstractlist",
@@ -537,7 +387,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.267
+      "duration_s": 2.271
     },
     {
       "name": "append",
@@ -547,7 +397,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.368
+      "duration_s": 2.224
     },
     {
       "name": "appendComp",
@@ -557,7 +407,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.232
+      "duration_s": 2.218
     },
     {
       "name": "apply",
@@ -567,7 +417,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.296
+      "duration_s": 2.24
     },
     {
       "name": "assocd",
@@ -577,7 +427,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.192
+      "duration_s": 2.225
     },
     {
       "name": "brodnik",
@@ -587,7 +437,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.316
+      "duration_s": 2.362
     },
     {
       "name": "chan",
@@ -597,7 +447,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.294
+      "duration_s": 2.259
     },
     {
       "name": "chanio",
@@ -607,7 +457,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.874
+      "duration_s": 3.968
     },
     {
       "name": "cmdInfo",
@@ -617,7 +467,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.263
+      "duration_s": 2.318
     },
     {
       "name": "compExpr",
@@ -627,7 +477,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.386
+      "duration_s": 2.397
     },
     {
       "name": "compExpr-old",
@@ -637,7 +487,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 3.115
+      "duration_s": 2.914
     },
     {
       "name": "concat",
@@ -647,7 +497,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.472
+      "duration_s": 2.243
     },
     {
       "name": "coroutine",
@@ -657,7 +507,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.604
+      "duration_s": 2.381
     },
     {
       "name": "dstring",
@@ -667,7 +517,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.294
+      "duration_s": 2.211
     },
     {
       "name": "eval",
@@ -677,7 +527,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.184
+      "duration_s": 2.166
     },
     {
       "name": "for-old",
@@ -687,7 +537,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.337
+      "duration_s": 2.224
     },
     {
       "name": "foreach",
@@ -697,7 +547,27 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.299
+      "duration_s": 2.454
+    },
+    {
+      "name": "format",
+      "classname": "format",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.388
+    },
+    {
+      "name": "get",
+      "classname": "get",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.235
     },
     {
       "name": "if",
@@ -707,7 +577,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.444
+      "duration_s": 2.312
     },
     {
       "name": "if-old",
@@ -717,7 +587,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.357
+      "duration_s": 2.491
     },
     {
       "name": "incr",
@@ -727,7 +597,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.435
+      "duration_s": 2.517
     },
     {
       "name": "incr-old",
@@ -737,7 +607,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.232
+      "duration_s": 2.437
     },
     {
       "name": "indexObj",
@@ -747,7 +617,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.256
+      "duration_s": 2.178
     },
     {
       "name": "ioCmd",
@@ -757,7 +627,37 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.772
+      "duration_s": 2.706
+    },
+    {
+      "name": "join",
+      "classname": "join",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.186
+    },
+    {
+      "name": "lindex",
+      "classname": "lindex",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.252
+    },
+    {
+      "name": "linsert",
+      "classname": "linsert",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.212
     },
     {
       "name": "list",
@@ -767,7 +667,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.359
+      "duration_s": 2.275
+    },
+    {
+      "name": "listObj",
+      "classname": "listObj",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.222
     },
     {
       "name": "listRep",
@@ -777,7 +687,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.607
+      "duration_s": 2.521
     },
     {
       "name": "llength",
@@ -787,7 +697,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.281
+      "duration_s": 2.294
+    },
+    {
+      "name": "lmap",
+      "classname": "lmap",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.357
     },
     {
       "name": "lpop",
@@ -797,7 +717,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.159
+      "duration_s": 2.179
     },
     {
       "name": "lrepeat",
@@ -807,7 +727,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.147
+      "duration_s": 2.248
     },
     {
       "name": "lreplace",
@@ -817,7 +737,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 5.659
+      "duration_s": 5.616
     },
     {
       "name": "lset",
@@ -827,7 +747,27 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.268
+      "duration_s": 2.25
+    },
+    {
+      "name": "lsetComp",
+      "classname": "lsetComp",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.385
+    },
+    {
+      "name": "misc",
+      "classname": "misc",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.309
     },
     {
       "name": "namespace",
@@ -837,7 +777,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.716
+      "duration_s": 2.624
     },
     {
       "name": "nre",
@@ -847,7 +787,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.348
+      "duration_s": 2.299
     },
     {
       "name": "ooProp",
@@ -857,7 +797,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.353
+      "duration_s": 2.314
+    },
+    {
+      "name": "ooUtil",
+      "classname": "ooUtil",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.188
     },
     {
       "name": "parseExpr",
@@ -867,7 +817,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.487
+      "duration_s": 2.379
+    },
+    {
+      "name": "parseOld",
+      "classname": "parseOld",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.415
     },
     {
       "name": "proc",
@@ -877,7 +837,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.301
+      "duration_s": 2.378
     },
     {
       "name": "proc-old",
@@ -887,7 +847,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.431
+      "duration_s": 2.312
     },
     {
       "name": "range",
@@ -897,7 +857,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.274
+      "duration_s": 2.15
     },
     {
       "name": "regexp",
@@ -907,7 +867,27 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.583
+      "duration_s": 2.415
+    },
+    {
+      "name": "regexpComp",
+      "classname": "regexpComp",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.381
+    },
+    {
+      "name": "rename",
+      "classname": "rename",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.261
     },
     {
       "name": "resolver",
@@ -917,7 +897,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.322
+      "duration_s": 2.158
     },
     {
       "name": "result",
@@ -927,7 +907,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.312
+      "duration_s": 2.215
+    },
+    {
+      "name": "safe",
+      "classname": "safe",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.537
     },
     {
       "name": "safe-stock",
@@ -937,7 +927,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.494
+      "duration_s": 2.333
     },
     {
       "name": "safe-stock86",
@@ -947,7 +937,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.328
+      "duration_s": 2.17
     },
     {
       "name": "set",
@@ -957,7 +947,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.578
+      "duration_s": 2.276
     },
     {
       "name": "set-old",
@@ -967,7 +957,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.479
+      "duration_s": 2.4
     },
     {
       "name": "source",
@@ -977,7 +967,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.287
+      "duration_s": 2.213
     },
     {
       "name": "split",
@@ -987,7 +977,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.257
+      "duration_s": 2.198
     },
     {
       "name": "stack",
@@ -997,7 +987,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.209
+      "duration_s": 2.178
     },
     {
       "name": "stringObj",
@@ -1007,7 +997,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.361
+      "duration_s": 2.252
     },
     {
       "name": "subst",
@@ -1017,7 +1007,17 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.239
+      "duration_s": 2.511
+    },
+    {
+      "name": "tailcall",
+      "classname": "tailcall",
+      "outcome": "pass",
+      "rc": 0,
+      "summary": "",
+      "trap": "",
+      "first_failing": "",
+      "duration_s": 2.243
     },
     {
       "name": "unknown",
@@ -1027,7 +1027,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.397
+      "duration_s": 2.252
     },
     {
       "name": "upvar",
@@ -1037,7 +1037,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.2
+      "duration_s": 2.311
     },
     {
       "name": "var",
@@ -1047,7 +1047,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.567
+      "duration_s": 2.469
     },
     {
       "name": "while",
@@ -1057,7 +1057,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.293
+      "duration_s": 2.268
     },
     {
       "name": "while-old",
@@ -1067,7 +1067,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.168
+      "duration_s": 2.209
     },
     {
       "name": "word",
@@ -1077,7 +1077,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 2.17
+      "duration_s": 2.209
     },
     {
       "name": "basic",
@@ -1087,7 +1087,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 60.141
+      "duration_s": 60.149
     },
     {
       "name": "expr-old",
@@ -1097,7 +1097,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 60.078
+      "duration_s": 60.08
     },
     {
       "name": "io",
@@ -1107,7 +1107,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 60.633
+      "duration_s": 60.69
     },
     {
       "name": "trace",
@@ -1117,7 +1117,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 60.384
+      "duration_s": 60.407
     },
     {
       "name": "obj",
@@ -1127,7 +1127,7 @@
       "summary": "",
       "trap": "",
       "first_failing": "",
-      "duration_s": 0.805
+      "duration_s": 0.84
     }
   ]
 }

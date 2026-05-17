@@ -1,0 +1,29 @@
+# Categorisation for listObj.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  # The bundle file is named ``listObj.test`` but the tests inside
+  # use the lowercase ``listobj-`` prefix.  The TOML loader strips
+  # the *stem* (``listObj-``) from test IDs before looking them up,
+  # which doesn't match the lowercase form — list the full IDs so
+  # the strip falls through and the bare ID matches.
+  "listobj-3.4",  # ``lappend x abc def`` where x is the
+                  # unparseable list ``" {"`` — should raise the
+                  # unmatched-brace error before the append.
+  "listobj-4.4",  # same shape but single-element append
+                  # (Tcl_ListObjAppendElement).
+  "listobj-6.6",  # ``llength "a {b}c"`` should raise the ``list
+                  # element in braces followed by "c" instead of
+                  # space`` error — llength only validates brace
+                  # balance, not the brace-followed-by-junk shape
+                  # that ``check_list_syntax`` catches.
+  "listobj-7.2",  # ``lreplace`` should validate list shape before
+                  # extracting / replacing — same gap as lindex /
+                  # linsert.
+  "listobj-7.3",  # same — brace-followed-by-junk variant of the
+                  # lreplace validation gap.
+]
+
+[baseline]
+good_to_have_failing = 5

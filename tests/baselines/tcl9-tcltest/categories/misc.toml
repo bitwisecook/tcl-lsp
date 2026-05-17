@@ -1,0 +1,21 @@
+# Categorisation for misc.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "1.1",    # misc-1.1: ``$a([winfo name $zz])`` — the inner ``$zz``
+            # is unset, so C tcl raises ``can't read "zz": no such
+            # variable`` from the variable substitution before
+            # reaching the ``winfo`` command.  Our parser evaluates
+            # the command substitution first (which silently turns
+            # the inner read into an empty string in some paths)
+            # and ends up reporting ``can't read "a()"``.
+  "1.2",    # misc-1.2: same shape inside a brace-quoted proc body
+            # source — pinned errorInfo includes the multi-line
+            # ``while executing`` trace that C tcl emits for the
+            # variable-substitution-inside-command-substitution-
+            # inside-array-index chain.
+]
+
+[baseline]
+good_to_have_failing = 2

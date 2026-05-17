@@ -1,0 +1,16 @@
+# Categorisation for ooUtil.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "1.7",    # ooUtil-1.7: ``oo::class create Foo { classmethod bar
+            # {} { ... my meee } classmethod meee {} { ... } }`` —
+            # TclOO ``classmethod`` is a class-level method (TIP
+            # 478).  Our TclOO scaffold doesn't implement it, so the
+            # ``Foo bar`` dispatch finds no matching method and
+            # silently returns the empty list; the test's ``-output``
+            # match expects four method bodies' worth of ``puts``.
+]
+
+[baseline]
+good_to_have_failing = 1

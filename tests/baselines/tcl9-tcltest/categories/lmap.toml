@@ -1,0 +1,22 @@
+# Categorisation for lmap.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "4.15",   # lmap-4.15: ``lmap a $list {}`` where ``$a`` is set as
+            # an array in the surrounding scope should raise
+            # ``can't set "a": variable is array`` before the first
+            # iteration.  Our compiled-lmap path silently shadows
+            # the array with a scalar loop var and returns the empty
+            # list, then traps with ``unsupported command: socket``
+            # when the diagnostic ``$::errorInfo`` read tries to
+            # invoke a stub command from the formatted stack trace.
+  "6.2",    # lmap-6.2: bytecode-shape probe — ``tcl::unsupported::
+            # disassemble proc`` inspection.  Our codegen emits
+            # different instruction sequences than the BCC, so this
+            # never matches exactly.
+  "6.3",    # lmap-6.3: same — disassemble probe.
+]
+
+[baseline]
+good_to_have_failing = 3

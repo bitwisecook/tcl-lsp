@@ -1,0 +1,26 @@
+# Categorisation for lsearch.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+# lsearch.test failures cluster around option combinations our impl
+# hasn't grown yet: ``-exact``/``-glob``/``-regexp`` × ``-nocase``,
+# ``-all``/``-inline``/``-not`` chains, ``-index``/``-subindices``
+# pointer modes, ``-sorted`` bisect mode, and ``-stride`` block-search.
+good_to_have = [
+  "5.1", "5.2", "5.4",
+  "6.1", "6.2", "6.3", "6.4",
+  "7.1", "7.2", "7.3", "7.4",
+  "8.1", "8.2", "8.3", "8.4",
+  "9.1", "9.2", "9.3", "9.4",
+  "10.3", "10.6",
+  "17.10", "17.11",
+  "18.1", "18.2", "18.3", "18.5",
+  "19.1", "19.2", "19.3", "19.4", "19.5", "19.6", "19.7", "19.8",
+  "22.5",
+  "25.1", "25.2", "25.3", "25.4", "25.5", "25.6",
+  "26.2", "26.3", "26.4", "26.6",
+  "27.3", "27.4", "27.6", "27.7", "27.8",
+]
+
+[baseline]
+good_to_have_failing = 51

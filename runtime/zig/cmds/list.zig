@@ -92,13 +92,52 @@ fn eval_llength(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lindex(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) {
-        const ls = obj_ensure_string(words[1]);
-        if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
-            return result_mod.from_globals(0);
-        return result_mod.from_globals(rt.tcl_cmd_list_index(words[1], words[2]));
+    // ``lindex`` with no list argument is an arity error.
+    if (words.len < 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lindex list ?index ...?\"");
+        return result_mod.from_globals(0);
     }
-    return result_mod.from_globals(0);
+    // ``lindex LIST`` (1 arg form) returns the list verbatim.
+    if (words.len == 2) return result_mod.from_globals(words[1]);
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    // ``lindex LIST i1 i2 ...`` — Tcl 9 semantics: apply each
+    // remaining index in turn, descending into the result of the
+    // previous indexing.  ``lindex {a b {c d}} 2 1`` → ``d``.
+    // A single index argument that itself is a list ``{i1 i2}`` is
+    // also valid (e.g. ``lindex L {2 1}``); flatten such a wrapper
+    // by routing through the same loop after splitting the index
+    // list.  ``tcl_cmd_list_index`` handles bare numeric / ``end`` /
+    // ``end-N`` indices; the multi-index walk is a simple fold.
+    var current: i32 = words[1];
+    if (words.len == 3) {
+        // Single index argument — may be a flat ``5`` or a list
+        // ``{2 1}`` per Tcl 9 semantics.  Walk the elements so the
+        // list-form behaves like the explicit multi-arg form.
+        const idx_arg = words[2];
+        const is_s = obj_ensure_string(idx_arg);
+        // ``lindex L {}`` — empty index list returns the list
+        // verbatim (lindex-10.1: ``$x = ""`` should not error).
+        if (is_s.len == 0) return result_mod.from_globals(current);
+        const idx_count = rt.list_count_elements(is_s.ptr, is_s.len);
+        if (idx_count == 0) return result_mod.from_globals(current);
+        if (idx_count == 1) {
+            return result_mod.from_globals(rt.tcl_cmd_list_index(current, idx_arg));
+        }
+        var k: i64 = 0;
+        while (k < idx_count) : (k += 1) {
+            const ei = rt.tcl_cmd_list_index(idx_arg, obj_new_int(k));
+            current = rt.tcl_cmd_list_index(current, ei);
+        }
+        return result_mod.from_globals(current);
+    }
+    var ai: u32 = 2;
+    while (ai < words.len) : (ai += 1) {
+        current = rt.tcl_cmd_list_index(current, words[ai]);
+    }
+    return result_mod.from_globals(current);
 }
 
 fn eval_lset(words: []const i32) result_mod.InterpResult {
