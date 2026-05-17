@@ -1114,20 +1114,29 @@ def _eval_paths(node: Call, current: Any, ctx: EvalContext, *, only_leaves: bool
 
 
 def _eval_recurse(node: Call, current: Any, ctx: EvalContext) -> Stream:
-    """Implement ``recurse`` / ``recurse(f)`` / ``recurse(f, cond)``."""
-    out: list[Any] = [current]
+    """Implement ``recurse`` / ``recurse(f)`` / ``recurse(f, cond)``.
+
+    The default form walks the value tree pre-order depth-first in
+    child order — matching jq's ``recurse`` traversal so parity-
+    sensitive queries see the same emission order as upstream.
+    """
+    out: list[Any] = []
     if not node.args:
-        # Default: descend into every reachable composite, emit the
-        # current value plus every child / leaf.
-        queue: list[Any] = [current]
-        while queue:
-            value = queue.pop(0)
-            for _key, child in _builtins._value_children(value):
-                out.append(child)
-                queue.append(child)
+        # DFS pre-order via an explicit stack: push children in reverse
+        # so they're popped in their natural order.  Bounded so a
+        # pathological cyclic / huge structure can't wedge the
+        # evaluator.
+        stack: list[Any] = [current]
+        while stack:
+            value = stack.pop()
+            out.append(value)
             if len(out) >= 100_000:
                 break
+            children = _builtins._value_children(value)
+            for _key, child in reversed(children):
+                stack.append(child)
         return Stream(items=out)
+    out.append(current)
     body = node.args[0]
     cond = node.args[1] if len(node.args) >= 2 else None
     value = current

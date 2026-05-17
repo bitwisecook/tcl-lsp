@@ -1241,11 +1241,29 @@ def test_walk_applies_body_bottom_up():
 
 def test_recurse_without_args_walks_tree():
     [out] = run_query("{a: 1, b: {c: 2}} | [recurse]", {"m": ""}).values_per_file["m"]
-    # Root first, then each reachable value (breadth-first).
+    # Root first, then each reachable value.
     assert {"a": 1, "b": {"c": 2}} in out
     assert {"c": 2} in out
     assert 1 in out
     assert 2 in out
+
+
+def test_recurse_emits_in_jq_depth_first_order():
+    """``recurse`` traverses pre-order depth-first in child order.
+
+    Regression for codex review P2 on PR #418 — an earlier impl used
+    a FIFO queue (breadth-first), which diverged from jq.  jq emits
+    the root, then each child fully, then the next child.
+    """
+    [out] = run_query("{a: [{b: 1}, {c: 2}]} | [recurse]", {"m": ""}).values_per_file["m"]
+    assert out == [
+        {"a": [{"b": 1}, {"c": 2}]},
+        [{"b": 1}, {"c": 2}],
+        {"b": 1},
+        1,
+        {"c": 2},
+        2,
+    ]
 
 
 def test_recurse_with_body_and_cond_stops_correctly():
@@ -1287,6 +1305,21 @@ def test_not_works_as_postfix_filter_and_prefix_op():
     assert run_query("1 | not", {"m": ""}).values_per_file["m"] == [False]
     # Prefix form (this DSL's existing unary operator) still works.
     assert run_query("not true", {"m": ""}).values_per_file["m"] == [False]
+
+
+def test_postfix_not_binds_below_arithmetic_in_pipelines():
+    """``x | not - 1`` parses as ``(x | not) - 1``, not ``not(-1)``.
+
+    jq treats ``not`` as a postfix filter only — a trailing ``-`` is
+    always subtraction at the cmp/add level.  Regression for codex
+    review P1 on PR #418.
+    """
+    assert run_query("1 | not - 1", {"m": ""}).values_per_file["m"] == [-1]
+    # Explicit parens still let the user opt into unary-prefix ``not``
+    # against a negative literal.
+    assert run_query("not (-1)", {"m": ""}).values_per_file["m"] == [False]
+    # Combine postfix ``not`` with comparison.
+    assert run_query("(1 | not) == false", {"m": ""}).values_per_file["m"] == [True]
 
 
 def test_inside_inverts_contains():

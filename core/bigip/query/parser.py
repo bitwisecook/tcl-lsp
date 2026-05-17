@@ -287,18 +287,30 @@ class _Parser:
             # jq exposes ``not`` both as a unary prefix (``not foo``) and
             # as a postfix filter (``foo | not``).  When the token after
             # ``not`` could start an operand, treat it as the unary form;
-            # otherwise emit a zero-arg call to the ``not`` builtin so the
-            # postfix shape works in pipelines.
+            # otherwise the postfix ``Call("not")`` is parsed at the
+            # primary level so the cmp/add/mul chain naturally picks up
+            # any trailing arithmetic — ``(x | not) - 1`` parses as a
+            # subtraction rather than ``not(-1)``.
             if not self._token_starts_operand(self._peek(1)):
-                self._consume()
-                return Call(name="not", args=(), offset=tok.offset)
+                return self._parse_cmp()
             self._consume()
             operand = self._parse_not()
             return UnaryOp(op="not", operand=operand, offset=tok.offset)
         return self._parse_cmp()
 
     def _token_starts_operand(self, tok) -> bool:
-        """Conservatively guess whether *tok* could begin an operand."""
+        """Conservatively guess whether *tok* could begin an operand.
+
+        Used to disambiguate jq's postfix ``not`` from this DSL's unary
+        prefix ``not``.  When the next token can't plausibly start an
+        operand, ``not`` is parsed as a zero-arg call so ``x | not``
+        works.  Arithmetic operators that *could* be unary (``+`` and
+        ``-``) are treated as non-operand-starting here so the
+        jq-canonical ``1 | not - 1`` parses as ``(1 | not) - 1`` (a
+        subtraction) rather than as ``not(-1)``.  Users who genuinely
+        want the unary-prefix form can write ``not(-1)`` with explicit
+        parentheses.
+        """
         if tok.kind in (
             TokenKind.PIPE,
             TokenKind.COMMA,
@@ -320,7 +332,12 @@ class _Parser:
         # operand on their own.
         if tok.kind in _CMP_OPS or tok.kind in _ASSIGN_OPS:
             return False
-        if tok.kind in (TokenKind.PLUS, TokenKind.STAR, TokenKind.SLASH):
+        if tok.kind in (
+            TokenKind.PLUS,
+            TokenKind.MINUS,
+            TokenKind.STAR,
+            TokenKind.SLASH,
+        ):
             return False
         return True
 
@@ -411,6 +428,15 @@ class _Parser:
 
     def _parse_primary(self) -> Expr:
         tok = self._peek()
+
+        if tok.kind is TokenKind.NOT:
+            # Postfix ``not`` (the jq filter form ``x | not``) reaches
+            # us via ``_parse_not``'s no-operand-follows branch, which
+            # delegates down to ``_parse_cmp`` without consuming the
+            # token.  Consume it here and emit a zero-arg Call so the
+            # cmp/add/mul chain can splice trailing operators on top.
+            self._consume()
+            return Call(name="not", args=(), offset=tok.offset)
 
         if tok.kind in (
             TokenKind.NUMBER,
