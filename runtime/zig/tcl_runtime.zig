@@ -82,6 +82,8 @@ pub const string_range = tcl_string.string_range;
 pub const string_compare = tcl_string.string_compare;
 pub const string_compare_full = tcl_string.string_compare_full;
 pub const tcl_expr_order_cmp = tcl_string.tcl_expr_order_cmp;
+pub const tcl_expr_unordered = tcl_string.tcl_expr_unordered;
+pub const tcl_expr_eq_nan_aware = tcl_string.tcl_expr_eq_nan_aware;
 pub const string_equal = tcl_string.string_equal;
 pub const string_equal_full = tcl_string.string_equal_full;
 pub const string_match = tcl_string.string_match;
@@ -262,6 +264,8 @@ comptime {
     _ = &tcl_string.tcl_cmd_append;
     _ = &tcl_string.string_compare;
     _ = &tcl_string.tcl_expr_order_cmp;
+    _ = &tcl_string.tcl_expr_unordered;
+    _ = &tcl_string.tcl_expr_eq_nan_aware;
     _ = &tcl_string.string_length;
     _ = &tcl_string.string_index;
     _ = &tcl_string.string_range;

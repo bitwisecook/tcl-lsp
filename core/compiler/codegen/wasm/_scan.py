@@ -362,11 +362,14 @@ def _scan_expr_body_imports_impl(node: object, needed: set[str]) -> None:
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.EQ, BinOp.NE):
-                    # Numeric ``==`` / ``!=`` route through
-                    # ``tcl_expr_order_cmp`` so bignum operands and
-                    # int-vs-float mixed compares pick the right
-                    # rule (the inline ``i64.eq`` truncates bignums
-                    # to their low 64 bits).
+                    # Numeric ``==`` / ``!=`` route through the NaN-
+                    # aware equality helper (which itself delegates
+                    # to ``tcl_expr_order_cmp`` after the NaN check).
+                    # Bignum operands and int-vs-float mixed compares
+                    # pick the right rule via ``tcl_expr_order_cmp``;
+                    # the wrapper additionally enforces IEEE-754's
+                    # ``NaN != NaN`` semantics.
+                    needed.add("tcl_expr_eq_nan_aware")
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.IN, BinOp.NI):
                     needed.add("tcl_list_contains")
@@ -783,15 +786,10 @@ def _scan_needed_imports(
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.EQ, BinOp.NE):
                     # Mirror the IR-only scanner: ``==`` / ``!=`` route
-                    # through ``tcl_expr_order_cmp`` so string operands
-                    # ("unix" == "def") compare bytewise instead of
-                    # falling through to the i64 fast path, which
-                    # unboxes both operands to 0 via ``tcl_obj_get_int``
-                    # and reports every pair of non-numeric strings as
-                    # equal.  Without registering this import here the
-                    # main-script emitter (the path that compiles every
-                    # top-level ``set r [expr {$v == "..."}]``) silently
-                    # falls back to ``i64.eq 0 0`` and returns 1.
+                    # through the NaN-aware equality helper which
+                    # itself delegates to ``tcl_expr_order_cmp`` after
+                    # the NaN check (IEEE-754: ``NaN == NaN`` is 0).
+                    needed.add("tcl_expr_eq_nan_aware")
                     needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW):
                     _ARITH_IMPORT2 = {

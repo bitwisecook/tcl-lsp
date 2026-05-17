@@ -295,6 +295,21 @@ pub export fn tcl_expr_unordered(a: i32, b: i32) i32 {
     return obj_new_int(if (obj_is_nan(a) or obj_is_nan(b)) 1 else 0);
 }
 
+/// IEEE-754-aware equality compare for ``expr {a == b}``.  Returns
+/// 1 when *a* and *b* are equal under Tcl 9 semantics (numeric when
+/// both parse as numbers, bytewise string compare otherwise) and 0
+/// when they're unequal — including the IEEE-754 NaN rule that a
+/// NaN operand is unordered with respect to everything (even itself).
+/// Used by the comparison codegen so ``expr {NaN == NaN}`` returns
+/// 0 rather than the bytewise-equal 1 that the legacy
+/// ``tcl_expr_order_cmp`` returns.
+pub export fn tcl_expr_eq_nan_aware(a: i32, b: i32) i32 {
+    if (obj_is_nan(a) or obj_is_nan(b)) return obj_new_int(0);
+    const cmp_obj = tcl_expr_order_cmp(a, b);
+    const cmp = obj.obj_get_int(cmp_obj);
+    return obj_new_int(if (cmp == 0) 1 else 0);
+}
+
 // Exported: string length — byte length of the string representation.
 pub export fn string_length(value: i32) i32 {
     const s = obj_ensure_string(value);

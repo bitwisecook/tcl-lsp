@@ -391,15 +391,16 @@ fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
         .eq_eq, .ne_eq => {
             // Tcl 9 ``==`` / ``!=``: numeric compare when both operands
             // parse as numbers, else bytewise string compare.  Route
-            // through ``tcl_expr_order_cmp`` which picks the right rule
-            // (i64 fast path / bignum / float / bytewise).  The string
-            // helpers above leave the substituted operand TclObjs on
-            // the heap; reuse them so we don't re-walk the source.
+            // through ``tcl_expr_eq_nan_aware`` which enforces
+            // IEEE-754's ``NaN != NaN`` rule on top of the regular
+            // ``tcl_expr_order_cmp`` semantics (i64 fast path / bignum
+            // / float / bytewise).  The string helpers above leave
+            // the substituted operand TclObjs on the heap; reuse them
+            // so we don't re-walk the source.
             const tcl_string = @import("../valtypes/tcl_string.zig");
-            const cmp_obj = tcl_string.tcl_expr_order_cmp(lhs_obj, rhs_obj);
-            const cmp = obj_mod.obj_get_int(cmp_obj);
-            obj_mod.tcl_obj_release(cmp_obj);
-            const eq_flag: i64 = if (cmp == 0) 1 else 0;
+            const eq_obj = tcl_string.tcl_expr_eq_nan_aware(lhs_obj, rhs_obj);
+            const eq_flag = obj_mod.obj_get_int(eq_obj);
+            obj_mod.tcl_obj_release(eq_obj);
             result = if (op.kind == .eq_eq) eq_flag else (1 - eq_flag);
         },
     }

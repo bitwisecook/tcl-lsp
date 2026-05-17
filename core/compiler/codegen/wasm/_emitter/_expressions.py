@@ -1145,6 +1145,21 @@ class _WasmEmitterExprMixin(_Base):
         # float, string fallback otherwise).
         if (
             op in (BinOp.EQ, BinOp.NE)
+            and self._shared_imports.get("tcl_expr_eq_nan_aware") is not None
+        ):
+            # IEEE-754 NaN handling: ``expr {NaN == NaN}`` must be 0.
+            # ``tcl_expr_eq_nan_aware`` returns 1 when the operands
+            # are equal under Tcl 9 ``==`` semantics, 0 otherwise —
+            # including 0 when either side is a NaN value (TYPE_FLOAT
+            # NaN or the ``"NaN"`` string).  For ``!=`` we XOR with 1.
+            eq_idx = self._shared_imports["tcl_expr_eq_nan_aware"]
+            self._emit_expr_obj_cmp_binary(eq_idx, left, right)
+            if op is BinOp.NE:
+                self._emit_i64_const(1)
+                self._emit(WasmOp.I64_XOR)
+            return
+        if (
+            op in (BinOp.EQ, BinOp.NE)
             and self._shared_imports.get("tcl_expr_order_cmp") is not None
         ):
             cmp_idx = self._shared_imports["tcl_expr_order_cmp"]
