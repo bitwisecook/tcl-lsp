@@ -20,7 +20,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="bitwisecook/tcl-lsp"
-EXPECTED_ASSET_NAME="Tcl.sublime-package"
 
 # 1. Resolve current tag
 TAG="$(git -C "$ROOT" describe --tags --exact-match 2>/dev/null || true)"
