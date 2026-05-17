@@ -978,6 +978,32 @@ pub export fn tcl_cmd_join(list: i32, separator: i32) i32 {
 // Exported: concat — concatenate two TclObj string representations with space.
 // Each argument has leading/trailing whitespace trimmed before joining.
 // If both are empty after trimming, returns an empty string object.
+/// Strip trailing whitespace bytes from ``p[start..end]`` but stop
+/// when a whitespace byte is preceded by an UNESCAPED backslash
+/// (odd-count run of ``\``).  Tcl's ``concat`` uses this so that
+/// ``\}\ `` round-trips with its trailing escaped space intact —
+/// otherwise the visible space is treated as an end-of-arg
+/// separator and the result loses one byte (ledit-1.25).
+fn trim_trailing_ws_respecting_backslash(p: [*]const u8, start: u32, end_in: u32) u32 {
+    var end = end_in;
+    while (end > start and is_space(p[end - 1])) {
+        // Count consecutive backslashes immediately before the
+        // candidate space.  An ODD count means the space is
+        // escaped — leave it (and the trailing backslash) in
+        // place.  EVEN count means each ``\`` pairs with another,
+        // so the trailing whitespace is plain and gets trimmed.
+        var bs: u32 = 0;
+        var j: u32 = end - 1;
+        while (j > start and p[j - 1] == '\\') {
+            bs += 1;
+            j -= 1;
+        }
+        if ((bs & 1) == 1) break;
+        end -= 1;
+    }
+    return end;
+}
+
 pub export fn tcl_cmd_concat(a: i32, b: i32) i32 {
     const sa = obj_ensure_string(a);
     const sb = obj_ensure_string(b);
@@ -987,14 +1013,14 @@ pub export fn tcl_cmd_concat(a: i32, b: i32) i32 {
     if (sa.len > 0) {
         const pa: [*]const u8 = @ptrFromInt(sa.ptr);
         while (a_start < a_end and is_space(pa[a_start])) a_start += 1;
-        while (a_end > a_start and is_space(pa[a_end - 1])) a_end -= 1;
+        a_end = trim_trailing_ws_respecting_backslash(pa, a_start, a_end);
     }
     var b_start: u32 = 0;
     var b_end: u32 = sb.len;
     if (sb.len > 0) {
         const pb: [*]const u8 = @ptrFromInt(sb.ptr);
         while (b_start < b_end and is_space(pb[b_start])) b_start += 1;
-        while (b_end > b_start and is_space(pb[b_end - 1])) b_end -= 1;
+        b_end = trim_trailing_ws_respecting_backslash(pb, b_start, b_end);
     }
     const ta_len = a_end - a_start;
     const tb_len = b_end - b_start;

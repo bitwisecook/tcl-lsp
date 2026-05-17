@@ -244,7 +244,17 @@ pub export fn tcl_list(a: i32, b: i32) i32 {
 // ``memcpy`` of the element span flattens nested lists — e.g.
 // ``lreverse {{a b} c}`` would emit ``c a b`` instead of
 // ``c {a b}``, silently promoting sub-list content to siblings.
-fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype) u32 {
+//
+// Unbraced source elements (plain ``foo`` or quoted ``"a b"``) carry
+// raw still-backslash-escaped bytes; decoding via
+// ``copy_unbraced_elem`` then re-quoting through ``list_elem_quote*``
+// keeps each element a single list slot when the result is reparsed
+// (lreplace-1.15: ``"c c"`` must round-trip as ``{c c}``, not split
+// into ``c c``).  ``is_first`` selects the leading-``#`` quoting
+// flavour matching the parent rebuilder: only the very first element
+// of a list quotes a leading ``#`` (so that ``# foo`` doesn't look
+// like a comment when the list bytes are reparsed as a script).
+fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype, is_first: bool) u32 {
     var off = off_in;
     if (elem.braced) {
         const d: [*]u8 = @ptrFromInt(buf + off);
@@ -257,10 +267,33 @@ fn append_list_element(buf: u32, off_in: u32, sd_ptr: u32, elem: anytype) u32 {
         const d2: [*]u8 = @ptrFromInt(buf + off);
         d2[0] = '}';
         off += 1;
-    } else if (elem.len > 0) {
-        memcpy(buf + off, sd_ptr + elem.start, elem.len);
-        off += elem.len;
+        return off;
     }
+    if (elem.len == 0) {
+        // Empty unbraced element → emit ``{}`` so it survives a
+        // reparse as a real empty slot rather than collapsing.
+        const d: [*]u8 = @ptrFromInt(buf + off);
+        d[0] = '{';
+        d[1] = '}';
+        return off + 2;
+    }
+    // Decode backslash escapes from the unbraced source into a
+    // scratch buffer, then re-quote the decoded value canonically.
+    // Worst-case decoded length is the raw length.
+    const scratch = alloc(elem.len);
+    if (scratch == 0) {
+        // OOM — skip the decode step and round-trip the raw bytes
+        // through the canonical quoter directly.  Backslash escapes
+        // won't be unfolded here, but a degraded round-trip is
+        // strictly better than dereferencing a null pointer
+        // (PR #413 review).
+        const quoter: *const fn (u32, u32, u32, u32) u32 = if (is_first) &list_elem_quote else &list_elem_quote_nth;
+        return quoter(buf, off, sd_ptr + elem.start, elem.len);
+    }
+    const dec_len = copy_unbraced_elem(scratch, sd_ptr + elem.start, elem.len);
+    const quoter: *const fn (u32, u32, u32, u32) u32 = if (is_first) &list_elem_quote else &list_elem_quote_nth;
+    off = quoter(buf, off, scratch, dec_len);
+    obj.free_sized(scratch, elem.len);
     return off;
 }
 
@@ -648,7 +681,7 @@ pub export fn tcl_cmd_list_insert(list: i32, index: i32, value: i32) i32 {
         // Preserve braces so nested lists keep their grouping: without
         // this ``linsert {{a b} c} 1 X`` flattens to ``a b X c``
         // instead of ``{a b} X c``.
-        off = append_list_element(buf, off, s.ptr, elem);
+        off = append_list_element(buf, off, s.ptr, elem, off == 0);
     }
     if (upos >= n) {
         if (off > 0) {
@@ -726,7 +759,7 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
         const elem = list_element_at(s.ptr, s.len, @intCast(i));
         // Preserve source braces so nested lists keep their
         // grouping through ``lreplace``.
-        off = append_list_element(buf, off, s.ptr, elem);
+        off = append_list_element(buf, off, s.ptr, elem, off == 0);
     }
     // If first == n (append) and we never hit the insertion branch
     // above, drop the value at the end instead.
@@ -740,6 +773,101 @@ pub export fn tcl_cmd_list_replace(list: i32, first: i32, last: i32, value: i32)
         off = quoter(buf, off, sv_ptr, sv_len);
     }
     return obj_new_string(@bitCast(buf), @bitCast(off));
+}
+
+// Exported: multi-value lreplace driven by a Tcl LIST of inserts.
+//
+// Codegen routes ``[lreplace LIST F L v1 v2 ...]`` through this
+// helper so the inserted values stay in step with the resolved
+// first/last indices.  The inline-emit variant chained
+// ``tcl_list_insert(result, first_arg, vN)`` calls that re-resolved
+// ``end-N`` against the SHRUNK post-replace list, landing later
+// values one slot too soon (lreplace-4.7.1 / lreplace-4.11).
+// Building the values list at the call site and threading absolute
+// integer positions here side-steps that re-resolution.
+pub export fn tcl_cmd_lreplace_list(list_arg: i32, first_arg: i32, last_arg: i32, values_list: i32) i32 {
+    const vs = obj_ensure_string(values_list);
+    const vcount_i64 = list_count_elements(vs.ptr, vs.len);
+    if (vcount_i64 <= 0) {
+        // No inserts — pure removal.  Routes through the deletion
+        // sentinel so the result is canonicalised.
+        return tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
+    }
+    // Resolve f against the ORIGINAL list, so subsequent inserts
+    // land at consecutive absolute positions even as the list grows.
+    const ls = obj_ensure_string(list_arg);
+    const n_i64 = list_count_elements(ls.ptr, ls.len);
+    var f = resolve_list_index(first_arg, n_i64);
+    if (f < 0) f = 0;
+    if (f > n_i64) f = n_i64;
+
+    // Step 1: ``tcl_cmd_list_replace`` drops [first, last] AND
+    // splices in the first value at position f.  Inverted ranges
+    // (l < f) collapse to a pure insert there.
+    const idx0 = make_int_obj(0);
+    const first_value = tcl_cmd_list_index(values_list, idx0);
+    obj.tcl_obj_release(idx0);
+    var result = tcl_cmd_list_replace(list_arg, first_arg, last_arg, first_value);
+    obj.tcl_obj_release(first_value);
+
+    // Step 2: splice the remaining values at f+1, f+2, ... — absolute
+    // indices so end-relative is never re-evaluated against the
+    // shrunk / growing list.
+    var i: i64 = 1;
+    var pos: i64 = f + 1;
+    while (i < vcount_i64) : (i += 1) {
+        const idx_v = make_int_obj(i);
+        const v = tcl_cmd_list_index(values_list, idx_v);
+        obj.tcl_obj_release(idx_v);
+        const idx_obj = make_int_obj(pos);
+        // Release the prior intermediate ``result`` before
+        // overwriting — ``tcl_cmd_list_insert`` returns a fresh
+        // TclObj and otherwise the obj header (and its parsed-form
+        // sidecar) leak once per extra value (PR #413 review).
+        const new_result = tcl_cmd_list_insert(result, idx_obj, v);
+        obj.tcl_obj_release(result);
+        result = new_result;
+        obj.tcl_obj_release(idx_obj);
+        obj.tcl_obj_release(v);
+        pos += 1;
+    }
+    return result;
+}
+
+// Build a fresh integer-valued TclObj for *v*.  Used internally by
+// ``tcl_cmd_lreplace_list`` to express the per-insert position
+// without bouncing through ``snprintf`` / ``Tcl_NewIntObj``.
+fn make_int_obj(v: i64) i32 {
+    var buf: [24]u8 = undefined;
+    var off: u32 = 0;
+    var negative = false;
+    var x: i64 = v;
+    if (x < 0) {
+        negative = true;
+        x = -x;
+    }
+    var tmp: [24]u8 = undefined;
+    var tlen: u32 = 0;
+    if (x == 0) {
+        tmp[0] = '0';
+        tlen = 1;
+    } else {
+        while (x > 0) {
+            tmp[tlen] = @intCast(@as(u32, '0') + @as(u32, @intCast(@mod(x, 10))));
+            x = @divTrunc(x, 10);
+            tlen += 1;
+        }
+    }
+    if (negative) {
+        buf[0] = '-';
+        off = 1;
+    }
+    var k: u32 = 0;
+    while (k < tlen) : (k += 1) {
+        buf[off + k] = tmp[tlen - 1 - k];
+    }
+    off += tlen;
+    return obj_new_string_copy(@intFromPtr(&buf), off);
 }
 
 // Exported: list set — ``lset varName ?index ...? newValue``.
@@ -855,7 +983,7 @@ fn lset_recurse(
             off = quoter(buf, off, s_rep.ptr, s_rep.len);
         } else {
             const elem = list_element_at(src_ptr, src_len, @intCast(i));
-            off = append_list_element(buf, off, src_ptr, elem);
+            off = append_list_element(buf, off, src_ptr, elem, off == 0);
         }
     }
     return obj_new_string(@bitCast(buf), @bitCast(off));

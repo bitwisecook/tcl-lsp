@@ -54,7 +54,24 @@ fn eval_list(words: []const i32) result_mod.InterpResult {
 
 fn eval_lappend(words: []const i32) result_mod.InterpResult {
     if (words.len >= 2) {
-        var result = frames.var_resolve(words[1]);
+        // Inside a proc frame an unqualified name must resolve LOCALLY
+        // (Tcl semantics: unqualified vars in proc bodies are locals
+        // unless explicitly aliased via ``global`` / ``upvar`` /
+        // ``variable``).  ``frames.var_resolve`` falls back to the
+        // global table when a local miss occurs — that gives
+        // ``proc foo {} { lappend x }`` access to ``::x`` when no
+        // ``global x`` was declared, contradicting reference Tcl and
+        // causing appendComp-4.17/4.18 to inherit ``::x`` from a
+        // prior test in the bundle.  Use ``local_get_silent`` (frame-
+        // only, follows ``global`` / ``upvar`` aliases) in proc
+        // context and only fall back to ``var_resolve`` for
+        // script-level / namespace-context calls.
+        const in_proc = frames.frame_depth > 0;
+        const initial: i32 = if (in_proc)
+            frames.local_get_silent(words[1])
+        else
+            frames.var_resolve(words[1]);
+        var result = initial;
         var wi: u32 = 2;
         while (wi < words.len) : (wi += 1) {
             result = rt.tcl_cmd_lappend(result, words[wi]);
@@ -66,8 +83,12 @@ fn eval_lappend(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_llength(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_list_length(words[1]));
-    return result_mod.from_globals(0);
+    if (words.len != 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"llength list\"");
+        return result_mod.from_globals(0);
+    }
+    return result_mod.from_globals(rt.tcl_cmd_list_length(words[1]));
 }
 
 fn eval_lindex(words: []const i32) result_mod.InterpResult {
@@ -76,29 +97,36 @@ fn eval_lindex(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lset(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) {
-        const current = frames.var_resolve(words[1]);
-        const newval = words[words.len - 1];
-        const indices: i32 = if (words.len == 3)
-            obj_new_string(0, 0)
-        else if (words.len == 4)
-            words[2]
-        else blk: {
-            var acc: i32 = rt.tcl_list(words[2], words[3]);
-            var wi: u32 = 4;
-            while (wi + 1 < words.len) : (wi += 1) {
-                acc = rt.tcl_list(acc, words[wi]);
-            }
-            break :blk acc;
-        };
-        const result = rt.tcl_cmd_list_set(current, indices, newval);
-        _ = frames.var_set(words[1], result);
-        return result_mod.from_globals(result);
+    if (words.len < 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lset listVar ?index? ?index ...? value\"");
+        return result_mod.from_globals(0);
     }
-    return result_mod.from_globals(0);
+    const current = frames.var_resolve(words[1]);
+    const newval = words[words.len - 1];
+    const indices: i32 = if (words.len == 3)
+        obj_new_string(0, 0)
+    else if (words.len == 4)
+        words[2]
+    else blk: {
+        var acc: i32 = rt.tcl_list(words[2], words[3]);
+        var wi: u32 = 4;
+        while (wi + 1 < words.len) : (wi += 1) {
+            acc = rt.tcl_list(acc, words[wi]);
+        }
+        break :blk acc;
+    };
+    const result = rt.tcl_cmd_list_set(current, indices, newval);
+    _ = frames.var_set(words[1], result);
+    return result_mod.from_globals(result);
 }
 
 fn eval_linsert(words: []const i32) result_mod.InterpResult {
+    if (words.len < 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"linsert list index ?element ...?\"");
+        return result_mod.from_globals(0);
+    }
     if (words.len >= 4) {
         const list_arg = words[1];
         const idx_arg = words[2];
@@ -123,41 +151,150 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
         }
         return result_mod.from_globals(result);
     }
-    return result_mod.from_globals(0);
+    // linsert LIST INDEX with no values is a degenerate no-op
+    // returning LIST.
+    return result_mod.from_globals(words[1]);
 }
 
 fn eval_lreplace(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 4) {
-        const list_arg = words[1];
-        const first_arg = words[2];
-        const last_arg = words[3];
-        if (words.len == 4) {
-            return result_mod.from_globals(rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0));
+    if (words.len < 4) return result_mod.from_globals(0);
+    return result_mod.from_globals(do_lreplace(words[1], words[2], words[3], words, 4));
+}
+
+/// Shared lreplace implementation used by ``lreplace`` and ``ledit``.
+/// ``insert_from`` is the index of the first element to insert in
+/// ``words``; the trailing words from there to ``words.len`` are
+/// inserted at position ``first`` after the [first..last] slice is
+/// removed.  Inverted ranges (first > last) skip the removal and
+/// behave as a pure ``linsert`` (reference Tcl semantics; covers
+/// lreplace-4.11 / ledit-4.11).
+fn do_lreplace(list_arg: i32, first_arg: i32, last_arg: i32, words: []const i32, insert_from: u32) i32 {
+    // Resolve indices against the ORIGINAL list once, up front.
+    // After the first ``tcl_cmd_list_replace`` shrinks the list,
+    // any ``end-N`` index would re-resolve against the smaller
+    // list and land at the wrong slot (bug: lreplace-4.7.1,
+    // lreplace-4.11).  Operate on absolute integer positions from
+    // here on.
+    const ls = obj_ensure_string(list_arg);
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    var f = resolve_list_index_local(first_arg, n_i64);
+    var l = resolve_list_index_local(last_arg, n_i64);
+    if (f < 0) f = 0;
+    if (l >= n_i64) l = n_i64 - 1;
+    if (f > n_i64) f = n_i64;
+    const has_inserts = insert_from < words.len;
+
+    // First step: shrink the list to remove [f..l].  If the range
+    // is inverted (l < f) the existing runtime helper already
+    // treats it as a pure insert at f and emits no replacement —
+    // we go through the same call to canonicalise the result.
+    var result: i32 = undefined;
+    if (has_inserts) {
+        // Splice the FIRST insert at position f as part of the
+        // removal step so we don't need to track ownership across
+        // a separate insert call.
+        result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[insert_from]);
+        var wi: u32 = insert_from + 1;
+        var pos: i64 = f + 1; // absolute index for the next insert
+        while (wi < words.len) : (wi += 1) {
+            const idx_obj = make_index_obj(pos);
+            // ``tcl_cmd_list_insert`` returns a fresh TclObj — release
+            // the previous intermediate ``result`` before overwriting
+            // (PR #413 review: chained inserts otherwise leak one
+            // header per extra value).
+            const new_result = rt.tcl_cmd_list_insert(result, idx_obj, words[wi]);
+            obj_mod.tcl_obj_release(result);
+            result = new_result;
+            obj_mod.tcl_obj_release(idx_obj);
+            pos += 1;
         }
-        const idx_s = obj_ensure_string(first_arg);
-        var forward = false;
-        if (idx_s.len >= 3) {
-            const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
-            if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
-        }
-        if (forward) {
-            var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[4]);
-            var wi: u32 = 5;
-            while (wi < words.len) : (wi += 1) {
-                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
-            }
-            return result_mod.from_globals(result);
-        } else {
-            var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[words.len - 1]);
-            var wi: u32 = words.len - 1;
-            while (wi > 4) {
-                wi -= 1;
-                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
-            }
-            return result_mod.from_globals(result);
+    } else {
+        // Pure removal — canonicalise even when nothing changes
+        // (e.g. ``lreplace { } 1 1`` collapses the single-space
+        // input to the empty list, lreplace-4.2).
+        result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
+    }
+    return result;
+}
+
+fn make_index_obj(idx: i64) i32 {
+    var idx_buf: [24]u8 = undefined;
+    var off: u32 = 0;
+    var neg: bool = false;
+    var v: i64 = idx;
+    if (v < 0) {
+        neg = true;
+        v = -v;
+    }
+    var tmp: [24]u8 = undefined;
+    var tlen: u32 = 0;
+    if (v == 0) {
+        tmp[0] = '0';
+        tlen = 1;
+    } else {
+        while (v > 0) {
+            tmp[tlen] = @intCast(@as(u32, '0') + @as(u32, @intCast(@mod(v, 10))));
+            v = @divTrunc(v, 10);
+            tlen += 1;
         }
     }
-    return result_mod.from_globals(0);
+    if (neg) {
+        idx_buf[0] = '-';
+        off = 1;
+    }
+    var k: u32 = 0;
+    while (k < tlen) : (k += 1) {
+        idx_buf[off + k] = tmp[tlen - 1 - k];
+    }
+    off += tlen;
+    return rt.obj_new_string_copy(@intFromPtr(&idx_buf), off);
+}
+
+fn resolve_list_index_local(o: i32, n: i64) i64 {
+    if (o == 0) return -1;
+    const s = obj_ensure_string(o);
+    if (s.ptr == 0 or s.len == 0) return -1;
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    // ``end`` / ``end-N`` / ``end+N``.
+    if (s.len >= 3 and p[0] == 'e' and p[1] == 'n' and p[2] == 'd') {
+        if (s.len == 3) return n - 1;
+        if (s.len > 4 and (p[3] == '-' or p[3] == '+')) {
+            var v: i64 = 0;
+            const neg = p[3] == '-';
+            var k: u32 = 4;
+            while (k < s.len) : (k += 1) {
+                if (p[k] < '0' or p[k] > '9') return n - 1;
+                v = v * 10 + (p[k] - '0');
+            }
+            return if (neg) n - 1 - v else n - 1 + v;
+        }
+        return n - 1;
+    }
+    // Pure integer.
+    return rt.obj_get_int(o);
+}
+
+/// ``ledit varName first last ?element ...?`` — same shape as
+/// ``lreplace`` but mutates the variable in place AND returns the
+/// new value.  Semantically ``set varName [lreplace [set varName]
+/// first last ?element ...?]``.  Introduced in Tcl 9.0.
+///
+/// Routes through ``do_lreplace`` so the same end-relative /
+/// inverted-range handling that fixes lreplace-1.15 / 4.7.1 / 4.11
+/// applies (ledit-1.25, ledit-4.7.1, ledit-4.9.1, ledit-4.11).
+fn eval_ledit(words: []const i32) result_mod.InterpResult {
+    if (words.len < 4) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"ledit listVar first last ?element ...?\"");
+        return result_mod.from_globals(0);
+    }
+    const var_arg = words[1];
+    const first_arg = words[2];
+    const last_arg = words[3];
+    const list_arg = frames.var_resolve(var_arg);
+    const result = do_lreplace(list_arg, first_arg, last_arg, words, 4);
+    _ = frames.var_set(var_arg, result);
+    return result_mod.from_globals(result);
 }
 
 fn eval_lsort(words: []const i32) result_mod.InterpResult {
@@ -461,20 +598,41 @@ fn eval_concat(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_join(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
-    if (words.len >= 2) {
-        const sp = alloc(1);
-        const d: [*]u8 = @ptrFromInt(sp);
-        d[0] = ' ';
-        return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 2 or words.len > 3) {
+        stubs.raise("wrong # args: should be \"join list ?joinString?\"");
+        return result_mod.from_globals(0);
     }
-    return result_mod.from_globals(obj_new_string(0, 0));
+    if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
+    const sp = alloc(1);
+    const d: [*]u8 = @ptrFromInt(sp);
+    d[0] = ' ';
+    return result_mod.from_globals(rt.tcl_cmd_join(words[1], obj_new_string(@bitCast(sp), 1)));
 }
 
 fn eval_split(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_split(words[1], words[2]));
-    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_split(words[1], obj_new_string(0, 0)));
-    return result_mod.from_globals(obj_new_string(0, 0));
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 2 or words.len > 3) {
+        stubs.raise("wrong # args: should be \"split string ?splitChars?\"");
+        return result_mod.from_globals(0);
+    }
+    if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_split(words[1], words[2]));
+    // Default split chars: the four whitespace bytes ``" \t\n\r"``.
+    // Empty splitChars means a different thing in Tcl (split every
+    // character into its own element); we must NOT route the no-arg
+    // form through the empty-string fast path or split-1.1 / split-1.4
+    // / split-1.7 fail with one-char-per-byte output instead of the
+    // expected whitespace-tokenised list.
+    const default_chars: []const u8 = " \t\n\r";
+    const buf = alloc(@intCast(default_chars.len));
+    if (buf == 0) return result_mod.from_globals(0);
+    const d: [*]u8 = @ptrFromInt(buf);
+    for (default_chars, 0..) |c, i| d[i] = c;
+    const sep = rt.obj_new_string_copy(buf, @intCast(default_chars.len));
+    obj_mod.free_sized(buf, @intCast(default_chars.len));
+    const result = rt.tcl_cmd_split(words[1], sep);
+    obj_mod.tcl_obj_release(sep);
+    return result_mod.from_globals(result);
 }
 
 fn eval_lreverse(words: []const i32) result_mod.InterpResult {
@@ -557,46 +715,94 @@ fn eval_lassign(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lmap(words: []const i32) result_mod.InterpResult {
-    // lmap v1 l1 ?v2 l2 ...? body — same multi-var semantics as foreach,
-    // but accumulates body results into a list instead of discarding them.
-    if (words.len < 4) return result_mod.from_globals(obj_new_string(0, 0));
+    // lmap varList1 list1 ?varList2 list2 ...? body — same multi-var
+    // semantics as ``foreach``, but accumulates body results into a list
+    // instead of discarding them.  ``varListN`` may itself be a list of
+    // variable names, in which case each iteration consumes that many
+    // elements from ``listN`` and binds them in parallel.  Iteration
+    // count = ``max(ceil(len(listN)/len(varListN)))`` across pairs.
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const wrong_args = "wrong # args: should be \"lmap varList list ?varList list ...? command\"";
+    if (words.len < 4) {
+        stubs.raise(wrong_args);
+        return result_mod.from_globals(0);
+    }
     const pair_words = words.len - 2;
-    if (pair_words % 2 != 0) return result_mod.from_globals(obj_new_string(0, 0));
+    if (pair_words % 2 != 0) {
+        stubs.raise(wrong_args);
+        return result_mod.from_globals(0);
+    }
     const n_pairs = pair_words / 2;
-    const MAX_PAIRS = 15;
+    const MAX_PAIRS = 63; // (MAX_WORDS-2)/2, mirrors eval_foreach
     if (n_pairs > MAX_PAIRS) return result_mod.from_globals(obj_new_string(0, 0));
     const body_s = obj_ensure_string(words[words.len - 1]);
+
     var list_lens: [MAX_PAIRS]i64 = [_]i64{0} ** MAX_PAIRS;
+    var steps: [MAX_PAIRS]i64 = [_]i64{1} ** MAX_PAIRS;
     var n: i64 = 0;
     {
         var p: u32 = 0;
         while (p < n_pairs) : (p += 1) {
+            const varlist_obj = words[1 + p * 2];
+            const vls = obj_ensure_string(varlist_obj);
+            if (list_parse.check_list_syntax(vls.ptr, vls.len) != 0)
+                return result_mod.from_globals(0);
+            const count = rt.list_count_elements(vls.ptr, vls.len);
+            if (count == 0) {
+                stubs.raise("lmap varlist is empty");
+                return result_mod.from_globals(0);
+            }
+            steps[p] = count;
+
             const ls = obj_ensure_string(words[2 + p * 2]);
+            if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+                return result_mod.from_globals(0);
             const len = rt.list_count_elements(ls.ptr, ls.len);
             list_lens[p] = len;
-            if (len > n) n = len;
+            const iters: i64 = @divTrunc(len + count - 1, count);
+            if (iters > n) n = iters;
         }
     }
+
     var result: i32 = obj_new_string(0, 0);
     var idx: i64 = 0;
     while (idx < n) : (idx += 1) {
         var p: u32 = 0;
         while (p < n_pairs) : (p += 1) {
-            const var_name = words[1 + p * 2];
+            const varlist_obj = words[1 + p * 2];
             const list_obj = words[2 + p * 2];
-            const elem_val: i32 = if (idx < list_lens[p]) blk: {
-                const ls = obj_ensure_string(list_obj);
-                const elem = rt.list_element_at(ls.ptr, ls.len, idx);
-                break :blk if (elem.braced)
-                    rt.obj_new_string_copy(ls.ptr + elem.start, elem.len)
+            const vls = obj_ensure_string(varlist_obj);
+            const ls = obj_ensure_string(list_obj);
+            const step = steps[p];
+            var j: i64 = 0;
+            while (j < step) : (j += 1) {
+                const elem_idx = idx * step + j;
+                const var_elem = rt.list_element_at(vls.ptr, vls.len, j);
+                const src_vname = vls.ptr + var_elem.start;
+                const var_name_obj: i32 = if (var_elem.braced or src_vname == 0)
+                    rt.obj_new_string_copy(src_vname, var_elem.len)
                 else inner: {
-                    const buf = alloc(elem.len + 4);
-                    const out_len = rt.copy_unbraced_elem(buf, ls.ptr + elem.start, elem.len);
-                    break :inner obj_new_string(@bitCast(buf), @bitCast(out_len));
+                    const buf = alloc(var_elem.len + 1);
+                    if (buf == 0) break :inner obj_new_string(0, 0);
+                    const out_len = rt.copy_unbraced_elem(buf, src_vname, var_elem.len);
+                    break :inner obj_mod.obj_new_string_take(buf, out_len, var_elem.len + 1);
                 };
-            } else obj_new_string(0, 0);
-            _ = frames.var_set(var_name, elem_val);
-            obj_mod.tcl_obj_release(elem_val);
+                const elem_val: i32 = if (elem_idx < list_lens[p]) blk: {
+                    const elem = rt.list_element_at(ls.ptr, ls.len, elem_idx);
+                    const src_elem = ls.ptr + elem.start;
+                    break :blk if (elem.braced or src_elem == 0)
+                        rt.obj_new_string_copy(src_elem, elem.len)
+                    else inner2: {
+                        const buf = alloc(elem.len + 1);
+                        if (buf == 0) break :inner2 obj_new_string(0, 0);
+                        const out_len = rt.copy_unbraced_elem(buf, src_elem, elem.len);
+                        break :inner2 obj_mod.obj_new_string_take(buf, out_len, elem.len + 1);
+                    };
+                } else obj_new_string(0, 0);
+                _ = frames.var_set(var_name_obj, elem_val);
+                obj_mod.tcl_obj_release(elem_val);
+                obj_mod.tcl_obj_release(var_name_obj);
+            }
         }
         const item = interp.eval_script(body_s.ptr, body_s.len);
         const ir = result_mod.snapshot(item);
@@ -604,10 +810,12 @@ fn eval_lmap(words: []const i32) result_mod.InterpResult {
             .OK => result = rt.tcl_list(result, item),
             .BREAK => {
                 result_mod.consume(.BREAK);
+                if (item != 0) obj_mod.tcl_obj_release(item);
                 break;
             },
             .CONTINUE => {
                 result_mod.consume(.CONTINUE);
+                if (item != 0) obj_mod.tcl_obj_release(item);
                 continue;
             },
             .ERROR, .RETURN => return result_mod.from_globals(item),
@@ -790,6 +998,7 @@ pub const registrations = [_]reg.CmdEntry{
     .{ .name = "lset", .arity_min = 2, .arity_max = null, .handler = &eval_lset },
     .{ .name = "linsert", .arity_min = 2, .arity_max = null, .handler = &eval_linsert },
     .{ .name = "lreplace", .arity_min = 3, .arity_max = null, .handler = &eval_lreplace },
+    .{ .name = "ledit", .arity_min = 3, .arity_max = null, .handler = &eval_ledit },
     .{ .name = "lsort", .arity_min = 1, .arity_max = null, .handler = &eval_lsort },
     .{ .name = "lsearch", .arity_min = 2, .arity_max = null, .handler = &eval_lsearch },
     .{ .name = "lrange", .arity_min = 3, .arity_max = 3, .handler = &eval_lrange },

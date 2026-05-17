@@ -1472,7 +1472,109 @@ fn dispatch_math_func(name: []const u8, args: []const i32) i32 {
         if (args.len > 2) return raise_too_many_args(name);
         if (args.len < 2) return raise_too_few_args(name);
     }
+    // User-defined math function fallback.  Tcl 9 lets a script
+    // install ``proc ::tcl::mathfunc::NAME {args} {...}`` and use
+    // ``NAME(...)`` in an expression — ``brodnik.test`` does this
+    // to define ``log2`` for its MSB-correctness loop.  Look up the
+    // fully-qualified name in the proc registry; on hit, invoke it
+    // via ``eval_command`` with the existing ``args`` slice prepended
+    // by the command-name obj.  On miss, fall through to the
+    // standard "unknown math function" diagnostic.
+    if (try_user_math_func(name, args)) |result| return result;
     return raise_unknown_func(name);
+}
+
+fn try_user_math_func(name: []const u8, args: []const i32) ?i32 {
+    // Reference Tcl's expr mathfunc dispatcher resolves NAME by
+    // building ``::tcl::mathfunc::NAME`` and routing through
+    // ``Tcl_GetCommandFromObj``, which itself walks the
+    // namespacePath / commandPathArray relative to the caller's
+    // namespace.  brodnik.test exercises the relative lookup: it
+    // sits inside ``::tcl::test::brodnik`` and defines
+    // ``namespace eval tcl { namespace eval mathfunc { proc log2
+    // ... } }`` — so the proc lands at
+    // ``::tcl::test::brodnik::tcl::mathfunc::log2`` rather than the
+    // global ``::tcl::mathfunc::log2``.  Our resolver tries the
+    // global FQN first (the common case for user-installed
+    // helpers) then the current-namespace relative FQN (for
+    // namespace-scoped helpers like brodnik's) before giving up.
+    const procs = @import("tcl_procs.zig");
+    if (!procs.proc_buf_nonzero()) return null;
+
+    // First attempt: ``::tcl::mathfunc::NAME`` — the canonical
+    // global mathfunc namespace.
+    if (try_dispatch_mathfunc(name, args, .{ .with_current_ns = false })) |r| return r;
+
+    // Second attempt: ``<current_ns>::tcl::mathfunc::NAME`` when
+    // we're inside a non-root namespace.  Matches reference Tcl's
+    // path-walk semantics for relative mathfunc lookup.
+    if (try_dispatch_mathfunc(name, args, .{ .with_current_ns = true })) |r| return r;
+
+    return null;
+}
+
+const MathFuncLookup = struct {
+    with_current_ns: bool,
+};
+
+fn try_dispatch_mathfunc(name: []const u8, args: []const i32, opts: MathFuncLookup) ?i32 {
+    const procs = @import("tcl_procs.zig");
+    const tcl_ns = @import("tcl_ns.zig");
+
+    // Build the candidate FQN.
+    var prefix_bytes: [256]u8 = undefined;
+    var prefix_len: u32 = 0;
+    if (opts.with_current_ns) {
+        // Only meaningful when we're inside a real, non-root ns.
+        if (tcl_ns.current_ns == 0 or tcl_ns.current_ns == tcl_ns.ns_root()) return null;
+        const cur_ptr = tcl_ns.current_ns_full_ptr();
+        const cur_len = tcl_ns.current_ns_full_len();
+        if (cur_len < 2 or cur_len + 17 + name.len > prefix_bytes.len) return null;
+        const cur_p: [*]const u8 = @ptrFromInt(cur_ptr);
+        // Skip the leading ``::`` on the current-ns full name so we
+        // don't end up with ``::::ns::tcl::mathfunc``.
+        const cur_skip: u32 = if (cur_len >= 2 and cur_p[0] == ':' and cur_p[1] == ':') 2 else 0;
+        // ``::`` + current_ns_tail + ``::tcl::mathfunc::``
+        prefix_bytes[0] = ':';
+        prefix_bytes[1] = ':';
+        prefix_len = 2;
+        var k: u32 = 0;
+        while (k < cur_len - cur_skip) : (k += 1) {
+            prefix_bytes[prefix_len + k] = cur_p[cur_skip + k];
+        }
+        prefix_len += cur_len - cur_skip;
+        const tcl_inner = "::tcl::mathfunc::";
+        for (tcl_inner, 0..) |c, i| prefix_bytes[prefix_len + i] = c;
+        prefix_len += @intCast(tcl_inner.len);
+    } else {
+        const tcl_global = "::tcl::mathfunc::";
+        for (tcl_global, 0..) |c, i| prefix_bytes[i] = c;
+        prefix_len = @intCast(tcl_global.len);
+    }
+
+    if (prefix_len + name.len > prefix_bytes.len) return null;
+    for (name, 0..) |c, i| prefix_bytes[prefix_len + i] = c;
+    const total_len: u32 = prefix_len + @as(u32, @intCast(name.len));
+    const cmd_obj = obj.obj_new_string_copy(@intFromPtr(&prefix_bytes), total_len);
+    if (cmd_obj == 0) return null;
+
+    if (procs.proc_lookup(cmd_obj) == 0) {
+        obj.tcl_obj_release(cmd_obj);
+        return null;
+    }
+    const parse_mod = @import("../parse/tcl_parse.zig");
+    if (args.len + 1 > parse_mod.MAX_WORDS) {
+        obj.tcl_obj_release(cmd_obj);
+        return null;
+    }
+    var new_words: [parse_mod.MAX_WORDS]i32 = undefined;
+    new_words[0] = cmd_obj;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) new_words[1 + i] = args[i];
+    const interp_mod = @import("tcl_interp.zig");
+    const result = interp_mod.eval_command(new_words[0 .. args.len + 1]);
+    obj.tcl_obj_release(cmd_obj);
+    return result;
 }
 
 fn raise_math_func_error(prefix: []const u8, name: []const u8, fallback: []const u8) i32 {

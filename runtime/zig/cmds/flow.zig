@@ -30,6 +30,8 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
     var level_explicit: bool = false;
     var level_value: u32 = 1;
     var result_obj: i32 = 0;
+    var errorcode_obj: i32 = 0;
+    var errorinfo_obj: i32 = 0;
     var wi: u32 = 1;
     while (wi < words.len) : (wi += 1) {
         const w = obj_ensure_string(words[wi]);
@@ -140,16 +142,182 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                     wi += 1;
                     continue;
                 }
-                if ((str_eq(wp, w.len, "-errorinfo") or
-                    str_eq(wp, w.len, "-errorcode") or
-                    str_eq(wp, w.len, "-options")) and wi + 1 < words.len)
-                {
+                if (str_eq(wp, w.len, "-errorcode") and wi + 1 < words.len) {
+                    errorcode_obj = words[wi + 1];
+                    wi += 1;
+                    continue;
+                }
+                if (str_eq(wp, w.len, "-errorinfo") and wi + 1 < words.len) {
+                    errorinfo_obj = words[wi + 1];
+                    wi += 1;
+                    continue;
+                }
+                if (str_eq(wp, w.len, "-options") and wi + 1 < words.len) {
+                    // Expand DICT into the pending-extras options
+                    // for ``return … -options DICT …``.  Multiple
+                    // ``-options`` arguments accumulate (cmdMZ-return-
+                    // 2.20).  Standard slots (``-code`` / ``-level`` /
+                    // ``-errorcode`` / ``-errorinfo``) inside the
+                    // dict are extracted into their dedicated
+                    // tracking variables rather than the extras
+                    // dict — they pass through the normal
+                    // ``-code`` / ``-level`` paths so the catch
+                    // sees the right surface.
+                    const dict_mod_opt = @import("../valtypes/tcl_dict.zig");
+                    const obj_opt = @import("../valtypes/tcl_obj.zig");
+                    const opts_dict = words[wi + 1];
+                    const keys = dict_mod_opt.dict_keys(opts_dict);
+                    if (keys != 0) {
+                        const ks = obj_ensure_string(keys);
+                        const n = obj_opt.list_count_elements(ks.ptr, ks.len);
+                        var ki: i64 = 0;
+                        while (ki < n) : (ki += 1) {
+                            const elem = obj_opt.list_element_at(ks.ptr, ks.len, ki);
+                            const key_obj = obj_opt.obj_new_string_copy(
+                                ks.ptr + elem.start,
+                                elem.len,
+                            );
+                            const ks_inner = obj_ensure_string(key_obj);
+                            const val_obj = dict_mod_opt.dict_get(opts_dict, key_obj);
+                            if (val_obj != 0 and ks_inner.len > 0) {
+                                const kp: [*]const u8 = @ptrFromInt(ks_inner.ptr);
+                                if (str_eq(kp, ks_inner.len, "-code")) {
+                                    const cs = obj_ensure_string(val_obj);
+                                    if (cs.len >= 1) {
+                                        const cp: [*]const u8 = @ptrFromInt(cs.ptr);
+                                        if (str_eq(cp, cs.len, "ok") or (cs.len == 1 and cp[0] == '0')) {
+                                            code_kind = .ok;
+                                        } else if (str_eq(cp, cs.len, "error") or (cs.len == 1 and cp[0] == '1')) {
+                                            code_kind = .err;
+                                        } else if (str_eq(cp, cs.len, "return") or (cs.len == 1 and cp[0] == '2')) {
+                                            code_kind = .ret;
+                                            extra_levels = 1;
+                                        } else if (str_eq(cp, cs.len, "break") or (cs.len == 1 and cp[0] == '3')) {
+                                            code_kind = .brk;
+                                        } else if (str_eq(cp, cs.len, "continue") or (cs.len == 1 and cp[0] == '4')) {
+                                            code_kind = .cont;
+                                        } else {
+                                            var n2: i64 = 0;
+                                            var okp = cs.len > 0;
+                                            var k2: u32 = 0;
+                                            while (k2 < cs.len) : (k2 += 1) {
+                                                if (cp[k2] < '0' or cp[k2] > '9') {
+                                                    okp = false;
+                                                    break;
+                                                }
+                                                n2 = n2 * 10 + (cp[k2] - '0');
+                                            }
+                                            if (okp and n2 >= 5) {
+                                                code_kind = .custom;
+                                                custom_code = n2;
+                                            }
+                                        }
+                                    }
+                                } else if (str_eq(kp, ks_inner.len, "-level")) {
+                                    const lv = obj_ensure_string(val_obj);
+                                    if (lv.len >= 1) {
+                                        const lp: [*]const u8 = @ptrFromInt(lv.ptr);
+                                        var nv: u32 = 0;
+                                        var ok2 = true;
+                                        for (0..lv.len) |k2| {
+                                            if (lp[k2] < '0' or lp[k2] > '9') {
+                                                ok2 = false;
+                                                break;
+                                            }
+                                            nv = nv * 10 + @as(u32, @intCast(lp[k2] - '0'));
+                                        }
+                                        if (ok2) {
+                                            level_explicit = true;
+                                            level_value = nv;
+                                            extra_levels = if (nv > 0) nv - 1 else 0;
+                                        }
+                                    }
+                                } else if (str_eq(kp, ks_inner.len, "-errorcode")) {
+                                    errorcode_obj = val_obj;
+                                } else if (str_eq(kp, ks_inner.len, "-errorinfo")) {
+                                    errorinfo_obj = val_obj;
+                                } else {
+                                    // Arbitrary option — record into extras.
+                                    if (catch_mod.state.pending_return_extras == 0) {
+                                        catch_mod.state.pending_return_extras = dict_mod_opt.dict_create();
+                                    }
+                                    const new_extras = dict_mod_opt.dict_set(
+                                        catch_mod.state.pending_return_extras,
+                                        key_obj,
+                                        val_obj,
+                                    );
+                                    if (new_extras != catch_mod.state.pending_return_extras) {
+                                        if (catch_mod.state.pending_return_extras != 0) {
+                                            obj_opt.tcl_obj_release(catch_mod.state.pending_return_extras);
+                                        }
+                                        catch_mod.state.pending_return_extras = new_extras;
+                                    }
+                                }
+                            }
+                            obj_opt.tcl_obj_release(key_obj);
+                        }
+                        obj_opt.tcl_obj_release(keys);
+                    }
+                    wi += 1;
+                    continue;
+                }
+                // Arbitrary ``-OPT VALUE`` — capture into the
+                // pending-extras dict so the surrounding catch's
+                // options dict reports them.  cmdMZ-return-2.1
+                // (``return -bar soom``) expects ``$foo`` to be
+                // ``-bar soom -code 0 -level 1``.  Only treat as an
+                // option when there's a value word following — a
+                // dangling ``-name`` at the tail collapses into
+                // ``result_obj`` like any other unrecognised word.
+                if (wi + 1 < words.len and w.len > 1) {
+                    const dict_mod_ext = @import("../valtypes/tcl_dict.zig");
+                    const obj_ext = @import("../valtypes/tcl_obj.zig");
+                    if (catch_mod.state.pending_return_extras == 0) {
+                        catch_mod.state.pending_return_extras = dict_mod_ext.dict_create();
+                    }
+                    const new_extras = dict_mod_ext.dict_set(
+                        catch_mod.state.pending_return_extras,
+                        words[wi],
+                        words[wi + 1],
+                    );
+                    if (new_extras != catch_mod.state.pending_return_extras) {
+                        if (catch_mod.state.pending_return_extras != 0) {
+                            obj_ext.tcl_obj_release(catch_mod.state.pending_return_extras);
+                        }
+                        catch_mod.state.pending_return_extras = new_extras;
+                    }
                     wi += 1;
                     continue;
                 }
             }
         }
         result_obj = words[wi];
+    }
+    // Snapshot the user-supplied ``-code`` / ``-level`` for the
+    // TIP 90 ``catch BODY result options`` dict.  ``-code return``
+    // is a syntactic shorthand for "produce a TCL_RETURN that, after
+    // the immediate caller's absorb, will itself convert into a
+    // TCL_RETURN one level further up" — its observable catch-side
+    // shape is ``-code 0 -level N+1``, NOT ``-code 2 -level N``.
+    // See cmdMZ-return-2.2 / 2.3 for the exact expected mapping.
+    //
+    // Stamping these unconditionally up-front means the early-return
+    // branches below (``-code error``, ``-level 0 -code break``, etc.)
+    // also propagate the right values to the surrounding ``catch``'s
+    // options dict.
+    {
+        const dict_code: i64 = switch (code_kind) {
+            .ok => 0,
+            .err => 1,
+            .ret => 0,
+            .brk => 3,
+            .cont => 4,
+            .custom => custom_code,
+        };
+        const dict_level: u32 = if (code_kind == .ret) level_value + 1 else level_value;
+        catch_mod.state.pending_return_code = dict_code;
+        catch_mod.state.pending_return_level = dict_level;
+        catch_mod.state.pending_return_armed = 1;
     }
     if (code_kind == .err) {
         // ``return -code error msg`` is a USER-supplied error — it
@@ -161,8 +329,10 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
         // ``return -code error "wrong # args: synthetic"`` from a
         // script, that auto-detection would mis-tag the user's
         // message — Copilot review on PR #325.  Route through the
-        // 3-arg form with ``code = 0`` so the default ``NONE`` wins.
-        catch_mod.tcl_cmd_error_full(result_obj, 0, 0);
+        // 3-arg form, passing the user's ``-errorinfo`` /
+        // ``-errorcode`` so cmdMZ-return-2.15..17 see the expected
+        // ``::errorCode {a b}`` after the apply unwinds.
+        catch_mod.tcl_cmd_error_full(result_obj, errorinfo_obj, errorcode_obj);
         return result_mod.from_globals(0);
     }
     // ``return -code break`` / ``return -code continue`` aren't yet
@@ -262,6 +432,10 @@ fn eval_error(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_catch(words: []const i32) result_mod.InterpResult {
+    if (words.len < 2 or words.len > 4) {
+        stubs.raise("wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"");
+        return result_mod.from_globals(0);
+    }
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
         rt.catch_enter();

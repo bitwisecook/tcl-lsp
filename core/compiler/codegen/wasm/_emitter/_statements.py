@@ -1179,8 +1179,15 @@ class _WasmEmitterStmtMixin(_Base):
             if (
                 canonical_command == "::namespace"
                 and args
-                and args[0] in ("import", "export", "forget")
+                and args[0] in ("import", "export", "forget", "path", "unknown", "delete")
             ):
+                # ``namespace path LIST`` mutates the current ns's
+                # command-resolution path; tcltest's mathop.test does
+                # ``namespace path ::tcl::mathop`` then calls bare
+                # ``+``.  Without this fallback the call was a no-op
+                # and the path stayed empty.  ``namespace unknown`` /
+                # ``namespace delete`` are the other ones with real
+                # side effects beyond the visible-import / export set.
                 self._emit_eval_fallback(command, args)
                 self._emit(WasmOp.DROP)
                 return

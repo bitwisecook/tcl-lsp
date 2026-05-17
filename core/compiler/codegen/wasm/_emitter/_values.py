@@ -1092,38 +1092,35 @@ class _WasmEmitterValuesMixin(_Base):
                     return
                 if cmd_name == "lreplace" and len(cmd_args) > param_count:
                     # Multi-value ``[lreplace list first last v1 v2 …]``
-                    # — see ``_emit_cmd_runtime`` for ordering rationale.
+                    # — route through the dedicated runtime helper
+                    # that takes the inserts as a pre-built Tcl list
+                    # and splices at absolute positions resolved
+                    # against the ORIGINAL list (lreplace-4.7.1 /
+                    # lreplace-4.11).
                     list_arg = cmd_args[0]
                     first_arg = cmd_args[1]
                     last_arg = cmd_args[2]
                     values = cmd_args[3:]
-                    list_insert_idx = self._shared_imports.get("tcl_list_insert")
-                    if list_insert_idx is None or not values:
+                    lr_list_idx = self._shared_imports.get("tcl_cmd_lreplace_list")
+                    list_create_idx = self._shared_imports.get("tcl_list_create")
+                    if lr_list_idx is None or list_create_idx is None or not values:
                         self._emit_value(list_arg)
                         self._emit_value(first_arg)
                         self._emit_value(last_arg)
                         self._emit_value(values[0] if values else "")
                         self._emit_call(func_idx)
-                    elif _is_end_relative_index(first_arg):
-                        self._emit_value(list_arg)
-                        self._emit_value(first_arg)
-                        self._emit_value(last_arg)
-                        self._emit_value(values[0])
-                        self._emit_call(func_idx)
-                        for v in values[1:]:
-                            self._emit_value(first_arg)
-                            self._emit_value(v)
-                            self._emit_call(list_insert_idx)
                     else:
+                        # Build the inserts list (chain ``tcl_list``
+                        # pair-creates).  Same shape as the
+                        # ``format_list`` helper above.
                         self._emit_value(list_arg)
                         self._emit_value(first_arg)
                         self._emit_value(last_arg)
-                        self._emit_value(values[-1])
-                        self._emit_call(func_idx)
-                        for v in reversed(values[:-1]):
-                            self._emit_value(first_arg)
+                        self._emit_obj_literal("")
+                        for v in values:
                             self._emit_value(v)
-                            self._emit_call(list_insert_idx)
+                            self._emit_call(list_create_idx)
+                        self._emit_call(lr_list_idx)
                     return
                 if cmd_name in ("lsort",) and len(cmd_args) > param_count:
                     # ``lsort ?-switches? list`` — runtime export is

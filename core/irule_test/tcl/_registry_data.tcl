@@ -157,6 +157,7 @@ namespace eval ::tmm {
         coroutine
         dict
         lassign
+        ledit
         lmap
         lremove
         lseq

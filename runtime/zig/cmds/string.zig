@@ -269,7 +269,28 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         );
         return result_mod.from_globals(0);
     }
-    const sub = obj_ensure_string(words[1]);
+    const sub_raw = obj_ensure_string(words[1]);
+    // Resolve abbreviated subcommand to its canonical form.  Tcl
+    // 9's StringCmd uses TclGetIndexFromObj which accepts any
+    // unambiguous prefix (string-2.7 ``string co abcde ABCDE`` →
+    // ``string compare``; string-7.4 ``string la …`` →
+    // ``string last``).  On ambiguous or unknown input we raise
+    // the canonical "bad option" wording.
+    var sub_buf: [32]u8 = undefined;
+    var sub_ptr: u32 = sub_raw.ptr;
+    var sub_len: u32 = sub_raw.len;
+    if (resolve_string_sub(sub_raw)) |canon| {
+        var k: u32 = 0;
+        while (k < canon.len and k < sub_buf.len) : (k += 1) {
+            sub_buf[k] = canon[k];
+        }
+        sub_ptr = @intFromPtr(&sub_buf);
+        sub_len = @intCast(canon.len);
+    } else {
+        // resolve_string_sub already raised the diagnostic.
+        return result_mod.from_globals(0);
+    }
+    const sub: struct { ptr: u32, len: u32 } = .{ .ptr = sub_ptr, .len = sub_len };
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     // Per-subcommand arity check — emits the upstream wording so
     // tests like ``string compare`` (arity 0) raise ``wrong # args:
@@ -314,9 +335,15 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
     if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));
     if (str_eq(sp, sub.len, "range") and words.len >= 5) return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
-    if (str_eq(sp, sub.len, "compare") and words.len >= 4) return result_mod.from_globals(rt.string_compare(words[2], words[3]));
-    if (str_eq(sp, sub.len, "equal") and words.len >= 4) return result_mod.from_globals(rt.string_equal(words[2], words[3]));
-    if (str_eq(sp, sub.len, "match") and words.len >= 4) return result_mod.from_globals(rt.string_match(words[2], words[3]));
+    if (str_eq(sp, sub.len, "compare")) {
+        return result_mod.from_globals(eval_compare_or_equal(words, .compare));
+    }
+    if (str_eq(sp, sub.len, "equal")) {
+        return result_mod.from_globals(eval_compare_or_equal(words, .equal));
+    }
+    if (str_eq(sp, sub.len, "match")) {
+        return result_mod.from_globals(eval_string_match(words));
+    }
     if (str_eq(sp, sub.len, "map") and words.len >= 4) {
         // ``string map ?-nocase? CHARMAP STRING`` — accept the
         // optional ``-nocase`` flag.  Without this branch, the
@@ -355,6 +382,7 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     if (str_eq(sp, sub.len, "last") and words.len >= 4) return result_mod.from_globals(rt.string_last(words[2], words[3]));
     if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
     if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
+    if (str_eq(sp, sub.len, "totitle")) return result_mod.from_globals(rt.string_totitle(words[2]));
     if (str_eq(sp, sub.len, "reverse")) return result_mod.from_globals(rt.string_reverse(words[2]));
     if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
     if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
@@ -374,6 +402,95 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
 // matcher in ``resolve_is_class`` uses it to detect ambiguity and
 // (b) the suffix in ``raise_class_error`` quotes the same list
 // verbatim.
+const STRING_SUBS: []const []const u8 = &.{
+    "bytelength", "cat",    "compare",  "equal",     "first",   "index",
+    "insert",     "is",     "last",     "length",    "map",     "match",
+    "range",      "repeat", "replace",  "reverse",   "tolower", "totitle",
+    "toupper",    "trim",   "trimleft", "trimright", "wordend", "wordstart",
+};
+
+const StringSpan = struct { ptr: u32, len: u32 };
+
+/// Resolve a possibly-abbreviated string subcommand name to its
+/// canonical form.  Returns null after raising ``bad option`` /
+/// ``ambiguous option`` for unknown / ambiguous input — matching
+/// reference Tcl 9's TclGetIndexFromObj-based dispatch.
+fn resolve_string_sub(name: anytype) ?[]const u8 {
+    if (name.len == 0 or name.ptr == 0) {
+        raise_bad_string_sub_obj_empty();
+        return null;
+    }
+    const ns: [*]const u8 = @ptrFromInt(name.ptr);
+    var match: ?[]const u8 = null;
+    var ambiguous: bool = false;
+    for (STRING_SUBS) |sub| {
+        if (name.len > sub.len) continue;
+        var ok: bool = true;
+        var k: u32 = 0;
+        while (k < name.len) : (k += 1) {
+            if (ns[k] != sub[k]) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) continue;
+        if (name.len == sub.len) return sub;
+        if (match == null) {
+            match = sub;
+        } else {
+            ambiguous = true;
+        }
+    }
+    if (ambiguous) {
+        raise_bad_string_sub(name, true);
+        return null;
+    }
+    if (match) |m| return m;
+    raise_bad_string_sub(name, false);
+    return null;
+}
+
+fn raise_bad_string_sub_obj_empty() void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const msg_text: []const u8 = "bad option \"\": must be bytelength, cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart";
+    const m = obj_mod.obj_new_string_copy(@intFromPtr(msg_text.ptr), @intCast(msg_text.len));
+    catch_mod.tcl_cmd_error(m);
+}
+
+fn raise_bad_string_sub(name: anytype, ambiguous: bool) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = if (ambiguous) "ambiguous option \"" else "bad option \"";
+    const suffix: []const u8 = "\": must be bytelength, cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, trimright, wordend, or wordstart";
+    const total: u32 = @intCast(prefix.len + name.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (name.len > 0 and name.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(name.ptr);
+        var k: u32 = 0;
+        while (k < name.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += @intCast(name.len);
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
 const IS_CLASSES: []const []const u8 = &.{
     "alnum", "alpha",       "ascii",    "control", "boolean", "dict",
     "digit", "double",      "entier",   "false",   "graph",   "integer",
@@ -448,6 +565,281 @@ fn raise_class_error(name: []const u8, kind: []const u8) void {
     catch_mod.tcl_cmd_error(m);
 }
 
+/// True when ``arg[0..arg_len]`` is a non-empty prefix of *full*.
+/// Used for option-abbreviation matching (``-fail`` → ``-failindex``).
+fn is_prefix_of(arg: [*]const u8, arg_len: u32, full: []const u8) bool {
+    if (arg_len == 0 or arg_len > full.len) return false;
+    var k: u32 = 0;
+    while (k < arg_len) : (k += 1) {
+        if (arg[k] != full[k]) return false;
+    }
+    return true;
+}
+
+const CompareKind = enum { compare, equal };
+
+/// ``string compare ?-nocase? ?-length N? string1 string2`` and
+/// ``string equal`` share the same option-parsing surface.  Both
+/// accept option-prefix abbreviation (``-noc`` → ``-nocase``,
+/// ``-l`` → ``-length``).
+fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
+    const wrong_args = if (kind == .compare)
+        "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\""
+    else
+        "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\"";
+    // Need at minimum: string compare a b → 4 words.
+    if (words.len < 4) {
+        raise_string_wrong_args(wrong_args);
+        return obj_new_int(0);
+    }
+    // Reference Tcl's StringCmpCmd reserves the LAST TWO words as the
+    // comparison operands; option parsing only runs over the words in
+    // between.  ``string compare -1 -1`` therefore treats the
+    // leading ``-1`` as a string, NOT as a bad option.  When fewer
+    // than two trailing strings are available, we still surface
+    // ``wrong # args`` (too few operands) rather than ``bad option``.
+    var nocase: i32 = 0;
+    var len_limit: i32 = -1;
+    var ai: u32 = 2;
+    const opt_end: u32 = words.len - 2;
+    while (ai < opt_end) {
+        const a = obj_ensure_string(words[ai]);
+        if (a.len == 0 or a.ptr == 0) break;
+        const ap: [*]const u8 = @ptrFromInt(a.ptr);
+        if (ap[0] != '-') break;
+        // ``--`` ends option processing (Tcl 9 norm).
+        if (a.len == 2 and ap[1] == '-') {
+            ai += 1;
+            break;
+        }
+        if (a.len >= 2 and ap[1] == 'n' and is_prefix_of(ap, a.len, "-nocase")) {
+            nocase = 1;
+            ai += 1;
+            continue;
+        }
+        if (a.len >= 2 and ap[1] == 'l' and is_prefix_of(ap, a.len, "-length")) {
+            if (ai + 1 >= words.len) {
+                raise_string_wrong_args(wrong_args);
+                return obj_new_int(0);
+            }
+            const lv = obj_ensure_string(words[ai + 1]);
+            if (lv.len == 0 or lv.ptr == 0) {
+                raise_expected_integer(words[ai + 1]);
+                return obj_new_int(0);
+            }
+            const lp: [*]const u8 = @ptrFromInt(lv.ptr);
+            // Parse optional sign + digits.
+            var neg = false;
+            var k: u32 = 0;
+            if (lp[0] == '+') {
+                k = 1;
+            } else if (lp[0] == '-') {
+                neg = true;
+                k = 1;
+            }
+            if (k >= lv.len) {
+                raise_expected_integer(words[ai + 1]);
+                return obj_new_int(0);
+            }
+            var n: i64 = 0;
+            while (k < lv.len) : (k += 1) {
+                if (lp[k] < '0' or lp[k] > '9') {
+                    raise_expected_integer(words[ai + 1]);
+                    return obj_new_int(0);
+                }
+                n = n * 10 + (lp[k] - '0');
+            }
+            if (neg) n = -n;
+            // Clamp to i32 range used by string_compare_full.  Negative
+            // / over-long becomes "unlimited" sentinel (-1).
+            if (n < 0 or n > std.math.maxInt(i31)) {
+                len_limit = -1;
+            } else {
+                len_limit = @intCast(n);
+            }
+            ai += 2;
+            continue;
+        }
+        // Unknown option — reference Tcl raises ``bad option "X":
+        // must be -nocase or -length``.
+        raise_bad_option(words[ai], if (kind == .compare)
+            "must be -nocase or -length"
+        else
+            "must be -nocase or -length");
+        return obj_new_int(0);
+    }
+    // After option parsing we should be at the two trailing
+    // operand words.  ``opt_end`` was words.len - 2 so the only
+    // way ``ai != opt_end`` is when option processing stopped
+    // early on a non-flag word (handled by the ``--`` break above
+    // or by a non-``-`` word at the start of the option region).
+    // Reference Tcl emits ``bad option "X"`` for the first such
+    // word — string-2.2 (``string compare a b c``) wants ``bad
+    // option "a"``.
+    if (ai != opt_end) {
+        raise_bad_option(words[ai], "must be -nocase or -length");
+        return obj_new_int(0);
+    }
+    // ``ai`` lands on opt_end (== words.len - 2) so the two operands
+    // are the last two words.
+    const cmp = rt.string_compare_full(words[opt_end], words[opt_end + 1], nocase, len_limit);
+    if (kind == .equal) {
+        // string equal returns 1 when cmp is "equal" (string_compare
+        // returns 0 for equal strings).
+        const v = rt.obj_get_int(cmp);
+        return obj_new_int(if (v == 0) 1 else 0);
+    }
+    return cmp;
+}
+
+fn raise_expected_integer(operand: i32) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_mod.obj_ensure_string(operand);
+    const prefix = "expected integer but got \"";
+    const suffix = "\"";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: u32 = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
+fn raise_bad_option(option: i32, expected_text: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_mod.obj_ensure_string(option);
+    const prefix = "bad option \"";
+    const middle = "\": ";
+    const total: u32 = @intCast(prefix.len + s.len + middle.len + expected_text.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: u32 = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (middle) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (expected_text) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
+}
+
+/// ``string match ?-nocase? pattern string`` — glob match with
+/// option-prefix abbreviation for ``-nocase``.  Like
+/// :func:`eval_compare_or_equal`, the last two words are the
+/// pattern and the string (reserved by reference Tcl's
+/// StringMatchCmd), so ``-`` prefixes between them don't get
+/// rejected as bad options.
+fn eval_string_match(words: []const i32) i32 {
+    const wrong_args = "wrong # args: should be \"string match ?-nocase? pattern string\"";
+    if (words.len < 4 or words.len > 5) {
+        raise_string_wrong_args(wrong_args);
+        return obj_new_int(0);
+    }
+    var nocase: bool = false;
+    var pat_idx: u32 = 2;
+    if (words.len == 5) {
+        const a = obj_ensure_string(words[2]);
+        if (a.len == 0 or a.ptr == 0) {
+            raise_string_wrong_args(wrong_args);
+            return obj_new_int(0);
+        }
+        const ap: [*]const u8 = @ptrFromInt(a.ptr);
+        if (ap[0] == '-' and a.len >= 2 and ap[1] == 'n' and is_prefix_of(ap, a.len, "-nocase")) {
+            nocase = true;
+            pat_idx = 3;
+        } else {
+            raise_bad_option(words[2], "must be -nocase");
+            return obj_new_int(0);
+        }
+    }
+    const pat = obj_ensure_string(words[pat_idx]);
+    const val = obj_ensure_string(words[pat_idx + 1]);
+    if (nocase) {
+        return obj_new_int(if (glob_match_nocase(pat.ptr, pat.len, val.ptr, val.len)) @as(i64, 1) else 0);
+    }
+    return obj_new_int(if (glob_match_plain(pat.ptr, pat.len, val.ptr, val.len)) @as(i64, 1) else 0);
+}
+
+fn glob_match_plain(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+    const tcl_string = @import("../valtypes/tcl_string.zig");
+    return tcl_string.glob_match(pp, plen, vp, vlen);
+}
+
+fn glob_match_nocase(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
+    // Lower-case both pattern and value into bump-allocated scratch
+    // buffers, then run the regular glob_match.  Avoids touching the
+    // underlying string objs (the case fold is per-call).
+    if (plen == 0) return vlen == 0;
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const buf_pat = obj_mod.alloc(if (plen == 0) 1 else plen);
+    const buf_val = if (vlen > 0) obj_mod.alloc(vlen) else 0;
+    if (buf_pat == 0 or (vlen > 0 and buf_val == 0)) {
+        if (buf_pat != 0) obj_mod.free_sized(buf_pat, plen);
+        if (buf_val != 0) obj_mod.free_sized(buf_val, vlen);
+        // Fallback: case-sensitive match.
+        return glob_match_plain(pp, plen, vp, vlen);
+    }
+    const dp: [*]u8 = @ptrFromInt(buf_pat);
+    const sp: [*]const u8 = @ptrFromInt(pp);
+    var i: u32 = 0;
+    while (i < plen) : (i += 1) {
+        dp[i] = if (sp[i] >= 'A' and sp[i] <= 'Z') sp[i] + 32 else sp[i];
+    }
+    if (vlen > 0) {
+        const dv: [*]u8 = @ptrFromInt(buf_val);
+        const sv: [*]const u8 = @ptrFromInt(vp);
+        i = 0;
+        while (i < vlen) : (i += 1) {
+            dv[i] = if (sv[i] >= 'A' and sv[i] <= 'Z') sv[i] + 32 else sv[i];
+        }
+    }
+    const r = glob_match_plain(buf_pat, plen, buf_val, vlen);
+    obj_mod.free_sized(buf_pat, plen);
+    if (vlen > 0) obj_mod.free_sized(buf_val, vlen);
+    return r;
+}
+
 fn eval_string_is(words: []const i32) result_mod.InterpResult {
     // Arity contract: ``string is class ?-strict? ?-failindex var? str``.
     // ``words[0] = string``, ``words[1] = is``, ``words[2] = class``.
@@ -480,12 +872,19 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
         const a = obj_ensure_string(words[i]);
         const ap: [*]const u8 = @ptrFromInt(a.ptr);
         if (a.len == 0 or ap[0] != '-') break;
-        if (str_eq(ap, a.len, "-strict")) {
+        // ``-strict`` / ``-failindex`` accept unambiguous prefixes
+        // (reference Tcl's TclGetIndexFromObj allows option-prefix
+        // matching).  ``-fail`` / ``-faili`` / etc. all map to
+        // ``-failindex``; ``-s`` / ``-str`` map to ``-strict``.
+        // The two flags share no prefix beyond ``-`` so any
+        // ``-f...`` resolves uniquely to ``-failindex`` and any
+        // ``-s...`` to ``-strict``.
+        if (a.len >= 2 and ap[1] == 's' and is_prefix_of(ap, a.len, "-strict")) {
             strict = true;
             i += 1;
             continue;
         }
-        if (str_eq(ap, a.len, "-failindex")) {
+        if (a.len >= 2 and ap[1] == 'f' and is_prefix_of(ap, a.len, "-failindex")) {
             if (i + 1 >= words.len) {
                 raise_string_wrong_args(
                     "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",

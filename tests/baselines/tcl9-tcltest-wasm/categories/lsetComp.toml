@@ -1,6 +1,6 @@
 # lsetComp.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '5 of 19 failed'
+# reason = '4 of 19 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 19
-observed_passed = 14
-observed_failed = 5
+observed_passed = 15
+observed_failed = 4
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["lsetComp-1.1", "lsetComp-2.8", "lsetComp-2.9", "lsetComp-3.8", "lsetComp-3.9"]
+ids = ["lsetComp-2.8", "lsetComp-2.9", "lsetComp-3.8", "lsetComp-3.9"]

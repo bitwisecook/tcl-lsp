@@ -1,0 +1,18 @@
+# subst.test categorisation (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.
+
+# Impossible under any WASI runtime — exercise ``exec
+# [info nameofexecutable]`` to feed a script to the test
+# interpreter and verify the missing-close-bracket diagnostic.
+# WASI sandboxes can't fork/exec, so these can never pass under
+# our WASM target.  They land as ``impossible_in_wasm_wasi`` so
+# the gate doesn't flag them while the JSON triage record still
+# captures them.
+impossible_in_wasm_wasi = [
+  "5.8",
+  "5.9",
+  "5.10",
+]
+
+[baseline]
+impossible_in_wasm_wasi_failing = 3

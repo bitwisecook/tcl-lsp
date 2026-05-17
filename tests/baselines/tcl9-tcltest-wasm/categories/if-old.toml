@@ -1,6 +1,6 @@
 # if-old.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '17 of 33 failed'
+# reason = '1 of 33 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 33
-observed_passed = 16
-observed_failed = 17
+observed_passed = 32
+observed_failed = 1
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["if-old-1.9", "if-old-2.1", "if-old-2.2", "if-old-2.5", "if-old-2.6", "if-old-2.7", "if-old-2.8", "if-old-3.1", "if-old-3.3", "if-old-4.1", "if-old-4.3", "if-old-4.4", "if-old-4.6", "if-old-4.7", "if-old-4.8", "if-old-4.9", "if-old-4.10"]
+ids = ["if-old-1.9"]

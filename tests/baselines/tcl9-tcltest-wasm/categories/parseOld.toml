@@ -1,6 +1,6 @@
 # parseOld.test — auto-generated WASM baseline.
 # bucket = 'W-mixed-fail'
-# reason = '14 of 158 failed'
+# reason = '10 of 158 failed'
 trap_allowed = false
 good_to_have = []
 just_to_match_ctcl = []
@@ -11,10 +11,10 @@ good_to_have_failing = 0
 just_to_match_ctcl_failing = 0
 skip_failing = 0
 observed_total = 158
-observed_passed = 144
-observed_failed = 14
+observed_passed = 148
+observed_failed = 10
 observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["parseOld-1.2", "parseOld-5.8", "parseOld-5.9", "parseOld-5.12", "parseOld-5.13", "parseOld-5.14", "parseOld-7.4", "parseOld-7.5", "parseOld-10.1", "parseOld-10.2", "parseOld-10.3", "parseOld-10.4", "parseOld-10.14", "parseOld-12.3"]
+ids = ["parseOld-1.2", "parseOld-5.8", "parseOld-5.9", "parseOld-5.12", "parseOld-5.13", "parseOld-5.14", "parseOld-7.4", "parseOld-7.5", "parseOld-10.14", "parseOld-12.3"]

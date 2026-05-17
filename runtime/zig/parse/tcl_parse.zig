@@ -36,7 +36,16 @@ pub const MAX_WORDS: u32 = 128;
 // in the same commit as the file move.
 // ---------------------------------------------------------------------
 
-pub const BracedRange = struct { end: u32, start: u32, wlen: u32 };
+pub const BracedRange = struct {
+    end: u32,
+    start: u32,
+    wlen: u32,
+    /// ``parse_braced`` / ``parse_quoted`` set this when they ran
+    /// off the end of input without seeing a matching close
+    /// delimiter.  Callers can read it to surface ``missing
+    /// close-brace`` / ``missing "`` diagnostics (parseOld-10.x).
+    unterminated: bool = false,
+};
 
 pub fn skip_space(src: [*]const u8, pos: u32, len: u32) u32 {
     var p = pos;
@@ -82,7 +91,7 @@ pub fn parse_braced(src: [*]const u8, pos: u32, len: u32) BracedRange {
     // content runs all the way to ``p`` (== len) — skipping this
     // guard would u32-underflow when the source is a single ``{``.
     const wlen = if (depth == 0) p - 1 - start else p - start;
-    return .{ .end = p, .start = start, .wlen = wlen };
+    return .{ .end = p, .start = start, .wlen = wlen, .unterminated = depth > 0 };
 }
 
 pub fn parse_quoted(src: [*]const u8, pos: u32, len: u32) BracedRange {
@@ -92,8 +101,9 @@ pub fn parse_quoted(src: [*]const u8, pos: u32, len: u32) BracedRange {
         if (src[p] == '\\' and p + 1 < len) p += 2 else p += 1;
     }
     const wlen = p - start;
+    const closed: bool = p < len;
     if (p < len) p += 1;
-    return .{ .end = p, .start = start, .wlen = wlen };
+    return .{ .end = p, .start = start, .wlen = wlen, .unterminated = !closed };
 }
 
 pub fn parse_bare(src: [*]const u8, pos: u32, len: u32) BracedRange {
@@ -210,6 +220,14 @@ pub const CommandResult = struct {
     /// (set-1.3 expects "close-quote", parse-18.19 expects
     /// "close-brace").
     extra_chars_after_quote: bool = false,
+    /// Set when a braced word ran off the end of the input
+    /// without a matching ``}``.  Reference Tcl raises
+    /// ``missing close-brace`` (parseOld-10.1 / 10.2).
+    unterminated_brace: bool = false,
+    /// Set when a ``"``-quoted word ran off the end of the input
+    /// without a matching ``"``.  Reference Tcl raises
+    /// ``missing "`` (parseOld-10.3 / 10.4).
+    unterminated_quote: bool = false,
 };
 
 pub fn parse_command(
@@ -299,6 +317,13 @@ pub fn parse_command(
             count += 1;
             p = r.end;
             word_kind_brace_or_quote = true;
+            if (r.unterminated) {
+                return .{
+                    .count = count,
+                    .next = p,
+                    .unterminated_brace = true,
+                };
+            }
         } else if (src[p] == '"') {
             const r = parse_quoted(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -309,6 +334,13 @@ pub fn parse_command(
             p = r.end;
             word_kind_brace_or_quote = true;
             word_kind_quoted = true;
+            if (r.unterminated) {
+                return .{
+                    .count = count,
+                    .next = p,
+                    .unterminated_quote = true,
+                };
+            }
         } else {
             const r = parse_bare(src, p, len);
             word_ptrs[count] = @intFromPtr(src) + r.start;
@@ -439,6 +471,10 @@ pub const Parse = struct {
     /// See :data:`CommandResult.extra_chars_after_close`.
     extra_chars_after_close: bool = false,
     extra_chars_after_quote: bool = false,
+    /// Surfaces ``missing close-brace`` / ``missing "`` from
+    /// :data:`CommandResult.unterminated_brace` / ``_quote``.
+    unterminated_brace: bool = false,
+    unterminated_quote: bool = false,
 };
 
 /// Token-tree form of :func:`parse_command`.  Writes at most
@@ -509,5 +545,7 @@ pub fn ParseCommand(
         .n_words = r.count,
         .extra_chars_after_close = r.extra_chars_after_close,
         .extra_chars_after_quote = r.extra_chars_after_quote,
+        .unterminated_brace = r.unterminated_brace,
+        .unterminated_quote = r.unterminated_quote,
     };
 }
