@@ -27,7 +27,7 @@ jobs:
   # hook installed via `make install-hooks`).  See AGENTS.md for the rule
   # that agents must run test-slow before opening a PR.
   pr-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -87,7 +87,7 @@ jobs:
   # the change has merged, so a regression is loud but doesn't block PRs.
   test-py:
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.10"]
@@ -153,7 +153,7 @@ jobs:
   # PRs are gated by pr-gate; locally this is covered by `make test-slow`.
   test-ext:
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -230,7 +230,7 @@ jobs:
   create-release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [pr-gate, test-py]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -286,7 +286,7 @@ jobs:
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release, test-ext]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -361,7 +361,7 @@ jobs:
   build-zipapp-cli:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -413,7 +413,7 @@ jobs:
   build-zipapp-f5:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -481,7 +481,7 @@ jobs:
   build-zipapp-tcl:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -543,7 +543,7 @@ jobs:
   build-zipapp-gui:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -605,7 +605,7 @@ jobs:
   build-zipapp-lsp:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -657,7 +657,7 @@ jobs:
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -712,7 +712,7 @@ jobs:
   build-zipapp-mcp:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -764,7 +764,7 @@ jobs:
   build-zipapp-wasm:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -816,7 +816,7 @@ jobs:
   build-jetbrains:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -877,7 +877,7 @@ jobs:
   build-sublime:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -941,7 +941,7 @@ jobs:
   build-zed:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
       id-token: write        # OIDC for sigstore-backed attestations
@@ -1016,7 +1016,7 @@ jobs:
   publish-checksums:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [create-release, build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write   # gh release upload
       id-token: write   # cosign keyless OIDC signing
@@ -1079,7 +1079,7 @@ jobs:
   cleanup-old-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
     needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, publish-checksums]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
     steps:
@@ -1130,7 +1130,7 @@ jobs:
   cleanup-untagged-artifacts:
     if: always() && startsWith(github.ref, 'refs/tags/v')
     needs: [build-vsix, build-zipapp-cli, build-zipapp-f5, build-zipapp-tcl, build-zipapp-gui, build-zipapp-lsp, build-claude-skills, build-zipapp-mcp, build-zipapp-wasm, build-jetbrains, build-sublime, build-zed, publish-checksums]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: write
     steps:
