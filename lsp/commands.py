@@ -320,6 +320,51 @@ def on_list_irule_events() -> dict:
     }
 
 
+def on_get_effective_config(uri: str | None = None) -> dict:
+    """Return the resolved per-folder config for ``uri``.
+
+    Surfaces the settings the language server *actually* applies to a
+    document — useful for diagnosing per-folder configuration races
+    (issue #407) and for tests that need to wait for
+    ``workspace/configuration`` to settle without polling on wall-clock
+    time.
+
+    When *uri* is empty/None, returns the workspace-fallback view.
+
+    Returns:
+        ``{
+            "uri": str,
+            "folder_uri": str | None,
+            "dialect": str | None,
+            "extra_commands": list[str] | None,
+            "non_ascii_mode": str | None,
+            "library_paths": list[str] | None,
+            "line_length": int,
+            "dialect_explicitly_set": bool,
+            "known_folder_uris": list[str],
+        }``
+    """
+    cfg = _state.config_for_uri(uri)
+    folder_uri: str | None = None
+    if uri:
+        for candidate in _state.workspace_folder_uris():
+            normalised = candidate.rstrip("/")
+            if uri == normalised or uri.startswith(normalised + "/"):
+                if folder_uri is None or len(normalised) > len(folder_uri.rstrip("/")):
+                    folder_uri = candidate
+    return {
+        "uri": uri or "",
+        "folder_uri": folder_uri,
+        "dialect": cfg.dialect,
+        "extra_commands": list(cfg.extra_commands) if cfg.extra_commands is not None else None,
+        "non_ascii_mode": cfg.non_ascii_mode,
+        "library_paths": list(cfg.library_paths) if cfg.library_paths is not None else None,
+        "line_length": cfg.line_length,
+        "dialect_explicitly_set": cfg.dialect_explicitly_set,
+        "known_folder_uris": list(_state.workspace_folder_uris()),
+    }
+
+
 def on_list_subcommands(command_name: str) -> dict:
     """Return subcommand metadata for a command from the registry."""
     name = (command_name or "").strip()
@@ -1048,6 +1093,7 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.command("tcl-lsp.describeIruleCommand")(on_describe_irule_command)
     server_instance.command("tcl-lsp.fixAllSafeIssues")(on_fix_all_safe_issues)
     server_instance.command("tcl-lsp.listIruleEvents")(on_list_irule_events)
+    server_instance.command("tcl-lsp.getEffectiveConfig")(on_get_effective_config)
     server_instance.command("tcl-lsp.listSubcommands")(on_list_subcommands)
     server_instance.command("tcl-lsp.listKnownPackages")(on_list_known_packages)
     server_instance.command("tcl-lsp.suggestPackagesForSymbol")(on_suggest_packages_for_symbol)

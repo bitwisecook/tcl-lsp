@@ -322,19 +322,52 @@ class TestPerFolderDialect:
         _lsp_settings._apply_feature_settings({"dialect": None}, target=cfg)
         assert cfg.dialect_explicitly_set is False
 
-    def test_late_per_folder_dialect_invalidates_cached_analysis(self, reset_per_folder_state):
-        """Per-folder dialect arriving after ``did_open`` clears stale W002.
+    # Race matrix for issue #407: every per-folder setting that bakes into
+    # the cached ``AnalysisResult`` is exercised by ``did_open`` racing the
+    # ``workspace/configuration`` pull.  Each row drives the apply ordering
+    # directly (no LSP roundtrip), asserts the wrong diagnostic fires before
+    # the pull, then asserts ``_apply_merged_settings_now`` re-analyses and
+    # clears it once the per-folder setting arrives.  Adding a new
+    # dialect-sensitive check?  Add a row here.
+    @pytest.mark.parametrize(
+        ("scenario", "source", "late_settings", "diagnostic_code"),
+        [
+            pytest.param(
+                "dialect-flips-to-irules",
+                "if { [active_members http_pool] >= 2 } {\n    puts \"ok\"\n}\n",
+                {"dialect": "f5-irules"},
+                "W002",
+                id="dialect-W002-active_members",
+            ),
+            pytest.param(
+                "non-ascii-mode-flips-off",
+                'set greeting "“hello”"\n',
+                {"style": {"nonAscii": "off"}},
+                "W108",
+                id="nonAscii-W108-smart-quotes",
+            ),
+        ],
+    )
+    def test_late_per_folder_setting_invalidates_cached_analysis(
+        self,
+        reset_per_folder_state,
+        scenario,
+        source,
+        late_settings,
+        diagnostic_code,
+    ):
+        """Per-folder dialect/non_ascii arriving after ``did_open`` clears stale diagnostics.
 
         Reproduces issue #407 follow-up: at session start ``did_open`` for
         the active editor races against the asynchronous
         ``workspace/configuration`` pull.  The first analyse runs under the
-        workspace-fallback dialect (typically ``tcl8.6``) and bakes W002
-        for iRules-only commands into the cached analysis.  When the pull
-        callback later applies the folder's ``f5-irules`` dialect, the
-        workspace-level ``configure_signatures`` call is a no-op so the
-        old ``signatures_changed``-only re-analyse trigger never fires —
-        the user keeps seeing ``'X' is disabled in the active dialect
-        profile`` warnings even though the per-folder config is correct.
+        workspace-fallback settings and bakes dialect-sensitive checks
+        (W002 for iRules-only commands, W108 for non-ASCII, etc) into the
+        cached analysis.  When the pull callback later applies the folder's
+        real settings the workspace-level ``configure_signatures`` call is
+        a no-op so the old ``signatures_changed``-only re-analyse trigger
+        never fires — the user keeps seeing the stale warnings even though
+        the per-folder config has resolved to the correct value.
         """
         import lsp.diagnostics_pipeline as _dp
 
@@ -343,11 +376,6 @@ class TestPerFolderDialect:
         _lsp_state.get_or_init_folder_feature_config(folder)
         _lsp_settings._apply_merged_settings_now()
 
-        source = (
-            "if { [active_members http_pool] >= 2 } {\n"
-            '    puts "ok"\n'
-            "}\n"
-        )
         _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
 
         captured: dict[str, list] = {}
@@ -362,17 +390,25 @@ class TestPerFolderDialect:
         )
         try:
             _dp._publish_diagnostics_sync(file_uri, source, 1)
-            initial = [d for d in captured.get(file_uri, []) if d.code == "W002"]
-            assert initial, "expected W002 with default tcl8.6 dialect (precondition for repro)"
+            initial = [
+                d for d in captured.get(file_uri, []) if d.code == diagnostic_code
+            ]
+            assert initial, (
+                f"{scenario} precondition: expected {diagnostic_code} under "
+                "the workspace-fallback settings (precondition for repro)"
+            )
 
-            # Now the pull arrives with the folder's real dialect.
-            _lsp_state.editor_config_settings_per_folder[folder] = {"dialect": "f5-irules"}
+            # Pull arrives with the folder's real settings.
+            _lsp_state.editor_config_settings_per_folder[folder] = late_settings
             _lsp_settings._apply_merged_settings_now()
 
-            after = [d for d in captured.get(file_uri, []) if d.code == "W002"]
+            after = [
+                d for d in captured.get(file_uri, []) if d.code == diagnostic_code
+            ]
             assert after == [], (
-                "W002 must clear once the per-folder dialect resolves to "
-                "f5-irules; got: " + ", ".join(d.message for d in after)
+                f"{scenario}: {diagnostic_code} must clear after the per-folder "
+                f"setting {late_settings!r} applies; got: "
+                + ", ".join(d.message for d in after)
             )
         finally:
             _dp._publish_diags_to_client = orig_publish
