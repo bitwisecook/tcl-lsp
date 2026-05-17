@@ -822,14 +822,18 @@ fn entry_matches(ctx: *const CmdWalkCtx, name_ptr: u32, name_len: u32, cmd: u32)
     switch (ctx.kind) {
         .commands => {},
         .procs => {
-            // ``info procs`` only reports interpreted procs —
-            // compiled, alias, and import redirects don't qualify.
+            // ``info procs`` reports every user-defined proc — both
+            // interpreted (``body_obj != 0``) and compiled
+            // (``func_idx != 0``).  Aliases and import redirects
+            // don't qualify; the static builtin commands (puts,
+            // string, …) aren't in any ns ``cmd_table``, so the
+            // unqualified walker that suppresses the builtin pass
+            // for ``info procs`` already filters them.
             if ((flags & procs.CMD_ALIAS) != 0) return false;
             if ((flags & procs.CMD_IMPORTED) != 0) return false;
             const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
-            if (func_idx != 0) return false;
             const body = read_i32(cmd + 16); // OFF_BODY_OBJ
-            if (body == 0) return false;
+            if (func_idx == 0 and body == 0) return false;
         },
     }
     if (ctx.has_pattern) {
