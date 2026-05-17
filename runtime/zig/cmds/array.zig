@@ -217,9 +217,12 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         }
         // SID is well-formed and the VARNAME matches the operand
         // array.  Now resolve the (array, id) pair to a live
-        // search record.
+        // search record — keyed by the *resolved* storage name so
+        // proc-local arrays and ``upvar`` aliases find their
+        // records (lookup must match what startsearch wrote, which
+        // is the post-:func:`frame_resolve_array_name` form).
         const id = parse_search_id_number(sid_obj.ptr, sid_obj.len);
-        const rec = array_mod.array_search_lookup(words[2], id);
+        const rec = array_mod.array_search_lookup(resolved_name, id);
         if (rec == 0) {
             raise_search_not_found(words[3]);
             return result_mod.from_globals(0);
@@ -233,10 +236,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
             return result_mod.from_globals(0);
         }
         // nextelement
-        return result_mod.from_globals(array_mod.array_search_next(words[2], rec));
+        return result_mod.from_globals(array_mod.array_search_next(resolved_name, rec));
     }
     if (str_eq(sp, sub_len, "startsearch")) {
-        return result_mod.from_globals(array_mod.array_search_start(words[2]));
+        return result_mod.from_globals(array_mod.array_search_start(resolved_name, words[2]));
     }
     if (str_eq(sp, sub_len, "statistics")) {
         return result_mod.from_globals(obj_new_string(0, 0));

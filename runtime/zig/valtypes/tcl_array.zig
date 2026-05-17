@@ -1305,22 +1305,27 @@ fn alloc_search_rec(name_ptr: u32, name_len: u32, id: u32, table_ptr: u32) u32 {
 }
 
 /// ``array startsearch arrName`` — registers a fresh search on
-/// *arr* and returns its TclObj search id (``s-N-NAME``).  Returns
-/// 0 when the array doesn't exist (caller raises "X isn't an
-/// array" first; this entry point assumes existence).
-pub fn array_search_start(arr: i32) i32 {
-    const n = normalize_ns_name(arr);
-    defer if (n != arr) obj.tcl_obj_release(n);
+/// *storage* and returns its TclObj search id (``s-N-NAME``).
+/// *display* is the user-typed name used in the returned SID;
+/// *storage* is the post-:func:`frame_resolve_array_name` form so
+/// the search's table lookup honours proc-local arrays and
+/// :func:`upvar` aliases (which key off ``::__local::<depth>::``
+/// or the alias target rather than the user-visible name).
+/// Returns 0 when the array doesn't exist (caller raises "X isn't
+/// an array" first; this entry point assumes existence).
+pub fn array_search_start(storage: i32, display: i32) i32 {
+    const n = normalize_ns_name(storage);
+    defer if (n != storage) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
     if (sn.ptr == 0 or sn.len == 0) return 0;
-    const table = find_table(arr);
+    const table = find_table(storage);
     if (table == 0) return 0;
     const id = next_search_id_for(sn.ptr, sn.len);
     const rec = alloc_search_rec(sn.ptr, sn.len, id, table);
     if (rec == 0) return 0;
     write_i32(rec + SEARCH_OFF_NEXT, @bitCast(searches_head));
     searches_head = rec;
-    return build_search_id_obj(arr, id);
+    return build_search_id_obj(display, id);
 }
 
 /// Build the canonical ``s-N-<user-visible-name>`` TclObj.  Uses
@@ -1368,14 +1373,17 @@ fn build_search_id_obj(arr: i32, id: u32) i32 {
     return obj.obj_new_string_take(buf, total, total);
 }
 
-/// Look up a search by *(arrName, id)*.  Returns the record
+/// Look up a search by *(storage_name, id)*.  Returns the record
 /// address, or 0 if the search isn't registered (was auto-stopped
-/// or already done).  Search IDs are keyed off the *normalised*
-/// array name, so the caller doesn't need to normalise.
-pub fn array_search_lookup(arr: i32, id: u32) u32 {
+/// or already done).  Search records are keyed off the *normalised
+/// storage* form of the array name (mirrors what
+/// :func:`array_search_start` writes), so callers MUST pass the
+/// post-:func:`frame_resolve_array_name` form for proc-local
+/// arrays and :func:`upvar` aliases to resolve correctly.
+pub fn array_search_lookup(storage: i32, id: u32) u32 {
     if (searches_head == 0) return 0;
-    const n = normalize_ns_name(arr);
-    defer if (n != arr) obj.tcl_obj_release(n);
+    const n = normalize_ns_name(storage);
+    defer if (n != storage) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
     if (sn.ptr == 0 or sn.len == 0) return 0;
     return find_search_rec(sn.ptr, sn.len, id);
