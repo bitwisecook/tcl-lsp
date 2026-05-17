@@ -33,11 +33,11 @@ jobs:
         with:
           # `make build-info` (a dep of ci-fast) shells out to `git describe
           # --tags`.  That needs tags but NOT full history — `fetch-depth: 1`
-          # + `fetch-tags: true` is meaningfully faster than `fetch-depth: 0`
+          # + `fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}` is meaningfully faster than `fetch-depth: 0`
           # on a repo with many commits and gives the describe call exactly
           # what it needs.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Log commit info
         # `github.head_ref` is the PR source branch and is attacker-controlled
@@ -325,7 +325,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -433,7 +433,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -514,7 +514,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -611,7 +611,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -702,7 +702,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -793,7 +793,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -874,7 +874,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -958,7 +958,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -1039,7 +1039,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -1120,7 +1120,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -1210,7 +1210,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
@@ -1303,7 +1303,7 @@ jobs:
           # history: `git describe --tags` is the only consumer of the
           # checkout and only needs tags reachable from HEAD.
           fetch-depth: 1
-          fetch-tags: true
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
