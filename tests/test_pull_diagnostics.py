@@ -61,6 +61,11 @@ class TestCacheWriteThrough:
     def test_push_still_called(self, monkeypatch):
         """The always-push path must still invoke publishDiagnostics."""
         _reset_cache()
+        # Other tests (test_per_folder_config) leave ``_dp._server`` set
+        # to a dummy server instance after they finish.  Pin it back to
+        # the real ``server_module.server`` before patching so this test
+        # is order-independent under pytest-xdist.
+        monkeypatch.setattr(_dp, "_server", server_module.server)
         calls: list[types.PublishDiagnosticsParams] = []
         monkeypatch.setattr(
             server_module.server,
