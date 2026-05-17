@@ -252,17 +252,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          if ! gh release view "$tag" > /dev/null 2>&1; then
-            if [ -f RELEASE_NOTES.md ]; then
-              gh release create "$tag" \
-                --title "$tag" \
-                --notes-file RELEASE_NOTES.md
-            else
-              gh release create "$tag" \
-                --title "$tag" \
-                --generate-notes
-            fi
+          if gh release view "$tag" > /dev/null 2>&1; then
+            exit 0
           fi
+          # Require curated release notes.  The previous fallback to
+          # `gh release create --generate-notes` builds the changelog
+          # from commit messages and PR titles, both attacker-influenced
+          # — anyone whose PR merged since the last release can land
+          # text inside our official release notes.  Failing closed
+          # forces the maintainer to commit RELEASE_NOTES.md before
+          # tagging.
+          if [ ! -f RELEASE_NOTES.md ]; then
+            echo "ERROR: RELEASE_NOTES.md is missing for tag $tag." >&2
+            echo "Commit curated notes to RELEASE_NOTES.md before pushing the tag." >&2
+            exit 1
+          fi
+          gh release create "$tag" \
+            --title "$tag" \
+            --notes-file RELEASE_NOTES.md
 
       - name: Stamp + upload installer script to release
         env:
