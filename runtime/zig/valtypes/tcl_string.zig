@@ -436,10 +436,12 @@ fn string_map_impl(mapping: i32, value: i32, nocase: bool) i32 {
         var pair: u32 = 0;
         while (pair < n_pairs) : (pair += 1) {
             const from = list_element_at(sm.ptr, sm.len, @as(i64, pair) * 2);
-            if (from.len == 0) {
-                pair += 1;
-                continue;
-            }
+            // Empty FROM key — Tcl 9 skips silently (per
+            // ``tclCmdMZ.c`` ``StringMapCmd``).  The loop step
+            // advances ``pair``; manually bumping it here would
+            // skip TWO entries and miss intermediate non-empty
+            // mappings (string-10.19.0).
+            if (from.len == 0) continue;
             if (pos + from.len <= sv.len) {
                 const fp: [*]const u8 = @ptrFromInt(sm.ptr + from.start);
                 var match = true;
@@ -538,9 +540,14 @@ fn glob_match_class(pat: [*]const u8, plen: u32, start: u32, c: u8, nocase: bool
         }
     }
     if (i >= plen) {
-        // Unclosed character class — treat the leading ``[`` as
-        // literal so the outer matcher can carry on.
-        return .{ .matched = false, .end = start, .ok = false };
+        // Unclosed character class — Tcl 9 treats this as an
+        // implicit close at end-of-pattern (string-11.29.0:
+        // ``string match \[a a`` returns 1 because ``[a`` is read
+        // as the class ``[a]``).  The collected ``matched`` flag
+        // already reflects the comparison against *c*; report
+        // ``end = plen`` so the outer matcher consumes the rest of
+        // the pattern.
+        return .{ .matched = if (negate) !matched else matched, .end = plen, .ok = true };
     }
     return .{ .matched = if (negate) !matched else matched, .end = i + 1, .ok = true };
 }
@@ -589,7 +596,9 @@ fn glob_match_rec(pat: [*]const u8, plen: u32, val: [*]const u8, vlen: u32, pi_i
         if (pc == '?') {
             if (vi >= vlen) return false;
             pi += 1;
-            vi += 1;
+            // Advance by one full codepoint in the value.
+            const dv = decode_utf8_at(val, vlen, vi);
+            vi += dv.len;
             continue;
         }
         if (pc == '[') {
@@ -616,15 +625,20 @@ fn glob_match_rec(pat: [*]const u8, plen: u32, val: [*]const u8, vlen: u32, pi_i
         }
         if (pc == '\\' and pi + 1 < plen) {
             if (vi >= vlen) return false;
-            var ec: u8 = pat[pi + 1];
-            var vc: u8 = val[vi];
+            // Backslash escape — the next pattern byte matches a
+            // literal value byte (compare codepoint-by-codepoint
+            // so Unicode escapes round-trip).
+            const dp = decode_utf8_at(pat, plen, pi + 1);
+            const dv = decode_utf8_at(val, vlen, vi);
+            var ec: u32 = dp.cp;
+            var vc: u32 = dv.cp;
             if (nocase) {
-                ec = ascii_lower(ec);
-                vc = ascii_lower(vc);
+                ec = codepoint_lower(ec);
+                vc = codepoint_lower(vc);
             }
             if (ec != vc) return false;
-            pi += 2;
-            vi += 1;
+            pi += 1 + dp.len;
+            vi += dv.len;
             continue;
         }
         if (pc == '\\') {
@@ -634,15 +648,20 @@ fn glob_match_rec(pat: [*]const u8, plen: u32, val: [*]const u8, vlen: u32, pi_i
             return false;
         }
         if (vi >= vlen) return false;
-        var pc_c: u8 = pc;
-        var vc: u8 = val[vi];
+        // Decode one codepoint from each side and compare with
+        // optional case fold.  ASCII / single-byte chars yield a
+        // 1-byte codepoint each, preserving the old fast path.
+        const dp = decode_utf8_at(pat, plen, pi);
+        const dv = decode_utf8_at(val, vlen, vi);
+        var pc_c: u32 = dp.cp;
+        var vc: u32 = dv.cp;
         if (nocase) {
-            pc_c = ascii_lower(pc_c);
-            vc = ascii_lower(vc);
+            pc_c = codepoint_lower(pc_c);
+            vc = codepoint_lower(vc);
         }
         if (pc_c != vc) return false;
-        pi += 1;
-        vi += 1;
+        pi += dp.len;
+        vi += dv.len;
     }
     return vi == vlen;
 }

@@ -94,10 +94,11 @@ fn eval_prefix_longest(words: []const i32) result_mod.InterpResult {
             have_any = true;
             continue;
         }
-        // Intersect common prefix.  Skip the bytewise loop when
-        // either side is empty (the intersect is trivially zero
-        // and ``@ptrFromInt(0)`` would trap on a non-allowzero
-        // many-item pointer cast).
+        // Intersect common prefix at codepoint granularity — the
+        // longest-common-prefix is naturally a codepoint operation
+        // (multi-byte UTF-8 sequences can't truncate mid-byte) and
+        // matters for inputs like ``ax\x90`` vs ``ax\x91`` where
+        // both 2-byte sequences share their lead byte (string-28.13.0).
         const min = if (common_len < es.len) common_len else es.len;
         if (min == 0) {
             common_len = 0;
@@ -106,11 +107,34 @@ fn eval_prefix_longest(words: []const i32) result_mod.InterpResult {
         const a: [*]const u8 = @ptrFromInt(common_ptr);
         const b: [*]const u8 = @ptrFromInt(es.ptr);
         var k: u32 = 0;
-        while (k < min and a[k] == b[k]) : (k += 1) {}
+        while (k < min) {
+            const al = utf8_lead_len_local(a[k]);
+            const bl = utf8_lead_len_local(b[k]);
+            if (al != bl) break;
+            if (k + al > min) break;
+            var ok = true;
+            var j: u32 = 0;
+            while (j < al) : (j += 1) {
+                if (a[k + j] != b[k + j]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok) break;
+            k += al;
+        }
         common_len = k;
     }
     if (!have_any or common_len == 0) return result_mod.from_globals(obj_new_string(0, 0));
     return result_mod.from_globals(rt.obj_new_string_copy(common_ptr, common_len));
+}
+
+fn utf8_lead_len_local(b: u8) u32 {
+    if (b < 0x80) return 1;
+    if (b < 0xC0) return 1;
+    if (b < 0xE0) return 2;
+    if (b < 0xF0) return 3;
+    return 4;
 }
 
 fn eval_prefix_match(words: []const i32) result_mod.InterpResult {
