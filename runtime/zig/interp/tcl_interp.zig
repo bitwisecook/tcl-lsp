@@ -86,6 +86,21 @@ const MAX_WORDS: u32 = parse.MAX_WORDS;
 const interp_impl = @import("../cmds/tcl_cmd_interp.zig");
 const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
 const interp_reg = @import("tcl_interp_registry.zig");
+const hide_mod = @import("../cmds/tcl_hide.zig");
+
+/// Wraps :func:`cmd_table.lookup` with a check against the current
+/// interp's hidden-builtin marker.  When ``interp hide`` has
+/// recorded *name* in the active interp's hidden table with the
+/// :data:`hide_mod.BUILTIN_HIDDEN_MARKER` sentinel, return ``null``
+/// so the caller treats the builtin as if it were never registered
+/// — matching C tcl's per-interp ``Tcl_HideCommand`` semantics
+/// without needing to clone the static dispatch table per child.
+fn cmd_table_visible_lookup(name_ptr: u32, name_len: u32) ?@TypeOf(cmd_table.lookup(0, 0).?) {
+    if (hide_mod.builtin_is_hidden(interp_reg.interp_current(), name_ptr, name_len)) {
+        return null;
+    }
+    return cmd_table.lookup(name_ptr, name_len);
+}
 
 // -- Variable substitution --
 
@@ -852,7 +867,7 @@ pub fn eval_command(words: []const i32) i32 {
     // a side effect of ``tcl_cmd_error`` etc., so we extract ``.value``
     // for the i32-returning ``eval_command`` contract and let the
     // surrounding ``snapshot``-based inspection observe the signal.
-    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words).value;
+    if (cmd_table_visible_lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words).value;
 
     // ``::concat``, ``::expr``, etc. — fully-qualified names for
     // root-namespace builtins.  Strip the leading ``::`` and retry
@@ -862,7 +877,7 @@ pub fn eval_command(words: []const i32) i32 {
     if (cmd_s.len >= 2) {
         const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
         if (cmd_p[0] == ':' and cmd_p[1] == ':') {
-            if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
+            if (cmd_table_visible_lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
                 return handler(words).value;
             }
             // Ensemble FQ rewrites — the CFG canonicalises
@@ -978,7 +993,7 @@ fn resolve_via_path(cmd_s: anytype, words: []const i32) ?i32 {
             obj_mod.free_sized(buf, total);
             return null;
         }
-        if (cmd_table.lookup(lookup_ptr, lookup_len)) |handler| {
+        if (cmd_table_visible_lookup(lookup_ptr, lookup_len)) |handler| {
             // Rewrite words[0] so error messages / the handler's
             // view of the command name match what was dispatched.
             var new_words: [parse.MAX_WORDS]i32 = undefined;
@@ -1040,7 +1055,7 @@ fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
 
     // Confirm the ENSEMBLE name resolves to a real BUILTIN (else this
     // could swallow an unrelated ``::tcl::pkg::path``-style name).
-    const handler = cmd_table.lookup(ens_ptr, ens_len) orelse return null;
+    const handler = cmd_table_visible_lookup(ens_ptr, ens_len) orelse return null;
 
     // Build a synthesised words[] with the ensemble at [0], subcmd at
     // [1], and the caller's args[1..] at [2..].  Use the bump
@@ -1085,7 +1100,7 @@ fn try_ensemble_rewrite_relative(cmd_s: anytype, words: []const i32) ?i32 {
     const sub_ptr = cmd_s.ptr + ens_end + 2;
     const sub_len: u32 = cmd_s.len - ens_end - 2;
 
-    const handler = cmd_table.lookup(ens_ptr, ens_len) orelse return null;
+    const handler = cmd_table_visible_lookup(ens_ptr, ens_len) orelse return null;
 
     const total: u32 = @as(u32, @intCast(words.len)) + 1;
     const buf = obj_mod.alloc(total * 4);
@@ -2326,7 +2341,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     }
     const target_s = obj_ensure_string(new_words[0]);
     if (target_s.len > 0) {
-        if (cmd_table.lookup(target_s.ptr, target_s.len)) |handler| {
+        if (cmd_table_visible_lookup(target_s.ptr, target_s.len)) |handler| {
             const result = handler(new_words[0..total]).value;
             interp_reg.leave(save);
             return result;
@@ -2336,7 +2351,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
         if (target_s.len >= 2) {
             const tp: [*]const u8 = @ptrFromInt(target_s.ptr);
             if (tp[0] == ':' and tp[1] == ':') {
-                if (cmd_table.lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
+                if (cmd_table_visible_lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
                     const result = handler(new_words[0..total]).value;
                     interp_reg.leave(save);
                     return result;
@@ -3285,6 +3300,39 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
     if (cmd == 0) {
         interp_impl.interp_hide_error("invalid hidden command name \"", hidden_name.ptr, hidden_name.len, "\"");
         return 0;
+    }
+    // Builtin-hidden marker: invoke the static-table handler directly,
+    // since there's no Command record to dispatch through.  The marker
+    // is a sentinel — dereferencing it as a pointer would fault.
+    if (cmd == hide_mod.BUILTIN_HIDDEN_MARKER) {
+        const tail_count_b: u32 = @intCast(words.len - 1 - idx);
+        if (1 + tail_count_b > parse.MAX_WORDS) {
+            const err_text = "invokehidden argv exceeds MAX_WORDS";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        var bwords: [parse.MAX_WORDS]i32 = undefined;
+        bwords[0] = rt.obj_new_string(@bitCast(hidden_name.ptr), @bitCast(hidden_name.len));
+        var bk: u32 = 0;
+        while (bk < tail_count_b) : (bk += 1) {
+            bwords[1 + bk] = words[idx + 1 + bk];
+        }
+        const handler = cmd_table.lookup(hidden_name.ptr, hidden_name.len) orelse {
+            interp_impl.interp_hide_error("invalid hidden command name \"", hidden_name.ptr, hidden_name.len, "\"");
+            return 0;
+        };
+        // Swap into target interp for the handler dispatch.  No call
+        // frame push needed for builtin invocation.
+        const swapped_b = target_interp != interp_reg.interp_current();
+        const save_b = if (swapped_b) interp_reg.enter(target_interp) else interp_reg.EnterSave{
+            .prev_interp = interp_reg.current_interp,
+            .prev_root_addr = tcl_ns.root_addr,
+            .prev_current_ns = tcl_ns.current_ns,
+        };
+        const result_b = handler(bwords[0 .. 1 + tail_count_b]).value;
+        interp_reg.leave(save_b);
+        return result_b;
     }
 
     // Build the call-site argv: ``[hidden_name, caller_args...]``.
