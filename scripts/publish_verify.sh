@@ -73,7 +73,9 @@ if [ -z "${OVSX_PAT:-}" ]; then
     warn "  and claim the '$VSCE_PUBLISHER' namespace at"
     warn "  https://open-vsx.org/user-settings/namespaces (one-time)."
 elif [ -x "$OVSX" ]; then
-    if "$OVSX" verify-pat "$VSCE_PUBLISHER" --pat "$OVSX_PAT" >/dev/null 2>&1; then
+    # OVSX_PAT is already in env (we checked above) — let ovsx read it
+    # from there rather than passing on argv, which would leak to `ps`.
+    if "$OVSX" verify-pat "$VSCE_PUBLISHER" >/dev/null 2>&1; then
         ok "ovsx PAT is valid for namespace '$VSCE_PUBLISHER'"
     else
         err "ovsx verify-pat failed for namespace '$VSCE_PUBLISHER'."

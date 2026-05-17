@@ -172,7 +172,7 @@ publish-openvsx: package-vsix ## Publish the .vsix to Open VSX Registry (Cursor,
 		exit 1; \
 	fi
 	@echo "==> Publishing $(VSIX_FILE) to Open VSX Registry"
-	cd $(STAGE_DIR) && $(OVSX) publish $(VSIX_FILE) --pat $$OVSX_PAT
+	cd $(STAGE_DIR) && $(OVSX) publish $(VSIX_FILE)
 
 $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build_zipapp.py $(ROOT)scripts/zipapp_lsp_main.py $(ROOT)scripts/filter_readme.py
 	@echo "==> Preparing VSIX staging directory"
