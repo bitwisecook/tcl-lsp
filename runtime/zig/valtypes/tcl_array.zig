@@ -716,8 +716,14 @@ pub export fn array_set(arr: i32, key: i32, value: i32) i32 {
     const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
+        // Overwrite: leaves the keyset intact, so any in-flight
+        // ``array startsearch`` cursor is still valid (set-old-9.7).
         bucket_set_value(bucket, value);
     } else {
+        // Adding a new key shifts the keyset under any open cursor;
+        // Tcl 9 auto-stops all searches on this array
+        // (set-old-9.6).
+        array_invalidate_searches_for(arr);
         _ = ar_insert(t, sk.ptr, sk.len, hash, value);
     }
     // Phase 6: fire WRITE trace AFTER the update so the trace
@@ -1107,6 +1113,7 @@ pub export fn array_size(arr: i32) i32 {
 
 /// array_unset arrName — remove the entire array (all elements).
 pub export fn array_unset(arr: i32) i32 {
+    array_invalidate_searches_for(arr);
     const n = normalize_ns_name(arr);
     defer if (n != arr) obj.tcl_obj_release(n);
     const sn = obj_ensure_string(n);
@@ -1135,6 +1142,11 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
     const sk = obj_ensure_string(key);
     const hash = fnv1a(sk.ptr, sk.len);
     if (ar_find(t, sk.ptr, sk.len, hash)) |bucket| {
+        // Real deletion — auto-stops every search on this array
+        // (set-old-9.8).  Skipped for the "key already absent"
+        // branch (set-old-9.9 — ``catch {unset a(c)}`` when ``c``
+        // isn't there does NOT auto-stop).
+        array_invalidate_searches_for(arr);
         // MM-B.5: release the value slot's reference before tombstoning.
         const old: i32 = read_i32(bucket + 12);
         write_i32(bucket, AR_TOMBSTONE);
@@ -1148,6 +1160,277 @@ pub export fn array_unset_element(arr: i32, key: i32) i32 {
     // the variable in its final (gone) state.
     fire_var_trace_unset(arr, sk.ptr, sk.len);
     return obj_new_int(0);
+}
+
+// --- Array search state ------------------------------------------------
+//
+// Tcl 9 ``array startsearch`` / ``array nextelement`` / ``array
+// donesearch`` / ``array anymore`` maintain per-array cursor state
+// across multiple concurrent searches.  The set-old-9.x tests cover
+// the contract:
+//
+//   * Multiple concurrent searches on the same array each get a
+//     unique monotonically-allocated ID (``s-1-arr``, ``s-2-arr``,
+//     …).  IDs reset to 1 once *all* searches on the array have
+//     been retired.
+//   * ``nextelement`` returns one element at a time and the empty
+//     string once exhausted.  Different concurrent searches each
+//     keep their own cursor.
+//   * Mutating the array (insert, unset element, unset whole array,
+//     add a read trace) auto-stops every live search on it —
+//     subsequent ``nextelement`` / ``anymore`` / ``donesearch`` on
+//     the retired SID error with ``couldn't find search "s-N-arr"``.
+//   * Overwriting an existing element does NOT auto-stop a search
+//     (count unchanged).
+//
+// Storage: a single intrusively-linked list anchored at
+// :data:`searches_head`.  Each record is 24 bytes; the array name
+// is duplicated into a bump-allocated copy so the record can outlive
+// the caller's TclObj.
+const SEARCH_REC_SIZE: u32 = 24;
+const SEARCH_OFF_NEXT: u32 = 0;
+const SEARCH_OFF_NAME_PTR: u32 = 4;
+const SEARCH_OFF_NAME_LEN: u32 = 8;
+const SEARCH_OFF_ID: u32 = 12;
+const SEARCH_OFF_ITER: u32 = 16;
+const SEARCH_OFF_TABLE: u32 = 20;
+
+var searches_head: u32 = 0;
+
+fn search_name_matches(rec: u32, name_ptr: u32, name_len: u32) bool {
+    const rl: u32 = @bitCast(read_i32(rec + SEARCH_OFF_NAME_LEN));
+    if (rl != name_len) return false;
+    const rp: u32 = @bitCast(read_i32(rec + SEARCH_OFF_NAME_PTR));
+    if (rp == name_ptr) return true;
+    if (rp == 0 or name_ptr == 0) return false;
+    const a: [*]const u8 = @ptrFromInt(rp);
+    const b: [*]const u8 = @ptrFromInt(name_ptr);
+    for (0..name_len) |k| if (a[k] != b[k]) return false;
+    return true;
+}
+
+fn next_search_id_for(name_ptr: u32, name_len: u32) u32 {
+    var max_id: u32 = 0;
+    var cur = searches_head;
+    while (cur != 0) {
+        if (search_name_matches(cur, name_ptr, name_len)) {
+            const id: u32 = @bitCast(read_i32(cur + SEARCH_OFF_ID));
+            if (id > max_id) max_id = id;
+        }
+        cur = @bitCast(read_i32(cur + SEARCH_OFF_NEXT));
+    }
+    return max_id + 1;
+}
+
+fn find_search_rec(name_ptr: u32, name_len: u32, id: u32) u32 {
+    var cur = searches_head;
+    while (cur != 0) {
+        const rid: u32 = @bitCast(read_i32(cur + SEARCH_OFF_ID));
+        if (rid == id and search_name_matches(cur, name_ptr, name_len)) return cur;
+        cur = @bitCast(read_i32(cur + SEARCH_OFF_NEXT));
+    }
+    return 0;
+}
+
+fn unlink_search_rec(rec: u32) void {
+    if (rec == 0) return;
+    if (searches_head == rec) {
+        searches_head = @bitCast(read_i32(rec + SEARCH_OFF_NEXT));
+        return;
+    }
+    var prev = searches_head;
+    while (prev != 0) {
+        const nxt: u32 = @bitCast(read_i32(prev + SEARCH_OFF_NEXT));
+        if (nxt == rec) {
+            const after: i32 = read_i32(rec + SEARCH_OFF_NEXT);
+            write_i32(prev + SEARCH_OFF_NEXT, after);
+            return;
+        }
+        prev = nxt;
+    }
+}
+
+/// Remove every active search on *arr*.  Called from
+/// ``array_invalidate_searches_for`` whenever the array's element
+/// count changes (insert / unset) — Tcl 9's
+/// :func:`DeleteSearches` semantics.
+fn drop_searches_for(name_ptr: u32, name_len: u32) void {
+    var cur = searches_head;
+    var prev: u32 = 0;
+    while (cur != 0) {
+        const nxt: u32 = @bitCast(read_i32(cur + SEARCH_OFF_NEXT));
+        if (search_name_matches(cur, name_ptr, name_len)) {
+            if (prev == 0) {
+                searches_head = nxt;
+            } else {
+                write_i32(prev + SEARCH_OFF_NEXT, @bitCast(nxt));
+            }
+            // Don't advance prev — cur was removed.
+        } else {
+            prev = cur;
+        }
+        cur = nxt;
+    }
+}
+
+/// Called from every mutation path (set new key, unset element,
+/// array_unset, traces add).  ``arr`` is the user-visible name —
+/// we normalise it here so the search lookup keys match the form
+/// stored on the record.
+fn array_invalidate_searches_for(arr: i32) void {
+    if (searches_head == 0) return;
+    const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
+    const sn = obj_ensure_string(n);
+    if (sn.ptr == 0 or sn.len == 0) return;
+    drop_searches_for(sn.ptr, sn.len);
+}
+
+/// Allocate a fresh search record on the array bump heap.  The
+/// array name is copied so the record's name pointer survives the
+/// caller's TclObj going out of scope (parser-borrowed bytes).
+fn alloc_search_rec(name_ptr: u32, name_len: u32, id: u32, table_ptr: u32) u32 {
+    const rec = alloc(SEARCH_REC_SIZE);
+    if (rec == 0) return 0;
+    const nbuf = if (name_len == 0) 0 else alloc(name_len);
+    if (name_len > 0 and nbuf == 0) return 0;
+    if (name_len > 0) memcpy(nbuf, name_ptr, name_len);
+    write_i32(rec + SEARCH_OFF_NEXT, 0);
+    write_i32(rec + SEARCH_OFF_NAME_PTR, @bitCast(nbuf));
+    write_i32(rec + SEARCH_OFF_NAME_LEN, @bitCast(name_len));
+    write_i32(rec + SEARCH_OFF_ID, @bitCast(id));
+    write_i32(rec + SEARCH_OFF_ITER, 0);
+    write_i32(rec + SEARCH_OFF_TABLE, @bitCast(table_ptr));
+    return rec;
+}
+
+/// ``array startsearch arrName`` — registers a fresh search on
+/// *arr* and returns its TclObj search id (``s-N-NAME``).  Returns
+/// 0 when the array doesn't exist (caller raises "X isn't an
+/// array" first; this entry point assumes existence).
+pub fn array_search_start(arr: i32) i32 {
+    const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
+    const sn = obj_ensure_string(n);
+    if (sn.ptr == 0 or sn.len == 0) return 0;
+    const table = find_table(arr);
+    if (table == 0) return 0;
+    const id = next_search_id_for(sn.ptr, sn.len);
+    const rec = alloc_search_rec(sn.ptr, sn.len, id, table);
+    if (rec == 0) return 0;
+    write_i32(rec + SEARCH_OFF_NEXT, @bitCast(searches_head));
+    searches_head = rec;
+    return build_search_id_obj(arr, id);
+}
+
+/// Build the canonical ``s-N-<user-visible-name>`` TclObj.  Uses
+/// the *caller-supplied* form of the array name (not the
+/// normalised storage key) so the round-trip matches Tcl's
+/// behaviour: ``array startsearch ::foo`` returns ``s-1-::foo``,
+/// not ``s-1-foo``.
+fn build_search_id_obj(arr: i32, id: u32) i32 {
+    const arr_s = obj_ensure_string(arr);
+    // Render the decimal id.
+    var d_buf: [10]u8 = undefined;
+    var d_len: u32 = 0;
+    var d_val = id;
+    if (d_val == 0) {
+        d_buf[0] = '0';
+        d_len = 1;
+    } else {
+        while (d_val > 0) {
+            d_buf[d_len] = @intCast('0' + (d_val % 10));
+            d_val /= 10;
+            d_len += 1;
+        }
+    }
+    const prefix_len: u32 = 2; // "s-"
+    const sep_len: u32 = 1; // "-"
+    const total: u32 = prefix_len + d_len + sep_len + arr_s.len;
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    dst[0] = 's';
+    dst[1] = '-';
+    var off: u32 = 2;
+    var di: u32 = d_len;
+    while (di > 0) {
+        di -= 1;
+        dst[off] = d_buf[di];
+        off += 1;
+    }
+    dst[off] = '-';
+    off += 1;
+    if (arr_s.len > 0) {
+        const ap: [*]const u8 = @ptrFromInt(arr_s.ptr);
+        for (0..arr_s.len) |k| dst[off + k] = ap[k];
+    }
+    return obj.obj_new_string_take(buf, total, total);
+}
+
+/// Look up a search by *(arrName, id)*.  Returns the record
+/// address, or 0 if the search isn't registered (was auto-stopped
+/// or already done).  Search IDs are keyed off the *normalised*
+/// array name, so the caller doesn't need to normalise.
+pub fn array_search_lookup(arr: i32, id: u32) u32 {
+    if (searches_head == 0) return 0;
+    const n = normalize_ns_name(arr);
+    defer if (n != arr) obj.tcl_obj_release(n);
+    const sn = obj_ensure_string(n);
+    if (sn.ptr == 0 or sn.len == 0) return 0;
+    return find_search_rec(sn.ptr, sn.len, id);
+}
+
+/// ``array nextelement arrName SID`` body once the SID has been
+/// validated and matched to a live search record.  Returns the
+/// next key TclObj or an empty string when the search has been
+/// exhausted; advances the record's iter cursor as a side
+/// effect.  Does NOT raise on its own — the caller (array.zig)
+/// owns the wrong-array / not-found / illegal error paths.
+pub fn array_search_next(arr: i32, rec: u32) i32 {
+    _ = arr;
+    if (rec == 0) return obj_new_string(0, 0);
+    const table: u32 = @bitCast(read_i32(rec + SEARCH_OFF_TABLE));
+    if (table == 0) return obj_new_string(0, 0);
+    const cap = ar_cap(table);
+    var pos: u32 = @bitCast(read_i32(rec + SEARCH_OFF_ITER));
+    while (pos < cap) : (pos += 1) {
+        const bucket = table + AR_HEADER_SIZE + pos * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        if (raw == 0 or raw == AR_TOMBSTONE) continue;
+        // Found a live key — package and advance.
+        const kp: u32 = @bitCast(raw);
+        const kl: u32 = @bitCast(read_i32(bucket + 4));
+        write_i32(rec + SEARCH_OFF_ITER, @bitCast(pos + 1));
+        return obj_new_string(@bitCast(kp), @bitCast(kl));
+    }
+    // Exhausted.
+    write_i32(rec + SEARCH_OFF_ITER, @bitCast(cap));
+    return obj_new_string(0, 0);
+}
+
+/// True when *rec* still has at least one key the cursor hasn't
+/// returned yet.  Pure peek — does NOT advance the cursor.
+pub fn array_search_anymore(rec: u32) bool {
+    if (rec == 0) return false;
+    const table: u32 = @bitCast(read_i32(rec + SEARCH_OFF_TABLE));
+    if (table == 0) return false;
+    const cap = ar_cap(table);
+    var pos: u32 = @bitCast(read_i32(rec + SEARCH_OFF_ITER));
+    while (pos < cap) : (pos += 1) {
+        const bucket = table + AR_HEADER_SIZE + pos * AR_BUCKET_SIZE;
+        const raw = read_i32(bucket);
+        if (raw == 0 or raw == AR_TOMBSTONE) continue;
+        return true;
+    }
+    return false;
+}
+
+/// Retire *rec*: detach from the global list.  Caller has the
+/// record's address; we don't bother clearing the record fields
+/// (bump-allocated memory; never reused).
+pub fn array_search_done(rec: u32) void {
+    unlink_search_rec(rec);
 }
 
 /// array_names arrName ?pattern? — returns a space-separated list

@@ -191,40 +191,52 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         if (words.len >= 4) return result_mod.from_globals(array_mod.array_unset_element(resolved_name, words[3]));
         return result_mod.from_globals(array_mod.array_unset(resolved_name));
     }
-    // ``anymore`` / ``donesearch`` / ``nextelement`` / ``startsearch``
-    // / ``statistics``: the ``needs_array`` probe above already
-    // handled the missing-array case.  The remaining failure mode
-    // (search-handle validation) isn't implemented; raise a stub
-    // diagnostic.
+    // ``anymore`` / ``donesearch`` / ``nextelement``.  The
+    // ``needs_array`` probe above already handled the missing-array
+    // case.  Validate the SID shape against the operand array name,
+    // then look up the search record — if it's not currently
+    // registered the caller sees ``couldn't find search "..."``
+    // (set-old-9.5 / 9.6 / 9.8 / 9.10).
     if (str_eq(sp, sub_len, "anymore") or
         str_eq(sp, sub_len, "donesearch") or
         str_eq(sp, sub_len, "nextelement"))
     {
-        // ``array next/done/anymore arr SID`` — validate the SID
-        // format (``s-N-VARNAME``).  We don't actually track open
-        // searches yet, so a well-formed SID whose VARNAME matches
-        // the input array surfaces as ``couldn't find search ...``
-        // (set-old-10.11); mismatched VARNAME → "search identifier
-        // ... isn't for variable ..." (set-old-10.9).  Anything
-        // else is "illegal search identifier".
         const sid_obj = obj_ensure_string(words[3]);
         const arr_obj = obj_ensure_string(words[2]);
         const validation = validate_search_id(sid_obj.ptr, sid_obj.len, arr_obj.ptr, arr_obj.len);
         switch (validation) {
-            .illegal => raise_illegal_search_id(words[3]),
-            .wrong_array => raise_search_wrong_array(words[3], words[2]),
-            .not_found => raise_search_not_found(words[3]),
+            .illegal => {
+                raise_illegal_search_id(words[3]);
+                return result_mod.from_globals(0);
+            },
+            .wrong_array => {
+                raise_search_wrong_array(words[3], words[2]);
+                return result_mod.from_globals(0);
+            },
+            .ok => {},
         }
-        return result_mod.from_globals(0);
+        // SID is well-formed and the VARNAME matches the operand
+        // array.  Now resolve the (array, id) pair to a live
+        // search record.
+        const id = parse_search_id_number(sid_obj.ptr, sid_obj.len);
+        const rec = array_mod.array_search_lookup(words[2], id);
+        if (rec == 0) {
+            raise_search_not_found(words[3]);
+            return result_mod.from_globals(0);
+        }
+        if (str_eq(sp, sub_len, "anymore")) {
+            const has = array_mod.array_search_anymore(rec);
+            return result_mod.from_globals(obj_mod.obj_new_int(if (has) @as(i32, 1) else @as(i32, 0)));
+        }
+        if (str_eq(sp, sub_len, "donesearch")) {
+            array_mod.array_search_done(rec);
+            return result_mod.from_globals(0);
+        }
+        // nextelement
+        return result_mod.from_globals(array_mod.array_search_next(words[2], rec));
     }
     if (str_eq(sp, sub_len, "startsearch")) {
-        // Stub: return a synthetic search id ``s-1-NAME``.  The
-        // caller will subsequently invoke ``array next/done arr
-        // SID``; those return "couldn't find search" today because
-        // we don't actually track open searches.  This is enough
-        // for the test bodies that only round-trip the SID through
-        // ``donesearch`` without examining values.
-        return result_mod.from_globals(build_search_id(words[2]));
+        return result_mod.from_globals(array_mod.array_search_start(words[2]));
     }
     if (str_eq(sp, sub_len, "statistics")) {
         return result_mod.from_globals(obj_new_string(0, 0));
@@ -377,7 +389,7 @@ fn raise_bad_names_mode(mode_obj: i32) void {
     catch_mod.tcl_cmd_error(e);
 }
 
-const SidStatus = enum { illegal, wrong_array, not_found };
+const SidStatus = enum { illegal, wrong_array, ok };
 
 /// Validate an ``array next/done/anymore`` search-ID against the
 /// canonical Tcl 9 ``s-N-VARNAME`` shape.  Returns:
@@ -385,11 +397,9 @@ const SidStatus = enum { illegal, wrong_array, not_found };
 ///   * ``wrong_array`` — well-formed but VARNAME doesn't match the
 ///                       array operand (raise "search identifier ...
 ///                       isn't for variable ...")
-///   * ``not_found``   — well-formed AND VARNAME matches but we have
-///                       no live search registered (raise "couldn't
-///                       find search ...").  This is the case the
-///                       runtime returns for every SID until proper
-///                       search-state tracking lands.
+///   * ``ok``          — shape matches; caller then checks whether
+///                       a live search record exists, raising
+///                       ``couldn't find search ...`` if not.
 fn validate_search_id(sid_ptr: u32, sid_len: u32, arr_ptr: u32, arr_len: u32) SidStatus {
     if (sid_len < 4) return .illegal;
     const sp: [*]const u8 = @ptrFromInt(sid_ptr);
@@ -412,7 +422,20 @@ fn validate_search_id(sid_ptr: u32, sid_len: u32, arr_ptr: u32, arr_len: u32) Si
     for (0..name_len) |k| {
         if (sp[i + k] != ap[k]) return .wrong_array;
     }
-    return .not_found;
+    return .ok;
+}
+
+/// Parse the numeric component out of a validated ``s-N-NAME``
+/// search-ID.  Assumes :fn:`validate_search_id` returned ``.ok``
+/// (or ``.wrong_array``) — i.e. the shape is well-formed.
+fn parse_search_id_number(sid_ptr: u32, sid_len: u32) u32 {
+    var n: u32 = 0;
+    const sp: [*]const u8 = @ptrFromInt(sid_ptr);
+    var i: u32 = 2;
+    while (i < sid_len and sp[i] >= '0' and sp[i] <= '9') : (i += 1) {
+        n = n * 10 + (sp[i] - '0');
+    }
+    return n;
 }
 
 fn raise_search_wrong_array(sid: i32, arr: i32) void {
@@ -486,28 +509,6 @@ fn raise_search_not_found(sid: i32) void {
     }
     const e = obj_mod.obj_new_string_take(buf, total, total);
     catch_mod.tcl_cmd_error(e);
-}
-
-/// Synthesise ``s-1-NAME`` for a fresh ``array startsearch``.
-fn build_search_id(arr: i32) i32 {
-    const obj_mod = @import("../valtypes/tcl_obj.zig");
-    const arr_s = obj_mod.obj_ensure_string(arr);
-    const prefix: []const u8 = "s-1-";
-    const total: u32 = @intCast(prefix.len + arr_s.len);
-    const buf = obj_mod.alloc(total);
-    if (buf == 0) return obj_mod.obj_new_string(0, 0);
-    const dst: [*]u8 = @ptrFromInt(buf);
-    var off: u32 = 0;
-    for (prefix) |c| {
-        dst[off] = c;
-        off += 1;
-    }
-    const ap: [*]const u8 = @ptrFromInt(arr_s.ptr);
-    for (0..arr_s.len) |k| {
-        dst[off] = ap[k];
-        off += 1;
-    }
-    return obj_mod.obj_new_string_take(buf, total, total);
 }
 
 fn is_valid_names_mode(p: u32, len: u32) bool {
