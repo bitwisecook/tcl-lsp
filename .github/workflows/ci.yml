@@ -289,6 +289,17 @@ jobs:
           fi
           install -m 0755 "$tmp" install.sh
           rm -f "$tmp"
+
+      - name: Attest installer script build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: "install.sh"
+
+      - name: Upload installer script to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
           gh release upload "$tag" install.sh --clobber
 
   # Build: VSIX package
