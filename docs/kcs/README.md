@@ -115,6 +115,11 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
   — rename a pool everywhere, including inside iRule bodies.
 - [kcs-howto-find-objects-by-query.md](kcs-howto-find-objects-by-query.md)
   — filter BIG-IP objects by arbitrary property predicates.
+- [kcs-howto-script-against-f5-query-from-python.md](kcs-howto-script-against-f5-query-from-python.md)
+  — drive the query engine from a Python script via the `f5q`
+  alias, get typed `ObjectRef` / `PathRef` results back, render
+  with a built-in plugin, or ship your own renderer in one
+  `@renderer` decorator.
 - [kcs-tcl-corner-cases.md](kcs-tcl-corner-cases.md)
   — empirical reference of Tcl 9.0.3 variable-handling behaviour
   with a machine-runnable probe set in `tests/data/tcl_probes_full.tcl`.

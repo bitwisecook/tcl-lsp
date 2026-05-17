@@ -34,7 +34,7 @@ def _flat(values: Iterable[Any]) -> list[Any]:
     return out
 
 
-def render(values: list[Any], *, mode: str = "auto") -> str:
+def render(values: list[Any], *, mode: str = "auto", **opts: Any) -> str:
     values = _flat(values)
     if mode == "auto":
         return _render_auto(values)
@@ -50,7 +50,16 @@ def render(values: list[Any], *, mode: str = "auto") -> str:
         return _render_table(values, lineart=False)
     if mode == "table-lineart":
         return _render_table(values, lineart=True)
-    raise ValueError(f"unknown output mode: {mode}")
+    # Fall through to the pluggable renderer registry.  Built-in
+    # renderers (``mermaid``, ``gantt``, ``ascii-blocks``) are loaded
+    # on first lookup; user-registered plugins are picked up after
+    # whatever code path imported them ran.
+    from .renderers import lookup as _lookup_renderer
+
+    spec = _lookup_renderer(mode)
+    if spec is None:
+        raise ValueError(f"unknown output mode: {mode}")
+    return spec.impl(values, **opts)
 
 
 def _render_auto(values: list[Any]) -> str:

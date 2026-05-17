@@ -117,6 +117,7 @@ combine them when more than one form helps:
 - [kcs-feature-bigip-query.md](kcs-feature-bigip-query.md)
 - [kcs-feature-bigip-registry.md](kcs-feature-bigip-registry.md)
 - [kcs-feature-f5-cli.md](kcs-feature-f5-cli.md)
+- [kcs-feature-f5-query-renderers.md](kcs-feature-f5-query-renderers.md)
 
 ## AI features
 

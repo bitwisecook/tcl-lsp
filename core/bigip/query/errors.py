@@ -47,3 +47,14 @@ class EditError(QueryError):
 
 class BuiltinError(QueryError):
     """A builtin function rejected its arguments."""
+
+
+class RendererError(QueryError):
+    """A renderer rejected its input or options.
+
+    Raised by registered renderers (see :mod:`core.bigip.query.renderers`)
+    and by the registry itself when an unknown name is requested.  Keeping
+    it under :class:`QueryError` lets the CLI's ``error:`` handling path
+    treat renderer failures the same way it treats parse and evaluation
+    failures.
+    """

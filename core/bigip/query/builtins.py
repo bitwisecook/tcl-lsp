@@ -139,12 +139,99 @@ def _dedent_details(text: str) -> str:
     return textwrap.dedent(text).strip()
 
 
+def builtin(
+    name: str,
+    *,
+    summary: str = "",
+    signatures: tuple[str, ...] = (),
+    examples: tuple[str, ...] = (),
+    category: str = "user",
+    min_args: int = 0,
+    max_args: int | None = None,
+    details: str = "",
+    special_form: bool = False,
+    with_ctx: bool = False,
+    stream_aware: bool = False,
+) -> Callable[[Callable], Callable]:
+    """Public decorator — register *fn* as the DSL builtin *name*.
+
+    Mirrors the in-tree ``_register`` decorator but with usable
+    defaults so a script can drop a one-line plugin into
+    ``$XDG_CONFIG_HOME/f5q/plugins/`` and have it work:
+
+    .. code-block:: python
+
+        from f5q import builtin
+
+        @builtin("uppercase", summary="ASCII upper-case a string.",
+                 min_args=1, max_args=1)
+        def _uppercase(s):
+            return str(s).upper()
+
+    After the plugin loads (auto-discovered on first call to
+    :func:`lookup` / :func:`list_builtins`, or via
+    :func:`core.bigip.query.plugins.load_user_plugins`), the DSL can
+    call ``uppercase(.ltm.virtual[].name)`` from the CLI and the
+    Python API alike.
+
+    Defaults vs ``_register``:
+
+    - *category* defaults to ``"user"``; in-tree builtins always
+      specify one of the ``_CATEGORY_ORDER`` slots.
+    - *min_args* / *max_args* default to ``0`` / ``None`` (variadic);
+      in-tree builtins pin them so ``--help-builtins`` shows arity
+      bounds.
+    - *signatures* / *examples* default to empty tuples; for a quick
+      plugin they're optional, but supplying them populates the
+      ``--help-builtins NAME`` page.
+
+    All other fields (``details``, ``special_form``, ``with_ctx``,
+    ``stream_aware``) match ``_register`` semantics — see the
+    in-tree builtins for examples of each.
+    """
+    return _register(
+        name,
+        summary=summary,
+        signatures=signatures,
+        examples=examples,
+        category=category,
+        min_args=min_args,
+        max_args=max_args,
+        details=details,
+        special_form=special_form,
+        with_ctx=with_ctx,
+        stream_aware=stream_aware,
+    )
+
+
 def lookup(name: str) -> BuiltinSpec | None:
+    _ensure_plugins_loaded()
     return _REGISTRY.get(name)
+
+
+_PLUGINS_LOADED = False
+
+
+def _ensure_plugins_loaded() -> None:
+    """Auto-load user plugins on first registry access.
+
+    Same pattern the renderer registry uses — the first call to
+    :func:`lookup` / :func:`list_builtins` scans
+    ``$XDG_CONFIG_HOME/f5q/plugins/`` and imports every ``*.py``
+    file there.  Subsequent calls are a flag check.
+    """
+    global _PLUGINS_LOADED
+    if _PLUGINS_LOADED:
+        return
+    _PLUGINS_LOADED = True
+    from .plugins import load_user_plugins
+
+    load_user_plugins()
 
 
 def list_builtins() -> list[BuiltinSpec]:
     """Return every builtin, sorted by category then name."""
+    _ensure_plugins_loaded()
     by_cat: dict[str, list[BuiltinSpec]] = {}
     for spec in _REGISTRY.values():
         by_cat.setdefault(spec.category, []).append(spec)
