@@ -39,6 +39,15 @@ All editors connect to the same Python LSP server over stdio.  The server can
 be invoked from source (`uv run python -m server`) or as a standalone zipapp
 (`python3 tcl-lsp-server.pyz`).
 
+**Also documented in [INSTALL-editors.md](INSTALL-editors.md):**
+
+- *VS Code-compatible editors* (load the same `.vsix` unchanged) —
+  Cursor, Windsurf, VSCodium, code-server / Coder, GitHub Codespaces,
+  Gitpod, and Eclipse Theia.
+- *Other LSP-capable editors* (point a generic LSP client at the
+  `.pyz`) — Vim (vim-lsp or coc.nvim), Kate, Kakoune, Notepad++, Geany,
+  Lite XL, micro, CudaText, JupyterLab, Doom Emacs, and Spacemacs.
+
 **File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
 `.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
 `#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
