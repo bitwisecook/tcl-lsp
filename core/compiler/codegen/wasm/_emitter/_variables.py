@@ -1649,7 +1649,13 @@ class _WasmEmitterVarMixin(_Base):
             # and writes ``::ns::<name>`` to the global table.
             # Bare ``variable name`` with no initializer is a
             # declaration that does nothing in our compiled model
-            # (reads are already auto-qualified by block-ns).
+            # (reads are already auto-qualified by block-ns).  The
+            # earlier attempt to round-trip it through a runtime
+            # ``variable_declare`` helper exposed a write-trace
+            # cascade in tcltest's bootstrap that traps the bundle
+            # — reverted pending a trace-fire fix.  ``info vars
+            # NS::*`` still misses bare-declared-only names but
+            # picks up every assigned one.
             i = 0
             while i < len(args):
                 name = args[i]

@@ -1306,21 +1306,33 @@ pub fn info_vars(pattern: i32) i32 {
     }
 
     if (is_qualified) {
-        // Collect matching names from both the global scalar var_table
-        // and the array directory, then merge into one list.
-        // Qualified patterns yield FQ results (``::ns::var``) — the
-        // root var_table stores flat ``ns::var`` keys, so we prepend
-        // ``::`` on emit.  Patterns are matched against the FQ form
-        // by synthesising ``::name`` per bucket.
+        // Vars created via ``namespace eval X { variable Y }`` are
+        // stored flat-keyed in root's var_table as ``X::Y`` (see
+        // :func:`scope.eval_variable`).  Tcl's ``info vars
+        // pat::*`` should:
+        //   * accept the pattern with or without a leading ``::``
+        //     (both ``ns::*`` and ``::ns::*`` work);
+        //   * match against the flat key (which has no leading
+        //     ``::``);
+        //   * emit results in fully-qualified form (``::ns::var``).
+        // We strip a leading ``::`` from the pattern for matching
+        // purposes, then prepend ``::`` on emit.
+        var match_pat_ptr: u32 = pat_ptr;
+        var match_pat_len: u32 = pat_len;
+        if (pat_len >= 2) {
+            const pp_check: [*]const u8 = @ptrFromInt(pat_ptr);
+            if (pp_check[0] == ':' and pp_check[1] == ':') {
+                match_pat_ptr = pat_ptr + 2;
+                match_pat_len = pat_len - 2;
+            }
+        }
+
         const arr_list = tcl_array.array_dir_names_matching(pat_ptr, pat_len);
         const arr_s = obj_ensure_string(arr_list);
 
         const root = tcl_ns.ns_root();
         const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
 
-        // Scratch helper: build ``::name`` into ``scratch[0..]`` and
-        // test against the pattern.  Returns the FQ length.
-        var fq_scratch: [512]u8 = undefined;
         var scalar_total: u32 = 0;
         var scalar_count: u32 = 0;
         if (ns.var_table.buf != 0) {
@@ -1332,18 +1344,12 @@ pub fn info_vars(pattern: i32) i32 {
                 const name_len: u32 = @bitCast(read_i32(bucket + 4));
                 const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
                 if (var_addr == 0) continue;
-                const v_val = tcl_ns.var_get_scalar(var_addr);
-                if (v_val == 0) continue;
-                // Compose ``::name`` for pattern match + emit.
-                const fq_len: u32 = name_len + 2;
-                if (fq_len > fq_scratch.len) continue;
-                fq_scratch[0] = ':';
-                fq_scratch[1] = ':';
-                const np: [*]const u8 = @ptrFromInt(name_ptr);
-                for (0..name_len) |k| fq_scratch[2 + k] = np[k];
-                if (!tcl_string.glob_match(pat_ptr, pat_len, @intFromPtr(&fq_scratch), fq_len)) continue;
+                // ``info vars`` lists declared variables — uninitialised
+                // ones (``variable foo`` with no value) still appear,
+                // unlike ``info exists`` which gates on actual storage.
+                if (!tcl_string.glob_match(match_pat_ptr, match_pat_len, name_ptr, name_len)) continue;
                 if (scalar_count > 0) scalar_total += 1;
-                scalar_total += fq_len;
+                scalar_total += name_len + 2; // ``::`` prefix on emit
                 scalar_count += 1;
             }
         }
@@ -1368,15 +1374,10 @@ pub fn info_vars(pattern: i32) i32 {
                 const name_len: u32 = @bitCast(read_i32(bucket + 4));
                 const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
                 if (var_addr == 0) continue;
-                const v_val = tcl_ns.var_get_scalar(var_addr);
-                if (v_val == 0) continue;
-                const fq_len: u32 = name_len + 2;
-                if (fq_len > fq_scratch.len) continue;
-                fq_scratch[0] = ':';
-                fq_scratch[1] = ':';
-                const np: [*]const u8 = @ptrFromInt(name_ptr);
-                for (0..name_len) |k| fq_scratch[2 + k] = np[k];
-                if (!tcl_string.glob_match(pat_ptr, pat_len, @intFromPtr(&fq_scratch), fq_len)) continue;
+                // ``info vars`` lists declared variables — uninitialised
+                // ones (``variable foo`` with no value) still appear,
+                // unlike ``info exists`` which gates on actual storage.
+                if (!tcl_string.glob_match(match_pat_ptr, match_pat_len, name_ptr, name_len)) continue;
                 if (written > 0) {
                     const d: [*]u8 = @ptrFromInt(merge_buf + off);
                     d[0] = ' ';
@@ -1385,8 +1386,9 @@ pub fn info_vars(pattern: i32) i32 {
                 const dst: [*]u8 = @ptrFromInt(merge_buf + off);
                 dst[0] = ':';
                 dst[1] = ':';
+                const np: [*]const u8 = @ptrFromInt(name_ptr);
                 for (0..name_len) |k| dst[2 + k] = np[k];
-                off += fq_len;
+                off += name_len + 2;
                 written += 1;
             }
         }
