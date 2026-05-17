@@ -1560,35 +1560,50 @@ pub export fn tcl_cmd_split(value: i32, split_chars: i32) i32 {
         return obj_new_string(@bitCast(buf), @bitCast(out));
     }
 
-    // Multi-char separator: split on any char in splitChars
+    // Multi-char separator: split on any codepoint in splitChars.
+    // Both *src* and *sep* are walked codepoint by codepoint so a
+    // multi-byte separator like ``乎`` doesn't mis-split on its
+    // continuation bytes (cmdMZ-4.13).
     const buf = alloc(sv.len * 3 + 4);
     var out: u32 = 0;
     var start: u32 = 0;
     var i: u32 = 0;
     var first = true;
-    while (i <= sv.len) : (i += 1) {
-        var is_sep = (i == sv.len);
-        if (!is_sep) {
-            for (0..sd.len) |k| {
-                if (src[i] == sep[k]) {
-                    is_sep = true;
-                    break;
-                }
-            }
-        }
+    while (i < sv.len) {
+        const d = decode_utf8_at(src, sv.len, i);
+        const is_sep = codepoint_in_set(d.cp, sep, sd.len);
         if (is_sep) {
             if (!first) {
-                const d: [*]u8 = @ptrFromInt(buf + out);
-                d[0] = ' ';
+                const dd: [*]u8 = @ptrFromInt(buf + out);
+                dd[0] = ' ';
                 out += 1;
             }
             first = false;
             out = list_quote_elem(buf, out, sv.ptr + start, i - start);
-            start = i + 1;
-            continue;
+            start = i + d.len;
         }
+        i += d.len;
     }
+    // Trailing element.
+    if (!first) {
+        const dd: [*]u8 = @ptrFromInt(buf + out);
+        dd[0] = ' ';
+        out += 1;
+    }
+    out = list_quote_elem(buf, out, sv.ptr + start, sv.len - start);
     return obj_new_string(@bitCast(buf), @bitCast(out));
+}
+
+/// Does *cp* appear in the codepoint set described by *set_ptr*
+/// (UTF-8 encoded, *set_len* bytes)?
+fn codepoint_in_set(cp: u32, set_ptr: [*]const u8, set_len: u32) bool {
+    var i: u32 = 0;
+    while (i < set_len) {
+        const d = decode_utf8_at(set_ptr, set_len, i);
+        if (d.cp == cp) return true;
+        i += d.len;
+    }
+    return false;
 }
 
 // Exported: join — join a Tcl list with a separator string.
