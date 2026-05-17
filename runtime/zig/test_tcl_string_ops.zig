@@ -198,11 +198,14 @@ test "string_toupper / string_tolower" {
     try testing.expectEqualStrings("HELLO 123!", bytes(str.string_toupper(s("Hello 123!"))));
 }
 
-test "string_totitle — first alpha upper, rest lower" {
+test "string_totitle — first codepoint title-cased, rest lower" {
     try testing.expectEqualStrings("Hello", bytes(str.string_totitle(s("hello"))));
     try testing.expectEqualStrings("Hello", bytes(str.string_totitle(s("HELLO"))));
-    // Non-alpha leading bytes are passed through; first alpha gets upper.
-    try testing.expectEqualStrings("123 Abc", bytes(str.string_totitle(s("123 abc"))));
+    // Only the first codepoint is title-cased; if it has no title
+    // variant (e.g. a digit), it passes through unchanged and the
+    // rest is lowercased.  Matches Tcl 9 ``string totitle`` (only
+    // touches index 0; no "find first alpha" logic).
+    try testing.expectEqualStrings("123 abc", bytes(str.string_totitle(s("123 abc"))));
 }
 
 // ---- replace --------------------------------------------------------
