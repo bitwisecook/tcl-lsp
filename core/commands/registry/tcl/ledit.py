@@ -13,7 +13,7 @@ from ..models import (
     HoverSnippet,
     ValidationSpec,
 )
-from ..signatures import Arity, ArgRole
+from ..signatures import ArgRole, Arity
 from ..type_hints import ArgTypeHint
 from ._base import register
 
@@ -56,6 +56,6 @@ class LeditCommand(CommandDef):
                 1: ArgTypeHint(expected=TclType.INT, shimmers=True),
                 2: ArgTypeHint(expected=TclType.INT, shimmers=True),
             },
-            arg_roles={0: ArgRole.VAR_WRITE},
+            arg_roles={0: frozenset({ArgRole.VAR_WRITE})},
             side_effect_hints=(),
         )

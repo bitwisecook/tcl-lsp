@@ -657,9 +657,7 @@ class _WasmEmitterCtrlMixin(_Base):
                     # ``try {${script}}`` — the latter blocks the runtime
                     # substitution and lands ``${script}`` itself as the
                     # body string for ``eval_try``).
-                    self._emit_eval_fallback(
-                        barrier_cmd, barrier_args, tokens=barrier_tokens
-                    )
+                    self._emit_eval_fallback(barrier_cmd, barrier_args, tokens=barrier_tokens)
                     # result is on stack; no DROP
                 else:
                     self._emit_eval_fallback(reason)
