@@ -551,22 +551,29 @@ def _apply_merged_settings_now() -> None:
     global _pending_apply_handle
     _pending_apply_handle = None
 
-    # Snapshot each open document's resolved (dialect, extras, non_ascii_mode)
-    # before any cfg mutates so we can detect per-folder dialect changes that
-    # don't show up in ``signatures_changed`` below (which only tracks the
-    # workspace-level ``configure_signatures`` call).  Without this, a folder
-    # whose ``tclLsp.dialect`` arrives late via ``workspace/configuration``
-    # (a normal race on session start, when ``did_open`` for already-open
-    # editors fires before the pull callback returns) leaves W002 / W108 /
-    # W123 baked into the cached analysis even after the per-folder dialect
-    # resolves to the right value.  See issue #407.
+    # Snapshot each open document's resolved settings *before* any cfg
+    # mutates so we can detect per-folder changes that don't show up in
+    # ``signatures_changed`` below (which only tracks the workspace-level
+    # ``configure_signatures`` call).  Without this, a folder whose
+    # ``tclLsp.dialect`` (or other analyser-baked setting) arrives late
+    # via ``workspace/configuration`` -- a normal race on session start,
+    # when ``did_open`` for already-open editors fires before the pull
+    # callback returns -- leaves W002 / W108 / W123 baked into the cached
+    # analysis even after the per-folder setting resolves to the right
+    # value.  ``disabled_diagnostics`` is in the tuple too because the
+    # analyser gates W123 / W242 / W307 / W308 emission on it (see
+    # ``_effective_disabled_diagnostics``); user-toggled diagnostic
+    # enablement therefore changes what's in the cached AnalysisResult,
+    # not just the post-filter.  See issue #407.
     pre_apply_doc_resolution: dict[str, tuple] = {}
     for uri, doc_state in _state.workspace_state.items():
         dialect, extras = _state.resolve_dialect_for_uri(uri, doc_state.source)
+        cfg_for_uri = _state.config_for_uri(uri)
         pre_apply_doc_resolution[uri] = (
             dialect,
             extras,
-            _state.config_for_uri(uri).non_ascii_mode,
+            cfg_for_uri.non_ascii_mode,
+            frozenset(cfg_for_uri.disabled_diagnostics),
         )
 
     fallback_settings = _merged_settings()
@@ -723,15 +730,18 @@ def _apply_merged_settings_now() -> None:
     except RuntimeError:
         loop = None
     for uri, doc_state in _state.workspace_state.items():
-        # Did this doc's resolved dialect / extras / non-ASCII mode change?
-        # If so the cached analysis was built with stale per-folder settings
-        # — dialect-baked checks (W002, W108, W123, irules_checks etc.) need
-        # a re-analyse, not just a re-publish.  See issue #407.
+        # Did this doc's resolved dialect / extras / non-ASCII mode /
+        # disabled_diagnostics change?  If so the cached analysis was
+        # built with stale per-folder settings — dialect-baked checks
+        # (W002, W108, W123, irules_checks etc.) need a re-analyse, not
+        # just a re-publish.  See issue #407.
         new_dialect, new_extras = _state.resolve_dialect_for_uri(uri, doc_state.source)
+        new_cfg = _state.config_for_uri(uri)
         new_resolution = (
             new_dialect,
             new_extras,
-            _state.config_for_uri(uri).non_ascii_mode,
+            new_cfg.non_ascii_mode,
+            frozenset(new_cfg.disabled_diagnostics),
         )
         doc_force_reanalyse = signatures_changed or (
             pre_apply_doc_resolution.get(uri) != new_resolution

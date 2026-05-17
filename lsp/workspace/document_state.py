@@ -146,6 +146,28 @@ _IAPPS_EXTENSIONS = (".iapp", ".iappimpl", ".impl", ".apl")
 _EXPECT_EXTENSIONS = (".exp",)
 
 
+def _effective_disabled_diagnostics(uri: str | None) -> frozenset[str]:
+    """Effective ``disabled_diagnostics`` for the analyser at *uri*.
+
+    The analyser gates expensive opt-in checks (W123 unresolved-command
+    suggestions, W242 loop termination, W307/W308 indirect-call checks,
+    etc.) on its ``_disabled_diagnostics`` set.  Constructing the
+    analyser with the static ``default_disabled_diagnostics()`` made it
+    impossible for users to enable opt-in codes via
+    ``tclLsp.diagnostics.<code>: true`` (the user's choice was filtered
+    only *post*-analysis by ``get_basic_diagnostics`` — but the analyser
+    had already short-circuited the emit path).  Resolving the
+    per-folder ``FeatureConfig`` here keeps the gate honest.
+
+    Done as a lazy import to break the ``lsp.state`` ↔
+    ``lsp.workspace.document_state`` import cycle.
+    """
+    from lsp.state import config_for_uri
+
+    cfg = config_for_uri(uri)
+    return frozenset(cfg.disabled_diagnostics)
+
+
 def infer_document_dialect(uri: str, source: str, language_id: str = "") -> str | None:
     """Infer the best dialect hint for a single document."""
     lang = language_id.lower()
@@ -206,6 +228,19 @@ def _analyse_document_fresh(
 
         set_non_ascii_mode(non_ascii_mode)
 
+    # The analyser gates expensive opt-in checks (W123 unresolved-command
+    # suggestions, W242 loop termination, etc.) on its
+    # ``_disabled_diagnostics`` set.  Use the *effective* set from the
+    # parent's ``feature_config`` (already filtered for user enablement)
+    # rather than ``default_disabled_diagnostics()`` so opt-in codes the
+    # user has enabled via ``tclLsp.diagnostics.<code>: true`` actually
+    # reach the emit path.  See issue #407 follow-up.
+    analyser_disabled = (
+        frozenset(disabled_diagnostics)
+        if disabled_diagnostics is not None
+        else default_disabled_diagnostics()
+    )
+
     t0 = time.perf_counter()
 
     chunks = segment_top_level_chunks(source)
@@ -228,7 +263,7 @@ def _analyse_document_fresh(
 
         analysis, embedded_rules = analyse_conf_wrapped(
             source,
-            disabled_diagnostics=default_disabled_diagnostics(),
+            disabled_diagnostics=analyser_disabled,
             file_path=uri,
         )
         all_profiles: set[str] = set()
@@ -284,7 +319,7 @@ def _analyse_document_fresh(
         log.debug("subprocess: compilation failed", exc_info=True)
 
     chunk_commands = [list(chunk.commands) for chunk in chunks]
-    analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
+    analyser = Analyser(disabled_diagnostics=analyser_disabled)
     analysis, chunk_snapshots = analyser.analyse_chunked(
         source,
         chunk_commands,
@@ -1163,8 +1198,9 @@ class DocumentState:
 
         dirty_chunk_commands = [list(chunk.commands) for chunk in new_chunks[dirty_idx:]]
 
+        analyser_disabled = _effective_disabled_diagnostics(self.uri)
         if restore_snapshot is not None:
-            analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
+            analyser = Analyser(disabled_diagnostics=analyser_disabled)
             analyser.restore(restore_snapshot)
             analysis, dirty_snapshots = analyser.analyse_chunked(
                 source,
@@ -1175,7 +1211,7 @@ class DocumentState:
             )
         else:
             # No snapshot to restore from — full chunked analysis.
-            analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
+            analyser = Analyser(disabled_diagnostics=analyser_disabled)
             analysis, dirty_snapshots = analyser.analyse_chunked(
                 source,
                 dirty_chunk_commands,
@@ -1384,7 +1420,7 @@ class DocumentState:
         # chunk-by-chunk, capturing snapshots at each boundary.  This avoids
         # the old pattern of running analyse() then re-analysing per-chunk.
         chunk_commands = [list(chunk.commands) for chunk in new_chunks]
-        analyser = Analyser(disabled_diagnostics=default_disabled_diagnostics())
+        analyser = Analyser(disabled_diagnostics=_effective_disabled_diagnostics(self.uri))
         analysis, chunk_snapshots = analyser.analyse_chunked(
             source,
             chunk_commands,
@@ -1452,7 +1488,7 @@ class DocumentState:
 
         analysis, embedded_rules = analyse_conf_wrapped(
             source,
-            disabled_diagnostics=default_disabled_diagnostics(),
+            disabled_diagnostics=_effective_disabled_diagnostics(self.uri),
             file_path=self.uri,
         )
 
