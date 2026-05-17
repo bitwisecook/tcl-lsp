@@ -16,6 +16,14 @@ server; the standalone editors (Neovim/Emacs/Helix) point at
 | [Helix](#helix) | `tcl-lsp-server-<v>.pyz` | `languages.toml` |
 | [Zed](#zed) | extension registry | `zed: extensions` |
 
+**[VS Code-compatible editors](#vs-code-compatible-editors)** (Cursor,
+Windsurf, VSCodium, code-server, Gitpod, Codespaces, Eclipse Theia)
+install the same `.vsix` unchanged.
+
+**[Other LSP-capable editors](#other-lsp-capable-editors)** (Vim,
+Kate, Kakoune, Notepad++, Geany, Lite XL, micro, CudaText,
+JupyterLab) point a generic LSP client at the `.pyz` server.
+
 ## Python
 
 `python3 --version` must report 3.10 or newer:
@@ -133,3 +141,220 @@ language-servers = ["tcl-lsp"]
 
 Command Palette > **`zed: extensions`** > search **Tcl**. The
 extension auto-downloads the LSP server on first use.
+
+## VS Code-compatible editors
+
+These editors load the VS Code `.vsix` unchanged. Download
+`tcl-lsp-vscode-<v>.vsix` from [Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest)
+and install with the editor's own CLI.
+
+| Editor | Install command |
+|--------|-----------------|
+| **Cursor** | `cursor --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix` |
+| **Windsurf** | `windsurf --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix` |
+| **VSCodium** | `codium --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix` |
+| **code-server** (Coder) | Drag-drop into the Extensions side panel, or `code-server --install-extension <path>` |
+| **GitHub Codespaces** | Extensions side panel > `...` > **Install from VSIX…** |
+| **Gitpod** | Same as Codespaces — open the workspace and install from VSIX |
+| **Eclipse Theia** | Extensions side panel > **Install from VSIX…** |
+
+Settings UI, keybindings, and the compiler-explorer / Tk preview
+panels behave the same as in VS Code itself. Pin the Python
+interpreter with `tclLsp.pythonPath` if `auto` picks the wrong one.
+
+## Other LSP-capable editors
+
+These editors have a built-in or third-party generic LSP client.
+Drop `tcl-lsp-server-<v>.pyz` somewhere stable (the examples below
+use `~/bin/tcl-lsp-server.pyz`) and paste the snippet into the
+editor's config.
+
+### Vim (classic, non-Neovim)
+
+**vim-lsp** (`prabirshrestha/vim-lsp`) in `~/.vimrc`:
+
+```vim
+if executable('python3')
+    augroup tcl_lsp_register
+        au!
+        au User lsp_setup call lsp#register_server({
+            \ 'name': 'tcl-lsp',
+            \ 'cmd': {server_info->['python3', expand('~/bin/tcl-lsp-server.pyz')]},
+            \ 'allowlist': ['tcl'],
+            \ 'workspace_config': {'tclLsp': {'dialect': 'tcl8.6'}},
+            \ })
+    augroup END
+endif
+
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl set filetype=tcl
+```
+
+**coc.nvim** (`neoclide/coc.nvim`) in `coc-settings.json`
+(`:CocConfig`):
+
+```json
+{
+  "languageserver": {
+    "tcl-lsp": {
+      "command": "python3",
+      "args": ["/home/you/bin/tcl-lsp-server.pyz"],
+      "filetypes": ["tcl"],
+      "settings": { "tclLsp": { "dialect": "tcl8.6" } }
+    }
+  }
+}
+```
+
+### Kate
+
+Kate ships with a built-in LSP client. Enable it under **Settings >
+Configure Kate > Plugins > LSP Client**, then open **Settings >
+Configure Kate > LSP Client > User Server Settings** and paste:
+
+```json
+{
+  "servers": {
+    "tcl": {
+      "command": ["python3", "/home/you/bin/tcl-lsp-server.pyz"],
+      "rootIndicationFileNames": ["pkgIndex.tcl", ".git"],
+      "highlightingModeRegex": "^Tcl/Tk$",
+      "settings": { "tclLsp": { "dialect": "tcl8.6" } }
+    }
+  }
+}
+```
+
+### Kakoune
+
+Install [`kak-lsp`](https://github.com/kakoune-lsp/kakoune-lsp),
+then in `~/.config/kak-lsp/kak-lsp.toml`:
+
+```toml
+[language.tcl]
+filetypes = ["tcl"]
+roots = ["pkgIndex.tcl", ".git"]
+command = "python3"
+args = ["/home/you/bin/tcl-lsp-server.pyz"]
+settings_section = "tclLsp"
+
+[language.tcl.settings.tclLsp]
+dialect = "tcl8.6"
+```
+
+In `~/.config/kak/kakrc`:
+
+```kak
+eval %sh{kak-lsp --kakoune -s $kak_session}
+hook global WinSetOption filetype=tcl %{ lsp-enable-window }
+```
+
+### Notepad++
+
+1. **Plugins > Plugins Admin…** > install **nppLspClient**.
+2. **Plugins > nppLspClient > Edit configuration** and add:
+
+```json
+{
+  "servers": {
+    "tcl": {
+      "name": "tcl-lsp",
+      "executable": "python3",
+      "args": "C:\\Users\\you\\tcl-lsp-server.pyz",
+      "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl"],
+      "initOptions": { "tclLsp": { "dialect": "tcl8.6" } }
+    }
+  }
+}
+```
+
+3. Restart Notepad++.
+
+### Geany
+
+Geany 2.0+ bundles `geany-lsp`. Enable it under **Tools > Plugin
+Manager > LSP Client**, then edit
+`~/.config/geany/plugins/lsp/lsp.conf`:
+
+```ini
+[Tcl]
+cmd=python3 /home/you/bin/tcl-lsp-server.pyz
+use=true
+rpc-log=
+initialization-options-file=
+```
+
+### Lite XL
+
+Install the `lsp` plugin via `lpm install lsp` (or copy from
+[lite-xl-plugins](https://github.com/lite-xl/lite-xl-plugins)),
+then in `~/.config/lite-xl/init.lua`:
+
+```lua
+local lsp = require "plugins.lsp"
+lsp.add_server {
+  name = "tcl-lsp",
+  language = "tcl",
+  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$" },
+  command = { "python3", "/home/you/bin/tcl-lsp-server.pyz" },
+  settings = { tclLsp = { dialect = "tcl8.6" } },
+}
+```
+
+### micro
+
+Install [`micro-lsp`](https://github.com/AndCake/micro-plugin-lsp)
+via `> plugin install lsp`, then in `~/.config/micro/settings.json`:
+
+```json
+{
+  "lsp.server": "tcl=python3 /home/you/bin/tcl-lsp-server.pyz",
+  "lsp.formatOnSave": false
+}
+```
+
+### CudaText
+
+Install **cuda_lsp** via **Plugins > Addons Manager > Install**,
+then create `settings/cuda_lsp/tcl.json` inside the CudaText
+settings folder:
+
+```json
+{
+  "lexers": { "Tcl": "tcl" },
+  "cmd_unix": ["python3", "/home/you/bin/tcl-lsp-server.pyz"],
+  "cmd_windows": ["python3", "C:\\Users\\you\\tcl-lsp-server.pyz"],
+  "work_dir": "",
+  "tcp_port": 0
+}
+```
+
+### JupyterLab
+
+```sh
+pip install jupyterlab-lsp jupyter-lsp
+```
+
+Then in `~/.jupyter/jupyter_server_config.py`:
+
+```python
+c.LanguageServerManager.language_servers = {
+    "tcl-lsp": {
+        "version": 2,
+        "argv": ["python3", "/home/you/bin/tcl-lsp-server.pyz"],
+        "languages": ["tcl"],
+        "mime_types": ["text/x-tcl", "text/tcl"],
+        "display_name": "Tcl LSP",
+    },
+}
+```
+
+Restart JupyterLab. `.tcl` files in the file browser now get
+diagnostics, completion, and hover.
+
+### Doom Emacs / Spacemacs
+
+Both ship eglot and lsp-mode. Use the snippets in the [Emacs](#emacs)
+section above, dropped into:
+
+- **Doom Emacs:** `~/.doom.d/config.el` (then `doom sync`).
+- **Spacemacs:** the `dotspacemacs/user-config` function in `~/.spacemacs`.
