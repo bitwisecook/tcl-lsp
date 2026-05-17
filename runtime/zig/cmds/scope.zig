@@ -28,7 +28,26 @@ fn eval_variable(words: []const i32) result_mod.InterpResult {
             sn.len,
         );
         if (r.target_ns == 0 or r.simple_len == 0) continue;
-        const var_ptr = tcl_ns.ns_var_create(r.target_ns, r.simple_ptr, r.simple_len);
+        // ``variable`` shares storage with the flat-key global store
+        // that ``set`` / ``info exists`` use for qualified names
+        // (mirrors :func:`tcl_ns.global_set` — see the matching FQN
+        // probe in :func:`var_resolve`).  Materialise the FQN once,
+        // route the create through ``ns_var_create(ns_root, fqn)``,
+        // and reuse the simple name for the proc-local alias.
+        const fqn = tcl_ns.ns_build_fqn(r.target_ns, r.simple_ptr, r.simple_len);
+        // ``ns_build_fqn`` returns ``"::name"`` (root + simple name)
+        // or ``"::ns::name"`` (non-root).  Strip the leading ``::`` so
+        // the flat-key matches the convention :func:`global_set` uses.
+        var flat_ptr = fqn.ptr;
+        var flat_len = fqn.len;
+        if (flat_len >= 2) {
+            const fp: [*]const u8 = @ptrFromInt(flat_ptr);
+            if (fp[0] == ':' and fp[1] == ':') {
+                flat_ptr += 2;
+                flat_len -= 2;
+            }
+        }
+        const var_ptr = tcl_ns.ns_var_create(tcl_ns.ns_root(), flat_ptr, flat_len);
         const local_name = obj_new_string(@bitCast(r.simple_ptr), @bitCast(r.simple_len));
         // Pass the target namespace + simple-name span through to
         // ``frame_alias_ns_var`` so :func:`frame_resolve_array_name`

@@ -1207,6 +1207,21 @@ pub fn variable_fqn_obj(ns: u32, simple_ptr: u32, simple_len: u32) i32 {
     return obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
 }
 
+/// Build the FQN ``<ns>::<simple>`` and probe the flat-key global
+/// store.  Returns true when the variable exists in the runtime's
+/// global table under the qualified key (the path
+/// :func:`tcl_ns.global_set` uses for top-level / namespace-eval
+/// writes of qualified names).
+fn variable_exists_in_flat_globals(ns: u32, simple_ptr: u32, simple_len: u32) bool {
+    const obj_helpers = @import("../valtypes/tcl_obj.zig");
+    const fqn = tcl_ns.ns_build_fqn(ns, simple_ptr, simple_len);
+    const qname = obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
+    const globals_mod = @import("../interp/tcl_ns.zig");
+    const r = globals_mod.global_exists(qname);
+    obj_helpers.tcl_obj_release(qname);
+    return obj_helpers.obj_get_int(r) != 0;
+}
+
 pub fn eval_namespace_which(words: []const i32) i32 {
     // Argument shapes:
     //   namespace which name                         → -command (default)
@@ -1236,17 +1251,26 @@ pub fn eval_namespace_which(words: []const i32) i32 {
         // Variable resolution: qualified names walk the ns tree to
         // the target ns + simple name, unqualified names check the
         // current ns only (C Tcl doesn't walk ``namespace path``
-        // for variables — the path is commands-only).
+        // for variables — the path is commands-only).  We also
+        // probe the flat-key global store (the runtime's compiled
+        // writes for ``set ::A::B::X 99`` land there) so vars
+        // created via FQN-prefixed ``set`` are visible too.
         const cxt = tcl_ns.ns_current();
         const r = tcl_ns.ns_resolve_qualified(cxt, name.ptr, name.len);
         if (r.simple_len == 0) return obj_new_string(0, 0);
         if (r.target_ns != 0) {
             const v = tcl_ns.ns_var_find(r.target_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
+            // Flat-key fallback: build the FQN and probe the global
+            // store directly.
+            if (variable_exists_in_flat_globals(r.target_ns, r.simple_ptr, r.simple_len))
+                return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
         }
         if (r.alt_ns != 0) {
             const v = tcl_ns.ns_var_find(r.alt_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
+            if (variable_exists_in_flat_globals(r.alt_ns, r.simple_ptr, r.simple_len))
+                return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
         }
         return obj_new_string(0, 0);
     }

@@ -46,7 +46,84 @@ fn ns_create_relative(parent: u32, name_ptr: u32, name_len: u32) u32 {
     return ns;
 }
 
+/// Raise a Tcl-level error with *msg* via the catch module.  Used by
+/// the dispatch front-door to surface ``wrong # args`` and ``unknown
+/// or ambiguous subcommand`` errors that the body branches don't
+/// otherwise produce.
+fn raise_ns_error(msg: []const u8) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const buf = alloc(@intCast(msg.len));
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    for (msg, 0..) |b, i| dst[i] = b;
+    const e = obj_mod.obj_new_string_take(buf, @intCast(msg.len), @intCast(msg.len));
+    catch_mod.tcl_cmd_error(e);
+}
+
+/// Canonical Tcl 9 ``namespace`` arity / dispatch errors.
+const NamespaceArity = struct {
+    sub: []const u8,
+    min_args: u32, // additional args beyond ``namespace SUB`` (i.e. words.len - 2)
+    max_args: ?u32, // null = unbounded
+    message: []const u8,
+};
+
+const ns_arity_table: []const NamespaceArity = &.{
+    .{ .sub = "children", .min_args = 0, .max_args = 2, .message = "wrong # args: should be \"namespace children ?name? ?pattern?\"" },
+    .{ .sub = "code", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace code arg\"" },
+    .{ .sub = "current", .min_args = 0, .max_args = 0, .message = "wrong # args: should be \"namespace current\"" },
+    .{ .sub = "eval", .min_args = 2, .max_args = null, .message = "wrong # args: should be \"namespace eval name arg ?arg...?\"" },
+    .{ .sub = "exists", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace exists name\"" },
+    .{ .sub = "inscope", .min_args = 2, .max_args = null, .message = "wrong # args: should be \"namespace inscope name arg ?arg...?\"" },
+    .{ .sub = "origin", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace origin name\"" },
+    .{ .sub = "parent", .min_args = 0, .max_args = 1, .message = "wrong # args: should be \"namespace parent ?name?\"" },
+    .{ .sub = "qualifiers", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace qualifiers string\"" },
+    .{ .sub = "tail", .min_args = 1, .max_args = 1, .message = "wrong # args: should be \"namespace tail string\"" },
+    .{ .sub = "which", .min_args = 1, .max_args = 2, .message = "wrong # args: should be \"namespace which ?-command? ?-variable? name\"" },
+};
+
+inline fn slice_eq_ns(p: u32, plen: u32, lit: []const u8) bool {
+    if (plen != lit.len) return false;
+    const sp: [*]const u8 = @ptrFromInt(p);
+    for (lit, 0..) |c, i| if (sp[i] != c) return false;
+    return true;
+}
+
+/// Validate the call's arity against the per-subcommand rule.  Raises
+/// ``wrong # args`` and returns false on a violation; returns true
+/// otherwise.  Subcommands not in the table fall through to the
+/// dispatch body's own validation.
+fn check_ns_arity(words: []const i32) bool {
+    if (words.len < 2) {
+        raise_ns_error("wrong # args: should be \"namespace subcommand ?arg ...?\"");
+        return false;
+    }
+    const sub = obj_ensure_string(words[1]);
+    if (sub.len == 0) return true;
+    const extra: u32 = @intCast(words.len - 2);
+    for (ns_arity_table) |rule| {
+        if (slice_eq_ns(sub.ptr, sub.len, rule.sub)) {
+            if (extra < rule.min_args) {
+                raise_ns_error(rule.message);
+                return false;
+            }
+            if (rule.max_args) |mx| {
+                if (extra > mx) {
+                    raise_ns_error(rule.message);
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    return true;
+}
+
 fn eval_namespace(words: []const i32) result_mod.InterpResult {
+    if (!check_ns_arity(words)) return result_mod.from_globals(0);
     if (words.len >= 2) {
         const interp = @import("../interp/tcl_interp.zig");
         const sub = obj_ensure_string(words[1]);
