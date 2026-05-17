@@ -196,7 +196,7 @@ skip that target.
 
 Then ask which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: vscode, openvsx, jetbrains, sublime, zed)
+> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed)
 > Default: None
 
 Based on the response:
@@ -208,12 +208,6 @@ Based on the response:
 Available targets:
 - `make publish-vsix` — VS Code Marketplace. Runs `vsce publish`. Requires
   a valid PAT for `bitwisecook` (interactive login otherwise).
-- `make publish-openvsx` — Open VSX Registry. Runs `ovsx publish` so the
-  same `.vsix` reaches Cursor, Windsurf, VSCodium, Eclipse Theia,
-  code-server, Gitpod, and Codespaces (Theia builds). Requires
-  `OVSX_PAT` env var. The `bitwisecook` namespace must be claimed once
-  at <https://open-vsx.org/user-settings/namespaces> before the first
-  publish.
 - `make publish-jetbrains` — JetBrains Marketplace. Runs
   `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. The
   first-ever publish must be done interactively via the JetBrains web

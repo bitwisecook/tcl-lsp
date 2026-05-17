@@ -9,7 +9,7 @@ server; the standalone editors (Neovim/Emacs/Helix) point at
 | Editor | Artefact | Install |
 |--------|----------|---------|
 | [VS Code](#vs-code) | `tcl-lsp-vscode-<v>.vsix` | `code --install-extension`, or VS Code Marketplace |
-| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | same `.vsix` | Open VSX Registry, or sideload the `.vsix` |
+| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | same `.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
 | [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Package Control: install **Tcl-LSP**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<v>.pyz` | Lua config |
@@ -46,19 +46,22 @@ code --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
 Configure under **Settings > Extensions > Tcl**. Pin an interpreter
 with `tclLsp.pythonPath` (default `"auto"`).
 
-### VS Code-compatible editors (Open VSX)
+### VS Code-compatible editors
 
-The same extension is published to the [Open VSX Registry](https://open-vsx.org/extension/bitwisecook/tcl-lsp),
-which is the default extension source for editors that cannot use the
-Microsoft Marketplace:
+The same `.vsix` works in editors that cannot use the Microsoft
+Marketplace (Cursor, Windsurf, VSCodium, Eclipse Theia, code-server /
+Coder, Gitpod, GitHub Codespaces Theia builds). Download from the
+GitHub release and sideload through the editor's Extensions UI, or
+via the CLI:
 
-- **Cursor**, **Windsurf** — Extensions panel; search "Tcl/Tk".
-- **VSCodium** — Extensions panel; search "Tcl/Tk".
-- **Eclipse Theia**, **code-server** / **Coder**, **Gitpod**,
-  **GitHub Codespaces (Theia builds)** — same Extensions UI; search
-  "Tcl/Tk".
+```sh
+cursor   --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+codium   --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>.vsix
+```
 
-Sideloading the `.vsix` works in all of them as a fallback.
+(Windsurf, Theia, and Gitpod all surface the same drag-and-drop or
+"Install from VSIX" entry in their Extensions panel.)
 
 ## Sublime Text
 

@@ -157,7 +157,12 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
 
-publish-openvsx: package-vsix ## Publish the .vsix to Open VSX Registry (Cursor, Windsurf, VSCodium, code-server, Theia, Gitpod)
+# Opt-in only: Open VSX Registry publish (Cursor, Windsurf, VSCodium,
+# code-server, Theia, Gitpod). Not chained from publish-all because the
+# Eclipse Foundation onboarding (separate account + Publisher Agreement +
+# namespace-claim issue) is a steep one-time barrier; revisit if the
+# audience pull justifies it.
+publish-openvsx: package-vsix ## (opt-in, not in publish-all) Publish the .vsix to Open VSX
 	@echo "==> Verifying Open VSX Registry credentials"
 	@if [ -z "$$OVSX_PAT" ]; then \
 		echo "error: OVSX_PAT environment variable is not set"; \
@@ -1260,7 +1265,7 @@ release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-m
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)
 
-publish-all: publish-vsix publish-openvsx publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/publish_verify.sh
