@@ -632,3 +632,254 @@ class TestDropFolderConfigs:
         assert folder_uri not in _lsp_state._per_folder_formatter_configs
         assert folder_uri not in _lsp_state.editor_config_settings_per_folder
         assert folder_uri not in _lsp_state.project_config_settings_per_folder
+
+
+class TestWorkspacePushPropagation:
+    """Workspace-level ``workspace/didChangeConfiguration`` push propagates
+    into per-folder editor caches so per-folder ``FeatureConfig`` attributes
+    update synchronously, without waiting for the async
+    ``workspace/configuration`` pull (the gap that produced the three
+    ``configSettings.test.ts`` flakes on PR #415).
+
+    Companion to ``TestPerFolderDialect.test_late_per_folder_setting_invalidates_cached_analysis``
+    on the #407 branch: that matrix covers settings baked into
+    ``AnalysisResult`` (W002, W108).  This one covers settings read at
+    handler entry via ``config_for_uri(uri).X_enabled``, which bypass the
+    analysis cache entirely and so are *not* fixed by #407's
+    force-re-analyse trigger.
+    """
+
+    @pytest.mark.parametrize(
+        ("baseline_value", "push_payload", "attr", "expected"),
+        [
+            pytest.param(
+                True,
+                {"features": {"references": False}},
+                "references_enabled",
+                False,
+                id="features.references=false",
+            ),
+            pytest.param(
+                True,
+                {"features": {"folding": False}},
+                "folding_enabled",
+                False,
+                id="features.folding=false",
+            ),
+            pytest.param(
+                True,
+                {"features": {"selectionRange": False}},
+                "selection_range_enabled",
+                False,
+                id="features.selectionRange=false",
+            ),
+            pytest.param(
+                True,
+                {"features": {"hover": False}},
+                "hover_enabled",
+                False,
+                id="features.hover=false",
+            ),
+            pytest.param(
+                120,
+                {"style": {"lineLength": 200}},
+                "line_length",
+                200,
+                id="style.lineLength=200",
+            ),
+        ],
+    )
+    def test_push_propagates_to_per_folder_cfg_before_pull(
+        self, reset_per_folder_state, baseline_value, push_payload, attr, expected
+    ):
+        """Without the propagation fix the per-folder cfg stays at the
+        previous-pull value until the next ``workspace/configuration``
+        response arrives.  With the fix the push reaches the per-folder
+        cfg synchronously via the leading-edge apply."""
+        folder = "file:///home/user/proj-a"
+        doc = f"{folder}/x.tcl"
+
+        # Build the initial-pull payload from the same shape as ``push_payload``,
+        # substituting ``baseline_value`` for the leaf so the per-folder cfg
+        # starts on the opposite side of the push.
+        def _with_leaf(payload, leaf):
+            (section, inner), = payload.items()
+            (key, _),  = inner.items()
+            return {section: {key: leaf}}
+
+        baseline_settings = _with_leaf(push_payload, baseline_value)
+        _lsp_state.editor_config_settings.update(baseline_settings)
+        _lsp_state.editor_config_settings_per_folder[folder] = dict(baseline_settings)
+        _lsp_settings._apply_merged_settings_now()
+        assert getattr(_lsp_state.config_for_uri(doc), attr) == baseline_value
+
+        # Drive the push path directly, leaving
+        # ``editor_config_settings_per_folder`` untouched by the would-be
+        # pull -- this is the race window the test guards.
+        _lsp_settings._propagate_push_to_folder_caches(push_payload)
+        _lsp_settings._apply_all_settings(push_payload, folder_uri="")
+        _lsp_settings._apply_merged_settings_now()
+
+        # Workspace fallback always updates -- regression guard.
+        assert getattr(_lsp_state.feature_config, attr) == expected
+        # The interesting bit: per-folder cfg flipped without waiting for
+        # the pull.  Pre-fix this assertion fails.
+        actual = getattr(_lsp_state.config_for_uri(doc), attr)
+        assert actual == expected, (
+            f"push of {push_payload!r} did not propagate to per-folder "
+            f"cfg; per-folder.{attr} = {actual!r}, expected {expected!r}.  "
+            f"Without the fix the previous-pull value sticks until the "
+            f"matching pull response arrives."
+        )
+
+    def test_push_preserves_unrelated_folder_overrides(self, reset_per_folder_state):
+        """A workspace-level features push must not clobber a folder's
+        dialect / extraCommands override.  Those are per-folder concerns
+        that the pull refreshes; the push only carries the workspace-
+        merged value, and our propagation is keyed per top-level
+        setting so unrelated keys in the folder cache survive untouched.
+        """
+        folder = "file:///home/user/proj-a"
+        doc = f"{folder}/x.tcl"
+
+        folder_settings = {
+            "features": {"references": True},
+            "dialect": "f5-irules",
+            "extraCommands": ["folder-helper"],
+        }
+        _lsp_state.editor_config_settings.update(
+            {"features": {"references": True}, "dialect": "tcl8.6"}
+        )
+        _lsp_state.editor_config_settings_per_folder[folder] = dict(folder_settings)
+        _lsp_settings._apply_merged_settings_now()
+
+        cfg = _lsp_state.config_for_uri(doc)
+        assert cfg.dialect == "f5-irules"
+        assert list(cfg.extra_commands or ()) == ["folder-helper"]
+        assert cfg.references_enabled is True
+
+        push_payload = {"features": {"references": False}}
+        _lsp_settings._propagate_push_to_folder_caches(push_payload)
+        _lsp_settings._apply_all_settings(push_payload, folder_uri="")
+        _lsp_settings._apply_merged_settings_now()
+
+        cfg = _lsp_state.config_for_uri(doc)
+        assert cfg.dialect == "f5-irules", (
+            f"features push clobbered folder dialect override; got {cfg.dialect!r}"
+        )
+        assert list(cfg.extra_commands or ()) == ["folder-helper"], (
+            f"features push clobbered folder extraCommands override; "
+            f"got {cfg.extra_commands!r}"
+        )
+        assert cfg.references_enabled is False
+
+    def test_push_with_no_per_folder_caches_is_noop(self, reset_per_folder_state):
+        """Pushes arriving before any pull has populated a per-folder
+        editor cache must update the workspace fallback and not crash."""
+        assert _lsp_state.editor_config_settings_per_folder == {}
+        push_payload = {"features": {"references": False}}
+        _lsp_settings._propagate_push_to_folder_caches(push_payload)
+        _lsp_settings._apply_all_settings(push_payload, folder_uri="")
+        _lsp_settings._apply_merged_settings_now()
+
+        assert _lsp_state.feature_config.references_enabled is False
+        assert _lsp_state.editor_config_settings_per_folder == {}
+
+    def test_deep_merge_preserves_sibling_features_keys(self, reset_per_folder_state):
+        """A push that touches one feature toggle must not erase the
+        siblings living in the same per-folder cache entry."""
+        folder = "file:///home/user/proj-a"
+        _lsp_state.editor_config_settings_per_folder[folder] = {
+            "features": {"references": True, "hover": False, "folding": True}
+        }
+        _lsp_settings._propagate_push_to_folder_caches(
+            {"features": {"references": False}}
+        )
+        assert _lsp_state.editor_config_settings_per_folder[folder] == {
+            "features": {"references": False, "hover": False, "folding": True}
+        }
+
+    @pytest.mark.parametrize(
+        "per_folder_only_key",
+        ["dialect", "extraCommands", "extra_commands", "libraryPaths", "library_paths"],
+    )
+    def test_per_folder_only_keys_are_not_propagated(
+        self, reset_per_folder_state, per_folder_only_key
+    ):
+        """The push carries workspace-level values for keys that may be
+        overridden per-folder.  Propagating those keys into the per-folder
+        cache would clobber the folder's existing override AND flip
+        ``FeatureConfig.dialect_explicitly_set`` via
+        ``_apply_feature_settings``'s ``looks_inherited`` branch -- which
+        was exactly the regression the ``Dialect Detection defaults .tcl
+        files to Tcl 8.6`` VS Code test caught during the initial draft of
+        this race fix on PR #415.  Skip them in the deep-merge so the
+        ``workspace/configuration`` pull stays the authoritative source.
+        """
+        folder = "file:///home/user/proj-a"
+        # Folder pull settled with a per-folder override on the
+        # per-folder-only key.
+        sample_value: object
+        if per_folder_only_key == "dialect":
+            sample_value = "f5-irules"
+        else:
+            sample_value = ["folder-helper"]
+        original_payload = {per_folder_only_key: sample_value}
+        _lsp_state.editor_config_settings_per_folder[folder] = dict(original_payload)
+
+        # Workspace-level push tries to push a different value for the same key.
+        workspace_value: object
+        if per_folder_only_key == "dialect":
+            workspace_value = "tcl8.6"
+        else:
+            workspace_value = []
+        _lsp_settings._propagate_push_to_folder_caches(
+            {per_folder_only_key: workspace_value}
+        )
+
+        # Folder cache keeps its original per-folder value untouched --
+        # the pull will refresh it with the authoritative per-folder
+        # merged value.
+        assert _lsp_state.editor_config_settings_per_folder[folder] == original_payload
+
+    def test_set_server_dialect_push_does_not_flip_folder_explicit(
+        self, reset_per_folder_state
+    ):
+        """``setServerDialect("f5-irules")`` fires a dialect-only push.
+        Before the fix that excludes per-folder-only keys, the deep-merge
+        wrote ``dialect`` into every folder cache, and the subsequent
+        ``_apply_merged_settings_now`` then flipped per-folder
+        ``dialect_explicitly_set`` to True via the ``looks_inherited``
+        branch -- which blocked the iRules / iApps auto-switch in
+        ``did_open`` and made the ``Dialect Detection defaults .tcl
+        files to Tcl 8.6`` VS Code test fail.  Drive the same path
+        directly and assert per-folder ``dialect_explicitly_set`` stays
+        False.
+        """
+        folder = "file:///home/user/proj-a"
+        doc = f"{folder}/x.tcl"
+
+        # Simulate a folder seeded by did_open's auto-switch: dialect is
+        # set, but explicit stays False.
+        folder_cfg = _lsp_state.get_or_init_folder_feature_config(folder)
+        folder_cfg.dialect = "f5-irules"
+        assert folder_cfg.dialect_explicitly_set is False
+        # Seed the per-folder cache from a prior pull so the propagation
+        # path's "folders to update" loop sees this folder.
+        _lsp_state.editor_config_settings_per_folder[folder] = {
+            "features": {"references": True}
+        }
+
+        # setServerDialect-style push: hand-crafted dialect-only payload.
+        push_payload = {"dialect": "f5-irules"}
+        _lsp_settings._propagate_push_to_folder_caches(push_payload)
+        _lsp_settings._apply_all_settings(push_payload, folder_uri="")
+        _lsp_settings._apply_merged_settings_now()
+
+        cfg = _lsp_state.config_for_uri(doc)
+        assert cfg.dialect == "f5-irules"
+        assert cfg.dialect_explicitly_set is False, (
+            "setServerDialect's dialect-only push must not flip "
+            "per-folder dialect_explicitly_set -- doing so blocks "
+            "did_open's iRules / iApps auto-switch (see #415)."
+        )
