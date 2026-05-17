@@ -35,7 +35,8 @@ def _install_diag_capture(captured: dict) -> object:
     """
     import lsp.diagnostics_pipeline as _dp
 
-    orig = _dp._publish_diags_to_client
+    orig_publish = _dp._publish_diags_to_client
+    orig_server = _dp._server
 
     def _capture(uri: str, diagnostics: list, version: int | None = None) -> None:
         captured[uri] = list(diagnostics)
@@ -47,13 +48,15 @@ def _install_diag_capture(captured: dict) -> object:
         def text_document_publish_diagnostics(*_a: object, **_kw: object) -> None: ...
 
     _dp.configure(_DummyServer())  # type: ignore[arg-type]
-    return orig
+    return (orig_publish, orig_server)
 
 
 def _restore_diag_capture(orig: object) -> None:
     import lsp.diagnostics_pipeline as _dp
 
-    _dp._publish_diags_to_client = orig  # type: ignore[assignment]
+    orig_publish, orig_server = orig  # type: ignore[misc]
+    _dp._publish_diags_to_client = orig_publish  # type: ignore[assignment]
+    _dp._server = orig_server  # type: ignore[assignment]
 
 
 @pytest.fixture
