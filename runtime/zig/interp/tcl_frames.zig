@@ -1754,6 +1754,7 @@ fn qualify_alias_target(target: i32) i32 {
     if (ns_full.len <= 2) return target;
     const total: u32 = ns_full.len + 2 + sn.len;
     const buf = obj.alloc(total);
+    if (buf == 0) return target;
     const dst: [*]u8 = @ptrFromInt(buf);
     const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
     for (0..ns_full.len) |i| dst[i] = ns_p[i];
@@ -1761,7 +1762,24 @@ fn qualify_alias_target(target: i32) i32 {
     dst[ns_full.len + 1] = ':';
     const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
     for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
-    return obj.obj_new_string(@bitCast(buf), @bitCast(total));
+    // Respect the docstring: only redirect when the qualified
+    // namespace var actually exists in root's flat-key store.
+    // Otherwise leave the alias targeted at the bare name so a
+    // later ``set`` lands in the root global (or the caller's
+    // proc-local) rather than synthesising a never-set
+    // namespace var.  The flat keys are stored without the
+    // leading ``::`` (matches :func:`tcl_ns.strip_global_prefix`).
+    const flat_ptr: u32 = buf + 2;
+    const flat_len: u32 = total - 2;
+    if (tcl_ns.ns_var_find(tcl_ns.ns_root(), flat_ptr, flat_len) == 0) {
+        obj.free_sized(buf, total);
+        return target;
+    }
+    // Take ownership of the buffer via ``obj_new_string_take`` so
+    // the slab returns to the free list when the alias-target
+    // TclObj is eventually released (the previous shape borrowed
+    // via ``obj_new_string`` and leaked the buffer).
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 /// Register *local_name* in the current frame as an alias to variable
@@ -2356,18 +2374,25 @@ pub export fn var_set(name: i32, value: i32) i32 {
         if (ns_full.len > 2) {
             const total: u32 = ns_full.len + 2 + sn.len;
             const buf = obj.alloc(total);
-            const dst: [*]u8 = @ptrFromInt(buf);
-            const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
-            for (0..ns_full.len) |i| dst[i] = ns_p[i];
-            dst[ns_full.len] = ':';
-            dst[ns_full.len + 1] = ':';
-            const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
-            for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
-            const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
-            const v = globals.global_set(qname, value);
-            obj.tcl_obj_release(qname);
-            obj.free_sized(buf, total);
-            return v;
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                for (0..ns_full.len) |i| dst[i] = ns_p[i];
+                dst[ns_full.len] = ':';
+                dst[ns_full.len + 1] = ':';
+                const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+                for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+                const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+                const v = globals.global_set(qname, value);
+                obj.tcl_obj_release(qname);
+                obj.free_sized(buf, total);
+                return v;
+            }
+            // OOM — fall through to the bare-name ``global_set`` so
+            // we don't trap on a deref of the null buffer.  The
+            // write lands in the root global slot which is the
+            // least-surprising fallback if memory pressure is
+            // already this tight.
         }
     }
     return globals.global_set(name, value);
@@ -2440,18 +2465,22 @@ pub export fn var_exists(name: i32) i32 {
             if (ns_full.len > 2) {
                 const total: u32 = ns_full.len + 2 + sn.len;
                 const buf = obj.alloc(total);
-                const dst: [*]u8 = @ptrFromInt(buf);
-                const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
-                for (0..ns_full.len) |i| dst[i] = ns_p[i];
-                dst[ns_full.len] = ':';
-                dst[ns_full.len + 1] = ':';
-                const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
-                for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
-                const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
-                const exists = globals.global_exists(qname);
-                obj.tcl_obj_release(qname);
-                obj.free_sized(buf, total);
-                if (obj.obj_get_int(exists) != 0) return exists;
+                if (buf != 0) {
+                    const dst: [*]u8 = @ptrFromInt(buf);
+                    const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                    for (0..ns_full.len) |i| dst[i] = ns_p[i];
+                    dst[ns_full.len] = ':';
+                    dst[ns_full.len + 1] = ':';
+                    const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+                    for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+                    const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+                    const exists = globals.global_exists(qname);
+                    obj.tcl_obj_release(qname);
+                    obj.free_sized(buf, total);
+                    if (obj.obj_get_int(exists) != 0) return exists;
+                }
+                // OOM — skip the namespace probe and fall through
+                // to the global existence check below.
             }
         }
     }
