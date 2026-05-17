@@ -314,6 +314,104 @@ var frame_info: [MAX_DEPTH]FrameInfo = [_]FrameInfo{.{}} ** MAX_DEPTH;
 // reset the slot to 0 before the frame is reused.
 pub var frame_trace_heads: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
 
+// Per-frame ``const`` tracker (Tcl 9 ``const VARNAME VAL`` /
+// ``info constant`` / ``info consts``).  Frame buckets are 16 bytes
+// (12 header + 4 value) with no room for a per-slot ``VAR_CONSTANT``
+// flag, so const-ness for proc-local names rides in this side list.
+// Each slot is a small array of (name_ptr, name_len, hash) records
+// that get matched on every ``const`` re-declaration / ``info
+// constant NAME`` probe.  Capacity is bounded — runaway use is
+// pathological for a single proc — and ``frame_pop`` clears the
+// count so a recycled depth never inherits stale entries.
+const FRAME_CONST_CAP: u32 = 64;
+const FrameConstName = extern struct {
+    name_ptr: u32,
+    name_len: u32,
+    hash: u32,
+};
+// Slot contents are read only when guarded by ``frame_const_count`` —
+// the zeroed count covers stale data so leaving the records
+// ``undefined`` here is safe and avoids paying for a ~65 KiB static
+// init on module startup.
+var frame_const_names: [MAX_DEPTH][FRAME_CONST_CAP]FrameConstName = undefined;
+var frame_const_count: [MAX_DEPTH]u32 = [_]u32{0} ** MAX_DEPTH;
+
+/// Mark a name as constant in the current frame.  Idempotent — a
+/// repeat ``const X V`` after the first one is silently no-op in the
+/// caller (Tcl 9 semantics: re-const of an already-constant name
+/// succeeds without changing the value).  Linear scan over the
+/// frame's records; capacity overflow drops the marker silently so
+/// the runtime can't trap on a pathological proc.
+pub fn frame_const_mark(name_ptr: u32, name_len: u32, hash: u32) void {
+    if (frame_depth == 0) return;
+    const idx = frame_depth - 1;
+    const n = frame_const_count[idx];
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        const r = frame_const_names[idx][i];
+        if (r.hash == hash and r.name_len == name_len and r.name_ptr == name_ptr) return;
+        if (r.hash == hash and r.name_len == name_len) {
+            const a: [*]const u8 = @ptrFromInt(r.name_ptr);
+            const b: [*]const u8 = @ptrFromInt(name_ptr);
+            var matches = true;
+            var k: u32 = 0;
+            while (k < name_len) : (k += 1) {
+                if (a[k] != b[k]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) return;
+        }
+    }
+    if (n >= FRAME_CONST_CAP) return;
+    frame_const_names[idx][n] = .{ .name_ptr = name_ptr, .name_len = name_len, .hash = hash };
+    frame_const_count[idx] = n + 1;
+}
+
+/// Check whether ``name`` is flagged constant in the current frame.
+pub fn frame_const_check(name_ptr: u32, name_len: u32, hash: u32) bool {
+    if (frame_depth == 0) return false;
+    const idx = frame_depth - 1;
+    const n = frame_const_count[idx];
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        const r = frame_const_names[idx][i];
+        if (r.hash != hash or r.name_len != name_len) continue;
+        const a: [*]const u8 = @ptrFromInt(r.name_ptr);
+        const b: [*]const u8 = @ptrFromInt(name_ptr);
+        var matches = true;
+        var k: u32 = 0;
+        while (k < name_len) : (k += 1) {
+            if (a[k] != b[k]) {
+                matches = false;
+                break;
+            }
+        }
+        if (matches) return true;
+    }
+    return false;
+}
+
+/// Per-frame visitor over the const-name list.  Used by
+/// ``info consts ?pattern?`` to enumerate constants of the current
+/// proc frame.  ``ctx`` is opaque; the callback receives each
+/// const's (name_ptr, name_len) span.
+pub fn frame_const_visit_current(
+    ctx: u32,
+    visit: *const fn (ctx: u32, name_ptr: u32, name_len: u32) callconv(.c) void,
+) void {
+    if (frame_depth == 0) return;
+    const idx = frame_depth - 1;
+    const n = frame_const_count[idx];
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        const r = frame_const_names[idx][i];
+        if (r.name_ptr == 0 or r.name_len == 0) continue;
+        visit(ctx, r.name_ptr, r.name_len);
+    }
+}
+
 // Pending ``argv0`` for the next compiled-proc entry.  Set by a
 // compiled caller via ``frame_set_pending_argv0`` immediately
 // before it transfers control to a compiled callee, and consumed
@@ -514,6 +612,9 @@ pub export fn frame_pop() void {
         // reset-on-reuse via ``mark_dirty``; the indexed array
         // is a parallel store with its own ownership tracking.
         frame_locals_array_drop_current();
+        // Phase B (const): drop the frame's const-name list so the
+        // next tenant of this depth doesn't inherit ``const X`` flags.
+        frame_const_count[frame_depth - 1] = 0;
         frame_depth -= 1;
         // MM-B.5: release the argv reference we retained in
         // frame_set_argv before clearing the slot.

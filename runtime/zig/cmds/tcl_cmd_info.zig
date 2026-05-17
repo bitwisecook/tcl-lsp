@@ -1271,6 +1271,323 @@ pub export fn info_default(proc_name: i32, arg_name: i32, var_name: i32) i32 {
     return obj_new_int(0);
 }
 
+// -- ``info constant`` / ``info consts`` ----------------------------------
+//
+// Tcl 9 TIP 590: variables flagged via ``const VARNAME VALUE`` are
+// read-only constants.  ``info constant NAME`` returns 1 when NAME
+// is currently constant, 0 otherwise.  ``info consts ?pattern?``
+// returns the list of constant names visible in the current scope
+// (proc-local list inside a frame; namespace-scoped Var.flags scan
+// otherwise).  Both are tolerant of bad inputs — array-element
+// notation, missing namespaces, dangling upvars, malformed names —
+// returning 0 / empty list, never raising (var-30.7..30.13).
+
+/// info constant NAME — 1 if NAME refers to a constant variable.
+pub fn info_constant(name: i32) i32 {
+    const sn = obj_ensure_string(name);
+    if (sn.len == 0) return obj_new_int(0);
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    // Array-element / array notation, malformed names — all return 0.
+    var k: u32 = 0;
+    while (k < sn.len) : (k += 1) {
+        if (sp[k] == '(') return obj_new_int(0);
+    }
+    // Local-frame check first when one is active.  Tcl 9 follows the
+    // same resolution chain as :func:`var_resolve`: a frame-local
+    // shadowing a global wins, so the constness check has to mirror.
+    if (frames.frame_depth != 0) {
+        const ht_mod = @import("../valtypes/hash_table.zig");
+        const hash = ht_mod.fnv1a(sn.ptr, sn.len);
+        if (frames.frame_const_check(sn.ptr, sn.len, hash)) return obj_new_int(1);
+        // A frame-local *non*-const slot shadows the namespace, so the
+        // namespace check below would lie for ``upvar`` / ``variable``
+        // bindings.  We only walk to the namespace when no local slot
+        // owns this name.  ``var_exists`` returns 1 for the local
+        // alias chain too, which is what we want.
+        const exists_obj = frames.var_exists(name);
+        if (obj.obj_get_int(exists_obj) != 0) return obj_new_int(0);
+    }
+    // Namespace / global probe.  Reach the ``Var`` record directly
+    // and inspect its flags.  Qualify bare names against current_ns
+    // the way ``var_set`` would.
+    var ns_addr = tcl_ns.ns_root();
+    var key_ptr = sn.ptr;
+    var key_len = sn.len;
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') {
+        // Already absolute — strip the leading ``::`` to match the
+        // flat-key form used by root.var_table.
+        key_ptr = sn.ptr + 2;
+        key_len = sn.len - 2;
+    } else if (frames.frame_depth == 0 and tcl_ns.current_ns != 0 and tcl_ns.current_ns != tcl_ns.ns_root()) {
+        // Unqualified at namespace top-level: qualify against current_ns.
+        ns_addr = tcl_ns.ns_root();
+        // No allocation: the namespace var_table uses the FQN-ish
+        // ``ns::name`` form for nested vars (see :func:`var_set`'s
+        // namespace branch).  Skipping the alloc here means we
+        // synthesise the key on the stack via a temporary buffer.
+        const ns_full_ptr = tcl_ns.current_ns_full_ptr();
+        const ns_full_len = tcl_ns.current_ns_full_len();
+        // Strip leading ``::`` from ns_full_ptr too (current_ns_full
+        // returns the ``::A`` form).
+        var nfp = ns_full_ptr;
+        var nfl = ns_full_len;
+        if (nfl >= 2) {
+            const nsp: [*]const u8 = @ptrFromInt(nfp);
+            if (nsp[0] == ':' and nsp[1] == ':') {
+                nfp += 2;
+                nfl -= 2;
+            }
+        }
+        const total: u32 = nfl + 2 + sn.len;
+        const buf = alloc(total);
+        if (buf == 0) return obj_new_int(0);
+        const dst: [*]u8 = @ptrFromInt(buf);
+        const nsp: [*]const u8 = @ptrFromInt(nfp);
+        for (0..nfl) |i| dst[i] = nsp[i];
+        dst[nfl] = ':';
+        dst[nfl + 1] = ':';
+        for (0..sn.len) |i| dst[nfl + 2 + i] = sp[i];
+        key_ptr = buf;
+        key_len = total;
+    }
+    const v_addr = tcl_ns.ns_var_find(ns_addr, key_ptr, key_len);
+    if (v_addr == 0) return obj_new_int(0);
+    const v: *const tcl_ns.Var = @ptrFromInt(v_addr);
+    if ((v.flags & tcl_ns.VAR_CONSTANT) != 0) return obj_new_int(1);
+    return obj_new_int(0);
+}
+
+/// Glob-match a name against the optional pattern; returns ``true``
+/// when no pattern was supplied.
+fn const_pat_match(has_pattern: bool, pat_ptr: u32, pat_len: u32, name_ptr: u32, name_len: u32) bool {
+    if (!has_pattern) return true;
+    return tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len);
+}
+
+/// Visitor state for the frame-const enumeration.
+const FrameConstsCtx = struct {
+    pat_ptr: u32,
+    pat_len: u32,
+    has_pattern: bool,
+    total_bytes: u32 = 0,
+    count: u32 = 0,
+    buf: u32 = 0,
+    off: u32 = 0,
+    written: u32 = 0,
+};
+
+var g_consts_ctx: FrameConstsCtx = .{ .pat_ptr = 0, .pat_len = 0, .has_pattern = false };
+
+fn consts_visit_size(_: u32, name_ptr: u32, name_len: u32) callconv(.c) void {
+    if (!const_pat_match(g_consts_ctx.has_pattern, g_consts_ctx.pat_ptr, g_consts_ctx.pat_len, name_ptr, name_len)) return;
+    if (g_consts_ctx.count > 0) g_consts_ctx.total_bytes += 1;
+    g_consts_ctx.total_bytes += name_len;
+    g_consts_ctx.count += 1;
+}
+
+fn consts_visit_emit(_: u32, name_ptr: u32, name_len: u32) callconv(.c) void {
+    if (!const_pat_match(g_consts_ctx.has_pattern, g_consts_ctx.pat_ptr, g_consts_ctx.pat_len, name_ptr, name_len)) return;
+    if (g_consts_ctx.written > 0) {
+        const dp: [*]u8 = @ptrFromInt(g_consts_ctx.buf + g_consts_ctx.off);
+        dp[0] = ' ';
+        g_consts_ctx.off += 1;
+    }
+    memcpy(g_consts_ctx.buf + g_consts_ctx.off, name_ptr, name_len);
+    g_consts_ctx.off += name_len;
+    g_consts_ctx.written += 1;
+}
+
+/// info consts ?pattern? — enumerate constant variable names.
+pub fn info_consts(pattern: i32) i32 {
+    var pat_ptr: u32 = 0;
+    var pat_len: u32 = 0;
+    var has_pattern = false;
+    var is_qualified = false;
+    if (pattern != 0) {
+        const ps = obj_ensure_string(pattern);
+        if (ps.len > 0) {
+            has_pattern = true;
+            pat_ptr = ps.ptr;
+            pat_len = ps.len;
+            const pp: [*]const u8 = @ptrFromInt(ps.ptr);
+            var k: u32 = 0;
+            while (k + 1 < ps.len) : (k += 1) {
+                if (pp[k] == ':' and pp[k + 1] == ':') {
+                    is_qualified = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Frame-local enumeration: only when a proc frame is active AND
+    // the user didn't ask for a qualified pattern (which targets the
+    // namespace store regardless of frame).
+    if (frames.frame_depth != 0 and !is_qualified) {
+        g_consts_ctx = .{ .pat_ptr = pat_ptr, .pat_len = pat_len, .has_pattern = has_pattern };
+        frames.frame_const_visit_current(0, &consts_visit_size);
+        if (g_consts_ctx.count == 0) return obj_new_string(0, 0);
+        const total = g_consts_ctx.total_bytes;
+        const buf = alloc(total);
+        if (buf == 0) return obj_new_string(0, 0);
+        g_consts_ctx.buf = buf;
+        g_consts_ctx.off = 0;
+        g_consts_ctx.written = 0;
+        frames.frame_const_visit_current(0, &consts_visit_emit);
+        return obj.obj_new_string_take(buf, total, total);
+    }
+
+    // Namespace enumeration: walk root.var_table for VAR_CONSTANT slots.
+    // Qualified patterns: strip leading ``::`` from the pattern for
+    // matching (var_table keys are flat with no ``::`` prefix), emit
+    // matches with the ``::`` prefix.
+    var match_pat_ptr: u32 = pat_ptr;
+    var match_pat_len: u32 = pat_len;
+    var emit_prefix_colons: bool = is_qualified; // ``::`` on emit for qualified queries
+    if (is_qualified and pat_len >= 2) {
+        const pp_check: [*]const u8 = @ptrFromInt(pat_ptr);
+        if (pp_check[0] == ':' and pp_check[1] == ':') {
+            match_pat_ptr = pat_ptr + 2;
+            match_pat_len = pat_len - 2;
+        }
+    } else if (!is_qualified and frames.frame_depth == 0 and tcl_ns.current_ns != 0 and tcl_ns.current_ns != tcl_ns.ns_root()) {
+        // Unqualified at namespace-eval scope (no frame, current_ns
+        // is non-root): the storage keys live under ``ns::name``;
+        // ``info consts X`` at that scope wants to match against just
+        // ``X``, so build a qualified pattern internally.
+        const ns_full_ptr = tcl_ns.current_ns_full_ptr();
+        const ns_full_len = tcl_ns.current_ns_full_len();
+        var nfp = ns_full_ptr;
+        var nfl = ns_full_len;
+        if (nfl >= 2) {
+            const nsp: [*]const u8 = @ptrFromInt(nfp);
+            if (nsp[0] == ':' and nsp[1] == ':') {
+                nfp += 2;
+                nfl -= 2;
+            }
+        }
+        if (nfl > 0) {
+            const total_pat: u32 = nfl + 2 + (if (has_pattern) pat_len else @as(u32, 1));
+            const pb = alloc(total_pat);
+            if (pb == 0) return obj_new_string(0, 0);
+            const dst: [*]u8 = @ptrFromInt(pb);
+            const nsp: [*]const u8 = @ptrFromInt(nfp);
+            for (0..nfl) |i| dst[i] = nsp[i];
+            dst[nfl] = ':';
+            dst[nfl + 1] = ':';
+            if (has_pattern) {
+                const pp: [*]const u8 = @ptrFromInt(pat_ptr);
+                for (0..pat_len) |i| dst[nfl + 2 + i] = pp[i];
+            } else {
+                dst[nfl + 2] = '*';
+            }
+            match_pat_ptr = pb;
+            match_pat_len = total_pat;
+            has_pattern = true;
+            // Don't prefix output with ``::`` for the unqualified
+            // form — var-30.5 expects the bare simple name ``X``.
+            emit_prefix_colons = false;
+        }
+    }
+
+    const root = tcl_ns.ns_root();
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
+    if (ns.var_table.buf == 0) return obj_new_string(0, 0);
+
+    const prefix_len: u32 = if (emit_prefix_colons) 2 else 0;
+    var total_bytes: u32 = 0;
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < ns.var_table.cap) : (i += 1) {
+        const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (var_addr == 0) continue;
+        const v: *const tcl_ns.Var = @ptrFromInt(var_addr);
+        if ((v.flags & tcl_ns.VAR_CONSTANT) == 0) continue;
+        // For unqualified, frame-less, namespace-rooted queries we
+        // already synthesised a qualified pattern; but we also need
+        // to ensure the *match* check considers the flat key.
+        if (has_pattern) {
+            if (!tcl_string.glob_match(match_pat_ptr, match_pat_len, name_ptr, name_len)) continue;
+        }
+        if (count > 0) total_bytes += 1;
+        total_bytes += prefix_len + name_len;
+        // Strip the ns prefix on emit when unqualified-namespace mode:
+        // var-30.5 wants ``X``, not ``var30::X``.
+        if (!emit_prefix_colons and !is_qualified) {
+            // Look for the last ``::`` in the name and emit only the tail.
+            const trailing = trailing_simple_name(name_ptr, name_len);
+            total_bytes -= name_len; // undo
+            total_bytes += trailing.len;
+        }
+        count += 1;
+    }
+    if (count == 0) return obj_new_string(0, 0);
+    const buf = alloc(total_bytes);
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < ns.var_table.cap) : (i += 1) {
+        const bucket = ns.var_table.buf + i * tcl_ns.NS_BUCKET_SIZE;
+        const name_ptr: u32 = @bitCast(read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const name_len: u32 = @bitCast(read_i32(bucket + 4));
+        const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (var_addr == 0) continue;
+        const v: *const tcl_ns.Var = @ptrFromInt(var_addr);
+        if ((v.flags & tcl_ns.VAR_CONSTANT) == 0) continue;
+        if (has_pattern) {
+            if (!tcl_string.glob_match(match_pat_ptr, match_pat_len, name_ptr, name_len)) continue;
+        }
+        if (written > 0) {
+            const dp: [*]u8 = @ptrFromInt(buf + off);
+            dp[0] = ' ';
+            off += 1;
+        }
+        if (emit_prefix_colons) {
+            const dst: [*]u8 = @ptrFromInt(buf + off);
+            dst[0] = ':';
+            dst[1] = ':';
+            off += 2;
+            const np: [*]const u8 = @ptrFromInt(name_ptr);
+            for (0..name_len) |k| dst[2 + k] = np[k];
+            off += name_len;
+        } else if (!is_qualified) {
+            const trailing = trailing_simple_name(name_ptr, name_len);
+            memcpy(buf + off, trailing.ptr, trailing.len);
+            off += trailing.len;
+        } else {
+            memcpy(buf + off, name_ptr, name_len);
+            off += name_len;
+        }
+        written += 1;
+    }
+    return obj.obj_new_string_take(buf, off, total_bytes);
+}
+
+const ConstSpan = struct { ptr: u32, len: u32 };
+
+/// Return the tail of ``name`` after the last ``::``.  ``foo::bar``
+/// → ``bar``; ``bar`` → ``bar``.  Used to render an unqualified
+/// ``info consts`` result at namespace-eval scope where the storage
+/// key is ``ns::X`` but the visible name is ``X``.
+fn trailing_simple_name(name_ptr: u32, name_len: u32) ConstSpan {
+    if (name_len < 2) return .{ .ptr = name_ptr, .len = name_len };
+    const np: [*]const u8 = @ptrFromInt(name_ptr);
+    var last_sep: i32 = -1;
+    var k: u32 = 0;
+    while (k + 1 < name_len) : (k += 1) {
+        if (np[k] == ':' and np[k + 1] == ':') last_sep = @intCast(k + 2);
+    }
+    if (last_sep < 0) return .{ .ptr = name_ptr, .len = name_len };
+    const off: u32 = @intCast(last_sep);
+    return .{ .ptr = name_ptr + off, .len = name_len - off };
+}
+
 // -- ``info vars`` ---------------------------------------------------------
 
 /// ``info vars ?pattern?`` — return a list of variable names visible
@@ -1616,6 +1933,8 @@ pub export fn info_dispatch(subcmd: i32, arg: i32) i32 {
     if (str_eq(sp, sub.len, "level")) return info_level(arg);
     if (str_eq(sp, sub.len, "script")) return info_script();
     if (str_eq(sp, sub.len, "vars")) return info_vars(arg);
+    if (str_eq(sp, sub.len, "constant")) return info_constant(arg);
+    if (str_eq(sp, sub.len, "consts")) return info_consts(arg);
     if (str_eq(sp, sub.len, "locals")) {
         // ``info locals`` returns only local variables of the current
         // proc frame (no globals).  Outside a proc, an empty string.

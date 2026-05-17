@@ -204,8 +204,197 @@ fn pick_unset_suffix(s: anytype) []const u8 {
     return "\": no such variable";
 }
 
+/// Tcl 9 ``const VARNAME VALUE`` — set a variable and flag it as a
+/// read-only constant.  Per :cite:`tip.590`:
+///   * Re-running ``const`` on an already-constant name is a silent
+///     success (the existing value is preserved).
+///   * Running ``const`` on an existing *non-constant* variable
+///     raises ``can't make constant "<name>": variable already exists``.
+///   * Array names and array elements cannot be made constant.
+///   * In a proc frame, the constness lives in the per-frame
+///     ``frame_const_*`` side list (frame buckets have no flag bits).
+///     At namespace scope, the namespace ``Var`` carries the
+///     ``VAR_CONSTANT`` bit directly.
+fn eval_const(words: []const i32) result_mod.InterpResult {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const tcl_obj_mod = @import("../valtypes/tcl_obj.zig");
+    if (words.len != 3) {
+        const msg_text: []const u8 = "wrong # args: should be \"const varName value\"";
+        const buf = rt.alloc(@intCast(msg_text.len));
+        if (buf != 0) {
+            const dst: [*]u8 = @ptrFromInt(buf);
+            for (msg_text, 0..) |b, k| dst[k] = b;
+            const msg = rt.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+            catch_mod.tcl_cmd_error(msg);
+        }
+        return result_mod.from_globals(0);
+    }
+    const name = words[1];
+    const value = words[2];
+    const sn = obj_ensure_string(name);
+    if (sn.len == 0) return result_mod.from_globals(0);
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+
+    // Reject array-element form ``arr(key)`` — TIP 590 only flags
+    // whole scalars.  Matches the C-Tcl ISARRAYELEMENT diagnostic.
+    var i: u32 = 0;
+    while (i < sn.len) : (i += 1) {
+        if (sp[i] == '(') {
+            raise_const_array_error(sn.ptr, sn.len);
+            return result_mod.from_globals(0);
+        }
+    }
+
+    if (frames.frame_depth != 0) {
+        // Proc-local: check the frame's const list first so a repeat
+        // ``const X V`` on an already-constant name silently succeeds.
+        const ht_mod = @import("../valtypes/hash_table.zig");
+        const hash = ht_mod.fnv1a(sn.ptr, sn.len);
+        if (frames.frame_const_check(sn.ptr, sn.len, hash)) {
+            return result_mod.from_globals(value);
+        }
+        // If the local already exists *and* isn't a const, raise the
+        // ``variable already exists`` diagnostic.  Tcl's ``info exists``
+        // is the right discriminator: it gates on actual storage so an
+        // ``unset``-cleared slot doesn't count.
+        const exists_obj = frames.var_exists(name);
+        if (rt.obj_get_int(exists_obj) != 0) {
+            raise_const_exists_error(sn.ptr, sn.len);
+            return result_mod.from_globals(0);
+        }
+        _ = frames.var_set(name, value);
+        frames.frame_const_mark(sn.ptr, sn.len, hash);
+        return result_mod.from_globals(value);
+    }
+
+    // No frame: namespace scope.  Resolve the storage key the way
+    // ``global_set`` will and reach the ``Var`` record so the
+    // VAR_CONSTANT flag can be set / checked.
+    const qname = qualify_for_ns(name, sn);
+    const qs = obj_ensure_string(qname);
+    const stripped = strip_double_colon(qs.ptr, qs.len);
+    const v_addr = tcl_ns.ns_var_find(tcl_ns.ns_root(), stripped.ptr, stripped.len);
+    if (v_addr != 0) {
+        const v: *const tcl_ns.Var = @ptrFromInt(v_addr);
+        if ((v.flags & tcl_ns.VAR_CONSTANT) != 0) {
+            if (qname != name) tcl_obj_mod.tcl_obj_release(qname);
+            return result_mod.from_globals(value);
+        }
+        // Existing non-const var: error iff it has a value.  An
+        // undefined slot (created by ``variable X`` with no value)
+        // should be allowed to become a constant.
+        if (tcl_ns.var_get_scalar(v_addr) != 0) {
+            raise_const_exists_error(sn.ptr, sn.len);
+            if (qname != name) tcl_obj_mod.tcl_obj_release(qname);
+            return result_mod.from_globals(0);
+        }
+    }
+    _ = tcl_ns.global_set(qname, value);
+    const v2 = tcl_ns.ns_var_find(tcl_ns.ns_root(), stripped.ptr, stripped.len);
+    if (v2 != 0) {
+        const vp: *tcl_ns.Var = @ptrFromInt(v2);
+        vp.flags |= tcl_ns.VAR_CONSTANT;
+    }
+    if (qname != name) tcl_obj_mod.tcl_obj_release(qname);
+    return result_mod.from_globals(value);
+}
+
+/// Build the fully-qualified storage key for a bare ``name`` when no
+/// frame is active.  Mirrors :func:`var_set`'s namespace-write branch:
+///   * ``::``-anchored names pass through unchanged.
+///   * Inside ``namespace eval ::A { ... }`` (``current_ns != root``)
+///     an unqualified ``X`` becomes ``::A::X``.
+///   * Root-scope unqualified names also pass through.
+/// Returns either the original handle or a freshly-allocated owning
+/// TclObj — caller releases the latter (``qname != name``).
+fn qualify_for_ns(name: i32, sn: anytype) i32 {
+    if (sn.len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+        if (sp[0] == ':' and sp[1] == ':') return name;
+    }
+    if (tcl_ns.current_ns == 0 or tcl_ns.current_ns == tcl_ns.ns_root()) return name;
+    const ns_full_ptr = tcl_ns.current_ns_full_ptr();
+    const ns_full_len = tcl_ns.current_ns_full_len();
+    if (ns_full_len <= 2) return name;
+    const total: u32 = ns_full_len + 2 + sn.len;
+    const buf = rt.alloc(total);
+    if (buf == 0) return name;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const ns_p: [*]const u8 = @ptrFromInt(ns_full_ptr);
+    for (0..ns_full_len) |k| dst[k] = ns_p[k];
+    dst[ns_full_len] = ':';
+    dst[ns_full_len + 1] = ':';
+    const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+    for (0..sn.len) |k| dst[ns_full_len + 2 + k] = name_p[k];
+    return rt.obj_new_string_take(buf, total, total);
+}
+
+/// Strip a leading ``::`` so the result matches the flat-key form the
+/// namespace ``var_table`` uses.  Pure span manipulation.
+const Span = struct { ptr: u32, len: u32 };
+fn strip_double_colon(ptr: u32, len: u32) Span {
+    if (len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(ptr);
+        if (sp[0] == ':' and sp[1] == ':') return .{ .ptr = ptr + 2, .len = len - 2 };
+    }
+    return .{ .ptr = ptr, .len = len };
+}
+
+fn raise_const_exists_error(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = "can't make constant \"";
+    const suffix: []const u8 = "\": variable already exists";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = rt.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(name_ptr);
+    for (0..name_len) |k| {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = rt.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
+fn raise_const_array_error(name_ptr: u32, name_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = "can't make constant \"";
+    const suffix: []const u8 = "\": name refers to an element in an array";
+    const total: u32 = @as(u32, @intCast(prefix.len)) + name_len + @as(u32, @intCast(suffix.len));
+    const buf = rt.alloc(total);
+    if (buf == 0) return;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(name_ptr);
+    for (0..name_len) |k| {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = rt.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(msg);
+}
+
 pub const registrations = [_]reg.CmdEntry{
     .{ .name = "set", .arity_min = 1, .arity_max = 2, .handler = &eval_set },
     .{ .name = "incr", .arity_min = 1, .arity_max = 2, .handler = &eval_incr },
     .{ .name = "unset", .arity_min = 1, .arity_max = null, .handler = &eval_unset },
+    .{ .name = "const", .arity_min = 2, .arity_max = 2, .handler = &eval_const },
 };
