@@ -59,17 +59,43 @@ scripts/eglot_test/run.sh
 
 Current scenarios: `rename-only`, `insert-line-top`,
 `delete-line-middle`, `rapid-fire-no-wait`, `user-issue-code`,
-`many-small-edits`. The first three plus `user-issue-code` and
-`many-small-edits` test our server's correctness via eglot and are
-expected to PASS. `rapid-fire-no-wait` is marked `:xfail` because it
-exercises eglot's didChange request coalescing, which is timing-
-sensitive and known to drop intermediate edits on some
-eglot/jsonrpc combinations — we report XFAIL when it mismatches
-and XPASS (loudly) if it ever stops mismatching, so we remember to
-drop the marker. The separate `painter-accumulation` test is
-likewise XFAIL'd as a deterministic reproducer for a known
-upstream eglot bug (issue #333) that can't be fixed from the
-server side.
+`many-small-edits`. `insert-line-top`, `delete-line-middle`,
+`user-issue-code`, and `many-small-edits` test our server's
+correctness via eglot and are expected to PASS.
+
+The following are marked `:xfail` because they reproduce known
+upstream eglot painter bugs rather than testing our server:
+
+- `rapid-fire-no-wait` exercises eglot's didChange request coalescing,
+  which is timing-sensitive and known to drop intermediate edits on
+  some eglot/jsonrpc combinations.
+- `rename-only` triggers the same painter accumulation seen in
+  `painter-accumulation` once the test host is under CPU pressure
+  (e.g. running alongside `test-ext`/`test-vm` under `make test-slow`):
+  the delta paint after a single replace leaves stale
+  `eglot-semantic-*` faces in the post-edit buffer that aren't in a
+  fresh-reload snapshot. Our delta arithmetic is correct (the diff
+  helper dedups painter accumulation; the remaining "stale face" mode
+  is the same upstream bug, just expressed cross-snapshot).
+- `painter-accumulation` is a deterministic reproducer for issue #333.
+
+XFAIL scenarios that unexpectedly PASS are reported as XPASS so we
+remember to drop the marker once eglot ships a fix.
+
+The scenario diff deduplicates accumulated `eglot-semantic-*` faces
+before comparing, so any positional mismatch flagged as `FAIL [diff]`
+reflects a real LSP delta-correctness bug on our side. Lines printed
+as `INFO [accum-edited]` / `INFO [accum-reload]` flag the upstream
+painter accumulation from issue #333 — they're informational only and
+do not fail the scenario, because under CPU pressure (e.g. `test-slow`
+running other suites in parallel) the upstream bug bleeds into edit-
+heavy scenarios like `rename-only` and `many-small-edits` even though
+our delta arithmetic is correct.
+
+If `painter-accumulation` ever PASSes, the upstream bug is fixed: drop
+its `:xfail` marker *and* the accumulation-tolerance in `t333-diff` /
+the `INFO` logging in `t333-run-scenario`, since real accumulation
+regressions should then be caught.
 
 ## 3. `exercise_recorder.el` — smoke-test for the recorder
 

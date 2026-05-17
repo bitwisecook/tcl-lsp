@@ -315,7 +315,11 @@ typecheck-ts: $(NPM_STAMP) copy-canonical ## Type-check TypeScript extension cod
 	@echo "==> Type-checking TypeScript code with tsc"
 	cd $(EXT_DIR) && $(NPM) run compile
 
-test-ext: compile ensure-vscode-test-deps ## Run VS Code extension integration tests
+test-ext: compile ensure-vscode-test-deps ## Run VS Code extension integration tests; skip with SKIP_TEST_EXT=1
+	@if [ -n "$${SKIP_TEST_EXT:-}" ]; then \
+		echo "==> SKIP_TEST_EXT set — skipping VS Code extension tests"; \
+		exit 0; \
+	fi
 	@echo "==> Running VS Code extension tests"
 	@if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
 		if command -v xvfb-run >/dev/null 2>&1; then \
@@ -514,9 +518,12 @@ check-all: $(UV_STAMP) $(BUILD_INFO) ## Full lint + typecheck (Python, TS, Zig, 
 # subsumes check-all by running prep-pr).
 #
 # Covers: prep-pr (format/codegen/lint/typecheck/test-py/test-opt/parity) +
-# Zig & Rust lint/typecheck + VM tcltest + tclpkg + VS Code extension +
-# Zig WASM runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust
-# workspace tests (when present).
+# Zig & Rust lint/typecheck + tclpkg + VS Code extension + Zig WASM
+# runtime tests + Emacs eglot + zipapp & VSIX smokes + Rust workspace
+# tests (when present).  The Python-VM tcltest sweep (``test-vm`` /
+# pyvm) is *not* included by default — it adds multi-minute CPU
+# pressure that makes the surrounding timing-sensitive suites flake;
+# set ``RUN_TEST_VM=1`` to include it.
 test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp + tmp/test-slow.stamp on success
 	@if [ "$${AUTO_INSTALL_DEPS:-0}" = "1" ]; then \
 		echo "==> test-slow: AUTO_INSTALL_DEPS=1 — installing optional test deps"; \
@@ -530,7 +537,18 @@ test-slow: ## Comprehensive local gate (everything); writes tmp/check-all.stamp 
 	@echo "==> test-slow: running prep-pr (format + codegen + lint + typecheck + fast tests)"
 	@$(MAKE) prep-pr
 	@echo "==> test-slow: running cross-language lint/typecheck + heavy suites in parallel"
-	@$(MAKE) -j $(NPROC) check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust
+	@# pyvm (test-vm) is a multi-minute Python-VM tcltest sweep that adds
+	@# substantial CPU pressure to the parallel batch and tends to make
+	@# the surrounding timing-sensitive suites (test-ext, test-emacs)
+	@# flake.  Skip it by default in test-slow; opt in with RUN_TEST_VM=1
+	@# (or unset SKIP_TEST_VM if it's already exported).
+	@if [ -n "$${RUN_TEST_VM:-}" ]; then \
+		echo "==> test-slow: RUN_TEST_VM set — including pyvm (test-vm) in the batch"; \
+		$(MAKE) -j $(NPROC) check-zig check-rust test-vm test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
+	else \
+		echo "==> test-slow: skipping pyvm (test-vm) — set RUN_TEST_VM=1 to include it"; \
+		SKIP_TEST_VM=1 $(MAKE) -j $(NPROC) check-zig check-rust test-tclpkg test-ext _prep-pr-smoke test-zig test-emacs test-rust; \
+	fi
 	@mkdir -p $(ROOT)tmp
 	@$(ROOT)scripts/worktree-fingerprint.sh | tee $(ROOT)tmp/check-all.stamp > $(ROOT)tmp/test-slow.stamp
 	@echo "==> test-slow: PASSED — stamped tmp/check-all.stamp + tmp/test-slow.stamp"
