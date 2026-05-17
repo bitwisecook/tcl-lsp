@@ -190,9 +190,9 @@ make publish-verify
 
 `publish-verify` prints one of `[ok] / [warn] / [fail]` per editor; it
 exits non-zero only on `[fail]` (tool missing or remote unreachable).
-`[warn]` lines (e.g. `OVSX_PAT not set`) are recoverable — note them
-back to the user and let them decide whether to set the token now or
-skip that target.
+`[warn]` lines (e.g. `JETBRAINS_TOKEN not set`) are recoverable — note
+them back to the user and let them decide whether to set the token now
+or skip that target.
 
 Then ask which editors to publish to using `AskUserQuestion`:
 

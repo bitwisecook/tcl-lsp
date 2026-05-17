@@ -75,7 +75,6 @@ NPM      := npm
 NODE_BIN := $(EXT_DIR)/node_modules/.bin
 TSC      := $(NODE_BIN)/tsc
 VSCE     := $(NODE_BIN)/vsce
-OVSX     := $(NODE_BIN)/ovsx
 VSCODE   ?= code
 
 # Stamps (used to avoid re-running expensive steps when deps haven't changed)
@@ -133,7 +132,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-openvsx publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all publish-verify test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -156,28 +155,6 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace
 	fi
 	@echo "==> Publishing $(VSIX_FILE) to VS Code Marketplace"
 	cd $(STAGE_DIR) && $(VSCE) publish --packagePath $(VSIX_FILE)
-
-# Opt-in only: Open VSX Registry publish (Cursor, Windsurf, VSCodium,
-# code-server, Theia, Gitpod). Not chained from publish-all because the
-# Eclipse Foundation onboarding (separate account + Publisher Agreement +
-# namespace-claim issue) is a steep one-time barrier; revisit if the
-# audience pull justifies it.
-publish-openvsx: package-vsix ## (opt-in, not in publish-all) Publish the .vsix to Open VSX
-	@echo "==> Verifying Open VSX Registry credentials"
-	@if [ -z "$$OVSX_PAT" ]; then \
-		echo "error: OVSX_PAT environment variable is not set"; \
-		echo "       Create a token at https://open-vsx.org/user-settings/tokens"; \
-		echo "       The '$(VSCE_PUBLISHER)' namespace must be claimed at"; \
-		echo "       https://open-vsx.org/user-settings/namespaces before"; \
-		echo "       the first publish (one-time, via the Open VSX web UI)."; \
-		exit 1; \
-	fi
-	@if [ ! -x $(OVSX) ]; then \
-		echo "error: $(OVSX) not found. Run 'make npm-env' (or 'cd $(EXT_DIR) && npm install') first."; \
-		exit 1; \
-	fi
-	@echo "==> Publishing $(VSIX_FILE) to Open VSX Registry"
-	cd $(STAGE_DIR) && $(OVSX) publish $(VSIX_FILE)
 
 $(VSIX_FILE): $(OUT_DIR)/extension.js $(PY_SRCS) $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(BUILD_INFO) $(ROOT)scripts/build_zipapp.py $(ROOT)scripts/zipapp_lsp_main.py $(ROOT)scripts/filter_readme.py
 	@echo "==> Preparing VSIX staging directory"

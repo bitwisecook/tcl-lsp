@@ -20,7 +20,6 @@ NODE_BIN="$EXT_DIR/node_modules/.bin"
 JB_DIR="$ROOT/editors/jetbrains"
 
 VSCE="$NODE_BIN/vsce"
-OVSX="$NODE_BIN/ovsx"
 
 VSCE_PUBLISHER="bitwisecook"
 SUBLIME_MIRROR_REPO="${TCL_LSP_SUBLIME_MIRROR_REPO:-bitwisecook/tcl-lsp-sublime-text}"
@@ -55,30 +54,6 @@ elif [ -x "$VSCE" ]; then
         warn "  - set VSCE_PAT in your env (from https://dev.azure.com), or"
         warn "  - run 'cd $EXT_DIR && ./node_modules/.bin/vsce login $VSCE_PUBLISHER'"
     fi
-fi
-
-# ----------------------------------------------------------------- Open VSX
-
-hdr "Open VSX Registry (publish-openvsx, opt-in — not in publish-all)"
-
-# Skip the section quietly unless OVSX_PAT is set; the target is opt-in
-# (the Eclipse Foundation onboarding is non-trivial) and we don't want
-# noise on every verify run for maintainers who aren't publishing here.
-if [ -z "${OVSX_PAT:-}" ]; then
-    ok "skipped (OVSX_PAT not set — opt in by claiming the namespace and exporting a PAT)"
-elif [ -x "$OVSX" ]; then
-    OVSX_VERSION="$("$OVSX" --version 2>/dev/null || echo unknown)"
-    ok "ovsx installed (version $OVSX_VERSION)"
-    # OVSX_PAT is already in env — let ovsx read it rather than passing
-    # on argv, which would leak to `ps`.
-    if "$OVSX" verify-pat "$VSCE_PUBLISHER" >/dev/null 2>&1; then
-        ok "ovsx PAT is valid for namespace '$VSCE_PUBLISHER'"
-    else
-        err "ovsx verify-pat failed for namespace '$VSCE_PUBLISHER'."
-        err "  Check token validity and that the namespace has been claimed."
-    fi
-else
-    err "ovsx not installed but OVSX_PAT is set — run 'make npm-env'"
 fi
 
 # ---------------------------------------------------------------- JetBrains
