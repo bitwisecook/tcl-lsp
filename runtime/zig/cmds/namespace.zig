@@ -456,15 +456,25 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             const ns_s = obj_ensure_string(words[2]);
             return result_mod.from_globals(ns_qualifiers(ns_s.ptr, ns_s.len));
         }
-        // ``namespace parent ?name?``
+        // ``namespace parent ?name?`` — return the FQN of NAME's
+        // parent namespace.  Resolves NAME to a real namespace
+        // first; an unknown namespace raises the canonical "namespace
+        // not found" diagnostic (namespace-31.4).
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "parent")) {
-            if (words.len >= 3) {
+            const target_h: u32 = if (words.len >= 3) blk: {
                 const ns_s = obj_ensure_string(words[2]);
-                return result_mod.from_globals(ns_parent(ns_s.ptr, ns_s.len));
-            } else {
-                const nf = tcl_ns.ns_full_name(tcl_ns.ns_current());
-                return result_mod.from_globals(ns_parent(nf.ptr, nf.len));
-            }
+                const h = resolve_ns(ns_s.ptr, ns_s.len);
+                if (h == 0) {
+                    raise_ns_not_found_in_current(ns_s.ptr, ns_s.len);
+                    return result_mod.from_globals(0);
+                }
+                break :blk h;
+            } else tcl_ns.ns_current();
+            const target_ns: *const tcl_ns.Namespace = @ptrFromInt(target_h);
+            const parent_h = target_ns.parent;
+            if (parent_h == 0) return result_mod.from_globals(obj_new_string(0, 0));
+            const pf = tcl_ns.ns_full_name(parent_h);
+            return result_mod.from_globals(obj_new_string(@bitCast(pf.ptr), @bitCast(pf.len)));
         }
         // ``namespace exists name``
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "exists")) {
