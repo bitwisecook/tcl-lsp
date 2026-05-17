@@ -785,6 +785,12 @@ const CmdWalkCtx = struct {
     pat_ptr: u32,
     pat_len: u32,
     has_pattern: bool,
+    /// True when the user-supplied pattern was namespace-qualified
+    /// (``::ns::pat``).  Emit results as FQ names in that case;
+    /// for unqualified patterns we emit the simple name so that
+    /// ``info commands foo`` returns ``foo`` rather than ``::foo``
+    /// (info-4.3 / 4.4).
+    qualified_pattern: bool,
     /// Cumulative length of the fully-qualified names we'll emit,
     /// plus one separator byte per gap.  Populated during pass 1.
     total: u32,
@@ -850,6 +856,12 @@ fn cmd_stored_name(cmd: u32) struct { ptr: u32, len: u32 } {
 fn scan_ns_cmd_table(ns_addr: u32, ctx: *CmdWalkCtx) void {
     const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
     if (ns.cmd_table.buf == 0) return;
+    // For non-root namespaces we want each emitted name to be FQ
+    // (``::ns::cmd``) — both for native procs whose stored name
+    // is the FQN and for imports whose redirect stores only the
+    // simple name.  Resolve the namespace's FQN once up front so
+    // ``emit_name_in_ns`` can synthesise it cheaply.
+    const ns_full = tcl_ns.ns_full_name(ns_addr);
     var i: u32 = 0;
     while (i < ns.cmd_table.cap) : (i += 1) {
         const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
@@ -860,8 +872,67 @@ fn scan_ns_cmd_table(ns_addr: u32, ctx: *CmdWalkCtx) void {
         if (!entry_matches(ctx, name_ptr, name_len, cmd)) continue;
         const fqn = cmd_stored_name(cmd);
         if (fqn.len == 0) continue;
-        emit_name(ctx, fqn.ptr, fqn.len);
+        // Tcl 9 ``InfoCommandsCmd`` emits FQ names only when the
+        // user-supplied pattern was namespace-qualified; bare
+        // ``info commands foo`` returns ``foo`` (info-4.3).  When
+        // we must emit FQ, prefer the stored name if it's already
+        // qualified, else synthesise from the *bucket* name (the
+        // dest-ns simple name for an import redirect).
+        const fp: [*]const u8 = @ptrFromInt(fqn.ptr);
+        const stored_is_qualified = fqn.len >= 2 and fp[0] == ':' and fp[1] == ':';
+        if (ctx.qualified_pattern) {
+            if (stored_is_qualified) {
+                emit_name(ctx, fqn.ptr, fqn.len);
+            } else {
+                emit_name_in_ns(ctx, ns_full.ptr, ns_full.len, name_ptr, name_len);
+            }
+        } else {
+            // Unqualified pattern → simple name in the result.
+            emit_name(ctx, name_ptr, name_len);
+        }
     }
+}
+
+/// Emit ``<ns_full>::<simple>`` in one go — sizing-pass + fill-pass
+/// shared with :fn:`emit_name`.  Used for imports whose redirect
+/// stores only the simple name.  When *ns_full* is the root
+/// namespace (``::``) we emit just ``::<simple>``.
+fn emit_name_in_ns(
+    ctx: *CmdWalkCtx,
+    ns_ptr: u32,
+    ns_len: u32,
+    simple_ptr: u32,
+    simple_len: u32,
+) void {
+    // ``ns_full`` for root is ``"::"`` (len=2) — emit
+    // ``::simple``.  For non-root ``::a::b`` (no trailing ``::``),
+    // emit ``::a::b::simple``.
+    const need_sep: bool = ns_len > 2;
+    const total_name: u32 = ns_len + (if (need_sep) @as(u32, 2) else 0) + simple_len;
+    if (ctx.buf == 0) {
+        if (ctx.count > 0) ctx.total += 1;
+        ctx.total += total_name;
+        ctx.count += 1;
+        return;
+    }
+    if (ctx.count > 0) {
+        const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+        d[0] = ' ';
+        ctx.off += 1;
+    }
+    const dst: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+    const np: [*]const u8 = @ptrFromInt(ns_ptr);
+    for (0..ns_len) |k| dst[k] = np[k];
+    var off2: u32 = ns_len;
+    if (need_sep) {
+        dst[off2] = ':';
+        dst[off2 + 1] = ':';
+        off2 += 2;
+    }
+    const sp: [*]const u8 = @ptrFromInt(simple_ptr);
+    for (0..simple_len) |k| dst[off2 + k] = sp[k];
+    ctx.off += total_name;
+    ctx.count += 1;
 }
 
 /// Emit one FQN — sizing pass if ``ctx.buf == 0``, filling pass
@@ -992,6 +1063,7 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
         .pat_ptr = 0,
         .pat_len = 0,
         .has_pattern = false,
+        .qualified_pattern = false,
         .total = 0,
         .count = 0,
         .buf = 0,
@@ -1022,6 +1094,7 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
                 qualified_target = r.target_ns;
                 ctx.pat_ptr = r.simple_ptr;
                 ctx.pat_len = r.simple_len;
+                ctx.qualified_pattern = true;
                 if (ctx.pat_len == 0) {
                     // Pattern was ``::`` alone or trailing ``::`` —
                     // matches nothing.
