@@ -205,6 +205,15 @@ au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.
 }
 ```
 
+`coc.nvim` only starts the server once Vim's `filetype` is already
+`tcl`, so add the same extension mapping as the vim-lsp block to
+`~/.vimrc` (otherwise `.irul`, `.irule`, `.iapp`, `.iappimpl`, and
+`.impl` files won't trigger the server):
+
+```vim
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl set filetype=tcl
+```
+
 ### Kate
 
 Kate ships with a built-in LSP client. Enable it under **Settings >
