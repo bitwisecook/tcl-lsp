@@ -40,6 +40,7 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = "241"
+            untilBuild = provider { null }
         }
 
         vendor {
@@ -49,6 +50,15 @@ intellijPlatform {
     }
 
     buildSearchableOptions = false
+
+    pluginVerification {
+        freeArgs = listOf("-offline")
+        ides {
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2024.1")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.1.7.1")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.2.6.2")
+        }
+    }
 
     publishing {
         token = providers.environmentVariable("JETBRAINS_TOKEN")
