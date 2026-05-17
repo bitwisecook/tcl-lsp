@@ -130,6 +130,11 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.16.0
+          # Explicit: setup-zig defaults to use-cache=true, but be loud
+          # about it so a future bump can't silently flip the default.
+          # Caches both the zig toolchain download and the zig-cache dir
+          # keyed on build.zig{,.zon} when present.
+          use-cache: true
 
       - name: Fetch Tcl regex engine sources (runtime/zig/vendor/tcl-regex)
         run: bash scripts/fetch_tcl_regex.sh
