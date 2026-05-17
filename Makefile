@@ -1162,7 +1162,7 @@ ST_PACKAGE  := $(BUILD_DIR)/tcl-lsp-sublime-$(VERSION).sublime-package
 
 sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
 
-$(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
+$(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO) $(ZIPAPP_LSP)
 	@echo "==> Building Sublime Text package"
 	@rm -rf $(BUILD_DIR)/sublime-stage
 	@mkdir -p $(BUILD_DIR)/sublime-stage
@@ -1170,21 +1170,9 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	find $(BUILD_DIR)/sublime-stage -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage -name '.DS_Store' -delete 2>/dev/null || true
 	rm -f $(BUILD_DIR)/sublime-stage/README.md
-	@echo "==> Bundling raw server source files"
+	@echo "==> Bundling LSP server as a single zipapp"
 	@mkdir -p $(BUILD_DIR)/sublime-stage/server
-	cp -r $(ROOT)lsp $(BUILD_DIR)/sublime-stage/server/lsp
-	cp -r $(ROOT)core $(BUILD_DIR)/sublime-stage/server/core
-	cp -r $(ROOT)explorer $(BUILD_DIR)/sublime-stage/server/explorer
-	rm -rf $(BUILD_DIR)/sublime-stage/server/explorer/static
-	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '*.pyc' -delete 2>/dev/null || true
-	$(UV) pip install --target $(BUILD_DIR)/sublime-stage/server --quiet \
-		"pygls>=2.0" "lsprotocol>=2024.0.0"
-	find $(BUILD_DIR)/sublime-stage/server -name '*.dist-info' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '*.so' -delete 2>/dev/null || true
-	find $(BUILD_DIR)/sublime-stage/server -name '*.pyd' -delete 2>/dev/null || true
-	cp $(ROOT)scripts/zipapp_lsp_main.py $(BUILD_DIR)/sublime-stage/server/__main__.py
+	cp $(ZIPAPP_LSP) $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server.pyz
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
 	@echo "==> Packaging .sublime-package"
 	cd $(BUILD_DIR)/sublime-stage && zip -r $(ST_PACKAGE) . -x '__pycache__/*'
