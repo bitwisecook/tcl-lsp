@@ -505,11 +505,11 @@ def _scan_text_for_cmd_subst(text: str, needed: set[str]) -> None:
                         needed.add("tcl_puts_chan")
                     elif cmd == "lreplace" and len(full_parts) > 5:
                         # ``[lreplace list first last v1 v2 …]`` —
-                        # more than 4 args triggers the multi-value
-                        # chain in ``_emit_cmd_runtime`` which needs
-                        # ``tcl_list_insert`` to thread earlier values
-                        # before the replaced slot.
-                        needed.add("tcl_list_insert")
+                        # more than 4 args routes through the
+                        # multi-value ``tcl_cmd_lreplace_list`` helper
+                        # with the inserts packed via ``tcl_list_create``.
+                        needed.add("tcl_cmd_lreplace_list")
+                        needed.add("tcl_list_create")
                     elif cmd == "format" and len(full_parts) > 4:
                         # ``format`` with more than 3 substitution
                         # args exceeds ``tcl_cmd_format``'s fixed-arity
@@ -1031,11 +1031,11 @@ def _scan_needed_imports(
                             needed.add("tcl_lappend")
                     elif command == "::lreplace" and len(args) > 4:
                         # Multi-value ``lreplace list first last v1 v2 …``
-                        # chains successive ``tcl_list_insert`` calls at
-                        # ``first`` to position earlier values before the
-                        # one the base call replaced.  See
-                        # ``_emit_cmd_runtime`` for the emit shape.
-                        needed.add("tcl_list_insert")
+                        # routes through the dedicated
+                        # ``tcl_cmd_lreplace_list`` helper; the inserts
+                        # are packed via ``tcl_list_create``.
+                        needed.add("tcl_cmd_lreplace_list")
+                        needed.add("tcl_list_create")
                 elif (
                     command == "::string"
                     and args

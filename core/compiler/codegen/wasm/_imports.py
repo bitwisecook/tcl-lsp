@@ -342,6 +342,18 @@ _INFRASTRUCTURE_IMPORTS: dict[str, tuple[str, str, list[ValType], list[ValType]]
     # route through a ``CommandSpec`` — e.g. ``_emit_list_value``
     # builds N-ary lists via ``tcl_list`` pair-chaining.
     "tcl_list_create": ("tcl", "tcl_list", [ValType.I32, ValType.I32], [ValType.I32]),
+    # Multi-value ``lreplace`` dispatch — takes the values to insert
+    # as a pre-built Tcl LIST so the runtime can resolve ``end-N``
+    # against the original list ONCE and splice each value at the
+    # right absolute slot, instead of having codegen chain
+    # ``tcl_list_insert`` calls that re-resolve against the shrinking
+    # list (lreplace-4.7.1 / lreplace-4.11).
+    "tcl_cmd_lreplace_list": (
+        "tcl",
+        "tcl_cmd_lreplace_list",
+        [ValType.I32, ValType.I32, ValType.I32, ValType.I32],
+        [ValType.I32],
+    ),
     # Variadic ``format`` — ``tcl_cmd_format`` only accepts 3 subst
     # args; format callsites with more (or with ``%-*s`` / ``%.*s``
     # consuming two args per spec) route through the list-form

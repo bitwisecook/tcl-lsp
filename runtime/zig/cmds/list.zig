@@ -157,43 +157,125 @@ fn eval_linsert(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lreplace(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 4) {
-        const list_arg = words[1];
-        const first_arg = words[2];
-        const last_arg = words[3];
-        if (words.len == 4) {
-            return result_mod.from_globals(rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0));
+    if (words.len < 4) return result_mod.from_globals(0);
+    return result_mod.from_globals(do_lreplace(words[1], words[2], words[3], words, 4));
+}
+
+/// Shared lreplace implementation used by ``lreplace`` and ``ledit``.
+/// ``insert_from`` is the index of the first element to insert in
+/// ``words``; the trailing words from there to ``words.len`` are
+/// inserted at position ``first`` after the [first..last] slice is
+/// removed.  Inverted ranges (first > last) skip the removal and
+/// behave as a pure ``linsert`` (reference Tcl semantics; covers
+/// lreplace-4.11 / ledit-4.11).
+fn do_lreplace(list_arg: i32, first_arg: i32, last_arg: i32, words: []const i32, insert_from: u32) i32 {
+    // Resolve indices against the ORIGINAL list once, up front.
+    // After the first ``tcl_cmd_list_replace`` shrinks the list,
+    // any ``end-N`` index would re-resolve against the smaller
+    // list and land at the wrong slot (bug: lreplace-4.7.1,
+    // lreplace-4.11).  Operate on absolute integer positions from
+    // here on.
+    const ls = obj_ensure_string(list_arg);
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    var f = resolve_list_index_local(first_arg, n_i64);
+    var l = resolve_list_index_local(last_arg, n_i64);
+    if (f < 0) f = 0;
+    if (l >= n_i64) l = n_i64 - 1;
+    if (f > n_i64) f = n_i64;
+    const has_inserts = insert_from < words.len;
+
+    // First step: shrink the list to remove [f..l].  If the range
+    // is inverted (l < f) the existing runtime helper already
+    // treats it as a pure insert at f and emits no replacement —
+    // we go through the same call to canonicalise the result.
+    var result: i32 = undefined;
+    if (has_inserts) {
+        // Splice the FIRST insert at position f as part of the
+        // removal step so we don't need to track ownership across
+        // a separate insert call.
+        result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[insert_from]);
+        var wi: u32 = insert_from + 1;
+        var pos: i64 = f + 1; // absolute index for the next insert
+        while (wi < words.len) : (wi += 1) {
+            const idx_obj = make_index_obj(pos);
+            result = rt.tcl_cmd_list_insert(result, idx_obj, words[wi]);
+            obj_mod.tcl_obj_release(idx_obj);
+            pos += 1;
         }
-        const idx_s = obj_ensure_string(first_arg);
-        var forward = false;
-        if (idx_s.len >= 3) {
-            const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
-            if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
-        }
-        if (forward) {
-            var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[4]);
-            var wi: u32 = 5;
-            while (wi < words.len) : (wi += 1) {
-                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
-            }
-            return result_mod.from_globals(result);
-        } else {
-            var result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[words.len - 1]);
-            var wi: u32 = words.len - 1;
-            while (wi > 4) {
-                wi -= 1;
-                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
-            }
-            return result_mod.from_globals(result);
+    } else {
+        // Pure removal — canonicalise even when nothing changes
+        // (e.g. ``lreplace { } 1 1`` collapses the single-space
+        // input to the empty list, lreplace-4.2).
+        result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
+    }
+    return result;
+}
+
+fn make_index_obj(idx: i64) i32 {
+    var idx_buf: [24]u8 = undefined;
+    var off: u32 = 0;
+    var neg: bool = false;
+    var v: i64 = idx;
+    if (v < 0) {
+        neg = true;
+        v = -v;
+    }
+    var tmp: [24]u8 = undefined;
+    var tlen: u32 = 0;
+    if (v == 0) {
+        tmp[0] = '0';
+        tlen = 1;
+    } else {
+        while (v > 0) {
+            tmp[tlen] = @intCast(@as(u32, '0') + @as(u32, @intCast(@mod(v, 10))));
+            v = @divTrunc(v, 10);
+            tlen += 1;
         }
     }
-    return result_mod.from_globals(0);
+    if (neg) {
+        idx_buf[0] = '-';
+        off = 1;
+    }
+    var k: u32 = 0;
+    while (k < tlen) : (k += 1) {
+        idx_buf[off + k] = tmp[tlen - 1 - k];
+    }
+    off += tlen;
+    return rt.obj_new_string_copy(@intFromPtr(&idx_buf), off);
+}
+
+fn resolve_list_index_local(o: i32, n: i64) i64 {
+    if (o == 0) return -1;
+    const s = obj_ensure_string(o);
+    if (s.ptr == 0 or s.len == 0) return -1;
+    const p: [*]const u8 = @ptrFromInt(s.ptr);
+    // ``end`` / ``end-N`` / ``end+N``.
+    if (s.len >= 3 and p[0] == 'e' and p[1] == 'n' and p[2] == 'd') {
+        if (s.len == 3) return n - 1;
+        if (s.len > 4 and (p[3] == '-' or p[3] == '+')) {
+            var v: i64 = 0;
+            const neg = p[3] == '-';
+            var k: u32 = 4;
+            while (k < s.len) : (k += 1) {
+                if (p[k] < '0' or p[k] > '9') return n - 1;
+                v = v * 10 + (p[k] - '0');
+            }
+            return if (neg) n - 1 - v else n - 1 + v;
+        }
+        return n - 1;
+    }
+    // Pure integer.
+    return rt.obj_get_int(o);
 }
 
 /// ``ledit varName first last ?element ...?`` — same shape as
 /// ``lreplace`` but mutates the variable in place AND returns the
 /// new value.  Semantically ``set varName [lreplace [set varName]
 /// first last ?element ...?]``.  Introduced in Tcl 9.0.
+///
+/// Routes through ``do_lreplace`` so the same end-relative /
+/// inverted-range handling that fixes lreplace-1.15 / 4.7.1 / 4.11
+/// applies (ledit-1.25, ledit-4.7.1, ledit-4.9.1, ledit-4.11).
 fn eval_ledit(words: []const i32) result_mod.InterpResult {
     if (words.len < 4) {
         const stubs = @import("../stubs/tcl_stubs.zig");
@@ -204,31 +286,7 @@ fn eval_ledit(words: []const i32) result_mod.InterpResult {
     const first_arg = words[2];
     const last_arg = words[3];
     const list_arg = frames.var_resolve(var_arg);
-    var result: i32 = 0;
-    if (words.len == 4) {
-        result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, 0);
-    } else {
-        const idx_s = obj_ensure_string(first_arg);
-        var forward = false;
-        if (idx_s.len >= 3) {
-            const p: [*]const u8 = @ptrFromInt(idx_s.ptr);
-            if (p[0] == 'e' and p[1] == 'n' and p[2] == 'd') forward = true;
-        }
-        if (forward) {
-            result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[4]);
-            var wi: u32 = 5;
-            while (wi < words.len) : (wi += 1) {
-                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
-            }
-        } else {
-            result = rt.tcl_cmd_list_replace(list_arg, first_arg, last_arg, words[words.len - 1]);
-            var wi: u32 = words.len - 1;
-            while (wi > 4) {
-                wi -= 1;
-                result = rt.tcl_cmd_list_insert(result, first_arg, words[wi]);
-            }
-        }
-    }
+    const result = do_lreplace(list_arg, first_arg, last_arg, words, 4);
     _ = frames.var_set(var_arg, result);
     return result_mod.from_globals(result);
 }
