@@ -40,6 +40,81 @@ const obj_new_string_copy = obj.obj_new_string_copy;
 const obj_get_int = obj.obj_get_int;
 const alloc = obj.alloc;
 
+/// Validate that *arg* is a numeric integer (or empty / null).
+/// Returns the integer value on success, ``null`` after raising
+/// ``expected integer but got "<arg>"`` on failure.  Used by
+/// format's star-width / star-precision parsing and the ``%d``-family
+/// conversions so a non-numeric arg surfaces the reference Tcl 9
+/// wording instead of silently formatting as ``0`` (format-8.9 /
+/// 8.10 / 8.11 / 8.12 / 8.13 / 8.14).
+fn checked_int(arg: i32) ?i64 {
+    if (arg == 0) return 0;
+    if (obj.is_immediate(arg)) return obj.immediate_unbox(arg);
+    const t = obj.obj_type(arg);
+    if (t == obj.TYPE_INT or t == obj.TYPE_FLOAT or t == obj.TYPE_BIGNUM) return obj_get_int(arg);
+    const s = obj_ensure_string(arg);
+    if (obj.try_parse_int(s.ptr, s.len)) |v| return v;
+    // Accept hex / octal / binary literals (``0xff`` / ``0o17`` /
+    // ``0b101``) and decimals beyond i64 via the bignum parser —
+    // format-10.1 / 10.5 feed ``0xffff`` etc. to ``%hd``.
+    if (bignum.parse_i128(s.ptr, s.len)) |v128| {
+        return @truncate(v128);
+    }
+    raise_expected_numeric(s.ptr, s.len, false);
+    return null;
+}
+
+fn checked_float(arg: i32) ?f64 {
+    if (arg == 0) return 0.0;
+    if (obj.is_immediate(arg)) return @floatFromInt(obj.immediate_unbox(arg));
+    const t = obj.obj_type(arg);
+    if (t == obj.TYPE_INT or t == obj.TYPE_FLOAT or t == obj.TYPE_BIGNUM) return obj.obj_get_float(arg);
+    const s = obj_ensure_string(arg);
+    if (obj.try_parse_int(s.ptr, s.len)) |v| return @floatFromInt(v);
+    if (obj.try_parse_float(s.ptr, s.len)) |fv| return fv;
+    if (bignum.parse_i128(s.ptr, s.len)) |v128| return @floatFromInt(v128);
+    raise_expected_numeric(s.ptr, s.len, true);
+    return null;
+}
+
+/// Emit ``expected integer but got "<bytes>"`` (or
+/// ``expected floating-point number but got "<bytes>"`` when
+/// *as_float* is true).  Matches the message Tcl 9 raises for
+/// scalar-conversion failures inside ``format`` (test format-8.x).
+fn raise_expected_numeric(bytes_ptr: u32, bytes_len: u32, as_float: bool) void {
+    const int_prefix: []const u8 = "expected integer but got \"";
+    const flt_prefix: []const u8 = "expected floating-point number but got \"";
+    const suffix: []const u8 = "\"";
+    const prefix = if (as_float) flt_prefix else int_prefix;
+    const total: u32 = @intCast(prefix.len + bytes_len + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        stubs.raise(prefix);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (bytes_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(bytes_ptr);
+        var i: u32 = 0;
+        while (i < bytes_len) : (i += 1) {
+            dst[off] = src[i];
+            off += 1;
+        }
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const msg = obj.obj_new_string_take(buf, total, total);
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    catch_mod.tcl_cmd_error(msg);
+}
+
 /// ``format fmt ?a1? ?a2? ?a3?``.  Signature pushes three optional
 /// args; missing slots come in as ``0`` which we treat as empty
 /// string.  Returns a freshly-allocated TclObj with the formatted
@@ -257,7 +332,9 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
             }
             const w_arg = args[arg_idx];
             arg_idx += 1;
-            const w = obj_get_int(w_arg);
+            const w_opt = checked_int(w_arg);
+            if (w_opt == null) return obj_new_string(0, 0);
+            const w = w_opt.?;
             // Negative widths are treated as left-aligned + abs(width).
             if (w < 0) {
                 left_align = true;
@@ -282,7 +359,9 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
                 }
                 const p_arg = args[arg_idx];
                 arg_idx += 1;
-                const p = obj_get_int(p_arg);
+                const p_opt = checked_int(p_arg);
+                if (p_opt == null) return obj_new_string(0, 0);
+                const p = p_opt.?;
                 precision = if (p < 0) 0 else @intCast(p);
             } else {
                 precision = 0;
@@ -338,6 +417,22 @@ fn format_internal(fmt: i32, args: []const i32) i32 {
         }
         const a = args[pick];
         if (explicit_arg == null) arg_idx += 1;
+
+        // Validate the conversion arg up front so any
+        // "expected integer / float" diagnostic surfaces with the
+        // arg's original byte form, not a downstream silent zero
+        // (format-8.9 / 8.11 / 8.13 / 8.15).  ``%s`` / ``%%`` and the
+        // unknown-spec branch don't need numeric coercion, so skip
+        // the check for those.
+        switch (conv) {
+            'd', 'i', 'u', 'x', 'X', 'o', 'b', 'p', 'c' => {
+                if (checked_int(a) == null) return obj_new_string(0, 0);
+            },
+            'f', 'e', 'g', 'E', 'G', 'F' => {
+                if (checked_float(a) == null) return obj_new_string(0, 0);
+            },
+            else => {},
+        }
 
         off = emit_conversion(
             out,
