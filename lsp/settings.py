@@ -551,6 +551,24 @@ def _apply_merged_settings_now() -> None:
     global _pending_apply_handle
     _pending_apply_handle = None
 
+    # Snapshot each open document's resolved (dialect, extras, non_ascii_mode)
+    # before any cfg mutates so we can detect per-folder dialect changes that
+    # don't show up in ``signatures_changed`` below (which only tracks the
+    # workspace-level ``configure_signatures`` call).  Without this, a folder
+    # whose ``tclLsp.dialect`` arrives late via ``workspace/configuration``
+    # (a normal race on session start, when ``did_open`` for already-open
+    # editors fires before the pull callback returns) leaves W002 / W108 /
+    # W123 baked into the cached analysis even after the per-folder dialect
+    # resolves to the right value.  See issue #407.
+    pre_apply_doc_resolution: dict[str, tuple] = {}
+    for uri, doc_state in _state.workspace_state.items():
+        dialect, extras = _state.resolve_dialect_for_uri(uri, doc_state.source)
+        pre_apply_doc_resolution[uri] = (
+            dialect,
+            extras,
+            _state.config_for_uri(uri).non_ascii_mode,
+        )
+
     fallback_settings = _merged_settings()
 
     # Process-wide settings: signatures (dialect / extraCommands), library
@@ -705,7 +723,20 @@ def _apply_merged_settings_now() -> None:
     except RuntimeError:
         loop = None
     for uri, doc_state in _state.workspace_state.items():
-        if signatures_changed and loop is not None:
+        # Did this doc's resolved dialect / extras / non-ASCII mode change?
+        # If so the cached analysis was built with stale per-folder settings
+        # — dialect-baked checks (W002, W108, W123, irules_checks etc.) need
+        # a re-analyse, not just a re-publish.  See issue #407.
+        new_dialect, new_extras = _state.resolve_dialect_for_uri(uri, doc_state.source)
+        new_resolution = (
+            new_dialect,
+            new_extras,
+            _state.config_for_uri(uri).non_ascii_mode,
+        )
+        doc_force_reanalyse = signatures_changed or (
+            pre_apply_doc_resolution.get(uri) != new_resolution
+        )
+        if doc_force_reanalyse and loop is not None:
             loop.create_task(
                 _publish_diagnostics(
                     uri,
@@ -719,7 +750,7 @@ def _apply_merged_settings_now() -> None:
                 uri,
                 doc_state.source,
                 doc_state.version,
-                force_reanalyse=signatures_changed,
+                force_reanalyse=doc_force_reanalyse,
             )
 
     if diags_were_enabled and not _state.feature_config.diagnostics_enabled:

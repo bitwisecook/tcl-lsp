@@ -322,6 +322,61 @@ class TestPerFolderDialect:
         _lsp_settings._apply_feature_settings({"dialect": None}, target=cfg)
         assert cfg.dialect_explicitly_set is False
 
+    def test_late_per_folder_dialect_invalidates_cached_analysis(self, reset_per_folder_state):
+        """Per-folder dialect arriving after ``did_open`` clears stale W002.
+
+        Reproduces issue #407 follow-up: at session start ``did_open`` for
+        the active editor races against the asynchronous
+        ``workspace/configuration`` pull.  The first analyse runs under the
+        workspace-fallback dialect (typically ``tcl8.6``) and bakes W002
+        for iRules-only commands into the cached analysis.  When the pull
+        callback later applies the folder's ``f5-irules`` dialect, the
+        workspace-level ``configure_signatures`` call is a no-op so the
+        old ``signatures_changed``-only re-analyse trigger never fires —
+        the user keeps seeing ``'X' is disabled in the active dialect
+        profile`` warnings even though the per-folder config is correct.
+        """
+        import lsp.diagnostics_pipeline as _dp
+
+        folder = "file:///workspaces/proj-b"
+        file_uri = f"{folder}/test.tcl"
+        _lsp_state.get_or_init_folder_feature_config(folder)
+        _lsp_settings._apply_merged_settings_now()
+
+        source = (
+            "if { [active_members http_pool] >= 2 } {\n"
+            '    puts "ok"\n'
+            "}\n"
+        )
+        _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
+
+        captured: dict[str, list] = {}
+        orig_publish = _dp._publish_diags_to_client
+
+        def _capture(uri, diags, version=None):
+            captured[uri] = list(diags)
+
+        _dp._publish_diags_to_client = _capture
+        _dp.configure(
+            type("S", (), {"text_document_publish_diagnostics": lambda *a, **k: None})()
+        )
+        try:
+            _dp._publish_diagnostics_sync(file_uri, source, 1)
+            initial = [d for d in captured.get(file_uri, []) if d.code == "W002"]
+            assert initial, "expected W002 with default tcl8.6 dialect (precondition for repro)"
+
+            # Now the pull arrives with the folder's real dialect.
+            _lsp_state.editor_config_settings_per_folder[folder] = {"dialect": "f5-irules"}
+            _lsp_settings._apply_merged_settings_now()
+
+            after = [d for d in captured.get(file_uri, []) if d.code == "W002"]
+            assert after == [], (
+                "W002 must clear once the per-folder dialect resolves to "
+                "f5-irules; got: " + ", ".join(d.message for d in after)
+            )
+        finally:
+            _dp._publish_diags_to_client = orig_publish
+
 
 class TestPerFolderNonAscii:
     """Per-folder ``tclLsp.style.nonAscii`` resolution (issue #407)."""
