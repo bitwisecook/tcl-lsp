@@ -1195,7 +1195,26 @@ pub fn command_fqn_obj(cmd: u32) i32 {
     const name_ptr: u32 = @bitCast(read_i32(cmd));
     const name_len: u32 = @bitCast(read_i32(cmd + 4));
     if (name_len == 0) return obj_new_string(0, 0);
-    return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    // Names stored on Command can be either fully qualified
+    // (``::a::b::c``) for procs registered via a qualified path
+    // or *unqualified* tail names for procs registered into a
+    // specific namespace.  ``namespace which`` always returns the
+    // FQ form, so promote unqualified names to ``::`` (root) or
+    // splice in the home namespace if we can find it cheaply.
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    if (name_len >= 2 and sp[0] == ':' and sp[1] == ':') {
+        return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    }
+    // Stored name lacks ``::`` prefix.  Synthesise ``::name``.
+    const obj_h = @import("../valtypes/tcl_obj.zig");
+    const total: u32 = name_len + 2;
+    const buf = obj_h.alloc(total);
+    if (buf == 0) return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    const dst: [*]u8 = @ptrFromInt(buf);
+    dst[0] = ':';
+    dst[1] = ':';
+    for (0..name_len) |k| dst[2 + k] = sp[k];
+    return obj_h.obj_new_string_take(buf, total, total);
 }
 
 /// Render the FQN of a namespace variable: ``<ns_full>::<name>``

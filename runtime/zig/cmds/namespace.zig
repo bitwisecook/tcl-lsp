@@ -688,14 +688,32 @@ fn ns_tail(ptr: u32, len: u32) i32 {
 fn ns_qualifiers(ptr: u32, len: u32) i32 {
     if (len == 0) return obj_new_string(0, 0);
     const sp: [*]const u8 = @ptrFromInt(ptr);
-    // Walk backwards: skip tail chars then skip colons.
+    // Tcl 9 ``Tcl_NamespaceQualifiersCmd`` (tclNamesp.c) returns
+    // the prefix up to (and not including) the trailing ``::``
+    // separator, then trims any trailing colons.  Inputs without
+    // any namespace separator return the empty string — including
+    // ``::x`` (which has the root ``::`` prefix but produces ``""``
+    // per namespace-old-3.2).
     var i: u32 = len;
     while (i > 0 and sp[i - 1] != ':') i -= 1;
+    // Now i is at the byte AFTER the last ``::`` (or 0 if none).
+    // Strip trailing colons to leave a clean qualifier.
     while (i > 0 and sp[i - 1] == ':') i -= 1;
-    // ::foo → qualifiers are "::" (not empty string)
-    if (i == 0 and len >= 3 and sp[0] == ':' and sp[1] == ':') {
-        return obj_new_string(@bitCast(ptr), 2);
+    // ``::foo`` and ``::`` both have all-colon prefixes and return
+    // ``""``.  ``::foo::bar`` returns ``::foo``.  The disambiguation
+    // is: the final non-stripped prefix must contain a non-colon
+    // byte.  If everything left is colons we yield the empty
+    // string.
+    if (i == 0) return obj_new_string(0, 0);
+    var saw_nonsep: bool = false;
+    var j: u32 = 0;
+    while (j < i) : (j += 1) {
+        if (sp[j] != ':') {
+            saw_nonsep = true;
+            break;
+        }
     }
+    if (!saw_nonsep) return obj_new_string(0, 0);
     return obj_new_string(@bitCast(ptr), @bitCast(i));
 }
 
@@ -913,6 +931,10 @@ fn invalidate_ns_command_imports(ns_addr: u32) void {
     // into unmapped territory and the read_i32 would trap.
     const mem_pages: u32 = @intCast(@wasmMemorySize(0));
     const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+    // Bump the cmd-ref epoch on this namespace so any cached
+    // bucket lookups in the dispatcher re-resolve and notice the
+    // tombstoned entries.
+    if (ns_addr != tcl_ns.ns_root()) tcl_ns.bump_cmd_ref_epoch(ns_addr);
     var i: u32 = 0;
     while (i < ns.cmd_table.cap) : (i += 1) {
         const bucket = ns.cmd_table.buf + i * bucket_size;
@@ -928,7 +950,14 @@ fn invalidate_ns_command_imports(ns_addr: u32) void {
         // Builtin forwards / aliases / freshly-stamped command
         // entries can have a handle outside the heap range; guard
         // every dereference.
-        if (@as(u64, cmd) + c.OFF_IMPORT_REF_HEAD + 4 > mem_bytes) continue;
+        if (@as(u64, cmd) + c.OFF_IMPORT_REF_HEAD + 4 > mem_bytes) {
+            // Still tombstone non-root buckets so subsequent
+            // dispatch fails (Tcl 9 TclTeardownNamespace).
+            if (ns_addr != tcl_ns.ns_root()) {
+                obj_mod.write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
+            }
+            continue;
+        }
         // Walk the linked list of redirects at OFF_IMPORT_REF_HEAD.
         var ref_head: u32 = @bitCast(obj_mod.read_i32(cmd + c.OFF_IMPORT_REF_HEAD));
         var hops: u32 = 0;
@@ -945,6 +974,13 @@ fn invalidate_ns_command_imports(ns_addr: u32) void {
             ref_head = next_ref;
         }
         obj_mod.write_i32(cmd + c.OFF_IMPORT_REF_HEAD, 0);
+        // Tombstone *only* non-root buckets so ``namespace delete
+        // ::ns`` leaves the proc dispatchable as "invalid command
+        // name" (namespace-7.1 / 35.2).  Root must remain intact
+        // because almost every test runs commands at root.
+        if (ns_addr != tcl_ns.ns_root()) {
+            obj_mod.write_i32(bucket + tcl_ns.OFF_HANDLE, 0);
+        }
     }
 }
 

@@ -1308,14 +1308,19 @@ pub fn info_vars(pattern: i32) i32 {
     if (is_qualified) {
         // Collect matching names from both the global scalar var_table
         // and the array directory, then merge into one list.
-
-        // -- Array directory scan --
+        // Qualified patterns yield FQ results (``::ns::var``) — the
+        // root var_table stores flat ``ns::var`` keys, so we prepend
+        // ``::`` on emit.  Patterns are matched against the FQ form
+        // by synthesising ``::name`` per bucket.
         const arr_list = tcl_array.array_dir_names_matching(pat_ptr, pat_len);
         const arr_s = obj_ensure_string(arr_list);
 
-        // -- Root namespace var_table scan (scalar globals) --
         const root = tcl_ns.ns_root();
         const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
+
+        // Scratch helper: build ``::name`` into ``scratch[0..]`` and
+        // test against the pattern.  Returns the FQ length.
+        var fq_scratch: [512]u8 = undefined;
         var scalar_total: u32 = 0;
         var scalar_count: u32 = 0;
         if (ns.var_table.buf != 0) {
@@ -1329,17 +1334,22 @@ pub fn info_vars(pattern: i32) i32 {
                 if (var_addr == 0) continue;
                 const v_val = tcl_ns.var_get_scalar(var_addr);
                 if (v_val == 0) continue;
-                if (!tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+                // Compose ``::name`` for pattern match + emit.
+                const fq_len: u32 = name_len + 2;
+                if (fq_len > fq_scratch.len) continue;
+                fq_scratch[0] = ':';
+                fq_scratch[1] = ':';
+                const np: [*]const u8 = @ptrFromInt(name_ptr);
+                for (0..name_len) |k| fq_scratch[2 + k] = np[k];
+                if (!tcl_string.glob_match(pat_ptr, pat_len, @intFromPtr(&fq_scratch), fq_len)) continue;
                 if (scalar_count > 0) scalar_total += 1;
-                scalar_total += name_len;
+                scalar_total += fq_len;
                 scalar_count += 1;
             }
         }
 
-        // Short-circuit when only arrays matched.
         if (scalar_count == 0) return arr_list;
 
-        // Merge: arr_s (possibly empty) + space + scalar entries.
         const arr_sep: u32 = if (arr_s.len > 0) @as(u32, 1) else @as(u32, 0);
         const merge_total: u32 = arr_s.len + arr_sep + scalar_total;
         const merge_buf = alloc(merge_total);
@@ -1348,7 +1358,7 @@ pub fn info_vars(pattern: i32) i32 {
             memcpy(merge_buf, arr_s.ptr, arr_s.len);
             off = arr_s.len;
         }
-        var written: u32 = if (arr_s.len > 0) 1 else 0; // triggers leading space
+        var written: u32 = if (arr_s.len > 0) 1 else 0;
         if (ns.var_table.buf != 0) {
             var i: u32 = 0;
             while (i < ns.var_table.cap) : (i += 1) {
@@ -1360,14 +1370,23 @@ pub fn info_vars(pattern: i32) i32 {
                 if (var_addr == 0) continue;
                 const v_val = tcl_ns.var_get_scalar(var_addr);
                 if (v_val == 0) continue;
-                if (!tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+                const fq_len: u32 = name_len + 2;
+                if (fq_len > fq_scratch.len) continue;
+                fq_scratch[0] = ':';
+                fq_scratch[1] = ':';
+                const np: [*]const u8 = @ptrFromInt(name_ptr);
+                for (0..name_len) |k| fq_scratch[2 + k] = np[k];
+                if (!tcl_string.glob_match(pat_ptr, pat_len, @intFromPtr(&fq_scratch), fq_len)) continue;
                 if (written > 0) {
                     const d: [*]u8 = @ptrFromInt(merge_buf + off);
                     d[0] = ' ';
                     off += 1;
                 }
-                memcpy(merge_buf + off, name_ptr, name_len);
-                off += name_len;
+                const dst: [*]u8 = @ptrFromInt(merge_buf + off);
+                dst[0] = ':';
+                dst[1] = ':';
+                for (0..name_len) |k| dst[2 + k] = np[k];
+                off += fq_len;
                 written += 1;
             }
         }
