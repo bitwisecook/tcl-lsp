@@ -1,0 +1,55 @@
+# Dependabot configuration.
+#
+# This is the inbound channel for security updates to pinned dependencies.
+# Workflows pin third-party actions to commit SHAs (see .github/workflows/*),
+# which is only safe if there's an automated update channel — that's this file.
+#
+# Grouped updates land as a single PR per ecosystem per week to keep review
+# load manageable. Security advisories still open a PR immediately regardless
+# of schedule.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /editors/vscode
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: cargo
+    directory: /editors/zed
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
+  - package-ecosystem: gradle
+    directory: /editors/jetbrains
+    schedule:
+      interval: weekly
+    groups:
+      gradle:
+        patterns:
+          - "*"

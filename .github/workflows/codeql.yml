@@ -1,0 +1,65 @@
+name: CodeQL
+
+# Static-analysis for the languages whose source ships in this repo and
+# runs on user machines: Python (LSP server / zipapps) and TypeScript
+# (VS Code extension).  CodeQL's `actions` query pack also lints the
+# workflows themselves, catching expression-injection and similar
+# mistakes before they reach main.
+#
+# Rust (editors/zed) is intentionally excluded.  CodeQL Rust support is
+# still maturing, and the extension cross-compiles to `wasm32-wasip2`
+# (a target the CodeQL build-mode `manual`/`autobuild` paths don't
+# capture cleanly).  The extension itself is ~100 lines of glue around
+# `zed_extension_api`, with a small attack surface; the cost-benefit
+# of fighting CodeQL Rust's wasm-target handling isn't there yet.
+# Revisit when CodeQL Rust supports `build-mode: none` GA.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan picks up newly-published advisories against deps that
+    # haven't otherwise changed.
+    - cron: "37 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write   # upload SARIF to the Security tab
+      packages: read           # CodeQL reads container packages metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          fetch-tags: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@f25eda876ebb741d872b63b9f2c6dfdd77f14b83 # v4.35.5
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@f25eda876ebb741d872b63b9f2c6dfdd77f14b83 # v4.35.5
+        with:
+          category: /language:${{ matrix.language }}

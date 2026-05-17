@@ -1,0 +1,40 @@
+# Code owners — GitHub uses this file to auto-request reviews and (with
+# branch-protection "Require review from Code Owners" enabled) to block
+# merges to protected paths until the listed owner approves.
+#
+# We deliberately scope this narrowly to security- and supply-chain-
+# critical paths.  A blanket `*` owner would add review load without
+# adding security value.
+
+# Default fallback: the repo maintainer.
+*                                       @bitwisecook
+
+# CI / build infrastructure.  A compromised workflow can exfiltrate
+# secrets or sign tampered artefacts on our behalf; treat every change
+# the same way you'd treat a release.
+/.github/                               @bitwisecook
+/.github/workflows/                     @bitwisecook
+/.github/dependabot.yml                 @bitwisecook
+/.github/CODEOWNERS                     @bitwisecook
+
+# Supply-chain fetch + checksum pins for vendored Tcl sources.  Bumping
+# the checksum without bumping (and verifying) the upstream tag is
+# exactly the failure mode this guard exists to prevent.
+/scripts/fetch_tcl_regex.sh             @bitwisecook
+/scripts/tcl_regex_sha256sums.txt       @bitwisecook
+
+# Installer script published to releases — runs on user machines.
+/scripts/install.sh                     @bitwisecook
+
+# Python dependency manifest.  A PR that adds a new dependency runs that
+# dep's PEP-517 backend in CI (during `uv sync`), so a malicious package
+# can execute arbitrary code with the workflow's permissions.  Same
+# concern for lockfile bumps that would resolve to new transitive deps.
+/pyproject.toml                         @bitwisecook
+/uv.lock                                @bitwisecook
+
+# VS Code extension package manifest — same supply-chain concern as
+# pyproject.toml, but for npm.  `npm install` runs install scripts from
+# every dep in the tree.
+/editors/vscode/package.json            @bitwisecook
+/editors/vscode/package-lock.json       @bitwisecook
