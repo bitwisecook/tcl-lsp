@@ -6,6 +6,58 @@ import * as assert from "assert";
 import * as path from "path";
 import * as vscode from "vscode";
 
+interface EffectiveConfig {
+  uri: string;
+  folder_uri: string | null;
+  // Resolved values: folder override → workspace fallback → process default.
+  // ``dialect`` always concrete (e.g. "tcl8.6"), never null.
+  // ``extra_commands`` / ``library_paths`` always arrays (empty when unset).
+  dialect: string;
+  extra_commands: string[];
+  non_ascii_mode: string | null;
+  library_paths: string[];
+  line_length: number;
+  dialect_explicitly_set: boolean;
+  known_folder_uris: string[];
+}
+
+/**
+ * Wait until the server reports that ``workspace/configuration`` has been
+ * pulled and applied for every folder, by polling the
+ * ``tcl-lsp.getEffectiveConfig`` command until each folder's resolved
+ * dialect matches the value the fixture's ``.vscode/settings.json``
+ * configured.  Replaces a brittle ``setTimeout(3000)`` that masked the
+ * race issue #407 caught in real-world use.
+ */
+async function waitForConfigSettled(
+  expected: Record<string, string>,
+  timeoutMs: number = 15000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let last: Record<string, EffectiveConfig | null> = {};
+  while (Date.now() < deadline) {
+    let allMatch = true;
+    for (const [folderName, wantDialect] of Object.entries(expected)) {
+      const folder = vscode.workspace.workspaceFolders!.find((f) => f.name === folderName)!;
+      const cfg = (await vscode.commands.executeCommand(
+        "tcl-lsp.getEffectiveConfig",
+        folder.uri.toString(),
+      )) as EffectiveConfig | undefined;
+      last[folderName] = cfg ?? null;
+      if (!cfg || cfg.dialect !== wantDialect) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) return;
+    await new Promise((r) => setTimeout(r, 75));
+  }
+  throw new Error(
+    `Timed out waiting for per-folder config to settle after ${timeoutMs}ms.  ` +
+      `Expected: ${JSON.stringify(expected)}.  Last seen: ${JSON.stringify(last)}`,
+  );
+}
+
 suite("Multi-folder workspace configuration (#230)", () => {
   suiteSetup(async () => {
     // Wait for the extension to activate so the LSP client is ready.
@@ -14,10 +66,10 @@ suite("Multi-folder workspace configuration (#230)", () => {
     if (!ext.isActive) {
       await ext.activate();
     }
-    // The server pulls per-folder config asynchronously after
-    // ``initialized``; give it a moment to settle so format requests
-    // see the resolved per-folder formatter config.
-    await new Promise((r) => setTimeout(r, 3000));
+    // Poll the server for its resolved per-folder dialect rather than
+    // sleeping on wall-clock time -- the previous setTimeout(3000) masked
+    // the race that issue #407 actually reports.
+    await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "f5-irules" });
   });
 
   test("workspace is opened in multi-folder mode with two folders", () => {
@@ -394,4 +446,114 @@ suite("Multi-folder workspace configuration (#230)", () => {
       `folder B (no extraCommands for folder-a-helper) should emit W123 for it.  Got: ${JSON.stringify(w123B.map((d) => d.message))}`,
     );
   });
+
+  test("tcl-lsp.getEffectiveConfig reports the resolved per-folder dialect", async () => {
+    // Sanity check the helper the suite setup uses -- if this regresses
+    // the rest of the suite will hit the 3-second-wait situation issue
+    // #407 reports, just by a different path.
+    const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
+    const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
+
+    const cfgA = (await vscode.commands.executeCommand(
+      "tcl-lsp.getEffectiveConfig",
+      folderA.uri.toString(),
+    )) as EffectiveConfig;
+    const cfgB = (await vscode.commands.executeCommand(
+      "tcl-lsp.getEffectiveConfig",
+      folderB.uri.toString(),
+    )) as EffectiveConfig;
+
+    assert.strictEqual(cfgA.dialect, "tcl8.4");
+    assert.strictEqual(cfgB.dialect, "f5-irules");
+    assert.strictEqual(cfgA.non_ascii_mode, "strict");
+    assert.strictEqual(cfgB.non_ascii_mode, "off");
+    assert.deepStrictEqual(cfgA.extra_commands, ["folder-a-helper", "shared-util"]);
+    assert.deepStrictEqual(cfgB.extra_commands, ["folder-b-helper"]);
+  });
 });
+
+// Race-detection harness for issue #407: when a per-folder dialect
+// arrives *after* a document's first analyse the cached AnalysisResult
+// keeps its stale dialect-baked W002 / W108 / W123 diagnostics.  Direct
+// startup-race reproduction would need a fresh VS Code process per test
+// (mocha shares one process), so this suite drives the same code path
+// by flipping the folder's ``tclLsp.dialect`` at runtime via
+// ``WorkspaceConfiguration.update()`` and asserting the in-cache
+// diagnostics catch up.
+suite("Multi-folder per-folder dialect change after open (#407)", () => {
+  test("flipping a folder's dialect re-analyses already-open files", async () => {
+    // Suite ``Multi-folder workspace configuration (#230)`` ran first
+    // and already waited for the initial config to settle, so proj-b
+    // is on f5-irules at this point.
+    const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
+    const fileUri = vscode.Uri.file(path.join(folderB.uri.fsPath, "race.tcl"));
+    const source =
+      'if { [active_members http_pool] >= 2 } {\n    puts "ok"\n}\n';
+
+    // 1. Switch folder B off iRules and wait for the server to settle.
+    //    ``active_members`` becomes a disallowed builtin under tcl8.6,
+    //    so the analyser should bake W002 into the cached analysis.
+    const cfgB = vscode.workspace.getConfiguration("tclLsp", folderB.uri);
+    try {
+      await cfgB.update("dialect", "tcl8.6", vscode.ConfigurationTarget.WorkspaceFolder);
+      await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "tcl8.6" });
+
+      // Open the file under tcl8.6 -- W002 must fire.
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      const editor = await vscode.window.showTextDocument(doc);
+      await editor.edit((e) => {
+        const lastLine = doc.lineCount - 1;
+        const lastChar = doc.lineAt(lastLine).text.length;
+        e.replace(
+          new vscode.Range(new vscode.Position(0, 0), new vscode.Position(lastLine, lastChar)),
+          source,
+        );
+      });
+      const w002Initial = await waitForDiagnostic(fileUri, "W002", true);
+      assert.ok(
+        w002Initial.length > 0,
+        `precondition: W002 should fire under tcl8.6.  Got: ${JSON.stringify(
+          vscode.languages.getDiagnostics(fileUri).map((d) => [d.code, d.message]),
+        )}`,
+      );
+
+      // 2. Flip the folder back to f5-irules and wait for the pull to
+      //    settle.  The fix in ``_apply_merged_settings_now`` must
+      //    detect the per-folder dialect change and re-analyse the
+      //    already-open file, clearing the now-stale W002.
+      await cfgB.update("dialect", "f5-irules", vscode.ConfigurationTarget.WorkspaceFolder);
+      await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "f5-irules" });
+      const w002Cleared = await waitForDiagnostic(fileUri, "W002", false);
+      assert.strictEqual(
+        w002Cleared.length,
+        0,
+        `W002 must clear once the per-folder dialect resolves to f5-irules.  ` +
+          `Got: ${JSON.stringify(w002Cleared.map((d) => d.message))}`,
+      );
+    } finally {
+      // Restore the fixture state so subsequent tests see the original
+      // .vscode/settings.json values.
+      await cfgB.update("dialect", undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+      await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "f5-irules" });
+    }
+  });
+});
+
+// Wait up to *timeoutMs* for a diagnostic with the given *code* to be
+// present (or absent if *wantPresent* is false) on *uri*.  Polls every
+// 100ms; returns the matching diagnostics for the final state.
+async function waitForDiagnostic(
+  uri: vscode.Uri,
+  code: string,
+  wantPresent: boolean,
+  timeoutMs: number = 6000,
+): Promise<vscode.Diagnostic[]> {
+  const deadline = Date.now() + timeoutMs;
+  let matches: vscode.Diagnostic[] = [];
+  while (Date.now() < deadline) {
+    matches = vscode.languages.getDiagnostics(uri).filter((d) => d.code === code);
+    if (wantPresent ? matches.length > 0 : matches.length === 0) return matches;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return matches;
+}

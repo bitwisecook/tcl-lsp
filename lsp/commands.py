@@ -320,6 +320,85 @@ def on_list_irule_events() -> dict:
     }
 
 
+def on_get_effective_config(uri: str | None = None) -> dict:
+    """Return the *resolved* per-folder config for ``uri``.
+
+    Returns the values the language server **actually applies** to a
+    document — folder override → workspace fallback → process default,
+    in that order — so callers see what the analyser/formatter would
+    see at request time.  Useful for diagnosing per-folder configuration
+    races (issue #407) and for tests that need to wait for
+    ``workspace/configuration`` to settle without polling on wall-clock
+    time.
+
+    The raw folder-cfg fields would surface ``None`` for any setting
+    the folder inherits from the workspace (and ``FeatureConfig`` uses
+    ``None``-as-inherit for ``dialect`` / ``extra_commands`` /
+    ``library_paths``), making the result ambiguous for a polling
+    client that's waiting for a concrete value.  Every field is
+    resolved through the same precedence the diagnostics pipeline
+    uses, so the returned ``dialect`` is always concrete (never null)
+    and the list fields are always lists (empty when nothing is
+    configured anywhere).
+
+    When *uri* is empty/None, returns the workspace-fallback view.
+
+    Returns:
+        ``{
+            "uri": str,
+            "folder_uri": str | None,
+            "dialect": str,                  # resolved; never null
+            "extra_commands": list[str],     # resolved; empty list when none configured
+            "non_ascii_mode": str | None,    # null only when process default applies
+            "library_paths": list[str],      # resolved
+            "line_length": int,
+            "dialect_explicitly_set": bool,
+            "known_folder_uris": list[str],
+        }``
+    """
+    from core.common.dialect import active_dialect
+
+    cfg = _state.config_for_uri(uri)
+    fallback = _state.feature_config
+    folder_uri: str | None = None
+    if uri:
+        for candidate in _state.workspace_folder_uris():
+            normalised = candidate.rstrip("/")
+            if uri == normalised or uri.startswith(normalised + "/"):
+                if folder_uri is None or len(normalised) > len(folder_uri.rstrip("/")):
+                    folder_uri = candidate
+
+    # Resolve dialect via the same precedence the diagnostic pipeline
+    # uses (in-source hints → folder → workspace → process default).
+    # Falls through to ``active_dialect()`` when no in-source / folder
+    # / workspace value is set, so polling clients never see ``null``
+    # for a setting the analyser would have a concrete value for.
+    resolved_dialect, resolved_extras = _state.resolve_dialect_for_uri(uri)
+    if resolved_dialect is None:
+        resolved_dialect = active_dialect()
+
+    resolved_extra_commands = list(resolved_extras) if resolved_extras is not None else []
+    if cfg.library_paths is not None:
+        resolved_library_paths = list(cfg.library_paths)
+    elif fallback.library_paths is not None:
+        resolved_library_paths = list(fallback.library_paths)
+    else:
+        resolved_library_paths = []
+    resolved_non_ascii = cfg.non_ascii_mode or fallback.non_ascii_mode
+
+    return {
+        "uri": uri or "",
+        "folder_uri": folder_uri,
+        "dialect": resolved_dialect,
+        "extra_commands": resolved_extra_commands,
+        "non_ascii_mode": resolved_non_ascii,
+        "library_paths": resolved_library_paths,
+        "line_length": cfg.line_length,
+        "dialect_explicitly_set": cfg.dialect_explicitly_set,
+        "known_folder_uris": list(_state.workspace_folder_uris()),
+    }
+
+
 def on_list_subcommands(command_name: str) -> dict:
     """Return subcommand metadata for a command from the registry."""
     name = (command_name or "").strip()
@@ -1048,6 +1127,7 @@ def register(server_instance: LanguageServer) -> None:
     server_instance.command("tcl-lsp.describeIruleCommand")(on_describe_irule_command)
     server_instance.command("tcl-lsp.fixAllSafeIssues")(on_fix_all_safe_issues)
     server_instance.command("tcl-lsp.listIruleEvents")(on_list_irule_events)
+    server_instance.command("tcl-lsp.getEffectiveConfig")(on_get_effective_config)
     server_instance.command("tcl-lsp.listSubcommands")(on_list_subcommands)
     server_instance.command("tcl-lsp.listKnownPackages")(on_list_known_packages)
     server_instance.command("tcl-lsp.suggestPackagesForSymbol")(on_suggest_packages_for_symbol)

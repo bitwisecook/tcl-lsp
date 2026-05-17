@@ -25,6 +25,37 @@ from core.formatting import FormatterConfig
 from lsp.feature_config import FeatureConfig
 
 
+def _install_diag_capture(captured: dict) -> object:
+    """Stub the diagnostics-pipeline publisher so tests can inspect diagnostics.
+
+    Returns the original ``_publish_diags_to_client`` value so the caller
+    can restore it in a ``finally`` block.  Centralised here so the
+    ``# type: ignore`` for the deliberate signature-mismatch only appears
+    once instead of in every test method.
+    """
+    import lsp.diagnostics_pipeline as _dp
+
+    orig = _dp._publish_diags_to_client
+
+    def _capture(uri: str, diagnostics: list, version: int | None = None) -> None:
+        captured[uri] = list(diagnostics)
+
+    _dp._publish_diags_to_client = _capture  # type: ignore[assignment]
+
+    class _DummyServer:
+        @staticmethod
+        def text_document_publish_diagnostics(*_a: object, **_kw: object) -> None: ...
+
+    _dp.configure(_DummyServer())  # type: ignore[arg-type]
+    return orig
+
+
+def _restore_diag_capture(orig: object) -> None:
+    import lsp.diagnostics_pipeline as _dp
+
+    _dp._publish_diags_to_client = orig  # type: ignore[assignment]
+
+
 @pytest.fixture
 def reset_per_folder_state():
     """Snapshot/restore the module-level per-folder maps and fallback configs."""
@@ -321,6 +352,196 @@ class TestPerFolderDialect:
         # Explicit null clears the override AND the flag.
         _lsp_settings._apply_feature_settings({"dialect": None}, target=cfg)
         assert cfg.dialect_explicitly_set is False
+
+    # Race matrix for issue #407: every per-folder setting that bakes into
+    # the cached ``AnalysisResult`` is exercised by ``did_open`` racing the
+    # ``workspace/configuration`` pull.  Each row drives the apply ordering
+    # directly (no LSP roundtrip), asserts the wrong diagnostic fires before
+    # the pull, then asserts ``_apply_merged_settings_now`` re-analyses and
+    # clears it once the per-folder setting arrives.  Adding a new
+    # dialect-sensitive check?  Add a row here.
+    @pytest.mark.parametrize(
+        ("scenario", "source", "late_settings", "diagnostic_code"),
+        [
+            pytest.param(
+                "dialect-flips-to-irules",
+                'if { [active_members http_pool] >= 2 } {\n    puts "ok"\n}\n',
+                {"dialect": "f5-irules"},
+                "W002",
+                id="dialect-W002-active_members",
+            ),
+            pytest.param(
+                "non-ascii-mode-flips-off",
+                'set greeting "“hello”"\n',
+                {"style": {"nonAscii": "off"}},
+                "W108",
+                id="nonAscii-W108-smart-quotes",
+            ),
+        ],
+    )
+    def test_late_per_folder_setting_invalidates_cached_analysis(
+        self,
+        reset_per_folder_state,
+        scenario,
+        source,
+        late_settings,
+        diagnostic_code,
+    ):
+        """Per-folder dialect/non_ascii arriving after ``did_open`` clears stale diagnostics.
+
+        Reproduces issue #407 follow-up: at session start ``did_open`` for
+        the active editor races against the asynchronous
+        ``workspace/configuration`` pull.  The first analyse runs under the
+        workspace-fallback settings and bakes dialect-sensitive checks
+        (W002 for iRules-only commands, W108 for non-ASCII, etc) into the
+        cached analysis.  When the pull callback later applies the folder's
+        real settings the workspace-level ``configure_signatures`` call is
+        a no-op so the old ``signatures_changed``-only re-analyse trigger
+        never fires — the user keeps seeing the stale warnings even though
+        the per-folder config has resolved to the correct value.
+        """
+        import lsp.diagnostics_pipeline as _dp
+
+        folder = "file:///workspaces/proj-b"
+        file_uri = f"{folder}/test.tcl"
+        _lsp_state.get_or_init_folder_feature_config(folder)
+        _lsp_settings._apply_merged_settings_now()
+
+        _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
+
+        captured: dict[str, list] = {}
+        orig_publish = _install_diag_capture(captured)
+        try:
+            _dp._publish_diagnostics_sync(file_uri, source, 1)
+            initial = [d for d in captured.get(file_uri, []) if d.code == diagnostic_code]
+            assert initial, (
+                f"{scenario} precondition: expected {diagnostic_code} under "
+                "the workspace-fallback settings (precondition for repro)"
+            )
+
+            # Pull arrives with the folder's real settings.
+            _lsp_state.editor_config_settings_per_folder[folder] = late_settings
+            _lsp_settings._apply_merged_settings_now()
+
+            after = [d for d in captured.get(file_uri, []) if d.code == diagnostic_code]
+            assert after == [], (
+                f"{scenario}: {diagnostic_code} must clear after the per-folder "
+                f"setting {late_settings!r} applies; got: " + ", ".join(d.message for d in after)
+            )
+        finally:
+            _restore_diag_capture(orig_publish)
+
+
+class TestAnalyserOptInDiagnostics:
+    """Opt-in (``default=False``) diagnostics must reach the emit path.
+
+    Codes that have ``default=False`` registered via ``@diag(default=False)``
+    -- currently W123 (unresolved command) and W242 (loop termination not
+    provable) -- are emitted from the analyser only when the code is *not*
+    in the analyser's ``_disabled_diagnostics`` set.  The LSP path used to
+    hardcode ``Analyser(disabled_diagnostics=default_disabled_diagnostics())``
+    which permanently disabled them: the user's ``tclLsp.diagnostics.W123:
+    true`` updated ``feature_config`` but the analyser ignored it.  The
+    fix routes ``cfg.disabled_diagnostics`` through to the Analyser via
+    ``_effective_disabled_diagnostics(uri)``.
+    """
+
+    def test_w123_does_not_fire_with_default_config(self, reset_per_folder_state):
+        """Sanity: W123 stays opt-in (off by default in the LSP path)."""
+        import lsp.diagnostics_pipeline as _dp
+
+        folder = "file:///workspaces/proj"
+        _lsp_state.get_or_init_folder_feature_config(folder)
+        _lsp_settings._apply_merged_settings_now()
+
+        file_uri = f"{folder}/file.tcl"
+        source = "my_unknown_helper foo bar\n"
+        _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
+
+        captured: dict[str, list] = {}
+        orig = _install_diag_capture(captured)
+        try:
+            _dp._publish_diagnostics_sync(file_uri, source, 1)
+            w123 = [d for d in captured.get(file_uri, []) if d.code == "W123"]
+            assert w123 == [], "W123 must stay off by default; got: " + ", ".join(
+                d.message for d in w123
+            )
+        finally:
+            _restore_diag_capture(orig)
+
+    def test_w123_fires_when_user_enables_it(self, reset_per_folder_state):
+        """``tclLsp.diagnostics.W123: true`` makes the analyser emit W123."""
+        import lsp.diagnostics_pipeline as _dp
+
+        folder = "file:///workspaces/proj"
+        _lsp_state.get_or_init_folder_feature_config(folder)
+        _lsp_state.editor_config_settings_per_folder[folder] = {"diagnostics": {"W123": True}}
+        _lsp_settings._apply_merged_settings_now()
+
+        file_uri = f"{folder}/file.tcl"
+        source = "my_unknown_helper foo bar\n"
+        _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
+
+        captured: dict[str, list] = {}
+        orig = _install_diag_capture(captured)
+        try:
+            _dp._publish_diagnostics_sync(file_uri, source, 1)
+            w123 = [d for d in captured.get(file_uri, []) if d.code == "W123"]
+            assert len(w123) == 1, (
+                f"W123 must fire when opted in via folder config; got {len(w123)} "
+                f"diagnostics: {[(d.code, d.message) for d in captured.get(file_uri, [])]}"
+            )
+            assert "my_unknown_helper" in w123[0].message
+        finally:
+            _restore_diag_capture(orig)
+
+    def test_toggling_w123_at_runtime_re_analyses(self, reset_per_folder_state):
+        """Flipping ``tclLsp.diagnostics.W123`` invalidates the cached analysis.
+
+        The analyser bakes W123 into ``AnalysisResult.diagnostics`` at
+        analyse time -- a post-filter can't *add* it after the fact.  So
+        when the user enables W123 the cached analysis must be re-run.
+        ``_apply_merged_settings_now`` tracks per-doc resolved
+        ``disabled_diagnostics`` and forces ``force_reanalyse=True`` for
+        any doc whose effective set changed.
+        """
+        import lsp.diagnostics_pipeline as _dp
+
+        folder = "file:///workspaces/proj"
+        _lsp_state.get_or_init_folder_feature_config(folder)
+        _lsp_settings._apply_merged_settings_now()
+
+        file_uri = f"{folder}/file.tcl"
+        source = "my_unknown_helper foo\n"
+        _lsp_state.workspace_state.open(file_uri, source, 1, language_id="tcl", analyse=False)
+
+        captured: dict[str, list] = {}
+        orig = _install_diag_capture(captured)
+        try:
+            _dp._publish_diagnostics_sync(file_uri, source, 1)
+            initial = [d for d in captured.get(file_uri, []) if d.code == "W123"]
+            assert initial == [], "precondition: W123 off by default"
+
+            # User opts in to W123 via folder settings.
+            _lsp_state.editor_config_settings_per_folder[folder] = {"diagnostics": {"W123": True}}
+            _lsp_settings._apply_merged_settings_now()
+
+            after = [d for d in captured.get(file_uri, []) if d.code == "W123"]
+            assert len(after) == 1, (
+                f"W123 must fire after the user opts in via folder config; "
+                f"got {len(after)} diagnostics, all codes: "
+                + ", ".join(d.code for d in captured.get(file_uri, []))
+            )
+
+            # Toggling back off must clear W123 again.
+            _lsp_state.editor_config_settings_per_folder[folder] = {"diagnostics": {"W123": False}}
+            _lsp_settings._apply_merged_settings_now()
+            cleared = [d for d in captured.get(file_uri, []) if d.code == "W123"]
+            assert cleared == [], "W123 must clear after the user opts back out; got: " + ", ".join(
+                d.message for d in cleared
+            )
+        finally:
+            _restore_diag_capture(orig)
 
 
 class TestPerFolderNonAscii:
