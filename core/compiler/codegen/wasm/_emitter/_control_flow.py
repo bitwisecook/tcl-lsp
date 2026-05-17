@@ -625,7 +625,12 @@ class _WasmEmitterCtrlMixin(_Base):
                     self._emit_call_stmt_tail(
                         command, args, defs, canonical_command=canonical, tokens=tokens
                     )
-            case IRBarrier(canonical_command=barrier_cmd, args=barrier_args, reason=reason):
+            case IRBarrier(
+                canonical_command=barrier_cmd,
+                args=barrier_args,
+                reason=reason,
+                tokens=barrier_tokens,
+            ):
                 # Static parse-error barriers (e.g. ``if {…} else {…}
                 # elseif {…}``) emit a direct ``tcl_cmd_error`` call so
                 # the WASM backend reports the same diagnostic as the VM
@@ -645,7 +650,16 @@ class _WasmEmitterCtrlMixin(_Base):
                     self._emit_static_parse_error_trap(barrier_cmd or "", parse_error_msg)
                     self._emit_i32_const(0)
                 elif barrier_cmd:
-                    self._emit_eval_fallback(barrier_cmd, barrier_args)
+                    # Thread the parsed *tokens* through to the eval-
+                    # fallback so a ``$var``-typed arg stays as a
+                    # substitution reference instead of being brace-
+                    # wrapped (``try $script`` → ``try ${script}`` not
+                    # ``try {${script}}`` — the latter blocks the runtime
+                    # substitution and lands ``${script}`` itself as the
+                    # body string for ``eval_try``).
+                    self._emit_eval_fallback(
+                        barrier_cmd, barrier_args, tokens=barrier_tokens
+                    )
                     # result is on stack; no DROP
                 else:
                     self._emit_eval_fallback(reason)
