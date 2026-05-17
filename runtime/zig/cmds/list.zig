@@ -713,16 +713,15 @@ fn eval_lsort(words: []const i32) result_mod.InterpResult {
         while (z < groups) : (z += 1) skip[z] = 0;
         // Walk forward: any element equal to the next sorted slot's
         // key gets dropped (since the next-or-later is the "last"
-        // duplicate that should be retained).
+        // duplicate that should be retained).  Use the *active*
+        // comparison mode so ``lsort -integer -unique {01 1 1}``
+        // dedupes ``01`` and ``1`` (numerically equal) rather than
+        // treating their textual representations as distinct.
         var p: u32 = 0;
         while (p + 1 < groups) : (p += 1) {
             const a_idx: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + p * 4))));
             const b_idx: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + (p + 1) * 4))));
-            const a_kp = keys[a_idx].str_ptr;
-            const a_kl = keys[a_idx].str_len;
-            const b_kp = keys[b_idx].str_ptr;
-            const b_kl = keys[b_idx].str_len;
-            if (lsort_ascii_cmp(a_kp, a_kl, b_kp, b_kl, opts.nocase) == 0) {
+            if (lsort_compare(&keys[a_idx], &keys[b_idx], &opts) == 0) {
                 skip[p] = 1;
             }
         }
