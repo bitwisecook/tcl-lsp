@@ -75,12 +75,12 @@ $ f5 query '.ltm.virtual[]
 
 # VSes whose every attached iRule lives in /Common/
 $ f5 query '.ltm.virtual[]
-  | select(.rules | count > 0)
-  | select(all(.rules | map(startswith(., "/Common/"))))
+  | select(.rules | length > 0)
+  | select(all(.rules[] | startswith(., "/Common/")))
   | .name' bigip.conf
 ```
 
-The first form pipes the stream of addresses through `in_cidr` per item (yielding a stream of booleans), then `any` collapses.  The second uses `map` because `.rules` is already a list.
+Both forms pipe through `in_cidr` / `startswith` per item to produce a stream of booleans that `any` / `all` then collapse.  Iterating the list with `.rules[]` is the same pattern as `.pool.members[]` in the first example — once you're streaming, the predicate runs element-wise.
 
 ### `sort` + `unique` — aggregate a list
 
