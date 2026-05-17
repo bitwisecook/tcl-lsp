@@ -781,6 +781,18 @@ def _scan_needed_imports(
                     needed.add("tcl_string_compare")
                 if op in (BinOp.LT, BinOp.GT, BinOp.LE, BinOp.GE):
                     needed.add("tcl_expr_order_cmp")
+                if op in (BinOp.EQ, BinOp.NE):
+                    # Mirror the IR-only scanner: ``==`` / ``!=`` route
+                    # through ``tcl_expr_order_cmp`` so string operands
+                    # ("unix" == "def") compare bytewise instead of
+                    # falling through to the i64 fast path, which
+                    # unboxes both operands to 0 via ``tcl_obj_get_int``
+                    # and reports every pair of non-numeric strings as
+                    # equal.  Without registering this import here the
+                    # main-script emitter (the path that compiles every
+                    # top-level ``set r [expr {$v == "..."}]``) silently
+                    # falls back to ``i64.eq 0 0`` and returns 1.
+                    needed.add("tcl_expr_order_cmp")
                 if op in (BinOp.ADD, BinOp.SUB, BinOp.MUL, BinOp.DIV, BinOp.MOD, BinOp.POW):
                     _ARITH_IMPORT2 = {
                         BinOp.ADD: "tcl_arith_add",

@@ -143,6 +143,47 @@ fn eval_return(words: []const i32) result_mod.InterpResult {
                     continue;
                 }
                 if (str_eq(wp, w.len, "-errorcode") and wi + 1 < words.len) {
+                    // Tcl 9 ``return -errorcode VAL`` validates VAL as
+                    // a well-formed list (result-6.3 / cmdMZ-return-x):
+                    // ``{{}a}`` raises ``bad -errorcode value: expected
+                    // a list but got "<val>"`` because the trailing
+                    // ``a`` after the brace element isn't whitespace.
+                    // ``check_list_syntax`` raises its own list-shape
+                    // diagnostic on failure; suppress that by latching
+                    // the error_flag/msg only after we've reset them
+                    // with the canonical ``bad -errorcode value`` text.
+                    const list_parse = @import("../valtypes/tcl_list_parse.zig");
+                    const ec_s = obj_ensure_string(words[wi + 1]);
+                    if (list_parse.check_list_syntax(ec_s.ptr, ec_s.len) != 0) {
+                        const obj_pkg = @import("../valtypes/tcl_obj.zig");
+                        const cm = @import("../interp/tcl_catch.zig");
+                        const prefix = "bad -errorcode value: expected a list but got \"";
+                        const suffix = "\"";
+                        const total: u32 = @intCast(prefix.len + ec_s.len + suffix.len);
+                        const buf_addr: u32 = obj_pkg.alloc(total);
+                        if (buf_addr != 0) {
+                            const buf: [*]u8 = @ptrFromInt(buf_addr);
+                            var off: u32 = 0;
+                            for (prefix) |c| {
+                                buf[off] = c;
+                                off += 1;
+                            }
+                            const ec_ptr: [*]const u8 = @ptrFromInt(ec_s.ptr);
+                            for (0..ec_s.len) |k| {
+                                buf[off] = ec_ptr[k];
+                                off += 1;
+                            }
+                            for (suffix) |c| {
+                                buf[off] = c;
+                                off += 1;
+                            }
+                            const err_obj = obj_pkg.obj_new_string_take(buf_addr, total, total);
+                            cm.tcl_cmd_error(err_obj);
+                        } else {
+                            stubs.raise("bad -errorcode value");
+                        }
+                        return result_mod.from_globals(0);
+                    }
                     errorcode_obj = words[wi + 1];
                     wi += 1;
                     continue;

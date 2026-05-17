@@ -1,0 +1,14 @@
+# Categorisation for incr-old.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+just_to_match_ctcl = [
+  "2.4",    # incr-old-2.4: errorInfo wording — our runtime emits
+            # ``(reading increment)`` + ``invoked from within`` where
+            # C tcl emits the bare ``while executing`` trace.  The
+            # primary error message ``expected integer but got "abc"``
+            # matches; only the stack trace shape differs.
+]
+
+[baseline]
+just_to_match_ctcl_failing = 1

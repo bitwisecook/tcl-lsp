@@ -92,7 +92,12 @@ fn eval_llength(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lindex(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_list_index(words[1], words[2]));
+    if (words.len >= 3) {
+        const ls = obj_ensure_string(words[1]);
+        if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+            return result_mod.from_globals(0);
+        return result_mod.from_globals(rt.tcl_cmd_list_index(words[1], words[2]));
+    }
     return result_mod.from_globals(0);
 }
 
@@ -603,6 +608,9 @@ fn eval_join(words: []const i32) result_mod.InterpResult {
         stubs.raise("wrong # args: should be \"join list ?joinString?\"");
         return result_mod.from_globals(0);
     }
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
     if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
     const sp = alloc(1);
     const d: [*]u8 = @ptrFromInt(sp);
