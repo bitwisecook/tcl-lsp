@@ -95,10 +95,7 @@ def backslash_subst(text: str) -> str:
                         and j + 5 < n
                         and text[j] == "\\"
                         and text[j + 1] == "u"
-                        and all(
-                            text[j + 2 + k] in "0123456789abcdefABCDEF"
-                            for k in range(4)
-                        )
+                        and all(text[j + 2 + k] in "0123456789abcdefABCDEF" for k in range(4))
                     ):
                         low = int(text[j + 2 : j + 6], 16)
                         if 0xDC00 <= low <= 0xDFFF:

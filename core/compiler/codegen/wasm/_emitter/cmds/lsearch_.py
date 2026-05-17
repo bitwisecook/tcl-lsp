@@ -35,7 +35,7 @@ def _emit_lsearch(
         script = "lsearch " + " ".join(_smart_quote_arg(a) for a in args)
         emitter._emit_eval_fallback("lsearch", args, script_override=script)
         if context is EmitContext.STATEMENT:
-            from .._ir import WasmOp
+            from ..._ir import WasmOp
 
             emitter._emit(WasmOp.DROP)
         return True

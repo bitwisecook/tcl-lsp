@@ -98,7 +98,7 @@ def _emit_lsort(
         script = "lsort " + " ".join(_smart_quote_arg(a) for a in args)
         emitter._emit_eval_fallback("lsort", args, script_override=script)
         if context is EmitContext.STATEMENT:
-            from .._ir import WasmOp
+            from ..._ir import WasmOp
 
             emitter._emit(WasmOp.DROP)
         return True

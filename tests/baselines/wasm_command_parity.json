@@ -263,11 +263,13 @@
       "::tcl::mathop::gt",
       "::tcl::mathop::le",
       "::tcl::mathop::lt",
+      "::tcl::prefix",
       "fpclassify",
       "tcl::mathop::ge",
       "tcl::mathop::gt",
       "tcl::mathop::le",
-      "tcl::mathop::lt"
+      "tcl::mathop::lt",
+      "tcl::prefix"
     ],
     "orphan_cmd_runtime": [],
     "orphan_dispatch": []

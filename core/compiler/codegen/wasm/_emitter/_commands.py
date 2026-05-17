@@ -25,7 +25,6 @@ from .._ir import (
     WasmOp,
 )
 
-
 # Commands whose runtime import is a fixed-arity helper (one-list-in,
 # one-list-out shape) but whose surface accepts trailing option /
 # index / value arguments.  When the call has more args than the
@@ -36,12 +35,14 @@ from .._ir import (
 # (``eval_lsort`` / ``eval_lsearch``) sees every argument and parses
 # the options correctly.  Add a command here when its runtime helper
 # signature can't represent the multi-arg surface.
-_VARIADIC_OVERFLOW_TO_EVAL = frozenset({
-    "lsort",
-    "::lsort",
-    "lsearch",
-    "::lsearch",
-})
+_VARIADIC_OVERFLOW_TO_EVAL = frozenset(
+    {
+        "lsort",
+        "::lsort",
+        "lsearch",
+        "::lsearch",
+    }
+)
 
 
 class _WasmEmitterCmdMixin(_Base):
