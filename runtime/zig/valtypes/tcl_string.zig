@@ -1137,44 +1137,60 @@ pub export fn string_repeat(value: i32, count: i32) i32 {
 pub export fn string_reverse(value: i32) i32 {
     const sv = obj_ensure_string(value);
     if (sv.len <= 1) return value;
-    const buf = alloc(sv.len);
     const src: [*]const u8 = @ptrFromInt(sv.ptr);
+    // Tcl 9's ``string reverse`` operates on UTF-16 code units, not
+    // codepoints — a supplementary plane character stored as a 4-byte
+    // UTF-8 sequence is split into its surrogate pair and reversed
+    // (string-24.16.0: ``фbulb😂`` →
+    // ``\uDE02\uD83Dblubф``).  Reserve worst-case 6 bytes per
+    // input codepoint (BMP = 3 bytes UTF-8; supplementary = 4 input →
+    // 2 × 3 output bytes for surrogates).
+    const buf = alloc(sv.len * 2 + 4);
     const dst: [*]u8 = @ptrFromInt(buf);
-    // Reverse by UTF-8 codepoint so multi-byte chars stay intact
-    // (string-24.5.0: ``킭`` reversed should still decode as
-    // ``킭``, not three garbled replacement chars).  Walk the
-    // source forward, decode each codepoint's byte length from the
-    // lead byte, and copy the byte run into the destination in
-    // reverse element order while preserving the byte order WITHIN
-    // each codepoint.
     var src_i: u32 = 0;
-    var dst_end: u32 = sv.len;
+    // First pass: walk forward and accumulate the reversed output by
+    // prepending each unit.  ``write_head`` moves backwards as we go.
+    var out_len: u32 = 0;
+    // Use a two-pass strategy — gather byte runs into ``buf`` from
+    // the *end* so each new unit takes the lowest-index slot.
+    var write_head: u32 = sv.len * 2 + 4;
     while (src_i < sv.len) {
-        const lead = src[src_i];
-        var code_len: u32 = 1;
-        if (lead < 0x80) {
-            code_len = 1;
-        } else if (lead < 0xC0) {
-            // Continuation byte at lead position — malformed UTF-8.
-            // Fall back to byte-by-byte to mirror C tcl's behaviour
-            // on invalid sequences (preserve the bytes verbatim).
-            code_len = 1;
-        } else if (lead < 0xE0) {
-            code_len = 2;
-        } else if (lead < 0xF0) {
-            code_len = 3;
+        const d = decode_utf8_at(src, sv.len, src_i);
+        if (d.cp >= 0x10000 and d.cp <= 0x10FFFF) {
+            // Split supplementary into a surrogate pair.  The buffer
+            // fills top-down, so the unit written *first* ends up at
+            // the higher output index; for ``string reverse`` we
+            // want the LOW surrogate to come out first in the
+            // reversed string, so write HIGH first (it lands at the
+            // higher address) then LOW (at the lower address).
+            const adj: u32 = d.cp - 0x10000;
+            const high: u32 = 0xD800 + (adj >> 10);
+            const low: u32 = 0xDC00 + (adj & 0x3FF);
+            write_head -= 3;
+            _ = encode_utf8(high, dst + write_head);
+            write_head -= 3;
+            _ = encode_utf8(low, dst + write_head);
+            out_len += 6;
         } else {
-            code_len = 4;
+            write_head -= d.len;
+            var k: u32 = 0;
+            while (k < d.len) : (k += 1) {
+                dst[write_head + k] = src[src_i + k];
+            }
+            out_len += d.len;
         }
-        if (src_i + code_len > sv.len) code_len = sv.len - src_i;
-        dst_end -= code_len;
-        var k: u32 = 0;
-        while (k < code_len) : (k += 1) {
-            dst[dst_end + k] = src[src_i + k];
-        }
-        src_i += code_len;
+        src_i += d.len;
     }
-    return obj_new_string(@bitCast(buf), @bitCast(sv.len));
+    // Slide the reversed content to the front of *buf* so the obj
+    // string ptr points at byte 0 (the runtime expects buffers to
+    // start at the allocation base).
+    if (write_head > 0) {
+        var i: u32 = 0;
+        while (i < out_len) : (i += 1) {
+            dst[i] = dst[write_head + i];
+        }
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(out_len));
 }
 
 // Exported: string toupper — convert to uppercase.
@@ -1360,26 +1376,42 @@ pub export fn string_insert(value: i32, index: i32, ins: i32) i32 {
 // Exported: string replace — replace characters in range [first..last] with new string.
 pub export fn string_replace(value: i32, first: i32, last: i32, new_str: i32) i32 {
     const sv = obj_ensure_string(value);
-    const list_local = @import("tcl_list.zig");
-    const slen: i64 = @intCast(sv.len);
+    const cp_count: i64 = @intCast(count_codepoints(sv.ptr, sv.len));
+    const end_cp: i64 = cp_count - 1;
     // ``end`` / ``end±N`` / plain integer — must use the index
     // resolver so ``string replace ... -100 end`` clamps to the
-    // whole-string range instead of treating ``end`` as 0.
-    var f = list_local.resolve_list_index(first, slen);
-    var l = list_local.resolve_list_index(last, slen);
+    // whole-string range instead of treating ``end`` as 0.  The
+    // indices are codepoint indices (Tcl 9 ``StringRplcCmd``).
+    const f_raw = list_mod.resolve_list_index(first, cp_count);
+    const l_raw = list_mod.resolve_list_index(last, cp_count);
+    // Tcl 9 special case: an empty input + first <= 0 + last >= -1
+    // is treated as an insert-at-0 request rather than a no-op
+    // (string-14.19).  Otherwise the standard "range outside / empty
+    // / inverted" tests return the original value.
+    const empty_insert = (cp_count == 0 and f_raw <= 0 and l_raw >= -1);
+    if (!empty_insert and (l_raw < 0 or f_raw > end_cp or l_raw < f_raw)) {
+        return value;
+    }
+    var f = f_raw;
+    var l = l_raw;
     if (f < 0) f = 0;
-    if (l >= slen) l = slen - 1;
-    if (f > l or f >= slen) return value;
+    if (l >= cp_count) l = cp_count - 1;
     const sn = obj_ensure_string(new_str);
-    const fst: u32 = @intCast(f);
-    const lst: u32 = @intCast(l);
-    const tail_start = lst + 1;
-    const tail_len = sv.len - tail_start;
-    const total = fst + sn.len + tail_len;
-    const buf = alloc(total);
-    if (fst > 0) memcpy(buf, sv.ptr, fst);
-    if (sn.len > 0) memcpy(buf + fst, sn.ptr, sn.len);
-    if (tail_len > 0) memcpy(buf + fst + sn.len, sv.ptr + tail_start, tail_len);
+    // Translate codepoint indices to byte offsets in the source.
+    const fst_byte: u32 = if (f > 0)
+        byte_offset_for_codepoint(sv.ptr, sv.len, @intCast(f))
+    else
+        0;
+    const tail_start_byte: u32 = if (l < end_cp)
+        byte_offset_for_codepoint(sv.ptr, sv.len, @as(u32, @intCast(l)) + 1)
+    else
+        sv.len;
+    const tail_len = sv.len - tail_start_byte;
+    const total = fst_byte + sn.len + tail_len;
+    const buf = alloc(total + 1);
+    if (fst_byte > 0) memcpy(buf, sv.ptr, fst_byte);
+    if (sn.len > 0) memcpy(buf + fst_byte, sn.ptr, sn.len);
+    if (tail_len > 0) memcpy(buf + fst_byte + sn.len, sv.ptr + tail_start_byte, tail_len);
     return obj_new_string(@bitCast(buf), @bitCast(total));
 }
 

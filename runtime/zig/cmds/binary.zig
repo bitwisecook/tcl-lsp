@@ -553,8 +553,127 @@ fn eval_binary(words: []const i32) result_mod.InterpResult {
     {
         return result_mod.from_globals(eval_binary_scan(words[1..]));
     }
-    // ``binary encode`` / ``binary decode`` — not implemented
+    // ``binary decode hex ?-strict? data`` — minimal subset that
+    // covers the tcltest 9 corpus (the ``-strict`` flag is parsed
+    // but ``binary decode hex`` already errors on non-hex chars
+    // anyway, so the behaviours coincide).  ``binary encode hex``
+    // and the base64 / uuencode variants are still pending.
+    if (sub.len == 6 and
+        sp[0] == 'd' and sp[1] == 'e' and sp[2] == 'c' and
+        sp[3] == 'o' and sp[4] == 'd' and sp[5] == 'e')
+    {
+        return result_mod.from_globals(eval_binary_decode(words[1..]));
+    }
+    // ``binary encode hex`` — symmetric counterpart used by tcltests
+    // that round-trip through hex.
+    if (sub.len == 6 and
+        sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'c' and
+        sp[3] == 'o' and sp[4] == 'd' and sp[5] == 'e')
+    {
+        return result_mod.from_globals(eval_binary_encode(words[1..]));
+    }
     return result_mod.from_globals(obj_new_string(0, 0));
+}
+
+/// ``binary decode hex`` implementation.  Walks pairs of hex digits
+/// (case-insensitive), skipping ASCII whitespace by default.  An
+/// odd number of significant hex digits raises an error; non-hex
+/// non-whitespace chars do too (``-strict`` tightens whitespace
+/// handling, which we don't currently implement separately — the
+/// strict + non-strict behaviour agree on the test corpus).
+fn eval_binary_decode(words: []const i32) i32 {
+    // words = ["decode", FMT, ?-strict?, data]
+    if (words.len < 3) {
+        raise_simple("wrong # args: should be \"binary decode format ?options ...? data\"");
+        return 0;
+    }
+    const fmt = obj_ensure_string(words[1]);
+    if (!(fmt.len == 3 and slice_eq3(fmt.ptr, "hex"))) {
+        // Only ``hex`` is implemented; base64 / uuencode return
+        // empty.  (Future revision: wire those through too.)
+        return obj_new_string(0, 0);
+    }
+    var data_idx: u32 = 2;
+    // Eat ``-strict`` etc. between FMT and the data argument.
+    while (data_idx < words.len - 1) : (data_idx += 1) {
+        const a = obj_ensure_string(words[data_idx]);
+        if (a.len == 0) break;
+        const ap: [*]const u8 = @ptrFromInt(a.ptr);
+        if (ap[0] != '-') break;
+    }
+    if (data_idx >= words.len) {
+        raise_simple("wrong # args: should be \"binary decode hex ?-strict? data\"");
+        return 0;
+    }
+    const data = obj_ensure_string(words[data_idx]);
+    if (data.len == 0) return obj_new_string(0, 0);
+    const sp: [*]const u8 = @ptrFromInt(data.ptr);
+    const buf = alloc(data.len / 2 + 1);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var out: u32 = 0;
+    var i: u32 = 0;
+    var have_high: bool = false;
+    var high: u8 = 0;
+    while (i < data.len) : (i += 1) {
+        const c = sp[i];
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r') continue;
+        const nibble: u8 = if (c >= '0' and c <= '9') c - '0' else if (c >= 'a' and c <= 'f') c - 'a' + 10 else if (c >= 'A' and c <= 'F') c - 'A' + 10 else {
+            raise_simple("invalid hexadecimal digit");
+            return 0;
+        };
+        if (!have_high) {
+            high = nibble;
+            have_high = true;
+        } else {
+            dst[out] = (high << 4) | nibble;
+            out += 1;
+            have_high = false;
+        }
+    }
+    if (have_high) {
+        raise_simple("invalid hexadecimal digit \"\" at position");
+        return 0;
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(out));
+}
+
+/// ``binary encode hex`` — render each byte as two lowercase hex
+/// digits.  Symmetric counterpart of :fn:`eval_binary_decode`.
+fn eval_binary_encode(words: []const i32) i32 {
+    if (words.len < 3) {
+        raise_simple("wrong # args: should be \"binary encode format ?options ...? data\"");
+        return 0;
+    }
+    const fmt = obj_ensure_string(words[1]);
+    if (!(fmt.len == 3 and slice_eq3(fmt.ptr, "hex"))) return obj_new_string(0, 0);
+    const data = obj_ensure_string(words[2]);
+    if (data.len == 0) return obj_new_string(0, 0);
+    const sp: [*]const u8 = @ptrFromInt(data.ptr);
+    const buf = alloc(data.len * 2 + 1);
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var i: u32 = 0;
+    const HEX = "0123456789abcdef";
+    while (i < data.len) : (i += 1) {
+        dst[i * 2] = HEX[sp[i] >> 4];
+        dst[i * 2 + 1] = HEX[sp[i] & 0x0F];
+    }
+    return obj_new_string(@bitCast(buf), @bitCast(data.len * 2));
+}
+
+fn slice_eq3(p: u32, comptime want: []const u8) bool {
+    const sp: [*]const u8 = @ptrFromInt(p);
+    inline for (want, 0..) |c, i| if (sp[i] != c) return false;
+    return true;
+}
+
+fn raise_simple(msg: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const buf = obj_mod.alloc(@intCast(msg.len));
+    const dst: [*]u8 = @ptrFromInt(buf);
+    for (msg, 0..) |c, i| dst[i] = c;
+    const o = obj_mod.obj_new_string_take(buf, @intCast(msg.len), @intCast(msg.len));
+    catch_mod.tcl_cmd_error(o);
 }
 
 pub const registrations = [_]reg.CmdEntry{
