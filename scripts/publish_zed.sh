@@ -62,7 +62,37 @@ if [ ! -d "$WORK_DIR/.git" ]; then
     git clone --recurse-submodules "https://github.com/${UPSTREAM}.git" "$WORK_DIR"
 else
     echo "==> Refreshing $WORK_DIR against upstream/main"
-    git -C "$WORK_DIR" fetch origin main
+
+    # The reset-to-origin/main below is destructive — any uncommitted
+    # changes or local-only commits would be silently discarded. Refuse
+    # to run unless the tree is clean and main is no further ahead of
+    # origin/main than the staged bump branches we may have created on
+    # previous runs. Set TCL_LSP_ZED_FORCE=1 to override.
+    if [ "${TCL_LSP_ZED_FORCE:-0}" != "1" ]; then
+        if [ -n "$(git -C "$WORK_DIR" status --porcelain 2>/dev/null)" ]; then
+            cat <<EOF
+error: $WORK_DIR has uncommitted changes.
+       Stash or commit them, or remove the checkout to start fresh:
+         rm -rf "$WORK_DIR"
+       Override (discards local work) with:
+         TCL_LSP_ZED_FORCE=1 make publish-zed
+EOF
+            exit 1
+        fi
+        git -C "$WORK_DIR" fetch origin main
+        LOCAL_AHEAD="$(git -C "$WORK_DIR" rev-list --count origin/main..main 2>/dev/null || echo 0)"
+        if [ "$LOCAL_AHEAD" -gt 0 ]; then
+            cat <<EOF
+error: $WORK_DIR has $LOCAL_AHEAD local commit(s) on 'main' not in origin/main.
+       Push them first, or override (discards local commits) with:
+         TCL_LSP_ZED_FORCE=1 make publish-zed
+EOF
+            exit 1
+        fi
+    else
+        git -C "$WORK_DIR" fetch origin main
+    fi
+
     git -C "$WORK_DIR" checkout main
     git -C "$WORK_DIR" reset --hard origin/main
     git -C "$WORK_DIR" submodule update --init --recursive
