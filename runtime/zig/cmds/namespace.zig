@@ -186,6 +186,14 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                         const psp: [*]const u8 = @ptrFromInt(ps.ptr);
                         if (psp[0] == '-' and psp[1] == 'c' and psp[2] == 'l' and psp[3] == 'e' and psp[4] == 'a' and psp[5] == 'r') continue;
                     }
+                    // Tcl 9 ``Tcl_ExportCmd`` rejects patterns that
+                    // include namespace qualifiers — exports are
+                    // always relative to the current namespace
+                    // (namespace-26.3).
+                    if (export_pattern_has_ns(ps.ptr, ps.len)) {
+                        raise_invalid_export_pattern(ps.ptr, ps.len);
+                        return result_mod.from_globals(0);
+                    }
                     tcl_ns.ns_export(tcl_ns.ns_current(), ps.ptr, ps.len);
                 }
                 return result_mod.from_globals(0);
@@ -293,6 +301,22 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
                                 catch_mod.tcl_cmd_error(msg);
                                 return result_mod.from_globals(0);
                             }
+                        }
+                    }
+                    // Self-import is a hard error in Tcl 9
+                    // ``Tcl_Import`` (namespace-9.3): when the
+                    // source namespace prefix resolves to the
+                    // current namespace itself, raise ``import
+                    // pattern ... tries to import from namespace
+                    // ... into itself``.
+                    if (last_sep >= 0) {
+                        const sep_at: u32 = @intCast(last_sep);
+                        const src_ns_ptr = is.ptr;
+                        const src_ns_len = sep_at;
+                        const target_h: u32 = if (src_ns_len == 0) tcl_ns.ns_root() else resolve_ns(src_ns_ptr, src_ns_len);
+                        if (target_h != 0 and target_h == tcl_ns.ns_current()) {
+                            raise_self_import(is.ptr, is.len, src_ns_ptr, src_ns_len);
+                            return result_mod.from_globals(0);
                         }
                     }
                     const created = tcl_ns.ns_import(tcl_ns.ns_current(), is.ptr, is.len);
@@ -911,6 +935,104 @@ fn raise_unknown_ns_in_pattern(pat_ptr: u32, pat_len: u32, context: []const u8) 
         off += 1;
     }
     for (mid) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const pp: [*]const u8 = @ptrFromInt(pat_ptr);
+    for (0..pat_len) |k| {
+        dst[off] = pp[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const e = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(e);
+}
+
+/// Raise the canonical ``import pattern "PAT" tries to import from
+/// namespace "NS" into itself`` error (namespace-9.3).  The "NS"
+/// is rendered using only the *simple* trailing component of the
+/// source qualifier — matches the upstream Tcl wording.
+fn raise_self_import(pat_ptr: u32, pat_len: u32, src_ptr: u32, src_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    // Strip a leading ``::`` from the source for the diagnostic
+    // (upstream emits the unqualified tail).
+    var sp_ptr = src_ptr;
+    var sp_len = src_len;
+    if (sp_len >= 2) {
+        const sp: [*]const u8 = @ptrFromInt(sp_ptr);
+        if (sp[0] == ':' and sp[1] == ':') {
+            sp_ptr += 2;
+            sp_len -= 2;
+        }
+    }
+    const prefix: []const u8 = "import pattern \"";
+    const mid: []const u8 = "\" tries to import from namespace \"";
+    const suffix: []const u8 = "\" into itself";
+    const total: u32 = @intCast(prefix.len + pat_len + mid.len + sp_len + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const pp: [*]const u8 = @ptrFromInt(pat_ptr);
+    for (0..pat_len) |k| {
+        dst[off] = pp[k];
+        off += 1;
+    }
+    for (mid) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const np: [*]const u8 = @ptrFromInt(sp_ptr);
+    for (0..sp_len) |k| {
+        dst[off] = np[k];
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const e = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(e);
+}
+
+/// Return true when *pat* contains a ``::`` namespace separator —
+/// used to reject qualified patterns passed to ``namespace export``
+/// (namespace-26.3) and ``namespace import`` self-imports.
+fn export_pattern_has_ns(ptr: u32, len: u32) bool {
+    if (len < 2) return false;
+    const sp: [*]const u8 = @ptrFromInt(ptr);
+    var i: u32 = 0;
+    while (i + 1 < len) : (i += 1) {
+        if (sp[i] == ':' and sp[i + 1] == ':') return true;
+    }
+    return false;
+}
+
+/// Raise ``invalid export pattern "PAT": pattern can't specify a
+/// namespace``.
+fn raise_invalid_export_pattern(pat_ptr: u32, pat_len: u32) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const prefix: []const u8 = "invalid export pattern \"";
+    const suffix: []const u8 = "\": pattern can't specify a namespace";
+    const total: u32 = @intCast(prefix.len + pat_len + suffix.len);
+    const buf = alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
         dst[off] = c;
         off += 1;
     }
