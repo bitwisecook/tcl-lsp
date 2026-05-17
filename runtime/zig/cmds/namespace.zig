@@ -588,25 +588,17 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
         if (str_eq(@ptrFromInt(sub.ptr), sub.len, "code")) {
             if (words.len < 3) return result_mod.from_globals(obj_new_string(0, 0));
             const ss = obj_ensure_string(words[2]);
-            // Idempotency check — already wrapped scripts pass
-            // through.  Match both the canonical ``::namespace
-            // inscope `` and the unqualified ``namespace inscope ``
-            // forms, mirroring reference Tcl.
+            // Idempotency check — pass through scripts already
+            // prefixed with the canonical ``::namespace inscope ``
+            // (upstream ``NamespaceCodeCmd`` only checks the
+            // ``::``-anchored spelling; ``namespace inscope ...``
+            // without the leading ``::`` IS wrapped per Tcl 9 —
+            // namespace-22.7 / Bug 3202171).
             if (ss.len >= 20) {
                 const sp: [*]const u8 = @ptrFromInt(ss.ptr);
                 const fq = "::namespace inscope ";
                 var ok: bool = true;
                 for (0..fq.len) |k| if (sp[k] != fq[k]) {
-                    ok = false;
-                    break;
-                };
-                if (ok) return result_mod.from_globals(words[2]);
-            }
-            if (ss.len >= 18) {
-                const sp: [*]const u8 = @ptrFromInt(ss.ptr);
-                const bare = "namespace inscope ";
-                var ok: bool = true;
-                for (0..bare.len) |k| if (sp[k] != bare[k]) {
                     ok = false;
                     break;
                 };

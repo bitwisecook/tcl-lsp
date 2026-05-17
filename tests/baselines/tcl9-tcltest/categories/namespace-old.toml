@@ -18,7 +18,7 @@ good_to_have = [
   # 5.x — namespace eval body scoping.
   "5.7", "5.9", "5.18", "5.21",
   # 6.x — namespace import / forget combinations.
-  "6.6", "6.11", "6.12", "6.13", "6.14", "6.16", "6.17", "6.19",
+  "6.6", "6.11", "6.12", "6.13", "6.14", "6.15", "6.16", "6.17", "6.19",
   # 7.x — namespace export filtering and pattern propagation.
   "7.2", "7.3", "7.4", "7.5", "7.6", "7.9", "7.10", "7.11",
   # 8.x — namespace delete edge cases.
@@ -32,6 +32,6 @@ just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 54
+good_to_have_failing = 55
 just_to_match_ctcl_failing = 0
 skip_failing = 0
