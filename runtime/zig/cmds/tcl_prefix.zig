@@ -94,15 +94,22 @@ fn eval_prefix_longest(words: []const i32) result_mod.InterpResult {
             have_any = true;
             continue;
         }
-        // Intersect common prefix.
+        // Intersect common prefix.  Skip the bytewise loop when
+        // either side is empty (the intersect is trivially zero
+        // and ``@ptrFromInt(0)`` would trap on a non-allowzero
+        // many-item pointer cast).
+        const min = if (common_len < es.len) common_len else es.len;
+        if (min == 0) {
+            common_len = 0;
+            continue;
+        }
         const a: [*]const u8 = @ptrFromInt(common_ptr);
         const b: [*]const u8 = @ptrFromInt(es.ptr);
-        const min = if (common_len < es.len) common_len else es.len;
         var k: u32 = 0;
         while (k < min and a[k] == b[k]) : (k += 1) {}
         common_len = k;
     }
-    if (!have_any) return result_mod.from_globals(obj_new_string(0, 0));
+    if (!have_any or common_len == 0) return result_mod.from_globals(obj_new_string(0, 0));
     return result_mod.from_globals(rt.obj_new_string_copy(common_ptr, common_len));
 }
 

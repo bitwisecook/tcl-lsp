@@ -77,6 +77,7 @@ pub const tcl_cmd_puts_nonewline = tcl_io.tcl_cmd_puts_nonewline;
 
 pub const tcl_cmd_append = tcl_string.tcl_cmd_append;
 pub const string_length = tcl_string.string_length;
+pub const string_codepoint_count = tcl_string.string_codepoint_count;
 pub const string_index = tcl_string.string_index;
 pub const string_range = tcl_string.string_range;
 pub const string_compare = tcl_string.string_compare;
@@ -93,7 +94,9 @@ pub const string_trim = tcl_string.string_trim;
 pub const string_trimleft = tcl_string.string_trimleft;
 pub const string_trimright = tcl_string.string_trimright;
 pub const string_first = tcl_string.string_first;
+pub const string_first_indexed = tcl_string.string_first_indexed;
 pub const string_last = tcl_string.string_last;
+pub const string_last_indexed = tcl_string.string_last_indexed;
 pub const string_toupper = tcl_string.string_toupper;
 pub const string_tolower = tcl_string.string_tolower;
 pub const string_totitle = tcl_string.string_totitle;

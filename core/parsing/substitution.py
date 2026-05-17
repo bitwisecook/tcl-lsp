@@ -79,12 +79,32 @@ def backslash_subst(text: str) -> str:
                     result.append("x")
                     i += 2
             elif c == "u":
-                # unicode escape: \uNNNN (1-4 hex digits)
+                # unicode escape: \uNNNN (1-4 hex digits).  If the
+                # parsed codepoint is a high surrogate (U+D800-U+DBFF)
+                # and the next four bytes form ``\uYYYY`` with YYYY a
+                # low surrogate (U+DC00-U+DFFF), combine the pair into
+                # a single supplementary-plane codepoint (Tcl 9
+                # ``tclParse.c`` ``TclParseBackslash`` behaviour).
                 j = i + 2
                 while j < n and j < i + 6 and text[j] in "0123456789abcdefABCDEF":
                     j += 1
                 if j > i + 2:
-                    result.append(chr(_clamp_unicode(int(text[i + 2 : j], 16))))
+                    cp = int(text[i + 2 : j], 16)
+                    if (
+                        0xD800 <= cp <= 0xDBFF
+                        and j + 5 < n
+                        and text[j] == "\\"
+                        and text[j + 1] == "u"
+                        and all(
+                            text[j + 2 + k] in "0123456789abcdefABCDEF"
+                            for k in range(4)
+                        )
+                    ):
+                        low = int(text[j + 2 : j + 6], 16)
+                        if 0xDC00 <= low <= 0xDFFF:
+                            cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00)
+                            j = j + 6
+                    result.append(chr(_clamp_unicode(cp)))
                     i = j
                 else:
                     result.append("u")

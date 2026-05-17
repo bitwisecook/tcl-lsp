@@ -421,24 +421,26 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(eval_string_match(words));
     }
     if (str_eq(sp, sub.len, "map") and words.len >= 4) {
-        // ``string map ?-nocase? CHARMAP STRING`` — accept the
-        // optional ``-nocase`` flag.  Without this branch, the
-        // flag was passed as the CHARMAP argument and the actual
-        // CHARMAP was treated as the STRING, which silently
-        // mangled tcltest's return-code translation
-        // (``string map -nocase {ok 0 ...} {0 2}`` returned the
-        // MAP itself).
-        var map_idx: u32 = 2;
+        // ``string map ?-nocase? CHARMAP STRING`` — the trailing two
+        // words are always CHARMAP / STRING (per upstream
+        // ``StringMapCmd``); any earlier non-final words are options.
+        // Accept ``-nocase`` as a prefix abbreviation (``-no`` works,
+        // string-10.9.0) and surface anything else as
+        // ``bad option "X": must be -nocase`` (string-10.2.0).
         var nocase = false;
-        if (words.len >= 5) {
-            const ws = obj_ensure_string(words[2]);
+        var ai: u32 = 2;
+        const opt_end: u32 = words.len - 2;
+        while (ai < opt_end) : (ai += 1) {
+            const ws = obj_ensure_string(words[ai]);
             const wp: [*]const u8 = @ptrFromInt(ws.ptr);
-            if (str_eq(wp, ws.len, "-nocase")) {
+            if (ws.len >= 2 and wp[0] == '-' and wp[1] == 'n' and is_prefix_of(wp, ws.len, "-nocase")) {
                 nocase = true;
-                map_idx = 3;
+                continue;
             }
+            raise_bad_option(words[ai], "must be -nocase");
+            return result_mod.from_globals(0);
         }
-        if (map_idx + 1 >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+        const map_idx: u32 = words.len - 2;
         // Validate the CHARMAP has an even number of elements —
         // Tcl 9 raises ``char map list unbalanced`` when the
         // pair-count is odd (string-10.10.0).
@@ -465,18 +467,29 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(rt.string_trimright(words[2], chars));
     }
     if (str_eq(sp, sub.len, "first") and words.len >= 4) {
-        if (words.len >= 5 and !is_valid_string_index(words[4])) {
+        if (words.len < 5) return result_mod.from_globals(rt.string_first(words[2], words[3]));
+        if (!is_valid_string_index(words[4])) {
             raise_bad_string_index(words[4]);
             return result_mod.from_globals(0);
         }
-        return result_mod.from_globals(rt.string_first(words[2], words[3]));
+        // ``string first`` measures startIndex in codepoints (Tcl 9
+        // ``tclCmdMZ.c`` ``StringFirstCmd``).  Resolve ``end``/``end-N``
+        // against the haystack codepoint count.
+        const list_mod = @import("../valtypes/tcl_list.zig");
+        const cp_count: i64 = @intCast(rt.string_codepoint_count(words[3]));
+        const start_cp = list_mod.resolve_list_index(words[4], cp_count);
+        return result_mod.from_globals(rt.string_first_indexed(words[2], words[3], start_cp));
     }
     if (str_eq(sp, sub.len, "last") and words.len >= 4) {
-        if (words.len >= 5 and !is_valid_string_index(words[4])) {
+        if (words.len < 5) return result_mod.from_globals(rt.string_last(words[2], words[3]));
+        if (!is_valid_string_index(words[4])) {
             raise_bad_string_index(words[4]);
             return result_mod.from_globals(0);
         }
-        return result_mod.from_globals(rt.string_last(words[2], words[3]));
+        const list_mod = @import("../valtypes/tcl_list.zig");
+        const cp_count: i64 = @intCast(rt.string_codepoint_count(words[3]));
+        const last_cp = list_mod.resolve_list_index(words[4], cp_count);
+        return result_mod.from_globals(rt.string_last_indexed(words[2], words[3], last_cp));
     }
     if (str_eq(sp, sub.len, "toupper") or str_eq(sp, sub.len, "tolower") or str_eq(sp, sub.len, "totitle")) {
         // Tcl 9 ``string tolower/toupper/totitle STRING ?first ?last??`` —
