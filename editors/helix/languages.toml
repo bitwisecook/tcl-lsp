@@ -1,0 +1,38 @@
+# tcl-lsp — Helix `languages.toml` fragment
+#
+# This is the upstream entry for tcl-lsp under Helix's default
+# `languages.toml`. Use this content for the one-time PR to
+# https://github.com/helix-editor/helix that registers tcl-lsp
+# alongside Helix's other built-in language servers.
+#
+# After upstream merge, users get tcl-lsp support out of the box —
+# they only need the `tcl-lsp-server.pyz` zipapp on their PATH.
+
+[language-server.tcl-lsp]
+command = "tcl-lsp-server.pyz"
+
+[language-server.tcl-lsp.config.tclLsp]
+dialect = "tcl8.6"
+
+[[language]]
+name = "tcl"
+scope = "source.tcl"
+injection-regex = "tcl"
+file-types = [
+    "tcl",
+    "tk",
+    "itcl",
+    "tm",
+    "irul",
+    "irule",
+    "iapp",
+    "iappimpl",
+    "impl",
+    "apl",
+    "exp",
+]
+shebangs = ["tclsh", "wish", "expect"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }

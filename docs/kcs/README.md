@@ -77,6 +77,10 @@ a design doc. Put it under [`../design/`](../design/README.md) instead.
 - [kcs-how-to-run-tcltest-bundles.md](kcs-how-to-run-tcltest-bundles.md)
   — run the Tcl 9 tcltest test files through the WASM runtime and
   interpret the triage roll-up.
+- [kcs-howto-publish-editor-extensions.md](kcs-howto-publish-editor-extensions.md)
+  — first-time submission to VS Code, JetBrains, Sublime Text Package
+  Control, Zed, nvim-lspconfig, and Helix; plus the per-release
+  `make publish-<editor>` flow that the release skill drives.
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.

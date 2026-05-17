@@ -132,7 +132,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 # Main targets
 
-.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
+.PHONY: vsix verify-vsix install publish-vsix publish-jetbrains publish-sublime publish-zed publish-neovim publish-helix publish-all test test-py test-slow test-opt test-ext test-emacs test-zig test-rust lint lint-py typecheck-py typecheck-py-full lint-ts format format-py format-ts typecheck-ts npm-env compile clean distclean help explorer-build explorer-build-cdn compiler-explorer-gui zipapp-tcl zipapp-cli zipapp-f5 zipapp-gui zipapp-gui-cdn zipapp-lsp zipapp-ai zipapp-mcp zipapp-wasm zipapps claude-skills package-vsix jetbrains sublime zed release release-tag build-info screenshot screenshots clean-screenshots prep-pr smoke-zipapps smoke-vsix copy-canonical coverage coverage-py coverage-ext generate check-generated ci-fast check-all check-zig check-rust install-hooks capture-bytecode-refs ensure-test-deps ensure-python-test-deps ensure-tcl-deps ensure-check-zig-deps ensure-test-zig-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps .FORCE
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -1128,6 +1128,11 @@ publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplac
 	@if [ -z "$$JETBRAINS_TOKEN" ]; then \
 		echo "error: JETBRAINS_TOKEN environment variable is not set"; \
 		echo "       Create a token at https://plugins.jetbrains.com/author/me/tokens"; \
+		echo ""; \
+		echo "       First-time publish? The marketplace requires the initial"; \
+		echo "       version to be uploaded interactively via the web UI before"; \
+		echo "       `gradlew publishPlugin` will accept token-based updates."; \
+		echo "       See docs/kcs/kcs-howto-publish-editor-extensions.md."; \
 		exit 1; \
 	fi
 	@echo "==> Publishing JetBrains plugin to Marketplace"
@@ -1172,10 +1177,8 @@ $(ST_PACKAGE): $(PY_SRCS) $(BUILD_INFO)
 	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: sublime ## Publish Sublime Text package (via GitHub Release)
-	@echo "==> Sublime Text package built: $(ST_PACKAGE)"
-	@echo "    Package Control picks up new versions from GitHub Releases automatically."
-	@echo "    Ensure the GitHub Release for this tag includes the .sublime-package artifact."
+publish-sublime: sublime ## Publish Sublime Text package (verify Package Control will pick it up)
+	@bash $(ROOT)scripts/publish_sublime.sh
 
 # Zed extension
 
@@ -1219,10 +1222,47 @@ $(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_SRCS) $(PY
 	@echo "Built: $(ZED_ARCHIVE)"
 	@ls -lh $(ZED_ARCHIVE)
 
-publish-zed: zed ## Publish Zed extension (via GitHub Release)
-	@echo "==> Zed extension built: $(ZED_ARCHIVE)"
-	@echo "    Zed extensions are published via https://github.com/zed-industries/extensions"
-	@echo "    Ensure the GitHub Release for this tag includes the .zip artifact."
+publish-zed: zed ## Publish Zed extension (prep local PR branch for zed-industries/extensions; you push + open the PR)
+	@bash $(ROOT)scripts/publish_zed.sh
+
+# Neovim — nvim-lspconfig is a one-time upstream submission.
+# editors/neovim/lspconfig.lua is the payload for that PR; after merge
+# Neovim users install via `require('lspconfig').tcl_lsp.setup()` and the
+# config is stable across our releases (it points at the canonical
+# zipapp name, which never changes).
+publish-neovim: ## Instructions for the one-time Neovim nvim-lspconfig submission
+	@echo "==> Neovim — nvim-lspconfig"
+	@echo
+	@echo "    Neovim distributes language-server configs via"
+	@echo "    https://github.com/neovim/nvim-lspconfig. The tcl_lsp entry is a"
+	@echo "    one-time upstream PR (raised by you); there is no per-release"
+	@echo "    publish step."
+	@echo
+	@echo "    First-time submission (raise this PR yourself):"
+	@echo "      Drop editors/neovim/lspconfig.lua into your fork of"
+	@echo "      nvim-lspconfig at lua/lspconfig/configs/tcl_lsp.lua,"
+	@echo "      add the doc entry, then open the PR."
+	@echo "      See docs/kcs/kcs-howto-publish-editor-extensions.md for the"
+	@echo "      full checklist."
+	@echo
+	@echo "    After merge: nothing to do per release — the config is stable."
+
+# Helix — `languages.toml` is a one-time upstream submission.
+# editors/helix/languages.toml carries the upstream PR payload.
+publish-helix: ## Instructions for the one-time Helix languages.toml submission
+	@echo "==> Helix"
+	@echo
+	@echo "    Helix bundles language-server entries in its repository's"
+	@echo "    languages.toml. The tcl entry is a one-time upstream PR"
+	@echo "    (raised by you); there is no per-release publish step."
+	@echo
+	@echo "    First-time submission (raise this PR yourself):"
+	@echo "      Merge editors/helix/languages.toml into the languages.toml"
+	@echo "      at the root of your fork of helix-editor/helix, then open"
+	@echo "      the PR. See docs/kcs/kcs-howto-publish-editor-extensions.md."
+	@echo
+	@echo "    After merge: nothing to do per release — the entry points at"
+	@echo "    the canonical tcl-lsp-server.pyz zipapp name."
 
 # Release
 
@@ -1254,7 +1294,7 @@ release-sums: zipapp-cli zipapp-tcl zipapp-f5 zipapp-gui-cdn zipapp-lsp zipapp-m
 release-tag: ## Bump version, annotated-tag, and push (V=x.y.z)
 	@bash $(ROOT)scripts/release.sh $(V)
 
-publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+publish-all: publish-vsix publish-jetbrains publish-sublime publish-zed publish-neovim publish-helix ## Publish to all editor marketplaces
 
 # KCS help database
 

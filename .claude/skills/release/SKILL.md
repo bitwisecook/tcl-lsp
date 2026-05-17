@@ -182,7 +182,7 @@ job. If the smoke-test succeeds, integrity is intact.
 
 Ask the user which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed)
+> Which editors should be published? (All / None / comma-separated list of: vscode, jetbrains, sublime, zed, neovim, helix)
 > Default: None
 
 Based on the response:
@@ -192,10 +192,34 @@ Based on the response:
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:
-- `make publish-vsix` — VS Code Marketplace (requires valid PAT)
-- `make publish-jetbrains` — JetBrains Marketplace (requires `JETBRAINS_TOKEN` env var)
-- `make publish-sublime` — Sublime Text (built; distributed via GitHub Release)
-- `make publish-zed` — Zed (built; distributed via GitHub Release)
+- `make publish-vsix` — VS Code Marketplace. Runs `vsce publish`. Requires
+  a valid PAT for `bitwisecook` (interactive login otherwise).
+- `make publish-jetbrains` — JetBrains Marketplace. Runs
+  `./gradlew publishPlugin`. Requires `JETBRAINS_TOKEN` env var. First-time
+  publish must be done manually via the JetBrains web UI — see
+  `docs/kcs/kcs-howto-publish-editor-extensions.md`.
+- `make publish-sublime` — Sublime Text / Package Control. Verifies the
+  GitHub Release carries the `.sublime-package` asset. After the one-time
+  channel submission, Package Control follows tags automatically — no
+  per-release marketplace API call.
+- `make publish-zed` — Zed extensions registry. Prepares a local
+  checkout of `zed-industries/extensions` with the tcl submodule advanced
+  to the new tag and the version bumped in `extensions.toml`, then
+  **stops** and prints the suggested commit / push / `gh pr create`
+  commands. The script never pushes to a fork or opens a PR — the user
+  reviews the diff first and raises the PR themselves.
+- `make publish-neovim` — Informational only. nvim-lspconfig integration
+  is a one-time upstream PR (raised by the user); no per-release action.
+- `make publish-helix` — Informational only. Helix integration is a
+  one-time upstream PR (raised by the user); no per-release action.
+
+If the user is publishing for the **first time** to any of these
+registries, point them at
+`docs/kcs/kcs-howto-publish-editor-extensions.md` before running the
+target — several registries (JetBrains, Sublime Package Control, Zed
+extensions, nvim-lspconfig, Helix) require a one-time external
+registration PR that they raise themselves; the make targets in this
+repo never push to or open PRs against external repositories.
 
 ### 8. Summary
 

@@ -231,12 +231,24 @@ and place it on your PATH.
 
 ## Publishing
 
-To publish to the Zed extension registry:
+The Zed extensions registry pins each extension as a git submodule. For a
+new release of tcl-lsp:
 
-1. Push this directory to a public GitHub repo.
-2. Fork [zed-industries/extensions](https://github.com/zed-industries/extensions).
-3. Add the repo as a submodule and update `extensions.toml`.
-4. Submit a PR.
+```
+make publish-zed
+```
+
+prepares a local checkout of
+[`zed-industries/extensions`](https://github.com/zed-industries/extensions)
+with the tcl submodule pointer advanced to the new tag and the
+`extensions.toml` version field bumped, staged on a fresh branch. It then
+prints the suggested commit / push / `gh pr create` commands and stops —
+no push or PR is performed for you. You review the staged diff, then run
+the suggested commands to raise the PR yourself.
+
+The first time you publish to Zed, follow the one-time submission steps in
+[`docs/kcs/kcs-howto-publish-editor-extensions.md`](../../docs/kcs/kcs-howto-publish-editor-extensions.md);
+that initial PR is also raised by you, not by any tooling in this repo.
 
 ## Configuration File
 
