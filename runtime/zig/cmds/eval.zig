@@ -11,6 +11,11 @@ const obj_ensure_string = rt.obj_ensure_string;
 
 fn eval_eval(words: []const i32) result_mod.InterpResult {
     const interp = @import("../interp/tcl_interp.zig");
+    if (words.len < 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"eval arg ?arg ...?\"");
+        return result_mod.from_globals(0);
+    }
     if (words.len == 2) {
         const s = obj_ensure_string(words[1]);
         return result_mod.from_globals(interp.eval_script(s.ptr, s.len));

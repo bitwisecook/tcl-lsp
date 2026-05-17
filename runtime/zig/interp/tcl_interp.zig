@@ -727,8 +727,113 @@ pub fn eval_command(words: []const i32) i32 {
         }
     }
 
+    // -- Namespace ``path`` resolution --------------------------------
+    // Unqualified names that miss the BUILTINS / proc tables consult
+    // each entry of the current namespace's ``commandPathArray`` and
+    // probe the BUILTINS table for ``${path_ns_full}::${cmd}``.
+    // ``::tcl::mathop::+`` is registered FQ in BUILTINS; ``namespace
+    // path ::tcl::mathop`` makes the bare ``+`` resolve here without
+    // forcing every test to ``namespace import`` first (mathop-1.x,
+    // mathop-2.x, …).
+    if (cmd_s.len > 0) {
+        const cp: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+        var has_colons = false;
+        if (cmd_s.len >= 2) {
+            var i: u32 = 0;
+            while (i + 1 < cmd_s.len) : (i += 1) {
+                if (cp[i] == ':' and cp[i + 1] == ':') {
+                    has_colons = true;
+                    break;
+                }
+            }
+        }
+        if (!has_colons) {
+            if (resolve_via_path(cmd_s, words)) |r| return r;
+        }
+    }
+
     // -- Proc dispatch: check registry before erroring --
     return eval_proc_call(words);
+}
+
+/// Walk the current namespace's command-resolution ``path`` and
+/// look the unqualified ``cmd_s`` up as ``${path_ns}::${cmd_s}``
+/// against the BUILTINS slice.  Returns the handler's result if a
+/// match fires, or ``null`` so the caller can fall through to the
+/// proc / unknown chain.  Read-only — does not mutate any tables.
+fn resolve_via_path(cmd_s: anytype, words: []const i32) ?i32 {
+    const ns_cur = tcl_ns.ns_current();
+    if (ns_cur == 0) return null;
+    const plen = tcl_ns.ns_path_len(ns_cur);
+    if (plen == 0) return null;
+    var pi: u32 = 0;
+    while (pi < plen) : (pi += 1) {
+        const e = tcl_ns.ns_path_entry(ns_cur, pi);
+        if (e.target_ns == 0) continue;
+        const full = tcl_ns.ns_full_name(e.target_ns);
+        // Build ``${full}::${cmd_s}``.  Root (``::``) collapses to
+        // ``::${cmd_s}``.
+        const join_len: u32 = if (full.len == 2) 0 else 2;
+        const total: u32 = full.len + join_len + cmd_s.len;
+        const buf = obj_mod.alloc(total);
+        if (buf == 0) return null; // OOM — surface as unresolved.
+        const dst: [*]u8 = @ptrFromInt(buf);
+        const src: [*]const u8 = @ptrFromInt(full.ptr);
+        var fi: u32 = 0;
+        while (fi < full.len) : (fi += 1) dst[fi] = src[fi];
+        var loff: u32 = full.len;
+        if (join_len > 0) {
+            dst[loff] = ':';
+            dst[loff + 1] = ':';
+            loff += 2;
+        }
+        const cps2: [*]const u8 = @ptrFromInt(cmd_s.ptr);
+        var j: u32 = 0;
+        while (j < cmd_s.len) : (j += 1) dst[loff + j] = cps2[j];
+        // Try the BUILTINS table with the FQ name (strip leading
+        // ``::`` to match the table's storage convention — root
+        // commands are keyed without it).
+        var lookup_ptr: u32 = buf;
+        var lookup_len: u32 = total;
+        if (lookup_len >= 2 and dst[0] == ':' and dst[1] == ':') {
+            lookup_ptr += 2;
+            lookup_len -= 2;
+        }
+        // Build the FQ command-name TclObj with ``_take`` so the
+        // resulting obj owns ``buf`` and a later ``tcl_obj_release``
+        // frees it via ``free_sized`` (PR #413 review — the prior
+        // ``obj_new_string`` form leaked the buf once per probe).
+        const fq_obj = obj_mod.obj_new_string_take(buf, total, total);
+        if (fq_obj == 0) {
+            obj_mod.free_sized(buf, total);
+            return null;
+        }
+        if (cmd_table.lookup(lookup_ptr, lookup_len)) |handler| {
+            // Rewrite words[0] so error messages / the handler's
+            // view of the command name match what was dispatched.
+            var new_words: [parse.MAX_WORDS]i32 = undefined;
+            new_words[0] = fq_obj;
+            var w: u32 = 1;
+            while (w < words.len) : (w += 1) new_words[w] = words[w];
+            const result = handler(new_words[0..words.len]).value;
+            obj_mod.tcl_obj_release(fq_obj);
+            return result;
+        }
+        // Also try the proc registry — ``namespace path`` resolves
+        // user procs too, not just builtins.
+        const bucket = procs.proc_lookup(fq_obj);
+        if (bucket != 0) {
+            var new_words: [parse.MAX_WORDS]i32 = undefined;
+            new_words[0] = fq_obj;
+            var w: u32 = 1;
+            while (w < words.len) : (w += 1) new_words[w] = words[w];
+            const result = eval_proc_call_bucket(new_words[0..words.len], bucket);
+            obj_mod.tcl_obj_release(fq_obj);
+            return result;
+        }
+        obj_mod.tcl_obj_release(fq_obj);
+    }
+    return null;
 }
 
 /// Recognise ``::tcl::ENSEMBLE::SUBCMD`` (the canonical FQ rewrite
@@ -1070,37 +1175,154 @@ pub fn eval_uplevel(words: []const i32) i32 {
 // -- Control flow --
 
 pub fn eval_if(words: []const i32) i32 {
+    // Tcl ``if`` syntax accepts optional ``then`` / ``else``
+    // keywords and an explicit ``elseif`` chaining keyword.  The
+    // trailing else body may even omit the ``else`` keyword — the
+    // dangling word at the end is treated as the else clause.
+    //
+    // Grammar:
+    //
+    //   if expr1 ?then? body1 \
+    //      ?elseif expr2 ?then? body2 …? \
+    //      ?else? ?bodyN?
+    //
+    // The previous walker mishandled both the ``then`` keyword and
+    // the bare-trailing-body form, which sent if-old-2.x off the
+    // rails by re-parsing keyword words as conditions.
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    if (words.len < 2) {
+        stubs.raise("wrong # args: no expression after \"if\" argument");
+        return 0;
+    }
     var i: u32 = 1;
+    var seen_cond_body: bool = false;
     while (i < words.len) {
+        // ``else BODY`` — terminal branch.  Empty / null word
+        // (kw.ptr == 0) can't match any keyword, so don't waste
+        // a ``@ptrFromInt(0)`` (which Debug-build Zig panics on).
         const kw = obj_ensure_string(words[i]);
-        const kp: [*]const u8 = @ptrFromInt(kw.ptr);
-        if (str_eq(kp, kw.len, "else")) {
+        const kw_is_else = kw.ptr != 0 and str_eq(
+            @as([*]const u8, @ptrFromInt(kw.ptr)),
+            kw.len,
+            "else",
+        );
+        if (kw_is_else) {
             if (i + 1 < words.len) {
                 const bs = obj_ensure_string(words[i + 1]);
                 return eval_script(bs.ptr, bs.len);
             }
+            stubs.raise("wrong # args: no script following \"else\" argument");
             return 0;
         }
+        // Bare-trailing-body form: when the not-taken branch leaves
+        // exactly one word remaining AND we've already processed at
+        // least one condition/body pair, that word is the implicit
+        // else body.  Without the ``seen_cond_body`` gate ``if EXPR``
+        // (just one arg, no body) would silently treat the
+        // condition word as a body and run it as a command.
+        if (seen_cond_body and i + 1 == words.len) {
+            const bs = obj_ensure_string(words[i]);
+            return eval_script(bs.ptr, bs.len);
+        }
+        // Condition word.
         const cond_s = obj_ensure_string(words[i]);
-        if (eval_expr_str(cond_s.ptr, cond_s.len) != 0) {
-            if (i + 1 < words.len) {
-                const bs = obj_ensure_string(words[i + 1]);
-                return eval_script(bs.ptr, bs.len);
+        const cond_true = eval_expr_str(cond_s.ptr, cond_s.len) != 0;
+        // Optional ``then`` keyword between condition and body.
+        // ``if EXPR then`` (then with no body) is a script-following
+        // error; ``if EXPR`` with no body is the same shape under
+        // a different keyword.
+        const cond_word: u32 = i;
+        i += 1;
+        var saw_then: bool = false;
+        if (i < words.len) {
+            const tk = obj_ensure_string(words[i]);
+            if (tk.ptr != 0 and str_eq(
+                @as([*]const u8, @ptrFromInt(tk.ptr)),
+                tk.len,
+                "then",
+            )) {
+                saw_then = true;
+                i += 1;
             }
+        }
+        if (i >= words.len) {
+            if (saw_then) {
+                stubs.raise("wrong # args: no script following \"then\" argument");
+                return 0;
+            }
+            const cw = obj_ensure_string(words[cond_word]);
+            raise_no_script_after(cw.ptr, cw.len);
             return 0;
         }
-        i += 2;
+        if (cond_true) {
+            const bs = obj_ensure_string(words[i]);
+            return eval_script(bs.ptr, bs.len);
+        }
+        // Skip the body of the not-taken branch.
+        seen_cond_body = true;
+        i += 1;
+        // Consume an ``elseif`` keyword so the next iteration's
+        // cond probe lands on the actual expression word.  An
+        // ``else`` keyword (or a bare trailing body) is handled at
+        // the loop head.  Empty/null word can't match — guard the
+        // ``@ptrFromInt(0)``.
         if (i < words.len) {
-            const nk = obj_ensure_string(words[i]);
-            const np: [*]const u8 = @ptrFromInt(nk.ptr);
-            if (str_eq(np, nk.len, "elseif")) i += 1;
+            const ek = obj_ensure_string(words[i]);
+            if (ek.ptr != 0 and str_eq(
+                @as([*]const u8, @ptrFromInt(ek.ptr)),
+                ek.len,
+                "elseif",
+            )) {
+                i += 1;
+                if (i >= words.len) {
+                    stubs.raise("wrong # args: no expression after \"elseif\" argument");
+                    return 0;
+                }
+            }
         }
     }
     return 0;
 }
 
+fn raise_no_script_after(name_ptr: u32, name_len: u32) void {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    const prefix = "wrong # args: no script following \"";
+    const suffix = "\" argument";
+    const safe_len: u32 = if (name_ptr == 0) 0 else name_len;
+    const total: u32 = @intCast(prefix.len + safe_len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        stubs.raise("wrong # args: no script following argument");
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (safe_len > 0) {
+        const src: [*]const u8 = @ptrFromInt(name_ptr);
+        var k: u32 = 0;
+        while (k < safe_len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += safe_len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    stubs.raise(dst[0..total]);
+    obj_mod.free_sized(buf, total);
+}
+
 pub fn eval_while(words: []const i32) i32 {
-    if (words.len < 3) return 0;
+    if (words.len != 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"while test command\"");
+        return 0;
+    }
     const cond_s = obj_ensure_string(words[1]);
     const body_s = obj_ensure_string(words[2]);
     var result: i32 = 0;
@@ -1127,11 +1349,18 @@ pub fn eval_while(words: []const i32) i32 {
             .ERROR, .RETURN => return result,
         }
     }
-    return result;
+    // ``while`` always returns the empty string (Tcl docs); body
+    // results from prior iterations were already released above.
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    return obj_new_string(0, 0);
 }
 
 pub fn eval_for(words: []const i32) i32 {
-    if (words.len < 5) return 0;
+    if (words.len != 5) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"for start test next command\"");
+        return 0;
+    }
     const init_s = obj_ensure_string(words[1]);
     const cond_s = obj_ensure_string(words[2]);
     const next_s = obj_ensure_string(words[3]);
@@ -1199,7 +1428,10 @@ pub fn eval_for(words: []const i32) i32 {
             },
         }
     }
-    return result;
+    // ``for`` always returns the empty string (Tcl docs).  Drop the
+    // body's last result and hand the caller a fresh empty obj.
+    if (result != 0) obj_mod.tcl_obj_release(result);
+    return obj_new_string(0, 0);
 }
 
 /// ``switch ?-options? string pattern body ?pattern body ...?``
@@ -2021,6 +2253,35 @@ fn eval_proc_call(words: []const i32) i32 {
         const cmd_s = obj_ensure_string(words[0]);
         if (cmd_s.len > 0 and stub_dispatch.try_stub(@as([*]const u8, @ptrFromInt(cmd_s.ptr)), cmd_s.len)) {
             return 0;
+        }
+        // Before declaring the command unknown, look for a
+        // user-defined ``unknown`` proc that should intercept the
+        // call (Tcl's classic auto-dispatch hook).  Reference Tcl's
+        // ``Tcl_FindCommand`` consults ``::unknown`` when a name
+        // doesn't resolve; we mirror that by checking the proc
+        // registry for a procedure named ``unknown`` and invoking
+        // it with the original word slice prepended by the literal
+        // ``unknown`` command name.
+        //
+        // unknown.test exercises this: it does
+        // ``proc unknown {args} { … set x $args }`` and then calls
+        // ``foobar x y z``; the test expects ``$x`` to be
+        // ``foobar x y z`` (the args ``unknown`` saw).
+        const unknown_name = obj_mod.obj_new_string_copy(
+            @intFromPtr("unknown".ptr),
+            7,
+        );
+        defer obj_mod.tcl_obj_release(unknown_name);
+        const unknown_bucket = procs.proc_lookup(unknown_name);
+        if (unknown_bucket != 0 and words.len + 1 <= parse.MAX_WORDS) {
+            var new_words: [parse.MAX_WORDS]i32 = undefined;
+            new_words[0] = unknown_name;
+            obj_mod.tcl_obj_retain(unknown_name);
+            var k: u32 = 0;
+            while (k < words.len) : (k += 1) new_words[1 + k] = words[k];
+            const result = eval_proc_call_bucket(new_words[0 .. words.len + 1], unknown_bucket);
+            obj_mod.tcl_obj_release(unknown_name);
+            return result;
         }
         // Unknown command — build a "unknown command: <name>"
         // message so the stderr/error_msg output identifies the
@@ -3229,6 +3490,25 @@ pub fn eval_script(script_ptr: u32, script_len: u32) i32 {
             }
             return result;
         }
+        if (cmd.unterminated_brace or cmd.unterminated_quote) {
+            // ``parseOld-10.1`` / ``-10.2`` / ``-10.3`` / ``-10.4`` —
+            // unbalanced ``{`` / ``"`` should produce the canonical
+            // ``missing close-brace`` / ``missing "`` diagnostic at
+            // parse time.
+            const msg_text: []const u8 = if (cmd.unterminated_quote)
+                "missing \""
+            else
+                "missing close-brace";
+            const buf = obj_mod.alloc(@intCast(msg_text.len));
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                for (msg_text, 0..) |b, k| dst[k] = b;
+                const tcl_catch = @import("tcl_catch.zig");
+                const msg = obj_mod.obj_new_string_take(buf, @intCast(msg_text.len), @intCast(msg_text.len));
+                tcl_catch.tcl_cmd_error(msg);
+            }
+            return result;
+        }
         if (cmd.n_words == 0) continue;
 
         // Release the previous command's result obj before
@@ -3290,6 +3570,19 @@ fn log_command_info(script_ptr: u32, cmd_start: u32, cmd_len: u32) void {
     // bytes to fill.
     if (script_ptr == 0) return;
     const tcl_catch = @import("tcl_catch.zig");
+    // ``error msg info ?code?`` set ``error_info_supplied`` so the
+    // immediate ``error`` callsite frame is suppressed (the user
+    // supplied the desired traceback text via *info*).  Consume
+    // the flag and short-circuit before mutating ``errorInfo`` /
+    // ``last_log_*`` — but still stamp the dedup keys so a later
+    // log call from an outer eval frame uses ``invoked from
+    // within`` rather than the first-frame ``while executing``.
+    if (tcl_catch.state.error_info_supplied != 0) {
+        tcl_catch.state.error_info_supplied = 0;
+        tcl_catch.state.last_log_script = script_ptr;
+        tcl_catch.state.last_log_pos = cmd_start;
+        return;
+    }
     const cur = tcl_catch.state.error_msg;
     if (cur == 0) return;
     if (script_ptr == tcl_catch.state.last_log_script and cmd_start == tcl_catch.state.last_log_pos) return;

@@ -1095,6 +1095,10 @@
       "summary": "Assign list elements to variables"
     },
     {
+      "name": "ledit",
+      "summary": "Replace elements in a list variable in place"
+    },
+    {
       "name": "lgen",
       "summary": "Lazy list generator command (9.0+)."
     },

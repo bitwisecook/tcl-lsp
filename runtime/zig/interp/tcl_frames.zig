@@ -1998,8 +1998,15 @@ pub export fn local_get_silent(name: i32) i32 {
             if (is_alias_ext(v)) return resolve_ext_get(alias_desc_ptr(v), name);
             return v;
         }
+        return 0;
     }
-    return 0;
+    // No frame (frame-elided compiled proc reaching an
+    // eval-fallback boundary, or a top-level script context).
+    // ``local_set_silent`` falls back to ``global_set`` in the
+    // same condition, so the symmetric read must consult globals
+    // too — otherwise the sync/readback pair drops the value on
+    // the floor and a subsequent ``$var`` read sees nothing.
+    return globals.global_get(name);
 }
 
 /// Strict variant of :func:`local_get` for codegen-emitted ``$x``

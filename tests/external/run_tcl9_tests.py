@@ -287,6 +287,25 @@ namespace eval ::tcl::unsupported::clock {
     namespace export configure
 }
 
+# ``::oo::patchlevel`` / ``::oo::version`` stubs — the upstream
+# ``oo.test`` bundle's first test (``oo-0.9``) computes its
+# expected-result list as ``[list tcl::oo $::oo::patchlevel 1]``,
+# evaluated at test-build time before the body runs.  Real Tcl
+# sets these from ``tclOO.c``'s package-init code; the WASM
+# scaffold registers ``oo::class`` / ``oo::object`` as commands
+# but never populates the namespace variables, so the very first
+# test reads an unset variable and the bundle traps before
+# reaching a tcltest summary line.  Pre-populating both with the
+# upstream-matching values (1.4.0 ships with Tcl 9.0.3) lets the
+# read succeed; oo-0.9 still fails on its `package` interactions
+# (our ``package`` stub returns empty for ``names`` / ``versions``
+# / ``present``), but the trap is gone and the rest of the
+# bundle reaches its summary.
+namespace eval ::oo {
+    variable patchlevel "1.4.0"
+    variable version "1.4.0"
+}
+
 namespace eval ::tcl::tm {
     variable paths {}
     proc path {sub args} {

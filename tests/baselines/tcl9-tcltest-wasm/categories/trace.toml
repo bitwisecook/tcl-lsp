@@ -1,6 +1,6 @@
 # trace.test — auto-generated WASM baseline.
-# bucket = 'W0-runtime-error'
-# reason = 'error while executing at wasm backtrace:'
+# bucket = 'W0-timeout'
+# reason = 'exceeded wall-clock — likely infinite loop or hang'
 trap_allowed = true
 good_to_have = []
 just_to_match_ctcl = []
@@ -17,8 +17,8 @@ observed_skipped = 0
 
 [failing]
 # Test IDs failing today — kept here for visibility, not gating.
-ids = ["trace-0.0", "trace-1.4", "trace-1.6", "trace-1.7", "trace-1.8", "trace-1.9", "trace-1.11", "trace-1.12", "trace-1.13", "trace-1.14", "trace-2.1", "trace-2.2", "trace-2.3", "trace-2.4", "trace-2.6"]
+ids = ["trace-0.0", "trace-1.4", "trace-1.6", "trace-1.7", "trace-1.8", "trace-1.9", "trace-1.11", "trace-1.12", "trace-1.13", "trace-1.14", "trace-2.1", "trace-2.2", "trace-2.3"]
 
 [crash]
-type = "Trap"
-msg = "error while executing at wasm backtrace:"
+type = "Timeout"
+msg = "WASM watchdog interrupt at run_timeout_s=200s"

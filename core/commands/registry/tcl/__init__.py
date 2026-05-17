@@ -56,6 +56,7 @@ from . import (
     join,  # noqa: F401
     lappend,  # noqa: F401
     lassign,  # noqa: F401
+    ledit,  # noqa: F401
     lindex,  # noqa: F401
     linsert,  # noqa: F401
     list,  # noqa: F401

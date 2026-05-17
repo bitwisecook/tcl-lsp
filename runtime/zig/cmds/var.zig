@@ -45,7 +45,11 @@ fn eval_set(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_incr(words: []const i32) result_mod.InterpResult {
-    if (words.len < 2) return result_mod.from_globals(0);
+    if (words.len < 2 or words.len > 3) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"incr varName ?increment?\"");
+        return result_mod.from_globals(0);
+    }
     const amt_obj = if (words.len >= 3) words[2] else rt.obj_new_int(1);
     const cur = frames.var_resolve(words[1]);
     const result = rt.tcl_incr(cur, amt_obj);

@@ -1246,7 +1246,18 @@ class _Lowerer:
             )
 
         body_tok = arg_tokens[0] if arg_tokens else None
-        if body_tok is None or not (arg_single and arg_single[0]):
+        # ``try`` body must be a braced literal (TokenType.STR) for
+        # static lowering; ``try $script`` / ``try [cmd]`` carry a
+        # VARSUB / CMD token whose ``text`` is the substitution
+        # source (``$script``).  Lowering that as a script body
+        # compiled to "call the proc named by ``$script`` with 0
+        # args" — wrong.  Defer those forms to the runtime
+        # via :class:`IRBarrier` (mirrors the ``catch`` branch above).
+        if (
+            body_tok is None
+            or not (arg_single and arg_single[0])
+            or body_tok.type is not TokenType.STR
+        ):
             return IRBarrier(
                 range=cmd.range,
                 reason="try with dynamic body",
