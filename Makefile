@@ -1128,9 +1128,7 @@ publish-jetbrains: jetbrains ## Publish JetBrains plugin to JetBrains Marketplac
 	@if [ -z "$$JETBRAINS_TOKEN" ]; then \
 		echo "error: JETBRAINS_TOKEN environment variable is not set"; \
 		echo "       Create a token at https://plugins.jetbrains.com/author/me/tokens"; \
-		echo "       (Note: the first-ever publish of this plugin must be done"; \
-		echo "        interactively via the JetBrains web UI; gradlew publishPlugin"; \
-		echo "        only updates an already-listed plugin.)"; \
+		echo "       Plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support"; \
 		exit 1; \
 	fi
 	@echo "==> Publishing JetBrains plugin to Marketplace"
