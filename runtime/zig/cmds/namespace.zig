@@ -201,6 +201,12 @@ fn eval_namespace(words: []const i32) result_mod.InterpResult {
             }
             if (sp6[0] == 'i' and sp6[1] == 'm' and sp6[2] == 'p' and sp6[3] == 'o' and sp6[4] == 'r' and sp6[5] == 't') {
                 const catch_mod = @import("../interp/tcl_catch.zig");
+                // ``namespace import`` (no args) returns the simple
+                // names of every command currently imported into
+                // the calling namespace (namespace-old-9.5).
+                if (words.len == 2) {
+                    return result_mod.from_globals(list_imported_simple_names(tcl_ns.ns_current()));
+                }
                 var ii: u32 = 2;
                 while (ii < words.len) : (ii += 1) {
                     const is = obj_ensure_string(words[ii]);
@@ -917,6 +923,81 @@ fn do_ns_delete(h: u32) void {
     }
 }
 
+/// ``namespace import`` (no args) handler — returns a space-
+/// joined Tcl list of the simple names of every command in
+/// *ns_addr*'s cmd_table that carries the ``CMD_IMPORTED`` flag
+/// (and whose redirect hasn't been forgotten).  Order is bucket-
+/// table order; callers can ``lsort`` for stability (namespace-
+/// old-9.5).
+fn list_imported_simple_names(ns_addr: u32) i32 {
+    if (ns_addr == 0) return obj_new_string(0, 0);
+    const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
+    if (ns.cmd_table.buf == 0) return obj_new_string(0, 0);
+    const bucket_size: u32 = 16;
+    const mem_pages: u32 = @intCast(@wasmMemorySize(0));
+    const mem_bytes: u64 = @as(u64, mem_pages) * 65536;
+
+    // Predicate: is the Command at *cmd* a live import redirect?
+    // CMD_IMPORTED bit set AND its ImportedCmdData.real_cmd is
+    // non-zero (a forgotten redirect zeroes ``real_cmd`` to
+    // tombstone the alias).
+    const Pred = struct {
+        fn is_live_import(cmd: u32, mem_b: u64) bool {
+            if (cmd == 0) return false;
+            if (@as(u64, cmd) + tcl_procs_constants.OFF_FLAGS + 4 > mem_b) return false;
+            const flags: u32 = @bitCast(obj_mod.read_i32(cmd + tcl_procs_constants.OFF_FLAGS));
+            if ((flags & tcl_procs_constants.CMD_IMPORTED) == 0) return false;
+            if (@as(u64, cmd) + tcl_procs_constants.OFF_PARAMS_OBJ + 4 > mem_b) return false;
+            const desc: u32 = @bitCast(obj_mod.read_i32(cmd + tcl_procs_constants.OFF_PARAMS_OBJ));
+            if (desc == 0) return false;
+            if (@as(u64, desc) + 4 > mem_b) return false;
+            const real_cmd: u32 = @bitCast(obj_mod.read_i32(desc));
+            return real_cmd != 0;
+        }
+    };
+
+    // Two-pass sizing + emit.
+    var total: u32 = 0;
+    var count: u32 = 0;
+    var i: u32 = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        const name_ptr: u32 = @bitCast(obj_mod.read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const cmd: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (!Pred.is_live_import(cmd, mem_bytes)) continue;
+        const name_len: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
+        if (count > 0) total += 1;
+        total += name_len;
+        count += 1;
+    }
+    if (count == 0) return obj_new_string(0, 0);
+    const buf = alloc(total);
+    if (buf == 0) return obj_new_string(0, 0);
+    var off: u32 = 0;
+    var written: u32 = 0;
+    i = 0;
+    while (i < ns.cmd_table.cap) : (i += 1) {
+        const bucket = ns.cmd_table.buf + i * bucket_size;
+        const name_ptr: u32 = @bitCast(obj_mod.read_i32(bucket));
+        if (name_ptr == 0) continue;
+        const cmd: u32 = @bitCast(obj_mod.read_i32(bucket + tcl_ns.OFF_HANDLE));
+        if (!Pred.is_live_import(cmd, mem_bytes)) continue;
+        const name_len: u32 = @bitCast(obj_mod.read_i32(bucket + 4));
+        if (written > 0) {
+            const d: [*]u8 = @ptrFromInt(buf + off);
+            d[0] = ' ';
+            off += 1;
+        }
+        const dst: [*]u8 = @ptrFromInt(buf + off);
+        const np: [*]const u8 = @ptrFromInt(name_ptr);
+        for (0..name_len) |k| dst[k] = np[k];
+        off += name_len;
+        written += 1;
+    }
+    return obj_mod.obj_new_string_take(buf, off, total);
+}
+
 /// Walk *ns*'s ``cmd_table`` and zero the ``real_cmd`` slot of every
 /// import redirect that points at one of these commands.  ``info
 /// commands`` filters such "dead" redirects via ``entry_matches``,
@@ -988,7 +1069,9 @@ const tcl_procs_constants = struct {
     pub const OFF_FLAGS: u32 = 8;
     pub const OFF_PARAMS_OBJ: u32 = 12;
     pub const OFF_IMPORT_REF_HEAD: u32 = 32;
-    pub const CMD_IMPORTED: u32 = 0x02;
+    // Keep in sync with :data:`tcl_procs.CMD_IMPORTED` /
+    // :data:`tcl_ns.tcl_procs_constants.CMD_IMPORTED`.
+    pub const CMD_IMPORTED: u32 = 0x80;
 };
 
 /// Return true when *pat*'s namespace prefix (everything before the
