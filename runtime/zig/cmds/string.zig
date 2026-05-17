@@ -403,11 +403,10 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
 // (b) the suffix in ``raise_class_error`` quotes the same list
 // verbatim.
 const STRING_SUBS: []const []const u8 = &.{
-    "bytelength", "cat",     "compare",  "equal",   "first",     "index",
-    "insert",     "is",      "last",     "length",  "map",       "match",
-    "range",      "repeat",  "replace",  "reverse", "tolower",   "totitle",
-    "toupper",    "trim",    "trimleft", "trimright",
-    "wordend",    "wordstart",
+    "bytelength", "cat",    "compare",  "equal",     "first",   "index",
+    "insert",     "is",     "last",     "length",    "map",     "match",
+    "range",      "repeat", "replace",  "reverse",   "tolower", "totitle",
+    "toupper",    "trim",   "trimleft", "trimright", "wordend", "wordstart",
 };
 
 const StringSpan = struct { ptr: u32, len: u32 };
