@@ -63,12 +63,25 @@ exactly the same content for one builtin.
 _CATEGORY_BLURBS: dict[str, str] = {
     "stream": (
         "Sequence-shaped operations: filter (`select`), transform (`map`), "
-        "aggregate (`any` / `all` / `count` / `unique` / `sort`), and the "
-        "object-introspection helpers (`keys` / `values` / `first` / `last`)."
+        "aggregate (`any` / `all` / `count` / `min` / `max` / `add` / "
+        "`unique` / `dupes` / `sort` / `reverse`), generators (`range`), "
+        "grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / "
+        "`max_by`), and the object-introspection helpers (`keys` / "
+        "`values` / `first` / `last` / `nth` / `limit` / `flatten`)."
     ),
     "string": (
         "String predicates and rewrites: substring / prefix / suffix tests, "
-        "regex `match` / `sub` / `gsub`, plain `split` / `join`, casing."
+        "regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / "
+        "`splits`, plain `split` / `join`, casing, trims (`ltrimstr` / "
+        "`rtrimstr`), and conversions (`tonumber` / `tostring` / "
+        "`explode` / `implode`)."
+    ),
+    "math": (
+        "Numeric helpers matching jq's math surface: rounding (`floor` / "
+        "`ceil` / `round`), magnitude (`abs` / `fabs`), powers and roots "
+        "(`sqrt` / `pow` / `exp`), logarithms (`log` / `log2` / `log10`), "
+        "and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / "
+        "`isinfinite` / `isnormal`)."
     ),
     "path": (
         "BIG-IP full-path string helpers — extract the partition or basename, "
@@ -93,8 +106,9 @@ _CATEGORY_BLURBS: dict[str, str] = {
         "for now."
     ),
     "value": (
-        "Type / identity introspection: `kind` (TMSH kind), `path` "
-        "(full-path), `length`, `defined`, `type`."
+        "Type / identity introspection (`kind`, `path`, `length`, `defined`, "
+        "`type`) and object-shape conversions (`to_entries` / "
+        "`from_entries` / `with_entries` / `has` / `in`)."
     ),
 }
 

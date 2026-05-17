@@ -170,11 +170,11 @@ has its own anchor in that file — to look one up:
 
 Major families:
 
-- **value introspection** — `kind`, `path`, `length`, `defined`, `type`
-- **string** — `match`, `sub`, `gsub`, `startswith`, `endswith`, `contains`, `lower`, `upper`, `strip`
-- **list** — `count`, `unique`, `sort`, `first`, `last`, `reverse`, `any`, `all`
-- **math** — `min`, `max`, `sum`, `avg`
-- **network types** — `ip`, `cidr`, `port`, `iprange`, `portset`, `in_cidr`, `ip_translate`
+- **value introspection** — `kind`, `path`, `length`, `defined`, `type`, `has`, `in`, `to_entries`, `from_entries`, `with_entries`
+- **string** — `match` / `test`, `sub`, `gsub`, `scan`, `capture`, `splits`, `startswith`, `endswith`, `contains`, `upcase` / `ascii_upcase`, `downcase` / `ascii_downcase`, `ltrimstr`, `rtrimstr`, `tonumber`, `tostring`, `explode`, `implode`, `csv`, `tsv`, `join`, `split`
+- **list / stream** — `count`, `unique`, `dupes`, `sort`, `sort_by`, `unique_by`, `group_by`, `min_by`, `max_by`, `first`, `last`, `nth`, `limit`, `reverse`, `flatten`, `range`, `add`, `min`, `max`, `any`, `all`, `map`, `select`, `keys`, `values`
+- **math** — `floor`, `ceil`, `round`, `abs`, `fabs`, `sqrt`, `pow`, `exp`, `log`, `log10`, `log2`, `nan`, `infinite`, `isnan`, `isinfinite`, `isnormal`
+- **network types** — `ip`, `port`, `host`, `net`, `in_cidr`, `ip_translate`, `ip_range_*`, `port_set_*`
 - **graph** — `refs`, `referenced_by`
 - **mutating** — `rename`, `rename_partition`, `rename_prefix`
 - **HTTP-response helpers** — `http_ok`, `http_client_error`,

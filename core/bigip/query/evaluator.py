@@ -40,7 +40,7 @@ from .ast import (
     UnaryOp,
     Variable,
 )
-from .builtins import _truthy
+from .builtins import _sort_key, _truthy
 from .edit_plan import EditOp, EditPlan
 from .errors import EvalError
 from .projection import Container, root_container
@@ -752,13 +752,14 @@ def _eval_call(node: Call, current: Any, ctx: EvalContext) -> Any:
     # When a non-special-form builtin is called with exactly one
     # fewer argument than its minimum, prepend the current value as
     # the receiver.  Skips ``with_ctx`` builtins (they reach into
-    # evaluator state and are usually free-standing) and stream-
-    # aware builtins (their broadcast rules clash with implicit
-    # prepending).
+    # evaluator state and are usually free-standing).  Stream-aware
+    # builtins are included so jq-shaped calls like
+    # ``[X] | flatten(2)`` (and ``[X] | nth(0)``) treat the first
+    # positional as the value — broadcast is skipped for stream-aware
+    # implementations anyway, so the prepend is unambiguous.
     if (
         not spec.special_form
         and not spec.with_ctx
-        and not spec.stream_aware
         and spec.min_args >= 2
         and arity == spec.min_args - 1
         and (spec.max_args is None or arity + 1 <= spec.max_args)
@@ -846,7 +847,85 @@ def _eval_special_form(node: Call, current: Any, ctx: EvalContext) -> Any:
             value = _eval(body, item, ctx)
             out.extend(_flatten(value))
         return out
+    if node.name == "sort_by":
+        body = node.args[0]
+        items = _stream_items(current)
+        keyed = [(item, _key_of_body(body, item, ctx)) for item in items]
+        keyed.sort(key=lambda pair: _sort_key(pair[1]))
+        return [item for item, _ in keyed]
+    if node.name == "unique_by":
+        body = node.args[0]
+        items = _stream_items(current)
+        keyed = [(item, _key_of_body(body, item, ctx)) for item in items]
+        keyed.sort(key=lambda pair: _sort_key(pair[1]))
+        out: list[Any] = []
+        last: Any = _MISSING_KEY
+        for item, key in keyed:
+            sk = _sort_key(key)
+            if last is _MISSING_KEY or sk != last:
+                out.append(item)
+                last = sk
+        return out
+    if node.name == "min_by":
+        body = node.args[0]
+        items = _stream_items(current)
+        if not items:
+            return None
+        return min(items, key=lambda item: _sort_key(_key_of_body(body, item, ctx)))
+    if node.name == "max_by":
+        body = node.args[0]
+        items = _stream_items(current)
+        if not items:
+            return None
+        return max(items, key=lambda item: _sort_key(_key_of_body(body, item, ctx)))
+    if node.name == "group_by":
+        body = node.args[0]
+        items = _stream_items(current)
+        groups: dict[Any, list[Any]] = {}
+        first_key: dict[Any, Any] = {}
+        for item in items:
+            key = _key_of_body(body, item, ctx)
+            sk = _sort_key(key)
+            if sk not in groups:
+                groups[sk] = []
+                first_key[sk] = key
+            groups[sk].append(item)
+        return [groups[sk] for sk in sorted(groups, key=lambda k: _sort_key(first_key[k]))]
+    if node.name == "with_entries":
+        body = node.args[0]
+        entries = _builtins._builtin_to_entries(current)
+        mapped: list[Any] = []
+        for entry in entries:
+            result = _eval(body, entry, ctx)
+            mapped.extend(_flatten(result))
+        return _builtins._builtin_from_entries(mapped)
+    if node.name == "flatten":
+        if not node.args:
+            depth = 1
+        else:
+            depth_val = _eval(node.args[0], current, ctx)
+            if isinstance(depth_val, bool) or not isinstance(depth_val, int):
+                raise EvalError(
+                    f"flatten: argument 1 must be an integer, got {type(depth_val).__name__}"
+                )
+            depth = depth_val
+        return _builtins._flatten_value(current, depth)
     raise EvalError(f"unsupported special form: {node.name}")
+
+
+def _key_of_body(body: Any, item: Any, ctx: EvalContext) -> Any:
+    """Evaluate *body* with ``.`` bound to *item* and reduce it to a single key.
+
+    A stream result collapses to its items list so jq's "compare arrays of
+    keys element-wise" semantics fall out of the ``_sort_key`` ordering.
+    """
+    result = _eval(body, item, ctx)
+    if isinstance(result, Stream):
+        return list(result.items)
+    return result
+
+
+_MISSING_KEY: Any = object()
 
 
 # Sentinel used by ``select`` to indicate "drop the current value".

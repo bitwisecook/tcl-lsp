@@ -879,6 +879,314 @@ def test_every_builtin_has_a_details_block():
 
 
 # ---------------------------------------------------------------------------
+# jq-parity stream / list / set helpers
+# ---------------------------------------------------------------------------
+
+
+def test_unique_sorts_matching_jq():
+    """``unique`` returns a sorted list of unique values (jq parity)."""
+    [out] = run_query("[3, 1, 2, 1, 3, 2] | unique", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3]
+
+
+def test_dupes_returns_only_repeated_values_sorted():
+    [out] = run_query("[3, 1, 2, 1, 3, 2, 4] | dupes", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3]
+    # Empty input.
+    [out] = run_query("[] | dupes", {"m": ""}).values_per_file["m"]
+    assert out == []
+    # No duplicates.
+    [out] = run_query("[1, 2, 3] | dupes", {"m": ""}).values_per_file["m"]
+    assert out == []
+
+
+def test_reverse_works_on_lists_and_strings():
+    [out] = run_query("[1, 2, 3] | reverse", {"m": ""}).values_per_file["m"]
+    assert out == [3, 2, 1]
+    [out] = run_query('reverse("abc")', {"m": ""}).values_per_file["m"]
+    assert out == "cba"
+
+
+def test_add_sums_numbers_concatenates_strings_and_lists():
+    assert run_query("[1, 2, 3, 4] | add", {"m": ""}).values_per_file["m"] == [10]
+    assert run_query('["a", "b", "c"] | add', {"m": ""}).values_per_file["m"] == ["abc"]
+    [out] = run_query("[[1, 2], [3, 4]] | add", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+    # Empty input → null (jq parity).
+    [out] = run_query("[] | add", {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_min_and_max_return_jq_ordered_extremes():
+    assert run_query("[5, 2, 8, 1] | min", {"m": ""}).values_per_file["m"] == [1]
+    assert run_query("[5, 2, 8, 1] | max", {"m": ""}).values_per_file["m"] == [8]
+    # Empty → null (jq parity).
+    [out] = run_query("[] | min", {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_flatten_default_depth_one():
+    [out] = run_query("[[1, 2], [3, 4]] | flatten", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+
+
+def test_flatten_explicit_depth():
+    [out] = run_query("[[1, [2, 3]], [4]] | flatten(2)", {"m": ""}).values_per_file["m"]
+    assert out == [1, 2, 3, 4]
+    # Depth 1 only peels one level.
+    [out] = run_query("[[1, [2, 3]], [4]] | flatten", {"m": ""}).values_per_file["m"]
+    assert out == [1, [2, 3], 4]
+    # Depth 0 is identity.
+    [out] = run_query("[[1, 2], [3, 4]] | flatten(0)", {"m": ""}).values_per_file["m"]
+    assert out == [[1, 2], [3, 4]]
+
+
+def test_range_one_two_three_args():
+    [out] = run_query("[range(5)]", {"m": ""}).values_per_file["m"]
+    assert out == [0, 1, 2, 3, 4]
+    [out] = run_query("[range(2, 6)]", {"m": ""}).values_per_file["m"]
+    assert out == [2, 3, 4, 5]
+    [out] = run_query("[range(0, 10, 2)]", {"m": ""}).values_per_file["m"]
+    assert out == [0, 2, 4, 6, 8]
+
+
+def test_range_step_zero_is_rejected():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query("[range(0, 5, 0)]", {"m": ""})
+
+
+def test_nth_supports_negative_index_for_safe_access():
+    assert run_query("[10, 20, 30, 40] | nth(2)", {"m": ""}).values_per_file["m"] == [30]
+    # Negative index (DSL extension, jq doesn't accept negatives).
+    assert run_query("[10, 20, 30, 40] | nth(-1)", {"m": ""}).values_per_file["m"] == [40]
+    # Out of range → null.
+    [out] = run_query("[1, 2, 3] | nth(99)", {"m": ""}).values_per_file["m"]
+    assert out is None
+
+
+def test_limit_caps_a_list():
+    [out] = run_query("[10, 20, 30, 40] | limit(2)", {"m": ""}).values_per_file["m"]
+    assert out == [10, 20]
+    [out] = run_query("[10, 20] | limit(99)", {"m": ""}).values_per_file["m"]
+    assert out == [10, 20]
+    [out] = run_query("[10, 20] | limit(0)", {"m": ""}).values_per_file["m"]
+    assert out == []
+
+
+def test_sort_by_orders_by_derived_key():
+    [out] = run_query("[{n: 3}, {n: 1}, {n: 2}] | sort_by(.n)", {"m": ""}).values_per_file["m"]
+    assert [item["n"] for item in out] == [1, 2, 3]
+
+
+def test_unique_by_sorts_and_dedupes_by_key():
+    [out] = run_query(
+        '[{n: 1, k: "a"}, {n: 2, k: "b"}, {n: 1, k: "c"}] | unique_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert [item["n"] for item in out] == [1, 2]
+
+
+def test_min_by_max_by_pick_extremes_by_key():
+    [out] = run_query(
+        '[{n: 3, k: "a"}, {n: 1, k: "b"}, {n: 2, k: "c"}] | min_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out["n"] == 1
+    [out] = run_query(
+        '[{n: 3, k: "a"}, {n: 1, k: "b"}, {n: 2, k: "c"}] | max_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out["n"] == 3
+
+
+def test_group_by_partitions_with_sorted_keys():
+    [out] = run_query(
+        '[{n: 3, k: "a"}, {n: 1, k: "b"}, {n: 1, k: "c"}] | group_by(.n)',
+        {"m": ""},
+    ).values_per_file["m"]
+    # Two groups: n=1 (two items, input order preserved) and n=3 (one item).
+    assert len(out) == 2
+    assert [item["k"] for item in out[0]] == ["b", "c"]
+    assert [item["k"] for item in out[1]] == ["a"]
+
+
+# ---------------------------------------------------------------------------
+# Dict / object operations
+# ---------------------------------------------------------------------------
+
+
+def test_to_entries_and_from_entries_round_trip():
+    [out] = run_query("{a: 1, b: 2} | to_entries", {"m": ""}).values_per_file["m"]
+    assert out == [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
+    [out] = run_query("{a: 1, b: 2} | to_entries | from_entries", {"m": ""}).values_per_file["m"]
+    assert out == {"a": 1, "b": 2}
+
+
+def test_from_entries_accepts_short_spellings():
+    [out] = run_query(
+        '[{k: "a", v: 1}, {name: "b", value: 2}] | from_entries', {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"a": 1, "b": 2}
+
+
+def test_with_entries_reshapes_object():
+    [out] = run_query(
+        "{a: 1, b: 2} | with_entries({key: upcase(.key), value: .value})", {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"A": 1, "B": 2}
+
+
+def test_with_entries_with_select_filters_fields():
+    [out] = run_query(
+        '{n: 1, s: "x"} | with_entries(select(.value | type == "string"))',
+        {"m": ""},
+    ).values_per_file["m"]
+    assert out == {"s": "x"}
+
+
+def test_has_and_in_invert_each_other():
+    assert run_query('{a: 1, b: 2} | has("a")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('{a: 1, b: 2} | has("z")', {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("[10, 20, 30] | has(1)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("[10, 20, 30] | has(5)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query('"a" | in({a: 1})', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('"z" | in({a: 1})', {"m": ""}).values_per_file["m"] == [False]
+
+
+# ---------------------------------------------------------------------------
+# String helpers
+# ---------------------------------------------------------------------------
+
+
+def test_ltrimstr_strips_prefix_when_present():
+    assert run_query('ltrimstr("vs_prod", "vs_")', {"m": ""}).values_per_file["m"] == ["prod"]
+    # No-op when prefix isn't present.
+    assert run_query('ltrimstr("api_vs", "vs_")', {"m": ""}).values_per_file["m"] == ["api_vs"]
+
+
+def test_rtrimstr_strips_suffix_when_present():
+    assert run_query('rtrimstr("web_pool", "_pool")', {"m": ""}).values_per_file["m"] == ["web"]
+    assert run_query('rtrimstr("web_vs", "_pool")', {"m": ""}).values_per_file["m"] == ["web_vs"]
+
+
+def test_tonumber_parses_int_then_float():
+    assert run_query('tonumber("42")', {"m": ""}).values_per_file["m"] == [42]
+    assert run_query('tonumber("3.14")', {"m": ""}).values_per_file["m"] == [3.14]
+    # Pass-through for already-numeric input.
+    assert run_query("tonumber(7)", {"m": ""}).values_per_file["m"] == [7]
+
+
+def test_tonumber_rejects_non_numeric():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('tonumber("abc")', {"m": ""})
+
+
+def test_tostring_handles_aggregates():
+    assert run_query("tostring(42)", {"m": ""}).values_per_file["m"] == ["42"]
+    assert run_query("tostring([1, 2, 3])", {"m": ""}).values_per_file["m"] == ["[1,2,3]"]
+    [out] = run_query("tostring({a: 1, b: 2})", {"m": ""}).values_per_file["m"]
+    assert out == '{"a":1,"b":2}'
+
+
+def test_explode_and_implode_round_trip():
+    assert run_query('explode("abc")', {"m": ""}).values_per_file["m"] == [[97, 98, 99]]
+    assert run_query("implode([97, 98, 99])", {"m": ""}).values_per_file["m"] == ["abc"]
+    assert run_query('"abc" | explode | implode', {"m": ""}).values_per_file["m"] == ["abc"]
+
+
+def test_test_predicate_matches_jq():
+    assert run_query('test("abc", "^a")', {"m": ""}).values_per_file["m"] == [True]
+    assert run_query('test("abc", "^X", "i")', {"m": ""}).values_per_file["m"] == [False]
+    assert run_query('test("ABC", "^a", "i")', {"m": ""}).values_per_file["m"] == [True]
+
+
+def test_scan_returns_match_or_group_lists():
+    [out] = run_query('scan("a1 b22 c333", "[0-9]+")', {"m": ""}).values_per_file["m"]
+    assert out == ["1", "22", "333"]
+    # With capture groups, each match becomes a list of group values.
+    [out] = run_query('scan("a=1 b=2", "([a-z])=([0-9])")', {"m": ""}).values_per_file["m"]
+    assert out == [["a", "1"], ["b", "2"]]
+
+
+def test_capture_returns_named_groups():
+    [out] = run_query(
+        'capture("vs_prod_web", "(?<env>prod|dev)_(?<app>.+)")', {"m": ""}
+    ).values_per_file["m"]
+    assert out == {"env": "prod", "app": "web"}
+
+
+def test_capture_rejects_no_match():
+    from core.bigip.query.errors import BuiltinError
+
+    with pytest.raises(BuiltinError):
+        run_query('capture("abc", "^(?<x>z)")', {"m": ""})
+
+
+def test_splits_does_regex_split():
+    [out] = run_query('splits("a, b ,c,  d", " *, *")', {"m": ""}).values_per_file["m"]
+    assert out == ["a", "b", "c", "d"]
+
+
+def test_ascii_upcase_downcase_aliases():
+    assert run_query('ascii_upcase("abc")', {"m": ""}).values_per_file["m"] == ["ABC"]
+    assert run_query('ascii_downcase("ABC")', {"m": ""}).values_per_file["m"] == ["abc"]
+
+
+# ---------------------------------------------------------------------------
+# Math helpers
+# ---------------------------------------------------------------------------
+
+
+def test_floor_ceil_round_match_jq_semantics():
+    assert run_query("floor(3.7)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("floor(-3.2)", {"m": ""}).values_per_file["m"] == [-4]
+    assert run_query("ceil(3.2)", {"m": ""}).values_per_file["m"] == [4]
+    assert run_query("ceil(-3.7)", {"m": ""}).values_per_file["m"] == [-3]
+    # jq's round uses ties-away-from-zero (NOT Python's banker's rounding).
+    assert run_query("round(2.5)", {"m": ""}).values_per_file["m"] == [3]
+    assert run_query("round(-2.5)", {"m": ""}).values_per_file["m"] == [-3]
+    assert run_query("round(0.5)", {"m": ""}).values_per_file["m"] == [1]
+
+
+def test_abs_and_fabs():
+    assert run_query("abs(-5)", {"m": ""}).values_per_file["m"] == [5]
+    assert run_query("abs(3.14)", {"m": ""}).values_per_file["m"] == [3.14]
+    # fabs always returns float.
+    [out] = run_query("fabs(-5)", {"m": ""}).values_per_file["m"]
+    assert out == 5.0 and isinstance(out, float)
+
+
+def test_sqrt_pow_exp_log():
+    assert run_query("sqrt(16)", {"m": ""}).values_per_file["m"] == [4.0]
+    assert run_query("pow(2, 10)", {"m": ""}).values_per_file["m"] == [1024.0]
+    # exp / log round-trip (within float tolerance).
+    [out] = run_query("log(exp(1))", {"m": ""}).values_per_file["m"]
+    assert abs(out - 1.0) < 1e-12
+    assert run_query("log10(1000)", {"m": ""}).values_per_file["m"] == [3.0]
+    assert run_query("log2(1024)", {"m": ""}).values_per_file["m"] == [10.0]
+
+
+def test_nan_infinite_and_classifiers():
+    import math as _math
+
+    [out] = run_query("nan", {"m": ""}).values_per_file["m"]
+    assert _math.isnan(out)
+    [out] = run_query("infinite", {"m": ""}).values_per_file["m"]
+    assert _math.isinf(out)
+    assert run_query("isnan(nan)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("isnan(1.0)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("isinfinite(infinite)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("isinfinite(1.0)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("isnormal(1.0)", {"m": ""}).values_per_file["m"] == [True]
+    assert run_query("isnormal(0)", {"m": ""}).values_per_file["m"] == [False]
+    assert run_query("isnormal(nan)", {"m": ""}).values_per_file["m"] == [False]
+
+
+# ---------------------------------------------------------------------------
 # Reported issues — minimal-SCF regression tests
 # ---------------------------------------------------------------------------
 

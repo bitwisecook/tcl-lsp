@@ -22,10 +22,12 @@ exactly the same content for one builtin.
 ## Categories
 
 
-- **[stream](#stream)** — Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `unique` / `sort`), and the object-introspection helpers (`keys` / `values` / `first` / `last`).
-  - [`all`](#all), [`any`](#any), [`count`](#count), [`first`](#first), [`keys`](#keys), [`last`](#last), [`map`](#map), [`select`](#select), [`sort`](#sort), [`unique`](#unique), [`values`](#values)
-- **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `sub` / `gsub`, plain `split` / `join`, casing.
-  - [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`gsub`](#gsub), [`index`](#index), [`join`](#join), [`match`](#match), [`split`](#split), [`startswith`](#startswith), [`sub`](#sub), [`tsv`](#tsv), [`upcase`](#upcase)
+- **[stream](#stream)** — Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `min` / `max` / `add` / `unique` / `dupes` / `sort` / `reverse`), generators (`range`), grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / `max_by`), and the object-introspection helpers (`keys` / `values` / `first` / `last` / `nth` / `limit` / `flatten`).
+  - [`add`](#add), [`all`](#all), [`any`](#any), [`count`](#count), [`dupes`](#dupes), [`first`](#first), [`flatten`](#flatten), [`group_by`](#group_by), [`keys`](#keys), [`last`](#last), [`limit`](#limit), [`map`](#map), [`max`](#max), [`max_by`](#max_by), [`min`](#min), [`min_by`](#min_by), [`nth`](#nth), [`range`](#range), [`reverse`](#reverse), [`select`](#select), [`sort`](#sort), [`sort_by`](#sort_by), [`unique`](#unique), [`unique_by`](#unique_by), [`values`](#values)
+- **[string](#string)** — String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / `splits`, plain `split` / `join`, casing, trims (`ltrimstr` / `rtrimstr`), and conversions (`tonumber` / `tostring` / `explode` / `implode`).
+  - [`ascii_downcase`](#ascii_downcase), [`ascii_upcase`](#ascii_upcase), [`capture`](#capture), [`contains`](#contains), [`csv`](#csv), [`downcase`](#downcase), [`endswith`](#endswith), [`explode`](#explode), [`gsub`](#gsub), [`implode`](#implode), [`index`](#index), [`join`](#join), [`ltrimstr`](#ltrimstr), [`match`](#match), [`rtrimstr`](#rtrimstr), [`scan`](#scan), [`split`](#split), [`splits`](#splits), [`startswith`](#startswith), [`sub`](#sub), [`test`](#test), [`tonumber`](#tonumber), [`tostring`](#tostring), [`tsv`](#tsv), [`upcase`](#upcase)
+- **[math](#math)** — Numeric helpers matching jq's math surface: rounding (`floor` / `ceil` / `round`), magnitude (`abs` / `fabs`), powers and roots (`sqrt` / `pow` / `exp`), logarithms (`log` / `log2` / `log10`), and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / `isnormal`).
+  - [`abs`](#abs), [`ceil`](#ceil), [`exp`](#exp), [`fabs`](#fabs), [`floor`](#floor), [`infinite`](#infinite), [`isinfinite`](#isinfinite), [`isnan`](#isnan), [`isnormal`](#isnormal), [`log`](#log), [`log10`](#log10), [`log2`](#log2), [`nan`](#nan), [`pow`](#pow), [`round`](#round), [`sqrt`](#sqrt)
 - **[path](#path)** — BIG-IP full-path string helpers — extract the partition or basename, swap a partition prefix.  These are *string* transforms; they don't move objects.  For object renames, reach for the **rename** category.
   - [`basename`](#basename), [`partition`](#partition), [`with_partition`](#with_partition)
 - **[rename](#rename)** — Cascading rename operations — `rename` for one object, `rename_partition` for every object in a partition.  Both route through the same token-bounded engine `f5 rename` uses, so references inside iRule bodies and compound values (destination addresses, pool-member identifiers) are rewritten consistently.
@@ -34,12 +36,47 @@ exactly the same content for one builtin.
   - [`broadcast_address`](#broadcast_address), [`can_see`](#can_see), [`collapse_cidrs`](#collapse_cidrs), [`dns`](#dns), [`first_host`](#first_host), [`folder`](#folder), [`host`](#host), [`host_count`](#host_count), [`http_body`](#http_body), [`http_body_json`](#http_body_json), [`http_client_error`](#http_client_error), [`http_header`](#http_header), [`http_headers`](#http_headers), [`http_ok`](#http_ok), [`http_redirect`](#http_redirect), [`http_server_error`](#http_server_error), [`http_status`](#http_status), [`in_cidr`](#in_cidr), [`in_folder`](#in_folder), [`in_partition`](#in_partition), [`ip`](#ip), [`ip_range_contains`](#ip_range_contains), [`ip_range_count`](#ip_range_count), [`ip_range_supernet`](#ip_range_supernet), [`ip_range_to_cidrs`](#ip_range_to_cidrs), [`ip_translate`](#ip_translate), [`is_documentation`](#is_documentation), [`is_fqdn`](#is_fqdn), [`is_ipv4`](#is_ipv4), [`is_ipv6`](#is_ipv6), [`is_link_local`](#is_link_local), [`is_loopback`](#is_loopback), [`is_multicast`](#is_multicast), [`is_private`](#is_private), [`is_public`](#is_public), [`is_reserved`](#is_reserved), [`is_unspecified`](#is_unspecified), [`is_wildcard_port`](#is_wildcard_port), [`last_host`](#last_host), [`net`](#net), [`network_address`](#network_address), [`overlaps`](#overlaps), [`ping`](#ping), [`port`](#port), [`port_set_contains`](#port_set_contains), [`port_set_count`](#port_set_count), [`port_set_overlaps`](#port_set_overlaps), [`portping`](#portping), [`prefix_length`](#prefix_length), [`rev_dns`](#rev_dns), [`route_domain`](#route_domain), [`socket_get`](#socket_get), [`subnet_of`](#subnet_of), [`supernet_of`](#supernet_of), [`tls_handshake`](#tls_handshake), [`traceroute`](#traceroute), [`url_get`](#url_get), [`url_head`](#url_head), [`url_options`](#url_options), [`url_post`](#url_post), [`with_folder`](#with_folder), [`with_host`](#with_host), [`with_name`](#with_name), [`with_port`](#with_port), [`with_route_domain`](#with_route_domain), [`x509_eq`](#x509_eq), [`x509_from_config`](#x509_from_config), [`x509_parse`](#x509_parse)
 - **[graph](#graph)** — Forward / reverse references across the same edge model `f5 grep` walks.  One hop deep; multi-hop walks belong in `f5 grep` for now.
   - [`check_partition_visibility`](#check_partition_visibility), [`referenced_by`](#referenced_by), [`references_to`](#references_to), [`refs`](#refs)
-- **[value](#value)** — Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
-  - [`cert_load`](#cert_load), [`csv_load`](#csv_load), [`defined`](#defined), [`f5log_load`](#f5log_load), [`json_load`](#json_load), [`json_parse`](#json_parse), [`jsonl_load`](#jsonl_load), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`type`](#type)
+- **[value](#value)** — Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`) and object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`).
+  - [`cert_load`](#cert_load), [`csv_load`](#csv_load), [`defined`](#defined), [`f5log_load`](#f5log_load), [`from_entries`](#from_entries), [`has`](#has), [`in`](#in), [`json_load`](#json_load), [`json_parse`](#json_parse), [`jsonl_load`](#jsonl_load), [`kind`](#kind), [`length`](#length), [`path`](#path), [`source_file`](#source_file), [`str`](#str), [`to_entries`](#to_entries), [`type`](#type), [`with_entries`](#with_entries)
 
 ## stream
 
-Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `unique` / `sort`), and the object-introspection helpers (`keys` / `values` / `first` / `last`).
+Sequence-shaped operations: filter (`select`), transform (`map`), aggregate (`any` / `all` / `count` / `min` / `max` / `add` / `unique` / `dupes` / `sort` / `reverse`), generators (`range`), grouping (`group_by` / `unique_by` / `sort_by` / `min_by` / `max_by`), and the object-introspection helpers (`keys` / `values` / `first` / `last` / `nth` / `limit` / `flatten`).
+
+### `add`
+
+Combine the items of a list by ``+`` — sum numbers, concatenate strings/lists, merge objects.
+
+**Signatures**
+
+- `add(value: list | stream) -> any`
+
+**Details**
+
+Adds the elements of a list / stream together using the same
+semantics as the ``+`` operator (matches jq's ``add``):
+
+- **numbers**: arithmetic sum.
+- **strings**: concatenation, in order.
+- **lists**: concatenation (single level).
+- **objects**: shallow merge with later entries overwriting
+  earlier ones.
+
+An **empty** input returns ``null`` (jq parity).  Items must be
+homogeneous; mixing types raises ``BuiltinError`` — coerce with
+``str`` / ``tonumber`` / ``map`` first if needed.
+
+Related: ``flatten``, ``join`` (string-only with a separator),
+``map``.
+
+**Examples**
+
+```
+[1, 2, 3] | add                          # -> 6
+["foo", "bar"] | add                     # -> "foobar"
+[.ltm.virtual[].rules] | add             # flat list of every rule attachment
+[.ltm.virtual[].pool.members[]] | add | length
+```
 
 ### `all`
 
@@ -130,6 +167,38 @@ Related: ``length``.
 .ltm.virtual[] | select(.rules | count > 0) | .name
 ```
 
+### `dupes`
+
+Return the duplicated items of a list — values that appear more than once, sorted.
+
+**Signatures**
+
+- `dupes(value: list | stream) -> list`
+
+**Details**
+
+Returns the items that appear **more than once** in *value*, with
+each duplicate represented once and the result sorted by the same
+ordering ``unique`` and ``sort`` use.
+
+The complement of ``unique``: where ``unique`` collapses a list to
+its distinct values, ``dupes`` keeps only the values whose count is
+at least two.  Useful for triage queries — finding shared pool
+names, repeated rule attachments, duplicated VIPs across configs.
+
+Empty input returns an empty list.  :class:`PathRef` items are
+compared on their ``full_path``, mixed types fall into jq's
+cross-type ordering.
+
+Related: ``unique``, ``unique_by``, ``group_by``, ``sort``.
+
+**Examples**
+
+```
+[.ltm.virtual[].pool] | dupes            # pools attached to more than one VS
+[.ltm.virtual[].destination | host] | dupes  # IPs reused across VSes
+```
+
 ### `first`
 
 Return the first item of a list or stream, or null when empty.
@@ -155,6 +224,73 @@ Related: ``last``, ``count``, ``length``, ``sort``.
 ```
 first(.rules)
 [.ltm.virtual[].name] | sort | first     # alphabetical first VS
+```
+
+### `flatten`
+
+Flatten a nested list by one level, or by *depth* when specified.
+
+**Signatures**
+
+- `flatten() -> list`
+- `flatten(depth: integer) -> list`
+
+**Details**
+
+**Special form.**  Matches jq's ``flatten``: with no depth
+argument, flattens nested lists by exactly **one** level.  With a
+*depth* argument, flattens that many levels deep.  ``flatten(0)``
+is the identity.
+
+The value is always the current input — call as
+``[X] | flatten`` or ``[X] | flatten(2)``.
+
+Non-list elements pass through unchanged at each level; this lets
+you flatten a mixed stream of "string or list of strings" without
+error.
+
+A negative depth raises ``BuiltinError`` — jq's behaviour is
+"flatten infinitely" for negative depths, but in this DSL that
+pattern is almost always a typo, so we reject it explicitly.
+
+Related: ``add`` (concatenates one level), ``map``.
+
+**Examples**
+
+```
+[[1, 2], [3, 4]] | flatten               # -> [1, 2, 3, 4]
+[[1, [2, 3]], [4]] | flatten             # -> [1, [2, 3], 4]
+[[1, [2, 3]], [4]] | flatten(2)          # -> [1, 2, 3, 4]
+[.ltm.virtual[].rules] | flatten | unique
+```
+
+### `group_by`
+
+Group items by the value of *body*; returns a list of groups sorted by key.
+
+**Signatures**
+
+- `group_by(body) -> list[list]`
+
+**Details**
+
+**Special form.**  Matches jq's ``group_by``: for each input item,
+evaluates *body* with ``.`` re-bound, then partitions the input
+into groups of items sharing the same key value.  The outer list
+is sorted by the group keys (jq's cross-type ordering); within
+each group, items preserve their input order.
+
+Pair with ``map(length)`` for a histogram, or ``map(first)`` for
+one representative per group (cheaper than ``unique_by`` when you
+also want the group counts).
+
+Related: ``sort_by``, ``unique_by``, ``map``, ``count``.
+
+**Examples**
+
+```
+[.ltm.virtual[]] | group_by(partition(.name))
+[.ltm.virtual[]] | group_by(.pool) | map(length)  # VS count per pool
 ```
 
 ### `keys`
@@ -207,6 +343,38 @@ Related: ``first``, ``count``, ``sort``.
 ```
 last(.rules)
 split(.destination, ":") | last(.)        # port portion
+```
+
+### `limit`
+
+Take the first *n* items of a list or stream.
+
+**Signatures**
+
+- `limit(value: list | stream, n: integer) -> list`
+
+**Details**
+
+Returns the first *n* items.  When the input has fewer than *n*
+items, returns the input unchanged; when *n* is zero or negative,
+returns an empty list.
+
+Convenience for "give me a preview of the result" or "cap a
+potentially-large stream" — paginate by combining with ``range``
+and slicing.
+
+Note: jq's ``limit(n; gen)`` is a two-argument special form that
+takes a generator expression.  This DSL's ``limit`` is the value
+form — pipe a stream / list into it, the same way ``count`` /
+``sort`` work.
+
+Related: ``first``, ``nth``, ``range``.
+
+**Examples**
+
+```
+[.ltm.virtual[].name] | sort | limit(., 5)  # first five names alphabetically
+.ltm.virtual[] | limit(3)                # first three VSes
 ```
 
 ### `map`
@@ -263,6 +431,197 @@ Related: ``select``, ``any``, ``all``, ``unique``, ``sort``.
 .rules | map(basename(.))
 [.ltm.virtual[].name | partition(.)] | unique | sort
 any(.pool.members[].address | in_cidr(., "10.0.0.0/8"))
+```
+
+### `max`
+
+Largest element of a list or stream, or null when empty.
+
+**Signatures**
+
+- `max(value: list | stream) -> any`
+
+**Details**
+
+Returns the maximum element using jq's cross-type ordering.
+:class:`PathRef` collates by ``full_path``.  Empty input returns
+``null`` — matches jq.
+
+For "largest by a derived key" use ``max_by(f)``.
+
+Related: ``min``, ``max_by``, ``sort``, ``last``.
+
+**Examples**
+
+```
+[1, 5, 2, 8, 3] | max                    # -> 8
+[.ltm.virtual[].name] | max              # alphabetically last VS name
+```
+
+### `max_by`
+
+Item whose *body* value is largest under jq's cross-type ordering.
+
+**Signatures**
+
+- `max_by(body) -> any`
+
+**Details**
+
+**Special form.**  Like ``min_by`` but picks the largest.  Empty
+input returns ``null``.
+
+Related: ``max``, ``min_by``, ``sort_by``, ``last``.
+
+**Examples**
+
+```
+[.ltm.pool[]] | max_by(.members | length)  # biggest pool
+[.ltm.virtual[]] | max_by(.name)            # alphabetically last VS
+```
+
+### `min`
+
+Smallest element of a list or stream, or null when empty.
+
+**Signatures**
+
+- `min(value: list | stream) -> any`
+
+**Details**
+
+Returns the minimum element using jq's cross-type ordering
+(``null < false < true < numbers < strings < arrays < objects``).
+:class:`PathRef` collates by ``full_path``.
+
+Empty input returns ``null`` — matches jq.  For "smallest by a
+derived key" use ``min_by(f)``.
+
+Related: ``max``, ``min_by``, ``sort``, ``first``.
+
+**Examples**
+
+```
+[1, 5, 2, 8, 3] | min                    # -> 1
+[.ltm.virtual[].name] | min              # alphabetically first VS name
+```
+
+### `min_by`
+
+Item whose *body* value is smallest under jq's cross-type ordering.
+
+**Signatures**
+
+- `min_by(body) -> any`
+
+**Details**
+
+**Special form.**  Matches jq's ``min_by``: for each input item,
+evaluates *body* with ``.`` re-bound, and returns the item whose
+derived key is the smallest under jq's cross-type ordering.
+
+On ties, returns the first such item (Python's ``min`` is stable).
+Empty input returns ``null``.
+
+Related: ``min``, ``max_by``, ``sort_by``, ``first``.
+
+**Examples**
+
+```
+[.ltm.pool[]] | min_by(.members | length)  # smallest pool
+[.ltm.virtual[]] | min_by(.name)            # alphabetically first VS
+```
+
+### `nth`
+
+The n-th element of a list or stream (0-indexed), or null when out of range.
+
+**Signatures**
+
+- `nth(value: list | stream, n: integer) -> any`
+
+**Details**
+
+Returns the *n*-th element (0-indexed) of a list or stream.  Out-
+of-range indices return ``null`` rather than raising — matches the
+"safe access" feel of ``first`` / ``last``.
+
+Accepts the jq-style implicit receiver: ``stream | nth(2)`` is the
+same as ``nth(stream, 2)``.  Negative indices count from the end
+(``nth(stream, -1)`` is the last item) — a convenience over jq,
+which doesn't accept negatives.
+
+Related: ``first``, ``last``, ``limit``, ``range``.
+
+**Examples**
+
+```
+[.ltm.virtual[].name] | nth(0)           # first VS name
+.ltm.virtual.web_vs.rules | nth(0)        # first attached rule
+```
+
+### `range`
+
+Generate a stream of integers — jq's range(); 1, 2, or 3 args.
+
+**Signatures**
+
+- `range(upto: integer) -> stream[integer]`
+- `range(from: integer, upto: integer) -> stream[integer]`
+- `range(from: integer, upto: integer, step: integer) -> stream[integer]`
+
+**Details**
+
+Matches jq's ``range`` exactly.  Emits a stream of integers:
+
+- One arg ``upto`` → ``0, 1, 2, … upto-1``.
+- Two args ``from, upto`` → ``from, from+1, … upto-1``.
+- Three args ``from, upto, step`` → arithmetic progression, stops
+  strictly before *upto* (positive step) or strictly after *upto*
+  (negative step).
+
+A *step* of zero raises ``BuiltinError``.  All arguments must be
+integers.
+
+Useful for synthetic streams: indexed enumeration, cartesian-style
+pairings with array generators, fixed-length placeholder runs.
+
+Related: ``limit``, ``nth``.
+
+**Examples**
+
+```
+range(3)                                 # -> 0, 1, 2
+range(2, 6)                              # -> 2, 3, 4, 5
+range(0, 10, 2)                          # -> 0, 2, 4, 6, 8
+[range(5)] | map(. * 2)                  # -> [0, 2, 4, 6, 8]
+```
+
+### `reverse`
+
+Reverse a list or string.
+
+**Signatures**
+
+- `reverse(value: list | stream) -> list`
+- `reverse(value: string) -> string`
+
+**Details**
+
+Returns the input with its elements (or characters) in reverse
+order.  Matches jq's ``reverse``: lists and arrays reverse
+element-wise; strings reverse character-wise.
+
+:class:`PathRef` values are reversed as their ``full_path``
+string.  ``null`` returns ``null``.
+
+Related: ``sort``, ``first``, ``last``.
+
+**Examples**
+
+```
+[.ltm.virtual[].name] | sort | reverse   # descending names
+reverse("abc")                           # -> "cba"
 ```
 
 ### `select`
@@ -335,9 +694,41 @@ Related: ``unique``, ``first``, ``last``.
 [.ltm.virtual[].pool] | unique | sort    # sorted distinct pools
 ```
 
+### `sort_by`
+
+Sort a list by the value of *body* evaluated against each item.
+
+**Signatures**
+
+- `sort_by(body) -> list`
+
+**Details**
+
+**Special form.**  Matches jq's ``sort_by``: for each input item,
+evaluates *body* with ``.`` re-bound to that item and uses the
+result as the sort key.  The original items are returned in order
+of their derived keys, using jq's cross-type ordering.
+
+The body is unevaluated AST and is re-run per item, so it may be a
+field projection (``sort_by(.name)``), a builtin call
+(``sort_by(partition(.))``), or an arithmetic expression.
+
+Stable: ties keep input order (Python's ``sorted`` is stable).
+
+Related: ``sort``, ``unique_by``, ``min_by``, ``max_by``,
+``group_by``.
+
+**Examples**
+
+```
+[.ltm.virtual[]] | sort_by(.name)
+[.ltm.pool[]] | sort_by(.members | length)  # smallest pools first
+[.ltm.virtual[]] | sort_by(partition(.name))
+```
+
 ### `unique`
 
-Return the unique items of a list, preserving first-seen order.
+Return the unique items of a list, sorted.
 
 **Signatures**
 
@@ -345,25 +736,56 @@ Return the unique items of a list, preserving first-seen order.
 
 **Details**
 
-De-duplicates a list or stream while preserving the original
-order of first occurrence.  :class:`PathRef` items are compared
-on their ``full_path``, so a stream that pulls the same pool
-reference from many VSes collapses to one entry.
+De-duplicates a list or stream and returns the unique items in
+sorted order.  Matches jq's ``unique`` exactly: input is treated
+as an array, output is the sorted unique values.  :class:`PathRef`
+items collate by their ``full_path``, mixed types fall into jq's
+cross-type ordering (``null < bool < number < string < array <
+object``).
 
-Unhashable items (rare — usually nested lists) fall back to a
-linear scan, so worst-case is O(n^2); for the typical case of
-strings, integers, and path-refs it's O(n).
+Unhashable items (rare — usually nested lists) collate through the
+same :func:`_sort_key` the ``sort`` builtin uses, so the result is
+deterministic across runs and Python interpreter versions.
 
-Pairs nicely with ``sort`` for stable de-duplicated output:
-``[.ltm.virtual[].pool] | unique | sort``.
+For grouping with a key function use ``unique_by(f)`` instead,
+which keeps one representative per equivalence class.
 
-Related: ``sort``, ``count``, ``map``.
+Related: ``sort``, ``unique_by``, ``dupes``, ``count``, ``map``.
 
 **Examples**
 
 ```
 [.ltm.virtual[].pool] | unique           # every distinct default pool
-[.ltm.virtual[].name | partition(.)] | unique  # used partitions
+[.ltm.virtual[].name | partition(.)] | unique  # used partitions, sorted
+```
+
+### `unique_by`
+
+Sorted unique items, where uniqueness is determined by *body*.
+
+**Signatures**
+
+- `unique_by(body) -> list`
+
+**Details**
+
+**Special form.**  Matches jq's ``unique_by``: returns the unique
+items of the input, where two items are considered equal when
+*body* evaluates to the same value for both.  The result is
+sorted by the same key.
+
+Equivalent to ``[sort_by(body)] | <dedupe-by-key>``.  One
+representative per equivalence class survives — Python's ``sorted``
+is stable, so the representative is the **first** input occurrence
+of each key.
+
+Related: ``unique``, ``sort_by``, ``group_by``, ``dupes``.
+
+**Examples**
+
+```
+[.ltm.virtual[]] | unique_by(.pool)      # one VS per distinct default pool
+[.ltm.virtual[]] | unique_by(partition(.name))
 ```
 
 ### `values`
@@ -397,7 +819,85 @@ values(.ltm.virtual.web_vs)
 
 ## string
 
-String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `sub` / `gsub`, plain `split` / `join`, casing.
+String predicates and rewrites: substring / prefix / suffix tests, regex `match` / `test` / `sub` / `gsub` / `scan` / `capture` / `splits`, plain `split` / `join`, casing, trims (`ltrimstr` / `rtrimstr`), and conversions (`tonumber` / `tostring` / `explode` / `implode`).
+
+### `ascii_downcase`
+
+ASCII-only lowercase — jq parity alias of ``downcase``.
+
+**Signatures**
+
+- `ascii_downcase(value: string) -> string`
+
+**Details**
+
+Matches jq's ``ascii_downcase``.  Identical to ``downcase`` in
+this DSL.  Provided for jq compatibility.
+
+Related: ``downcase``, ``ascii_upcase``.
+
+**Examples**
+
+```
+ascii_downcase("VS_PROD")                # -> "vs_prod"
+```
+
+### `ascii_upcase`
+
+ASCII-only uppercase — jq parity alias of ``upcase``.
+
+**Signatures**
+
+- `ascii_upcase(value: string) -> string`
+
+**Details**
+
+Matches jq's ``ascii_upcase``: returns *value* with every ASCII
+letter (a-z) converted to uppercase, leaving non-ASCII letters
+untouched.  Identical to ``upcase`` in this DSL — both are
+ASCII-only.
+
+Provided for jq compatibility so snippets paste through.
+
+Related: ``upcase``, ``ascii_downcase``.
+
+**Examples**
+
+```
+ascii_upcase("vs_prod")                  # -> "VS_PROD"
+```
+
+### `capture`
+
+Named-group regex match — returns an object of capture names → captured text.
+
+**Signatures**
+
+- `capture(value: string, pattern: string) -> object`
+- `capture(value: string, pattern: string, flags: string) -> object`
+
+**Details**
+
+Matches jq's ``capture``: runs *pattern* against *value* and
+returns an object mapping each **named** capture group to its
+matched text.  Use ``(?P<name>...)`` syntax for named groups (jq
+uses ``(?<name>...)``; both forms are accepted by Python's ``re``
+when ``(?P<name>...)`` is used, and ``capture`` rewrites jq-style
+``(?<name>...)`` to the Python spelling so jq snippets paste
+through).
+
+Returns an empty object when the pattern has no named groups but
+matches; raises ``BuiltinError`` when the pattern doesn't match
+anywhere (jq parity — jq raises a no-match error too).
+
+Related: ``match``, ``scan``, ``sub``, ``gsub``.
+
+**Examples**
+
+```
+capture(.destination, "(?<addr>[0-9.]+):(?<port>[0-9]+)")
+capture("vs_prod_web", "(?<env>prod|dev|qa)_(?<app>.+)")
+```
 
 ### `contains`
 
@@ -512,6 +1012,32 @@ endswith(.name, "_pool")
 .ltm.virtual[] | select(endswith(.destination, ":443"))
 ```
 
+### `explode`
+
+String to list of Unicode codepoints.
+
+**Signatures**
+
+- `explode(value: string) -> list[integer]`
+
+**Details**
+
+Matches jq's ``explode``: returns the input string as a list of
+integer codepoints.  Useful for character-level manipulation
+(case folding by codepoint table, ROT-N ciphers, codepoint
+arithmetic) before reassembling with ``implode``.
+
+:class:`PathRef` is accepted and exploded as its ``full_path``.
+
+Related: ``implode``, ``length``, ``split``.
+
+**Examples**
+
+```
+explode("abc")                           # -> [97, 98, 99]
+explode(.name) | length                  # codepoint count
+```
+
 ### `gsub`
 
 Replace every regex match in a string.
@@ -538,6 +1064,28 @@ Related: ``sub``, ``match``, ``rename``, ``rename_partition``.
 ```
 gsub(.body, "/Common/old_", "/Common/new_")
 .ltm.virtual[].destination |= gsub(., "%5", "%7")  # bulk RD change
+```
+
+### `implode`
+
+List of Unicode codepoints back to a string.
+
+**Signatures**
+
+- `implode(value: list[integer]) -> string`
+
+**Details**
+
+Matches jq's ``implode``: inverse of ``explode``.  Each item must
+be a non-negative integer that names a valid Unicode codepoint.
+
+Related: ``explode``, ``join``.
+
+**Examples**
+
+```
+implode([97, 98, 99])                    # -> "abc"
+explode(.name) | implode                  # round-trip identity
 ```
 
 ### `index`
@@ -603,6 +1151,34 @@ join(.rules, ", ")
 join(sort([.ltm.virtual[].name]), ", ")
 ```
 
+### `ltrimstr`
+
+Strip *prefix* from the start of a string if present; otherwise return unchanged.
+
+**Signatures**
+
+- `ltrimstr(value: string, prefix: string) -> string`
+
+**Details**
+
+Matches jq's ``ltrimstr``: if *value* starts with *prefix*, drops
+that prefix and returns the rest; otherwise returns *value*
+unchanged.  Accepts :class:`PathRef` on either side (coerced
+through ``full_path``).
+
+Idiomatic for normalising names:
+``.ltm.virtual[].name | ltrimstr("vs_")``.
+
+Related: ``rtrimstr``, ``startswith``, ``sub``.
+
+**Examples**
+
+```
+ltrimstr("vs_prod_web", "vs_")            # -> "prod_web"
+ltrimstr("api_vs", "vs_")                 # -> "api_vs" (unchanged)
+.ltm.virtual[].name | ltrimstr(., "vs_")
+```
+
 ### `match`
 
 Regex-match a string; returns true when the pattern matches anywhere.
@@ -658,6 +1234,65 @@ match(.name, "^vs_prod_.*")
 .ltm.virtual[] | select(match(.destination, ":(80|443)$")) | .name
 ```
 
+### `rtrimstr`
+
+Strip *suffix* from the end of a string if present; otherwise return unchanged.
+
+**Signatures**
+
+- `rtrimstr(value: string, suffix: string) -> string`
+
+**Details**
+
+Matches jq's ``rtrimstr``: if *value* ends with *suffix*, drops
+that suffix and returns the rest; otherwise returns *value*
+unchanged.
+
+Pairs with ``ltrimstr`` for symmetric stripping:
+``.name | ltrimstr("vs_") | rtrimstr("_pool")``.
+
+Related: ``ltrimstr``, ``endswith``, ``sub``.
+
+**Examples**
+
+```
+rtrimstr("web_pool", "_pool")            # -> "web"
+rtrimstr("web_pool", "_xxx")             # -> "web_pool" (unchanged)
+```
+
+### `scan`
+
+Stream of every regex match in a string.
+
+**Signatures**
+
+- `scan(value: string, pattern: string) -> list`
+- `scan(value: string, pattern: string, flags: string) -> list`
+
+**Details**
+
+Matches jq's ``scan``: walks *value* finding every non-overlapping
+match of *pattern* and returns them as a list.
+
+- When *pattern* has **no capture groups**, each element is the
+  matched substring.
+- When *pattern* has **one or more capture groups**, each element
+  is a list of capture values (matching jq's array-per-match
+  shape; the full match is **not** included).
+
+Empty matches at advancing positions are skipped to avoid infinite
+loops — Python's ``finditer`` already does this.
+
+Related: ``match`` / ``test`` (predicate), ``capture`` (named
+groups), ``splits``.
+
+**Examples**
+
+```
+scan("a1 b22 c333", "[0-9]+")            # -> ["1", "22", "333"]
+scan("a=1 b=2 c=3", "([a-z])=([0-9])")   # -> [["a","1"], ["b","2"], ["c","3"]]
+```
+
 ### `split`
 
 Split a string on a separator.  Returns a list.
@@ -684,6 +1319,35 @@ rewrites).
 ```
 split(.destination, ":")
 split(.destination, ":") | last(.)        # port portion
+```
+
+### `splits`
+
+Regex-based split — returns the substrings between matches.
+
+**Signatures**
+
+- `splits(value: string, pattern: string) -> list[string]`
+- `splits(value: string, pattern: string, flags: string) -> list[string]`
+
+**Details**
+
+Matches jq's ``splits``: splits *value* on every (possibly empty)
+match of *pattern* and returns the substrings between matches as
+a list.
+
+Unlike ``split``, which takes a literal separator, ``splits``
+interprets its second argument as a regex.  Useful when the
+separator is irregular: variable whitespace, optional punctuation,
+multi-character alternatives.
+
+Related: ``split`` (literal), ``scan``, ``join``.
+
+**Examples**
+
+```
+splits("a, b ,c,  d", " *, *")           # -> ["a", "b", "c", "d"]
+splits("v1.2.3-rc4", "[.-]")             # -> ["v1", "2", "3", "rc4"]
 ```
 
 ### `startswith`
@@ -743,6 +1407,100 @@ identity renames the engine already understands).
 ```
 sub(.name, "^vs_dev_", "vs_qa_")
 .ltm.virtual[].destination |= sub(., ":443$", ":8443")
+```
+
+### `test`
+
+Regex test — true when the pattern matches anywhere in the string (jq's ``test``).
+
+**Signatures**
+
+- `test(value: string, pattern: string) -> boolean`
+- `test(value: string, pattern: string, flags: string) -> boolean`
+
+**Details**
+
+Matches jq's ``test``: a Boolean predicate that returns ``true``
+when *pattern* matches anywhere in *value*.  Same engine as
+``match`` / ``sub`` / ``gsub`` — see those for the trust-boundary
+notes (length cap, refusal of catastrophic-backtracking shapes).
+
+Flags string is a subset of jq's: ``i`` for case-insensitive,
+``x`` for free-spacing, ``s`` for dot-matches-newline, ``m`` for
+multi-line.  Unknown flags raise.
+
+This is the jq name; ``match`` is the legacy DSL name and remains
+available as the same Boolean predicate.  Pick whichever reads
+more naturally.
+
+Related: ``match``, ``scan``, ``capture``, ``sub``, ``gsub``.
+
+**Examples**
+
+```
+test(.name, "^vs_")
+test(.name, "^VS_", "i")                 # case-insensitive
+```
+
+### `tonumber`
+
+Parse a string as a number; return numbers unchanged.
+
+**Signatures**
+
+- `tonumber(value: string | number) -> number`
+
+**Details**
+
+Matches jq's ``tonumber``: numeric input passes through; a string
+is parsed as an integer when possible, otherwise as a float.
+Leading / trailing whitespace is tolerated.
+
+Booleans are rejected — they are not numbers in jq.  ``null`` and
+non-numeric strings raise ``BuiltinError`` (jq raises too).
+
+Related: ``tostring``, ``str``, ``floor``, ``ceil``.
+
+**Examples**
+
+```
+tonumber("42")                           # -> 42
+tonumber("3.14")                         # -> 3.14
+tonumber(.ltm.pool[].monitor.interval)
+```
+
+### `tostring`
+
+Convert any value to its string form — jq parity alias of ``str``.
+
+**Signatures**
+
+- `tostring(value: any) -> string`
+
+**Details**
+
+Matches jq's ``tostring``:
+
+- **string** / :class:`PathRef`: returned as-is (PathRef →
+  ``full_path``).
+- **integers** and **floats**: decimal form.
+- **booleans**: ``"true"`` / ``"false"``.
+- **null**: ``"null"``.
+- **lists** / **objects**: JSON-style encoding (jq parity —
+  objects emit as JSON, not as TMSH stanzas).
+
+Use ``str`` for the scalar-only form that refuses to stringify
+aggregates; use ``tostring`` when you want the round-trip JSON
+spelling.
+
+Related: ``str``, ``tonumber``, ``join``.
+
+**Examples**
+
+```
+tostring(42)                             # -> "42"
+tostring([1, 2, 3])                      # -> "[1,2,3]"
+tostring({a: 1})                         # -> "{\"a\":1}"
 ```
 
 ### `tsv`
@@ -805,6 +1563,360 @@ Related: ``downcase``.
 ```
 upcase(.name)
 upcase("vs_prod_web")                    # -> "VS_PROD_WEB"
+```
+
+## math
+
+Numeric helpers matching jq's math surface: rounding (`floor` / `ceil` / `round`), magnitude (`abs` / `fabs`), powers and roots (`sqrt` / `pow` / `exp`), logarithms (`log` / `log2` / `log10`), and IEEE-754 sentinels (`nan` / `infinite` / `isnan` / `isinfinite` / `isnormal`).
+
+### `abs`
+
+Absolute value of a number.
+
+**Signatures**
+
+- `abs(value: number) -> number`
+
+**Details**
+
+Matches jq 1.7+'s ``abs``: returns the magnitude of a number.
+Integer in → integer out; float in → float out.
+
+Related: ``fabs`` (always float), ``floor``, ``ceil``.
+
+**Examples**
+
+```
+abs(-5)                                  # -> 5
+abs(3.14)                                # -> 3.14
+```
+
+### `ceil`
+
+Round a number up to the nearest integer.
+
+**Signatures**
+
+- `ceil(value: number) -> integer`
+
+**Details**
+
+Matches jq's ``ceil``: returns the smallest integer ``>= value``.
+Integers pass through unchanged.
+
+Related: ``floor``, ``round``.
+
+**Examples**
+
+```
+ceil(3.2)                                # -> 4
+ceil(-3.7)                               # -> -3
+```
+
+### `exp`
+
+``e`` raised to the *value* power.
+
+**Signatures**
+
+- `exp(value: number) -> number`
+
+**Details**
+
+Matches jq's ``exp``: returns ``e^value``.
+
+Related: ``log``, ``pow``.
+
+**Examples**
+
+```
+exp(1)                                   # -> 2.718...
+```
+
+### `fabs`
+
+Absolute value as a float.
+
+**Signatures**
+
+- `fabs(value: number) -> number`
+
+**Details**
+
+Matches jq's ``fabs``: ``math.fabs`` from C — like ``abs`` but
+always returns a float, even for integer input.
+
+Related: ``abs``, ``floor``.
+
+**Examples**
+
+```
+fabs(-5)                                 # -> 5.0
+```
+
+### `floor`
+
+Round a number down to the nearest integer.
+
+**Signatures**
+
+- `floor(value: number) -> integer`
+
+**Details**
+
+Matches jq's ``floor``: returns the largest integer ``<= value``.
+Integers pass through unchanged.
+
+Related: ``ceil``, ``round``, ``abs``.
+
+**Examples**
+
+```
+floor(3.7)                               # -> 3
+floor(-3.2)                              # -> -4
+```
+
+### `infinite`
+
+Positive infinity floating-point value.
+
+**Signatures**
+
+- `infinite() -> number`
+
+**Details**
+
+Matches jq's ``infinite``: returns positive ``inf``.  Negate with
+the unary ``-`` operator for negative infinity.
+
+Related: ``nan``, ``isinfinite``.
+
+**Examples**
+
+```
+infinite                                 # -> Infinity
+```
+
+### `isinfinite`
+
+True when the value is positive or negative infinity.
+
+**Signatures**
+
+- `isinfinite(value: number) -> boolean`
+
+**Details**
+
+Matches jq's ``isinfinite``.  Returns ``false`` for non-number
+input.
+
+Related: ``infinite``, ``isnan``, ``isnormal``.
+
+**Examples**
+
+```
+isinfinite(infinite)                     # -> true
+isinfinite(1.0)                          # -> false
+```
+
+### `isnan`
+
+True when the value is the IEEE-754 NaN.
+
+**Signatures**
+
+- `isnan(value: number) -> boolean`
+
+**Details**
+
+Matches jq's ``isnan``.  Returns ``false`` for non-number input
+(which differs from jq's "is the input not a number" interpretation
+— that's a rarely-useful question, and a misuse on non-numbers is
+almost always a typo).
+
+Related: ``nan``, ``isinfinite``, ``isnormal``.
+
+**Examples**
+
+```
+isnan(nan)                               # -> true
+isnan(1.0)                               # -> false
+```
+
+### `isnormal`
+
+True when the value is a finite, non-zero, non-subnormal number.
+
+**Signatures**
+
+- `isnormal(value: number) -> boolean`
+
+**Details**
+
+Matches jq's ``isnormal``: true when the value is a finite,
+non-zero, non-subnormal number.  Integers count as normal when
+they are non-zero.
+
+Returns ``false`` for non-number input.
+
+Related: ``isnan``, ``isinfinite``.
+
+**Examples**
+
+```
+isnormal(1.0)                            # -> true
+isnormal(0)                              # -> false
+isnormal(nan)                            # -> false
+```
+
+### `log`
+
+Natural logarithm (base e) of a positive number.
+
+**Signatures**
+
+- `log(value: number) -> number`
+
+**Details**
+
+Matches jq's ``log``: returns ``ln(value)``.  Non-positive input
+raises ``BuiltinError``.
+
+Related: ``log10``, ``log2``, ``exp``.
+
+**Examples**
+
+```
+log(2.71828)                             # -> ~1.0
+```
+
+### `log10`
+
+Base-10 logarithm of a positive number.
+
+**Signatures**
+
+- `log10(value: number) -> number`
+
+**Details**
+
+Matches jq's ``log10``.  Non-positive input raises.
+
+Related: ``log``, ``log2``.
+
+**Examples**
+
+```
+log10(1000)                              # -> 3.0
+```
+
+### `log2`
+
+Base-2 logarithm of a positive number.
+
+**Signatures**
+
+- `log2(value: number) -> number`
+
+**Details**
+
+Matches jq's ``log2``.  Non-positive input raises.
+
+Related: ``log``, ``log10``.
+
+**Examples**
+
+```
+log2(1024)                               # -> 10.0
+```
+
+### `nan`
+
+The not-a-number floating-point value.
+
+**Signatures**
+
+- `nan() -> number`
+
+**Details**
+
+Matches jq's ``nan``: returns the IEEE-754 NaN value.  Useful as
+a sentinel when arithmetic over partial data needs to propagate
+"not measured" through pipelines.
+
+Related: ``infinite``, ``isnan``.
+
+**Examples**
+
+```
+nan                                      # -> NaN
+```
+
+### `pow`
+
+Raise *base* to the *exponent* power.
+
+**Signatures**
+
+- `pow(base: number, exponent: number) -> number`
+
+**Details**
+
+Matches jq's ``pow``: ``pow(x; y)`` = x^y.  Returns a float.
+
+Related: ``sqrt``, ``exp``, ``log``.
+
+**Examples**
+
+```
+pow(2, 10)                               # -> 1024.0
+pow(2, 0.5)                              # -> sqrt(2)
+```
+
+### `round`
+
+Round a number to the nearest integer (ties away from zero — jq parity).
+
+**Signatures**
+
+- `round(value: number) -> integer`
+
+**Details**
+
+Matches jq's ``round`` (which calls C's ``round``, rounding ties
+away from zero — **not** Python's banker's rounding).
+``round(0.5)`` → 1, ``round(-0.5)`` → -1, ``round(2.5)`` → 3.
+
+Related: ``floor``, ``ceil``, ``abs``.
+
+**Examples**
+
+```
+round(2.5)                               # -> 3
+round(-2.5)                              # -> -3
+round(2.49)                              # -> 2
+```
+
+### `sqrt`
+
+Square root of a non-negative number.
+
+**Signatures**
+
+- `sqrt(value: number) -> number`
+
+**Details**
+
+Matches jq's ``sqrt``: returns ``math.sqrt(value)``.  Negative
+input raises ``BuiltinError`` (jq returns NaN; we prefer a
+visible error).
+
+Related: ``pow``, ``exp``.
+
+**Examples**
+
+```
+sqrt(16)                                 # -> 4.0
 ```
 
 ## path
@@ -3113,7 +4225,7 @@ refs(.ltm.virtual.web_vs)
 
 ## value
 
-Type / identity introspection: `kind` (TMSH kind), `path` (full-path), `length`, `defined`, `type`.
+Type / identity introspection (`kind`, `path`, `length`, `defined`, `type`) and object-shape conversions (`to_entries` / `from_entries` / `with_entries` / `has` / `in`).
 
 ### `cert_load`
 
@@ -3271,6 +4383,91 @@ Related: ``jsonl_load``, ``csv_load``, ``json_load``.
 f5log_load("/var/log/ltm") | last
 [f5log_load("/var/log/tmm") | select(.severity == "err")] | count
 f5log_load("audit.log") | select(.daemon == "logger" and .module == "01070417")
+```
+
+### `from_entries`
+
+Convert a list of ``{key, value}`` entries back into an object.
+
+**Signatures**
+
+- `from_entries(value: list[object]) -> object`
+
+**Details**
+
+Inverse of ``to_entries``.  Each entry may spell its key as
+``key`` / ``k`` / ``name`` and its value as ``value`` / ``v``,
+matching jq's flexibility.  Missing values default to ``null``;
+missing keys raise.
+
+Keys are coerced to strings (jq parity — JSON object keys are
+strings).  Duplicate keys: later entries overwrite earlier ones.
+
+Related: ``to_entries``, ``with_entries``.
+
+**Examples**
+
+```
+[{key: "a", value: 1}, {key: "b", value: 2}] | from_entries
+to_entries | from_entries                # round-trips an object
+```
+
+### `has`
+
+True when an object has the given field, or an array has the given index.
+
+**Signatures**
+
+- `has(value: object, key: string) -> boolean`
+- `has(value: list, index: integer) -> boolean`
+
+**Details**
+
+Matches jq's ``has``:
+
+- For an **object** (``ObjectRef`` / ``dict``), tests whether the
+  key is present.  Keys are strings; integer keys are coerced.
+- For a **list / stream**, tests whether the integer index is
+  within bounds (``0 <= index < length``).
+
+Use the implicit-receiver form for the natural reading:
+``.ltm.virtual[] | select(has(.snatpool))`` keeps only VSes whose
+object exposes a ``snatpool`` field.  Pair with ``defined`` when
+you also need to filter out an explicit empty string.
+
+Related: ``in`` (inverse), ``keys``, ``defined``.
+
+**Examples**
+
+```
+.ltm.virtual[] | select(has(.snatpool)) | .name
+{a: 1, b: 2} | has("a")                  # -> true
+[10, 20, 30] | has(1)                    # -> true
+```
+
+### `in`
+
+True when the input is a key of the given object (or a valid index of the given array).
+
+**Signatures**
+
+- `in(key: string, value: object) -> boolean`
+- `in(index: integer, value: list) -> boolean`
+
+**Details**
+
+Matches jq's ``in``: the inverse of ``has``.  The input is the key
+being tested; the argument is the container.  Reads naturally with
+the implicit-receiver form:
+``"snatpool" | in(.ltm.virtual.web_vs)``.
+
+Related: ``has`` (inverse), ``keys``.
+
+**Examples**
+
+```
+"name" | in({name: "x", pool: "y"})       # -> true
+.ltm.virtual[].name | select(in($wanted)) # keep VSes named in $wanted
 ```
 
 ### `json_load`
@@ -3534,6 +4731,34 @@ Related: ``+`` (string concat coerces scalars), ``length``,
 str(42)
 ```
 
+### `to_entries`
+
+Convert an object to a list of ``{key, value}`` entries.
+
+**Signatures**
+
+- `to_entries(value: object) -> list[object]`
+
+**Details**
+
+Matches jq's ``to_entries``: an object ``{a: 1, b: 2}`` becomes
+the list ``[{"key": "a", "value": 1}, {"key": "b", "value": 2}]``.
+Entries are emitted in sorted key order so the result is
+deterministic.
+
+Useful for treating an object as a stream of named slots —
+iterate, filter, transform, then put the object back together
+with ``from_entries``.
+
+Related: ``from_entries``, ``with_entries``, ``keys``, ``values``.
+
+**Examples**
+
+```
+{a: 1, b: 2} | to_entries
+.ltm.virtual.web_vs | to_entries | map(.key)  # field names, same as keys
+```
+
 ### `type`
 
 Name of the value's runtime type (``string``, ``object``, ``stream``, ...).
@@ -3562,6 +4787,41 @@ Related: ``kind`` (TMSH kind, more useful for BIG-IP objects),
 type(.pool)                            # -> 'path-ref'
 type(.destination)                     # -> 'string'
 type(.rules)                           # -> 'list'
+```
+
+### `with_entries`
+
+Apply *body* to each ``{key, value}`` entry of an object and reassemble.
+
+**Signatures**
+
+- `with_entries(body) -> object`
+
+**Details**
+
+**Special form.**  Matches jq's ``with_entries``: equivalent to
+``to_entries | map(body) | from_entries``.  For each entry of the
+input object, evaluates *body* with ``.`` re-bound to a
+``{key, value}`` object and collects the results into a new
+object.
+
+The body must yield ``{key, value}``-shaped objects (or the
+relaxed ``k`` / ``v`` / ``name`` spellings ``from_entries``
+accepts).  This DSL doesn't support property assignment on plain
+dicts, so use object literals to reshape entries (jq's
+``with_entries(.key |= upcase)`` becomes
+``with_entries({key: upcase(.key), value: .value})``).
+
+Returning the ``select`` drop sentinel drops the entry — handy
+for filtering object fields.
+
+Related: ``to_entries``, ``from_entries``, ``map``, ``select``.
+
+**Examples**
+
+```
+with_entries({key: upcase(.key), value: .value})   # uppercase field names
+with_entries(select(.value | type == "string"))    # keep only string fields
 ```
 
 ---
