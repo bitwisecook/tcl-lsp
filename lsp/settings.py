@@ -908,8 +908,7 @@ def _propagate_push_to_folder_caches(extracted: dict) -> None:
     if not extracted:
         return
     propagatable = {
-        key: value for key, value in extracted.items()
-        if key not in _PER_FOLDER_OVERRIDE_KEYS
+        key: value for key, value in extracted.items() if key not in _PER_FOLDER_OVERRIDE_KEYS
     }
     if not propagatable:
         return

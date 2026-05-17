@@ -703,8 +703,8 @@ class TestWorkspacePushPropagation:
         # substituting ``baseline_value`` for the leaf so the per-folder cfg
         # starts on the opposite side of the push.
         def _with_leaf(payload, leaf):
-            (section, inner), = payload.items()
-            (key, _),  = inner.items()
+            ((section, inner),) = payload.items()
+            ((key, _),) = inner.items()
             return {section: {key: leaf}}
 
         baseline_settings = _with_leaf(push_payload, baseline_value)
@@ -768,8 +768,7 @@ class TestWorkspacePushPropagation:
             f"features push clobbered folder dialect override; got {cfg.dialect!r}"
         )
         assert list(cfg.extra_commands or ()) == ["folder-helper"], (
-            f"features push clobbered folder extraCommands override; "
-            f"got {cfg.extra_commands!r}"
+            f"features push clobbered folder extraCommands override; got {cfg.extra_commands!r}"
         )
         assert cfg.references_enabled is False
 
@@ -792,9 +791,7 @@ class TestWorkspacePushPropagation:
         _lsp_state.editor_config_settings_per_folder[folder] = {
             "features": {"references": True, "hover": False, "folding": True}
         }
-        _lsp_settings._propagate_push_to_folder_caches(
-            {"features": {"references": False}}
-        )
+        _lsp_settings._propagate_push_to_folder_caches({"features": {"references": False}})
         assert _lsp_state.editor_config_settings_per_folder[folder] == {
             "features": {"references": False, "hover": False, "folding": True}
         }
@@ -833,18 +830,14 @@ class TestWorkspacePushPropagation:
             workspace_value = "tcl8.6"
         else:
             workspace_value = []
-        _lsp_settings._propagate_push_to_folder_caches(
-            {per_folder_only_key: workspace_value}
-        )
+        _lsp_settings._propagate_push_to_folder_caches({per_folder_only_key: workspace_value})
 
         # Folder cache keeps its original per-folder value untouched --
         # the pull will refresh it with the authoritative per-folder
         # merged value.
         assert _lsp_state.editor_config_settings_per_folder[folder] == original_payload
 
-    def test_set_server_dialect_push_does_not_flip_folder_explicit(
-        self, reset_per_folder_state
-    ):
+    def test_set_server_dialect_push_does_not_flip_folder_explicit(self, reset_per_folder_state):
         """``setServerDialect("f5-irules")`` fires a dialect-only push.
         Before the fix that excludes per-folder-only keys, the deep-merge
         wrote ``dialect`` into every folder cache, and the subsequent
@@ -866,9 +859,7 @@ class TestWorkspacePushPropagation:
         assert folder_cfg.dialect_explicitly_set is False
         # Seed the per-folder cache from a prior pull so the propagation
         # path's "folders to update" loop sees this folder.
-        _lsp_state.editor_config_settings_per_folder[folder] = {
-            "features": {"references": True}
-        }
+        _lsp_state.editor_config_settings_per_folder[folder] = {"features": {"references": True}}
 
         # setServerDialect-style push: hand-crafted dialect-only payload.
         push_payload = {"dialect": "f5-irules"}
