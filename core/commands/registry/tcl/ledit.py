@@ -28,6 +28,7 @@ class LeditCommand(CommandDef):
     def spec(cls) -> CommandSpec:
         return CommandSpec(
             name="ledit",
+            dialects=frozenset({"tcl9.0"}),
             hover=HoverSnippet(
                 summary="Replace elements in a list variable in place",
                 synopsis=("ledit listVar first last ?element element ...?",),
