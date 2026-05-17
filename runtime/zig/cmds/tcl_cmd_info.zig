@@ -785,6 +785,12 @@ const CmdWalkCtx = struct {
     pat_ptr: u32,
     pat_len: u32,
     has_pattern: bool,
+    /// True when the user-supplied pattern was namespace-qualified
+    /// (``::ns::pat``).  Emit results as FQ names in that case;
+    /// for unqualified patterns we emit the simple name so that
+    /// ``info commands foo`` returns ``foo`` rather than ``::foo``
+    /// (info-4.3 / 4.4).
+    qualified_pattern: bool,
     /// Cumulative length of the fully-qualified names we'll emit,
     /// plus one separator byte per gap.  Populated during pass 1.
     total: u32,
@@ -816,14 +822,18 @@ fn entry_matches(ctx: *const CmdWalkCtx, name_ptr: u32, name_len: u32, cmd: u32)
     switch (ctx.kind) {
         .commands => {},
         .procs => {
-            // ``info procs`` only reports interpreted procs —
-            // compiled, alias, and import redirects don't qualify.
+            // ``info procs`` reports every user-defined proc — both
+            // interpreted (``body_obj != 0``) and compiled
+            // (``func_idx != 0``).  Aliases and import redirects
+            // don't qualify; the static builtin commands (puts,
+            // string, …) aren't in any ns ``cmd_table``, so the
+            // unqualified walker that suppresses the builtin pass
+            // for ``info procs`` already filters them.
             if ((flags & procs.CMD_ALIAS) != 0) return false;
             if ((flags & procs.CMD_IMPORTED) != 0) return false;
             const func_idx = read_i32(cmd + procs.OFF_FUNC_IDX);
-            if (func_idx != 0) return false;
             const body = read_i32(cmd + 16); // OFF_BODY_OBJ
-            if (body == 0) return false;
+            if (func_idx == 0 and body == 0) return false;
         },
     }
     if (ctx.has_pattern) {
@@ -850,6 +860,12 @@ fn cmd_stored_name(cmd: u32) struct { ptr: u32, len: u32 } {
 fn scan_ns_cmd_table(ns_addr: u32, ctx: *CmdWalkCtx) void {
     const ns: *const tcl_ns.Namespace = @ptrFromInt(ns_addr);
     if (ns.cmd_table.buf == 0) return;
+    // For non-root namespaces we want each emitted name to be FQ
+    // (``::ns::cmd``) — both for native procs whose stored name
+    // is the FQN and for imports whose redirect stores only the
+    // simple name.  Resolve the namespace's FQN once up front so
+    // ``emit_name_in_ns`` can synthesise it cheaply.
+    const ns_full = tcl_ns.ns_full_name(ns_addr);
     var i: u32 = 0;
     while (i < ns.cmd_table.cap) : (i += 1) {
         const bucket = ns.cmd_table.buf + i * BUCKET_SIZE;
@@ -860,8 +876,67 @@ fn scan_ns_cmd_table(ns_addr: u32, ctx: *CmdWalkCtx) void {
         if (!entry_matches(ctx, name_ptr, name_len, cmd)) continue;
         const fqn = cmd_stored_name(cmd);
         if (fqn.len == 0) continue;
-        emit_name(ctx, fqn.ptr, fqn.len);
+        // Tcl 9 ``InfoCommandsCmd`` emits FQ names only when the
+        // user-supplied pattern was namespace-qualified; bare
+        // ``info commands foo`` returns ``foo`` (info-4.3).  When
+        // we must emit FQ, prefer the stored name if it's already
+        // qualified, else synthesise from the *bucket* name (the
+        // dest-ns simple name for an import redirect).
+        const fp: [*]const u8 = @ptrFromInt(fqn.ptr);
+        const stored_is_qualified = fqn.len >= 2 and fp[0] == ':' and fp[1] == ':';
+        if (ctx.qualified_pattern) {
+            if (stored_is_qualified) {
+                emit_name(ctx, fqn.ptr, fqn.len);
+            } else {
+                emit_name_in_ns(ctx, ns_full.ptr, ns_full.len, name_ptr, name_len);
+            }
+        } else {
+            // Unqualified pattern → simple name in the result.
+            emit_name(ctx, name_ptr, name_len);
+        }
     }
+}
+
+/// Emit ``<ns_full>::<simple>`` in one go — sizing-pass + fill-pass
+/// shared with :fn:`emit_name`.  Used for imports whose redirect
+/// stores only the simple name.  When *ns_full* is the root
+/// namespace (``::``) we emit just ``::<simple>``.
+fn emit_name_in_ns(
+    ctx: *CmdWalkCtx,
+    ns_ptr: u32,
+    ns_len: u32,
+    simple_ptr: u32,
+    simple_len: u32,
+) void {
+    // ``ns_full`` for root is ``"::"`` (len=2) — emit
+    // ``::simple``.  For non-root ``::a::b`` (no trailing ``::``),
+    // emit ``::a::b::simple``.
+    const need_sep: bool = ns_len > 2;
+    const total_name: u32 = ns_len + (if (need_sep) @as(u32, 2) else 0) + simple_len;
+    if (ctx.buf == 0) {
+        if (ctx.count > 0) ctx.total += 1;
+        ctx.total += total_name;
+        ctx.count += 1;
+        return;
+    }
+    if (ctx.count > 0) {
+        const d: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+        d[0] = ' ';
+        ctx.off += 1;
+    }
+    const dst: [*]u8 = @ptrFromInt(ctx.buf + ctx.off);
+    const np: [*]const u8 = @ptrFromInt(ns_ptr);
+    for (0..ns_len) |k| dst[k] = np[k];
+    var off2: u32 = ns_len;
+    if (need_sep) {
+        dst[off2] = ':';
+        dst[off2 + 1] = ':';
+        off2 += 2;
+    }
+    const sp: [*]const u8 = @ptrFromInt(simple_ptr);
+    for (0..simple_len) |k| dst[off2 + k] = sp[k];
+    ctx.off += total_name;
+    ctx.count += 1;
 }
 
 /// Emit one FQN — sizing pass if ``ctx.buf == 0``, filling pass
@@ -992,6 +1067,7 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
         .pat_ptr = 0,
         .pat_len = 0,
         .has_pattern = false,
+        .qualified_pattern = false,
         .total = 0,
         .count = 0,
         .buf = 0,
@@ -1022,6 +1098,7 @@ fn run_cmd_walk(kind: WalkKind, pattern: i32) i32 {
                 qualified_target = r.target_ns;
                 ctx.pat_ptr = r.simple_ptr;
                 ctx.pat_len = r.simple_len;
+                ctx.qualified_pattern = true;
                 if (ctx.pat_len == 0) {
                     // Pattern was ``::`` alone or trailing ``::`` —
                     // matches nothing.
@@ -1233,16 +1310,33 @@ pub fn info_vars(pattern: i32) i32 {
     }
 
     if (is_qualified) {
-        // Collect matching names from both the global scalar var_table
-        // and the array directory, then merge into one list.
+        // Vars created via ``namespace eval X { variable Y }`` are
+        // stored flat-keyed in root's var_table as ``X::Y`` (see
+        // :func:`scope.eval_variable`).  Tcl's ``info vars
+        // pat::*`` should:
+        //   * accept the pattern with or without a leading ``::``
+        //     (both ``ns::*`` and ``::ns::*`` work);
+        //   * match against the flat key (which has no leading
+        //     ``::``);
+        //   * emit results in fully-qualified form (``::ns::var``).
+        // We strip a leading ``::`` from the pattern for matching
+        // purposes, then prepend ``::`` on emit.
+        var match_pat_ptr: u32 = pat_ptr;
+        var match_pat_len: u32 = pat_len;
+        if (pat_len >= 2) {
+            const pp_check: [*]const u8 = @ptrFromInt(pat_ptr);
+            if (pp_check[0] == ':' and pp_check[1] == ':') {
+                match_pat_ptr = pat_ptr + 2;
+                match_pat_len = pat_len - 2;
+            }
+        }
 
-        // -- Array directory scan --
         const arr_list = tcl_array.array_dir_names_matching(pat_ptr, pat_len);
         const arr_s = obj_ensure_string(arr_list);
 
-        // -- Root namespace var_table scan (scalar globals) --
         const root = tcl_ns.ns_root();
         const ns: *const tcl_ns.Namespace = @ptrFromInt(root);
+
         var scalar_total: u32 = 0;
         var scalar_count: u32 = 0;
         if (ns.var_table.buf != 0) {
@@ -1254,19 +1348,18 @@ pub fn info_vars(pattern: i32) i32 {
                 const name_len: u32 = @bitCast(read_i32(bucket + 4));
                 const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
                 if (var_addr == 0) continue;
-                const v_val = tcl_ns.var_get_scalar(var_addr);
-                if (v_val == 0) continue;
-                if (!tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+                // ``info vars`` lists declared variables — uninitialised
+                // ones (``variable foo`` with no value) still appear,
+                // unlike ``info exists`` which gates on actual storage.
+                if (!tcl_string.glob_match(match_pat_ptr, match_pat_len, name_ptr, name_len)) continue;
                 if (scalar_count > 0) scalar_total += 1;
-                scalar_total += name_len;
+                scalar_total += name_len + 2; // ``::`` prefix on emit
                 scalar_count += 1;
             }
         }
 
-        // Short-circuit when only arrays matched.
         if (scalar_count == 0) return arr_list;
 
-        // Merge: arr_s (possibly empty) + space + scalar entries.
         const arr_sep: u32 = if (arr_s.len > 0) @as(u32, 1) else @as(u32, 0);
         const merge_total: u32 = arr_s.len + arr_sep + scalar_total;
         const merge_buf = alloc(merge_total);
@@ -1275,7 +1368,7 @@ pub fn info_vars(pattern: i32) i32 {
             memcpy(merge_buf, arr_s.ptr, arr_s.len);
             off = arr_s.len;
         }
-        var written: u32 = if (arr_s.len > 0) 1 else 0; // triggers leading space
+        var written: u32 = if (arr_s.len > 0) 1 else 0;
         if (ns.var_table.buf != 0) {
             var i: u32 = 0;
             while (i < ns.var_table.cap) : (i += 1) {
@@ -1285,16 +1378,21 @@ pub fn info_vars(pattern: i32) i32 {
                 const name_len: u32 = @bitCast(read_i32(bucket + 4));
                 const var_addr: u32 = @bitCast(read_i32(bucket + tcl_ns.OFF_HANDLE));
                 if (var_addr == 0) continue;
-                const v_val = tcl_ns.var_get_scalar(var_addr);
-                if (v_val == 0) continue;
-                if (!tcl_string.glob_match(pat_ptr, pat_len, name_ptr, name_len)) continue;
+                // ``info vars`` lists declared variables — uninitialised
+                // ones (``variable foo`` with no value) still appear,
+                // unlike ``info exists`` which gates on actual storage.
+                if (!tcl_string.glob_match(match_pat_ptr, match_pat_len, name_ptr, name_len)) continue;
                 if (written > 0) {
                     const d: [*]u8 = @ptrFromInt(merge_buf + off);
                     d[0] = ' ';
                     off += 1;
                 }
-                memcpy(merge_buf + off, name_ptr, name_len);
-                off += name_len;
+                const dst: [*]u8 = @ptrFromInt(merge_buf + off);
+                dst[0] = ':';
+                dst[1] = ':';
+                const np: [*]const u8 = @ptrFromInt(name_ptr);
+                for (0..name_len) |k| dst[2 + k] = np[k];
+                off += name_len + 2;
                 written += 1;
             }
         }

@@ -1299,18 +1299,92 @@ pub fn ns_forget(ns_addr: u32, pattern_ptr: u32, pattern_len: u32) u32 {
     const c = tcl_procs_constants;
     const bucket_size: u32 = 16;
     var forgotten: u32 = 0;
+    // Tcl 9 ``Tcl_ForgetImport`` splits a qualified pattern
+    // (``::src::pat``) into the source-ns prefix + simple pattern
+    // and removes redirects in *this* namespace whose source
+    // matches.  An unqualified pattern matches the dest bucket
+    // name directly (used by ``foreach`` cleanup loops that pass
+    // bare globs).
+    const ssp: [*]const u8 = @ptrFromInt(pattern_ptr);
+    var match_simple_ptr: u32 = pattern_ptr;
+    var match_simple_len: u32 = pattern_len;
+    var require_src_ns: u32 = 0;
+    var has_ns_prefix: bool = false;
+    {
+        // Find the last ``::`` in the pattern.
+        var last_sep: i32 = -1;
+        var k: u32 = 0;
+        while (k + 1 < pattern_len) : (k += 1) {
+            if (ssp[k] == ':' and ssp[k + 1] == ':') {
+                last_sep = @intCast(k);
+                k += 1;
+            }
+        }
+        if (last_sep >= 0) {
+            has_ns_prefix = true;
+            const sep_at: u32 = @intCast(last_sep);
+            if (sep_at == 0) {
+                require_src_ns = ns_root();
+            } else {
+                const r = ns_resolve_qualified(ns_addr, pattern_ptr, sep_at);
+                if (r.simple_len == 0) {
+                    require_src_ns = if (r.target_ns != 0) r.target_ns else 0;
+                } else {
+                    require_src_ns = if (r.target_ns != 0)
+                        ns_lookup(r.target_ns, r.simple_ptr, r.simple_len)
+                    else
+                        0;
+                }
+            }
+            match_simple_ptr = pattern_ptr + sep_at + 2;
+            match_simple_len = pattern_len - sep_at - 2;
+        }
+    }
+    // Build the set of source-Command addresses that match the
+    // pattern in ``require_src_ns``.  Used to filter the dest
+    // ns's redirect buckets so a same-named redirect from a
+    // *different* source ns isn't accidentally forgotten.
+    const src_ns_addr: u32 = if (has_ns_prefix) require_src_ns else 0;
+    _ = src_ns_addr;
     var i: u32 = 0;
     while (i < ns.cmd_table.cap) : (i += 1) {
         const bucket = ns.cmd_table.buf + i * bucket_size;
         const name_ptr: u32 = @bitCast(read_i32(bucket));
         if (name_ptr == 0) continue;
         const name_len: u32 = @bitCast(read_i32(bucket + 4));
-        if (!tcl_string.glob_match(pattern_ptr, pattern_len, name_ptr, name_len)) continue;
+        if (!tcl_string.glob_match(match_simple_ptr, match_simple_len, name_ptr, name_len)) continue;
 
         const redirect: u32 = @bitCast(read_i32(bucket + OFF_HANDLE));
         if (redirect == 0) continue;
         const flags: u32 = @bitCast(read_i32(redirect + c.OFF_FLAGS));
         if ((flags & c.CMD_IMPORTED) == 0) continue; // not an import; leave alone
+
+        // When the pattern carried a namespace qualifier, also
+        // confirm the redirect's source command lives in the
+        // qualifier's namespace by probing the source ns's
+        // cmd_table for a matching real_cmd entry.  Without a
+        // back-reference on the Command itself this is O(N) over
+        // the source ns's table, but namespace.forget is rare.
+        if (has_ns_prefix and require_src_ns != 0) {
+            const desc_check: u32 = @bitCast(read_i32(redirect + c.OFF_PARAMS_OBJ));
+            if (desc_check == 0) continue;
+            const dcheck: *ImportedCmdData = @ptrFromInt(desc_check);
+            const src_cmd = dcheck.real_cmd;
+            if (src_cmd == 0) continue;
+            const src_ns: *const Namespace = @ptrFromInt(require_src_ns);
+            if (src_ns.cmd_table.buf == 0) continue;
+            var found_src_cmd: bool = false;
+            var sj: u32 = 0;
+            while (sj < src_ns.cmd_table.cap) : (sj += 1) {
+                const sbucket = src_ns.cmd_table.buf + sj * bucket_size;
+                const scmd: u32 = @bitCast(read_i32(sbucket + OFF_HANDLE));
+                if (scmd == src_cmd) {
+                    found_src_cmd = true;
+                    break;
+                }
+            }
+            if (!found_src_cmd) continue;
+        }
 
         const desc: u32 = @bitCast(read_i32(redirect + c.OFF_PARAMS_OBJ));
         if (desc == 0) continue;

@@ -78,6 +78,9 @@ good_to_have = [
     "20.2",
     "20.3",
     "20.4",
+    # ``info vars`` filter — extra residue post-fix sweep that
+    # the previous triage missed.
+    "19.3",
 ]
 
 # No tests in this stem are ``just_to_match_ctcl`` — the C-tcl-internal
@@ -104,6 +107,9 @@ skip = [
     # ``info frame`` inside eval / dict-* / proc / apply / {*}-
     # expansion: each expects ``type source line N file …`` from
     # bcc emit.
+    "22.0",
+    "22.6",
+    "22.7",
     "23.4",
     "24.7",
     "24.8",
@@ -162,6 +168,6 @@ skip = [
 ]
 
 [baseline]
-good_to_have_failing = 20
+good_to_have_failing = 21
 just_to_match_ctcl_failing = 0
-skip_failing = 47
+skip_failing = 50

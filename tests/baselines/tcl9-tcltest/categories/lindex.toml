@@ -1,0 +1,33 @@
+# Categorisation for lindex.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+good_to_have = [
+  "10.4",   # lindex-10.4: ``$x = "\{"`` — a bare brace as an index
+            # string should raise ``bad index "{": must be integer?
+            # [+-]integer? or end?[+-]integer?``.  Our index parser
+            # silently treats it as 0.
+  "12.2",   # lindex-12.2: ``end--1`` is "one past the end", which
+            # the C tcl index parser maps to out-of-range → return
+            # the empty list.  Our parser folds it to ``end-(-1)``
+            # = end+1 = 2, returning the last element.
+  "12.8",   # lindex-12.8: similar — ``end--1`` validation in
+            # multi-arg lindex.
+  "12.10",  # lindex-12.10: pinned errorInfo wording for index
+            # parse failures inside a multi-arg lindex (separate
+            # diagnostic from the single-arg form).
+  "13.1",   # lindex-13.1: ``lindex {a b c} 0 0a2`` should reject
+            # the second index ``0a2``.  Our multi-arg walker
+            # currently calls ``tcl_cmd_list_index`` (which is
+            # lenient) without first validating each index against
+            # the integer / ``end?[+-]integer?`` grammar.
+  "14.3",   # lindex-14.3: ``lindex {a "b c"def ghi} 2`` should
+            # raise ``list element in quotes followed by "def"
+            # instead of space``.  ``check_list_syntax`` validates
+            # brace-followed-by-junk but not the quote-followed-by-
+            # junk variant; the parser then silently splits the
+            # malformed element.
+]
+
+[baseline]
+good_to_have_failing = 6

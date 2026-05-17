@@ -1,0 +1,34 @@
+# Categorisation for scan.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+# scan.test failures cluster around:
+#  - 1.x / 2.x: ``%[charset]`` parsing (negation, range, escaped
+#    chars) — our scanner doesn't honour the bracket-set syntax.
+#  - 4.x: Tcl 9 wide / negative-width / bignum specifiers
+#    (``%lld``, ``%llu``, ``%lo``, ``%lx``).
+#  - 5.x / 10.x / 11.x: result-array alignment + multi-output
+#    coordination.
+#  - 12.x / 13.x: XPG3 ``%n$`` positional argument addressing.
+#  - 14.x / 15.x: edge cases around floating-point precision in
+#    ``%g`` / ``%f``.
+# All are real feature gaps in the scan implementation.
+good_to_have = [
+  "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8",
+  "2.1", "2.2",
+  "4.11", "4.12", "4.13", "4.14", "4.15", "4.17", "4.19",
+  "4.24", "4.25", "4.26", "4.27",
+  "4.48", "4.49", "4.49-uc-1", "4.49-uc-2",
+  "4.50", "4.51", "4.52", "4.53", "4.54",
+  "4.62", "4.63",
+  "5.14", "5.16",
+  "10.6", "10.7",
+  "11.1", "11.2", "11.3", "11.4", "11.5",
+  "12.2", "12.3", "12.5", "12.7",
+  "13.1", "13.2", "13.4", "13.6", "13.7", "13.8",
+  "14.1", "14.2",
+  "15.1",
+]
+
+[baseline]
+good_to_have_failing = 54

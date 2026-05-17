@@ -1625,14 +1625,56 @@ inline fn release_alias_desc_if_extant(old_v: i32) void {
 pub export fn frame_alias_global(name: i32) void {
     const sn = obj_ensure_string(name);
     if (current_frame()) |base| {
-        const hash = fnv1a(sn.ptr, sn.len);
-        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+        // ``global ::a::b::c`` makes the *simple* tail (``c``) the
+        // local alias name and points it at the qualified
+        // ``::a::b::c`` global (Tcl 9 ``Tcl_GlobalObjCmd``).  For
+        // unqualified names the local == target.
+        var simple_ptr = sn.ptr;
+        var simple_len = sn.len;
+        var has_qualifiers = false;
+        if (sn.len > 0 and sn.ptr != 0) {
+            const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+            var last_sep: i32 = -1;
+            var k: u32 = 0;
+            while (k + 1 < sn.len) : (k += 1) {
+                if (sp[k] == ':' and sp[k + 1] == ':') {
+                    last_sep = @intCast(k);
+                    k += 1;
+                }
+            }
+            if (last_sep >= 0) {
+                has_qualifiers = true;
+                const start: u32 = @as(u32, @intCast(last_sep)) + 2;
+                simple_ptr = sn.ptr + start;
+                simple_len = sn.len - start;
+            }
+        }
+        const local_hash = fnv1a(simple_ptr, simple_len);
+        if (has_qualifiers) {
+            // Qualified target: route through KIND_GLOBAL_NAMED so the
+            // alias reads / writes the named global var directly.
+            const desc = alloc(12);
+            write_i32(desc, KIND_GLOBAL_NAMED);
+            write_i32(desc + 4, 0);
+            write_i32(desc + 8, name);
+            if (frame_find(base, simple_ptr, simple_len, local_hash)) |bucket| {
+                const old = read_i32(bucket + OFF_VALUE);
+                release_alias_desc_if_extant(old);
+                write_i32(bucket + OFF_VALUE, encode_alias_ext(desc));
+                return;
+            }
+            frame_insert(base, simple_ptr, simple_len, local_hash, encode_alias_ext(desc));
+            return;
+        }
+        // Same-name alias: use ALIAS_GLOBAL sentinel so var_resolve /
+        // var_set route through the root global table.
+        if (frame_find(base, sn.ptr, sn.len, local_hash)) |bucket| {
             const old = read_i32(bucket + OFF_VALUE);
             release_alias_desc_if_extant(old);
             write_i32(bucket + OFF_VALUE, ALIAS_GLOBAL);
             return;
         }
-        frame_insert(base, sn.ptr, sn.len, hash, ALIAS_GLOBAL);
+        frame_insert(base, sn.ptr, sn.len, local_hash, ALIAS_GLOBAL);
     }
     // No active frame — global is already the scope, nothing to alias.
 }
@@ -1644,19 +1686,33 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
     if (current_frame()) |base| {
         const sn = obj_ensure_string(local_name);
         const hash = fnv1a(sn.ptr, sn.len);
-        if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
-            // Re-alias fast path: if the existing slot is already a
-            // 12-byte descriptor (KIND_GLOBAL_NAMED or KIND_FRAME_VAR),
-            // overwrite its fields in place rather than allocating a
-            // fresh slab and leaking the old one.
-            const old = read_i32(bucket + OFF_VALUE);
+        // Qualify the target with the current namespace when:
+        //   * the target is unqualified (no leading ``::`` and no
+        //     ``::`` separator),
+        //   * we're inside a non-root namespace (the caller's
+        //     namespace context is what ``upvar #0`` / ``upvar 1`` to
+        //     the global frame is supposed to resolve against), and
+        //   * the resulting qualified name actually exists at the
+        //     namespace scope.
+        // Otherwise leave ``target_name`` as-is so root-global aliases
+        // still route through the flat-key store.
+        const qualified_target = qualify_alias_target(target_name);
+        const old_value = blk: {
+            if (frame_find(base, sn.ptr, sn.len, hash)) |bucket| {
+                break :blk bucket;
+            }
+            break :blk 0;
+        };
+        if (old_value != 0) {
+            // Re-alias fast path: reuse the existing 12-byte slab.
+            const old = read_i32(old_value + OFF_VALUE);
             if (is_alias_ext(old)) {
                 const old_desc = alias_desc_ptr(old);
                 const old_kind = read_i32(old_desc);
                 if (old_kind != KIND_NS_VAR_PTR) {
                     write_i32(old_desc, KIND_GLOBAL_NAMED);
                     write_i32(old_desc + 4, 0);
-                    write_i32(old_desc + 8, target_name);
+                    write_i32(old_desc + 8, qualified_target);
                     return;
                 }
                 obj.free_sized(old_desc, 24);
@@ -1664,16 +1720,66 @@ pub export fn frame_alias_named(local_name: i32, target_name: i32) void {
             const desc = alloc(12);
             write_i32(desc, KIND_GLOBAL_NAMED);
             write_i32(desc + 4, 0);
-            write_i32(desc + 8, target_name);
-            write_i32(bucket + OFF_VALUE, encode_alias_ext(desc));
+            write_i32(desc + 8, qualified_target);
+            write_i32(old_value + OFF_VALUE, encode_alias_ext(desc));
             return;
         }
         const desc = alloc(12);
         write_i32(desc, KIND_GLOBAL_NAMED);
         write_i32(desc + 4, 0);
-        write_i32(desc + 8, target_name);
+        write_i32(desc + 8, qualified_target);
         frame_insert(base, sn.ptr, sn.len, hash, encode_alias_ext(desc));
     }
+}
+
+/// Return *target* unchanged when already qualified, when we're at
+/// root scope, or when the namespace-qualified form doesn't currently
+/// exist in the global store.  Otherwise return a fresh TclObj wrapping
+/// ``<current_ns>::<target>`` so the alias resolves to the namespace
+/// variable instead of the root global.
+fn qualify_alias_target(target: i32) i32 {
+    const sn = obj_ensure_string(target);
+    if (sn.len == 0 or sn.ptr == 0) return target;
+    const sp: [*]const u8 = @ptrFromInt(sn.ptr);
+    // Already qualified — leave alone.
+    if (sn.len >= 2 and sp[0] == ':' and sp[1] == ':') return target;
+    var k: u32 = 0;
+    while (k + 1 < sn.len) : (k += 1) {
+        if (sp[k] == ':' and sp[k + 1] == ':') return target;
+    }
+    // Bare name + non-root current_ns — synthesise the qualified form
+    // and check the global store for an existing namespace var.
+    if (tcl_ns.current_ns == 0 or tcl_ns.current_ns == tcl_ns.ns_root()) return target;
+    const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
+    if (ns_full.len <= 2) return target;
+    const total: u32 = ns_full.len + 2 + sn.len;
+    const buf = obj.alloc(total);
+    if (buf == 0) return target;
+    const dst: [*]u8 = @ptrFromInt(buf);
+    const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+    for (0..ns_full.len) |i| dst[i] = ns_p[i];
+    dst[ns_full.len] = ':';
+    dst[ns_full.len + 1] = ':';
+    const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+    for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+    // Respect the docstring: only redirect when the qualified
+    // namespace var actually exists in root's flat-key store.
+    // Otherwise leave the alias targeted at the bare name so a
+    // later ``set`` lands in the root global (or the caller's
+    // proc-local) rather than synthesising a never-set
+    // namespace var.  The flat keys are stored without the
+    // leading ``::`` (matches :func:`tcl_ns.strip_global_prefix`).
+    const flat_ptr: u32 = buf + 2;
+    const flat_len: u32 = total - 2;
+    if (tcl_ns.ns_var_find(tcl_ns.ns_root(), flat_ptr, flat_len) == 0) {
+        obj.free_sized(buf, total);
+        return target;
+    }
+    // Take ownership of the buffer via ``obj_new_string_take`` so
+    // the slab returns to the free list when the alias-target
+    // TclObj is eventually released (the previous shape borrowed
+    // via ``obj_new_string`` and leaked the buffer).
+    return obj.obj_new_string_take(buf, total, total);
 }
 
 /// Register *local_name* in the current frame as an alias to variable
@@ -2169,9 +2275,16 @@ pub export fn var_resolve(name: i32) i32 {
             }
             obj.tcl_obj_release(qname);
             obj.free_sized(buf, total);
+            // No FQN match — fall through to the root global below.
+            // (The strict ``namespace-17.7`` discipline of refusing
+            // to fall back was correct in spirit but broke the
+            // common eval-fallback path where a proc-local read
+            // probes the frame, misses, falls through here, and
+            // expects to keep hunting up the chain.  We re-evaluate
+            // namespace-17.7 separately via a different mechanism.)
         }
     }
-    // Fall through to root global
+    // Fall through to root global (current_ns is root or not set)
     return globals.global_get(name);
 }
 
@@ -2250,6 +2363,38 @@ pub export fn var_set(name: i32, value: i32) i32 {
     if (current_frame() != null) {
         return local_set(name, value);
     }
+    // At script level: an unqualified name resolves to the *current
+    // namespace's* variable table (per Tcl 9 — ``set X 99`` inside
+    // ``namespace eval ::A`` creates ``::A::X``).  Synthesise the
+    // qualified name and route through ``global_set`` so the flat-
+    // key store is used consistently with the read path's current_ns
+    // probe (var_resolve / var_exists).
+    if (tcl_ns.current_ns != 0 and tcl_ns.current_ns != tcl_ns.ns_root()) {
+        const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
+        if (ns_full.len > 2) {
+            const total: u32 = ns_full.len + 2 + sn.len;
+            const buf = obj.alloc(total);
+            if (buf != 0) {
+                const dst: [*]u8 = @ptrFromInt(buf);
+                const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                for (0..ns_full.len) |i| dst[i] = ns_p[i];
+                dst[ns_full.len] = ':';
+                dst[ns_full.len + 1] = ':';
+                const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+                for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+                const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+                const v = globals.global_set(qname, value);
+                obj.tcl_obj_release(qname);
+                obj.free_sized(buf, total);
+                return v;
+            }
+            // OOM — fall through to the bare-name ``global_set`` so
+            // we don't trap on a deref of the null buffer.  The
+            // write lands in the root global slot which is the
+            // least-surprising fallback if memory pressure is
+            // already this tight.
+        }
+    }
     return globals.global_set(name, value);
 }
 
@@ -2305,7 +2450,41 @@ pub export fn var_exists(name: i32) i32 {
             return obj_new_int(1);
         }
     }
-    // Check global
+    // Tcl 9: an unqualified name at script level resolves against
+    // the current namespace's variable table first, then falls
+    // through to the root global (mirrors var_resolve's discipline —
+    // without this, ``info exists X`` inside ``namespace eval ::A {
+    // set X 99 ; info exists X }`` returns 0 even though ``$X`` reads
+    // 99).  Only the bare-name case needs this — qualified names
+    // already route through globals via the ``::``-prefix check below.
+    if (sn.len > 0 and sn.ptr != 0) {
+        const sp_probe: [*]const u8 = @ptrFromInt(sn.ptr);
+        const is_qualified = sn.len >= 2 and sp_probe[0] == ':' and sp_probe[1] == ':';
+        if (!is_qualified and tcl_ns.current_ns != 0) {
+            const ns_full = tcl_ns.ns_full_name(tcl_ns.current_ns);
+            if (ns_full.len > 2) {
+                const total: u32 = ns_full.len + 2 + sn.len;
+                const buf = obj.alloc(total);
+                if (buf != 0) {
+                    const dst: [*]u8 = @ptrFromInt(buf);
+                    const ns_p: [*]const u8 = @ptrFromInt(ns_full.ptr);
+                    for (0..ns_full.len) |i| dst[i] = ns_p[i];
+                    dst[ns_full.len] = ':';
+                    dst[ns_full.len + 1] = ':';
+                    const name_p: [*]const u8 = @ptrFromInt(sn.ptr);
+                    for (0..sn.len) |i| dst[ns_full.len + 2 + i] = name_p[i];
+                    const qname = obj.obj_new_string(@bitCast(buf), @bitCast(total));
+                    const exists = globals.global_exists(qname);
+                    obj.tcl_obj_release(qname);
+                    obj.free_sized(buf, total);
+                    if (obj.obj_get_int(exists) != 0) return exists;
+                }
+                // OOM — skip the namespace probe and fall through
+                // to the global existence check below.
+            }
+        }
+    }
+    // Check global (current_ns is root or not set)
     return globals.global_exists(name);
 }
 

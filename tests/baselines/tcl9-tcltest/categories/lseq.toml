@@ -1,18 +1,26 @@
 # lseq.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — [lseq] not yet implemented; tcltest sees a bad option from the bundle.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle reaches its tcltest summary line now.  Residual must_pass
+# failures are lseq-arithmetic-sequence options that need TIP 661 +
+# the abstract-list dispatch (count + delta direction, range
+# detection, bignum arms) wired in.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  # 1.x — basic lseq construction edge cases (large counts, negative
+  # delta, zero step, bignum endpoints).
+  "1.7", "1.8", "1.9", "1.12",
+  "1.23", "1.24", "1.25", "1.26", "1.27",
+  # 2.x — lseq + foreach / lmap interop.
+  "2.7", "2.8", "2.9", "2.12", "2.14", "2.15", "2.16", "2.17",
+  "2.19", "2.20",
+  # 3.x — lseq + lindex / lrange shimmer.
+  "3.31",
+  # 4.x — lseq error wording.
+  "4.14", "4.15", "4.16",
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 23
 just_to_match_ctcl_failing = 0
 skip_failing = 0

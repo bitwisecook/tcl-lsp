@@ -86,6 +86,21 @@ const MAX_WORDS: u32 = parse.MAX_WORDS;
 const interp_impl = @import("../cmds/tcl_cmd_interp.zig");
 const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
 const interp_reg = @import("tcl_interp_registry.zig");
+const hide_mod = @import("../cmds/tcl_hide.zig");
+
+/// Wraps :func:`cmd_table.lookup` with a check against the current
+/// interp's hidden-builtin marker.  When ``interp hide`` has
+/// recorded *name* in the active interp's hidden table with the
+/// :data:`hide_mod.BUILTIN_HIDDEN_MARKER` sentinel, return ``null``
+/// so the caller treats the builtin as if it were never registered
+/// — matching C tcl's per-interp ``Tcl_HideCommand`` semantics
+/// without needing to clone the static dispatch table per child.
+fn cmd_table_visible_lookup(name_ptr: u32, name_len: u32) ?@TypeOf(cmd_table.lookup(0, 0).?) {
+    if (hide_mod.builtin_is_hidden(interp_reg.interp_current(), name_ptr, name_len)) {
+        return null;
+    }
+    return cmd_table.lookup(name_ptr, name_len);
+}
 
 // -- Variable substitution --
 
@@ -137,7 +152,7 @@ pub fn eval_expr_str(ptr: u32, len: u32) i64 {
 /// position lets the caller split the expression text into LHS / RHS
 /// substrings.
 const StringOp = struct {
-    kind: enum { eq, ne, in_, ni },
+    kind: enum { eq, ne, in_, ni, eq_eq, ne_eq },
     /// First byte of the operator keyword in the expression text.
     start: u32,
     /// Byte length of the keyword (2 for all four operators).
@@ -154,6 +169,68 @@ const StringOp = struct {
 /// regular ``expr_or`` pipeline (which itself recurses back into
 /// ``eval_expr_str`` for each side, picking up the string-op fix
 /// where it actually applies).
+/// Walk *src*[rest_start..len] looking for a lower-precedence boolean
+/// or ternary operator that would override the candidate ``==``/``!=``.
+/// Returns true when no such operator is present (so the equality
+/// dispatch can safely fire) and false when one is found.
+/// Skips over ``"..."`` / ``{...}`` / ``[...]`` / ``(...)`` so a nested
+/// ``||`` doesn't trigger a false bail-out.
+fn eq_op_is_top_level(src: [*]const u8, len: u32, rest_start: u32) bool {
+    var i: u32 = rest_start;
+    while (i < len) : (i += 1) {
+        const c = src[i];
+        if (c == '"') {
+            i += 1;
+            while (i < len and src[i] != '"') {
+                if (src[i] == '\\' and i + 1 < len) i += 1;
+                i += 1;
+            }
+            continue;
+        }
+        if (c == '{') {
+            var d: u32 = 1;
+            i += 1;
+            while (i < len and d > 0) : (i += 1) {
+                if (src[i] == '\\' and i + 1 < len) {
+                    i += 1;
+                    continue;
+                }
+                if (src[i] == '{') d += 1 else if (src[i] == '}') d -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (c == '[') {
+            var d: u32 = 1;
+            i += 1;
+            while (i < len and d > 0) : (i += 1) {
+                if (src[i] == '[') d += 1 else if (src[i] == ']') d -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (c == '(') {
+            var d: u32 = 1;
+            i += 1;
+            while (i < len and d > 0) : (i += 1) {
+                if (src[i] == '(') d += 1 else if (src[i] == ')') d -= 1;
+            }
+            if (i > 0) i -= 1;
+            continue;
+        }
+        if (i + 1 < len and src[i] == '&' and src[i + 1] == '&') return false;
+        if (i + 1 < len and src[i] == '|' and src[i + 1] == '|') return false;
+        if (c == '?' or c == ':') return false;
+        // Arithmetic / shift ops on the RHS mean ``$a == $b + $c`` style
+        // expressions where ``eval_string_expr`` would textually
+        // substitute the RHS instead of evaluating the arithmetic.
+        if (c == '+' or c == '-' or c == '*' or c == '/' or c == '%') return false;
+        if (i + 1 < len and src[i] == '<' and src[i + 1] == '<') return false;
+        if (i + 1 < len and src[i] == '>' and src[i + 1] == '>') return false;
+    }
+    return true;
+}
+
 fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
     if (len < 4) return null;
     const src: [*]const u8 = @ptrFromInt(ptr);
@@ -210,6 +287,34 @@ fn find_top_string_op(ptr: u32, len: u32) ?StringOp {
         if (i + 1 < len and src[i] == '&' and src[i + 1] == '&') return null;
         if (i + 1 < len and src[i] == '|' and src[i + 1] == '|') return null;
         if (c == '?' or c == ':') return null;
+        // ``==`` / ``!=`` at top level: Tcl 9 picks numeric compare
+        // when both operands parse as numbers, bytewise compare
+        // otherwise.  The legacy ``expr_add`` i64 path raises ``expected
+        // boolean value`` on non-numeric ``"..."`` operands, so this
+        // top-level dispatch is the only way ``$v != "foobar1"`` works
+        // through the interpreter eval path.  Two safety conditions
+        // before claiming the operator:
+        //   1.  Neither side may carry a lower-precedence boolean /
+        //       ternary operator — ``$a == $b || $c`` has ``||`` as the
+        //       top, so the equality dispatch must defer.
+        //   2.  Neither side may carry a higher-precedence arithmetic
+        //       operator (``+`` / ``-`` / ``*`` / ``/`` / ``%`` /
+        //       ``<<`` / ``>>``) — ``$a == $b + 1`` needs the
+        //       arithmetic on RHS evaluated by ``expr_add`` first, not
+        //       textually substituted by ``eval_string_expr``.
+        if (i + 1 < len and (src[i] == '=' or src[i] == '!') and src[i + 1] == '=') {
+            // Scan the remainder for disqualifying operators.
+            if (!eq_op_is_top_level(src, len, i + 2)) {
+                if (src[i] == '+' or src[i] == '-' or src[i] == '*' or src[i] == '/' or src[i] == '%') return null;
+                continue;
+            }
+            return .{
+                .kind = if (src[i] == '=') .eq_eq else .ne_eq,
+                .start = i,
+                .op_len = 2,
+            };
+        }
+        if (c == '+' or c == '-' or c == '*' or c == '/' or c == '%') return null;
         // String operator must be surrounded by whitespace on both
         // sides — otherwise a variable name like ``$equal`` would
         // self-match its ``eq`` substring.  Two-char keyword + at
@@ -298,6 +403,21 @@ fn eval_string_expr(ptr: u32, len: u32, op: StringOp) i64 {
         .ne => result = if (string_bytes_equal(lhs_s, rhs_s)) @as(i64, 0) else @as(i64, 1),
         .in_ => result = if (list_contains_string(rhs_s, lhs_s)) @as(i64, 1) else @as(i64, 0),
         .ni => result = if (list_contains_string(rhs_s, lhs_s)) @as(i64, 0) else @as(i64, 1),
+        .eq_eq, .ne_eq => {
+            // Tcl 9 ``==`` / ``!=``: numeric compare when both operands
+            // parse as numbers, else bytewise string compare.  Route
+            // through ``tcl_expr_eq_nan_aware`` which enforces
+            // IEEE-754's ``NaN != NaN`` rule on top of the regular
+            // ``tcl_expr_order_cmp`` semantics (i64 fast path / bignum
+            // / float / bytewise).  The string helpers above leave
+            // the substituted operand TclObjs on the heap; reuse them
+            // so we don't re-walk the source.
+            const tcl_string = @import("../valtypes/tcl_string.zig");
+            const eq_obj = tcl_string.tcl_expr_eq_nan_aware(lhs_obj, rhs_obj);
+            const eq_flag = obj_mod.obj_get_int(eq_obj);
+            obj_mod.tcl_obj_release(eq_obj);
+            result = if (op.kind == .eq_eq) eq_flag else (1 - eq_flag);
+        },
     }
     obj_mod.tcl_obj_release(lhs_obj);
     obj_mod.tcl_obj_release(rhs_obj);
@@ -431,7 +551,24 @@ fn expr_and(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
 }
 
 fn expr_skip_ws(src: [*]const u8, len: u32, pos: *u32) void {
-    while (pos.* < len and (src[pos.*] == ' ' or src[pos.*] == '\t')) pos.* += 1;
+    // Tcl expression whitespace: space, tab, newline, carriage return,
+    // form feed, and the ``\<newline>`` line-continuation sequence (which
+    // collapses to a single space in command parsing but appears verbatim
+    // in expression text when ``expr`` reads a brace-quoted argument
+    // — ``if {... && \<NL>(rhs)}`` ships the continuation into the
+    // expression parser intact, so it has to skip both bytes here).
+    while (pos.* < len) {
+        const c = src[pos.*];
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r' or c == 0x0c) {
+            pos.* += 1;
+            continue;
+        }
+        if (c == '\\' and pos.* + 1 < len and src[pos.* + 1] == '\n') {
+            pos.* += 2;
+            continue;
+        }
+        break;
+    }
 }
 
 fn expr_add(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
@@ -509,6 +646,54 @@ fn expr_atom(ptr: u32, len: u32, pos: *u32, skip: bool) i64 {
     }
     if (src[pos.*] == '(') {
         pos.* += 1;
+        // Find the matching close paren so the inner expression text
+        // can be re-checked for a top-level string operator
+        // (``==``/``!=``/``eq``/``ne``/``in``/``ni``).  Without this
+        // dispatch ``($v != "foobar1")`` falls into ``expr_or → expr_add``
+        // → ``expr_atom`` for ``"foobar1"`` and raises ``expected
+        // boolean value``, because the i64 ``==``/``!=`` branches in
+        // ``expr_add`` can't represent string compare.  The outer
+        // ``eval_expr_str`` entry point dispatches via
+        // ``find_top_string_op`` for the top-level expression text;
+        // recurse into the same helper here so paren-wrapped string
+        // comparisons get the numeric-or-string semantics they need.
+        const inner_start = pos.*;
+        var depth: u32 = 1;
+        var scan: u32 = pos.*;
+        while (scan < len and depth > 0) : (scan += 1) {
+            if (src[scan] == '\\' and scan + 1 < len) {
+                scan += 1;
+                continue;
+            }
+            if (src[scan] == '"') {
+                scan += 1;
+                while (scan < len and src[scan] != '"') {
+                    if (src[scan] == '\\' and scan + 1 < len) scan += 1;
+                    scan += 1;
+                }
+                continue;
+            }
+            if (src[scan] == '{') {
+                var d2: u32 = 1;
+                scan += 1;
+                while (scan < len and d2 > 0) : (scan += 1) {
+                    if (src[scan] == '\\' and scan + 1 < len) {
+                        scan += 1;
+                        continue;
+                    }
+                    if (src[scan] == '{') d2 += 1 else if (src[scan] == '}') d2 -= 1;
+                }
+                if (scan > 0) scan -= 1;
+                continue;
+            }
+            if (src[scan] == '(') depth += 1 else if (src[scan] == ')') depth -= 1;
+        }
+        const inner_end = if (scan > 0) scan - 1 else inner_start;
+        if (find_top_string_op(ptr + inner_start, inner_end - inner_start)) |op| {
+            const val = eval_string_expr(ptr + inner_start, inner_end - inner_start, op);
+            pos.* = scan;
+            return val;
+        }
         const val = expr_or(ptr, len, pos, skip);
         expr_skip_ws(src, len, pos);
         if (pos.* < len and src[pos.*] == ')') pos.* += 1;
@@ -682,7 +867,7 @@ pub fn eval_command(words: []const i32) i32 {
     // a side effect of ``tcl_cmd_error`` etc., so we extract ``.value``
     // for the i32-returning ``eval_command`` contract and let the
     // surrounding ``snapshot``-based inspection observe the signal.
-    if (cmd_table.lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words).value;
+    if (cmd_table_visible_lookup(cmd_s.ptr, cmd_s.len)) |handler| return handler(words).value;
 
     // ``::concat``, ``::expr``, etc. — fully-qualified names for
     // root-namespace builtins.  Strip the leading ``::`` and retry
@@ -692,7 +877,7 @@ pub fn eval_command(words: []const i32) i32 {
     if (cmd_s.len >= 2) {
         const cmd_p: [*]const u8 = @ptrFromInt(cmd_s.ptr);
         if (cmd_p[0] == ':' and cmd_p[1] == ':') {
-            if (cmd_table.lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
+            if (cmd_table_visible_lookup(cmd_s.ptr + 2, cmd_s.len - 2)) |handler| {
                 return handler(words).value;
             }
             // Ensemble FQ rewrites — the CFG canonicalises
@@ -808,7 +993,7 @@ fn resolve_via_path(cmd_s: anytype, words: []const i32) ?i32 {
             obj_mod.free_sized(buf, total);
             return null;
         }
-        if (cmd_table.lookup(lookup_ptr, lookup_len)) |handler| {
+        if (cmd_table_visible_lookup(lookup_ptr, lookup_len)) |handler| {
             // Rewrite words[0] so error messages / the handler's
             // view of the command name match what was dispatched.
             var new_words: [parse.MAX_WORDS]i32 = undefined;
@@ -870,7 +1055,7 @@ fn try_ensemble_rewrite(cmd_s: anytype, words: []const i32) ?i32 {
 
     // Confirm the ENSEMBLE name resolves to a real BUILTIN (else this
     // could swallow an unrelated ``::tcl::pkg::path``-style name).
-    const handler = cmd_table.lookup(ens_ptr, ens_len) orelse return null;
+    const handler = cmd_table_visible_lookup(ens_ptr, ens_len) orelse return null;
 
     // Build a synthesised words[] with the ensemble at [0], subcmd at
     // [1], and the caller's args[1..] at [2..].  Use the bump
@@ -915,7 +1100,7 @@ fn try_ensemble_rewrite_relative(cmd_s: anytype, words: []const i32) ?i32 {
     const sub_ptr = cmd_s.ptr + ens_end + 2;
     const sub_len: u32 = cmd_s.len - ens_end - 2;
 
-    const handler = cmd_table.lookup(ens_ptr, ens_len) orelse return null;
+    const handler = cmd_table_visible_lookup(ens_ptr, ens_len) orelse return null;
 
     const total: u32 = @as(u32, @intCast(words.len)) + 1;
     const buf = obj_mod.alloc(total * 4);
@@ -2156,7 +2341,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
     }
     const target_s = obj_ensure_string(new_words[0]);
     if (target_s.len > 0) {
-        if (cmd_table.lookup(target_s.ptr, target_s.len)) |handler| {
+        if (cmd_table_visible_lookup(target_s.ptr, target_s.len)) |handler| {
             const result = handler(new_words[0..total]).value;
             interp_reg.leave(save);
             return result;
@@ -2166,7 +2351,7 @@ fn dispatch_alias(words: []const i32, bucket: i32) i32 {
         if (target_s.len >= 2) {
             const tp: [*]const u8 = @ptrFromInt(target_s.ptr);
             if (tp[0] == ':' and tp[1] == ':') {
-                if (cmd_table.lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
+                if (cmd_table_visible_lookup(target_s.ptr + 2, target_s.len - 2)) |handler| {
                     const result = handler(new_words[0..total]).value;
                     interp_reg.leave(save);
                     return result;
@@ -3115,6 +3300,39 @@ fn eval_interp_invokehidden(words: []const i32) i32 {
     if (cmd == 0) {
         interp_impl.interp_hide_error("invalid hidden command name \"", hidden_name.ptr, hidden_name.len, "\"");
         return 0;
+    }
+    // Builtin-hidden marker: invoke the static-table handler directly,
+    // since there's no Command record to dispatch through.  The marker
+    // is a sentinel — dereferencing it as a pointer would fault.
+    if (cmd == hide_mod.BUILTIN_HIDDEN_MARKER) {
+        const tail_count_b: u32 = @intCast(words.len - 1 - idx);
+        if (1 + tail_count_b > parse.MAX_WORDS) {
+            const err_text = "invokehidden argv exceeds MAX_WORDS";
+            const msg = rt.obj_new_string_copy(@intFromPtr(err_text.ptr), err_text.len);
+            catch_mod.tcl_cmd_error(msg);
+            return 0;
+        }
+        var bwords: [parse.MAX_WORDS]i32 = undefined;
+        bwords[0] = rt.obj_new_string(@bitCast(hidden_name.ptr), @bitCast(hidden_name.len));
+        var bk: u32 = 0;
+        while (bk < tail_count_b) : (bk += 1) {
+            bwords[1 + bk] = words[idx + 1 + bk];
+        }
+        const handler = cmd_table.lookup(hidden_name.ptr, hidden_name.len) orelse {
+            interp_impl.interp_hide_error("invalid hidden command name \"", hidden_name.ptr, hidden_name.len, "\"");
+            return 0;
+        };
+        // Swap into target interp for the handler dispatch.  No call
+        // frame push needed for builtin invocation.
+        const swapped_b = target_interp != interp_reg.interp_current();
+        const save_b = if (swapped_b) interp_reg.enter(target_interp) else interp_reg.EnterSave{
+            .prev_interp = interp_reg.current_interp,
+            .prev_root_addr = tcl_ns.root_addr,
+            .prev_current_ns = tcl_ns.current_ns,
+        };
+        const result_b = handler(bwords[0 .. 1 + tail_count_b]).value;
+        interp_reg.leave(save_b);
+        return result_b;
     }
 
     // Build the call-site argv: ``[hidden_name, caller_args...]``.

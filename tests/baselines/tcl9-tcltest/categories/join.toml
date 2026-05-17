@@ -1,0 +1,16 @@
+# Categorisation for join.test (Tcl 9.0.3 source tree).
+# See ``categories/README.md`` for bucket definitions.  Unlisted IDs
+# default to ``must_pass`` — anything new from upstream fails closed.
+
+just_to_match_ctcl = [
+  "2.3",    # join-2.3: join raises ``unmatched open brace in list``
+            # (correct message) but doesn't set the ``errorCode``
+            # global to ``{TCL VALUE LIST BRACE}`` — C tcl sets a
+            # structured errorCode whenever the list parser hits a
+            # shape error.  Our ``check_list_syntax`` raises via
+            # ``stubs.raise`` which only stamps the message, not the
+            # errorCode.
+]
+
+[baseline]
+just_to_match_ctcl_failing = 1

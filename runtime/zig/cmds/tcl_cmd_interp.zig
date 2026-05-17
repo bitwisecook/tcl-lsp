@@ -1195,7 +1195,26 @@ pub fn command_fqn_obj(cmd: u32) i32 {
     const name_ptr: u32 = @bitCast(read_i32(cmd));
     const name_len: u32 = @bitCast(read_i32(cmd + 4));
     if (name_len == 0) return obj_new_string(0, 0);
-    return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    // Names stored on Command can be either fully qualified
+    // (``::a::b::c``) for procs registered via a qualified path
+    // or *unqualified* tail names for procs registered into a
+    // specific namespace.  ``namespace which`` always returns the
+    // FQ form, so promote unqualified names to ``::`` (root) or
+    // splice in the home namespace if we can find it cheaply.
+    const sp: [*]const u8 = @ptrFromInt(name_ptr);
+    if (name_len >= 2 and sp[0] == ':' and sp[1] == ':') {
+        return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    }
+    // Stored name lacks ``::`` prefix.  Synthesise ``::name``.
+    const obj_h = @import("../valtypes/tcl_obj.zig");
+    const total: u32 = name_len + 2;
+    const buf = obj_h.alloc(total);
+    if (buf == 0) return obj_new_string(@bitCast(name_ptr), @bitCast(name_len));
+    const dst: [*]u8 = @ptrFromInt(buf);
+    dst[0] = ':';
+    dst[1] = ':';
+    for (0..name_len) |k| dst[2 + k] = sp[k];
+    return obj_h.obj_new_string_take(buf, total, total);
 }
 
 /// Render the FQN of a namespace variable: ``<ns_full>::<name>``
@@ -1207,15 +1226,72 @@ pub fn variable_fqn_obj(ns: u32, simple_ptr: u32, simple_len: u32) i32 {
     return obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
 }
 
+/// Raise the canonical ``wrong # args: should be "MSG"`` diagnostic
+/// — local helper for :fn:`eval_namespace_which` so it doesn't
+/// duplicate the boilerplate eight other namespace subcommands
+/// rely on (the central table in :mod:`cmds.namespace` doesn't
+/// cover ``namespace which`` because the rules depend on whether
+/// the first word starts with ``-``).
+fn raise_ns_wrong_args(usage: []const u8) void {
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const obj_helpers = @import("../valtypes/tcl_obj.zig");
+    const prefix: []const u8 = "wrong # args: should be \"";
+    const suffix: []const u8 = "\"";
+    const total: u32 = @intCast(prefix.len + usage.len + suffix.len);
+    const buf = obj_helpers.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_helpers.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (usage) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const e = obj_helpers.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(e);
+}
+
+/// Build the FQN ``<ns>::<simple>`` and probe the flat-key global
+/// store.  Returns true when the variable exists in the runtime's
+/// global table under the qualified key (the path
+/// :func:`tcl_ns.global_set` uses for top-level / namespace-eval
+/// writes of qualified names).
+fn variable_exists_in_flat_globals(ns: u32, simple_ptr: u32, simple_len: u32) bool {
+    const obj_helpers = @import("../valtypes/tcl_obj.zig");
+    const fqn = tcl_ns.ns_build_fqn(ns, simple_ptr, simple_len);
+    const qname = obj_new_string(@bitCast(fqn.ptr), @bitCast(fqn.len));
+    const globals_mod = @import("../interp/tcl_ns.zig");
+    const r = globals_mod.global_exists(qname);
+    obj_helpers.tcl_obj_release(qname);
+    return obj_helpers.obj_get_int(r) != 0;
+}
+
 pub fn eval_namespace_which(words: []const i32) i32 {
     // Argument shapes:
     //   namespace which name                         → -command (default)
     //   namespace which -command name
     //   namespace which -variable name
-    // Anything else is a plain miss — return empty.  We don't raise
-    // wrong-args here to stay consistent with the "probe, don't
-    // error" philosophy of C Tcl's ``Tcl_NamespaceWhichObjCmd``.
-    if (words.len < 3 or words.len > 4) return obj_new_string(0, 0);
+    //
+    // Tcl 9 ``NamespaceWhichCmd`` raises ``wrong # args`` when the
+    // total argc is out of [3..4] OR when the 3-arg form's leading
+    // option doesn't prefix-match ``-command`` / ``-variable``.
+    // ``namespace which -command`` (2 args, single ``-command``)
+    // treats ``-command`` as the *name* to look up — matches Tcl
+    // 9 namespace-34.3 / namespace-old-6.18.
+    if (words.len < 3 or words.len > 4) {
+        raise_ns_wrong_args("namespace which ?-command? ?-variable? name");
+        return obj_new_string(0, 0);
+    }
 
     var which_variable = false;
     var name_idx: u32 = 2;
@@ -1225,10 +1301,16 @@ pub fn eval_namespace_which(words: []const i32) i32 {
         if (str_eq(fp, flag.len, "-variable")) {
             which_variable = true;
         } else if (!str_eq(fp, flag.len, "-command")) {
+            // 3-arg form with unknown option — Tcl 9 raises
+            // wrong-args (namespace-34.2 / namespace-old-6.17).
+            raise_ns_wrong_args("namespace which ?-command? ?-variable? name");
             return obj_new_string(0, 0);
         }
         name_idx = 3;
     }
+    // 2-arg form (words.len == 3): the single argument is the name —
+    // even when it starts with ``-`` (``namespace which -command``
+    // looks up a command literally named ``-command``).
     const name = obj_ensure_string(words[name_idx]);
     if (name.len == 0) return obj_new_string(0, 0);
 
@@ -1236,17 +1318,26 @@ pub fn eval_namespace_which(words: []const i32) i32 {
         // Variable resolution: qualified names walk the ns tree to
         // the target ns + simple name, unqualified names check the
         // current ns only (C Tcl doesn't walk ``namespace path``
-        // for variables — the path is commands-only).
+        // for variables — the path is commands-only).  We also
+        // probe the flat-key global store (the runtime's compiled
+        // writes for ``set ::A::B::X 99`` land there) so vars
+        // created via FQN-prefixed ``set`` are visible too.
         const cxt = tcl_ns.ns_current();
         const r = tcl_ns.ns_resolve_qualified(cxt, name.ptr, name.len);
         if (r.simple_len == 0) return obj_new_string(0, 0);
         if (r.target_ns != 0) {
             const v = tcl_ns.ns_var_find(r.target_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
+            // Flat-key fallback: build the FQN and probe the global
+            // store directly.
+            if (variable_exists_in_flat_globals(r.target_ns, r.simple_ptr, r.simple_len))
+                return variable_fqn_obj(r.target_ns, r.simple_ptr, r.simple_len);
         }
         if (r.alt_ns != 0) {
             const v = tcl_ns.ns_var_find(r.alt_ns, r.simple_ptr, r.simple_len);
             if (v != 0) return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
+            if (variable_exists_in_flat_globals(r.alt_ns, r.simple_ptr, r.simple_len))
+                return variable_fqn_obj(r.alt_ns, r.simple_ptr, r.simple_len);
         }
         return obj_new_string(0, 0);
     }

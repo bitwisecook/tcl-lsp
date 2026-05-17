@@ -121,6 +121,18 @@ fn deactivate_importers(source_cmd: u32) void {
 /// interp's ``root_ns`` at the call site.  ``target_interp`` is the
 /// interp whose hidden table receives the Command; the single-interp
 /// form passes ``interp_reg.interp_current()``.
+/// Sentinel value stored in the hidden-command table for builtin
+/// commands that have been ``interp hide``'d.  Builtins aren't stored
+/// in any namespace's ``cmd_table`` (they're served directly from the
+/// static ``BUILTINS`` slice in ``dispatch/tcl_cmd_table.zig``) so we
+/// can't ``ns_cmd_clear`` + move them like user-defined procs.
+/// Instead the dispatch path consults the hidden table for the
+/// current interp and skips the builtin when this sentinel is
+/// present.  Any non-zero, non-Command-pointer-aligned value works;
+/// ``0xFFFFFFFF`` is chosen because it isn't a valid allocation
+/// address (the WASM heap top is below the 4 GiB boundary).
+pub const BUILTIN_HIDDEN_MARKER: u32 = 0xFFFFFFFF;
+
 pub fn hide_command(
     target_interp: u32,
     src_ns: u32,
@@ -133,7 +145,28 @@ pub fn hide_command(
     if (has_qualifier(hidden_name_ptr, hidden_name_len)) return .qualified_name_rejected;
 
     const cmd = tcl_ns.ns_cmd_find(src_ns, src_simple_ptr, src_simple_len);
-    if (cmd == 0) return .not_found;
+    if (cmd == 0) {
+        // Source isn't a per-namespace command — check whether it's a
+        // global builtin (``list``, ``proc``, etc.).  Builtins live in
+        // the static dispatch table rather than any namespace, so
+        // hiding them is a per-interp marker rather than a move.
+        const cmd_table = @import("../dispatch/tcl_cmd_table.zig");
+        if (cmd_table.lookup(src_simple_ptr, src_simple_len) == null) {
+            return .not_found;
+        }
+        // Reject duplicate hide of the same builtin name.
+        if (interp_reg.hidden_find(target_interp, hidden_name_ptr, hidden_name_len) != 0) {
+            return .hidden_name_taken;
+        }
+        _ = interp_reg.hidden_put(
+            target_interp,
+            hidden_name_ptr,
+            hidden_name_len,
+            BUILTIN_HIDDEN_MARKER,
+        );
+        tcl_procs.lru_invalidate_all();
+        return .ok;
+    }
 
     // Refuse to overwrite an existing hidden entry.  Matches C Tcl's
     // ``Tcl_HideCommand`` which raises
@@ -186,6 +219,30 @@ pub fn expose_command(
     const cmd = interp_reg.hidden_find(target_interp, hidden_name_ptr, hidden_name_len);
     if (cmd == 0) return .not_found;
 
+    // Builtin-hidden marker: just clear the hidden-table entry.  No
+    // namespace move needed since the builtin lives in the static
+    // dispatch table; the dispatch path's hidden-table check stops
+    // skipping the builtin once the marker is gone.
+    if (cmd == BUILTIN_HIDDEN_MARKER) {
+        // ``new_simple_*`` is required by Tcl 9 to equal the hidden
+        // name when exposing a builtin (you can't rename a builtin
+        // on the way back out — the static dispatch table only
+        // knows the builtin's original spelling).
+        const same_name = (hidden_name_len == new_simple_len) and blk: {
+            const a: [*]const u8 = @ptrFromInt(hidden_name_ptr);
+            const b: [*]const u8 = @ptrFromInt(new_simple_ptr);
+            var k: u32 = 0;
+            while (k < new_simple_len) : (k += 1) {
+                if (a[k] != b[k]) break :blk false;
+            }
+            break :blk true;
+        };
+        if (!same_name) return .qualified_name_rejected;
+        _ = interp_reg.hidden_clear(target_interp, hidden_name_ptr, hidden_name_len);
+        tcl_procs.lru_invalidate_all();
+        return .ok;
+    }
+
     if (tcl_ns.ns_cmd_find(dest_ns, new_simple_ptr, new_simple_len) != 0) {
         return .target_exists;
     }
@@ -205,4 +262,19 @@ pub fn expose_command(
 
     tcl_procs.lru_invalidate_all();
     return .ok;
+}
+
+/// Return true when a builtin command named ``name`` is hidden in
+/// ``interp``'s hidden table — used by the dispatch path to skip
+/// the static-table lookup so a hidden builtin behaves as if it
+/// were never registered.  Returns false when the entry exists but
+/// points at a moved Command (those have a non-sentinel pointer
+/// value); the dispatch path doesn't need to skip BUILTINS for
+/// those because moved-Command names are different from any
+/// builtin name (otherwise the move would have failed at
+/// ``hide_command``'s ``hidden_name_taken`` check).
+pub fn builtin_is_hidden(interp: u32, name_ptr: u32, name_len: u32) bool {
+    if (interp == 0) return false;
+    const slot = interp_reg.hidden_find(interp, name_ptr, name_len);
+    return slot == BUILTIN_HIDDEN_MARKER;
 }

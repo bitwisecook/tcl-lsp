@@ -1,0 +1,82 @@
+# namespace.test categorisation (Tcl 9.0.3 source tree).
+# 253/314 passing.  Residuals cluster around:
+#   - 7.1 / 8.x / 35.x — namespace delete cleanup of procs / vars /
+#     imports.
+#   - 14.x / 17.7 — TclGetNamespaceForQualName with TCL_NAMESPACE_ONLY
+#     for relative names; requires variable-link tracking beyond the
+#     current flat-key store.
+#   - 22.7 / 26.x / 27.x / 28.x — namespace export / import / forget
+#     returning fully-qualified imported-command names.
+#   - 44.x / 45.x / 46.x / 47.x / 48.x — namespace ensemble feature
+#     not yet implemented.
+#   - 52.x / 56.3 — namespace unknown handler dispatch.
+
+good_to_have = [
+  "7.1",
+  "8.1",
+  "8.3",
+  "8.4",
+  "8.5",
+  "8.6",
+  "8.7",
+  "9.3",
+  "14.9",
+  "17.7",
+  "21.8",
+  "22.7",
+  "25.6",
+  "25.7",
+  "25.8",
+  "25.9",
+  "26.3",
+  "26.4",
+  "27.3",
+  "28.3",
+  "30.4",
+  "30.5",
+  "32.7",
+  "35.2",
+  "42.1",
+  "42.2",
+  "42.3",
+  "43.1",
+  "44.1",
+  "44.2",
+  "44.3",
+  "44.4",
+  "45.1",
+  "45.2",
+  "46.1",
+  "46.2",
+  "46.3",
+  "46.4",
+  "46.5",
+  "46.6",
+  "46.7",
+  "46.8",
+  "46.9",
+  "47.1",
+  "47.2",
+  "47.3",
+  "47.4",
+  "47.5",
+  "47.6",
+  "47.7",
+  "47.8",
+  "48.1",
+  "48.2",
+  "48.3",
+  "52.1",
+  "52.4",
+  "52.5",
+  "52.7",
+  "53.1",
+  "56.3",
+]
+just_to_match_ctcl = []
+skip = []
+
+[baseline]
+good_to_have_failing = 60
+just_to_match_ctcl_failing = 0
+skip_failing = 0

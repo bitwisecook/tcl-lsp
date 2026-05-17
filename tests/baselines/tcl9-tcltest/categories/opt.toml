@@ -1,18 +1,19 @@
 # opt.test categorisation (Tcl 9.0.3 source tree).
-# Stem: in-scope, currently trap — opt.test traps inside ::tcl::OptProc before summary.
-# `trap_allowed = true` lets the harness record the
-# trap as a tracked failure rather than promoting it
-# to a hard fail (see categories/README.md).  Per-test-ID
-# triage will be added once the bundle reaches a tcltest
-# summary line.
+# Bundle reaches its tcltest summary line now.  Residual must_pass
+# failures are ``return -code break`` / ``return -code continue``
+# propagation through compiled-proc bodies — see issue #325 follow-up.
 
-trap_allowed = true
-
-good_to_have = []
+good_to_have = [
+  "10.8",   # opt-10.8: ``OptDoOne`` issues ``return -code break`` to
+            # exit the ``OptDoAll`` foreach early; our compiled-proc
+            # codegen consumes the break flag at the proc boundary
+            # instead of letting it bubble to the enclosing loop.
+  "10.9",   # opt-10.9: same shape with ``return -code continue``.
+]
 just_to_match_ctcl = []
 skip = []
 
 [baseline]
-good_to_have_failing = 0
+good_to_have_failing = 2
 just_to_match_ctcl_failing = 0
 skip_failing = 0

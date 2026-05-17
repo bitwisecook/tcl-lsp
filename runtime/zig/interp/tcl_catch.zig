@@ -187,6 +187,14 @@ pub export fn flow_check_signal_loop() i32 {
     return 0;
 }
 
+/// Lightweight accessor: callers that want to know whether they're
+/// running under a Tcl-level catch use this to decide whether to
+/// raise a Tcl error (caught) or stay silent (top-level — raising
+/// would trap the whole bundle).
+pub fn catch_depth_get() u32 {
+    return state.catch_depth;
+}
+
 // Exported: enter a catch scope.
 pub export fn catch_enter() void {
     state.catch_depth += 1;
@@ -901,8 +909,17 @@ pub fn error_unknown_command(cmd_obj: i32) void {
 // existing regression tests can grep the substring.
 pub export fn var_unset_error(name_obj: i32) void {
     const prefix: []const u8 = "can't read \"";
-    const suffix: []const u8 = "\": no such variable";
     const s = obj_ensure_string(name_obj);
+    // Tcl 9 picks a different suffix depending on the variable's
+    // shape:
+    //   * ``arr(key)`` where ``arr`` is an array → "no such element
+    //     in array"
+    //   * ``arr(key)`` where ``arr`` exists as a scalar → "variable
+    //     isn't array"
+    //   * ``arr`` (whole-array read) where ``arr`` is an array →
+    //     "variable is array"
+    //   * everything else → "no such variable"
+    const suffix = pick_var_read_suffix(s);
     const total: u32 = @intCast(prefix.len + s.len + suffix.len);
     const buf_addr: u32 = obj.alloc(total);
     const buf: [*]u8 = @ptrFromInt(buf_addr);
@@ -925,4 +942,65 @@ pub export fn var_unset_error(name_obj: i32) void {
     // Issue #317: see ``error_unknown_command`` above.
     const msg = obj.obj_new_string_take(buf_addr, total, total);
     tcl_cmd_error(msg);
+}
+
+fn pick_var_read_suffix(s: anytype) []const u8 {
+    if (s.len == 0 or s.ptr == 0) return "\": no such variable";
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Find a ``(``...``)`` element form.
+    var paren: u32 = 0;
+    var has_paren = false;
+    var k: u32 = 0;
+    while (k < s.len) : (k += 1) {
+        if (sp[k] == '(') {
+            paren = k;
+            has_paren = true;
+            break;
+        }
+    }
+    const tcl_array = @import("../valtypes/tcl_array.zig");
+    if (has_paren and paren > 0 and sp[s.len - 1] == ')') {
+        // ``arr(key)`` form — see if ``arr`` exists as an array.
+        // ``array_exists_raw`` probes the array directory by the raw
+        // (post-strip) name; if it returns true, the array exists
+        // but the element doesn't.  If false, check whether a scalar
+        // named ``arr`` exists — that's the "variable isn't array"
+        // case.
+        const arr_ptr = s.ptr;
+        const arr_len = paren;
+        const arr_p: [*]const u8 = @ptrFromInt(arr_ptr);
+        // Strip a leading ``::`` for the array directory probe.
+        var probe_ptr: u32 = arr_ptr;
+        var probe_len: u32 = arr_len;
+        if (arr_len >= 2 and arr_p[0] == ':' and arr_p[1] == ':') {
+            probe_ptr += 2;
+            probe_len -= 2;
+        }
+        if (tcl_array.array_exists_raw(probe_ptr, probe_len)) {
+            return "\": no such element in array";
+        }
+        // Scalar with the same name?  ``global_exists`` probes the
+        // flat-key store under both bare and FQ spellings.
+        const obj_helpers = @import("../valtypes/tcl_obj.zig");
+        const arr_obj = obj_helpers.obj_new_string(@bitCast(arr_ptr), @bitCast(arr_len));
+        const tcl_ns = @import("tcl_ns.zig");
+        const exists = obj_helpers.obj_get_int(tcl_ns.global_exists(arr_obj)) != 0;
+        obj_helpers.tcl_obj_release(arr_obj);
+        if (exists) {
+            return "\": variable isn't array";
+        }
+        return "\": no such variable";
+    }
+    // Whole-name form: if a same-named array exists, that's the
+    // "variable is array" case.
+    var probe_ptr: u32 = s.ptr;
+    var probe_len: u32 = s.len;
+    if (s.len >= 2 and sp[0] == ':' and sp[1] == ':') {
+        probe_ptr += 2;
+        probe_len -= 2;
+    }
+    if (tcl_array.array_exists_raw(probe_ptr, probe_len)) {
+        return "\": variable is array";
+    }
+    return "\": no such variable";
 }

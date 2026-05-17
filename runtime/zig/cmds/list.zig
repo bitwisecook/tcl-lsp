@@ -12,6 +12,7 @@ const result_mod = @import("../interp/tcl_result.zig");
 const tcl_str = @import("../valtypes/tcl_string.zig");
 const tcl_chars = @import("../valtypes/tcl_chars.zig");
 const list_parse = @import("../valtypes/tcl_list_parse.zig");
+const std = @import("std");
 
 const alloc = rt.alloc;
 const obj_new_string = rt.obj_new_string;
@@ -92,8 +93,52 @@ fn eval_llength(words: []const i32) result_mod.InterpResult {
 }
 
 fn eval_lindex(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 3) return result_mod.from_globals(rt.tcl_cmd_list_index(words[1], words[2]));
-    return result_mod.from_globals(0);
+    // ``lindex`` with no list argument is an arity error.
+    if (words.len < 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lindex list ?index ...?\"");
+        return result_mod.from_globals(0);
+    }
+    // ``lindex LIST`` (1 arg form) returns the list verbatim.
+    if (words.len == 2) return result_mod.from_globals(words[1]);
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    // ``lindex LIST i1 i2 ...`` — Tcl 9 semantics: apply each
+    // remaining index in turn, descending into the result of the
+    // previous indexing.  ``lindex {a b {c d}} 2 1`` → ``d``.
+    // A single index argument that itself is a list ``{i1 i2}`` is
+    // also valid (e.g. ``lindex L {2 1}``); flatten such a wrapper
+    // by routing through the same loop after splitting the index
+    // list.  ``tcl_cmd_list_index`` handles bare numeric / ``end`` /
+    // ``end-N`` indices; the multi-index walk is a simple fold.
+    var current: i32 = words[1];
+    if (words.len == 3) {
+        // Single index argument — may be a flat ``5`` or a list
+        // ``{2 1}`` per Tcl 9 semantics.  Walk the elements so the
+        // list-form behaves like the explicit multi-arg form.
+        const idx_arg = words[2];
+        const is_s = obj_ensure_string(idx_arg);
+        // ``lindex L {}`` — empty index list returns the list
+        // verbatim (lindex-10.1: ``$x = ""`` should not error).
+        if (is_s.len == 0) return result_mod.from_globals(current);
+        const idx_count = rt.list_count_elements(is_s.ptr, is_s.len);
+        if (idx_count == 0) return result_mod.from_globals(current);
+        if (idx_count == 1) {
+            return result_mod.from_globals(rt.tcl_cmd_list_index(current, idx_arg));
+        }
+        var k: i64 = 0;
+        while (k < idx_count) : (k += 1) {
+            const ei = rt.tcl_cmd_list_index(idx_arg, obj_new_int(k));
+            current = rt.tcl_cmd_list_index(current, ei);
+        }
+        return result_mod.from_globals(current);
+    }
+    var ai: u32 = 2;
+    while (ai < words.len) : (ai += 1) {
+        current = rt.tcl_cmd_list_index(current, words[ai]);
+    }
+    return result_mod.from_globals(current);
 }
 
 fn eval_lset(words: []const i32) result_mod.InterpResult {
@@ -297,9 +342,417 @@ fn eval_ledit(words: []const i32) result_mod.InterpResult {
     return result_mod.from_globals(result);
 }
 
+// Full lsort implementation supporting -ascii / -dictionary / -integer
+// / -real / -nocase / -increasing / -decreasing / -unique / -indices /
+// -index INDEX / -stride N.  ``-command`` and ``-bisect`` fall back to
+// the legacy single-key bytewise sort.  See cmdIL.test 1.x / 5.x for
+// the option matrix.
+const LsortMode = enum { ascii, integer, real, dictionary, command };
+const LsortOpts = struct {
+    mode: LsortMode = .ascii,
+    nocase: bool = false,
+    decreasing: bool = false,
+    unique: bool = false,
+    indices: bool = false,
+    stride: u32 = 1,
+    index_arg: i32 = 0, // 0 = no -index
+    cmd_obj: i32 = 0, // 0 = no -command
+};
+
+// Tcl dictionary compare: walk both strings simultaneously, comparing
+// digit runs as integers and non-digit runs lexicographically.  When
+// nocase is set, non-digit chars compare case-insensitively.  Leading-
+// zero runs are ordered by digit-run length (shorter = smaller) so
+// ``1k 0k 10k`` sorts to ``0k 1k 10k`` not ``0k 10k 1k``.
+fn lsort_dict_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) i32 {
+    const ap: [*]const u8 = @ptrFromInt(a_ptr);
+    const bp: [*]const u8 = @ptrFromInt(b_ptr);
+    var i: u32 = 0;
+    var j: u32 = 0;
+    while (i < a_len and j < b_len) {
+        if (ap[i] >= '0' and ap[i] <= '9' and bp[j] >= '0' and bp[j] <= '9') {
+            // Skip leading zeros to find significant digit start.
+            const a_zero_start = i;
+            const b_zero_start = j;
+            while (i < a_len and ap[i] == '0') i += 1;
+            while (j < b_len and bp[j] == '0') j += 1;
+            const a_sig_start = i;
+            const b_sig_start = j;
+            while (i < a_len and ap[i] >= '0' and ap[i] <= '9') i += 1;
+            while (j < b_len and bp[j] >= '0' and bp[j] <= '9') j += 1;
+            const a_sig_len = i - a_sig_start;
+            const b_sig_len = j - b_sig_start;
+            // Longer significant run = bigger number.
+            if (a_sig_len != b_sig_len) {
+                return if (a_sig_len < b_sig_len) -1 else 1;
+            }
+            // Same length — compare digit-by-digit.
+            var k: u32 = 0;
+            while (k < a_sig_len) : (k += 1) {
+                if (ap[a_sig_start + k] != bp[b_sig_start + k]) {
+                    return if (ap[a_sig_start + k] < bp[b_sig_start + k]) -1 else 1;
+                }
+            }
+            // Equal numerically — tie-break by zero-count (fewer
+            // leading zeros sorts first).
+            const a_zeros = a_sig_start - a_zero_start;
+            const b_zeros = b_sig_start - b_zero_start;
+            if (a_zeros != b_zeros) {
+                return if (a_zeros < b_zeros) -1 else 1;
+            }
+        } else {
+            var ac: u8 = ap[i];
+            var bc: u8 = bp[j];
+            if (nocase) {
+                if (ac >= 'A' and ac <= 'Z') ac += 32;
+                if (bc >= 'A' and bc <= 'Z') bc += 32;
+            }
+            if (ac != bc) return if (ac < bc) -1 else 1;
+            i += 1;
+            j += 1;
+        }
+    }
+    if (i < a_len) return 1;
+    if (j < b_len) return -1;
+    return 0;
+}
+
+// Bytewise compare with optional case-folding.
+fn lsort_ascii_cmp(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32, nocase: bool) i32 {
+    // Empty / null operands short-circuit.  Without this, casting a
+    // null ``a_ptr`` to a non-allowzero ``[*]const u8`` traps in
+    // ReleaseSafe; set-old.test reaches here via ``array names``
+    // sorted output where some keys can resolve to null pointers.
+    if (a_len == 0 and b_len == 0) return 0;
+    if (a_len == 0) return -1;
+    if (b_len == 0) return 1;
+    const ap: [*]const u8 = @ptrFromInt(a_ptr);
+    const bp: [*]const u8 = @ptrFromInt(b_ptr);
+    const min = if (a_len < b_len) a_len else b_len;
+    var i: u32 = 0;
+    while (i < min) : (i += 1) {
+        var ac = ap[i];
+        var bc = bp[i];
+        if (nocase) {
+            if (ac >= 'A' and ac <= 'Z') ac += 32;
+            if (bc >= 'A' and bc <= 'Z') bc += 32;
+        }
+        if (ac != bc) return if (ac < bc) -1 else 1;
+    }
+    if (a_len < b_len) return -1;
+    if (a_len > b_len) return 1;
+    return 0;
+}
+
+// Apply an -index PATH (list of indices) to *elem*, returning the
+// extracted sub-element's bytes.  ``end`` / ``end-N`` indices are
+// supported via ``resolve_list_index``.  Empty path returns *elem*.
+fn lsort_apply_index(elem_obj: i32, path_obj: i32) i32 {
+    if (path_obj == 0) return elem_obj;
+    const ps = obj_ensure_string(path_obj);
+    if (ps.len == 0) return elem_obj;
+    const path_count = rt.list_count_elements(ps.ptr, ps.len);
+    if (path_count == 0) return elem_obj;
+    var current: i32 = elem_obj;
+    var i: i64 = 0;
+    while (i < path_count) : (i += 1) {
+        const idx_obj = rt.tcl_cmd_list_index(path_obj, obj_new_int(i));
+        current = rt.tcl_cmd_list_index(current, idx_obj);
+    }
+    return current;
+}
+
+// Sort key cached per element so the comparator doesn't re-parse the
+// numeric value on every comparison.
+const LsortKey = struct {
+    obj: i32, // string-key (post -index extraction)
+    str_ptr: u32, // cached string bytes
+    str_len: u32,
+    int_val: i64 = 0, // populated when mode == .integer
+    float_val: f64 = 0.0, // populated when mode == .real
+};
+
+fn lsort_make_key(elem_obj: i32, opts: *const LsortOpts) LsortKey {
+    const key_obj = lsort_apply_index(elem_obj, opts.index_arg);
+    const s = obj_ensure_string(key_obj);
+    var key: LsortKey = .{ .obj = key_obj, .str_ptr = s.ptr, .str_len = s.len };
+    switch (opts.mode) {
+        .integer => {
+            if (obj_mod.try_parse_int(s.ptr, s.len)) |v| {
+                key.int_val = v;
+            }
+        },
+        .real => {
+            if (obj_mod.try_parse_float(s.ptr, s.len)) |v| {
+                key.float_val = v;
+            } else if (obj_mod.try_parse_int(s.ptr, s.len)) |v| {
+                key.float_val = @floatFromInt(v);
+            }
+        },
+        else => {},
+    }
+    return key;
+}
+
+fn lsort_compare(a: *const LsortKey, b: *const LsortKey, opts: *const LsortOpts) i32 {
+    const c: i32 = switch (opts.mode) {
+        .integer => if (a.int_val < b.int_val) @as(i32, -1) else if (a.int_val > b.int_val) @as(i32, 1) else @as(i32, 0),
+        .real => if (a.float_val < b.float_val) @as(i32, -1) else if (a.float_val > b.float_val) @as(i32, 1) else @as(i32, 0),
+        .dictionary => lsort_dict_cmp(a.str_ptr, a.str_len, b.str_ptr, b.str_len, opts.nocase),
+        // .command falls through to ascii (the script-call path isn't
+        // wired through this helper — see eval_lsort fallback).
+        else => lsort_ascii_cmp(a.str_ptr, a.str_len, b.str_ptr, b.str_len, opts.nocase),
+    };
+    return if (opts.decreasing) -c else c;
+}
+
+fn lsort_parse_opts(words: []const i32, opts: *LsortOpts) struct { ok: bool, list_idx: u32 } {
+    const stubs = @import("../stubs/tcl_stubs.zig");
+    var wi: u32 = 1;
+    while (wi < words.len) : (wi += 1) {
+        const sv = obj_ensure_string(words[wi]);
+        if (sv.len == 0 or sv.ptr == 0) break;
+        const sp: [*]const u8 = @ptrFromInt(sv.ptr);
+        if (sp[0] != '-') break;
+        if (ls_opt_eq(sv.ptr, sv.len, "--")) {
+            wi += 1;
+            break;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-ascii")) {
+            opts.mode = .ascii;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-dictionary")) {
+            opts.mode = .dictionary;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-integer")) {
+            opts.mode = .integer;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-real")) {
+            opts.mode = .real;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-increasing")) {
+            opts.decreasing = false;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-decreasing")) {
+            opts.decreasing = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-nocase")) {
+            opts.nocase = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-unique")) {
+            opts.unique = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-indices")) {
+            opts.indices = true;
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-stride")) {
+            if (wi + 1 >= words.len) {
+                stubs.raise("lsort: -stride requires an argument");
+                return .{ .ok = false, .list_idx = 0 };
+            }
+            wi += 1;
+            const v = obj_mod.obj_get_int(words[wi]);
+            if (v < 1) {
+                stubs.raise("stride length must be at least 1");
+                return .{ .ok = false, .list_idx = 0 };
+            }
+            opts.stride = @intCast(v);
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-index")) {
+            if (wi + 1 >= words.len) {
+                stubs.raise("lsort: -index requires an argument");
+                return .{ .ok = false, .list_idx = 0 };
+            }
+            wi += 1;
+            opts.index_arg = words[wi];
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-command")) {
+            if (wi + 1 >= words.len) {
+                stubs.raise("lsort: -command requires an argument");
+                return .{ .ok = false, .list_idx = 0 };
+            }
+            wi += 1;
+            opts.mode = .command;
+            opts.cmd_obj = words[wi];
+        } else if (ls_opt_eq(sv.ptr, sv.len, "-bisect")) {
+            // ``-bisect`` is an lsearch option (binary-search return
+            // for an insertion point) that doesn't apply to lsort.
+            // Reject it the same way C tcl does.
+            stubs.raise("bad option \"-bisect\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique");
+            return .{ .ok = false, .list_idx = 0 };
+        } else {
+            const prefix = "bad option \"";
+            const suffix = "\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique";
+            const total: u32 = @intCast(prefix.len + sv.len + suffix.len);
+            const buf = obj_mod.alloc(total);
+            if (buf != 0) {
+                const bp: [*]u8 = @ptrFromInt(buf);
+                var off: u32 = 0;
+                for (prefix) |c| {
+                    bp[off] = c;
+                    off += 1;
+                }
+                for (0..sv.len) |k| {
+                    bp[off] = sp[k];
+                    off += 1;
+                }
+                for (suffix) |c| {
+                    bp[off] = c;
+                    off += 1;
+                }
+                const msg = obj_mod.obj_new_string_take(buf, total, total);
+                const catch_mod = @import("../interp/tcl_catch.zig");
+                catch_mod.tcl_cmd_error(msg);
+            } else {
+                stubs.raise("bad option to lsort");
+            }
+            return .{ .ok = false, .list_idx = 0 };
+        }
+    }
+    return .{ .ok = true, .list_idx = wi };
+}
+
 fn eval_lsort(words: []const i32) result_mod.InterpResult {
-    if (words.len >= 2) return result_mod.from_globals(rt.tcl_cmd_list_sort(words[words.len - 1]));
-    return result_mod.from_globals(obj_new_string(0, 0));
+    if (words.len < 2) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lsort ?-option value ...? list\"");
+        return result_mod.from_globals(0);
+    }
+    var opts: LsortOpts = .{};
+    const parsed = lsort_parse_opts(words, &opts);
+    if (!parsed.ok) return result_mod.from_globals(0);
+    if (parsed.list_idx >= words.len) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("wrong # args: should be \"lsort ?-option value ...? list\"");
+        return result_mod.from_globals(0);
+    }
+    const list_obj = words[parsed.list_idx];
+
+    // -command falls back to the legacy bytewise sort — proper
+    // script-callback sort needs an interp re-entry per compare
+    // and isn't wired through this helper.
+    if (opts.mode == .command and opts.stride == 1 and opts.index_arg == 0 and !opts.unique and !opts.indices) {
+        return result_mod.from_globals(rt.tcl_cmd_list_sort(list_obj));
+    }
+
+    const ls = obj_ensure_string(list_obj);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
+    const n_i64 = rt.list_count_elements(ls.ptr, ls.len);
+    if (n_i64 <= 0) {
+        if (opts.indices) return result_mod.from_globals(obj_new_string(0, 0));
+        return result_mod.from_globals(obj_new_string(0, 0));
+    }
+    if (n_i64 > std.math.maxInt(u32)) {
+        const stubs = @import("../stubs/tcl_stubs.zig");
+        stubs.raise("lsort: list element count exceeds u32 range");
+        return result_mod.from_globals(0);
+    }
+    const n: u32 = @intCast(n_i64);
+
+    if (opts.stride > 1) {
+        if (n % opts.stride != 0) {
+            const stubs = @import("../stubs/tcl_stubs.zig");
+            stubs.raise("list size must be a multiple of the stride length");
+            return result_mod.from_globals(0);
+        }
+    }
+
+    // Materialise the elements as TclObjs.  ``tcl_cmd_list_index``
+    // already decodes braces / backslash escapes and returns a fresh
+    // TclObj per call, which is what we want for the sort key cache.
+    const groups: u32 = n / opts.stride;
+    const elem_arr_size: u32 = n * 4;
+    const elem_buf = obj_mod.alloc(elem_arr_size);
+    if (elem_buf == 0) return result_mod.from_globals(0);
+    defer obj_mod.free_sized(elem_buf, elem_arr_size);
+
+    var i: u32 = 0;
+    while (i < n) : (i += 1) {
+        const e = rt.tcl_cmd_list_index(list_obj, obj_new_int(@intCast(i)));
+        obj_mod.write_i32(elem_buf + i * 4, e);
+    }
+
+    // Build per-group sort keys (group's first element after -index).
+    const key_arr_size: u32 = groups * @sizeOf(LsortKey);
+    const key_buf = obj_mod.alloc(key_arr_size);
+    if (key_buf == 0) return result_mod.from_globals(0);
+    defer obj_mod.free_sized(key_buf, key_arr_size);
+    const keys: [*]LsortKey = @ptrFromInt(key_buf);
+
+    // Index table — parallel to ``keys``, used to recover the group's
+    // original position after sorting.
+    const idx_arr_size: u32 = groups * 4;
+    const idx_buf = obj_mod.alloc(idx_arr_size);
+    if (idx_buf == 0) return result_mod.from_globals(0);
+    defer obj_mod.free_sized(idx_buf, idx_arr_size);
+
+    var g: u32 = 0;
+    while (g < groups) : (g += 1) {
+        const first_obj = obj_mod.read_i32(elem_buf + g * opts.stride * 4);
+        keys[g] = lsort_make_key(first_obj, &opts);
+        obj_mod.write_i32(idx_buf + g * 4, @intCast(g));
+    }
+
+    // Insertion sort on the parallel idx table (stable, simple,
+    // adequate for the bundle sizes lsort handles in tcltest).
+    var ii: u32 = 1;
+    while (ii < groups) : (ii += 1) {
+        const cur_idx: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + ii * 4))));
+        var jj: i32 = @intCast(ii);
+        while (jj > 0) {
+            const prev_idx: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + (@as(u32, @intCast(jj)) - 1) * 4))));
+            if (lsort_compare(&keys[prev_idx], &keys[cur_idx], &opts) <= 0) break;
+            obj_mod.write_i32(idx_buf + @as(u32, @intCast(jj)) * 4, @intCast(prev_idx));
+            jj -= 1;
+        }
+        obj_mod.write_i32(idx_buf + @as(u32, @intCast(jj)) * 4, @intCast(cur_idx));
+    }
+
+    // -unique semantics: per the Tcl man page, "If a duplicate is
+    // found, only the last one in the list is retained."  Walk the
+    // sorted index table backwards to mark each duplicate group's
+    // LAST sorted position as the keeper, then emit in forward order
+    // skipping any non-keeper slots.
+    const skip_arr_size: u32 = groups;
+    var skip_buf: u32 = 0;
+    if (opts.unique) {
+        skip_buf = obj_mod.alloc(skip_arr_size);
+        if (skip_buf == 0) return result_mod.from_globals(0);
+        const skip: [*]u8 = @ptrFromInt(skip_buf);
+        // Initialise: 0 = keep, 1 = drop.
+        var z: u32 = 0;
+        while (z < groups) : (z += 1) skip[z] = 0;
+        // Walk forward: any element equal to the next sorted slot's
+        // key gets dropped (since the next-or-later is the "last"
+        // duplicate that should be retained).  Use the *active*
+        // comparison mode so ``lsort -integer -unique {01 1 1}``
+        // dedupes ``01`` and ``1`` (numerically equal) rather than
+        // treating their textual representations as distinct.
+        var p: u32 = 0;
+        while (p + 1 < groups) : (p += 1) {
+            const a_idx: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + p * 4))));
+            const b_idx: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + (p + 1) * 4))));
+            if (lsort_compare(&keys[a_idx], &keys[b_idx], &opts) == 0) {
+                skip[p] = 1;
+            }
+        }
+    }
+    defer if (skip_buf != 0) obj_mod.free_sized(skip_buf, skip_arr_size);
+
+    // Emit the result list — concatenate each group's elements (or
+    // its original index when -indices).
+    var result: i32 = obj_new_string(0, 0);
+    var out_g: u32 = 0;
+    while (out_g < groups) : (out_g += 1) {
+        if (opts.unique) {
+            const skip: [*]u8 = @ptrFromInt(skip_buf);
+            if (skip[out_g] != 0) continue;
+        }
+        const src_g: u32 = @intCast(@as(i32, @bitCast(obj_mod.read_i32(idx_buf + out_g * 4))));
+        if (opts.indices) {
+            // Per cmdIL-1.28: for -stride > 1, indices return the
+            // first-of-group position (src_g * stride).
+            const base: i64 = @as(i64, src_g) * @as(i64, opts.stride);
+            result = list_mod.tcl_cmd_lappend(result, obj_new_int(base));
+        } else {
+            // Append the whole group's elements in original order.
+            var k: u32 = 0;
+            while (k < opts.stride) : (k += 1) {
+                const e = obj_mod.read_i32(elem_buf + (src_g * opts.stride + k) * 4);
+                result = list_mod.tcl_cmd_lappend(result, e);
+            }
+        }
+    }
+    return result_mod.from_globals(result);
 }
 
 // lsearch full implementation.
@@ -355,9 +808,31 @@ fn ls_subindex_pair(outer: i64, inner: i64) i32 {
     return rt.tcl_list(rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer)), obj_new_int(inner));
 }
 
-// Get the matchable bytes for element at `idx`, optionally drilling into a
-// sub-element via `index_arg` (a TclObj whose string is the sub-index integer).
-// Returns (ep, elen, sub_idx) — sub_idx is only meaningful when index_arg != 0.
+// Build a list of sub-indices ``{outer i1 i2 ...}`` from the outer
+// element position plus an -index PATH so the lsearch -subindices
+// return value reflects the full traversal depth, not just the first
+// drill level.  Used when *index_arg* is a multi-element list.
+fn ls_subindex_path(outer: i64, path_obj: i32) i32 {
+    if (path_obj == 0) return obj_new_int(outer);
+    const ps = obj_ensure_string(path_obj);
+    if (ps.len == 0) return obj_new_int(outer);
+    const path_count = rt.list_count_elements(ps.ptr, ps.len);
+    if (path_count == 0) return obj_new_int(outer);
+    var result: i32 = rt.tcl_list(obj_new_string(0, 0), obj_new_int(outer));
+    var i: i64 = 0;
+    while (i < path_count) : (i += 1) {
+        const idx_obj = rt.tcl_cmd_list_index(path_obj, obj_new_int(i));
+        result = rt.tcl_list(result, idx_obj);
+    }
+    return result;
+}
+
+// Get the matchable bytes for element at `idx`, optionally drilling
+// into a sub-element via `index_arg` (a TclObj whose string is either
+// a single index or a list of indices forming an -index PATH).
+// Returns (ep, elen, sub_idx) — sub_idx is the FIRST level's index
+// for the legacy ls_subindex_pair caller; multi-level subindices use
+// ls_subindex_path instead.
 fn ls_get_match_target(
     ls_ptr: u32,
     ls_len: u32,
@@ -378,13 +853,37 @@ fn ls_get_match_target(
     if (index_arg == 0) {
         return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
     }
-    // Drill: treat index_arg's string as the integer sub-index.
-    const sub_idx = obj_mod.obj_get_int(index_arg);
-    const inner_elem = rt.list_element_at(outer_ptr, outer_len, sub_idx);
+    // Treat index_arg as an -index PATH: a list of indices walked
+    // depth-first.  Empty path / non-list values fall through to the
+    // legacy single-index behaviour (one drill level).
+    const ps = obj_ensure_string(index_arg);
+    if (ps.len == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
+    }
+    const path_count = rt.list_count_elements(ps.ptr, ps.len);
+    if (path_count == 0) {
+        return .{ .ep = outer_ptr, .elen = outer_len, .sub_idx = 0 };
+    }
+    // Build a TclObj for the outer element so tcl_cmd_list_index can
+    // recursively descend.  ``obj_new_string`` here points into the
+    // already-decoded scratch buffer, which is safe because the
+    // caller keeps it alive for the duration of the search.
+    var current: i32 = obj_new_string(@bitCast(outer_ptr), @bitCast(outer_len));
+    var first_sub: i64 = 0;
+    var p: i64 = 0;
+    while (p < path_count) : (p += 1) {
+        const idx_obj = rt.tcl_cmd_list_index(index_arg, obj_new_int(p));
+        const cs = obj_ensure_string(current);
+        const n_cur = rt.list_count_elements(cs.ptr, cs.len);
+        const resolved = list_mod.resolve_list_index(idx_obj, n_cur);
+        if (p == 0) first_sub = resolved;
+        current = rt.tcl_cmd_list_index(current, idx_obj);
+    }
+    const final_s = obj_ensure_string(current);
     return .{
-        .ep = outer_ptr + inner_elem.start,
-        .elen = inner_elem.len,
-        .sub_idx = sub_idx,
+        .ep = final_s.ptr,
+        .elen = final_s.len,
+        .sub_idx = first_sub,
     };
 }
 
@@ -564,13 +1063,13 @@ fn eval_lsearch(words: []const i32) result_mod.InterpResult {
             if (!matched) continue;
             if (!find_all) {
                 if (do_inline) return result_mod.from_globals(obj_new_string(@bitCast(t.ep), @bitCast(t.elen)));
-                if (do_subindices) return result_mod.from_globals(ls_subindex_pair(idx, t.sub_idx));
+                if (do_subindices) return result_mod.from_globals(ls_subindex_path(idx, index_arg));
                 return result_mod.from_globals(obj_new_int(idx));
             }
             const entry: i32 = if (do_inline)
                 obj_new_string(@bitCast(t.ep), @bitCast(t.elen))
             else if (do_subindices)
-                ls_subindex_pair(idx, t.sub_idx)
+                ls_subindex_path(idx, index_arg)
             else
                 obj_new_int(idx);
             acc = list_mod.tcl_cmd_lappend(acc, entry);
@@ -603,6 +1102,9 @@ fn eval_join(words: []const i32) result_mod.InterpResult {
         stubs.raise("wrong # args: should be \"join list ?joinString?\"");
         return result_mod.from_globals(0);
     }
+    const ls = obj_ensure_string(words[1]);
+    if (list_parse.check_list_syntax(ls.ptr, ls.len) != 0)
+        return result_mod.from_globals(0);
     if (words.len == 3) return result_mod.from_globals(rt.tcl_cmd_join(words[1], words[2]));
     const sp = alloc(1);
     const d: [*]u8 = @ptrFromInt(sp);

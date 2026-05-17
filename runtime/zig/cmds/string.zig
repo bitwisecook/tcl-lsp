@@ -142,6 +142,66 @@ const sub_arity_table: []const SubArityRule = &.{
         .max_words = null,
         .message = "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"",
     },
+    .{
+        .name = "map",
+        .min_words = 4,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string map ?-nocase? charMap string\"",
+    },
+    .{
+        .name = "tolower",
+        .min_words = 3,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string tolower string ?first? ?last?\"",
+    },
+    .{
+        .name = "toupper",
+        .min_words = 3,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string toupper string ?first? ?last?\"",
+    },
+    .{
+        .name = "totitle",
+        .min_words = 3,
+        .max_words = 5,
+        .message = "wrong # args: should be \"string totitle string ?first? ?last?\"",
+    },
+    .{
+        .name = "trim",
+        .min_words = 3,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string trim string ?chars?\"",
+    },
+    .{
+        .name = "trimleft",
+        .min_words = 3,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string trimleft string ?chars?\"",
+    },
+    .{
+        .name = "trimright",
+        .min_words = 3,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string trimright string ?chars?\"",
+    },
+    .{
+        .name = "reverse",
+        .min_words = 3,
+        .max_words = 3,
+        .message = "wrong # args: should be \"string reverse string\"",
+    },
+    .{
+        .name = "wordstart",
+        .min_words = 4,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string wordstart string index\"",
+    },
+    .{
+        .name = "wordend",
+        .min_words = 4,
+        .max_words = 4,
+        .message = "wrong # args: should be \"string wordend string index\"",
+    },
 };
 
 /// Validate the call's word count against the subcommand's arity
@@ -333,8 +393,24 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     }
     if (words.len < 3) return result_mod.from_globals(0);
     if (str_eq(sp, sub.len, "length")) return result_mod.from_globals(rt.string_length(words[2]));
-    if (str_eq(sp, sub.len, "index") and words.len >= 4) return result_mod.from_globals(rt.string_index(words[2], words[3]));
-    if (str_eq(sp, sub.len, "range") and words.len >= 5) return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
+    if (str_eq(sp, sub.len, "index") and words.len >= 4) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_index(words[2], words[3]));
+    }
+    if (str_eq(sp, sub.len, "range") and words.len >= 5) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        if (!is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_range(words[2], words[3], words[4]));
+    }
     if (str_eq(sp, sub.len, "compare")) {
         return result_mod.from_globals(eval_compare_or_equal(words, .compare));
     }
@@ -345,24 +421,36 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         return result_mod.from_globals(eval_string_match(words));
     }
     if (str_eq(sp, sub.len, "map") and words.len >= 4) {
-        // ``string map ?-nocase? CHARMAP STRING`` — accept the
-        // optional ``-nocase`` flag.  Without this branch, the
-        // flag was passed as the CHARMAP argument and the actual
-        // CHARMAP was treated as the STRING, which silently
-        // mangled tcltest's return-code translation
-        // (``string map -nocase {ok 0 ...} {0 2}`` returned the
-        // MAP itself).
-        var map_idx: u32 = 2;
+        // ``string map ?-nocase? CHARMAP STRING`` — the trailing two
+        // words are always CHARMAP / STRING (per upstream
+        // ``StringMapCmd``); any earlier non-final words are options.
+        // Accept ``-nocase`` as a prefix abbreviation (``-no`` works,
+        // string-10.9.0) and surface anything else as
+        // ``bad option "X": must be -nocase`` (string-10.2.0).
         var nocase = false;
-        if (words.len >= 5) {
-            const ws = obj_ensure_string(words[2]);
+        var ai: u32 = 2;
+        const opt_end: u32 = words.len - 2;
+        while (ai < opt_end) : (ai += 1) {
+            const ws = obj_ensure_string(words[ai]);
             const wp: [*]const u8 = @ptrFromInt(ws.ptr);
-            if (str_eq(wp, ws.len, "-nocase")) {
+            if (ws.len >= 2 and wp[0] == '-' and wp[1] == 'n' and is_prefix_of(wp, ws.len, "-nocase")) {
                 nocase = true;
-                map_idx = 3;
+                continue;
             }
+            raise_bad_option(words[ai], "must be -nocase");
+            return result_mod.from_globals(0);
         }
-        if (map_idx + 1 >= words.len) return result_mod.from_globals(obj_new_string(0, 0));
+        const map_idx: u32 = words.len - 2;
+        // Validate the CHARMAP has an even number of elements —
+        // Tcl 9 raises ``char map list unbalanced`` when the
+        // pair-count is odd (string-10.10.0).
+        const obj_mod_r = @import("../valtypes/tcl_obj.zig");
+        const map_str = obj_mod_r.obj_ensure_string(words[map_idx]);
+        const map_count = obj_mod_r.list_count_elements(map_str.ptr, map_str.len);
+        if (@rem(map_count, 2) != 0) {
+            raise_string_wrong_args("char map list unbalanced");
+            return result_mod.from_globals(0);
+        }
         if (nocase) return result_mod.from_globals(rt.string_map_nocase(words[map_idx], words[map_idx + 1]));
         return result_mod.from_globals(rt.string_map(words[map_idx], words[map_idx + 1]));
     }
@@ -378,15 +466,95 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
         const chars = if (words.len >= 4) words[3] else 0;
         return result_mod.from_globals(rt.string_trimright(words[2], chars));
     }
-    if (str_eq(sp, sub.len, "first") and words.len >= 4) return result_mod.from_globals(rt.string_first(words[2], words[3]));
-    if (str_eq(sp, sub.len, "last") and words.len >= 4) return result_mod.from_globals(rt.string_last(words[2], words[3]));
-    if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
-    if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
-    if (str_eq(sp, sub.len, "totitle")) return result_mod.from_globals(rt.string_totitle(words[2]));
+    if (str_eq(sp, sub.len, "first") and words.len >= 4) {
+        if (words.len < 5) return result_mod.from_globals(rt.string_first(words[2], words[3]));
+        if (!is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        // ``string first`` measures startIndex in codepoints (Tcl 9
+        // ``tclCmdMZ.c`` ``StringFirstCmd``).  Resolve ``end``/``end-N``
+        // against the haystack codepoint count.
+        const list_mod = @import("../valtypes/tcl_list.zig");
+        const cp_count: i64 = @intCast(rt.string_codepoint_count(words[3]));
+        const start_cp = list_mod.resolve_list_index(words[4], cp_count);
+        return result_mod.from_globals(rt.string_first_indexed(words[2], words[3], start_cp));
+    }
+    if (str_eq(sp, sub.len, "last") and words.len >= 4) {
+        if (words.len < 5) return result_mod.from_globals(rt.string_last(words[2], words[3]));
+        if (!is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        const list_mod = @import("../valtypes/tcl_list.zig");
+        const cp_count: i64 = @intCast(rt.string_codepoint_count(words[3]));
+        const last_cp = list_mod.resolve_list_index(words[4], cp_count);
+        return result_mod.from_globals(rt.string_last_indexed(words[2], words[3], last_cp));
+    }
+    if (str_eq(sp, sub.len, "toupper") or str_eq(sp, sub.len, "tolower") or str_eq(sp, sub.len, "totitle")) {
+        // Tcl 9 ``string tolower/toupper/totitle STRING ?first ?last??`` —
+        // if only *first* is given, *last* defaults to *first* (a single
+        // codepoint).  If neither is given, the whole string is affected.
+        // We thread a special ``0`` sentinel through the range helpers to
+        // mean "whole string"; the dispatch here picks the right pair.
+        const has_first = words.len >= 4;
+        const has_last = words.len >= 5;
+        const first: i32 = if (has_first) blk: {
+            if (!is_valid_string_index(words[3])) {
+                raise_bad_string_index(words[3]);
+                return result_mod.from_globals(0);
+            }
+            break :blk words[3];
+        } else 0;
+        const last: i32 = if (has_last) blk: {
+            if (!is_valid_string_index(words[4])) {
+                raise_bad_string_index(words[4]);
+                return result_mod.from_globals(0);
+            }
+            break :blk words[4];
+        } else if (has_first) first else 0;
+        if (!has_first) {
+            // Whole-string variant — original helpers.
+            if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper(words[2]));
+            if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower(words[2]));
+            return result_mod.from_globals(rt.string_totitle(words[2]));
+        }
+        if (str_eq(sp, sub.len, "toupper")) return result_mod.from_globals(rt.string_toupper_range(words[2], first, last));
+        if (str_eq(sp, sub.len, "tolower")) return result_mod.from_globals(rt.string_tolower_range(words[2], first, last));
+        return result_mod.from_globals(rt.string_totitle_range(words[2], first, last));
+    }
     if (str_eq(sp, sub.len, "reverse")) return result_mod.from_globals(rt.string_reverse(words[2]));
-    if (str_eq(sp, sub.len, "repeat") and words.len >= 4) return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
-    if (str_eq(sp, sub.len, "replace") and words.len >= 6) return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], words[5]));
-    if (str_eq(sp, sub.len, "insert") and words.len >= 5) return result_mod.from_globals(rt.string_insert(words[2], words[3], words[4]));
+    if (str_eq(sp, sub.len, "repeat") and words.len >= 4) {
+        // ``string repeat string count`` — count must parse as an
+        // integer (the runtime helper ``string_repeat`` reads via
+        // ``obj_get_int`` which silently returns 0 for garbage).
+        const obj_mod_r = @import("../valtypes/tcl_obj.zig");
+        const cs = obj_mod_r.obj_ensure_string(words[3]);
+        if (obj_mod_r.try_parse_int(cs.ptr, cs.len) == null) {
+            raise_expected_integer(words[3]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_repeat(words[2], words[3]));
+    }
+    if (str_eq(sp, sub.len, "replace") and words.len >= 5) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        if (!is_valid_string_index(words[4])) {
+            raise_bad_string_index(words[4]);
+            return result_mod.from_globals(0);
+        }
+        const replace_arg: i32 = if (words.len >= 6) words[5] else obj_new_string(0, 0);
+        return result_mod.from_globals(rt.string_replace(words[2], words[3], words[4], replace_arg));
+    }
+    if (str_eq(sp, sub.len, "insert") and words.len >= 5) {
+        if (!is_valid_string_index(words[3])) {
+            raise_bad_string_index(words[3]);
+            return result_mod.from_globals(0);
+        }
+        return result_mod.from_globals(rt.string_insert(words[2], words[3], words[4]));
+    }
     if (str_eq(sp, sub.len, "is")) {
         return eval_string_is(words);
     }
@@ -627,32 +795,20 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
                 raise_expected_integer(words[ai + 1]);
                 return obj_new_int(0);
             }
-            const lp: [*]const u8 = @ptrFromInt(lv.ptr);
-            // Parse optional sign + digits.
-            var neg = false;
-            var k: u32 = 0;
-            if (lp[0] == '+') {
-                k = 1;
-            } else if (lp[0] == '-') {
-                neg = true;
-                k = 1;
-            }
-            if (k >= lv.len) {
+            // Use the full Tcl integer parser (handles decimal, hex,
+            // octal, binary, leading sign, surrounding whitespace).
+            // Tcl 9 treats ``-length 0x100000000`` as a no-cap value
+            // — anything past i32 range is clamped to "unlimited".
+            const bn = @import("../valtypes/tcl_bignum.zig");
+            const parsed = bn.parse_i128(lv.ptr, lv.len);
+            if (parsed == null) {
                 raise_expected_integer(words[ai + 1]);
                 return obj_new_int(0);
             }
-            var n: i64 = 0;
-            while (k < lv.len) : (k += 1) {
-                if (lp[k] < '0' or lp[k] > '9') {
-                    raise_expected_integer(words[ai + 1]);
-                    return obj_new_int(0);
-                }
-                n = n * 10 + (lp[k] - '0');
-            }
-            if (neg) n = -n;
+            const n: i128 = parsed.?;
             // Clamp to i32 range used by string_compare_full.  Negative
             // / over-long becomes "unlimited" sentinel (-1).
-            if (n < 0 or n > std.math.maxInt(i31)) {
+            if (n < 0 or n > @as(i128, std.math.maxInt(i31))) {
                 len_limit = -1;
             } else {
                 len_limit = @intCast(n);
@@ -676,6 +832,15 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
     // Reference Tcl emits ``bad option "X"`` for the first such
     // word — string-2.2 (``string compare a b c``) wants ``bad
     // option "a"``.
+    if (ai > opt_end) {
+        // Option processing consumed too many words and we no longer
+        // have two trailing operand strings — string-2.5 (``string
+        // compare -length 10 10`` should raise ``wrong # args``,
+        // not ``bad option "10"``).  ``ai`` overshooting opt_end is
+        // the canonical signal for this shape.
+        raise_string_wrong_args(wrong_args);
+        return obj_new_int(0);
+    }
     if (ai != opt_end) {
         raise_bad_option(words[ai], "must be -nocase or -length");
         return obj_new_int(0);
@@ -690,6 +855,87 @@ fn eval_compare_or_equal(words: []const i32, kind: CompareKind) i32 {
         return obj_new_int(if (v == 0) 1 else 0);
     }
     return cmp;
+}
+
+/// Validate *idx* as a Tcl string-index argument.  Accepts integers
+/// (with optional ``+``/``-`` sign, possibly hex / octal), ``end``,
+/// ``end-N``, ``end+N``, and the ``int+int`` / ``int-int`` arithmetic
+/// forms the C tcl parser accepts.  Returns ``true`` on a valid
+/// index, ``false`` otherwise.  Used by ``string first`` / ``string
+/// last`` / ``string range`` / ``string replace`` / ``string index``
+/// / ``string repeat`` to reject garbage indices with the canonical
+/// ``bad index "X": must be integer?[+-]integer? or end?[+-]integer?``
+/// diagnostic rather than silently treating them as 0.
+fn is_valid_string_index(idx: i32) bool {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const s = obj_mod.obj_ensure_string(idx);
+    if (s.len == 0) return false;
+    const sp: [*]const u8 = @ptrFromInt(s.ptr);
+    // Allow ``end`` / ``end-N`` / ``end+N`` (plus optional arithmetic
+    // tail like ``end-1+0`` which C tcl folds at parse time).
+    if (s.len >= 3 and sp[0] == 'e' and sp[1] == 'n' and sp[2] == 'd') {
+        if (s.len == 3) return true;
+        // ``end+N`` / ``end-N`` — N is an integer literal (digits +
+        // optional further ``±N`` arithmetic chain).
+        if (sp[3] != '+' and sp[3] != '-') return false;
+        return is_int_arith_tail(sp, s.len, 4);
+    }
+    // Pure integer arithmetic: optional sign, digits, optional
+    // ``±N`` continuation.
+    var i: u32 = 0;
+    if (sp[i] == '+' or sp[i] == '-') i += 1;
+    if (i >= s.len) return false;
+    return is_int_arith_tail(sp, s.len, i);
+}
+
+fn is_int_arith_tail(sp: [*]const u8, len: u32, start: u32) bool {
+    var i = start;
+    // First digit run (required at least 1 digit).
+    if (i >= len) return false;
+    if (!(sp[i] >= '0' and sp[i] <= '9')) return false;
+    while (i < len and sp[i] >= '0' and sp[i] <= '9') i += 1;
+    // Optional ``±N`` continuation runs.
+    while (i < len) {
+        if (sp[i] != '+' and sp[i] != '-') return false;
+        i += 1;
+        if (i >= len or !(sp[i] >= '0' and sp[i] <= '9')) return false;
+        while (i < len and sp[i] >= '0' and sp[i] <= '9') i += 1;
+    }
+    return true;
+}
+
+fn raise_bad_string_index(idx: i32) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const s = obj_mod.obj_ensure_string(idx);
+    const prefix = "bad index \"";
+    const suffix = "\": must be integer?[+-]integer? or end?[+-]integer?";
+    const total: u32 = @intCast(prefix.len + s.len + suffix.len);
+    const buf = obj_mod.alloc(total);
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(0);
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    var off: u32 = 0;
+    for (prefix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    if (s.len > 0 and s.ptr != 0) {
+        const src: [*]const u8 = @ptrFromInt(s.ptr);
+        var k: u32 = 0;
+        while (k < s.len) : (k += 1) {
+            dst[off + k] = src[k];
+        }
+        off += s.len;
+    }
+    for (suffix) |c| {
+        dst[off] = c;
+        off += 1;
+    }
+    const m = obj_mod.obj_new_string_take(buf, total, total);
+    catch_mod.tcl_cmd_error(m);
 }
 
 fn raise_expected_integer(operand: i32) void {
@@ -807,37 +1053,11 @@ fn glob_match_plain(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
 }
 
 fn glob_match_nocase(pp: u32, plen: u32, vp: u32, vlen: u32) bool {
-    // Lower-case both pattern and value into bump-allocated scratch
-    // buffers, then run the regular glob_match.  Avoids touching the
-    // underlying string objs (the case fold is per-call).
-    if (plen == 0) return vlen == 0;
-    const obj_mod = @import("../valtypes/tcl_obj.zig");
-    const buf_pat = obj_mod.alloc(if (plen == 0) 1 else plen);
-    const buf_val = if (vlen > 0) obj_mod.alloc(vlen) else 0;
-    if (buf_pat == 0 or (vlen > 0 and buf_val == 0)) {
-        if (buf_pat != 0) obj_mod.free_sized(buf_pat, plen);
-        if (buf_val != 0) obj_mod.free_sized(buf_val, vlen);
-        // Fallback: case-sensitive match.
-        return glob_match_plain(pp, plen, vp, vlen);
-    }
-    const dp: [*]u8 = @ptrFromInt(buf_pat);
-    const sp: [*]const u8 = @ptrFromInt(pp);
-    var i: u32 = 0;
-    while (i < plen) : (i += 1) {
-        dp[i] = if (sp[i] >= 'A' and sp[i] <= 'Z') sp[i] + 32 else sp[i];
-    }
-    if (vlen > 0) {
-        const dv: [*]u8 = @ptrFromInt(buf_val);
-        const sv: [*]const u8 = @ptrFromInt(vp);
-        i = 0;
-        while (i < vlen) : (i += 1) {
-            dv[i] = if (sv[i] >= 'A' and sv[i] <= 'Z') sv[i] + 32 else sv[i];
-        }
-    }
-    const r = glob_match_plain(buf_pat, plen, buf_val, vlen);
-    obj_mod.free_sized(buf_pat, plen);
-    if (vlen > 0) obj_mod.free_sized(buf_val, vlen);
-    return r;
+    // Defer to the runtime's codepoint-aware matcher (it folds each
+    // codepoint via codepoint_lower on the fly so Latin-1 / Greek /
+    // Cyrillic case-insensitive globs work — string-11.33.0).
+    const tcl_string = @import("../valtypes/tcl_string.zig");
+    return tcl_string.glob_match_nocase_impl(pp, plen, vp, vlen);
 }
 
 fn eval_string_is(words: []const i32) result_mod.InterpResult {
@@ -895,23 +1115,40 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
             i += 2;
             continue;
         }
-        // Unknown flag — same error wording as upstream Tcl 9 (the
-        // class-prefix is substituted in for the canonical 'class').
+        // Unknown flag — Tcl 9's StringIsCmd substitutes the
+        // resolved class name into the diagnostic for this path
+        // (string-6.3.0: ``string is alpha -failin str`` →
+        // ``string is alpha ?...``).
         raise_string_is_args(class_name);
         return result_mod.from_globals(obj_new_int(0));
     }
     if (i + 1 != words.len) {
-        // Either zero or more than one trailing arg — bad arity.
-        raise_string_is_args(class_name);
+        // Trailing-arg count mismatch after option parsing.  C tcl
+        // splits the wording by direction:
+        //   - "missing candidate string" (i > words.len-1, i.e. no
+        //     trailing arg at all) uses the resolved class name
+        //     (string-6.3.0).
+        //   - "extra trailing args" (i < words.len-1, more than one
+        //     trailing word remains) uses the generic ``class``
+        //     placeholder (string-6.4.0).
+        if (i >= words.len) {
+            raise_string_is_args(class_name);
+        } else {
+            raise_string_is_args("class");
+        }
         return result_mod.from_globals(obj_new_int(0));
     }
     const sv = obj_ensure_string(words[i]);
 
     // Empty input: non-strict accepts every class as 1.  Strict
-    // rejects.  ``-failindex`` set to -1 in either case (no failing
-    // character to point at).
+    // rejects most classes — but ``list`` / ``dict`` treat the empty
+    // string as a valid (empty) container even in strict mode (Tcl 9
+    // string-25.8 / 32.8).  ``-failindex`` set to -1 in either case
+    // (no failing character to point at).
     if (sv.len == 0 or sv.ptr == 0) {
-        const result_value: i32 = if (strict) 0 else 1;
+        const is_container = slice_eq(class_name.ptr, @intCast(class_name.len), "list") or
+            slice_eq(class_name.ptr, @intCast(class_name.len), "dict");
+        const result_value: i32 = if (strict and !is_container) 0 else 1;
         if (failindex_var != 0 and result_value == 0) {
             store_failindex(failindex_var, -1);
         }
@@ -924,19 +1161,19 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
     var fail_index: i64 = -1;
     var ok: bool = false;
     if (slice_eq(class_name.ptr, @intCast(class_name.len), "alnum")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isAlnum);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_alnum);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "alpha")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isAlpha);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_alpha);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "ascii")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isAscii);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "control")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isControl);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_control);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "digit")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isDigit);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_digit);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "graph")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isGraph);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "lower")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isLower);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_lower);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "print")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isPrint);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "punct")) {
@@ -944,9 +1181,9 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "space")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isSpace);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "upper")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isUpper);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_upper);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "wordchar")) {
-        ok = check_class_byte(svp, sv.len, &fail_index, isWordchar);
+        ok = check_class_cp(svp, sv.len, &fail_index, cp_is_wordchar);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "xdigit")) {
         ok = check_class_byte(svp, sv.len, &fail_index, isXdigit);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "boolean")) {
@@ -959,10 +1196,26 @@ fn eval_string_is(words: []const i32) result_mod.InterpResult {
         ok = check_boolean_value(svp, sv.len, false);
         if (!ok) fail_index = 0;
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "integer") or
-        slice_eq(class_name.ptr, @intCast(class_name.len), "wideinteger") or
         slice_eq(class_name.ptr, @intCast(class_name.len), "entier"))
     {
         ok = check_integer(svp, sv.len, &fail_index);
+    } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "wideinteger")) {
+        // ``string is wideinteger`` accepts integers that fit in
+        // Tcl_WideInt (i64); bignums that overflow return false with
+        // failindex -1 (Tcl 9 string-6.102.0).  Accept any radix
+        // (decimal / hex / octal / binary) via parse_i128 and clamp
+        // to the i64 range.
+        ok = check_integer(svp, sv.len, &fail_index);
+        if (ok) {
+            const bn = @import("../valtypes/tcl_bignum.zig");
+            const parsed = bn.parse_i128(sv.ptr, sv.len);
+            if (parsed == null or parsed.? > @as(i128, std.math.maxInt(i64)) or
+                parsed.? < @as(i128, std.math.minInt(i64)))
+            {
+                ok = false;
+                fail_index = -1;
+            }
+        }
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "double")) {
         ok = check_double(svp, sv.len, &fail_index);
     } else if (slice_eq(class_name.ptr, @intCast(class_name.len), "list")) {
@@ -1047,6 +1300,57 @@ fn check_class_byte(ptr: [*]const u8, len: u32, fail: *i64, pred: ByteCheck) boo
     return true;
 }
 
+const CodepointCheck = *const fn (cp: u32) bool;
+
+/// Same shape as :fn:`check_class_byte` but the predicate runs on
+/// decoded codepoints — used by ``string is lower/upper/wordchar/
+/// alpha`` so Unicode letters classify correctly.  Falls back to
+/// byte-level for ASCII-only classes (control / ascii / digit /
+/// punct etc.) to preserve their existing semantics.
+fn check_class_cp(ptr: [*]const u8, len: u32, fail: *i64, pred: CodepointCheck) bool {
+    var ci: u32 = 0;
+    var bi: u32 = 0;
+    while (bi < len) {
+        const d = decode_utf8_lite(ptr, len, bi);
+        if (!pred(d.cp)) {
+            fail.* = ci;
+            return false;
+        }
+        bi += d.len;
+        ci += 1;
+    }
+    return true;
+}
+
+const DecodeResult = struct { cp: u32, len: u32 };
+
+fn decode_utf8_lite(p: [*]const u8, max: u32, pos: u32) DecodeResult {
+    if (pos >= max) return .{ .cp = 0, .len = 1 };
+    const b0 = p[pos];
+    if (b0 < 0x80) return .{ .cp = b0, .len = 1 };
+    if (b0 < 0xC0) return .{ .cp = b0, .len = 1 };
+    if (b0 < 0xE0) {
+        if (pos + 2 > max) return .{ .cp = b0, .len = 1 };
+        const b1 = p[pos + 1];
+        return .{ .cp = (@as(u32, b0 & 0x1F) << 6) | @as(u32, b1 & 0x3F), .len = 2 };
+    }
+    if (b0 < 0xF0) {
+        if (pos + 3 > max) return .{ .cp = b0, .len = 1 };
+        const b1 = p[pos + 1];
+        const b2 = p[pos + 2];
+        return .{ .cp = (@as(u32, b0 & 0x0F) << 12) | (@as(u32, b1 & 0x3F) << 6) | @as(u32, b2 & 0x3F), .len = 3 };
+    }
+    if (pos + 4 > max) return .{ .cp = b0, .len = 1 };
+    const b1 = p[pos + 1];
+    const b2 = p[pos + 2];
+    const b3 = p[pos + 3];
+    return .{
+        .cp = (@as(u32, b0 & 0x07) << 18) | (@as(u32, b1 & 0x3F) << 12) |
+            (@as(u32, b2 & 0x3F) << 6) | @as(u32, b3 & 0x3F),
+        .len = 4,
+    };
+}
+
 fn utf8_cont_len(b: u8) u32 {
     if ((b & 0xE0) == 0xC0) return 1;
     if ((b & 0xF0) == 0xE0) return 2;
@@ -1094,6 +1398,101 @@ fn isUpper(b: u8) bool {
 fn isWordchar(b: u8) bool {
     if (b >= 0x80) return true;
     return isAlnum(b) or b == '_';
+}
+
+// --- Codepoint-level class predicates ----------------------------------------
+//
+// These approximate Tcl 9's Unicode classification for the most common
+// ranges (Latin-1, Latin Extended-A/B, Greek, Cyrillic).  The tests we
+// care about — string-6.61 / 6.76 / 6.83 / 6.84 — only need ASCII +
+// Latin-1 coverage, but the helpers degrade gracefully for arbitrary
+// codepoints (default to "ASCII-only" semantics outside the ranges
+// covered below).
+
+fn cp_is_alpha(cp: u32) bool {
+    if (cp >= 'a' and cp <= 'z') return true;
+    if (cp >= 'A' and cp <= 'Z') return true;
+    // Latin-1 letters: 0xC0-0xD6, 0xD8-0xF6, 0xF8-0xFF (excluding ×=0xD7, ÷=0xF7).
+    if (cp >= 0xC0 and cp <= 0xD6) return true;
+    if (cp >= 0xD8 and cp <= 0xF6) return true;
+    if (cp >= 0xF8 and cp <= 0xFF) return true;
+    // Latin Extended-A / B (rough coverage).
+    if (cp >= 0x100 and cp <= 0x24F) return true;
+    // Greek + Cyrillic letter blocks.
+    if (cp >= 0x370 and cp <= 0x3FF) return true;
+    if (cp >= 0x400 and cp <= 0x4FF) return true;
+    return false;
+}
+
+fn cp_is_lower(cp: u32) bool {
+    if (!cp_is_alpha(cp)) return false;
+    if (cp >= 'a' and cp <= 'z') return true;
+    // Latin-1: lowercase ranges.
+    if (cp >= 0xDF and cp <= 0xF6) return true;
+    if (cp >= 0xF8 and cp <= 0xFF) return true;
+    // Latin Extended-A pairs: odd in 100-137; even in 139-148; odd in 14A-177; ff = ÿ
+    if (cp >= 0x101 and cp <= 0x137 and (cp & 1) == 1) return true;
+    if (cp >= 0x13A and cp <= 0x148 and (cp & 1) == 0) return true;
+    if (cp >= 0x14B and cp <= 0x177 and (cp & 1) == 1) return true;
+    if (cp >= 0x17A and cp <= 0x17E and (cp & 1) == 0) return true;
+    if (cp == 0x1F3 or cp == 0x1F5) return true;
+    if (cp >= 0x3B1 and cp <= 0x3C1) return true;
+    if (cp >= 0x3C3 and cp <= 0x3CB) return true;
+    if (cp >= 0x430 and cp <= 0x44F) return true;
+    if (cp >= 0x450 and cp <= 0x45F) return true;
+    return false;
+}
+
+fn cp_is_upper(cp: u32) bool {
+    if (!cp_is_alpha(cp)) return false;
+    if (cp >= 'A' and cp <= 'Z') return true;
+    if (cp >= 0xC0 and cp <= 0xD6) return true;
+    if (cp >= 0xD8 and cp <= 0xDE) return true;
+    if (cp >= 0x100 and cp <= 0x136 and (cp & 1) == 0) return true;
+    if (cp >= 0x139 and cp <= 0x147 and (cp & 1) == 1) return true;
+    if (cp >= 0x14A and cp <= 0x176 and (cp & 1) == 0) return true;
+    if (cp == 0x178) return true;
+    if (cp >= 0x179 and cp <= 0x17D and (cp & 1) == 1) return true;
+    if (cp == 0x1F1 or cp == 0x1F4) return true;
+    if (cp >= 0x391 and cp <= 0x3A1) return true;
+    if (cp >= 0x3A3 and cp <= 0x3AB) return true;
+    if (cp >= 0x410 and cp <= 0x42F) return true;
+    if (cp >= 0x400 and cp <= 0x40F) return true;
+    return false;
+}
+
+fn cp_is_digit(cp: u32) bool {
+    return cp >= '0' and cp <= '9';
+}
+
+fn cp_is_alnum(cp: u32) bool {
+    return cp_is_alpha(cp) or cp_is_digit(cp);
+}
+
+fn cp_is_control(cp: u32) bool {
+    if (cp < 0x20) return true;
+    if (cp == 0x7F) return true;
+    // C1 control set (U+0080-U+009F).
+    if (cp >= 0x80 and cp <= 0x9F) return true;
+    return false;
+}
+
+fn cp_is_wordchar(cp: u32) bool {
+    if (cp < 0x80) {
+        return cp_is_alnum(cp) or cp == '_';
+    }
+    // C1 controls (U+0080-U+009F) and explicit whitespace are not
+    // wordchars; everything else above ASCII is treated as a letter
+    // / digit / symbol for word-boundary purposes.  Mirrors the
+    // pre-Unicode Tcl behaviour (``isWordchar`` accepted any byte
+    // >= 0x80) but tightened so the C1 range fails (string-6.83.0).
+    if (cp <= 0x9F) return false;
+    if (cp == 0xA0) return false; // NBSP
+    if (cp == 0x1680 or cp == 0x180E) return false;
+    if (cp >= 0x2000 and cp <= 0x200B) return false;
+    if (cp == 0x2028 or cp == 0x2029 or cp == 0x202F or cp == 0x205F) return false;
+    if (cp == 0x3000 or cp == 0xFEFF) return false;
+    return true;
 }
 fn isXdigit(b: u8) bool {
     return isDigit(b) or (b >= 'a' and b <= 'f') or (b >= 'A' and b <= 'F');
@@ -1239,7 +1638,10 @@ fn check_double(ptr: [*]const u8, len: u32, fail: *i64) bool {
         }
     }
     if (!has_digit) {
-        fail.* = i;
+        // No valid mantissa — Tcl 9 reports failindex 0 ("the whole
+        // value is invalid from the start"); see string-6.36 (``"\n"``)
+        // and string-6.39 (``.e1``).
+        fail.* = 0;
         return false;
     }
     if (i < len and (ptr[i] == 'e' or ptr[i] == 'E')) {
