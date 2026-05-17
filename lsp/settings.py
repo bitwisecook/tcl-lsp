@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import re
 import threading
@@ -830,6 +831,97 @@ def _pull_and_apply_configuration() -> None:
 # Registration
 
 
+def _deep_merge_into(dst: dict, src: dict) -> None:
+    """Recursively merge ``src`` into ``dst`` in place.
+
+    Nested ``dict`` values are merged key-by-key so a push that touches
+    ``{"features": {"references": False}}`` doesn't clobber an unrelated
+    ``features.hover`` setting living in ``dst``.  Scalar / list values
+    in ``src`` replace whatever is in ``dst``.
+    """
+    for key, value in src.items():
+        if isinstance(value, dict) and isinstance(dst.get(key), dict):
+            _deep_merge_into(dst[key], value)
+        else:
+            dst[key] = copy.deepcopy(value)
+
+
+# Keys whose value is genuinely per-folder rather than workspace-merged:
+# the workspace ``didChangeConfiguration`` push carries the WORKSPACE-level
+# value, but each folder may override these via its own
+# ``.vscode/settings.json`` / multi-root folder configuration, and the
+# authoritative per-folder value only arrives via the ``workspace/configuration``
+# pull.  ``_propagate_push_to_folder_caches`` must NOT clobber an existing
+# per-folder cache entry for these keys -- doing so flips per-folder state
+# (notably ``FeatureConfig.dialect_explicitly_set``) in ways the pull
+# cannot undo, breaking ``did_open``'s iRules / iApps auto-switch and the
+# ``Dialect Detection defaults .tcl files to Tcl 8.6`` regression on PR #415.
+_PER_FOLDER_OVERRIDE_KEYS: frozenset[str] = frozenset(
+    {
+        "dialect",
+        "extraCommands",
+        "extra_commands",
+        "libraryPaths",
+        "library_paths",
+    }
+)
+
+
+def _propagate_push_to_folder_caches(extracted: dict) -> None:
+    """Deep-merge a workspace-level push into every per-folder editor cache.
+
+    ``vscode-languageclient`` pushes ``workspace/didChangeConfiguration``
+    with the new workspace-merged ``tclLsp.*`` payload, but only updates
+    the workspace-fallback layer (:data:`editor_config_settings`).  Each
+    folder's ``editor_config_settings_per_folder`` entry is the snapshot
+    of its last ``workspace/configuration`` pull response — the pull
+    that would refresh those entries is async and trails the push.
+
+    Between push and the matching pull, ``_apply_merged_settings_now``'s
+    folder loop reads each folder's stale per-folder cache and applies
+    it on top of the workspace fallback, so per-folder ``FeatureConfig``
+    attributes (and any other key checked at handler-entry time, not
+    just the dialect-baked ones #407 already covers) keep their previous
+    value.  Under CPU pressure the pull can take longer than the 500 ms
+    most tests wait, surfacing as flakes like the three
+    ``configSettings.test.ts`` toggles in #415.
+
+    Surgically deep-merge the push payload into every existing
+    per-folder editor cache so the leading-edge apply propagates the
+    new workspace-merged values to per-folder configs immediately.  The
+    trailing pull still arrives and overwrites with the authoritative
+    per-folder values.
+
+    Keys in :data:`_PER_FOLDER_OVERRIDE_KEYS` (``dialect`` /
+    ``extraCommands`` / ``libraryPaths``) are intentionally excluded:
+    the workspace push only carries the workspace-level value for these,
+    but each folder may override them, and the pull is the authoritative
+    refresh.  Propagating them here would clobber a folder's existing
+    cached override AND flip ``FeatureConfig.dialect_explicitly_set``
+    via :func:`_apply_feature_settings`'s ``looks_inherited`` branch --
+    which would block the iRules / iApps auto-switch in ``did_open``,
+    regressing the ``Dialect Detection defaults .tcl files to Tcl 8.6``
+    case the VS Code suite covers.  The dialect / extras / libraryPaths
+    races that #407 patched land via the pull's full-section payload, so
+    they are not regressed by this exclusion.
+    """
+    if not extracted:
+        return
+    propagatable = {
+        key: value for key, value in extracted.items() if key not in _PER_FOLDER_OVERRIDE_KEYS
+    }
+    if not propagatable:
+        return
+    for folder_uri in list(_state.editor_config_settings_per_folder.keys()):
+        if folder_uri == "":
+            continue
+        existing = _state.editor_config_settings_per_folder.get(folder_uri)
+        if not isinstance(existing, dict):
+            existing = {}
+        _deep_merge_into(existing, propagatable)
+        _state.editor_config_settings_per_folder[folder_uri] = existing
+
+
 def register(server_instance: LanguageServer) -> None:
     """Register the didChangeConfiguration handler."""
 
@@ -856,6 +948,11 @@ def register(server_instance: LanguageServer) -> None:
         settings = params.settings
         if isinstance(settings, dict) and settings:
             extracted = _extract_tcl_lsp_settings(settings)
+            # Propagate the push into per-folder editor caches *before*
+            # scheduling the apply so the leading-edge fire sees fresh
+            # folder layers instead of stale pull snapshots.  See
+            # ``_propagate_push_to_folder_caches`` for the race detail.
+            _propagate_push_to_folder_caches(extracted)
             _apply_all_settings(extracted, folder_uri="")
             if set(extracted.keys()) == {"dialect"}:
                 return

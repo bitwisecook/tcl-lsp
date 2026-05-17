@@ -15,6 +15,9 @@ export async function run(): Promise<void> {
     color: true,
     timeout: 60_000, // LSP startup can be slow
   });
+  if (process.env.MOCHA_GREP) {
+    mocha.grep(process.env.MOCHA_GREP);
+  }
 
   const testsRoot = path.resolve(__dirname);
 
