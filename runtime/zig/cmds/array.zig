@@ -40,7 +40,24 @@ pub const subcommands: []const reg.SubEntry = &.{
 };
 
 pub fn eval(words: []const i32) result_mod.InterpResult {
-    if (words.len < 3) return result_mod.from_globals(0);
+    // ``array SUB ?args?`` — minimum is ``array SUB ARRAYNAME``.
+    // Bare ``array`` (no subcommand) raises ``wrong # args``;
+    // ``array SUB`` with no arrayName raises a subcommand-specific
+    // diagnostic (set-old-8.1 / 8.2).
+    if (words.len < 2) {
+        raise_array_error("wrong # args: should be \"array subcommand ?arg ...?\"");
+        return result_mod.from_globals(0);
+    }
+    if (words.len < 3) {
+        // Pick the wording that matches the bare ``array SUB`` form
+        // for the well-known subcommands; fall through to a generic
+        // diagnostic otherwise (matches the upstream switch in
+        // ``tclVar.c`` ``Tcl_ArrayObjCmd``).
+        const sub2 = obj_ensure_string(words[1]);
+        const usage = pick_array_usage(sub2.ptr, sub2.len);
+        raise_array_error(usage);
+        return result_mod.from_globals(0);
+    }
     const sub = obj_ensure_string(words[1]);
     const sp: [*]const u8 = @ptrFromInt(sub.ptr);
     const array_mod = @import("../valtypes/tcl_array.zig");
@@ -87,4 +104,53 @@ pub fn eval(words: []const i32) result_mod.InterpResult {
     const sub_slice: []const u8 = (@as([*]const u8, @ptrFromInt(sub.ptr)))[0..sub.len];
     stubs_mod.unsupported_sub("array", sub_slice);
     return result_mod.from_globals(0);
+}
+
+fn raise_array_error(msg: []const u8) void {
+    const obj_mod = @import("../valtypes/tcl_obj.zig");
+    const catch_mod = @import("../interp/tcl_catch.zig");
+    const buf = obj_mod.alloc(@intCast(msg.len));
+    if (buf == 0) {
+        catch_mod.tcl_cmd_error(obj_mod.obj_new_string(0, 0));
+        return;
+    }
+    const dst: [*]u8 = @ptrFromInt(buf);
+    for (msg, 0..) |c, i| dst[i] = c;
+    const e = obj_mod.obj_new_string_take(buf, @intCast(msg.len), @intCast(msg.len));
+    catch_mod.tcl_cmd_error(e);
+}
+
+/// Pick the ``wrong # args`` usage string for ``array SUB`` calls
+/// with no array-name argument.  Mirrors the per-subcommand
+/// diagnostics in Tcl 9 ``tclVar.c`` ``Tcl_ArrayObjCmd``.
+fn pick_array_usage(sub_ptr: u32, sub_len: u32) []const u8 {
+    const sp: [*]const u8 = @ptrFromInt(sub_ptr);
+    inline for (.{
+        .{ "anymore", "wrong # args: should be \"array anymore arrayName searchId\"" },
+        .{ "donesearch", "wrong # args: should be \"array donesearch arrayName searchId\"" },
+        .{ "exists", "wrong # args: should be \"array exists arrayName\"" },
+        .{ "get", "wrong # args: should be \"array get arrayName ?pattern?\"" },
+        .{ "names", "wrong # args: should be \"array names arrayName ?mode? ?pattern?\"" },
+        .{ "nextelement", "wrong # args: should be \"array nextelement arrayName searchId\"" },
+        .{ "set", "wrong # args: should be \"array set arrayName list\"" },
+        .{ "size", "wrong # args: should be \"array size arrayName\"" },
+        .{ "startsearch", "wrong # args: should be \"array startsearch arrayName\"" },
+        .{ "statistics", "wrong # args: should be \"array statistics arrayName\"" },
+        .{ "unset", "wrong # args: should be \"array unset arrayName ?pattern?\"" },
+        .{ "default", "wrong # args: should be \"array default subcommand arrayName ?args?\"" },
+    }) |entry| {
+        const name = entry[0];
+        const usage = entry[1];
+        if (sub_len == name.len) {
+            var matches = true;
+            inline for (name, 0..) |c, i| {
+                if (sp[i] != c) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) return usage;
+        }
+    }
+    return "wrong # args: should be \"array subcommand ?arg ...?\"";
 }
