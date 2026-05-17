@@ -1128,6 +1128,11 @@ jobs:
 
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+        with:
+          # Pin the cosign binary itself, not just the installer action.
+          # Without this, the installer downloads "latest" cosign — which
+          # is itself a moving target.  Bump in lockstep with the action.
+          cosign-release: 'v2.6.3'
 
       - name: Sign SHA256SUMS (keyless OIDC)
         working-directory: dist
